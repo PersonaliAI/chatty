@@ -1,0 +1,29 @@
+# Firebase App Hosting Configuration
+# See https://firebase.google.com/docs/app-hosting/configure for schema details
+
+env:
+  - variable: NEXT_PUBLIC_SUPABASE_URL
+    value: "https://hdrcqnvlwzpbuagvsqwe.supabase.co"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkcmNxbnZsd3pwYnVhZ3ZzcXdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MDAyODksImV4cCI6MjA5Mzk3NjI4OX0.p2Vg32TQJbCMsEL3BLlkazi5MA8SwW_mi8Iy1Jh5QRg"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_BACKEND_URL
+    value: "https://personaliai-api-376030619262.us-central1.run.app"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_LEMON_CHECKOUT_URL
+    value: "https://personaliai.lemonsqueezy.com/buy/1484624"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_LEMON_PORTAL_URL
+    value: "https://personaliai.lemonsqueezy.com/billing"
+    availability:
+      - BUILD
+      - RUNTIME
