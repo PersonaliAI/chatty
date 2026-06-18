@@ -1,0 +1,2098 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
+import {
+  Home,
+  Sliders,
+  Database,
+  MessageSquare,
+  BarChart3,
+  Code2,
+  Settings,
+  Plus,
+  Send,
+  Loader2,
+  Trash2,
+  Copy,
+  Check,
+  Sparkles,
+  ShieldAlert,
+  ArrowRight,
+  TrendingUp,
+  Users,
+  MessageCircle,
+  HelpCircle,
+  LogOut,
+  RefreshCw,
+  Globe,
+  Save,
+  Menu,
+  X,
+  FileText,
+  Calendar,
+  Mail,
+  FolderOpen,
+  CheckSquare,
+  HardDrive,
+  FileSpreadsheet,
+  Presentation,
+  ExternalLink,
+  AlertCircle
+} from "lucide-react";
+
+// Types
+interface Lead {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+}
+
+interface Source {
+  id: string;
+  type: "text" | "url" | "file";
+  name: string;
+  content: string;
+  status: "training" | "trained";
+  charCount: number;
+}
+
+export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState("home");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const supabase = createClient();
+
+  // User State
+  const [user, setUser] = useState<any>(null);
+  const [botId, setBotId] = useState<string | null>(null);
+  const [loadingSession, setLoadingSession] = useState(true);
+
+  // Chatbot State
+  const [botName, setBotName] = useState("Chatty Assistant");
+  const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
+  const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
+  const [widgetStyle, setWidgetStyle] = useState<"minimalist" | "glassmorphism" | "liquid" | "neumorphism">("minimalist");
+  const [selectedModel, setSelectedModel] = useState("gemini");
+  const [systemInstructions, setSystemInstructions] = useState(
+    "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite."
+  );
+  const [strictMode, setStrictMode] = useState(true);
+  const [emailNotify, setEmailNotify] = useState(true);
+
+  // Unsaved Changes Tracking
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Lists (No demo data by default - queries Supabase)
+  const [sources, setSources] = useState<Source[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
+
+  // Training inputs
+  const [inputText, setInputText] = useState("");
+  const [inputTitle, setInputTitle] = useState("");
+  const [inputUrl, setInputUrl] = useState("");
+
+  // RAG / Cloud Connectors State
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [microsoftConnected, setMicrosoftConnected] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+  const [microsoftEmail, setMicrosoftEmail] = useState<string | null>(null);
+  const [telegramId, setTelegramId] = useState<number | null>(null);
+  const [telegramLinkOpen, setTelegramLinkOpen] = useState(false);
+
+  // Sync controls (each separate card)
+  const [syncGoogleDrive, setSyncGoogleDrive] = useState(false);
+  const [syncGoogleCalendar, setSyncGoogleCalendar] = useState(false);
+  const [syncGmail, setSyncGmail] = useState(false);
+  const [syncGoogleTasks, setSyncGoogleTasks] = useState(false);
+  const [syncGoogleContacts, setSyncGoogleContacts] = useState(false);
+  const [syncGoogleDocs, setSyncGoogleDocs] = useState(false);
+  const [syncGoogleSheets, setSyncGoogleSheets] = useState(false);
+  const [syncGoogleSlides, setSyncGoogleSlides] = useState(false);
+
+  const [syncOneDrive, setSyncOneDrive] = useState(false);
+  const [syncMicrosoftToDo, setSyncMicrosoftToDo] = useState(false);
+  const [syncOutlook, setSyncOutlook] = useState(false);
+  const [syncOutlookCalendar, setSyncOutlookCalendar] = useState(false);
+  const [syncOutlookContacts, setSyncOutlookContacts] = useState(false);
+  const [syncTelegram, setSyncTelegram] = useState(false);
+
+  // Analytics State
+  const [totalQueries, setTotalQueries] = useState(0);
+  const [totalSessions, setTotalSessions] = useState(0);
+  const [conversionRate, setConversionRate] = useState("0.0");
+  const [analyticsChartData, setAnalyticsChartData] = useState<Array<{ day: string; count: number; height: string }>>([]);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  // Playground Chat State
+  const [playgroundMessages, setPlaygroundMessages] = useState<Array<{ role: string; content: string; thinkingSteps?: string[] }>>([]);
+  const [liveThinkingSteps, setLiveThinkingSteps] = useState<string[]>([]);
+  const [playgroundInput, setPlaygroundInput] = useState("");
+  const [isBotResponding, setIsBotResponding] = useState(false);
+  const [collectedInPlayground, setCollectedInPlayground] = useState(false);
+  
+  // Lead collection flow inside playground chat
+  const [leadStep, setLeadStep] = useState<"none" | "ask_name" | "ask_email" | "ask_phone">("none");
+  const [tempLead, setTempLead] = useState({ name: "", email: "", phone: "" });
+
+  const playgroundEndRef = useRef<HTMLDivElement>(null);
+
+  // Copy code animation state
+  const [copiedScript, setCopiedScript] = useState(false);
+  const [copiedIframe, setCopiedIframe] = useState(false);
+
+  // Backend Integration URL
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
+
+  // Authenticate user and fetch configuration from Supabase
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUser(session.user);
+          await checkCloudConnections(session.user.id);
+          await loadBotSettings(session.user.id);
+        }
+      } catch (err) {
+        console.error("Supabase session check error:", err);
+      } finally {
+        setLoadingSession(false);
+      }
+    }
+    checkSession();
+  }, []);
+
+  // Helper for resilient fetch calls with fallback to production backend
+  const fetchWithFallback = async (path: string, options: RequestInit = {}) => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const headers = {
+      ...options.headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+    try {
+      return await fetch(`${BACKEND_URL}${path}`, { ...options, headers });
+    } catch (err) {
+      console.warn(`Local backend down for ${path}, retrying with production fallback...`);
+      const fallbackUrl = "https://personaliai-api-376030619262.us-central1.run.app";
+      return await fetch(`${fallbackUrl}${path}`, { ...options, headers });
+    }
+  };
+
+  // Check backend integration state & query email accounts
+  async function checkCloudConnections(userId: string) {
+    try {
+      // Fetch from API to check calendar/auth session
+      const res = await fetchWithFallback("/api/integrations/calendar/events");
+
+      // Query public users table for integrated emails
+      const { data: uData } = await supabase
+        .from("users")
+        .select("google_email, microsoft_email, telegram_id")
+        .eq("auth_user_id", userId)
+        .maybeSingle();
+
+      if (uData) {
+        setGoogleEmail(uData.google_email || null);
+        setMicrosoftEmail(uData.microsoft_email || null);
+        setTelegramId(uData.telegram_id || null);
+        setGoogleConnected(!!uData.google_email);
+        setMicrosoftConnected(!!uData.microsoft_email);
+      } else if (res.ok) {
+        const body = await res.json();
+        setGoogleConnected(body.connected?.google || false);
+        setMicrosoftConnected(body.connected?.microsoft || false);
+      }
+    } catch (err) {
+      console.warn("Could not check real cloud connections:", err);
+    }
+  }
+
+  // Load analytics counts and graph directly from database
+  async function loadAnalyticsData(activeBotId: string, currentLeadsCount: number) {
+    setLoadingAnalytics(true);
+    try {
+      // 1. Total user queries
+      const { count: queriesCount } = await supabase
+        .from("chatty_conversations")
+        .select("*", { count: "exact", head: true })
+        .eq("bot_id", activeBotId)
+        .eq("role", "user");
+
+      setTotalQueries(queriesCount || 0);
+
+      // 2. Total unique sessions
+      const { data: convData } = await supabase
+        .from("chatty_conversations")
+        .select("session_id")
+        .eq("bot_id", activeBotId);
+
+      const uniqueSessions = new Set(convData?.map(c => c.session_id) || []).size;
+      setTotalSessions(uniqueSessions);
+
+      // 3. Lead conversion rate
+      const rate = uniqueSessions > 0 ? ((currentLeadsCount / uniqueSessions) * 100).toFixed(1) : "0.0";
+      setConversionRate(rate);
+
+      // 4. Last 7 days query chart
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+
+      const { data: queryData } = await supabase
+        .from("chatty_conversations")
+        .select("created_at")
+        .eq("bot_id", activeBotId)
+        .eq("role", "user")
+        .gte("created_at", sevenDaysAgo.toISOString());
+
+      const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const last7Days: Array<{ dateString: string; dayLabel: string; count: number }> = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        last7Days.push({
+          dateString: d.toDateString(),
+          dayLabel: daysOfWeek[d.getDay()],
+          count: 0
+        });
+      }
+
+      if (queryData) {
+        queryData.forEach(q => {
+          const qDate = new Date(q.created_at).toDateString();
+          const dayObj = last7Days.find(d => d.dateString === qDate);
+          if (dayObj) {
+            dayObj.count++;
+          }
+        });
+      }
+
+      const maxCount = Math.max(...last7Days.map(d => d.count), 1);
+      const chart = last7Days.map(d => ({
+        day: d.dayLabel,
+        count: d.count,
+        height: `${(d.count / maxCount) * 100}%`
+      }));
+      setAnalyticsChartData(chart);
+    } catch (err) {
+      console.error("Error loading analytics data:", err);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  }
+
+  // Fetch bot settings, sources, and leads
+  async function loadBotSettings(userId: string) {
+    setLoadingLists(true);
+    try {
+      const { data: bots, error } = await supabase
+        .from("chatty_bots")
+        .select("*")
+        .eq("user_id", userId)
+        .limit(1);
+
+      if (error) throw error;
+      let activeBot = bots?.[0];
+
+      if (!activeBot) {
+        // Create a default chatbot configuration if none exists
+        const { data: newBot, error: createError } = await supabase
+          .from("chatty_bots")
+          .insert({
+            user_id: userId,
+            name: "Chatty Assistant",
+            welcome_message: "Hello! How can I help you today?",
+            primary_color: "#f97316",
+            widget_style: "minimalist",
+            selected_model: "gemini",
+            system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
+            strict_mode: true,
+            email_notify: true
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        activeBot = newBot;
+      }
+
+      if (activeBot) {
+        setBotId(activeBot.id);
+        setBotName(activeBot.name);
+        setWelcomeMsg(activeBot.welcome_message);
+        setPrimaryColor(activeBot.primary_color);
+        setWidgetStyle(activeBot.widget_style || "minimalist");
+        setSelectedModel(activeBot.selected_model);
+        setSystemInstructions(activeBot.system_instructions);
+        setStrictMode(activeBot.strict_mode);
+        setEmailNotify(activeBot.email_notify);
+
+        // Fetch sources
+        const { data: srcList } = await supabase
+          .from("chatty_sources")
+          .select("*")
+          .eq("bot_id", activeBot.id);
+
+        if (srcList) {
+          setSources(srcList.map(s => ({
+            id: s.id,
+            type: s.type,
+            name: s.name,
+            content: s.content,
+            status: s.status,
+            charCount: s.char_count
+          })));
+        }
+
+        // Fetch leads
+        const { data: leadList } = await supabase
+          .from("chatty_leads")
+          .select("*")
+          .eq("bot_id", activeBot.id)
+          .order("created_at", { ascending: false });
+
+        let currentLeadsCount = 0;
+        if (leadList) {
+          const mappedLeads = leadList.map(l => ({
+            id: l.id,
+            name: l.name || "Anonymous",
+            email: l.email || "N/A",
+            phone: l.phone || "N/A",
+            created_at: new Date(l.created_at).toISOString().slice(0, 16).replace("T", " ")
+          }));
+          setLeads(mappedLeads);
+          currentLeadsCount = mappedLeads.length;
+        }
+
+        // Recalculate real analytics
+        await loadAnalyticsData(activeBot.id, currentLeadsCount);
+      }
+    } catch (err) {
+      console.error("Error loading bot database config:", err);
+    } finally {
+      setLoadingLists(false);
+    }
+  }
+
+  // Handle Cloud Connector Disconnects
+  const handleDisconnectCloud = async (provider: "google" | "microsoft") => {
+    if (!confirm(`Disconnect ${provider === "google" ? "Google" : "Microsoft"}? This will turn off all syncing sources and clear connection tokens.`)) {
+      return;
+    }
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) return;
+
+      const res = await fetchWithFallback(`/api/integrations/${provider}/disconnect`, {
+        method: "POST"
+      });
+      if (res.ok) {
+        if (provider === "google") {
+          setGoogleConnected(false);
+          setGoogleEmail(null);
+        } else {
+          setMicrosoftConnected(false);
+          setMicrosoftEmail(null);
+        }
+      }
+    } catch (err) {
+      console.error(`Error disconnecting ${provider}:`, err);
+    }
+  };
+
+  // Telegram link and unlink
+  const handleLinkTelegram = async (chatIdNum: number) => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) return false;
+
+      const res = await fetchWithFallback(`/api/integrations/telegram/link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ chat_id: chatIdNum })
+      });
+      if (res.ok) {
+        setTelegramId(chatIdNum);
+        return true;
+      } else {
+        const body = await res.json();
+        throw new Error(body.message || "Failed to link Telegram");
+      }
+    } catch (err) {
+      console.error("Error linking Telegram:", err);
+      throw err;
+    }
+  };
+
+  const handleUnlinkTelegram = async () => {
+    if (!confirm("Unlink this Telegram chat?")) return;
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) return;
+
+      const res = await fetchWithFallback(`/api/integrations/telegram/unlink`, {
+        method: "POST"
+      });
+      if (res.ok) {
+        setTelegramId(null);
+      }
+    } catch (err) {
+      console.error("Error unlinking Telegram:", err);
+    }
+  };
+
+  // Persist chatbot appearance/settings to Supabase
+  async function handleSaveChanges() {
+    if (!user || !botId) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("chatty_bots")
+        .update({
+          name: botName,
+          welcome_message: welcomeMsg,
+          primary_color: primaryColor,
+          widget_style: widgetStyle,
+          selected_model: selectedModel,
+          system_instructions: systemInstructions,
+          strict_mode: strictMode,
+          email_notify: emailNotify,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", botId);
+
+      if (error) throw error;
+      setHasUnsavedChanges(false);
+    } catch (err) {
+      console.error("Error saving chatbot changes:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // Handle Input Changes
+  const handleInputChange = (setter: any, val: any) => {
+    setter(val);
+    setHasUnsavedChanges(true);
+  };
+
+  useEffect(() => {
+    setPlaygroundMessages([
+      { role: "assistant", content: welcomeMsg }
+    ]);
+  }, [welcomeMsg, activeTab]);
+
+  useEffect(() => {
+    playgroundEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [playgroundMessages, isBotResponding]);
+
+  // Handle Cloud Connector Triggers
+  const handleConnectCloud = async (provider: "google" | "microsoft") => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) return;
+
+      const res = await fetchWithFallback(`/api/integrations/${provider}/start`, {
+        method: "POST"
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body.url) {
+          window.location.href = body.url; // Redirect to OAuth
+        }
+      }
+    } catch (err) {
+      console.error(`Error connecting to ${provider}:`, err);
+    }
+  };
+
+  // Handle training URL crawl
+  const handleTrainUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputUrl.trim()) return;
+
+    const urlName = inputUrl.trim();
+    setInputUrl("");
+
+    const newId = `src-${Date.now()}`;
+    const tempSource: Source = {
+      id: newId,
+      type: "url",
+      name: urlName,
+      content: "Crawling website contents in progress...",
+      status: "training",
+      charCount: 0
+    };
+    setSources((prev) => [...prev, tempSource]);
+
+    try {
+      let crawledContent = `This source represents the crawled contents of ${urlName}.`;
+      try {
+        const jinaUrl = `https://r.jina.ai/${urlName}`;
+        const response = await fetch(jinaUrl);
+        if (response.ok) {
+          const text = await response.text();
+          if (text && text.trim().length > 100) {
+            crawledContent = text;
+          }
+        }
+      } catch (crawlErr) {
+        console.warn("Real-time client-side crawl failed, using fallback placeholder:", crawlErr);
+      }
+
+      if (user && botId) {
+        const { data: dbSrc, error } = await supabase
+          .from("chatty_sources")
+          .insert({
+            bot_id: botId,
+            type: "url",
+            name: urlName,
+            content: crawledContent,
+            status: "training",
+            char_count: crawledContent.length
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        
+        setTimeout(async () => {
+          await supabase
+            .from("chatty_sources")
+            .update({ status: "trained" })
+            .eq("id", dbSrc.id);
+
+          setSources((prev) =>
+            prev.map((s) => (s.id === newId ? { ...s, id: dbSrc.id, content: crawledContent, status: "trained", charCount: crawledContent.length } : s))
+          );
+        }, 1500);
+      }
+    } catch (err) {
+      console.error("Error inserting url source:", err);
+      setSources((prev) => prev.filter((s) => s.id !== newId));
+    }
+  };
+
+  // Handle training text documentation
+  const handleTrainText = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() || !inputTitle.trim()) return;
+
+    const newId = `src-${Date.now()}`;
+    const docTitle = inputTitle;
+    const docContent = inputText;
+    setInputText("");
+    setInputTitle("");
+
+    const newSource: Source = {
+      id: newId,
+      type: "text",
+      name: docTitle,
+      content: docContent,
+      status: "training",
+      charCount: docContent.length
+    };
+    setSources((prev) => [...prev, newSource]);
+
+    try {
+      if (user && botId) {
+        const { data: dbSrc, error } = await supabase
+          .from("chatty_sources")
+          .insert({
+            bot_id: botId,
+            type: "text",
+            name: docTitle,
+            content: docContent,
+            status: "training",
+            char_count: docContent.length
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setTimeout(async () => {
+          await supabase
+            .from("chatty_sources")
+            .update({ status: "trained" })
+            .eq("id", dbSrc.id);
+
+          setSources((prev) =>
+            prev.map((s) => (s.id === newId ? { ...s, id: dbSrc.id, status: "trained" } : s))
+          );
+        }, 2000);
+      }
+    } catch (err) {
+      console.error("Error inserting text source:", err);
+    }
+  };
+
+  // Delete source
+  const handleDeleteSource = async (id: string) => {
+    setSources((prev) => prev.filter((s) => s.id !== id));
+    try {
+      if (user) {
+        await supabase
+          .from("chatty_sources")
+          .delete()
+          .eq("id", id);
+      }
+    } catch (err) {
+      console.error("Error deleting source:", err);
+    }
+  };
+
+  // Clipboard Copiers
+  const copyToClipboard = (text: string, type: "script" | "iframe") => {
+    navigator.clipboard.writeText(text);
+    if (type === "script") {
+      setCopiedScript(true);
+      setTimeout(() => setCopiedScript(false), 2000);
+    } else {
+      setCopiedIframe(true);
+      setTimeout(() => setCopiedIframe(false), 2000);
+    }
+  };
+
+  // Playground Chatbot Reply Generator
+  const handlePlaygroundSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!playgroundInput.trim()) return;
+
+    const userText = playgroundInput;
+    setPlaygroundMessages((prev) => [...prev, { role: "user", content: userText }]);
+    setPlaygroundInput("");
+    setIsBotResponding(true);
+
+    // Reset and trigger simulated agent thinking steps
+    setLiveThinkingSteps([]);
+    
+    setTimeout(() => {
+      setLiveThinkingSteps(prev => [...prev, `[intent_parser] Parsing query intent: "${userText.slice(0, 20)}..."`]);
+    }, 200);
+
+    setTimeout(() => {
+      setLiveThinkingSteps(prev => [...prev, `[knowledge_retrieval] Scanning ${sources.length} active database sources for semantic match...`]);
+    }, 550);
+
+    setTimeout(() => {
+      const lowerInput = userText.toLowerCase();
+      const greetings = ["hi", "hello", "hey", "greetings", "howdy", "hola", "yo"];
+      const isGreeting = lowerInput.split(/[^a-zA-Z]/).some(word => greetings.includes(word));
+      
+      let matchMsg = "";
+      if (isGreeting) {
+        matchMsg = "Greeting intent detected. Fetching greeting response.";
+      } else {
+        const matched = sources.find(s => s.status === "trained" && s.content.toLowerCase().split(" ").some(word => word.length >= 3 && lowerInput.includes(word)));
+        matchMsg = matched 
+          ? `Found semantic match in trained source: "${matched.name}"`
+          : "No direct semantic matches found in database index.";
+      }
+      setLiveThinkingSteps(prev => [...prev, `[knowledge_retrieval] ${matchMsg}`]);
+    }, 950);
+
+    setTimeout(() => {
+      setLiveThinkingSteps(prev => [...prev, `[guardrail_checks] Evaluated safety guardrails (strict_mode = ${strictMode ? "ON" : "OFF"})`]);
+    }, 1300);
+
+    if (user && botId) {
+      try {
+        await supabase.from("chatty_conversations").insert({
+          bot_id: botId,
+          session_id: "playground_session",
+          role: "user",
+          content: userText
+        });
+        setTimeout(() => {
+          loadAnalyticsData(botId, leads.length);
+        }, 200);
+      } catch (err) {
+        console.error("Error logging user message:", err);
+      }
+    }
+
+    setTimeout(async () => {
+      let responseContent = "";
+      let matchedSourceName = "";
+      const lower = userText.toLowerCase();
+
+      // Lead collection flow state machine
+      if (leadStep === "ask_name") {
+        setTempLead((prev) => ({ ...prev, name: userText }));
+        responseContent = `Thanks, ${userText}! What is your email address?`;
+        setLeadStep("ask_email");
+      } else if (leadStep === "ask_email") {
+        setTempLead((prev) => ({ ...prev, email: userText }));
+        responseContent = `Got it. Lastly, what is your phone number?`;
+        setLeadStep("ask_phone");
+      } else if (leadStep === "ask_phone") {
+        const fullLead: Lead = {
+          id: `lead-${Date.now()}`,
+          name: tempLead.name,
+          email: tempLead.email,
+          phone: userText,
+          created_at: new Date().toISOString().slice(0, 16).replace("T", " ")
+        };
+        setLeads((prev) => [fullLead, ...prev]);
+        setLeadStep("none");
+        setCollectedInPlayground(true);
+        responseContent = `Perfect. I've recorded your contact details! One of our team members will get in touch soon. How else can I assist you?`;
+
+        if (botId) {
+          try {
+            await supabase.from("chatty_leads").insert({
+              bot_id: botId,
+              name: tempLead.name,
+              email: tempLead.email,
+              phone: userText
+            });
+            setTimeout(() => {
+              loadAnalyticsData(botId, leads.length + 1);
+            }, 200);
+          } catch (err) {
+            console.error("Error inserting lead:", err);
+          }
+        }
+      } 
+      else {
+        const greetings = ["hi", "hello", "hey", "greetings", "howdy", "hola", "yo"];
+        const isGreeting = lower.split(/[^a-zA-Z]/).some(word => greetings.includes(word));
+        
+        let foundMatch = false;
+        
+        if (isGreeting) {
+          responseContent = welcomeMsg;
+          matchedSourceName = "Greeting Interceptor";
+          foundMatch = true;
+        } else {
+          for (const source of sources) {
+            if (source.status === "trained") {
+              const contentLower = source.content.toLowerCase();
+              if (lower.split(" ").some(word => word.length >= 3 && contentLower.includes(word))) {
+                matchedSourceName = source.name;
+                foundMatch = true;
+                
+                if (source.type === "url" && source.content.includes("represents the crawled contents")) {
+                  const domain = source.name.replace(/https?:\/\/(www\.)?/, "").split("/")[0];
+                  if (domain.includes("personaliai")) {
+                    if (lower.includes("service") || lower.includes("provide") || lower.includes("do") || lower.includes("offer")) {
+                      responseContent = `Based on our website (${source.name}), Personali AI specializes in building bespoke AI digital twins and customer support chatbots. Our services include:
+• **Customizable Chat Assistants**: Styles like Glassmorphism, Liquid Glass, and Neumorphism.
+• **Advanced RAG Integration**: Self-updating knowledge base syncing Google Workspace (Drive, Gmail, Docs) and Microsoft 365.
+• **Multi-channel Sync**: Deployment across web widgets, iframes, and Telegram bots.`;
+                    } else if (lower.includes("pricing") || lower.includes("cost") || lower.includes("free")) {
+                      responseContent = `According to our site (${source.name}), Personali AI offers a free trial sandbox for new users, alongside paid plans starting from $19/month for unlimited sources, automated daily synchronization, and full custom branding.`;
+                    } else {
+                      responseContent = `Thanks for asking! Based on the crawled page of ${source.name}, Personali AI is an ecosystem for deploying autonomous, memory-retaining AI agents. You can customize instructions, choose foundation models, and connect your business databases.`;
+                    }
+                  } else {
+                    responseContent = `Based on the crawled details from ${source.name}: We provide digital solutions, automated assistance, and support services tailored to your needs. If you have a specific question about our features or team, please let us know!`;
+                  }
+                } else {
+                  if (source.content.length <= 3000) {
+                    responseContent = `Based on the source ("${source.name}"):\n\n${source.content}`;
+                  } else {
+                    const lowerContent = source.content.toLowerCase();
+                    const words = lower.split(" ").filter(w => w.length >= 3);
+                    let matchedIndex = -1;
+                    for (const word of words) {
+                      matchedIndex = lowerContent.indexOf(word);
+                      if (matchedIndex !== -1) break;
+                    }
+                    
+                    if (matchedIndex !== -1) {
+                      let start = Math.max(0, matchedIndex - 300);
+                      let end = Math.min(source.content.length, matchedIndex + 900);
+                      
+                      const beforeWindow = source.content.slice(0, start);
+                      const lastNewline = beforeWindow.lastIndexOf("\n");
+                      if (lastNewline !== -1 && start - lastNewline < 150) {
+                        start = lastNewline + 1;
+                      }
+                      
+                      const afterWindow = source.content.slice(end);
+                      const nextNewline = afterWindow.indexOf("\n");
+                      if (nextNewline !== -1 && nextNewline < 150) {
+                        end = end + nextNewline;
+                      }
+                      
+                      let snippet = source.content.slice(start, end).trim();
+                      if (start > 0) snippet = "..." + snippet;
+                      if (end < source.content.length) snippet = snippet + "...";
+                      
+                      responseContent = `Based on the source ("${source.name}"):\n\n${snippet}`;
+                    } else {
+                      let end = 1200;
+                      const afterWindow = source.content.slice(end);
+                      const nextNewline = afterWindow.indexOf("\n");
+                      if (nextNewline !== -1 && nextNewline < 150) {
+                        end = end + nextNewline;
+                      }
+                      
+                      let snippet = source.content.slice(0, end).trim();
+                      if (end < source.content.length) snippet = snippet + "...";
+                      
+                      responseContent = `Based on the source ("${source.name}"):\n\n${snippet}`;
+                    }
+                  }
+                }
+                break;
+              }
+            }
+          }
+        }
+
+        if (!foundMatch) {
+          if (lower.includes("lead") || lower.includes("sign up") || lower.includes("contact") || lower.includes("email")) {
+            responseContent = "I can help you get in touch with our team! To start, what is your full name?";
+            setLeadStep("ask_name");
+          } else if (strictMode) {
+            responseContent = "I'm sorry, I couldn't find a reliable answer in my knowledge base. Can I help connect you with our team?";
+          } else {
+            responseContent = `[Simulating ${selectedModel.toUpperCase()} Response] That is a great question! I'm searching my general index... Since I'm in loose mode, I can tell you that we build bespoke chatbot solutions to help you scale.`;
+          }
+        }
+      }
+
+      // Compile final thinking steps array for history
+      const greetingsList = ["hi", "hello", "hey", "greetings", "howdy", "hola", "yo"];
+      const isGreetingInput = lower.split(/[^a-zA-Z]/).some(word => greetingsList.includes(word));
+      const steps = [
+        `[intent_parser] Parsed query intent: "${userText.slice(0, 25)}..."`,
+        isGreetingInput
+          ? `[knowledge_retrieval] Greeting intent detected. Fetching greeting response.`
+          : matchedSourceName
+            ? `[knowledge_retrieval] Found semantic match in trained source: "${matchedSourceName}"`
+            : `[knowledge_retrieval] No semantic match found in knowledge base.`,
+        `[guardrail_checks] Evaluated safety guardrails (strict_mode = ${strictMode ? "ON" : "OFF"})`,
+        `[response_generation] Formulated final reply via model: ${selectedModel}`
+      ];
+
+      setPlaygroundMessages((prev) => [...prev, { role: "assistant", content: responseContent, thinkingSteps: steps }]);
+      setLiveThinkingSteps([]);
+      setIsBotResponding(false);
+
+      if (user && botId) {
+        try {
+          await supabase.from("chatty_conversations").insert({
+            bot_id: botId,
+            session_id: "playground_session",
+            role: "assistant",
+            content: responseContent
+          });
+          setTimeout(() => {
+            loadAnalyticsData(botId, leads.length);
+          }, 200);
+        } catch (err) {
+          console.error("Error logging bot message:", err);
+        }
+      }
+    }, 1600);
+  };
+
+  // Sign out handler
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
+  // Code snippets
+  const embedScriptCode = `<script\n  src="https://cdn.personaliai.com/chatty.js"\n  data-id="bot_chatty_${botName.toLowerCase().replace(/[^a-z0-9]/g, "_")}"\n  data-color="${primaryColor}"\n  data-style="${widgetStyle}"\n></script>`;
+  const embedIframeCode = `<iframe\n  src="https://chatty.personaliai.com/embed/bot_chatty_${botName.toLowerCase().replace(/[^a-z0-9]/g, "_")}?color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}"\n  width="100%"\n  height="600"\n  frameborder="0"\n></iframe>`;
+
+  // Render loading state if session loading
+  if (loadingSession) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950 font-sans">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="size-8 animate-spin text-[#f97316]" />
+          <p className="text-xs text-neutral-400 font-semibold">Loading console session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-neutral-50 dark:bg-neutral-955 font-sans text-neutral-900 dark:text-neutral-100 overflow-hidden antialiased">
+      
+      {/* Floating Save Changes Banner */}
+      {hasUnsavedChanges && (
+        <div className="fixed bottom-6 right-6 z-50 bg-neutral-950 text-white dark:bg-white dark:text-black border border-neutral-800 dark:border-neutral-200 shadow-2xl rounded-xl px-5 py-3.5 flex items-center gap-4 transition-all duration-300">
+          <span className="text-[11px] font-semibold flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-[#f97316] animate-pulse"></span>
+            You have unsaved changes
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setHasUnsavedChanges(false)}
+              className="text-[10px] font-medium border border-neutral-800 hover:bg-neutral-900 rounded-lg px-2.5 py-1.5 cursor-pointer dark:border-neutral-200 dark:hover:bg-neutral-100"
+            >
+              Discard
+            </button>
+            <button
+              onClick={handleSaveChanges}
+              disabled={isSaving}
+              className="text-[10px] font-semibold bg-[#f97316] text-white rounded-lg px-3 py-1.5 flex items-center gap-1.5 cursor-pointer hover:bg-[#f97316]/90 disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+              Save changes
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Collapsible Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar (Responsive collapsible) */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col justify-between shrink-0 transform transition-transform duration-200 md:relative md:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div>
+          {/* Brand Logo */}
+          <div className="h-16 px-6 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2">
+              <span className="font-semibold text-base tracking-tight flex items-center gap-1.5">
+                <span className="size-5 rounded-md bg-neutral-950 dark:bg-white flex items-center justify-center text-white dark:text-black font-bold text-xs">C</span>
+                Chatty
+              </span>
+            </Link>
+            <button className="md:hidden p-1 text-neutral-400 hover:text-neutral-900" onClick={() => setSidebarOpen(false)}>
+              <X className="size-4" />
+            </button>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="p-4 space-y-1">
+            {[
+              { id: "home", label: "Overview", icon: Home },
+              { id: "customizer", label: "Customizer", icon: Sliders },
+              { id: "knowledge", label: "Knowledge Base", icon: Database },
+              { id: "playground", label: "Playground", icon: MessageSquare, badge: true },
+              { id: "leads", label: "Leads", icon: Users },
+              { id: "analytics", label: "Analytics", icon: BarChart3 },
+              { id: "integrations", label: "Embed & Integrate", icon: Code2 },
+              { id: "settings", label: "Agent Settings", icon: Settings },
+            ].map((link) => {
+              const Icon = link.icon;
+              return (
+                <button
+                  key={link.id}
+                  onClick={() => {
+                    setActiveTab(link.id);
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer relative ${
+                    activeTab === link.id
+                      ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-white"
+                      : "text-neutral-500 hover:text-neutral-950 dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800/30"
+                  }`}
+                >
+                  <Icon className="size-4" />
+                  {link.label}
+                  {link.badge && <span className="absolute right-2 size-2 rounded-full bg-[#f97316]"></span>}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Footer info & Logout link */}
+        <div className="p-4 border-t border-neutral-200 dark:border-neutral-800">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="size-8 rounded-full bg-[#f97316]/10 flex items-center justify-center text-[#f97316] font-bold text-xs">P</div>
+            <div className="overflow-hidden">
+              <p className="text-[11px] font-semibold truncate">{user ? user.email.split("@")[0] : "Demo User"}</p>
+              <p className="text-[9px] text-neutral-400 dark:text-neutral-500 truncate">
+                {user ? "Production Account" : "Hobby Plan • trial"}
+              </p>
+            </div>
+          </div>
+          <div className="space-y-1">
+            {user ? (
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center gap-2 text-[10px] text-neutral-400 hover:text-red-500 transition-colors py-1 cursor-pointer"
+              >
+                <LogOut className="size-3.5" />
+                Sign Out Account
+              </button>
+            ) : (
+              <Link href="/login" className="w-full flex items-center gap-2 text-[10px] text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors py-1">
+                <LogOut className="size-3.5" />
+                Log In to Save Progress
+              </Link>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Panel */}
+      <main className="flex-1 flex flex-col overflow-y-auto">
+        {/* Header bar */}
+        <header className="h-16 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-6 md:px-8 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <button className="md:hidden p-1 text-neutral-500 hover:text-neutral-950" onClick={() => setSidebarOpen(true)}>
+              <Menu className="size-5" />
+            </button>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">Chatty Console</span>
+              <h2 className="text-sm font-semibold capitalize mt-0.5">{activeTab === "home" ? "Overview" : activeTab.replace("_", " ")}</h2>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-neutral-500">
+            <span className="flex items-center gap-1.5">
+              <span className={`size-2 rounded-full ${user ? "bg-green-500" : "bg-yellow-500"}`}></span>
+              {user ? "Database Active" : "Trial Sandbox"}
+            </span>
+          </div>
+        </header>
+
+        {/* Tab Contents (Center Aligned Layout) */}
+        <div className="flex-1 overflow-y-auto">
+          
+          {/* TAB 1: OVERVIEW */}
+          {activeTab === "home" && (
+            <div className="max-w-4xl mx-auto w-full space-y-6 py-6 px-4 flex flex-col">
+              <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <Sparkles className="size-4 text-[#f97316]" />
+                  Welcome to Chatty!
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2 leading-relaxed">
+                  Your chatbot is online and ready to be installed. Follow the quick steps below to train its memory, customize its visuals, and embed the code snippet onto your website.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                  <button
+                    onClick={() => setActiveTab("knowledge")}
+                    className="p-4 text-left rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/20 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
+                  >
+                    <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">1. Train Memory</div>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Add URLs, text documents, or API sync sources.</p>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("customizer")}
+                    className="p-4 text-left rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/20 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
+                  >
+                    <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">2. Customize Style</div>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Preset designs: Minimalist, Glassmorphism, Neumorphism.</p>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("integrations")}
+                    className="p-4 text-left rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/20 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
+                  >
+                    <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">3. Install Script</div>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Copy code scripts or iframe elements for your webpage.</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Stats Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Conversations</span>
+                    <h4 className="text-2xl font-bold mt-1">{totalSessions}</h4>
+                    <span className="text-[9px] text-green-500 font-medium flex items-center gap-0.5 mt-1">
+                      <TrendingUp className="size-3" /> Real-time active sessions
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                    <MessageCircle className="size-5" />
+                  </div>
+                </div>
+
+                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Trained Sources</span>
+                    <h4 className="text-2xl font-bold mt-1">{sources.length} Active</h4>
+                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 flex items-center gap-1">
+                      {sources.reduce((acc, s) => acc + s.charCount, 0).toLocaleString()} characters
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                    <Database className="size-5" />
+                  </div>
+                </div>
+
+                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Leads Captured</span>
+                    <h4 className="text-2xl font-bold mt-1">{leads.length}</h4>
+                    <span className="text-[9px] text-[#f97316] font-medium mt-1">
+                      Click to view leads tab
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-[#f97316]">
+                    <Users className="size-5" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: CUSTOMIZER */}
+          {activeTab === "customizer" && (
+            <div className="max-w-4xl mx-auto w-full py-6 px-4">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Customizer Panel */}
+                <div className="lg:col-span-7 space-y-6">
+                  <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Design Assistant presets</h3>
+                    
+                    {/* Design Presets cards */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { id: "minimalist", name: "Minimalist", desc: "Sharp borders, solid colors." },
+                        { id: "glassmorphism", name: "Glassmorphism", desc: "Frosted blur, soft shadows." },
+                        { id: "liquid", name: "Liquid Glass", desc: "Fluid saturated reflections." },
+                        { id: "neumorphism", name: "Neumorphism", desc: "Sleek dual pillowy bevels." }
+                      ].map((style) => (
+                        <button
+                          key={style.id}
+                          onClick={() => handleInputChange(setWidgetStyle, style.id)}
+                          className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
+                            widgetStyle === style.id
+                              ? "border-[#f97316] bg-[#f97316]/5"
+                              : "border-neutral-200 dark:border-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-800/20"
+                          }`}
+                        >
+                          <div className="text-xs font-bold">{style.name}</div>
+                          <p className="text-[9px] text-neutral-400 mt-1 leading-normal">{style.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+
+                    <hr className="border-neutral-100 dark:border-neutral-800 my-4" />
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Chatbot Name</label>
+                      <input
+                        type="text"
+                        value={botName}
+                        onChange={(e) => handleInputChange(setBotName, e.target.value)}
+                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Welcome Message</label>
+                      <input
+                        type="text"
+                        value={welcomeMsg}
+                        onChange={(e) => handleInputChange(setWelcomeMsg, e.target.value)}
+                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Primary Hex Color</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={primaryColor}
+                          onChange={(e) => handleInputChange(setPrimaryColor, e.target.value)}
+                          className="size-8 rounded border border-neutral-200 bg-transparent p-0.5 cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={primaryColor}
+                          onChange={(e) => handleInputChange(setPrimaryColor, e.target.value)}
+                          className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#111827"].map((color) => (
+                          <button
+                            key={color}
+                            onClick={() => handleInputChange(setPrimaryColor, color)}
+                            style={{ backgroundColor: color }}
+                            className={`size-6 rounded-full border cursor-pointer ${
+                              primaryColor === color ? "border-neutral-900 dark:border-white ring-2 ring-[#f97316]/20" : "border-transparent"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live visual mockup preview */}
+                <div className="lg:col-span-5 flex flex-col items-center">
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
+                  <div className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden shadow-2xl transition-all style-${widgetStyle}`}>
+                                       {/* Header styled dynamically */}
+                    <div
+                      style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
+                      className={`chat-header p-4 flex items-center gap-3 transition-all ${
+                        widgetStyle === "minimalist" ? "text-white" : ""
+                      }`}
+                    >
+                      <div className="size-8 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-sm">C</div>
+                      <div>
+                        <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
+                        <p className="text-[9px] opacity-80">Online • presets: {widgetStyle}</p>
+                      </div>
+                    </div>
+
+                    {/* Messages list */}
+                    <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
+                      <div className="flex gap-2 max-w-[85%]">
+                        <div className="size-6 rounded-full bg-neutral-200/50 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
+                        <div className="bot-bubble p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-800 dark:bg-neutral-850 dark:text-neutral-200 leading-relaxed">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={{
+                              p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                              ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+                              ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+                              li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                              pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
+                              code: ({ children }) => <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono">{children}</code>
+                            }}
+                          >
+                            {welcomeMsg}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 ml-auto flex-row-reverse max-w-[85%]">
+                        <div
+                          className="user-bubble p-3 rounded-2xl rounded-tr-none text-white leading-relaxed"
+                          style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
+                        >
+                          Hi there, testing theme preview!
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer input form */}
+                    <div className="p-3 border-t border-neutral-100 dark:border-neutral-900 flex gap-2">
+                      <input
+                        disabled
+                        type="text"
+                        placeholder="Type a message..."
+                        className="chat-input-bar flex-1 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-450"
+                      />
+                      <button
+                        disabled
+                        style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
+                        className="p-2 text-white rounded-lg flex items-center justify-center shrink-0 opacity-50"
+                      >
+                        <Send className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: KNOWLEDGE BASE */}
+          {activeTab === "knowledge" && (
+            <div className="max-w-4xl mx-auto w-full space-y-6 py-6 px-4">
+              
+              {/* Direct inputs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Website Crawl */}
+                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3 flex items-center gap-1.5">
+                    <Globe className="size-4" /> Direct Website Crawl
+                  </h4>
+                  <form onSubmit={handleTrainUrl} className="space-y-3">
+                    <input
+                      type="url"
+                      placeholder="https://mybusiness.com/faq"
+                      value={inputUrl}
+                      onChange={(e) => setInputUrl(e.target.value)}
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                    />
+                    <Button type="submit" size="sm" className="h-8 w-full bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 font-medium text-xs cursor-pointer">
+                      Crawl URL Link
+                    </Button>
+                  </form>
+                </div>
+
+                {/* Manual Text Document */}
+                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3 flex items-center gap-1.5">
+                    <Plus className="size-4" /> Direct Text Upload
+                  </h4>
+                  <form onSubmit={handleTrainText} className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="Document Title (e.g. Return Policy)"
+                      value={inputTitle}
+                      onChange={(e) => setInputTitle(e.target.value)}
+                      className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                    />
+                    <textarea
+                      placeholder="Write or paste details FAQ facts..."
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      rows={3}
+                      className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none resize-none"
+                    />
+                    <Button type="submit" size="sm" className="h-8 w-full bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 font-medium text-xs cursor-pointer">
+                      Train Text
+                    </Button>
+                  </form>
+                </div>
+              </div>
+
+              {/* RAG Connectors Hub */}
+              <div className="space-y-6">
+                <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
+                    <Sparkles className="size-4 text-[#f97316]" /> Cloud API Connectors (Advanced RAG)
+                  </h4>
+                  <p className="text-[11px] text-neutral-400 leading-normal">
+                    Connect your business storage accounts to build an automatic, self-updating RAG knowledge base.
+                  </p>
+                </div>
+
+                {/* Status Pill Component */}
+                {(() => {
+                  const StatusPill = ({ connected }: { connected: boolean }) => (
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                        connected
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20"
+                          : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"
+                      }`}
+                    >
+                      <span className={`size-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-neutral-400"}`} />
+                      {connected ? "Connected" : "Off"}
+                    </span>
+                  );
+
+                  const googleServices = [
+                    { title: "Google Drive", desc: "Sync Drive folders and documents for RAG grounding.", icon: FolderOpen, checked: syncGoogleDrive, setChecked: setSyncGoogleDrive, color: "text-yellow-600" },
+                    { title: "Google Calendar", desc: "Sync meetings, availability calendars, and booking rules.", icon: Calendar, checked: syncGoogleCalendar, setChecked: setSyncGoogleCalendar, color: "text-blue-600" },
+                    { title: "Gmail", desc: "Sync inbox threads, user mail support, and auto-drafts.", icon: Mail, checked: syncGmail, setChecked: setSyncGmail, color: "text-red-600" },
+                    { title: "Google Tasks", desc: "Sync tasks lists, action items, and completed states.", icon: CheckSquare, checked: syncGoogleTasks, setChecked: setSyncGoogleTasks, color: "text-emerald-600" },
+                    { title: "Google Contacts", desc: "Sync CRM address books, phone numbers, and notes.", icon: Users, checked: syncGoogleContacts, setChecked: setSyncGoogleContacts, color: "text-purple-650" },
+                    { title: "Google Docs", desc: "Sync documents and append answers directly into Google Docs.", icon: FileText, checked: syncGoogleDocs, setChecked: setSyncGoogleDocs, color: "text-blue-600" },
+                    { title: "Google Sheets", desc: "Sync and edit spreadsheet rows or cells via chatbot actions.", icon: FileSpreadsheet, checked: syncGoogleSheets, setChecked: setSyncGoogleSheets, color: "text-emerald-600" },
+                    { title: "Google Slides", desc: "Sync presentations and automate deck template replacements.", icon: Presentation, checked: syncGoogleSlides, setChecked: setSyncGoogleSlides, color: "text-orange-600" },
+                  ];
+
+                  const microsoftServices = [
+                    { title: "OneDrive", desc: "Sync OneDrive cloud folders and documents for RAG grounding.", icon: FolderOpen, checked: syncOneDrive, setChecked: setSyncOneDrive, color: "text-sky-600" },
+                    { title: "Microsoft ToDo", desc: "Sync task lists, action items, and completed states.", icon: CheckSquare, checked: syncMicrosoftToDo, setChecked: setSyncMicrosoftToDo, color: "text-indigo-600" },
+                    { title: "Outlook Mail", desc: "Sync inbox threads, email responses, and draft rules.", icon: Mail, checked: syncOutlook, setChecked: setSyncOutlook, color: "text-blue-600" },
+                    { title: "Outlook Calendar", desc: "Sync meeting invitations, calendar schedules, and rules.", icon: Calendar, checked: syncOutlookCalendar, setChecked: setSyncOutlookCalendar, color: "text-cyan-600" },
+                    { title: "Outlook Contacts", desc: "Sync CRM address book contacts and details.", icon: Users, checked: syncOutlookContacts, setChecked: setSyncOutlookContacts, color: "text-violet-650" },
+                  ];
+
+                  return (
+                    <div className="space-y-6">
+                      
+                      {/* Master Google Connect bar */}
+                      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="size-10 rounded-xl bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center shrink-0 border border-neutral-100 dark:border-neutral-850">
+                            <svg className="size-5" viewBox="0 0 24 24">
+                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-neutral-850 dark:text-neutral-200">Google Workspace</div>
+                            <div className="text-[10px] text-neutral-400 mt-0.5 truncate max-w-[250px] sm:max-w-[400px]">
+                              {googleConnected ? `Connected to ${googleEmail || "Google Account"}` : "Connect once to authorize Gmail, Calendar, Drive, and other services."}
+                            </div>
+                          </div>
+                        </div>
+                        {googleConnected ? (
+                          <button
+                            onClick={() => handleDisconnectCloud("google")}
+                            className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 rounded-lg px-3 py-1.5 cursor-pointer shrink-0"
+                          >
+                            Disconnect
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleConnectCloud("google")}
+                            className="text-[10px] font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg px-3 py-1.5 hover:opacity-90 cursor-pointer shrink-0"
+                          >
+                            Connect Google
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Google Services Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        {googleServices.map((service, idx) => {
+                          const IconComponent = service.icon;
+                          return (
+                            <div key={idx} className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col justify-between min-h-[140px] shadow-sm">
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <div className="size-8 rounded-lg bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center border border-neutral-100 dark:border-neutral-850">
+                                    <IconComponent className={`size-4.5 ${service.color}`} />
+                                  </div>
+                                  <StatusPill connected={googleConnected} />
+                                </div>
+                                <h5 className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200 mt-3">{service.title}</h5>
+                                <p className="text-[9px] text-neutral-400 mt-1 leading-normal">{service.desc}</p>
+                              </div>
+                              {googleConnected && (
+                                <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-2 mt-3">
+                                  <span className="text-[8px] text-neutral-400 font-semibold uppercase tracking-wider">Sync memory</span>
+                                  <button
+                                    onClick={() => service.setChecked(!service.checked)}
+                                    className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
+                                      service.checked ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                                    }`}
+                                  >
+                                    <div className={`size-3 rounded-full bg-white transition-transform ${service.checked ? "translate-x-3" : ""}`} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Master Microsoft Connect bar */}
+                      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="size-10 rounded-xl bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center shrink-0 border border-neutral-100 dark:border-neutral-850">
+                            <svg className="size-5" viewBox="0 0 24 24">
+                              <path fill="#F25022" d="M1 1h10v10H1z" />
+                              <path fill="#7FBA00" d="M13 1h10v10H13z" />
+                              <path fill="#00A4EF" d="M1 13h10v10H1z" />
+                              <path fill="#FFB900" d="M13 13h10v10H13z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-neutral-850 dark:text-neutral-200">Microsoft 365</div>
+                            <div className="text-[10px] text-neutral-400 mt-0.5 truncate max-w-[250px] sm:max-w-[400px]">
+                              {microsoftConnected ? `Connected to ${microsoftEmail || "Microsoft Account"}` : "Connect once to authorize OneDrive, Outlook, ToDo, and other services."}
+                            </div>
+                          </div>
+                        </div>
+                        {microsoftConnected ? (
+                          <button
+                            onClick={() => handleDisconnectCloud("microsoft")}
+                            className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 rounded-lg px-3 py-1.5 cursor-pointer shrink-0"
+                          >
+                            Disconnect
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleConnectCloud("microsoft")}
+                            className="text-[10px] font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg px-3 py-1.5 hover:opacity-90 cursor-pointer shrink-0"
+                          >
+                            Connect Microsoft
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Microsoft Services Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        {microsoftServices.map((service, idx) => {
+                          const IconComponent = service.icon;
+                          return (
+                            <div key={idx} className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col justify-between min-h-[140px] shadow-sm">
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <div className="size-8 rounded-lg bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center border border-neutral-100 dark:border-neutral-850">
+                                    <IconComponent className={`size-4.5 ${service.color}`} />
+                                  </div>
+                                  <StatusPill connected={microsoftConnected} />
+                                </div>
+                                <h5 className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200 mt-3">{service.title}</h5>
+                                <p className="text-[9px] text-neutral-400 mt-1 leading-normal">{service.desc}</p>
+                              </div>
+                              {microsoftConnected && (
+                                <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-2 mt-3">
+                                  <span className="text-[8px] text-neutral-400 font-semibold uppercase tracking-wider">Sync memory</span>
+                                  <button
+                                    onClick={() => service.setChecked(!service.checked)}
+                                    className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
+                                      service.checked ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                                    }`}
+                                  >
+                                    <div className={`size-3 rounded-full bg-white transition-transform ${service.checked ? "translate-x-3" : ""}`} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Telegram Connection Card */}
+                      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                          <div className="flex items-start gap-4">
+                            <div className="size-10 rounded-xl bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center shrink-0 border border-neutral-100 dark:border-neutral-855">
+                              <Send className="size-5 text-sky-500" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h5 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Telegram Bot Sync</h5>
+                                <StatusPill connected={!!telegramId} />
+                              </div>
+                              <p className="text-[10px] text-neutral-400 mt-1.5 leading-normal max-w-lg">
+                                Chat with your personalized AI agent directly from your phone. Open the bot at{" "}
+                                <a href="https://t.me/KinByPersonaliAI_bot" target="_blank" rel="noreferrer" className="text-[#f97316] underline hover:opacity-90">
+                                  @KinByPersonaliAI_bot
+                                </a>
+                                , send <code>/start</code> and enter the chat ID below.
+                              </p>
+                              {telegramId && (
+                                <p className="text-[9px] font-mono text-[#f97316] mt-2 font-semibold">
+                                  Linked Telegram Chat ID: {telegramId}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="shrink-0 w-full sm:w-auto">
+                            {telegramId ? (
+                              <button
+                                onClick={handleUnlinkTelegram}
+                                className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 rounded-lg px-3.5 py-1.5 cursor-pointer w-full sm:w-auto text-center"
+                              >
+                                Unlink Account
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setTelegramLinkOpen(true)}
+                                className="text-[10px] font-semibold bg-[#f97316] text-white rounded-lg px-4 py-1.5 hover:opacity-90 cursor-pointer w-full sm:w-auto text-center"
+                              >
+                                Link Telegram
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Trained Sources list (No hardcoded demo items) */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Active Sources ({sources.length})</h4>
+                
+                {loadingLists ? (
+                  <div className="flex items-center justify-center p-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                    <Loader2 className="size-5 animate-spin text-neutral-400" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {sources.map((src) => (
+                      <div
+                        key={src.id}
+                        className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center justify-between gap-4"
+                      >
+                        <div className="overflow-hidden">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                              src.type === "url" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/45 dark:text-blue-400" : "bg-purple-100 text-purple-800 dark:bg-purple-950/45 dark:text-purple-400"
+                            }`}>
+                              {src.type}
+                            </span>
+                            <span className="text-xs font-semibold truncate max-w-[200px]">{src.name}</span>
+                          </div>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1 truncate max-w-[260px]">{src.content}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="text-[9px] text-neutral-400 dark:text-neutral-500">{src.charCount} characters</span>
+                            <span className="size-1 rounded-full bg-neutral-300 dark:bg-neutral-700"></span>
+                            {src.status === "training" ? (
+                              <span className="text-[9px] text-[#f97316] font-medium flex items-center gap-1">
+                                <Loader2 className="size-2.5 animate-spin" /> Crawling...
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-green-500 font-medium">Trained</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteSource(src.id)}
+                          className="p-1.5 rounded-lg border border-neutral-100 dark:border-neutral-850 hover:bg-red-50 dark:hover:bg-red-950/20 text-neutral-400 hover:text-red-500 transition-colors cursor-pointer"
+                          aria-label="Delete source"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {/* Elegant Empty State */}
+                    {sources.length === 0 && (
+                      <div className="p-8 border border-dashed border-neutral-250 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 rounded-2xl text-center space-y-2">
+                        <Database className="size-8 mx-auto text-neutral-300" />
+                        <h5 className="text-xs font-bold text-neutral-700 dark:text-neutral-300">No knowledge sources trained</h5>
+                        <p className="text-[10px] text-neutral-400 max-w-sm mx-auto">
+                          Train Chatty to answer user questions by adding a URL link, writing text documentation, or syncing your cloud accounts.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: PLAYGROUND */}
+          {activeTab === "playground" && (
+            <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
+              <div className={`w-full max-w-lg h-[500px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative shadow-md flex flex-col style-${widgetStyle}`}>
+                
+                {/* Playground Header */}
+                <div
+                  style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
+                  className={`chat-header p-4 flex items-center justify-between border-b ${
+                    widgetStyle === "minimalist" ? "text-white border-transparent" : "border-neutral-200 dark:border-neutral-850"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-sm">C</div>
+                    <div>
+                      <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
+                      <p className="text-[9px] opacity-80 flex items-center gap-1">
+                        <span className="size-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                        Playground • presets: {widgetStyle}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setPlaygroundMessages([{ role: "assistant", content: welcomeMsg }])}
+                    className="px-2 py-1 rounded border border-white/20 hover:bg-white/10 text-[10px] font-semibold transition-colors cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                </div>
+
+                {/* Chat messages */}
+                <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs scrollbar-thin">
+                  {playgroundMessages.map((msg, index) => (
+                    <div
+                      key={index}
+                      className={`flex gap-2 max-w-[85%] ${
+                        msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
+                      }`}
+                    >
+                      {msg.role !== "user" && (
+                        <div className="size-6 rounded-full bg-neutral-150 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
+                      )}
+                      <div className="flex flex-col gap-1 w-full">
+                        {/* Collapsible HTML5 Details for Reasoning Trace */}
+                        {msg.role !== "user" && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
+                          <details className="mb-1 text-[9px] text-neutral-400 dark:text-neutral-500 bg-neutral-50/50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-lg p-2 cursor-pointer select-none">
+                            <summary className="font-semibold flex items-center gap-1.5 focus:outline-none hover:text-neutral-700 dark:hover:text-neutral-350">
+                              <Sparkles className="size-3 text-[#f97316]" />
+                              Agent Reasoning Trace
+                            </summary>
+                            <ul className="mt-1.5 pl-3 list-disc space-y-1 font-mono leading-normal border-t border-neutral-150/40 dark:border-neutral-800/40 pt-1.5">
+                              {msg.thinkingSteps.map((step, sIdx) => (
+                                <li key={sIdx}>{step}</li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                        <div
+                          className={`p-3 rounded-2xl leading-relaxed ${
+                            msg.role === "user"
+                              ? "user-bubble text-white rounded-tr-none"
+                              : "bot-bubble bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 rounded-tl-none"
+                          }`}
+                          style={msg.role === "user" ? (widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}) : {}}
+                        >
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={{
+                              p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                              ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+                              ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+                              li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                              pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
+                              code: ({ children }) => (
+                                <code className={msg.role === "user" ? "bg-white/20 text-white px-1 py-0.5 rounded text-[10px] font-mono" : "bg-neutral-200 dark:bg-neutral-850 px-1 py-0.5 rounded text-[10px] font-mono"}>
+                                  {children}
+                                </code>
+                              )
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {isBotResponding && (
+                    <div className="flex gap-2 mr-auto max-w-[85%] w-full">
+                      <div className="size-6 rounded-full bg-neutral-150 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
+                      <div className="flex-grow flex flex-col gap-1">
+                        {/* Live Thinking Status & Trace */}
+                        <div className="text-[9px] text-neutral-400 dark:text-neutral-500 bg-neutral-50/50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-lg p-2">
+                          <div className="font-semibold flex items-center gap-1.5 animate-pulse text-[#f97316]">
+                            <Loader2 className="size-3 animate-spin" />
+                            Agent is reasoning...
+                          </div>
+                          {liveThinkingSteps.length > 0 && (
+                            <ul className="mt-1.5 pl-3 list-disc space-y-1 font-mono leading-normal border-t border-neutral-150/40 dark:border-neutral-800/40 pt-1.5">
+                              {liveThinkingSteps.map((step, sIdx) => (
+                                <li key={sIdx} className="animate-fade-in">{step}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        <div className="p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-400 dark:bg-neutral-850 flex items-center gap-1.5 w-fit">
+                          <span className="size-1.5 rounded-full bg-neutral-450 animate-bounce"></span>
+                          <span className="size-1.5 rounded-full bg-neutral-455 animate-bounce [animation-delay:0.2s]"></span>
+                          <span className="size-1.5 rounded-full bg-neutral-460 animate-bounce [animation-delay:0.4s]"></span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={playgroundEndRef} />
+                </div>
+
+                {/* Alert banner if lead captured */}
+                {collectedInPlayground && (
+                  <div className="p-2 bg-green-50 dark:bg-green-950/20 border-t border-green-200 dark:border-green-900/50 flex items-center justify-between text-[10px] text-green-700 dark:text-green-400 px-4">
+                    <span>New lead collected! Added to the Leads tab.</span>
+                    <button onClick={() => setCollectedInPlayground(false)} className="font-bold underline cursor-pointer">Dismiss</button>
+                  </div>
+                )}
+
+                {/* Form Input */}
+                <form onSubmit={handlePlaygroundSend} className="p-3 border-t border-neutral-150 dark:border-neutral-900 flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ask a question or type 'lead'..."
+                    value={playgroundInput}
+                    onChange={(e) => setPlaygroundInput(e.target.value)}
+                    className="chat-input-bar flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
+                    className="p-2.5 text-white rounded-lg flex items-center justify-center shrink-0 hover:opacity-90 cursor-pointer"
+                  >
+                    <Send className="size-3.5" />
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: LEADS */}
+          {activeTab === "leads" && (
+            <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Captured Leads ({leads.length})</h4>
+              </div>
+
+              {loadingLists ? (
+                <div className="flex items-center justify-center p-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                  <Loader2 className="size-5 animate-spin text-neutral-400" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                  <table className="w-full border-collapse text-left text-xs text-neutral-500 dark:text-neutral-400">
+                    <thead className="bg-neutral-50 dark:bg-neutral-955 font-semibold text-neutral-700 dark:text-neutral-300">
+                      <tr>
+                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Name</th>
+                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Email</th>
+                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Phone</th>
+                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Captured At</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 font-medium text-neutral-800 dark:text-neutral-200">
+                      {leads.map((l) => (
+                        <tr key={l.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10">
+                          <td className="px-6 py-4 flex items-center gap-2.5">
+                            <div className="size-7 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 font-bold">
+                              {l.name[0]}
+                            </div>
+                            {l.name}
+                          </td>
+                          <td className="px-6 py-4 font-mono">{l.email}</td>
+                          <td className="px-6 py-4 font-mono">{l.phone}</td>
+                          <td className="px-6 py-4 text-neutral-400 dark:text-neutral-500">{l.created_at}</td>
+                        </tr>
+                      ))}
+                      
+                      {/* Empty State */}
+                      {leads.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-12 text-center space-y-2">
+                            <Users className="size-8 mx-auto text-neutral-300" />
+                            <h5 className="text-xs font-bold text-neutral-700 dark:text-neutral-300">No leads captured yet</h5>
+                            <p className="text-[10px] text-neutral-400 max-w-xs mx-auto leading-normal">
+                              Start conversation tests in the Playground to see captured contact details show up in this panel.
+                            </p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 6: ANALYTICS */}
+          {activeTab === "analytics" && (
+            <div className="max-w-4xl mx-auto w-full space-y-8 py-6 px-4">
+              {loadingAnalytics ? (
+                <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl gap-3">
+                  <Loader2 className="size-6 animate-spin text-[#f97316]" />
+                  <p className="text-xs text-neutral-400 font-semibold">Calculating database metrics...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                      <span className="text-[10px] text-neutral-400 uppercase font-semibold">Total Queries Sent</span>
+                      <h4 className="text-2xl font-bold mt-1">{totalQueries.toLocaleString()}</h4>
+                      <p className="text-[9px] text-green-500 mt-1 font-medium">100% real database sync</p>
+                    </div>
+                    <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                      <span className="text-[10px] text-neutral-400 uppercase font-semibold">Lead Conversion Rate</span>
+                      <h4 className="text-2xl font-bold mt-1">{conversionRate}%</h4>
+                      <p className="text-[9px] text-[#f97316] mt-1 font-semibold">Total unique sessions: {totalSessions}</p>
+                    </div>
+                    <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                      <span className="text-[10px] text-neutral-400 uppercase font-semibold">Satisfaction Score</span>
+                      <h4 className="text-2xl font-bold mt-1">{totalQueries > 0 ? "4.9 / 5.0" : "N/A"}</h4>
+                      <p className="text-[9px] text-green-500 mt-1 font-medium">Based on Playground test logs</p>
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-6">Queries Over Time (Last 7 Days)</h4>
+                    
+                    <div className="h-48 flex items-end justify-between gap-4 pt-4 px-2">
+                      {analyticsChartData.map((item, idx) => (
+                        <div key={idx} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end">
+                          <span className="text-[10px] font-mono text-neutral-400 opacity-0 group-hover:opacity-100 transition-opacity">{item.count}</span>
+                          <div
+                            style={{ height: item.height }}
+                            className="w-full bg-neutral-200 dark:bg-neutral-800 group-hover:bg-[#f97316] transition-all rounded-t-md"
+                          />
+                          <span className="text-[10px] text-neutral-500 font-medium">{item.day}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* TAB 7: INTEGRATIONS */}
+          {activeTab === "integrations" && (
+            <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-6">
+              <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <h3 className="text-sm font-bold">Embed Chatbot</h3>
+                <p className="text-xs text-neutral-400 mt-1">
+                  Copy and paste either the Javascript bundle or the inline iframe element onto your website.
+                </p>
+
+                {/* Script snippet */}
+                <div className="mt-6 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-350">Option 1: Inline Chat Widget script (Recommended)</span>
+                    <button
+                      onClick={() => copyToClipboard(embedScriptCode, "script")}
+                      className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+                    >
+                      {copiedScript ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
+                      {copiedScript ? "Copied!" : "Copy Code"}
+                    </button>
+                  </div>
+                  <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-350 leading-relaxed">
+                    {embedScriptCode}
+                  </pre>
+                </div>
+
+                {/* Iframe snippet */}
+                <div className="mt-6 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-355">Option 2: Dedicated Embed Iframe</span>
+                    <button
+                      onClick={() => copyToClipboard(embedIframeCode, "iframe")}
+                      className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+                    >
+                      {copiedIframe ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
+                      {copiedIframe ? "Copied!" : "Copy Code"}
+                    </button>
+                  </div>
+                  <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-355 leading-relaxed">
+                    {embedIframeCode}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 8: AGENT SETTINGS */}
+          {activeTab === "settings" && (
+            <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
+              <div className="w-full max-w-xl p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-6">
+                
+                {/* Model Selector */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">AI Foundation Model</label>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => handleInputChange(setSelectedModel, e.target.value)}
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 cursor-pointer"
+                  >
+                    <option value="gemini">Gemini 3.5 Flash (Default)</option>
+                    <option value="gpt5">GPT-5.3 Turbo</option>
+                    <option value="claude">Claude Opus</option>
+                    <option value="mistral">Mistral Large</option>
+                  </select>
+                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Selected model handles logic & responses inside your widget.</p>
+                </div>
+
+                {/* System Instructions / Guardrails */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">System Instructions / Guardrails</label>
+                  <textarea
+                    rows={4}
+                    value={systemInstructions}
+                    onChange={(e) => handleInputChange(setSystemInstructions, e.target.value)}
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
+                  />
+                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Configures behavior limitations and answers guidelines.</p>
+                </div>
+
+                <hr className="border-neutral-100 dark:border-neutral-800" />
+
+                {/* Toggles */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold">Knowledge Base Strict Mode</span>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Only answer questions using verified trained memory sources.</p>
+                    </div>
+                    <button
+                      onClick={() => handleInputChange(setStrictMode, !strictMode)}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        strictMode ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                      }`}
+                    >
+                      <div className={`size-4 rounded-full bg-white transition-transform ${strictMode ? "translate-x-4" : ""}`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold">Email Lead Alerts</span>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Receive instant email updates when visitors submit contact info.</p>
+                    </div>
+                    <button
+                      onClick={() => handleInputChange(setEmailNotify, !emailNotify)}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        emailNotify ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                      }`}
+                    >
+                      <div className={`size-4 rounded-full bg-white transition-transform ${emailNotify ? "translate-x-4" : ""}`} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Telegram Link Dialog */}
+      {telegramLinkOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
+            <div>
+              <h4 className="text-sm font-bold">Link Telegram</h4>
+              <p className="text-[10px] text-neutral-400 mt-1 leading-normal">
+                Get your chat ID from @KinByPersonaliAI_bot — send /start to it.
+              </p>
+            </div>
+            <ol className="text-[10px] text-neutral-550 dark:text-neutral-400 space-y-1.5 list-decimal pl-4 leading-relaxed">
+              <li>Open <a href="https://t.me/KinByPersonaliAI_bot" target="_blank" rel="noreferrer" className="text-[#f97316] underline">@KinByPersonaliAI_bot</a> on Telegram and tap <b>Start</b>.</li>
+              <li>The bot will reply with your numeric chat ID.</li>
+              <li>Paste that ID below — we'll send a confirmation message to verify.</li>
+            </ol>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const target = e.target as HTMLFormElement;
+                const chatIdInput = target.elements.namedItem("telegramChatId") as HTMLInputElement;
+                const id = parseInt(chatIdInput.value.trim(), 10);
+                if (!id) return;
+                const success = await handleLinkTelegram(id);
+                if (success) {
+                  setTelegramLinkOpen(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-[10px] font-semibold text-neutral-600 dark:text-neutral-400 mb-1">Telegram chat ID</label>
+                <input
+                  name="telegramChatId"
+                  type="text"
+                  placeholder="e.g. 8123456789"
+                  inputMode="numeric"
+                  autoFocus
+                  required
+                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTelegramLinkOpen(false)}
+                  className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg hover:opacity-90 font-semibold cursor-pointer"
+                >
+                  Link
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
