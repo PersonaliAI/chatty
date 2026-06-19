@@ -127,6 +127,13 @@ export default function Dashboard() {
   const [schedulingDuration, setSchedulingDuration] = useState(30);
   const [botTimezone, setBotTimezone] = useState("UTC");
 
+  // Google Drive indexing settings
+  const [driveFolderUrl, setDriveFolderUrl] = useState("");
+  const [driveMaxFiles, setDriveMaxFiles] = useState(50);
+  const [isIndexingDrive, setIsIndexingDrive] = useState(false);
+  const [driveIndexError, setDriveIndexError] = useState<string | null>(null);
+  const [driveIndexSuccess, setDriveIndexSuccess] = useState<string | null>(null);
+
   const [syncOneDrive, setSyncOneDrive] = useState(false);
   const [syncMicrosoftToDo, setSyncMicrosoftToDo] = useState(false);
   const [syncOutlook, setSyncOutlook] = useState(false);
@@ -662,6 +669,43 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Error inserting text source:", err);
+    }
+  };
+
+  // Handle Google Drive folder indexing
+  const handleIndexDriveFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!driveFolderUrl.trim()) return;
+
+    setIsIndexingDrive(true);
+    setDriveIndexError(null);
+    setDriveIndexSuccess(null);
+
+    try {
+      const res = await fetchWithFallback("/api/documents/index-folder", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          folder_id_or_url: driveFolderUrl.trim(),
+          max_files: driveMaxFiles,
+          source: "gdrive",
+        }),
+      });
+
+      if (res.ok) {
+        setDriveIndexSuccess("Indexing started in background. The files will be crawled and loaded shortly.");
+        setDriveFolderUrl("");
+      } else {
+        const body = await res.json();
+        setDriveIndexError(body.detail || "Failed to start folder indexing.");
+      }
+    } catch (err) {
+      console.error("Error indexing Drive folder:", err);
+      setDriveIndexError("Failed to connect to the server.");
+    } finally {
+      setIsIndexingDrive(false);
     }
   };
 
@@ -1437,6 +1481,63 @@ export default function Dashboard() {
                               </select>
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Google Drive RAG Settings & Folder Indexer */}
+                      {googleConnected && syncGoogleDrive && (
+                        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-4 shadow-sm">
+                          <h5 className="text-xs font-bold text-neutral-850 dark:text-neutral-200 flex items-center gap-1.5">
+                            <FolderOpen className="size-4 text-yellow-605" /> Google Drive Folder Indexing
+                          </h5>
+                          <p className="text-[10px] text-neutral-400 leading-normal">
+                            Index a Google Drive folder to train your chatbot. The chatbot will read the documents inside the folder to answer visitor questions.
+                          </p>
+
+                          <form onSubmit={handleIndexDriveFolder} className="space-y-4 pt-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                              <div className="sm:col-span-2 space-y-1.5">
+                                <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Folder URL or ID</span>
+                                <input
+                                  type="text"
+                                  placeholder="https://drive.google.com/drive/folders/..."
+                                  value={driveFolderUrl}
+                                  onChange={(e) => setDriveFolderUrl(e.target.value)}
+                                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Max files to index</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={200}
+                                  value={driveMaxFiles}
+                                  onChange={(e) => setDriveMaxFiles(parseInt(e.target.value) || 50)}
+                                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {driveIndexError && (
+                              <p className="text-[10px] text-red-500 font-semibold">{driveIndexError}</p>
+                            )}
+                            {driveIndexSuccess && (
+                              <p className="text-[10px] text-emerald-500 font-semibold">{driveIndexSuccess}</p>
+                            )}
+
+                            <div className="flex justify-end pt-2">
+                              <button
+                                type="submit"
+                                disabled={isIndexingDrive || !driveFolderUrl.trim()}
+                                className="text-[10px] font-semibold bg-[#f97316] text-white rounded-lg px-4 py-1.5 hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                              >
+                                {isIndexingDrive && <Loader2 className="size-3 animate-spin" />}
+                                {isIndexingDrive ? "Indexing..." : "Sync Folder Contents"}
+                              </button>
+                            </div>
+                          </form>
                         </div>
                       )}
 
