@@ -121,6 +121,11 @@ export default function Dashboard() {
   const [syncGoogleSheets, setSyncGoogleSheets] = useState(false);
   const [syncGoogleSlides, setSyncGoogleSlides] = useState(false);
 
+  // Scheduling settings
+  const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
+  const [schedulingDuration, setSchedulingDuration] = useState(30);
+  const [botTimezone, setBotTimezone] = useState("UTC");
+
   const [syncOneDrive, setSyncOneDrive] = useState(false);
   const [syncMicrosoftToDo, setSyncMicrosoftToDo] = useState(false);
   const [syncOutlook, setSyncOutlook] = useState(false);
@@ -340,6 +345,12 @@ export default function Dashboard() {
         setStrictMode(activeBot.strict_mode);
         setEmailNotify(activeBot.email_notify);
 
+        setSyncGoogleDrive(activeBot.sync_google_drive || false);
+        setSyncGoogleCalendar(activeBot.sync_google_calendar || false);
+        setCalendarSchedulingEnabled(activeBot.calendar_scheduling_enabled || false);
+        setSchedulingDuration(activeBot.scheduling_duration_minutes || 30);
+        setBotTimezone(activeBot.bot_timezone || "UTC");
+
         // Fetch sources
         const { data: srcList } = await supabase
           .from("chatty_sources")
@@ -472,6 +483,11 @@ export default function Dashboard() {
           system_instructions: systemInstructions,
           strict_mode: strictMode,
           email_notify: emailNotify,
+          sync_google_drive: syncGoogleDrive,
+          sync_google_calendar: syncGoogleCalendar,
+          calendar_scheduling_enabled: calendarSchedulingEnabled,
+          scheduling_duration_minutes: schedulingDuration,
+          bot_timezone: botTimezone,
           updated_at: new Date().toISOString()
         })
         .eq("id", botId);
@@ -729,157 +745,34 @@ export default function Dashboard() {
 
     setTimeout(async () => {
       let responseContent = "";
-      let matchedSourceName = "";
-      const lower = userText.toLowerCase();
-
-      // Lead collection flow state machine
-      if (leadStep === "ask_name") {
-        setTempLead((prev) => ({ ...prev, name: userText }));
-        responseContent = `Thanks, ${userText}! What is your email address?`;
-        setLeadStep("ask_email");
-      } else if (leadStep === "ask_email") {
-        setTempLead((prev) => ({ ...prev, email: userText }));
-        responseContent = `Got it. Lastly, what is your phone number?`;
-        setLeadStep("ask_phone");
-      } else if (leadStep === "ask_phone") {
-        const fullLead: Lead = {
-          id: `lead-${Date.now()}`,
-          name: tempLead.name,
-          email: tempLead.email,
-          phone: userText,
-          created_at: new Date().toISOString().slice(0, 16).replace("T", " ")
-        };
-        setLeads((prev) => [fullLead, ...prev]);
-        setLeadStep("none");
-        setCollectedInPlayground(true);
-        responseContent = `Perfect. I've recorded your contact details! One of our team members will get in touch soon. How else can I assist you?`;
-
-        if (botId) {
-          try {
-            await supabase.from("chatty_leads").insert({
-              bot_id: botId,
-              name: tempLead.name,
-              email: tempLead.email,
-              phone: userText
-            });
-            setTimeout(() => {
-              loadAnalyticsData(botId, leads.length + 1);
-            }, 200);
-          } catch (err) {
-            console.error("Error inserting lead:", err);
-          }
-        }
-      } 
-      else {
-        const greetings = ["hi", "hello", "hey", "greetings", "howdy", "hola", "yo"];
-        const isGreeting = lower.split(/[^a-zA-Z]/).some(word => greetings.includes(word));
-        
-        let foundMatch = false;
-        
-        if (isGreeting) {
-          responseContent = welcomeMsg;
-          matchedSourceName = "Greeting Interceptor";
-          foundMatch = true;
+      try {
+        const res = await fetchWithFallback("/api/widget/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            bot_id: botId,
+            session_id: "playground_session",
+            text: userText,
+            visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+          })
+        });
+        if (res.ok) {
+          const body = await res.json();
+          responseContent = body.reply;
         } else {
-          for (const source of sources) {
-            if (source.status === "trained") {
-              const contentLower = source.content.toLowerCase();
-              if (lower.split(" ").some(word => word.length >= 3 && contentLower.includes(word))) {
-                matchedSourceName = source.name;
-                foundMatch = true;
-                
-                if (source.type === "url" && source.content.includes("represents the crawled contents")) {
-                  const domain = source.name.replace(/https?:\/\/(www\.)?/, "").split("/")[0];
-                  if (domain.includes("personaliai")) {
-                    if (lower.includes("service") || lower.includes("provide") || lower.includes("do") || lower.includes("offer")) {
-                      responseContent = `Based on our website (${source.name}), Personali AI specializes in building bespoke AI digital twins and customer support chatbots. Our services include:
-• **Customizable Chat Assistants**: Styles like Glassmorphism, Liquid Glass, and Neumorphism.
-• **Advanced RAG Integration**: Self-updating knowledge base syncing Google Workspace (Drive, Gmail, Docs) and Microsoft 365.
-• **Multi-channel Sync**: Deployment across web widgets, iframes, and Telegram bots.`;
-                    } else if (lower.includes("pricing") || lower.includes("cost") || lower.includes("free")) {
-                      responseContent = `According to our site (${source.name}), Personali AI offers a free trial sandbox for new users, alongside paid plans starting from $19/month for unlimited sources, automated daily synchronization, and full custom branding.`;
-                    } else {
-                      responseContent = `Thanks for asking! Based on the crawled page of ${source.name}, Personali AI is an ecosystem for deploying autonomous, memory-retaining AI agents. You can customize instructions, choose foundation models, and connect your business databases.`;
-                    }
-                  } else {
-                    responseContent = `Based on the crawled details from ${source.name}: We provide digital solutions, automated assistance, and support services tailored to your needs. If you have a specific question about our features or team, please let us know!`;
-                  }
-                } else {
-                  if (source.content.length <= 3000) {
-                    responseContent = `Based on the source ("${source.name}"):\n\n${source.content}`;
-                  } else {
-                    const lowerContent = source.content.toLowerCase();
-                    const words = lower.split(" ").filter(w => w.length >= 3);
-                    let matchedIndex = -1;
-                    for (const word of words) {
-                      matchedIndex = lowerContent.indexOf(word);
-                      if (matchedIndex !== -1) break;
-                    }
-                    
-                    if (matchedIndex !== -1) {
-                      let start = Math.max(0, matchedIndex - 300);
-                      let end = Math.min(source.content.length, matchedIndex + 900);
-                      
-                      const beforeWindow = source.content.slice(0, start);
-                      const lastNewline = beforeWindow.lastIndexOf("\n");
-                      if (lastNewline !== -1 && start - lastNewline < 150) {
-                        start = lastNewline + 1;
-                      }
-                      
-                      const afterWindow = source.content.slice(end);
-                      const nextNewline = afterWindow.indexOf("\n");
-                      if (nextNewline !== -1 && nextNewline < 150) {
-                        end = end + nextNewline;
-                      }
-                      
-                      let snippet = source.content.slice(start, end).trim();
-                      if (start > 0) snippet = "..." + snippet;
-                      if (end < source.content.length) snippet = snippet + "...";
-                      
-                      responseContent = `Based on the source ("${source.name}"):\n\n${snippet}`;
-                    } else {
-                      let end = 1200;
-                      const afterWindow = source.content.slice(end);
-                      const nextNewline = afterWindow.indexOf("\n");
-                      if (nextNewline !== -1 && nextNewline < 150) {
-                        end = end + nextNewline;
-                      }
-                      
-                      let snippet = source.content.slice(0, end).trim();
-                      if (end < source.content.length) snippet = snippet + "...";
-                      
-                      responseContent = `Based on the source ("${source.name}"):\n\n${snippet}`;
-                    }
-                  }
-                }
-                break;
-              }
-            }
-          }
+          const body = await res.json();
+          responseContent = `Error: ${body.detail || "Failed to get response from AI assistant"}`;
         }
-
-        if (!foundMatch) {
-          if (lower.includes("lead") || lower.includes("sign up") || lower.includes("contact") || lower.includes("email")) {
-            responseContent = "I can help you get in touch with our team! To start, what is your full name?";
-            setLeadStep("ask_name");
-          } else if (strictMode) {
-            responseContent = "I'm sorry, I couldn't find a reliable answer in my knowledge base. Can I help connect you with our team?";
-          } else {
-            responseContent = `[Simulating ${selectedModel.toUpperCase()} Response] That is a great question! I'm searching my general index... Since I'm in loose mode, I can tell you that we build bespoke chatbot solutions to help you scale.`;
-          }
-        }
+      } catch (err) {
+        console.error("Playground send error:", err);
+        responseContent = "Could not communicate with the backend. Check console logs.";
       }
 
-      // Compile final thinking steps array for history
-      const greetingsList = ["hi", "hello", "hey", "greetings", "howdy", "hola", "yo"];
-      const isGreetingInput = lower.split(/[^a-zA-Z]/).some(word => greetingsList.includes(word));
       const steps = [
         `[intent_parser] Parsed query intent: "${userText.slice(0, 25)}..."`,
-        isGreetingInput
-          ? `[knowledge_retrieval] Greeting intent detected. Fetching greeting response.`
-          : matchedSourceName
-            ? `[knowledge_retrieval] Found semantic match in trained source: "${matchedSourceName}"`
-            : `[knowledge_retrieval] No semantic match found in knowledge base.`,
+        `[knowledge_retrieval] Checked dynamic knowledge & RAG sources.`,
         `[guardrail_checks] Evaluated safety guardrails (strict_mode = ${strictMode ? "ON" : "OFF"})`,
         `[response_generation] Formulated final reply via model: ${selectedModel}`
       ];
@@ -888,22 +781,28 @@ export default function Dashboard() {
       setLiveThinkingSteps([]);
       setIsBotResponding(false);
 
+      // Reload leads and analytics to check if a lead was registered
       if (user && botId) {
-        try {
-          await supabase.from("chatty_conversations").insert({
-            bot_id: botId,
-            session_id: "playground_session",
-            role: "assistant",
-            content: responseContent
-          });
-          setTimeout(() => {
-            loadAnalyticsData(botId, leads.length);
-          }, 200);
-        } catch (err) {
-          console.error("Error logging bot message:", err);
-        }
+        setTimeout(async () => {
+          const { data: leadList } = await supabase
+            .from("chatty_leads")
+            .select("*")
+            .eq("bot_id", botId)
+            .order("created_at", { ascending: false });
+          if (leadList) {
+            const mappedLeads = leadList.map(l => ({
+              id: l.id,
+              name: l.name || "Anonymous",
+              email: l.email || "N/A",
+              phone: l.phone || "N/A",
+              created_at: new Date(l.created_at).toISOString().slice(0, 16).replace("T", " ")
+            }));
+            setLeads(mappedLeads);
+            await loadAnalyticsData(botId, mappedLeads.length);
+          }
+        }, 800);
       }
-    }, 1600);
+    }, 1500);
   };
 
   // Sign out handler
@@ -1391,22 +1290,8 @@ export default function Dashboard() {
                   );
 
                   const googleServices = [
-                    { title: "Google Drive", desc: "Sync Drive folders and documents for RAG grounding.", icon: FolderOpen, checked: syncGoogleDrive, setChecked: setSyncGoogleDrive, color: "text-yellow-600" },
-                    { title: "Google Calendar", desc: "Sync meetings, availability calendars, and booking rules.", icon: Calendar, checked: syncGoogleCalendar, setChecked: setSyncGoogleCalendar, color: "text-blue-600" },
-                    { title: "Gmail", desc: "Sync inbox threads, user mail support, and auto-drafts.", icon: Mail, checked: syncGmail, setChecked: setSyncGmail, color: "text-red-600" },
-                    { title: "Google Tasks", desc: "Sync tasks lists, action items, and completed states.", icon: CheckSquare, checked: syncGoogleTasks, setChecked: setSyncGoogleTasks, color: "text-emerald-600" },
-                    { title: "Google Contacts", desc: "Sync CRM address books, phone numbers, and notes.", icon: Users, checked: syncGoogleContacts, setChecked: setSyncGoogleContacts, color: "text-purple-650" },
-                    { title: "Google Docs", desc: "Sync documents and append answers directly into Google Docs.", icon: FileText, checked: syncGoogleDocs, setChecked: setSyncGoogleDocs, color: "text-blue-600" },
-                    { title: "Google Sheets", desc: "Sync and edit spreadsheet rows or cells via chatbot actions.", icon: FileSpreadsheet, checked: syncGoogleSheets, setChecked: setSyncGoogleSheets, color: "text-emerald-600" },
-                    { title: "Google Slides", desc: "Sync presentations and automate deck template replacements.", icon: Presentation, checked: syncGoogleSlides, setChecked: setSyncGoogleSlides, color: "text-orange-600" },
-                  ];
-
-                  const microsoftServices = [
-                    { title: "OneDrive", desc: "Sync OneDrive cloud folders and documents for RAG grounding.", icon: FolderOpen, checked: syncOneDrive, setChecked: setSyncOneDrive, color: "text-sky-600" },
-                    { title: "Microsoft ToDo", desc: "Sync task lists, action items, and completed states.", icon: CheckSquare, checked: syncMicrosoftToDo, setChecked: setSyncMicrosoftToDo, color: "text-indigo-600" },
-                    { title: "Outlook Mail", desc: "Sync inbox threads, email responses, and draft rules.", icon: Mail, checked: syncOutlook, setChecked: setSyncOutlook, color: "text-blue-600" },
-                    { title: "Outlook Calendar", desc: "Sync meeting invitations, calendar schedules, and rules.", icon: Calendar, checked: syncOutlookCalendar, setChecked: setSyncOutlookCalendar, color: "text-cyan-600" },
-                    { title: "Outlook Contacts", desc: "Sync CRM address book contacts and details.", icon: Users, checked: syncOutlookContacts, setChecked: setSyncOutlookContacts, color: "text-violet-650" },
+                    { title: "Google Drive", desc: "Sync Drive folders and documents for RAG grounding.", icon: FolderOpen, checked: syncGoogleDrive, setChecked: (val: boolean) => handleInputChange(setSyncGoogleDrive, val), color: "text-yellow-600" },
+                    { title: "Google Calendar", desc: "Sync meetings, availability calendars, and booking rules.", icon: Calendar, checked: syncGoogleCalendar, setChecked: (val: boolean) => handleInputChange(setSyncGoogleCalendar, val), color: "text-blue-600" },
                   ];
 
                   return (
@@ -1426,7 +1311,7 @@ export default function Dashboard() {
                           <div>
                             <div className="text-xs font-bold text-neutral-850 dark:text-neutral-200">Google Workspace</div>
                             <div className="text-[10px] text-neutral-400 mt-0.5 truncate max-w-[250px] sm:max-w-[400px]">
-                              {googleConnected ? `Connected to ${googleEmail || "Google Account"}` : "Connect once to authorize Gmail, Calendar, Drive, and other services."}
+                              {googleConnected ? `Connected to ${googleEmail || "Google Account"}` : "Connect once to authorize Google Calendar & Google Drive services."}
                             </div>
                           </div>
                         </div>
@@ -1448,7 +1333,7 @@ export default function Dashboard() {
                       </div>
 
                       {/* Google Services Grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {googleServices.map((service, idx) => {
                           const IconComponent = service.icon;
                           return (
@@ -1481,120 +1366,70 @@ export default function Dashboard() {
                         })}
                       </div>
 
-                      {/* Master Microsoft Connect bar */}
-                      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className="size-10 rounded-xl bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center shrink-0 border border-neutral-100 dark:border-neutral-850">
-                            <svg className="size-5" viewBox="0 0 24 24">
-                              <path fill="#F25022" d="M1 1h10v10H1z" />
-                              <path fill="#7FBA00" d="M13 1h10v10H13z" />
-                              <path fill="#00A4EF" d="M1 13h10v10H1z" />
-                              <path fill="#FFB900" d="M13 13h10v10H13z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-neutral-850 dark:text-neutral-200">Microsoft 365</div>
-                            <div className="text-[10px] text-neutral-400 mt-0.5 truncate max-w-[250px] sm:max-w-[400px]">
-                              {microsoftConnected ? `Connected to ${microsoftEmail || "Microsoft Account"}` : "Connect once to authorize OneDrive, Outlook, ToDo, and other services."}
-                            </div>
-                          </div>
-                        </div>
-                        {microsoftConnected ? (
-                          <button
-                            onClick={() => handleDisconnectCloud("microsoft")}
-                            className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 rounded-lg px-3 py-1.5 cursor-pointer shrink-0"
-                          >
-                            Disconnect
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleConnectCloud("microsoft")}
-                            className="text-[10px] font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg px-3 py-1.5 hover:opacity-90 cursor-pointer shrink-0"
-                          >
-                            Connect Microsoft
-                          </button>
-                        )}
-                      </div>
+                      {/* Google Calendar Scheduling Settings */}
+                      {googleConnected && syncGoogleCalendar && (
+                        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-4 shadow-sm">
+                          <h5 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                            <Calendar className="size-4 text-blue-650" /> Google Calendar Scheduling Configuration
+                          </h5>
+                          <p className="text-[10px] text-neutral-400 leading-normal">
+                            Configure how visitor booking works. Visitors can check availability and schedule meetings automatically.
+                          </p>
 
-                      {/* Microsoft Services Grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                        {microsoftServices.map((service, idx) => {
-                          const IconComponent = service.icon;
-                          return (
-                            <div key={idx} className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col justify-between min-h-[140px] shadow-sm">
-                              <div>
-                                <div className="flex items-center justify-between">
-                                  <div className="size-8 rounded-lg bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center border border-neutral-100 dark:border-neutral-850">
-                                    <IconComponent className={`size-4.5 ${service.color}`} />
-                                  </div>
-                                  <StatusPill connected={microsoftConnected} />
-                                </div>
-                                <h5 className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200 mt-3">{service.title}</h5>
-                                <p className="text-[9px] text-neutral-400 mt-1 leading-normal">{service.desc}</p>
-                              </div>
-                              {microsoftConnected && (
-                                <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-2 mt-3">
-                                  <span className="text-[8px] text-neutral-400 font-semibold uppercase tracking-wider">Sync memory</span>
-                                  <button
-                                    onClick={() => service.setChecked(!service.checked)}
-                                    className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                                      service.checked ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                                    }`}
-                                  >
-                                    <div className={`size-3 rounded-full bg-white transition-transform ${service.checked ? "translate-x-3" : ""}`} />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Telegram Connection Card */}
-                      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                          <div className="flex items-start gap-4">
-                            <div className="size-10 rounded-xl bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center shrink-0 border border-neutral-100 dark:border-neutral-855">
-                              <Send className="size-5 text-sky-500" />
-                            </div>
-                            <div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                            {/* Enable Toggle */}
+                            <div className="space-y-1.5">
+                              <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Enable Scheduling</span>
                               <div className="flex items-center gap-2">
-                                <h5 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Telegram Bot Sync</h5>
-                                <StatusPill connected={!!telegramId} />
+                                <button
+                                  onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
+                                  className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
+                                    calendarSchedulingEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                                  }`}
+                                >
+                                  <div className={`size-3 rounded-full bg-white transition-transform ${calendarSchedulingEnabled ? "translate-x-3" : ""}`} />
+                                </button>
+                                <span className="text-xs font-semibold">{calendarSchedulingEnabled ? "Enabled" : "Disabled"}</span>
                               </div>
-                              <p className="text-[10px] text-neutral-400 mt-1.5 leading-normal max-w-lg">
-                                Chat with your personalized AI agent directly from your phone. Open the bot at{" "}
-                                <a href="https://t.me/KinByPersonaliAI_bot" target="_blank" rel="noreferrer" className="text-[#f97316] underline hover:opacity-90">
-                                  @KinByPersonaliAI_bot
-                                </a>
-                                , send <code>/start</code> and enter the chat ID below.
-                              </p>
-                              {telegramId && (
-                                <p className="text-[9px] font-mono text-[#f97316] mt-2 font-semibold">
-                                  Linked Telegram Chat ID: {telegramId}
-                                </p>
-                              )}
+                            </div>
+
+                            {/* Meeting Duration */}
+                            <div className="space-y-1.5">
+                              <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Meeting Duration</span>
+                              <select
+                                value={schedulingDuration}
+                                onChange={(e) => handleInputChange(setSchedulingDuration, parseInt(e.target.value))}
+                                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer"
+                              >
+                                <option value="15">15 Minutes</option>
+                                <option value="30">30 Minutes</option>
+                                <option value="45">45 Minutes</option>
+                                <option value="60">60 Minutes</option>
+                              </select>
+                            </div>
+
+                            {/* Timezone Selector */}
+                            <div className="space-y-1.5">
+                              <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Business Timezone</span>
+                              <select
+                                value={botTimezone}
+                                onChange={(e) => handleInputChange(setBotTimezone, e.target.value)}
+                                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer"
+                              >
+                                <option value="UTC">UTC</option>
+                                <option value="US/Pacific">US/Pacific (PST/PDT)</option>
+                                <option value="US/Eastern">US/Eastern (EST/EDT)</option>
+                                <option value="Europe/London">Europe/London (GMT/BST)</option>
+                                <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+                                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                                <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                                <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                                <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                              </select>
                             </div>
                           </div>
-                          <div className="shrink-0 w-full sm:w-auto">
-                            {telegramId ? (
-                              <button
-                                onClick={handleUnlinkTelegram}
-                                className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 rounded-lg px-3.5 py-1.5 cursor-pointer w-full sm:w-auto text-center"
-                              >
-                                Unlink Account
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setTelegramLinkOpen(true)}
-                                className="text-[10px] font-semibold bg-[#f97316] text-white rounded-lg px-4 py-1.5 hover:opacity-90 cursor-pointer w-full sm:w-auto text-center"
-                              >
-                                Link Telegram
-                              </button>
-                            )}
-                          </div>
                         </div>
-                      </div>
+                      )}
 
                     </div>
                   );
