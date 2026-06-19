@@ -178,6 +178,13 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      window.scrollTo({ top: 150, behavior: "smooth" });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
@@ -284,7 +291,7 @@ export default function Home() {
 
               {/* Right Column: Simulated Chat Widget */}
               <div className="md:col-span-5 flex justify-center">
-                <div className="w-full max-w-[360px] h-[480px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-2xl flex flex-col overflow-hidden relative">
+                <div className="w-full max-w-[360px] h-[480px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 flex flex-col overflow-hidden relative">
                   {/* Chat Header */}
                   <div className="p-4 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-900/50 flex items-center gap-3">
                     <div className="size-8 rounded-full bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-black font-bold text-sm">C</div>
@@ -300,8 +307,11 @@ export default function Home() {
                   {/* Message Container */}
                   <div className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin text-xs">
                     {messages.map((msg, index) => (
-                      <div
+                      <motion.div
                         key={index}
+                        initial={{ opacity: 0, scale: 0.92, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ duration: 0.25, ease: "easeOut" }}
                         className={`flex gap-2 max-w-[85%] ${
                           msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
                         }`}
@@ -318,17 +328,21 @@ export default function Home() {
                         >
                           {msg.content}
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                     {isTyping && (
-                      <div className="flex gap-2 mr-auto max-w-[85%]">
+                      <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex gap-2 mr-auto max-w-[85%]"
+                      >
                         <div className="size-6 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
                         <div className="p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-400 dark:bg-neutral-900 flex items-center gap-1.5">
                           <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce"></span>
                           <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.2s]"></span>
                           <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.4s]"></span>
                         </div>
-                      </div>
+                      </motion.div>
                     )}
                     <div ref={chatEndRef} />
                   </div>

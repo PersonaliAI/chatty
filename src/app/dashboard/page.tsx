@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
@@ -1242,7 +1243,7 @@ export default function Dashboard() {
                 {/* Live visual mockup preview */}
                 <div className="lg:col-span-5 flex flex-col items-center">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
-                  <div className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden shadow-2xl transition-all style-${widgetStyle}`}>
+                  <div className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}>
                                        {/* Header styled dynamically */}
                     <div
                       style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
@@ -1666,7 +1667,7 @@ export default function Dashboard() {
           {/* TAB 4: PLAYGROUND */}
           {activeTab === "playground" && (
             <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
-              <div className={`w-full max-w-lg h-[500px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative shadow-md flex flex-col style-${widgetStyle}`}>
+              <div className={`w-full max-w-lg h-[500px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative flex flex-col style-${widgetStyle}`}>
                 
                 {/* Playground Header */}
                 <div
@@ -1696,8 +1697,11 @@ export default function Dashboard() {
                 {/* Chat messages */}
                 <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs scrollbar-thin">
                   {playgroundMessages.map((msg, index) => (
-                    <div
+                    <motion.div
                       key={index}
+                      initial={{ opacity: 0, scale: 0.92, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
                       className={`flex gap-2 max-w-[85%] ${
                         msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
                       }`}
@@ -1748,7 +1752,7 @@ export default function Dashboard() {
                           </ReactMarkdown>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                   
                   {isBotResponding && (
