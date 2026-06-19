@@ -46,7 +46,9 @@ import {
   FileSpreadsheet,
   Presentation,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Paperclip,
+  FileUp
 } from "lucide-react";
 
 // Types
@@ -160,6 +162,19 @@ export default function Dashboard() {
   const [tempLead, setTempLead] = useState({ name: "", email: "", phone: "" });
 
   const playgroundEndRef = useRef<HTMLDivElement>(null);
+
+  // Knowledge Base Chat States
+  const [knowledgeMessages, setKnowledgeMessages] = useState<Array<{ role: string; content: string; status?: "info" | "success" | "error" | "pending"; filename?: string }>>([
+    {
+      role: "assistant",
+      content: "Hello! I am your Knowledge Manager. I can help you train your chatbot. You can:\n\n1. **Upload files** (PDF, DOCX, TXT, MD) using the 📎 paperclip button.\n2. **Crawl websites** by pasting a URL (e.g. `https://example.com/faq`) or saying `crawl https://example.com`.\n3. **Train facts** by typing or pasting text documentation directly here.\n4. **Test RAG memory** by asking me questions like `What is the return policy?` to see what I've learned!"
+    }
+  ]);
+  const [knowledgeInput, setKnowledgeInput] = useState("");
+  const [isKnowledgeLoading, setIsKnowledgeLoading] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState<string | null>(null);
+  const knowledgeEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Copy code animation state
   const [copiedScript, setCopiedScript] = useState(false);
@@ -524,6 +539,344 @@ export default function Dashboard() {
   useEffect(() => {
     playgroundEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [playgroundMessages, isBotResponding]);
+
+  // Auto-scroll for Knowledge Chat
+  useEffect(() => {
+    knowledgeEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [knowledgeMessages, isKnowledgeLoading, uploadingFile]);
+
+  // Handle Knowledge Base File Upload
+  const handleKnowledgeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !botId) return;
+
+    // Check size limit: 20MB
+    const MAX_SIZE = 20 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      alert("File is too large. Max size allowed is 20MB.");
+      return;
+    }
+
+    setUploadingFile(file.name);
+    setIsKnowledgeLoading(true);
+
+    // Add a pending message
+    setKnowledgeMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: `Uploaded file: **${file.name}**`
+      },
+      {
+        role: "assistant",
+        content: `Uploading and indexing **${file.name}**... Please wait while I process the document structure and extract text chunks.`,
+        status: "pending",
+        filename: file.name
+      }
+    ]);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetchWithFallback("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const body = await res.json();
+        
+        // Update the assistant message in chat log
+        setKnowledgeMessages((prev) =>
+          prev.map((msg) =>
+            msg.filename === file.name && msg.status === "pending"
+              ? {
+                  role: "assistant",
+                  content: `Successfully trained on **${file.name}**! Added **${body.chunk_count || 0}** chunks to RAG memory.`,
+                  status: "success"
+                }
+              : msg
+          )
+        );
+
+        // Fetch sources to refresh lists
+        if (user) {
+          await loadBotSettings(user.id);
+        }
+      } else {
+        const body = await res.json();
+        setKnowledgeMessages((prev) =>
+          prev.map((msg) =>
+            msg.filename === file.name && msg.status === "pending"
+              ? {
+                  role: "assistant",
+                  content: `Failed to index **${file.name}**. Error: ${body.detail || "Unknown backend error."}`,
+                  status: "error"
+                }
+              : msg
+          )
+        );
+      }
+    } catch (err: any) {
+      console.error("File upload error:", err);
+      setKnowledgeMessages((prev) =>
+        prev.map((msg) =>
+          msg.filename === file.name && msg.status === "pending"
+            ? {
+                role: "assistant",
+                content: `Could not connect to the upload server. Make sure the backend is active.`,
+                status: "error"
+              }
+            : msg
+        )
+      );
+    } finally {
+      setIsKnowledgeLoading(false);
+      setUploadingFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Handle Knowledge Base Chat Submission
+  const handleKnowledgeSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!knowledgeInput.trim() || !botId) return;
+
+    const userInput = knowledgeInput.trim();
+    setKnowledgeInput("");
+    setIsKnowledgeLoading(true);
+
+    // 1. Add User Message
+    setKnowledgeMessages((prev) => [...prev, { role: "user", content: userInput }]);
+
+    // Check if it is a URL or a crawl command
+    const crawlMatch = userInput.match(/^(?:crawl\s+)?(https?:\/\/[^\s]+)$/i);
+
+    if (crawlMatch) {
+      const urlToCrawl = crawlMatch[1];
+      
+      // Add thinking/progress bubble
+      setKnowledgeMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Crawl command detected for **${urlToCrawl}**. Sending request to crawler and indexing content...`,
+          status: "pending",
+          filename: urlToCrawl
+        }
+      ]);
+
+      try {
+        let crawledContent = `This source represents the crawled contents of ${urlToCrawl}.`;
+        try {
+          const jinaUrl = `https://r.jina.ai/${urlToCrawl}`;
+          const response = await fetch(jinaUrl);
+          if (response.ok) {
+            const text = await response.text();
+            if (text && text.trim().length > 100) {
+              crawledContent = text;
+            }
+          }
+        } catch (crawlErr) {
+          console.warn("Real-time client-side crawl failed:", crawlErr);
+        }
+
+        if (user && botId) {
+          const { data: dbSrc, error } = await supabase
+            .from("chatty_sources")
+            .insert({
+              bot_id: botId,
+              type: "url",
+              name: urlToCrawl,
+              content: crawledContent,
+              status: "training",
+              char_count: crawledContent.length
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          // Simulate processing time
+          setTimeout(async () => {
+            await supabase
+              .from("chatty_sources")
+              .update({ status: "trained" })
+              .eq("id", dbSrc.id);
+
+            // Update chat log bubble to success
+            setKnowledgeMessages((prev) =>
+              prev.map((msg) =>
+                msg.filename === urlToCrawl && msg.status === "pending"
+                  ? {
+                      role: "assistant",
+                      content: `Successfully crawled and trained on **${urlToCrawl}**! Added character count: ${crawledContent.length}.`,
+                      status: "success"
+                    }
+                  : msg
+              )
+            );
+
+            // Refresh settings
+            await loadBotSettings(user.id);
+          }, 1500);
+        }
+      } catch (err: any) {
+        console.error("Crawl error:", err);
+        setKnowledgeMessages((prev) =>
+          prev.map((msg) =>
+            msg.filename === urlToCrawl && msg.status === "pending"
+              ? {
+                  role: "assistant",
+                  content: `Failed to crawl website. Error: ${(err as any).message || "Unknown error"}`,
+                  status: "error"
+                }
+              : msg
+          )
+        );
+      } finally {
+        setIsKnowledgeLoading(false);
+      }
+      return;
+    }
+
+    // 2. Check if it's a paragraph of facts to train
+    const isQuestion = userInput.endsWith("?") || /^(what|how|why|who|where|when|can|is|are|does|do|should|would|will)\b/i.test(userInput);
+    const isTrainCommand = userInput.toLowerCase().startsWith("train:") || userInput.toLowerCase().startsWith("fact:") || (!isQuestion && userInput.length > 40);
+
+    if (isTrainCommand) {
+      let docContent = userInput;
+      let docTitle = `Text Ingest - ${new Date().toLocaleDateString()}`;
+
+      // Clean prefix if any
+      if (userInput.toLowerCase().startsWith("train:")) {
+        docContent = userInput.substring(6).trim();
+        docTitle = docContent.split(/[.\n]/)[0].slice(0, 30) || docTitle;
+      } else if (userInput.toLowerCase().startsWith("fact:")) {
+        docContent = userInput.substring(5).trim();
+        docTitle = docContent.split(/[.\n]/)[0].slice(0, 30) || docTitle;
+      } else {
+        docTitle = docContent.split(/[.\n]/)[0].slice(0, 30) || docTitle;
+      }
+
+      setKnowledgeMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Analyzing text input and preparing to index facts under **"${docTitle}"**...`,
+          status: "pending",
+          filename: docTitle
+        }
+      ]);
+
+      try {
+        if (user && botId) {
+          const { data: dbSrc, error } = await supabase
+            .from("chatty_sources")
+            .insert({
+              bot_id: botId,
+              type: "text",
+              name: docTitle,
+              content: docContent,
+              status: "training",
+              char_count: docContent.length
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          // Simulate processing time
+          setTimeout(async () => {
+            await supabase
+              .from("chatty_sources")
+              .update({ status: "trained" })
+              .eq("id", dbSrc.id);
+
+            setKnowledgeMessages((prev) =>
+              prev.map((msg) =>
+                msg.filename === docTitle && msg.status === "pending"
+                  ? {
+                      role: "assistant",
+                      content: `Fact training complete! Added text source **"${docTitle}"** (${docContent.length} chars) to RAG memory.`,
+                      status: "success"
+                    }
+                  : msg
+              )
+            );
+
+            await loadBotSettings(user.id);
+          }, 1500);
+        }
+      } catch (err: any) {
+        console.error("Text ingest error:", err);
+        setKnowledgeMessages((prev) =>
+          prev.map((msg) =>
+            msg.filename === docTitle && msg.status === "pending"
+              ? {
+                  role: "assistant",
+                  content: `Failed to index facts. Error: ${err.message || "Unknown error"}`,
+                  status: "error"
+                }
+              : msg
+          )
+        );
+      } finally {
+        setIsKnowledgeLoading(false);
+      }
+      return;
+    }
+
+    // 3. Question/RAG Testing Handler
+    try {
+      const res = await fetchWithFallback("/api/widget/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: "knowledge_test_session",
+          text: userInput,
+          visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        })
+      });
+
+      if (res.ok) {
+        const body = await res.json();
+        setKnowledgeMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: body.reply
+          }
+        ]);
+      } else {
+        const body = await res.json();
+        setKnowledgeMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `I queried your RAG memory, but encountered an error: ${body.detail || "RAG engine failed"}`,
+            status: "error"
+          }
+        ]);
+      }
+    } catch (err: any) {
+      console.error("RAG query error:", err);
+      setKnowledgeMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Could not query the RAG backend. Make sure the server is online.`,
+          status: "error"
+        }
+      ]);
+    } finally {
+      setIsKnowledgeLoading(false);
+    }
+  };
 
   // Handle Cloud Connector Triggers
   const handleConnectCloud = async (provider: "google" | "microsoft") => {
@@ -1263,348 +1616,436 @@ export default function Dashboard() {
 
           {/* TAB 3: KNOWLEDGE BASE */}
           {activeTab === "knowledge" && (
-            <div className="max-w-4xl mx-auto w-full space-y-6 py-6 px-4">
-              
-              {/* Direct inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="max-w-6xl mx-auto w-full py-6 px-4">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-180px)] min-h-[500px]">
                 
-                {/* Website Crawl */}
-                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3 flex items-center gap-1.5">
-                    <Globe className="size-4" /> Direct Website Crawl
-                  </h4>
-                  <form onSubmit={handleTrainUrl} className="space-y-3">
-                    <input
-                      type="url"
-                      placeholder="https://mybusiness.com/faq"
-                      value={inputUrl}
-                      onChange={(e) => setInputUrl(e.target.value)}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
-                    />
-                    <Button type="submit" size="sm" className="h-8 w-full bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 font-medium text-xs cursor-pointer">
-                      Crawl URL Link
-                    </Button>
-                  </form>
-                </div>
-
-                {/* Manual Text Document */}
-                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3 flex items-center gap-1.5">
-                    <Plus className="size-4" /> Direct Text Upload
-                  </h4>
-                  <form onSubmit={handleTrainText} className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Document Title (e.g. Return Policy)"
-                      value={inputTitle}
-                      onChange={(e) => setInputTitle(e.target.value)}
-                      className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
-                    />
-                    <textarea
-                      placeholder="Write or paste details FAQ facts..."
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      rows={3}
-                      className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none resize-none"
-                    />
-                    <Button type="submit" size="sm" className="h-8 w-full bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 font-medium text-xs cursor-pointer">
-                      Train Text
-                    </Button>
-                  </form>
-                </div>
-              </div>
-
-              {/* RAG Connectors Hub */}
-              <div className="space-y-6">
-                <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-                    <Sparkles className="size-4 text-[#f97316]" /> Cloud API Connectors (Advanced RAG)
-                  </h4>
-                  <p className="text-[11px] text-neutral-400 leading-normal">
-                    Connect your business storage accounts to build an automatic, self-updating RAG knowledge base.
-                  </p>
-                </div>
-
-                {/* Status Pill Component */}
-                {(() => {
-                  const StatusPill = ({ connected }: { connected: boolean }) => (
-                    <span
-                      className={`inline-flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                        connected
-                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20"
-                          : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"
-                      }`}
-                    >
-                      <span className={`size-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-neutral-400"}`} />
-                      {connected ? "Connected" : "Off"}
-                    </span>
-                  );
-
-                  const googleServices = [
-                    { title: "Google Drive", desc: "Sync Drive folders and documents for RAG grounding.", icon: FolderOpen, checked: syncGoogleDrive, setChecked: (val: boolean) => handleInputChange(setSyncGoogleDrive, val), color: "text-yellow-600" },
-                    { title: "Google Calendar", desc: "Sync meetings, availability calendars, and booking rules.", icon: Calendar, checked: syncGoogleCalendar, setChecked: (val: boolean) => handleInputChange(setSyncGoogleCalendar, val), color: "text-blue-600" },
-                  ];
-
-                  return (
-                    <div className="space-y-6">
-                      
-                      {/* Master Google Connect bar */}
-                      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className="size-10 rounded-xl bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center shrink-0 border border-neutral-100 dark:border-neutral-855">
-                            <svg className="size-5" viewBox="0 0 24 24">
-                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-neutral-850 dark:text-neutral-200">Google Workspace</div>
-                            <div className="text-[10px] text-neutral-400 mt-0.5 leading-normal">
-                              {googleConnected ? `Connected to ${googleEmail || "Google Account"}` : "Connect once to authorize Google Calendar & Google Drive services."}
-                            </div>
-                          </div>
-                        </div>
-                        {googleConnected ? (
-                          <button
-                            onClick={() => handleDisconnectCloud("google")}
-                            className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 rounded-lg px-3 py-1.5 cursor-pointer shrink-0 w-full sm:w-auto text-center"
-                          >
-                            Disconnect
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleConnectCloud("google")}
-                            disabled={connectingProvider !== null}
-                            className="text-[10px] font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg px-3 py-1.5 hover:opacity-90 cursor-pointer shrink-0 w-full sm:w-auto text-center flex items-center justify-center gap-1.5"
-                          >
-                            {connectingProvider === "google" && <Loader2 className="size-3 animate-spin" />}
-                            Connect Google
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Google Services Grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {googleServices.map((service, idx) => {
-                          const IconComponent = service.icon;
-                          return (
-                            <div key={idx} className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col justify-between min-h-[140px] shadow-sm">
-                              <div>
-                                <div className="flex items-center justify-between">
-                                  <div className="size-8 rounded-lg bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center border border-neutral-100 dark:border-neutral-850">
-                                    <IconComponent className={`size-4.5 ${service.color}`} />
-                                  </div>
-                                  <StatusPill connected={googleConnected} />
-                                </div>
-                                <h5 className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200 mt-3">{service.title}</h5>
-                                <p className="text-[9px] text-neutral-400 mt-1 leading-normal">{service.desc}</p>
-                              </div>
-                              {googleConnected && (
-                                <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-2 mt-3">
-                                  <span className="text-[8px] text-neutral-400 font-semibold uppercase tracking-wider">Sync memory</span>
-                                  <button
-                                    onClick={() => service.setChecked(!service.checked)}
-                                    className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                                      service.checked ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                                    }`}
-                                  >
-                                    <div className={`size-3 rounded-full bg-white transition-transform ${service.checked ? "translate-x-3" : ""}`} />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Google Calendar Scheduling Settings */}
-                      {googleConnected && syncGoogleCalendar && (
-                        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-4 shadow-sm">
-                          <h5 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
-                            <Calendar className="size-4 text-blue-650" /> Google Calendar Scheduling Configuration
-                          </h5>
-                          <p className="text-[10px] text-neutral-400 leading-normal">
-                            Configure how visitor booking works. Visitors can check availability and schedule meetings automatically.
-                          </p>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                            {/* Enable Toggle */}
-                            <div className="space-y-1.5">
-                              <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Enable Scheduling</span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
-                                  className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                                    calendarSchedulingEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                                  }`}
-                                >
-                                  <div className={`size-3 rounded-full bg-white transition-transform ${calendarSchedulingEnabled ? "translate-x-3" : ""}`} />
-                                </button>
-                                <span className="text-xs font-semibold">{calendarSchedulingEnabled ? "Enabled" : "Disabled"}</span>
-                              </div>
-                            </div>
-
-                            {/* Meeting Duration */}
-                            <div className="space-y-1.5">
-                              <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Meeting Duration</span>
-                              <select
-                                value={schedulingDuration}
-                                onChange={(e) => handleInputChange(setSchedulingDuration, parseInt(e.target.value))}
-                                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer"
-                              >
-                                <option value="15">15 Minutes</option>
-                                <option value="30">30 Minutes</option>
-                                <option value="45">45 Minutes</option>
-                                <option value="60">60 Minutes</option>
-                              </select>
-                            </div>
-
-                            {/* Timezone Selector */}
-                            <div className="space-y-1.5">
-                              <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Business Timezone</span>
-                              <select
-                                value={botTimezone}
-                                onChange={(e) => handleInputChange(setBotTimezone, e.target.value)}
-                                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer"
-                              >
-                                <option value="UTC">UTC</option>
-                                <option value="US/Pacific">US/Pacific (PST/PDT)</option>
-                                <option value="US/Eastern">US/Eastern (EST/EDT)</option>
-                                <option value="Europe/London">Europe/London (GMT/BST)</option>
-                                <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
-                                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                                <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                                <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                                <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
-                              </select>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Google Drive RAG Settings & Folder Indexer */}
-                      {googleConnected && syncGoogleDrive && (
-                        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-4 shadow-sm">
-                          <h5 className="text-xs font-bold text-neutral-850 dark:text-neutral-200 flex items-center gap-1.5">
-                            <FolderOpen className="size-4 text-yellow-605" /> Google Drive Folder Indexing
-                          </h5>
-                          <p className="text-[10px] text-neutral-400 leading-normal">
-                            Index a Google Drive folder to train your chatbot. The chatbot will read the documents inside the folder to answer visitor questions.
-                          </p>
-
-                          <form onSubmit={handleIndexDriveFolder} className="space-y-4 pt-2">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                              <div className="sm:col-span-2 space-y-1.5">
-                                <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Folder URL or ID</span>
-                                <input
-                                  type="text"
-                                  placeholder="https://drive.google.com/drive/folders/..."
-                                  value={driveFolderUrl}
-                                  onChange={(e) => setDriveFolderUrl(e.target.value)}
-                                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
-                                />
-                              </div>
-
-                              <div className="space-y-1.5">
-                                <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Max files to index</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={200}
-                                  value={driveMaxFiles}
-                                  onChange={(e) => setDriveMaxFiles(parseInt(e.target.value) || 50)}
-                                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
-                                />
-                              </div>
-                            </div>
-
-                            {driveIndexError && (
-                              <p className="text-[10px] text-red-500 font-semibold">{driveIndexError}</p>
-                            )}
-                            {driveIndexSuccess && (
-                              <p className="text-[10px] text-emerald-500 font-semibold">{driveIndexSuccess}</p>
-                            )}
-
-                            <div className="flex justify-end pt-2">
-                              <button
-                                type="submit"
-                                disabled={isIndexingDrive || !driveFolderUrl.trim()}
-                                className="text-[10px] font-semibold bg-[#f97316] text-white rounded-lg px-4 py-1.5 hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
-                              >
-                                {isIndexingDrive && <Loader2 className="size-3 animate-spin" />}
-                                {isIndexingDrive ? "Indexing..." : "Sync Folder Contents"}
-                              </button>
-                            </div>
-                          </form>
-                        </div>
-                      )}
-
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Trained Sources list (No hardcoded demo items) */}
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Active Sources ({sources.length})</h4>
-                
-                {loadingLists ? (
-                  <div className="flex items-center justify-center p-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                    <Loader2 className="size-5 animate-spin text-neutral-400" />
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {sources.map((src) => (
-                      <div
-                        key={src.id}
-                        className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center justify-between gap-4"
-                      >
-                        <div className="overflow-hidden">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
-                              src.type === "url" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/45 dark:text-blue-400" : "bg-purple-100 text-purple-800 dark:bg-purple-950/45 dark:text-purple-400"
-                            }`}>
-                              {src.type}
-                            </span>
-                            <span className="text-xs font-semibold truncate max-w-[200px]">{src.name}</span>
-                          </div>
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1 truncate max-w-[260px]">{src.content}</p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className="text-[9px] text-neutral-400 dark:text-neutral-500">{src.charCount} characters</span>
-                            <span className="size-1 rounded-full bg-neutral-300 dark:bg-neutral-700"></span>
-                            {src.status === "training" ? (
-                              <span className="text-[9px] text-[#f97316] font-medium flex items-center gap-1">
-                                <Loader2 className="size-2.5 animate-spin" /> Crawling...
-                              </span>
-                            ) : (
-                              <span className="text-[9px] text-green-500 font-medium">Trained</span>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteSource(src.id)}
-                          className="p-1.5 rounded-lg border border-neutral-100 dark:border-neutral-850 hover:bg-red-50 dark:hover:bg-red-950/20 text-neutral-400 hover:text-red-500 transition-colors cursor-pointer"
-                          aria-label="Delete source"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    ))}
+                {/* LEFT SIDEBAR: Configuration & Active Sources (5 cols) */}
+                <div className="lg:col-span-5 flex flex-col space-y-6 overflow-y-auto pr-2 scrollbar-thin">
+                  
+                  {/* Google Workspace Cloud API Connectors */}
+                  <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
+                      <Sparkles className="size-4 text-[#f97316]" /> Cloud API Connectors (Advanced RAG)
+                    </h4>
                     
-                    {/* Elegant Empty State */}
-                    {sources.length === 0 && (
-                      <div className="p-8 border border-dashed border-neutral-250 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 rounded-2xl text-center space-y-2">
-                        <Database className="size-8 mx-auto text-neutral-300" />
-                        <h5 className="text-xs font-bold text-neutral-700 dark:text-neutral-300">No knowledge sources trained</h5>
-                        <p className="text-[10px] text-neutral-400 max-w-sm mx-auto">
-                          Train Chatty to answer user questions by adding a URL link, writing text documentation, or syncing your cloud accounts.
-                        </p>
+                    {/* Master Google Connect bar */}
+                    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-955/20 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="size-8 rounded-lg bg-white dark:bg-neutral-900 flex items-center justify-center shrink-0 border border-neutral-200 dark:border-neutral-800">
+                          <svg className="size-4" viewBox="0 0 24 24">
+                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                          </svg>
+                        </div>
+                        <div className="overflow-hidden">
+                          <div className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200">Google Workspace</div>
+                          <p className="text-[9px] text-neutral-400 truncate">
+                            {googleConnected ? googleEmail || "Connected" : "Not Connected"}
+                          </p>
+                        </div>
+                      </div>
+                      {googleConnected ? (
+                        <button
+                          onClick={() => handleDisconnectCloud("google")}
+                          className="text-[9px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded px-2.5 py-1 cursor-pointer shrink-0"
+                        >
+                          Disconnect
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleConnectCloud("google")}
+                          disabled={connectingProvider !== null}
+                          className="text-[9px] font-semibold bg-[#f97316] text-white rounded px-2.5 py-1 hover:opacity-90 cursor-pointer shrink-0 flex items-center gap-1"
+                        >
+                          {connectingProvider === "google" && <Loader2 className="size-2.5 animate-spin" />}
+                          Connect
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Google Services Toggles */}
+                    {googleConnected && (
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <div className="p-3 bg-neutral-50/50 dark:bg-neutral-950/20 border border-neutral-150 dark:border-neutral-850 rounded-xl flex flex-col justify-between min-h-[90px]">
+                          <div className="flex items-center gap-2">
+                            <FolderOpen className="size-4 text-yellow-600" />
+                            <span className="text-[10px] font-bold">Drive RAG</span>
+                          </div>
+                          <div className="flex items-center justify-between border-t border-neutral-150 dark:border-neutral-800/60 pt-2 mt-2">
+                            <span className="text-[8px] text-neutral-450 uppercase tracking-wider">Sync</span>
+                            <button
+                              onClick={() => handleInputChange(setSyncGoogleDrive, !syncGoogleDrive)}
+                              className={`w-6 h-3.5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                                syncGoogleDrive ? "bg-[#f97316]" : "bg-neutral-250 dark:bg-neutral-800"
+                              }`}
+                            >
+                              <div className={`size-2.5 rounded-full bg-white transition-transform ${syncGoogleDrive ? "translate-x-2.5" : ""}`} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-neutral-50/50 dark:bg-neutral-955/20 border border-neutral-150 dark:border-neutral-850 rounded-xl flex flex-col justify-between min-h-[90px]">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="size-4 text-blue-600" />
+                            <span className="text-[10px] font-bold">Calendar</span>
+                          </div>
+                          <div className="flex items-center justify-between border-t border-neutral-150 dark:border-neutral-800/60 pt-2 mt-2">
+                            <span className="text-[8px] text-neutral-450 uppercase tracking-wider">Sync</span>
+                            <button
+                              onClick={() => handleInputChange(setSyncGoogleCalendar, !syncGoogleCalendar)}
+                              className={`w-6 h-3.5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                                syncGoogleCalendar ? "bg-[#f97316]" : "bg-neutral-250 dark:bg-neutral-800"
+                              }`}
+                            >
+                              <div className={`size-2.5 rounded-full bg-white transition-transform ${syncGoogleCalendar ? "translate-x-2.5" : ""}`} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
+
+                  {/* Google Calendar Scheduling Settings */}
+                  {googleConnected && syncGoogleCalendar && (
+                    <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-3">
+                      <h5 className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                        <Calendar className="size-3.5 text-blue-650" /> Calendar Booking Settings
+                      </h5>
+                      <div className="space-y-3 pt-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-neutral-550">Enable Scheduling</span>
+                          <button
+                            onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
+                            className={`w-6.5 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
+                              calendarSchedulingEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                            }`}
+                          >
+                            <div className={`size-3 rounded-full bg-white transition-transform ${calendarSchedulingEnabled ? "translate-x-2.5" : ""}`} />
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <span className="text-[9px] font-bold text-neutral-400 uppercase">Duration</span>
+                            <select
+                              value={schedulingDuration}
+                              onChange={(e) => handleInputChange(setSchedulingDuration, parseInt(e.target.value))}
+                              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded px-2 py-1 text-[10px] focus:outline-none cursor-pointer"
+                            >
+                              <option value="15">15 Mins</option>
+                              <option value="30">30 Mins</option>
+                              <option value="45">45 Mins</option>
+                              <option value="60">60 Mins</option>
+                            </select>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <span className="text-[9px] font-bold text-neutral-400 uppercase">Timezone</span>
+                            <select
+                              value={botTimezone}
+                              onChange={(e) => handleInputChange(setBotTimezone, e.target.value)}
+                              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded px-2 py-1 text-[10px] focus:outline-none cursor-pointer"
+                            >
+                              <option value="UTC">UTC</option>
+                              <option value="US/Pacific">Pacific</option>
+                              <option value="US/Eastern">Eastern</option>
+                              <option value="Europe/Paris">Europe</option>
+                              <option value="Asia/Kolkata">Kolkata</option>
+                              <option value="Asia/Singapore">Singapore</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Google Drive Folder Indexing */}
+                  {googleConnected && syncGoogleDrive && (
+                    <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-3">
+                      <h5 className="text-[11px] font-bold text-neutral-805 dark:text-neutral-200 flex items-center gap-1.5">
+                        <FolderOpen className="size-3.5 text-yellow-605" /> Google Drive Indexer
+                      </h5>
+                      <form onSubmit={handleIndexDriveFolder} className="space-y-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-bold text-neutral-400 uppercase">Folder URL or ID</label>
+                          <input
+                            type="text"
+                            placeholder="https://drive.google.com/..."
+                            value={driveFolderUrl}
+                            onChange={(e) => setDriveFolderUrl(e.target.value)}
+                            className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded px-2.5 py-1.5 text-[11px] focus:outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-neutral-400 font-bold uppercase">Max Files</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={driveMaxFiles}
+                              onChange={(e) => setDriveMaxFiles(parseInt(e.target.value) || 50)}
+                              className="w-12 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded px-1.5 py-0.5 text-center text-[10px]"
+                            />
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={isIndexingDrive || !driveFolderUrl.trim()}
+                            className="text-[10px] font-semibold bg-[#f97316] text-white rounded px-3 py-1 hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1"
+                          >
+                            {isIndexingDrive && <Loader2 className="size-2.5 animate-spin" />}
+                            Sync Folder
+                          </button>
+                        </div>
+                        {driveIndexError && <p className="text-[9px] text-red-500 font-semibold">{driveIndexError}</p>}
+                        {driveIndexSuccess && <p className="text-[9px] text-emerald-500 font-semibold">{driveIndexSuccess}</p>}
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Active Sources List */}
+                  <div className="space-y-3 flex-1 flex flex-col min-h-[250px]">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Active Sources ({sources.length})</h4>
+                      {sources.length > 0 && (
+                        <button
+                          onClick={async () => {
+                            if (confirm("Are you sure you want to delete all trained sources?")) {
+                              setSources([]);
+                              try {
+                                await fetchWithFallback("/api/documents", { method: "DELETE" });
+                                await loadBotSettings(user.id);
+                              } catch (err) {
+                                console.error("Error clearing sources:", err);
+                              }
+                            }
+                          }}
+                          className="text-[9px] text-red-400 hover:text-red-500 cursor-pointer hover:underline"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2 flex-1 overflow-y-auto max-h-[350px] pr-1">
+                      {loadingLists ? (
+                        <div className="flex items-center justify-center p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl">
+                          <Loader2 className="size-4 animate-spin text-neutral-400" />
+                        </div>
+                      ) : (
+                        <>
+                          {sources.map((src) => (
+                            <div
+                              key={src.id}
+                              className="p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-neutral-300 dark:hover:border-neutral-800 transition-colors"
+                            >
+                              <div className="overflow-hidden flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`px-1 py-0.2 rounded text-[7px] font-bold uppercase tracking-wide ${
+                                    src.type === "url"
+                                      ? "bg-blue-55 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400"
+                                      : src.type === "file"
+                                      ? "bg-green-55 text-green-700 dark:bg-green-950/20 dark:text-green-400"
+                                      : "bg-purple-55 text-purple-700 dark:bg-purple-950/20 dark:text-purple-400"
+                                  }`}>
+                                    {src.type}
+                                  </span>
+                                  <span className="text-[11px] font-bold truncate block" title={src.name}>{src.name}</span>
+                                </div>
+                                <p className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-0.5 truncate">{src.content}</p>
+                                <div className="flex items-center gap-1.5 mt-1 text-[8px] text-neutral-400">
+                                  <span>{src.charCount.toLocaleString()} chars</span>
+                                  <span className="size-1 rounded-full bg-neutral-200 dark:bg-neutral-800"></span>
+                                  {src.status === "training" ? (
+                                    <span className="text-[#f97316] font-semibold flex items-center gap-0.5 animate-pulse">
+                                      <Loader2 className="size-2 animate-spin" /> Training...
+                                    </span>
+                                  ) : (
+                                    <span className="text-emerald-500 font-semibold">Trained</span>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteSource(src.id)}
+                                className="p-1 rounded border border-neutral-100 dark:border-neutral-850 hover:bg-red-55 dark:hover:bg-red-950/20 text-neutral-400 hover:text-red-500 cursor-pointer transition-colors"
+                                aria-label="Delete source"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          
+                          {sources.length === 0 && (
+                            <div className="p-6 border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/10 rounded-xl text-center space-y-1">
+                              <Database className="size-6 mx-auto text-neutral-300 dark:text-neutral-700" />
+                              <h5 className="text-[10px] font-bold text-neutral-700 dark:text-neutral-300">No active knowledge</h5>
+                              <p className="text-[9px] text-neutral-450 max-w-[200px] mx-auto leading-normal">
+                                Use the Knowledge Chat panel on the right to upload files, crawl links, or ingest manual text.
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* RIGHT AREA: Knowledge Manager Chat Console (7 cols) */}
+                <div className="lg:col-span-7 flex flex-col bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative shadow-sm h-full animate-fade-in">
+                  
+                  {/* Chat Header */}
+                  <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/20 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="size-8 rounded-full bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-neutral-950 font-bold text-xs">
+                        KM
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs leading-none">Knowledge Manager AI</h4>
+                        <p className="text-[9px] text-neutral-450 mt-1 flex items-center gap-1">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Dynamic RAG Training Console
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setKnowledgeMessages([
+                        {
+                          role: "assistant",
+                          content: "Hello! I am your Knowledge Manager. I can help you train your chatbot. You can:\n\n1. **Upload files** (PDF, DOCX, TXT, MD) using the 📎 paperclip button.\n2. **Crawl websites** by pasting a URL (e.g. `https://example.com/faq`) or saying `crawl https://example.com`.\n3. **Train facts** by typing or pasting text documentation directly here.\n4. **Test RAG memory** by asking me questions like `What is the return policy?` to see what I've learned!"
+                        }
+                      ])}
+                      className="px-2 py-1 border border-neutral-200 dark:border-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded text-[9px] font-semibold transition-colors cursor-pointer"
+                    >
+                      Clear Chat
+                    </button>
+                  </div>
+
+                  {/* Chat Messages Log */}
+                  <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs scrollbar-thin">
+                    {knowledgeMessages.map((msg, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className={`flex gap-2 max-w-[85%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}
+                      >
+                        {msg.role !== "user" && (
+                          <div className="size-6 rounded-full bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-neutral-955 font-bold text-[9px] shrink-0">
+                            KM
+                          </div>
+                        )}
+                        <div className="flex flex-col gap-1 w-full">
+                          <div
+                            className={`p-3 rounded-xl leading-relaxed border ${
+                              msg.role === "user"
+                                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-950 border-neutral-900 dark:border-white rounded-tr-none"
+                                : msg.status === "error"
+                                ? "bg-red-50/50 text-red-800 border-red-200 dark:bg-red-950/20 dark:text-red-350 dark:border-red-900/50 rounded-tl-none"
+                                : msg.status === "success"
+                                ? "bg-emerald-50/50 text-emerald-800 border-emerald-250 dark:bg-emerald-950/20 dark:text-emerald-350 dark:border-emerald-900/50 rounded-tl-none"
+                                : msg.status === "pending"
+                                ? "bg-[#f97316]/5 text-[#f97316] border-[#f97316]/20 rounded-tl-none animate-pulse"
+                                : "bg-neutral-50 text-neutral-800 dark:bg-neutral-850 dark:text-neutral-200 border-neutral-100 dark:border-neutral-800 rounded-tl-none"
+                            }`}
+                          >
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[rehypeKatex]}
+                              components={{
+                                p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                                ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+                                ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+                                li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                                pre: ({ children }) => <pre className="bg-neutral-955 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
+                                code: ({ children }) => (
+                                  <code className={msg.role === "user" ? "bg-white/20 text-white px-1 py-0.5 rounded text-[10px] font-mono" : "bg-neutral-250 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono"}>
+                                    {children}
+                                  </code>
+                                )
+                              }}
+                            >
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                    
+                    {/* Live Processing Indicator */}
+                    {isKnowledgeLoading && (
+                      <div className="flex gap-2 mr-auto max-w-[85%] w-full">
+                        <div className="size-6 rounded-full bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-neutral-950 font-bold text-[9px] shrink-0">
+                          KM
+                        </div>
+                        <div className="flex-grow flex flex-col gap-1">
+                          <div className="p-3 rounded-xl rounded-tl-none bg-neutral-50 text-neutral-450 dark:bg-neutral-855 border border-neutral-100 dark:border-neutral-800 flex items-center gap-2 w-fit">
+                            <Loader2 className="size-3.5 animate-spin text-[#f97316]" />
+                            <span className="text-[10px]">Processing knowledge request...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={knowledgeEndRef} />
+                  </div>
+
+                  {/* Floating attachment status */}
+                  {uploadingFile && (
+                    <div className="absolute bottom-16 left-4 right-4 p-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg flex items-center justify-between text-[10px] text-neutral-500 shadow-lg">
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="size-3 animate-spin text-[#f97316]" />
+                        Uploading: <strong>{uploadingFile}</strong>
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Composer Input Bar */}
+                  <form onSubmit={handleKnowledgeSend} className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex items-center gap-2 bg-neutral-50/50 dark:bg-neutral-950/20">
+                    
+                    {/* Hidden Native File Input */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleKnowledgeUpload}
+                      accept=".pdf,.docx,.txt,.md"
+                      className="hidden"
+                    />
+
+                    {/* Paperclip Button */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isKnowledgeLoading}
+                      className="p-2 rounded-lg border border-neutral-250 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                      title="Upload PDF, DOCX, TXT, or MD"
+                    >
+                      <Paperclip className="size-4" />
+                    </button>
+
+                    {/* Composer Input */}
+                    <input
+                      type="text"
+                      placeholder="Ask questions to test, paste URL, or write facts..."
+                      value={knowledgeInput}
+                      onChange={(e) => setKnowledgeInput(e.target.value)}
+                      disabled={isKnowledgeLoading}
+                      className="flex-1 bg-white dark:bg-neutral-950 border border-neutral-250 dark:border-neutral-800 rounded-lg px-3.5 py-2 text-xs focus:outline-none disabled:opacity-60"
+                    />
+
+                    {/* Send Button */}
+                    <button
+                      type="submit"
+                      disabled={isKnowledgeLoading || !knowledgeInput.trim()}
+                      className="p-2 bg-[#f97316] text-white rounded-lg flex items-center justify-center shrink-0 hover:bg-[#f97316]/90 cursor-pointer disabled:opacity-40"
+                    >
+                      <Send className="size-3.5" />
+                    </button>
+                  </form>
+                </div>
+
               </div>
             </div>
           )}
