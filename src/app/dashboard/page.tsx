@@ -893,7 +893,7 @@ export default function Dashboard() {
         return;
       }
 
-      const res = await fetchWithFallback(`/api/integrations/${provider}/start`, {
+      const res = await fetchWithFallback(`/api/integrations/${provider}/start?redirect_path=/dashboard`, {
         method: "POST"
       });
       if (res.ok) {
