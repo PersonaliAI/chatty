@@ -177,6 +177,7 @@ export default function Dashboard() {
   const [isKnowledgeLoading, setIsKnowledgeLoading] = useState(false);
   const [uploadingFile, setUploadingFile] = useState<string | null>(null);
   const [paperclipOpen, setPaperclipOpen] = useState(false);
+  const [driveModalOpen, setDriveModalOpen] = useState(false);
   const knowledgeEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1811,9 +1812,9 @@ export default function Dashboard() {
                       </button>
 
                       {/* Google Drive */}
-                      {googleConnected && syncGoogleDrive ? (
+                      {googleConnected ? (
                         <button
-                          onClick={() => { setKnowledgeInput("Index my Drive folder: "); setPaperclipOpen(false); }}
+                          onClick={() => { setDriveModalOpen(true); setPaperclipOpen(false); }}
                           className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors cursor-pointer border-b border-neutral-100 dark:border-neutral-800"
                         >
                           <div className="size-8 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 flex items-center justify-center">
@@ -1821,12 +1822,12 @@ export default function Dashboard() {
                           </div>
                           <div>
                             <div className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Google Drive Folder</div>
-                            <div className="text-[9px] text-neutral-400">Sync a Drive folder for RAG</div>
+                            <div className="text-[9px] text-neutral-400">Index folders for RAG memory</div>
                           </div>
                         </button>
                       ) : (
                         <button
-                          onClick={() => { if (!googleConnected) handleConnectCloud("google"); else handleInputChange(setSyncGoogleDrive, true); setPaperclipOpen(false); }}
+                          onClick={() => { handleConnectCloud("google"); setPaperclipOpen(false); }}
                           className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors cursor-pointer border-b border-neutral-100 dark:border-neutral-800"
                         >
                           <div className="size-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
@@ -1834,7 +1835,7 @@ export default function Dashboard() {
                           </div>
                           <div>
                             <div className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Google Drive</div>
-                            <div className="text-[9px] text-neutral-400">{!googleConnected ? "Connect Google first" : "Enable Drive sync"}</div>
+                            <div className="text-[9px] text-neutral-400">Connect Google to index folders</div>
                           </div>
                         </button>
                       )}
@@ -2288,6 +2289,130 @@ export default function Dashboard() {
                     </button>
                   </div>
                 </div>
+
+                <hr className="border-neutral-100 dark:border-neutral-800" />
+
+                {/* Google Connection & Calendar Booking Rules */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Google Connection & Calendar Rules</h4>
+                  
+                  {/* Google Connection Status */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
+                    <div>
+                      <span className="text-xs font-semibold flex items-center gap-1.5">
+                        <svg className="size-3.5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                        Google Workspace Account
+                      </span>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                        {googleConnected ? "Connected successfully." : "Not connected yet."}
+                      </p>
+                    </div>
+                    {googleConnected ? (
+                      <button
+                        onClick={() => handleDisconnectCloud("google")}
+                        className="px-3 py-1.5 bg-red-50 text-red-650 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleConnectCloud("google")}
+                        disabled={connectingProvider !== null}
+                        className="px-3 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-55 flex items-center gap-1.5"
+                      >
+                        {connectingProvider === "google" && <Loader2 className="size-3 animate-spin" />}
+                        Connect
+                      </button>
+                    )}
+                  </div>
+
+                  {googleConnected && (
+                    <div className="space-y-4 pt-1">
+                      {/* Sync Google Drive */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold">Sync Google Drive (RAG)</span>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Allow bot to reference files from your Google Drive.</p>
+                        </div>
+                        <button
+                          onClick={() => handleInputChange(setSyncGoogleDrive, !syncGoogleDrive)}
+                          className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                            syncGoogleDrive ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                          }`}
+                        >
+                          <div className={`size-4 rounded-full bg-white transition-transform ${syncGoogleDrive ? "translate-x-4" : ""}`} />
+                        </button>
+                      </div>
+
+                      {/* Sync Google Calendar */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold">Sync Google Calendar</span>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Allow bot to read calendar events to check availability.</p>
+                        </div>
+                        <button
+                          onClick={() => handleInputChange(setSyncGoogleCalendar, !syncGoogleCalendar)}
+                          className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                            syncGoogleCalendar ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                          }`}
+                        >
+                          <div className={`size-4 rounded-full bg-white transition-transform ${syncGoogleCalendar ? "translate-x-4" : ""}`} />
+                        </button>
+                      </div>
+
+                      {/* Calendar Scheduling Enabled */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold">Enable Calendar Booking Rules</span>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Allow visitors to book slots directly via the chat widget.</p>
+                        </div>
+                        <button
+                          onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
+                          className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                            calendarSchedulingEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                          }`}
+                        >
+                          <div className={`size-4 rounded-full bg-white transition-transform ${calendarSchedulingEnabled ? "translate-x-4" : ""}`} />
+                        </button>
+                      </div>
+
+                      {calendarSchedulingEnabled && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="pl-4 border-l-2 border-neutral-200 dark:border-neutral-800 space-y-4 pt-1"
+                        >
+                          {/* Duration Selector */}
+                          <div>
+                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Allowed Time Duration</label>
+                            <select
+                              value={schedulingDuration}
+                              onChange={(e) => handleInputChange(setSchedulingDuration, parseInt(e.target.value, 10))}
+                              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 cursor-pointer"
+                            >
+                              <option value={15}>15 Minutes</option>
+                              <option value={30}>30 Minutes</option>
+                              <option value={45}>45 Minutes</option>
+                              <option value={60}>60 Minutes</option>
+                            </select>
+                          </div>
+
+                          {/* Timezone Input */}
+                          <div>
+                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Calendar Timezone</label>
+                            <input
+                              type="text"
+                              value={botTimezone}
+                              onChange={(e) => handleInputChange(setBotTimezone, e.target.value)}
+                              className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                              placeholder="e.g. UTC, America/New_York"
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2348,6 +2473,110 @@ export default function Dashboard() {
                   className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg hover:opacity-90 font-semibold cursor-pointer"
                 >
                   Link
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Google Drive Indexer Dialog */}
+      {driveModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="size-5 text-yellow-500 animate-pulse" />
+                <h4 className="text-sm font-bold">Index Google Drive Folder</h4>
+              </div>
+              <button onClick={() => setDriveModalOpen(false)} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer">
+                <X className="size-4" />
+              </button>
+            </div>
+            <p className="text-[11px] text-neutral-450 dark:text-neutral-400 leading-relaxed">
+              Enter a Google Drive folder URL or ID. We will crawl the folder and index the files (PDF, DOCX, Sheets, Docs, TXT, MD) into your bot's RAG memory.
+            </p>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!driveFolderUrl.trim()) return;
+              setIsIndexingDrive(true);
+              setDriveIndexError(null);
+              setDriveIndexSuccess(null);
+              try {
+                const res = await fetchWithFallback("/api/documents/index-folder", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    folder_id_or_url: driveFolderUrl.trim(),
+                    max_files: driveMaxFiles,
+                    source: "gdrive",
+                  }),
+                });
+                if (res.ok) {
+                  setDriveModalOpen(false);
+                  setKnowledgeMessages(prev => [
+                    ...prev,
+                    {
+                      role: "assistant",
+                      content: `Started indexing Google Drive folder: **${driveFolderUrl.trim()}** (max ${driveMaxFiles} files) in the background. The documents will appear in your trained sources soon!`,
+                      status: "success"
+                    }
+                  ]);
+                  setDriveFolderUrl("");
+                  // Refresh sources list in 5 seconds
+                  setTimeout(() => {
+                    if (user) loadBotSettings(user.id);
+                  }, 5000);
+                } else {
+                  const body = await res.json();
+                  setDriveIndexError(body.detail || "Failed to start folder indexing.");
+                }
+              } catch (err) {
+                setDriveIndexError("Failed to connect to the server.");
+              } finally {
+                setIsIndexingDrive(false);
+              }
+            }} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Folder URL or ID</label>
+                <input
+                  type="text"
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  value={driveFolderUrl}
+                  onChange={(e) => setDriveFolderUrl(e.target.value)}
+                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Files to Index</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={driveMaxFiles}
+                  onChange={(e) => setDriveMaxFiles(parseInt(e.target.value, 10) || 50)}
+                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                />
+              </div>
+              {driveIndexError && (
+                <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDriveModalOpen(false)}
+                  className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isIndexingDrive}
+                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isIndexingDrive && <Loader2 className="size-3.5 animate-spin" />}
+                  Start Indexing
                 </button>
               </div>
             </form>
