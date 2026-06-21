@@ -424,6 +424,10 @@ export default function Dashboard() {
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [copiedApiKey, setCopiedApiKey] = useState(false);
 
+  // Backend capabilities (which optional integrations have keys configured)
+  const [zoomConfigured, setZoomConfigured] = useState(false);
+  const [onesignalConfigured, setOnesignalConfigured] = useState(false);
+
   // Google Drive indexing settings
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
   const [driveMaxFiles, setDriveMaxFiles] = useState(50);
@@ -582,6 +586,16 @@ export default function Dashboard() {
           setUser(session.user);
           await checkCloudConnections(session.user.id);
           await loadBotSettings(session.user.id);
+          try {
+            const capRes = await fetchWithFallback("/api/capabilities");
+            if (capRes.ok) {
+              const cap = await capRes.json();
+              setZoomConfigured(!!cap.zoom_configured);
+              setOnesignalConfigured(!!cap.onesignal_configured);
+            }
+          } catch (e) {
+            console.error("Failed to load capabilities:", e);
+          }
         }
       } catch (err) {
         console.error("Supabase session check error:", err);
@@ -848,11 +862,29 @@ export default function Dashboard() {
   );
   const providerOptions: ModernSelectOption[] = useMemo(
     () => [
-      { value: "google_meet", label: "Google Meet", icon: <span>📹</span> },
-      { value: "zoom", label: "Zoom", icon: <span>🔵</span> },
-      { value: "teams", label: "Microsoft Teams", icon: <span>🟣</span> },
+      {
+        value: "google_meet",
+        label: "Google Meet",
+        icon: <span>📹</span>,
+        disabled: !googleConnected,
+        hint: googleConnected ? undefined : "connect Google",
+      },
+      {
+        value: "zoom",
+        label: "Zoom",
+        icon: <span>🔵</span>,
+        disabled: !zoomConfigured,
+        hint: zoomConfigured ? undefined : "needs Zoom keys",
+      },
+      {
+        value: "teams",
+        label: "Microsoft Teams",
+        icon: <span>🟣</span>,
+        disabled: !microsoftConnected,
+        hint: microsoftConnected ? undefined : "connect Microsoft",
+      },
     ],
-    []
+    [googleConnected, microsoftConnected, zoomConfigured]
   );
   const languageOptions: ModernSelectOption[] = useMemo(
     () => [
@@ -3693,10 +3725,11 @@ export default function Dashboard() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
                       { label: "Google Meet", ready: googleConnected, hint: googleConnected ? "Ready" : "Connect Google" },
-                      { label: "Zoom", ready: true, hint: "Needs API keys" },
+                      { label: "Zoom", ready: zoomConfigured, hint: zoomConfigured ? "Ready" : "Needs Zoom keys" },
                       { label: "MS Teams", ready: microsoftConnected, hint: microsoftConnected ? "Ready" : "Connect Microsoft" },
                       { label: "Google Drive", ready: googleConnected, hint: googleConnected ? "Ready" : "Connect Google" },
                       { label: "OneDrive", ready: microsoftConnected, hint: microsoftConnected ? "Ready" : "Connect Microsoft" },
+                      { label: "Email (OneSignal)", ready: onesignalConfigured, hint: onesignalConfigured ? "OneSignal" : "Gmail fallback" },
                     ].map((p) => (
                       <div key={p.label} className="p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
                         <div className="flex items-center justify-between">

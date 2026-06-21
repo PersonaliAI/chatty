@@ -9,6 +9,7 @@ export interface ModernSelectOption {
   label: string;
   icon?: React.ReactNode;
   hint?: string;
+  disabled?: boolean;
 }
 
 interface ModernSelectProps {
@@ -154,11 +155,14 @@ export function ModernSelect({
                   <button
                     key={o.value}
                     type="button"
-                    onMouseEnter={() => setActive(i)}
-                    onClick={() => choose(o.value)}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors cursor-pointer ${
-                      i === active ? "bg-neutral-100 dark:bg-neutral-800" : ""
-                    } ${isSel ? "text-[#f97316] font-semibold" : "text-neutral-700 dark:text-neutral-300"}`}
+                    disabled={o.disabled}
+                    onMouseEnter={() => !o.disabled && setActive(i)}
+                    onClick={() => !o.disabled && choose(o.value)}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors ${
+                      o.disabled ? "opacity-45 cursor-not-allowed" : "cursor-pointer"
+                    } ${i === active && !o.disabled ? "bg-neutral-100 dark:bg-neutral-800" : ""} ${
+                      isSel ? "text-[#f97316] font-semibold" : "text-neutral-700 dark:text-neutral-300"
+                    }`}
                   >
                     <span className="flex items-center gap-2 truncate">
                       {o.icon}
