@@ -543,7 +543,7 @@ export default function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Knowledge Base tab UI state
-  const [kbSourceTab, setKbSourceTab] = useState<"text" | "url" | "file" | "drive">("text");
+  const [kbSourceTab, setKbSourceTab] = useState<"text" | "url" | "file" | "drive" | "onedrive">("text");
   const [sourcesSearch, setSourcesSearch] = useState("");
   const [sourceTypeFilter, setSourceTypeFilter] = useState<"all" | "text" | "url" | "file">("all");
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
@@ -1809,7 +1809,7 @@ export default function Dashboard() {
   };
 
   // Handle Google Drive folder indexing
-  const handleIndexDriveFolder = async (e: React.FormEvent) => {
+  const handleIndexDriveFolder = async (e: React.FormEvent, source: "gdrive" | "onedrive" = "gdrive") => {
     e.preventDefault();
     if (!driveFolderUrl.trim()) return;
 
@@ -1826,7 +1826,7 @@ export default function Dashboard() {
         body: JSON.stringify({
           folder_id_or_url: driveFolderUrl.trim(),
           max_files: driveMaxFiles,
-          source: "gdrive",
+          source,
         }),
       });
 
@@ -2598,12 +2598,13 @@ export default function Dashboard() {
                     { id: "url", label: "Website URL", icon: Globe },
                     { id: "file", label: "Upload File", icon: FileUp },
                     { id: "drive", label: "Google Drive", icon: FolderOpen },
+                    { id: "onedrive", label: "OneDrive", icon: HardDrive },
                   ].map((tab) => {
                     const Icon = tab.icon;
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setKbSourceTab(tab.id as "text" | "url" | "file" | "drive")}
+                        onClick={() => setKbSourceTab(tab.id as "text" | "url" | "file" | "drive" | "onedrive")}
                         className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
                           kbSourceTab === tab.id
                             ? "bg-[#f97316]/10 text-[#f97316]"
@@ -2748,6 +2749,51 @@ export default function Dashboard() {
                         >
                           {isIndexingDrive ? <Loader2 className="size-3.5 animate-spin" /> : <FolderOpen className="size-3.5" />}
                           Index Folder
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* OneDrive folder */}
+                  {kbSourceTab === "onedrive" && (
+                    <form onSubmit={(e) => handleIndexDriveFolder(e, "onedrive")} className="space-y-3">
+                      {!microsoftConnected && (
+                        <div className="flex items-center gap-2 text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-lg px-3 py-2">
+                          <AlertCircle className="size-3.5 shrink-0" />
+                          Connect Microsoft in Agent Settings first to index OneDrive folders.
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">OneDrive Folder URL or ID</label>
+                        <input
+                          type="text"
+                          placeholder="https://onedrive.live.com/… or folder ID"
+                          value={driveFolderUrl}
+                          onChange={(e) => setDriveFolderUrl(e.target.value)}
+                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Files</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={200}
+                          value={driveMaxFiles}
+                          onChange={(e) => setDriveMaxFiles(parseInt(e.target.value, 10) || 50)}
+                          className="w-32 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        />
+                      </div>
+                      {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
+                      {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={isIndexingDrive || !driveFolderUrl.trim() || !microsoftConnected}
+                          className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        >
+                          {isIndexingDrive ? <Loader2 className="size-3.5 animate-spin" /> : <HardDrive className="size-3.5" />}
+                          Index OneDrive Folder
                         </button>
                       </div>
                     </form>
@@ -3487,7 +3533,7 @@ export default function Dashboard() {
                                 ? "Real Meet links are generated automatically on the connected Google Calendar."
                                 : meetingProvider === "zoom"
                                 ? "Real Zoom links require Zoom credentials configured on the backend (else a placeholder is used)."
-                                : "Teams isn't fully integrated yet — bookings fall back to a calendar event link."}
+                                : "Real Microsoft Teams links are generated on booking — requires the owner to connect Microsoft/Outlook."}
                             </p>
                           </div>
 
