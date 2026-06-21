@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -9,6 +9,8 @@ import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
+import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import {
   Home,
@@ -105,6 +107,7 @@ interface KnowledgeMessage {
   calendarButtons?: boolean;
   leadFieldPicker?: boolean;
   tzPicker?: boolean;
+  providerPicker?: boolean;
   isSetup?: boolean;
   thinkingSteps?: string[];
 }
@@ -545,6 +548,10 @@ export default function Dashboard() {
   const [sourceTypeFilter, setSourceTypeFilter] = useState<"all" | "text" | "url" | "file">("all");
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
 
+  // Mailbox tab state
+  const [mailboxFilter, setMailboxFilter] = useState<"all" | "client" | "admin">("all");
+  const [selectedMailId, setSelectedMailId] = useState<string | null>(null);
+
   // Copy code animation state
   const [copiedScript, setCopiedScript] = useState(false);
   const [copiedIframe, setCopiedIframe] = useState(false);
@@ -807,6 +814,46 @@ export default function Dashboard() {
     return LOCALE_TEXTS[language]?.[key] || LOCALE_TEXTS["EN"]?.[key] || key;
   };
 
+  // ── Dropdown option lists (memoized) ───────────────────────────────────────
+  const timezoneOptions: ModernSelectOption[] = useMemo(
+    () =>
+      getTimezones().map((tz) => {
+        const off = tzOffsetLabel(tz);
+        return { value: tz, label: tz.replace(/_/g, " "), hint: off ? `(${off})` : undefined };
+      }),
+    []
+  );
+  const countryOptions: ModernSelectOption[] = useMemo(
+    () => COUNTRIES.map((c) => ({ value: c.code, label: c.name, icon: <span>{c.flag}</span> })),
+    []
+  );
+  const providerOptions: ModernSelectOption[] = useMemo(
+    () => [
+      { value: "google_meet", label: "Google Meet", icon: <span>📹</span> },
+      { value: "zoom", label: "Zoom", icon: <span>🔵</span> },
+      { value: "teams", label: "Microsoft Teams", icon: <span>🟣</span> },
+    ],
+    []
+  );
+  const languageOptions: ModernSelectOption[] = useMemo(
+    () => [
+      { value: "EN", label: "English", icon: <span>🇬🇧</span> },
+      { value: "ES", label: "Español", icon: <span>🇪🇸</span> },
+      { value: "FR", label: "Français", icon: <span>🇫🇷</span> },
+      { value: "DE", label: "Deutsch", icon: <span>🇩🇪</span> },
+      { value: "IT", label: "Italiano", icon: <span>🇮🇹</span> },
+    ],
+    []
+  );
+
+  // Auto-detect timezone + country once the session is ready, if not already set.
+  useEffect(() => {
+    if (loadingSession) return;
+    if (!botTimezone || botTimezone === "UTC") setBotTimezone(detectTimezone());
+    if (!botCountry) setBotCountry(detectCountryCode());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingSession]);
+
   // Localized Date-Time Formatter
   const formatDateTime = (dateStr: string) => {
     try {
@@ -853,7 +900,7 @@ export default function Dashboard() {
 
   // Load Admin Data on tab changes
   useEffect(() => {
-    if (botId && ["meetings", "notifications", "audit_log", "leads", "playground"].includes(activeTab)) {
+    if (botId && ["meetings", "notifications", "mailbox", "audit_log", "leads", "playground"].includes(activeTab)) {
       loadAdminData(botId);
     }
   }, [activeTab, botId]);
@@ -959,9 +1006,12 @@ export default function Dashboard() {
       case 7:
         return {
           role: "assistant",
-          content: "🌍 **Please confirm your timezone and country** (auto-detected from your browser):\n\nTimezone: **" + (Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC") + "**\nCountry: Auto-detected\n\nThen connect your preferred calendar:",
+          content: "🌍 **Confirm your country & timezone, pick a meeting provider, then connect a calendar.**\n\nWe auto-detected these from your browser — adjust if needed. The assistant will collect all required lead details *before* booking, then sync times to the visitor's timezone.",
+          tzPicker: true,
+          providerPicker: true,
           calendarButtons: true,
           quickReplies: [
+            { label: "Calendar connected — continue", value: "calendar_done", icon: "✅" },
             { label: "Continue without calendar", value: "skip_calendar", icon: "⏭️" }
           ],
           isSetup: true
@@ -1012,6 +1062,7 @@ export default function Dashboard() {
       yes_meetings: "Yes, enable scheduling",
       skip_meetings: "No, skip",
       skip_calendar: "Continue without calendar",
+      calendar_done: "Calendar connected — continue",
       goto_admin: "Open Admin Panel",
     };
     const displayLabel = displayMap[value] || value;
@@ -1070,6 +1121,22 @@ export default function Dashboard() {
     if (value === "skip_meetings") {
       await saveOnboardingStep(8, false);
       setAgenticSetupStep(8);
+      return;
+    }
+    if (value === "calendar_done") {
+      setCalendarSchedulingEnabled(true);
+      await saveOnboardingStep(8, false, {
+        meeting_provider: meetingProvider,
+        bot_timezone: botTimezone,
+        bot_country: botCountry,
+        calendar_scheduling_enabled: true,
+      });
+      setPlaygroundMessages(prev => [...prev, {
+        role: "assistant",
+        content: `✅ **Scheduling configured!** Provider: **${meetingProvider.replace("_", " ")}** · ${botCountry} · ${botTimezone}. The assistant will collect all lead details before booking and email both client and admin.`,
+        status: "success"
+      }]);
+      setTimeout(() => setAgenticSetupStep(8), 700);
       return;
     }
     if (value === "skip_calendar") {
@@ -1184,6 +1251,8 @@ export default function Dashboard() {
           calendar_scheduling_enabled: calendarSchedulingEnabled,
           scheduling_duration_minutes: schedulingDuration,
           bot_timezone: botTimezone,
+          bot_country: botCountry,
+          meeting_provider: meetingProvider,
           updated_at: new Date().toISOString()
         })
         .eq("id", botId);
@@ -2018,23 +2087,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Right: Auxiliary Icons & Send */}
+          {/* Right: Send */}
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setPlaygroundMessages(prev => [...prev, { role: "assistant", content: "Skills trigger activated (Mock interface)." }])}
-              className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-            >
-              <MessageSquare className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setPlaygroundMessages(prev => [...prev, { role: "assistant", content: "Voice recognition activated (Mock interface). Speak to train your bot." }])}
-              className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-            >
-              <Mic className="size-4" />
-            </button>
-
             {/* Send button (circle up arrow) */}
             <button
               type="submit"
@@ -2132,6 +2186,7 @@ export default function Dashboard() {
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
               { id: "leads", label: t("leads"), icon: Users },
               { id: "meetings", label: t("meetings"), icon: Calendar },
+              { id: "mailbox", label: "Mailbox", icon: Mail },
               { id: "notifications", label: t("notifications"), icon: Bell },
               { id: "audit_log", label: t("audit_log"), icon: FileText },
               { id: "analytics", label: t("analytics"), icon: BarChart3 },
@@ -2166,9 +2221,9 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 mb-4">
             <div className="size-8 rounded-full bg-[#f97316]/10 flex items-center justify-center text-[#f97316] font-bold text-xs">P</div>
             <div className="overflow-hidden">
-              <p className="text-[11px] font-semibold truncate">{user ? user.email.split("@")[0] : "Demo User"}</p>
+              <p className="text-[11px] font-semibold truncate">{user ? user.email.split("@")[0] : "Guest"}</p>
               <p className="text-[9px] text-neutral-400 dark:text-neutral-500 truncate">
-                {user ? "Production Account" : "Hobby Plan • trial"}
+                {user ? user.email : "Sign in to sync"}
               </p>
             </div>
           </div>
@@ -2206,21 +2261,15 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-4 text-xs text-neutral-500">
             {/* Language Selector */}
-            <div className="flex items-center gap-1.5 border border-neutral-100 dark:border-neutral-800 rounded-lg px-2.5 py-1 bg-neutral-50/50 dark:bg-neutral-950/20">
-              <span className="text-[10px] font-bold uppercase text-neutral-400">{t("language")}:</span>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value as any)}
-                className="bg-transparent border-none rounded text-[10px] focus:outline-none cursor-pointer text-neutral-700 dark:text-neutral-300 font-bold pr-1"
-              >
-                <option value="EN" className="bg-white dark:bg-neutral-900">EN (English)</option>
-                <option value="ES" className="bg-white dark:bg-neutral-900">ES (Español)</option>
-                <option value="FR" className="bg-white dark:bg-neutral-900">FR (Français)</option>
-                <option value="DE" className="bg-white dark:bg-neutral-900">DE (Deutsch)</option>
-                <option value="IT" className="bg-white dark:bg-neutral-900">IT (Italiano)</option>
-              </select>
-            </div>
-            
+            <ModernSelect
+              value={language}
+              options={languageOptions}
+              onChange={(v) => setLanguage(v as "EN" | "ES" | "FR" | "DE" | "IT")}
+              align="right"
+              size="sm"
+              className="w-36"
+            />
+
             {/* Re-run Setup (agentic flow) */}
             {onboardingCompleted && (
               <button
@@ -2234,7 +2283,7 @@ export default function Dashboard() {
 
             <span className="flex items-center gap-1.5">
               <span className={`size-2 rounded-full ${user ? "bg-green-500" : "bg-yellow-500"}`}></span>
-              {user ? "Database Active" : "Trial Sandbox"}
+              {user ? "Database Active" : "Offline"}
             </span>
           </div>
         </header>
@@ -2842,12 +2891,24 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setPlaygroundMessages([{ role: "assistant", content: welcomeMsg }])}
-                    className="px-2 py-1 rounded border border-white/20 hover:bg-white/10 text-[10px] font-semibold transition-colors cursor-pointer"
-                  >
-                    Reset
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Language picker at the top of the assistant */}
+                    <div className="w-28">
+                      <ModernSelect
+                        value={language}
+                        options={languageOptions}
+                        onChange={(v) => setLanguage(v as "EN" | "ES" | "FR" | "DE" | "IT")}
+                        align="right"
+                        size="sm"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setPlaygroundMessages([{ role: "assistant", content: welcomeMsg }])}
+                      className="px-2 py-1 rounded border border-white/20 hover:bg-white/10 text-[10px] font-semibold transition-colors cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
 
                 {/* Chat messages */}
@@ -2907,10 +2968,106 @@ export default function Dashboard() {
                             {msg.content}
                           </ReactMarkdown>
                         </div>
+
+                        {/* ── Agentic setup interactive controls ── */}
+                        {msg.role !== "user" && (msg.calendarButtons || msg.connectorButtons) && (
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            <button
+                              onClick={() => handleSetupQuickReply("calendar_google")}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[11px] font-semibold transition-colors cursor-pointer ${
+                                googleConnected
+                                  ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400"
+                                  : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
+                              }`}
+                            >
+                              <svg className="size-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z"/></svg>
+                              {googleConnected ? "Google Connected" : "Connect Google Calendar"}
+                              {googleConnected && <Check className="size-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => handleSetupQuickReply("calendar_microsoft")}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[11px] font-semibold transition-colors cursor-pointer ${
+                                microsoftConnected
+                                  ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400"
+                                  : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
+                              }`}
+                            >
+                              <svg className="size-4" viewBox="0 0 24 24"><path fill="#F25022" d="M3 3h8v8H3z"/><path fill="#7FBA00" d="M13 3h8v8h-8z"/><path fill="#00A4EF" d="M3 13h8v8H3z"/><path fill="#FFB900" d="M13 13h8v8h-8z"/></svg>
+                              {microsoftConnected ? "Microsoft Connected" : "Connect Outlook Calendar"}
+                              {microsoftConnected && <Check className="size-3.5" />}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Timezone + Country pickers inline in chat */}
+                        {msg.role !== "user" && msg.tzPicker && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1 max-w-md">
+                            <div>
+                              <label className="block text-[9px] font-semibold text-neutral-400 uppercase mb-1">{t("country")}</label>
+                              <ModernSelect value={botCountry} options={countryOptions} onChange={(v) => handleInputChange(setBotCountry, v)} searchable size="sm" />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-semibold text-neutral-400 uppercase mb-1">{t("timezone")}</label>
+                              <ModernSelect value={botTimezone} options={timezoneOptions} onChange={(v) => handleInputChange(setBotTimezone, v)} searchable size="sm" />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Meeting provider picker inline in chat */}
+                        {msg.role !== "user" && msg.providerPicker && (
+                          <div className="mt-1 max-w-[220px]">
+                            <label className="block text-[9px] font-semibold text-neutral-400 uppercase mb-1">Meeting Provider</label>
+                            <ModernSelect value={meetingProvider} options={providerOptions} onChange={(v) => handleInputChange(setMeetingProvider, v)} size="sm" />
+                          </div>
+                        )}
+
+                        {/* Lead field picker */}
+                        {msg.role !== "user" && msg.leadFieldPicker && (
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {["name", "email", "phone", "company", "job_title", "country", "budget", "industry"].map((f) => {
+                              const required = f === "name" || f === "email";
+                              const on = pendingLeadFields.includes(f);
+                              return (
+                                <button
+                                  key={f}
+                                  disabled={required}
+                                  onClick={() =>
+                                    setPendingLeadFields((prev) =>
+                                      prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]
+                                    )
+                                  }
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors capitalize ${
+                                    on
+                                      ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
+                                      : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                                  } ${required ? "opacity-70 cursor-default" : "cursor-pointer"}`}
+                                >
+                                  {f.replace("_", " ")}{required ? " *" : ""}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Quick reply buttons */}
+                        {msg.role !== "user" && msg.quickReplies && msg.quickReplies.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {msg.quickReplies.map((qr, qi) => (
+                              <button
+                                key={qi}
+                                onClick={() => handleSetupQuickReply(qr.value)}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5 text-[11px] font-semibold transition-colors cursor-pointer"
+                              >
+                                {qr.icon && <span>{qr.icon}</span>}
+                                {qr.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   ))}
-                  
+
                   {isBotResponding && (
                     <div className="flex gap-2 mr-auto max-w-[85%] w-full">
                       <div className="size-6 rounded-full bg-neutral-150 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
@@ -3317,31 +3474,55 @@ export default function Dashboard() {
                           animate={{ opacity: 1, height: "auto" }}
                           className="pl-4 border-l-2 border-neutral-200 dark:border-neutral-800 space-y-4 pt-1"
                         >
+                          {/* Meeting Provider */}
+                          <div>
+                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Meeting Provider</label>
+                            <ModernSelect
+                              value={meetingProvider}
+                              options={providerOptions}
+                              onChange={(v) => handleInputChange(setMeetingProvider, v)}
+                            />
+                            <p className="text-[9px] text-neutral-400 mt-1">
+                              {meetingProvider === "google_meet"
+                                ? "Real Meet links are generated from the connected Google Calendar."
+                                : meetingProvider === "zoom"
+                                ? "Real Zoom links require Zoom credentials configured on the backend."
+                                : "Teams links use the connected Microsoft calendar."}
+                            </p>
+                          </div>
+
                           {/* Duration Selector */}
                           <div>
                             <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Allowed Time Duration</label>
-                            <select
-                              value={schedulingDuration}
-                              onChange={(e) => handleInputChange(setSchedulingDuration, parseInt(e.target.value, 10))}
-                              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 cursor-pointer"
-                            >
-                              <option value={15}>15 Minutes</option>
-                              <option value={30}>30 Minutes</option>
-                              <option value={45}>45 Minutes</option>
-                              <option value={60}>60 Minutes</option>
-                            </select>
+                            <ModernSelect
+                              value={String(schedulingDuration)}
+                              options={[15, 30, 45, 60].map((m) => ({ value: String(m), label: `${m} Minutes` }))}
+                              onChange={(v) => handleInputChange(setSchedulingDuration, parseInt(v, 10))}
+                            />
                           </div>
 
-                          {/* Timezone Input */}
-                          <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Calendar Timezone</label>
-                            <input
-                              type="text"
-                              value={botTimezone}
-                              onChange={(e) => handleInputChange(setBotTimezone, e.target.value)}
-                              className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                              placeholder="e.g. UTC, America/New_York"
-                            />
+                          {/* Country + Timezone (auto-detected, searchable) */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("country")}</label>
+                              <ModernSelect
+                                value={botCountry}
+                                options={countryOptions}
+                                onChange={(v) => handleInputChange(setBotCountry, v)}
+                                searchable
+                                placeholder="Select country"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("timezone")}</label>
+                              <ModernSelect
+                                value={botTimezone}
+                                options={timezoneOptions}
+                                onChange={(v) => handleInputChange(setBotTimezone, v)}
+                                searchable
+                                placeholder="Select timezone"
+                              />
+                            </div>
                           </div>
                         </motion.div>
                       )}
@@ -3501,6 +3682,127 @@ export default function Dashboard() {
               )}
             </div>
           )}
+
+          {/* TAB: MAILBOX */}
+          {activeTab === "mailbox" && (() => {
+            const emails = adminNotifications
+              .filter((n: any) => n.channel === "email")
+              .filter((n: any) => mailboxFilter === "all" || n.type === mailboxFilter);
+            const selected = emails.find((m: any) => m.id === selectedMailId) || emails[0] || null;
+            const statusBadge = (s: string) => {
+              const map: Record<string, string> = {
+                sent: "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400",
+                sent_gmail: "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400",
+                logged: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400",
+              };
+              const label = s === "sent_gmail" ? "sent (gmail)" : s === "logged" ? "logged only" : s;
+              return <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full capitalize ${map[s] || "bg-neutral-100 text-neutral-500"}`}>{label}</span>;
+            };
+            return (
+              <div className="max-w-6xl mx-auto w-full py-6 px-4 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
+                      <Mail className="size-3.5" /> Mailbox
+                    </h4>
+                    <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">
+                      Beautiful confirmation emails sent to clients and admins when a meeting is booked.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-0.5 bg-neutral-50 dark:bg-neutral-950 rounded-lg p-0.5 border border-neutral-200 dark:border-neutral-800">
+                      {(["all", "client", "admin"] as const).map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => { setMailboxFilter(f); setSelectedMailId(null); }}
+                          className={`px-2.5 py-1 text-[10px] font-semibold rounded-md capitalize transition-colors cursor-pointer ${
+                            mailboxFilter === f ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm" : "text-neutral-400 hover:text-neutral-600"
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => botId && loadAdminData(botId)}
+                      className="flex items-center gap-1.5 text-[11px] font-semibold border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-350 cursor-pointer"
+                    >
+                      <RefreshCw className={`size-3.5 ${loadingAdminData ? "animate-spin" : ""}`} /> Refresh
+                    </button>
+                  </div>
+                </div>
+
+                {emails.length === 0 ? (
+                  <div className="p-12 text-center bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                    <Mail className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
+                    <p className="text-xs font-semibold text-neutral-500 mt-3">No emails yet</p>
+                    <p className="text-[10px] text-neutral-400 mt-1">When a visitor books a meeting, client &amp; admin confirmation emails will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    {/* Email list */}
+                    <div className="lg:col-span-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-850 max-h-[600px] overflow-y-auto">
+                      {emails.map((m: any) => {
+                        const isSel = selected && m.id === selected.id;
+                        return (
+                          <button
+                            key={m.id}
+                            onClick={() => setSelectedMailId(m.id)}
+                            className={`w-full text-left p-3.5 transition-colors cursor-pointer ${
+                              isSel ? "bg-[#f97316]/5 border-l-2 border-l-[#f97316]" : "hover:bg-neutral-50 dark:hover:bg-neutral-850/40 border-l-2 border-l-transparent"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${m.type === "admin" ? "bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400" : "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"}`}>
+                                {m.type}
+                              </span>
+                              {statusBadge(m.status)}
+                            </div>
+                            <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mt-1.5 truncate">{m.subject}</p>
+                            <p className="text-[10px] text-neutral-400 truncate mt-0.5">To: {m.recipient}</p>
+                            {m.created_at && <p className="text-[9px] text-neutral-400 mt-1">{formatDateTime(m.created_at)}</p>}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Email preview */}
+                    <div className="lg:col-span-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col max-h-[600px]">
+                      {selected ? (
+                        <>
+                          <div className="p-4 border-b border-neutral-100 dark:border-neutral-850">
+                            <div className="flex items-center justify-between gap-2">
+                              <h5 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">{selected.subject}</h5>
+                              {statusBadge(selected.status)}
+                            </div>
+                            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-neutral-400">
+                              <span>To: <span className="text-neutral-600 dark:text-neutral-300 font-medium">{selected.recipient}</span></span>
+                              <span className="capitalize">· {selected.type} notification</span>
+                              {selected.created_at && <span>· {formatDateTime(selected.created_at)}</span>}
+                            </div>
+                          </div>
+                          <div className="flex-1 overflow-hidden bg-neutral-100 dark:bg-neutral-950">
+                            {selected.html_content ? (
+                              <iframe
+                                title="email-preview"
+                                sandbox=""
+                                srcDoc={selected.html_content}
+                                className="w-full h-full min-h-[420px] border-0 bg-white"
+                              />
+                            ) : (
+                              <pre className="p-5 text-xs text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed font-sans">{selected.content}</pre>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex-1 flex items-center justify-center text-xs text-neutral-400">Select an email to preview</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* TAB 10: NOTIFICATIONS */}
           {activeTab === "notifications" && (
