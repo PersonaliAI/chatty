@@ -533,6 +533,7 @@ export default function Dashboard() {
   const [connectorsDropdownOpen, setConnectorsDropdownOpen] = useState(false);
   const [syncInstagram, setSyncInstagram] = useState(true);
   const [syncBrowser, setSyncBrowser] = useState(false);
+  const [showSourcesSidebar, setShowSourcesSidebar] = useState(false);
   const knowledgeEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -2917,6 +2918,17 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowSourcesSidebar(!showSourcesSidebar)}
+                        className={`flex items-center gap-1.5 text-[9px] font-bold border rounded-full px-2.5 py-1 transition-all cursor-pointer ${
+                          showSourcesSidebar
+                            ? "bg-[#f97316]/15 text-[#f97316] border-[#f97316]/30 dark:bg-[#f97316]/20"
+                            : "bg-neutral-150 text-neutral-600 border-neutral-200 dark:bg-neutral-850 dark:text-neutral-400 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-750"
+                        }`}
+                      >
+                        <Layers className="size-3" />
+                        {showSourcesSidebar ? "Hide Sources" : "Show Sources"}
+                      </button>
                       {googleConnected ? (
                         <button
                           onClick={() => handleDisconnectCloud("google")}
@@ -3550,7 +3562,8 @@ export default function Dashboard() {
               </div>
               
               {/* Right Column: Active Sources & Connectors Sidebar */}
-              <div className="w-full lg:w-80 xl:w-96 shrink-0 h-full overflow-y-auto space-y-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 scrollbar-thin">
+              {showSourcesSidebar && (
+                <div className="w-full lg:w-80 xl:w-96 shrink-0 h-full overflow-y-auto space-y-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 scrollbar-thin">
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
                     <Sparkles className="size-4 text-[#f97316]" /> Cloud API Connectors
@@ -3735,6 +3748,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
+            )}
             </div>
           )}
 
