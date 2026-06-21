@@ -87,6 +87,25 @@ interface Source {
   charCount: number;
 }
 
+interface QuickReply {
+  label: string;
+  value: string;
+  icon?: string;
+}
+
+interface KnowledgeMessage {
+  role: string;
+  content: string;
+  status?: "info" | "success" | "error" | "pending";
+  filename?: string;
+  quickReplies?: QuickReply[];
+  connectorButtons?: boolean;
+  calendarButtons?: boolean;
+  leadFieldPicker?: boolean;
+  tzPicker?: boolean;
+  isSetup?: boolean;
+}
+
 const LOCALE_TEXTS: Record<string, Record<string, string>> = {
   EN: {
     overview: "Overview",
@@ -429,7 +448,10 @@ export default function Dashboard() {
   const [botCountry, setBotCountry] = useState<string>("");
   const [syncOffice365Calendar, setSyncOffice365Calendar] = useState<boolean>(false);
   const [meetingProvider, setMeetingProvider] = useState<string>("google_meet");
-  const [wizardOpen, setWizardOpen] = useState<boolean>(false);
+  // agenticSetupStep: which conversational setup step the chat assistant is at
+  // 0=not started, 1=welcome, 2=docs_upload, 3=instructions, 4=lead_fields, 5=meetings, 6=calendar, 7=meeting_provider, 8=notifications, 9=done
+  const [agenticSetupStep, setAgenticSetupStep] = useState<number>(0);
+  const [pendingLeadFields, setPendingLeadFields] = useState<string[]>(["name", "email", "phone"]);
 
   // Admin Panel Data
   const [adminMeetings, setAdminMeetings] = useState<any[]>([]);
@@ -501,12 +523,7 @@ export default function Dashboard() {
   };
 
   // Knowledge Base Chat States
-  const [knowledgeMessages, setKnowledgeMessages] = useState<Array<{ role: string; content: string; status?: "info" | "success" | "error" | "pending"; filename?: string }>>([
-    {
-      role: "assistant",
-      content: "Hello! I am your Knowledge Manager. I can help you train your chatbot. You can:\n\n1. **Upload files** (PDF, DOCX, TXT, MD) using the 📎 paperclip button.\n2. **Crawl websites** by pasting a URL (e.g. `https://example.com/faq`) or saying `crawl https://example.com`.\n3. **Train facts** by typing or pasting text documentation directly here.\n4. **Test RAG memory** by asking me questions like `What is the return policy?` to see what I've learned!"
-    }
-  ]);
+  const [knowledgeMessages, setKnowledgeMessages] = useState<KnowledgeMessage[]>([]);
   const [knowledgeInput, setKnowledgeInput] = useState("");
   const [isKnowledgeLoading, setIsKnowledgeLoading] = useState(false);
   const [uploadingFile, setUploadingFile] = useState<string | null>(null);
@@ -724,7 +741,8 @@ export default function Dashboard() {
         setSyncOffice365Calendar(activeBot.sync_office365_calendar || false);
         setMeetingProvider(activeBot.meeting_provider || "google_meet");
         if (!activeBot.onboarding_completed) {
-          setWizardOpen(true);
+          // Start the agentic chat-based setup flow immediately in the knowledge chat
+          setAgenticSetupStep(1);
         }
 
         // Fetch sources
@@ -839,7 +857,6 @@ export default function Dashboard() {
     setOnboardingStep(step);
     if (completed) {
       setOnboardingCompleted(true);
-      setWizardOpen(false);
     }
     
     try {
@@ -866,6 +883,207 @@ export default function Dashboard() {
       console.error("Error saving onboarding step:", err);
     }
   }
+
+  // ── AGENTIC SETUP FLOW ──────────────────────────────────────────────────────
+  // Returns the initial assistant message for each setup step
+  function getAgenticStepMessage(step: number): KnowledgeMessage {
+    switch (step) {
+      case 1:
+        return {
+          role: "assistant",
+          content: "👋 Hi! Would you like to **train** this assistant using your business data?",
+          quickReplies: [
+            { label: "Yes, let's set it up", value: "yes_setup", icon: "✅" },
+            { label: "Skip for now", value: "skip_setup", icon: "⏭️" }
+          ],
+          isSetup: true
+        };
+      case 2:
+        return {
+          role: "assistant",
+          content: "📂 Great! Please **send your documents** — PDF, TXT, DOCX, images, or CSV files.\n\nYou can also connect optional drives:",
+          connectorButtons: true,
+          quickReplies: [
+            { label: "I've uploaded all my docs", value: "docs_done", icon: "✅" }
+          ],
+          isSetup: true
+        };
+      case 3:
+        return {
+          role: "assistant",
+          content: "📋 **Do you have any custom instructions, rules, or policies** for the assistant?\n\nFor example: *Always be polite. Don't offer discounts. Refer inquiries outside North America to partners.*",
+          quickReplies: [
+            { label: "Skip — no custom rules", value: "skip_instructions", icon: "⏭️" }
+          ],
+          isSetup: true
+        };
+      case 4:
+        return {
+          role: "assistant",
+          content: "🎯 **Would you like to enable Lead Extraction?**\n\nThe assistant will automatically collect visitor contact information during conversations.",
+          quickReplies: [
+            { label: "Yes, enable lead capture", value: "yes_leads", icon: "✅" },
+            { label: "No, skip this", value: "skip_leads", icon: "⏭️" }
+          ],
+          isSetup: true
+        };
+      case 5:
+        return {
+          role: "assistant",
+          content: "📋 **Which lead details should be captured?** Select the fields you need:\n\n*(Name and Email are always required)*",
+          leadFieldPicker: true,
+          quickReplies: [
+            { label: "Confirm these fields", value: "confirm_lead_fields", icon: "✅" }
+          ],
+          isSetup: true
+        };
+      case 6:
+        return {
+          role: "assistant",
+          content: "📅 **Would you like the assistant to schedule demo meetings with leads?**",
+          quickReplies: [
+            { label: "Yes, enable scheduling", value: "yes_meetings", icon: "✅" },
+            { label: "No, skip", value: "skip_meetings", icon: "⏭️" }
+          ],
+          isSetup: true
+        };
+      case 7:
+        return {
+          role: "assistant",
+          content: "🌍 **Please confirm your timezone and country** (auto-detected from your browser):\n\nTimezone: **" + (Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC") + "**\nCountry: Auto-detected\n\nThen connect your preferred calendar:",
+          calendarButtons: true,
+          quickReplies: [
+            { label: "Continue without calendar", value: "skip_calendar", icon: "⏭️" }
+          ],
+          isSetup: true
+        };
+      case 8:
+        return {
+          role: "assistant",
+          content: "🔔 **Notification Setup Complete!**\n\n✅ Clients will receive meeting confirmation emails\n✅ You will receive instant booking alerts\n✅ Calendar invites sent automatically\n\nYour assistant is fully configured!",
+          quickReplies: [
+            { label: "🚀 Open Admin Panel", value: "goto_admin", icon: "" }
+          ],
+          isSetup: true
+        };
+      default:
+        return {
+          role: "assistant",
+          content: "Hello! I am your **Knowledge Manager**. I can help you train your chatbot.\n\n1. **Upload files** (PDF, DOCX, TXT, MD) using the 📎 paperclip button.\n2. **Crawl websites** by pasting a URL or saying `crawl https://example.com`.\n3. **Train facts** by typing documentation directly here.\n4. **Test RAG memory** by asking questions like `What is the return policy?`"
+        };
+    }
+  }
+
+  // Initialize the agentic setup chat when the step changes
+  useEffect(() => {
+    if (agenticSetupStep > 0 && !onboardingCompleted) {
+      const msg = getAgenticStepMessage(agenticSetupStep);
+      setKnowledgeMessages(prev => {
+        // Avoid duplicating if the last message is identical
+        if (prev.length > 0 && prev[prev.length - 1].content === msg.content) return prev;
+        return [...prev, msg];
+      });
+      // Navigate to knowledge tab so user sees the setup chat
+      if (activeTab !== "knowledge") setActiveTab("knowledge");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agenticSetupStep]);
+
+  // Handle a quick reply button click in the setup flow
+  const handleSetupQuickReply = async (value: string) => {
+    // Map action to user message display
+    const displayMap: Record<string, string> = {
+      yes_setup: "Yes, let's set it up",
+      skip_setup: "Skip for now",
+      docs_done: "I've uploaded all my docs",
+      skip_instructions: "Skip — no custom rules",
+      yes_leads: "Yes, enable lead capture",
+      skip_leads: "No, skip this",
+      confirm_lead_fields: "Confirm these fields",
+      yes_meetings: "Yes, enable scheduling",
+      skip_meetings: "No, skip",
+      skip_calendar: "Continue without calendar",
+      goto_admin: "Open Admin Panel",
+    };
+    const displayLabel = displayMap[value] || value;
+    setKnowledgeMessages(prev => [...prev, { role: "user", content: displayLabel }]);
+
+    if (value === "skip_setup") {
+      setOnboardingCompleted(true);
+      setAgenticSetupStep(0);
+      await saveOnboardingStep(9, true);
+      setKnowledgeMessages(prev => [...prev, {
+        role: "assistant",
+        content: "No problem! The Knowledge Manager is ready whenever you are. Upload files, crawl URLs, or type facts to train your assistant."
+      }]);
+      return;
+    }
+    if (value === "yes_setup") {
+      setAgenticSetupStep(2);
+      return;
+    }
+    if (value === "docs_done") {
+      setKnowledgeMessages(prev => [...prev, {
+        role: "assistant", content: "✅ Processing complete! All documents have been indexed into RAG memory.", status: "success"
+      }]);
+      setTimeout(() => setAgenticSetupStep(3), 600);
+      return;
+    }
+    if (value === "skip_instructions") {
+      setAgenticSetupStep(4);
+      return;
+    }
+    if (value === "yes_leads") {
+      setAgenticSetupStep(5);
+      return;
+    }
+    if (value === "skip_leads") {
+      setAgenticSetupStep(6);
+      return;
+    }
+    if (value === "confirm_lead_fields") {
+      setLeadFields(pendingLeadFields);
+      await saveOnboardingStep(4, false, { lead_fields: pendingLeadFields });
+      setKnowledgeMessages(prev => [...prev, {
+        role: "assistant",
+        content: `✅ **Lead fields configured:** ${pendingLeadFields.join(", ")}\n\nYour lead table will automatically capture these fields from conversations.`,
+        status: "success"
+      }]);
+      setTimeout(() => setAgenticSetupStep(6), 600);
+      return;
+    }
+    if (value === "yes_meetings") {
+      const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      setBotTimezone(detectedTz);
+      setAgenticSetupStep(7);
+      return;
+    }
+    if (value === "skip_meetings") {
+      await saveOnboardingStep(8, false);
+      setAgenticSetupStep(8);
+      return;
+    }
+    if (value === "skip_calendar") {
+      await saveOnboardingStep(8, false);
+      setAgenticSetupStep(8);
+      return;
+    }
+    if (value === "calendar_google") {
+      handleConnectCloud("google");
+      return;
+    }
+    if (value === "calendar_microsoft") {
+      handleConnectCloud("microsoft");
+      return;
+    }
+    if (value === "goto_admin") {
+      setOnboardingCompleted(true);
+      setAgenticSetupStep(0);
+      await saveOnboardingStep(9, true);
+      setActiveTab("leads");
+      return;
+    }
+  };
 
   // Handle Cloud Connector Disconnects
   const handleDisconnectCloud = async (provider: "google" | "microsoft") => {
@@ -1095,6 +1313,47 @@ export default function Dashboard() {
 
     // 1. Add User Message
     setKnowledgeMessages((prev) => [...prev, { role: "user", content: userInput }]);
+
+    // ── AGENTIC SETUP INTERCEPTION ──────────────────────────────────────────
+    // If we're in the agentic setup flow, handle the user's typed response
+    if (agenticSetupStep > 0 && !onboardingCompleted) {
+      setIsKnowledgeLoading(false);
+      if (agenticSetupStep === 3) {
+        // User is typing custom instructions
+        setSystemInstructions(userInput);
+        await saveOnboardingStep(3, false, { custom_instructions: userInput });
+        setKnowledgeMessages(prev => [...prev, {
+          role: "assistant",
+          content: `✅ **Instructions saved!** Your assistant will follow these rules:\n\n> *${userInput}*`,
+          status: "success"
+        }]);
+        setTimeout(() => setAgenticSetupStep(4), 800);
+        return;
+      }
+      if (agenticSetupStep === 5) {
+        // User might type custom field names
+        const customFields = userInput.split(",").map(f => f.trim().toLowerCase().replace(/\s+/g, "_")).filter(Boolean);
+        const combined = [...new Set(["name", "email", ...customFields])];
+        setPendingLeadFields(combined);
+        setLeadFields(combined);
+        await saveOnboardingStep(4, false, { lead_fields: combined });
+        setKnowledgeMessages(prev => [...prev, {
+          role: "assistant",
+          content: `✅ **Lead fields confirmed:** ${combined.join(", ")}`,
+          status: "success"
+        }]);
+        setTimeout(() => setAgenticSetupStep(6), 800);
+        return;
+      }
+      // For other setup steps, just add a regular reply and stay in the step
+      setKnowledgeMessages(prev => [...prev, {
+        role: "assistant",
+        content: "Got it! Please use the action buttons above to continue the setup. 👆"
+      }]);
+      setIsKnowledgeLoading(false);
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Check if it is a URL or a crawl command
     const crawlMatch = userInput.match(/^(?:crawl\s+)?(https?:\/\/[^\s]+)$/i);
@@ -1953,14 +2212,14 @@ export default function Dashboard() {
               </select>
             </div>
             
-            {/* Setup Wizard Button */}
+            {/* Re-run Setup (agentic flow) */}
             {onboardingCompleted && (
               <button
-                onClick={() => { setOnboardingStep(0); setWizardOpen(true); }}
-                className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 rounded-lg px-2.5 py-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
+                onClick={() => { setOnboardingCompleted(false); setAgenticSetupStep(1); setKnowledgeMessages([]); setActiveTab("knowledge"); }}
+                className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2.5 py-1.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
               >
                 <Sparkles className="size-3 text-[#f97316]" />
-                {t("setup_wizard")}
+                Re-run Setup
               </button>
             )}
 
@@ -2628,16 +2887,32 @@ export default function Dashboard() {
               ) : (
                 <>
                   {/* Chat Header */}
-                  <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md shrink-0 z-10">
+                  <div className="flex flex-col border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md shrink-0 z-10">
+                    {/* Setup progress bar */}
+                    {agenticSetupStep > 0 && !onboardingCompleted && (
+                      <div className="w-full bg-neutral-100 dark:bg-neutral-800 h-0.5">
+                        <div
+                          className="bg-gradient-to-r from-[#f97316] to-[#ec4899] h-full transition-all duration-500"
+                          style={{ width: `${(agenticSetupStep / 8) * 100}%` }}
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between px-4 sm:px-6 py-3">
                     <div className="flex items-center gap-3">
                       <div className="size-9 rounded-xl bg-gradient-to-br from-[#f97316] to-[#ec4899] flex items-center justify-center text-white font-bold text-sm shadow-md">
                         KM
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm leading-none">Knowledge Manager</h4>
+                        <h4 className="font-bold text-sm leading-none">
+                          {agenticSetupStep > 0 && !onboardingCompleted ? "AI Assistant Setup" : "Knowledge Manager"}
+                        </h4>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          <span className="text-[10px] text-neutral-450">{sources.length} sources trained • {sources.reduce((a, s) => a + s.charCount, 0).toLocaleString()} chars</span>
+                          {agenticSetupStep > 0 && !onboardingCompleted ? (
+                            <span className="text-[10px] text-[#f97316] font-semibold">Step {agenticSetupStep} of 8 — {["","Welcome","Upload Data","Instructions","Lead Setup","Lead Fields","Meetings","Calendar","Done"][agenticSetupStep] || ""}</span>
+                          ) : (
+                            <span className="text-[10px] text-neutral-450">{sources.length} sources trained • {sources.reduce((a, s) => a + s.charCount, 0).toLocaleString()} chars</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2661,14 +2936,26 @@ export default function Dashboard() {
                         </button>
                       )}
                       <button
-                        onClick={() => setKnowledgeMessages([{
-                          role: "assistant",
-                          content: "Chat cleared! Send me URLs to crawl, upload files via the 📎 button, or type documentation to train your bot. Ask any question to test what I've learned."
-                        }])}
-                        className="text-[9px] font-semibold text-neutral-450 hover:text-neutral-600 dark:hover:text-neutral-350 cursor-pointer transition-colors px-1.5 py-1"
+                        onClick={() => {
+                          // Clear chat + full setup reset
+                          setKnowledgeMessages([]);
+                          setOnboardingCompleted(false);
+                          setAgenticSetupStep(1);
+                          setSources([]);
+                          setLeads([]);
+                          setLeadFields(["name", "email", "phone"]);
+                          setPendingLeadFields(["name", "email", "phone"]);
+                          setBotTimezone("UTC");
+                          setBotCountry("");
+                          setSyncGoogleCalendar(false);
+                          setSyncOutlookCalendar(false);
+                          setMeetingProvider("google_meet");
+                        }}
+                        className="text-[9px] font-semibold text-neutral-450 hover:text-red-500 dark:hover:text-red-400 cursor-pointer transition-colors px-1.5 py-1"
                       >
                         Clear
                       </button>
+                    </div>
                     </div>
                   </div>
 
@@ -2721,6 +3008,136 @@ export default function Dashboard() {
                               {msg.content}
                             </ReactMarkdown>
                           </div>
+
+                          {/* Inline connector buttons for drive/calendar setup */}
+                          {msg.connectorButtons && msg.role === "assistant" && (
+                            <div className="flex flex-wrap gap-2 mt-2 ml-1">
+                              {!googleConnected ? (
+                                <button
+                                  onClick={() => handleConnectCloud("google")}
+                                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
+                                >
+                                  <svg className="size-3.5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                                  Connect Google Drive
+                                </button>
+                              ) : (
+                                <span className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                  <span className="size-1.5 rounded-full bg-emerald-500" /> Google Drive Connected
+                                </span>
+                              )}
+                              {!microsoftConnected ? (
+                                <button
+                                  onClick={() => handleConnectCloud("microsoft")}
+                                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
+                                >
+                                  <svg className="size-3.5" viewBox="0 0 23 23"><path fill="#f3f3f3" d="M0 0h23v23H0z"/><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>
+                                  Connect Microsoft
+                                </button>
+                              ) : (
+                                <span className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded-xl text-xs font-semibold text-blue-700 dark:text-blue-400">
+                                  <span className="size-1.5 rounded-full bg-blue-500" /> Microsoft Connected
+                                </span>
+                              )}
+                              <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
+                              >
+                                <Paperclip className="size-3.5 text-neutral-500" />
+                                Upload Files
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Calendar connection buttons for scheduling step */}
+                          {msg.calendarButtons && msg.role === "assistant" && (
+                            <div className="flex flex-wrap gap-2 mt-2 ml-1">
+                              {!googleConnected ? (
+                                <button
+                                  onClick={() => handleConnectCloud("google")}
+                                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
+                                >
+                                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4.5" fill="#4285F4"/><text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="sans-serif">31</text></svg>
+                                  Google Calendar
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { setSyncGoogleCalendar(true); handleSetupQuickReply("skip_calendar"); }}
+                                  className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-400 cursor-pointer"
+                                >
+                                  <span className="size-1.5 rounded-full bg-emerald-500" /> Google Calendar ✓ Use this
+                                </button>
+                              )}
+                              {!microsoftConnected ? (
+                                <button
+                                  onClick={() => handleConnectCloud("microsoft")}
+                                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
+                                >
+                                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4.5" fill="#0078D4"/><path d="M6 18H18V10H6V18ZM18 6H16V5c0-.55-.45-1-1-1s-1 .45-1 1v1H10V5c0-.55-.45-1-1-1s-1 .45-1 1v1H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" fill="white"/></svg>
+                                  Outlook Calendar
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { setSyncOutlookCalendar(true); handleSetupQuickReply("skip_calendar"); }}
+                                  className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded-xl text-xs font-semibold text-blue-700 dark:text-blue-400 cursor-pointer"
+                                >
+                                  <span className="size-1.5 rounded-full bg-blue-500" /> Outlook Calendar ✓ Use this
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Lead field picker embedded in chat */}
+                          {msg.leadFieldPicker && msg.role === "assistant" && (
+                            <div className="mt-2 ml-1 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                {[
+                                  { key: "name", label: "Full Name", required: true },
+                                  { key: "email", label: "Email Address", required: true },
+                                  { key: "phone", label: "Phone Number", required: false },
+                                  { key: "company", label: "Company", required: false },
+                                  { key: "job_title", label: "Job Title", required: false },
+                                  { key: "country", label: "Country", required: false },
+                                  { key: "industry", label: "Industry", required: false },
+                                  { key: "budget", label: "Budget", required: false },
+                                ].map(field => (
+                                  <label key={field.key} className="flex items-center gap-2 p-2 rounded-lg border border-neutral-100 dark:border-neutral-800 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-[11px] font-medium">
+                                    <input
+                                      type="checkbox"
+                                      checked={pendingLeadFields.includes(field.key)}
+                                      disabled={field.required}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setPendingLeadFields(prev => [...prev, field.key]);
+                                        } else {
+                                          setPendingLeadFields(prev => prev.filter(f => f !== field.key));
+                                        }
+                                      }}
+                                      className="accent-[#f97316]"
+                                    />
+                                    {field.label}
+                                    {field.required && <span className="text-[9px] text-neutral-400 ml-auto">(required)</span>}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Quick reply buttons */}
+                          {msg.quickReplies && msg.quickReplies.length > 0 && msg.role === "assistant" && (
+                            <div className="flex flex-wrap gap-2 mt-2 ml-1">
+                              {msg.quickReplies.map((qr) => (
+                                <button
+                                  key={qr.value}
+                                  onClick={() => handleSetupQuickReply(qr.value)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-full text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-[#f97316]/5 hover:border-[#f97316]/40 hover:text-[#f97316] transition-all shadow-sm cursor-pointer"
+                                >
+                                  {qr.icon && <span>{qr.icon}</span>}
+                                  {qr.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
                           {msg.status === "pending" && (
                             <div className="flex items-center gap-1 ml-1">
                               <Loader2 className="size-2.5 animate-spin text-amber-500" />
@@ -3852,606 +4269,6 @@ export default function Dashboard() {
               </div>
             </div>
           )}
-        </div>
-      </main>
-
-      {/* Telegram Link Dialog */}
-      {telegramLinkOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
-            <div>
-              <h4 className="text-sm font-bold">Link Telegram</h4>
-              <p className="text-[10px] text-neutral-400 mt-1 leading-normal">
-                Get your chat ID from @KinByPersonaliAI_bot — send /start to it.
-              </p>
-            </div>
-            <ol className="text-[10px] text-neutral-550 dark:text-neutral-400 space-y-1.5 list-decimal pl-4 leading-relaxed">
-              <li>Open <a href="https://t.me/KinByPersonaliAI_bot" target="_blank" rel="noreferrer" className="text-[#f97316] underline">@KinByPersonaliAI_bot</a> on Telegram and tap <b>Start</b>.</li>
-              <li>The bot will reply with your numeric chat ID.</li>
-              <li>Paste that ID below — we'll send a confirmation message to verify.</li>
-            </ol>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const target = e.target as HTMLFormElement;
-                const chatIdInput = target.elements.namedItem("telegramChatId") as HTMLInputElement;
-                const id = parseInt(chatIdInput.value.trim(), 10);
-                if (!id) return;
-                const success = await handleLinkTelegram(id);
-                if (success) {
-                  setTelegramLinkOpen(false);
-                }
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-[10px] font-semibold text-neutral-600 dark:text-neutral-400 mb-1">Telegram chat ID</label>
-                <input
-                  name="telegramChatId"
-                  type="text"
-                  placeholder="e.g. 8123456789"
-                  inputMode="numeric"
-                  autoFocus
-                  required
-                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
-                />
-              </div>
-              <div className="flex justify-end gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setTelegramLinkOpen(false)}
-                  className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg hover:opacity-90 font-semibold cursor-pointer"
-                >
-                  Link
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Google Drive Indexer Dialog */}
-      {driveModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
-            <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
-              <div className="flex items-center gap-2">
-                <FolderOpen className="size-5 text-yellow-500 animate-pulse" />
-                <h4 className="text-sm font-bold">Index Google Drive Folder</h4>
-              </div>
-              <button onClick={() => setDriveModalOpen(false)} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer">
-                <X className="size-4" />
-              </button>
-            </div>
-            <p className="text-[11px] text-neutral-450 dark:text-neutral-400 leading-relaxed">
-              Enter a Google Drive folder URL or ID. We will crawl the folder and index the files (PDF, DOCX, Sheets, Docs, TXT, MD) into your bot's RAG memory.
-            </p>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              if (!driveFolderUrl.trim()) return;
-              setIsIndexingDrive(true);
-              setDriveIndexError(null);
-              setDriveIndexSuccess(null);
-              try {
-                const res = await fetchWithFallback("/api/documents/index-folder", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    folder_id_or_url: driveFolderUrl.trim(),
-                    max_files: driveMaxFiles,
-                    source: "gdrive",
-                  }),
-                });
-                if (res.ok) {
-                  setDriveModalOpen(false);
-                  setKnowledgeMessages(prev => [
-                    ...prev,
-                    {
-                      role: "assistant",
-                      content: `Started indexing Google Drive folder: **${driveFolderUrl.trim()}** (max ${driveMaxFiles} files) in the background. The documents will appear in your trained sources soon!`,
-                      status: "success"
-                    }
-                  ]);
-                  setDriveFolderUrl("");
-                  // Refresh sources list in 5 seconds
-                  setTimeout(() => {
-                    if (user) loadBotSettings(user.id);
-                  }, 5000);
-                } else {
-                  const body = await res.json();
-                  setDriveIndexError(body.detail || "Failed to start folder indexing.");
-                }
-              } catch (err) {
-                setDriveIndexError("Failed to connect to the server.");
-              } finally {
-                setIsIndexingDrive(false);
-              }
-            }} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Folder URL or ID</label>
-                <input
-                  type="text"
-                  placeholder="https://drive.google.com/drive/folders/..."
-                  value={driveFolderUrl}
-                  onChange={(e) => setDriveFolderUrl(e.target.value)}
-                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Files to Index</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={200}
-                  value={driveMaxFiles}
-                  onChange={(e) => setDriveMaxFiles(parseInt(e.target.value, 10) || 50)}
-                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                />
-              </div>
-              {driveIndexError && (
-                <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>
-              )}
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setDriveModalOpen(false)}
-                  className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isIndexingDrive}
-                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {isIndexingDrive && <Loader2 className="size-3.5 animate-spin" />}
-                  Start Indexing
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Onboarding Setup Wizard Overlay Modal */}
-      {wizardOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl rounded-2xl w-full max-w-2xl flex flex-col max-h-[85vh] overflow-hidden text-neutral-900 dark:text-neutral-100">
-            {/* Wizard Header */}
-            <div className="p-5 border-b border-neutral-150 dark:border-neutral-800 flex items-center justify-between bg-neutral-50/50 dark:bg-neutral-950/20">
-              <div className="flex items-center gap-2">
-                <Sparkles className="size-5 text-[#f97316]" />
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 leading-none">{t("setup_wizard")}</h3>
-                  <p className="text-[10px] text-neutral-500 mt-1 font-semibold">Step {onboardingStep + 1} of 10</p>
-                </div>
-              </div>
-              <button
-                onClick={() => { setWizardOpen(false); setOnboardingCompleted(true); }}
-                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-[10px] font-bold cursor-pointer border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 rounded-lg transition-all"
-              >
-                {t("skip")}
-              </button>
-            </div>
-            
-            {/* Wizard Progress Bar */}
-            <div className="w-full bg-neutral-100 dark:bg-neutral-800 h-1">
-              <div
-                className="bg-[#f97316] h-full transition-all duration-300"
-                style={{ width: `${(onboardingStep + 1) * 10}%` }}
-              />
-            </div>
-
-            {/* Wizard Body (Scrollable content) */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Step 1: Welcome & Training Setup */}
-              {onboardingStep === 0 && (
-                <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950/40 border border-neutral-150 dark:border-neutral-800 space-y-2">
-                    <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-350">{t("welcome")}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => saveOnboardingStep(1, false)}
-                      className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
-                    >
-                      {t("yes")}
-                    </button>
-                  </div>
-                  
-                  <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 space-y-4">
-                    <h4 className="text-[10px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">{t("supported_sources")}</h4>
-                    <div className="grid grid-cols-2 gap-3 text-[10px] text-neutral-500">
-                      <div className="p-2.5 rounded-lg border border-neutral-150 dark:border-neutral-800 flex items-center gap-2">📄 PDF files</div>
-                      <div className="p-2.5 rounded-lg border border-neutral-150 dark:border-neutral-800 flex items-center gap-2">📝 Text documents</div>
-                      <div className="p-2.5 rounded-lg border border-neutral-150 dark:border-neutral-800 flex items-center gap-2">🖼️ Images</div>
-                      <div className="p-2.5 rounded-lg border border-neutral-150 dark:border-neutral-800 flex items-center gap-2">📊 CSV files</div>
-                      <div className="p-2.5 rounded-lg border border-neutral-150 dark:border-neutral-800 flex items-center gap-2">🌐 Website URLs</div>
-                    </div>
-                    
-                    <h4 className="text-[10px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider pt-2">{t("optional_integrations")}</h4>
-                    <div className="grid grid-cols-4 gap-2 text-[9px] text-neutral-500">
-                      <button onClick={() => handleConnectCloud("google")} className="p-2 rounded-lg border border-neutral-150 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950/20 text-center font-bold hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer">Google Drive</button>
-                      <button onClick={() => handleConnectCloud("microsoft")} className="p-2 rounded-lg border border-neutral-150 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950/20 text-center font-bold hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer">OneDrive</button>
-                      <button className="p-2 rounded-lg border border-neutral-150 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950/20 text-center font-bold opacity-60 cursor-not-allowed">Dropbox</button>
-                      <button className="p-2 rounded-lg border border-neutral-150 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950/20 text-center font-bold opacity-60 cursor-not-allowed">SharePoint</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 2: Data Processing */}
-              {onboardingStep === 1 && (
-                <div className="text-center py-8 space-y-4">
-                  <Loader2 className="size-10 animate-spin text-[#f97316] mx-auto" />
-                  <p className="text-xs font-bold text-neutral-700 dark:text-neutral-350 animate-pulse">{t("processing")}</p>
-                  <div className="w-48 mx-auto bg-neutral-100 dark:bg-neutral-800 rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-[#f97316] h-full animate-[pulse_1.5s_infinite] w-3/4"></div>
-                  </div>
-                  <button
-                    onClick={() => saveOnboardingStep(2, false)}
-                    className="mt-6 px-4 py-2 border border-[#f97316] text-[#f97316] hover:bg-[#f97316]/5 rounded-lg text-xs font-bold transition-all cursor-pointer"
-                  >
-                    Simulate Done (Training Completed)
-                  </button>
-                </div>
-              )}
-
-              {/* Step 3: Business Rules & Instructions */}
-              {onboardingStep === 2 && (
-                <div className="space-y-4">
-                  <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400">{t("custom_instructions_q")}</label>
-                  <textarea
-                    value={systemInstructions}
-                    onChange={(e) => setSystemInstructions(e.target.value)}
-                    rows={5}
-                    className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 leading-normal"
-                    placeholder="E.g. If the lead is outside North America, refer them to partner agencies. Always be professional. Do not discount."
-                  />
-                  <button
-                    onClick={() => saveOnboardingStep(3, false, { custom_instructions: systemInstructions })}
-                    className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
-                  >
-                    {t("save_instructions")}
-                  </button>
-                </div>
-              )}
-
-              {/* Step 4: Lead Extraction Setup */}
-              {onboardingStep === 3 && (
-                <div className="space-y-6">
-                  <div className="space-y-3">
-                    <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400">{t("lead_fields_q")}</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { key: "name", label: "Full Name (Standard)" },
-                        { key: "email", label: "Email Address (Standard)" },
-                        { key: "phone", label: "Phone Number (Standard)" },
-                        { key: "company", label: "Company Name" },
-                        { key: "job_title", label: "Job Title" },
-                        { key: "country", label: "Country" },
-                        { key: "industry", label: "Industry" },
-                        { key: "budget", label: "Budget" }
-                      ].map((field) => (
-                        <label key={field.key} className="flex items-center gap-2 p-2.5 rounded-lg border border-neutral-150 dark:border-neutral-800 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-950/20 text-xs font-medium">
-                          <input
-                            type="checkbox"
-                            checked={leadFields.includes(field.key)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setLeadFields(prev => [...prev, field.key]);
-                              } else {
-                                if (field.key !== "name" && field.key !== "email") {
-                                  setLeadFields(prev => prev.filter(f => f !== field.key));
-                                }
-                              }
-                            }}
-                            disabled={field.key === "name" || field.key === "email"}
-                            className="accent-[#f97316]"
-                          />
-                          {field.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-                    <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Custom Fields (Comma separated)</label>
-                    <input
-                      type="text"
-                      placeholder="E.g. Project Type, Employee Count"
-                      onChange={(e) => {
-                        const customs = e.target.value.split(",").map(c => c.trim()).filter(Boolean);
-                        const baseFields = leadFields.filter(f => ["name", "email", "phone", "company", "job_title", "country", "industry", "budget"].includes(f));
-                        setLeadFields([...baseFields, ...customs]);
-                      }}
-                      className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none"
-                    />
-                  </div>
-
-                  <button
-                    onClick={() => saveOnboardingStep(4, false, { lead_fields: leadFields })}
-                    className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
-                  >
-                    {t("confirm_rules")}
-                  </button>
-                </div>
-              )}
-
-              {/* Step 5: Meeting Scheduling Setup */}
-              {onboardingStep === 4 && (
-                <div className="space-y-6">
-                  <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{t("timezone_confirm")}</p>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">{t("country")}</label>
-                      <input
-                        type="text"
-                        value={botCountry}
-                        onChange={(e) => setBotCountry(e.target.value)}
-                        className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">{t("timezone")}</label>
-                      <input
-                        type="text"
-                        value={botTimezone}
-                        onChange={(e) => setBotTimezone(e.target.value)}
-                        className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => saveOnboardingStep(5, false, { bot_country: botCountry, bot_timezone: botTimezone })}
-                    className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
-                  >
-                    {t("confirm_rules")}
-                  </button>
-                </div>
-              )}
-
-              {/* Step 6: Calendar Integration */}
-              {onboardingStep === 5 && (
-                <div className="space-y-6">
-                  <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{t("calendar_integration_q")}</p>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 rounded-lg border border-neutral-150 dark:border-neutral-800">
-                      <span className="text-xs font-bold">Google Calendar</span>
-                      <button
-                        onClick={() => {
-                          setSyncGoogleCalendar(!syncGoogleCalendar);
-                          saveOnboardingStep(5, false, { sync_google_calendar: !syncGoogleCalendar });
-                        }}
-                        className={`px-3 py-1.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                          syncGoogleCalendar ? "bg-green-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200"
-                        }`}
-                      >
-                        {syncGoogleCalendar ? "Connected" : "Connect"}
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 rounded-lg border border-neutral-150 dark:border-neutral-800">
-                      <span className="text-xs font-bold">Microsoft Outlook Calendar</span>
-                      <button
-                        onClick={() => {
-                          setSyncOutlookCalendar(!syncOutlookCalendar);
-                          saveOnboardingStep(5, false, { sync_outlook_calendar: !syncOutlookCalendar });
-                        }}
-                        className={`px-3 py-1.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                          syncOutlookCalendar ? "bg-green-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200"
-                        }`}
-                      >
-                        {syncOutlookCalendar ? "Connected" : "Connect"}
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 rounded-lg border border-neutral-150 dark:border-neutral-800">
-                      <span className="text-xs font-bold">Office 365 Calendar</span>
-                      <button
-                        onClick={() => {
-                          setSyncOffice365Calendar(!syncOffice365Calendar);
-                          saveOnboardingStep(5, false, { sync_office365_calendar: !syncOffice365Calendar });
-                        }}
-                        className={`px-3 py-1.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                          syncOffice365Calendar ? "bg-green-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200"
-                        }`}
-                      >
-                        {syncOffice365Calendar ? "Connected" : "Connect"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => saveOnboardingStep(6, false)}
-                    className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
-                  >
-                    {t("next")}
-                  </button>
-                </div>
-              )}
-
-              {/* Step 7: Meeting Provider Setup */}
-              {onboardingStep === 6 && (
-                <div className="space-y-6">
-                  <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{t("meeting_provider_q")}</p>
-                  
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { id: "google_meet", label: "Google Meet" },
-                      { id: "zoom", label: "Zoom Video" },
-                      { id: "teams", label: "MS Teams" }
-                    ].map((prov) => (
-                      <button
-                        key={prov.id}
-                        onClick={() => {
-                          setMeetingProvider(prov.id);
-                          saveOnboardingStep(7, false, { meeting_provider: prov.id });
-                        }}
-                        className={`p-4 rounded-xl border text-center font-bold text-xs cursor-pointer transition-all ${
-                          meetingProvider === prov.id
-                            ? "border-[#f97316] bg-[#f97316]/5 text-[#f97316]"
-                            : "border-neutral-150 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-950/20"
-                        }`}
-                      >
-                        {prov.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => saveOnboardingStep(7, false)}
-                    className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
-                  >
-                    {t("next")}
-                  </button>
-                </div>
-              )}
-
-              {/* Step 8: Scheduling Rules */}
-              {onboardingStep === 7 && (
-                <div className="space-y-6">
-                  <h4 className="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">{t("scheduling_rules")}</h4>
-                  
-                  <div className="space-y-2.5 text-xs text-neutral-600 dark:text-neutral-350">
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-neutral-50/50 dark:bg-neutral-950/20 border border-neutral-100 dark:border-neutral-800">
-                      <Check className="size-4 text-green-500 shrink-0" />
-                      <span>1. Collect all lead information (Name, Email, etc.)</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-neutral-50/50 dark:bg-neutral-950/20 border border-neutral-100 dark:border-neutral-800">
-                      <Check className="size-4 text-green-500 shrink-0" />
-                      <span>2. Verify lead qualification filters</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-neutral-50/50 dark:bg-neutral-950/20 border border-neutral-100 dark:border-neutral-800">
-                      <Check className="size-4 text-green-500 shrink-0" />
-                      <span>3. Determine visitor's country and locale</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-neutral-50/50 dark:bg-neutral-950/20 border border-neutral-100 dark:border-neutral-800">
-                      <Check className="size-4 text-green-500 shrink-0" />
-                      <span>4. Detect visitor's timezone</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-neutral-50/50 dark:bg-neutral-950/20 border border-neutral-100 dark:border-neutral-800">
-                      <Check className="size-4 text-green-500 shrink-0" />
-                      <span>5. Convert meeting times accurately</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-neutral-50/50 dark:bg-neutral-950/20 border border-neutral-100 dark:border-neutral-800">
-                      <Check className="size-4 text-green-500 shrink-0" />
-                      <span>6. Check calendar availability in real-time</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-neutral-50/50 dark:bg-neutral-950/20 border border-neutral-100 dark:border-neutral-800">
-                      <Check className="size-4 text-green-500 shrink-0" />
-                      <span>7. Generate unique meeting links automatically</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-neutral-50/50 dark:bg-neutral-950/20 border border-neutral-100 dark:border-neutral-800">
-                      <Check className="size-4 text-green-500 shrink-0" />
-                      <span>8. Send localized confirmation emails</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => saveOnboardingStep(8, false)}
-                    className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
-                  >
-                    {t("confirm_rules")}
-                  </button>
-                </div>
-              )}
-
-              {/* Step 9: Notifications & Email Automation */}
-              {onboardingStep === 8 && (
-                <div className="space-y-6">
-                  <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{t("notifications_setup")}</p>
-                  
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-xl border border-neutral-155 dark:border-neutral-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold">{t("notify_client")}</span>
-                        <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded font-bold">Active</span>
-                      </div>
-                      <p className="text-[10px] text-neutral-400">Sends scheduled meeting details and calendar links to the lead.</p>
-                    </div>
-
-                    <div className="p-4 rounded-xl border border-neutral-155 dark:border-neutral-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold">{t("notify_admin")}</span>
-                        <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded font-bold">Active</span>
-                      </div>
-                      <p className="text-[10px] text-neutral-400">Sends instant new meeting notifications and lead summaries to the administrator.</p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => saveOnboardingStep(9, false)}
-                    className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
-                  >
-                    {t("next")}
-                  </button>
-                </div>
-              )}
-
-              {/* Step 10: Final Confirmation */}
-              {onboardingStep === 9 && (
-                <div className="space-y-6">
-                  <div className="text-center py-4 space-y-2">
-                    <Check className="size-10 bg-green-500/10 text-green-500 rounded-full p-2.5 mx-auto" />
-                    <h4 className="text-sm font-bold text-neutral-800 dark:text-white">{t("setup_completed")}</h4>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950/40 border border-neutral-150 dark:border-neutral-800 space-y-2.5 text-xs">
-                    <div className="flex items-center gap-2">✓ AI Training Data</div>
-                    <div className="flex items-center gap-2">✓ Custom Business Rules</div>
-                    <div className="flex items-center gap-2">✓ Lead Extraction Configured</div>
-                    <div className="flex items-center gap-2">✓ Dynamic Lead Table Mapped</div>
-                    <div className="flex items-center gap-2">✓ Calendar Integration Active</div>
-                    <div className="flex items-center gap-2">✓ Automated Provider Meeting Links</div>
-                    <div className="flex items-center gap-2">✓ Multi-Language support synchronized</div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      saveOnboardingStep(9, true);
-                      setActiveTab("leads");
-                    }}
-                    className="w-full py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold hover:bg-green-500 transition-all cursor-pointer text-center"
-                  >
-                    {t("go_to_admin")}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Wizard Footer (Back / Next controls) */}
-            {onboardingStep > 0 && onboardingStep < 9 && (
-              <div className="p-4 border-t border-neutral-150 dark:border-neutral-800 flex justify-between bg-neutral-50/50 dark:bg-neutral-955/20">
-                <button
-                  type="button"
-                  onClick={() => setOnboardingStep(prev => prev - 1)}
-                  className="px-3.5 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
-                >
-                  {t("back")}
-                </button>
-                {onboardingStep !== 1 && onboardingStep !== 2 && onboardingStep !== 3 && onboardingStep !== 4 && onboardingStep !== 7 && (
-                  <button
-                    type="button"
-                    onClick={() => saveOnboardingStep(onboardingStep + 1, false)}
-                    className="px-3.5 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer"
-                  >
-                    {t("next")}
-                  </button>
-                )}
-              </div>
-            )}
-
           {/* TAB 9: MEETINGS */}
           {activeTab === "meetings" && (
             <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-8">
@@ -4761,9 +4578,175 @@ export default function Dashboard() {
               )}
             </div>
           )}
+        </div>
+      </main>
+
+      {/* Telegram Link Dialog */}
+      {telegramLinkOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
+            <div>
+              <h4 className="text-sm font-bold">Link Telegram</h4>
+              <p className="text-[10px] text-neutral-400 mt-1 leading-normal">
+                Get your chat ID from @KinByPersonaliAI_bot — send /start to it.
+              </p>
+            </div>
+            <ol className="text-[10px] text-neutral-550 dark:text-neutral-400 space-y-1.5 list-decimal pl-4 leading-relaxed">
+              <li>Open <a href="https://t.me/KinByPersonaliAI_bot" target="_blank" rel="noreferrer" className="text-[#f97316] underline">@KinByPersonaliAI_bot</a> on Telegram and tap <b>Start</b>.</li>
+              <li>The bot will reply with your numeric chat ID.</li>
+              <li>Paste that ID below — we'll send a confirmation message to verify.</li>
+            </ol>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const target = e.target as HTMLFormElement;
+                const chatIdInput = target.elements.namedItem("telegramChatId") as HTMLInputElement;
+                const id = parseInt(chatIdInput.value.trim(), 10);
+                if (!id) return;
+                const success = await handleLinkTelegram(id);
+                if (success) {
+                  setTelegramLinkOpen(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-[10px] font-semibold text-neutral-600 dark:text-neutral-400 mb-1">Telegram chat ID</label>
+                <input
+                  name="telegramChatId"
+                  type="text"
+                  placeholder="e.g. 8123456789"
+                  inputMode="numeric"
+                  autoFocus
+                  required
+                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTelegramLinkOpen(false)}
+                  className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg hover:opacity-90 font-semibold cursor-pointer"
+                >
+                  Link
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
+
+      {/* Google Drive Indexer Dialog */}
+      {driveModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="size-5 text-yellow-500 animate-pulse" />
+                <h4 className="text-sm font-bold">Index Google Drive Folder</h4>
+              </div>
+              <button onClick={() => setDriveModalOpen(false)} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer">
+                <X className="size-4" />
+              </button>
+            </div>
+            <p className="text-[11px] text-neutral-450 dark:text-neutral-400 leading-relaxed">
+              Enter a Google Drive folder URL or ID. We will crawl the folder and index the files (PDF, DOCX, Sheets, Docs, TXT, MD) into your bot's RAG memory.
+            </p>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!driveFolderUrl.trim()) return;
+              setIsIndexingDrive(true);
+              setDriveIndexError(null);
+              setDriveIndexSuccess(null);
+              try {
+                const res = await fetchWithFallback("/api/documents/index-folder", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    folder_id_or_url: driveFolderUrl.trim(),
+                    max_files: driveMaxFiles,
+                    source: "gdrive",
+                  }),
+                });
+                if (res.ok) {
+                  setDriveModalOpen(false);
+                  setKnowledgeMessages(prev => [
+                    ...prev,
+                    {
+                      role: "assistant",
+                      content: `Started indexing Google Drive folder: **${driveFolderUrl.trim()}** (max ${driveMaxFiles} files) in the background. The documents will appear in your trained sources soon!`,
+                      status: "success"
+                    }
+                  ]);
+                  setDriveFolderUrl("");
+                  // Refresh sources list in 5 seconds
+                  setTimeout(() => {
+                    if (user) loadBotSettings(user.id);
+                  }, 5000);
+                } else {
+                  const body = await res.json();
+                  setDriveIndexError(body.detail || "Failed to start folder indexing.");
+                }
+              } catch (err) {
+                setDriveIndexError("Failed to connect to the server.");
+              } finally {
+                setIsIndexingDrive(false);
+              }
+            }} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Folder URL or ID</label>
+                <input
+                  type="text"
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  value={driveFolderUrl}
+                  onChange={(e) => setDriveFolderUrl(e.target.value)}
+                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Files to Index</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={driveMaxFiles}
+                  onChange={(e) => setDriveMaxFiles(parseInt(e.target.value, 10) || 50)}
+                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                />
+              </div>
+              {driveIndexError && (
+                <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDriveModalOpen(false)}
+                  className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isIndexingDrive}
+                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isIndexingDrive && <Loader2 className="size-3.5 animate-spin" />}
+                  Start Indexing
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
     </div>
   );
 }
