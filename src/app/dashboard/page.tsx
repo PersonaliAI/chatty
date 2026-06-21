@@ -104,6 +104,7 @@ interface KnowledgeMessage {
   leadFieldPicker?: boolean;
   tzPicker?: boolean;
   isSetup?: boolean;
+  thinkingSteps?: string[];
 }
 
 const LOCALE_TEXTS: Record<string, Record<string, string>> = {
@@ -425,8 +426,7 @@ export default function Dashboard() {
   const [analyticsChartData, setAnalyticsChartData] = useState<Array<{ day: string; count: number; height: string }>>([]);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
-  // Playground Chat State
-  const [playgroundMessages, setPlaygroundMessages] = useState<Array<{ role: string; content: string; thinkingSteps?: string[] }>>([]);
+
   const [liveThinkingSteps, setLiveThinkingSteps] = useState<string[]>([]);
   const [playgroundInput, setPlaygroundInput] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
@@ -523,7 +523,7 @@ export default function Dashboard() {
   };
 
   // Knowledge Base Chat States
-  const [knowledgeMessages, setKnowledgeMessages] = useState<KnowledgeMessage[]>([]);
+  const [playgroundMessages, setPlaygroundMessages] = useState<KnowledgeMessage[]>([]);
   const [knowledgeInput, setKnowledgeInput] = useState("");
   const [isKnowledgeLoading, setIsKnowledgeLoading] = useState(false);
   const [uploadingFile, setUploadingFile] = useState<string | null>(null);
@@ -845,7 +845,7 @@ export default function Dashboard() {
 
   // Load Admin Data on tab changes
   useEffect(() => {
-    if (botId && ["meetings", "notifications", "audit_log", "leads", "knowledge"].includes(activeTab)) {
+    if (botId && ["meetings", "notifications", "audit_log", "leads", "playground"].includes(activeTab)) {
       loadAdminData(botId);
     }
   }, [activeTab, botId]);
@@ -979,13 +979,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (agenticSetupStep > 0 && !onboardingCompleted) {
       const msg = getAgenticStepMessage(agenticSetupStep);
-      setKnowledgeMessages(prev => {
+      setPlaygroundMessages(prev => {
         // Avoid duplicating if the last message is identical
         if (prev.length > 0 && prev[prev.length - 1].content === msg.content) return prev;
         return [...prev, msg];
       });
       // Navigate to knowledge tab so user sees the setup chat
-      if (activeTab !== "knowledge") setActiveTab("knowledge");
+      if (activeTab !== "playground") setActiveTab("playground");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agenticSetupStep]);
@@ -1007,13 +1007,13 @@ export default function Dashboard() {
       goto_admin: "Open Admin Panel",
     };
     const displayLabel = displayMap[value] || value;
-    setKnowledgeMessages(prev => [...prev, { role: "user", content: displayLabel }]);
+    setPlaygroundMessages(prev => [...prev, { role: "user", content: displayLabel }]);
 
     if (value === "skip_setup") {
       setOnboardingCompleted(true);
       setAgenticSetupStep(0);
       await saveOnboardingStep(9, true);
-      setKnowledgeMessages(prev => [...prev, {
+      setPlaygroundMessages(prev => [...prev, {
         role: "assistant",
         content: "No problem! The Knowledge Manager is ready whenever you are. Upload files, crawl URLs, or type facts to train your assistant."
       }]);
@@ -1024,7 +1024,7 @@ export default function Dashboard() {
       return;
     }
     if (value === "docs_done") {
-      setKnowledgeMessages(prev => [...prev, {
+      setPlaygroundMessages(prev => [...prev, {
         role: "assistant", content: "✅ Processing complete! All documents have been indexed into RAG memory.", status: "success"
       }]);
       setTimeout(() => setAgenticSetupStep(3), 600);
@@ -1045,7 +1045,7 @@ export default function Dashboard() {
     if (value === "confirm_lead_fields") {
       setLeadFields(pendingLeadFields);
       await saveOnboardingStep(4, false, { lead_fields: pendingLeadFields });
-      setKnowledgeMessages(prev => [...prev, {
+      setPlaygroundMessages(prev => [...prev, {
         role: "assistant",
         content: `✅ **Lead fields configured:** ${pendingLeadFields.join(", ")}\n\nYour lead table will automatically capture these fields from conversations.`,
         status: "success"
@@ -1208,7 +1208,7 @@ export default function Dashboard() {
   // Auto-scroll for Knowledge Chat
   useEffect(() => {
     knowledgeEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [knowledgeMessages, isKnowledgeLoading, uploadingFile]);
+  }, [playgroundMessages, isKnowledgeLoading, uploadingFile]);
 
   // Handle Knowledge Base File Upload
   const handleKnowledgeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1226,7 +1226,7 @@ export default function Dashboard() {
     setIsKnowledgeLoading(true);
 
     // Add a pending message
-    setKnowledgeMessages((prev) => [
+    setPlaygroundMessages((prev) => [
       ...prev,
       {
         role: "user",
@@ -1253,7 +1253,7 @@ export default function Dashboard() {
         const body = await res.json();
         
         // Update the assistant message in chat log
-        setKnowledgeMessages((prev) =>
+        setPlaygroundMessages((prev) =>
           prev.map((msg) =>
             msg.filename === file.name && msg.status === "pending"
               ? {
@@ -1271,7 +1271,7 @@ export default function Dashboard() {
         }
       } else {
         const body = await res.json();
-        setKnowledgeMessages((prev) =>
+        setPlaygroundMessages((prev) =>
           prev.map((msg) =>
             msg.filename === file.name && msg.status === "pending"
               ? {
@@ -1285,7 +1285,7 @@ export default function Dashboard() {
       }
     } catch (err: any) {
       console.error("File upload error:", err);
-      setKnowledgeMessages((prev) =>
+      setPlaygroundMessages((prev) =>
         prev.map((msg) =>
           msg.filename === file.name && msg.status === "pending"
             ? {
@@ -1313,7 +1313,7 @@ export default function Dashboard() {
     setIsKnowledgeLoading(true);
 
     // 1. Add User Message
-    setKnowledgeMessages((prev) => [...prev, { role: "user", content: userInput }]);
+    setPlaygroundMessages((prev) => [...prev, { role: "user", content: userInput }]);
 
     // ── AGENTIC SETUP INTERCEPTION ──────────────────────────────────────────
     // If we're in the agentic setup flow, handle the user's typed response
@@ -1323,7 +1323,7 @@ export default function Dashboard() {
         // User is typing custom instructions
         setSystemInstructions(userInput);
         await saveOnboardingStep(3, false, { custom_instructions: userInput });
-        setKnowledgeMessages(prev => [...prev, {
+        setPlaygroundMessages(prev => [...prev, {
           role: "assistant",
           content: `✅ **Instructions saved!** Your assistant will follow these rules:\n\n> *${userInput}*`,
           status: "success"
@@ -1338,7 +1338,7 @@ export default function Dashboard() {
         setPendingLeadFields(combined);
         setLeadFields(combined);
         await saveOnboardingStep(4, false, { lead_fields: combined });
-        setKnowledgeMessages(prev => [...prev, {
+        setPlaygroundMessages(prev => [...prev, {
           role: "assistant",
           content: `✅ **Lead fields confirmed:** ${combined.join(", ")}`,
           status: "success"
@@ -1347,7 +1347,7 @@ export default function Dashboard() {
         return;
       }
       // For other setup steps, just add a regular reply and stay in the step
-      setKnowledgeMessages(prev => [...prev, {
+      setPlaygroundMessages(prev => [...prev, {
         role: "assistant",
         content: "Got it! Please use the action buttons above to continue the setup. 👆"
       }]);
@@ -1363,7 +1363,7 @@ export default function Dashboard() {
       const urlToCrawl = crawlMatch[1];
       
       // Add thinking/progress bubble
-      setKnowledgeMessages((prev) => [
+      setPlaygroundMessages((prev) => [
         ...prev,
         {
           role: "assistant",
@@ -1412,7 +1412,7 @@ export default function Dashboard() {
               .eq("id", dbSrc.id);
 
             // Update chat log bubble to success
-            setKnowledgeMessages((prev) =>
+            setPlaygroundMessages((prev) =>
               prev.map((msg) =>
                 msg.filename === urlToCrawl && msg.status === "pending"
                   ? {
@@ -1430,7 +1430,7 @@ export default function Dashboard() {
         }
       } catch (err: any) {
         console.error("Crawl error:", err);
-        setKnowledgeMessages((prev) =>
+        setPlaygroundMessages((prev) =>
           prev.map((msg) =>
             msg.filename === urlToCrawl && msg.status === "pending"
               ? {
@@ -1466,7 +1466,7 @@ export default function Dashboard() {
         docTitle = docContent.split(/[.\n]/)[0].slice(0, 30) || docTitle;
       }
 
-      setKnowledgeMessages((prev) => [
+      setPlaygroundMessages((prev) => [
         ...prev,
         {
           role: "assistant",
@@ -1500,7 +1500,7 @@ export default function Dashboard() {
               .update({ status: "trained" })
               .eq("id", dbSrc.id);
 
-            setKnowledgeMessages((prev) =>
+            setPlaygroundMessages((prev) =>
               prev.map((msg) =>
                 msg.filename === docTitle && msg.status === "pending"
                   ? {
@@ -1517,7 +1517,7 @@ export default function Dashboard() {
         }
       } catch (err: any) {
         console.error("Text ingest error:", err);
-        setKnowledgeMessages((prev) =>
+        setPlaygroundMessages((prev) =>
           prev.map((msg) =>
             msg.filename === docTitle && msg.status === "pending"
               ? {
@@ -1551,7 +1551,7 @@ export default function Dashboard() {
 
       if (res.ok) {
         const body = await res.json();
-        setKnowledgeMessages((prev) => [
+        setPlaygroundMessages((prev) => [
           ...prev,
           {
             role: "assistant",
@@ -1560,7 +1560,7 @@ export default function Dashboard() {
         ]);
       } else {
         const body = await res.json();
-        setKnowledgeMessages((prev) => [
+        setPlaygroundMessages((prev) => [
           ...prev,
           {
             role: "assistant",
@@ -1571,7 +1571,7 @@ export default function Dashboard() {
       }
     } catch (err: any) {
       console.error("RAG query error:", err);
-      setKnowledgeMessages((prev) => [
+      setPlaygroundMessages((prev) => [
         ...prev,
         {
           role: "assistant",
@@ -2014,14 +2014,14 @@ export default function Dashboard() {
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setKnowledgeMessages(prev => [...prev, { role: "assistant", content: "Skills trigger activated (Mock interface)." }])}
+              onClick={() => setPlaygroundMessages(prev => [...prev, { role: "assistant", content: "Skills trigger activated (Mock interface)." }])}
               className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
             >
               <MessageSquare className="size-4" />
             </button>
             <button
               type="button"
-              onClick={() => setKnowledgeMessages(prev => [...prev, { role: "assistant", content: "Voice recognition activated (Mock interface). Speak to train your bot." }])}
+              onClick={() => setPlaygroundMessages(prev => [...prev, { role: "assistant", content: "Voice recognition activated (Mock interface). Speak to train your bot." }])}
               className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
             >
               <Mic className="size-4" />
@@ -2120,7 +2120,7 @@ export default function Dashboard() {
             {[
               { id: "home", label: t("overview"), icon: Home },
               { id: "customizer", label: t("customizer"), icon: Sliders },
-              { id: "knowledge", label: t("training_data"), icon: Database },
+              
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
               { id: "leads", label: t("leads"), icon: Users },
               { id: "meetings", label: t("meetings"), icon: Calendar },
@@ -2216,7 +2216,7 @@ export default function Dashboard() {
             {/* Re-run Setup (agentic flow) */}
             {onboardingCompleted && (
               <button
-                onClick={() => { setOnboardingCompleted(false); setAgenticSetupStep(1); setKnowledgeMessages([]); setActiveTab("knowledge"); }}
+                onClick={() => { setOnboardingCompleted(false); setAgenticSetupStep(1); setPlaygroundMessages([]); setActiveTab("playground"); }}
                 className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2.5 py-1.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
               >
                 <Sparkles className="size-3 text-[#f97316]" />
@@ -2247,7 +2247,7 @@ export default function Dashboard() {
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
                   <button
-                    onClick={() => setActiveTab("knowledge")}
+                    onClick={() => setActiveTab("playground")}
                     className="p-4 text-left rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/20 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
                   >
                     <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">1. Train Memory</div>
@@ -2470,839 +2470,6 @@ export default function Dashboard() {
               </div>
             </div>
           )}
-          {/* TAB 3: KNOWLEDGE BASE — Full Chat Layout */}
-          {/* TAB 3: KNOWLEDGE BASE — Split Chat Layout */}
-          {activeTab === "knowledge" && (
-            <div className="flex flex-col lg:flex-row h-[calc(100vh-130px)] max-w-7xl mx-auto w-full gap-6 px-4 relative">
-              {/* Left Column: Chat Assistant */}
-              <div className="flex-1 flex flex-col h-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative">
-                
-              
-              {/* If no user messages yet, show the centered empty state */}
-              {!knowledgeMessages.some(msg => msg.role === "user") ? (
-                <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 max-w-xl mx-auto w-full text-center relative z-10">
-                  <h2 className="text-3xl sm:text-4xl font-serif text-neutral-800 dark:text-neutral-100 mb-8 font-medium tracking-tight">
-                    What can I do for you?
-                  </h2>
-                  
-                  {/* Composer & Popups Wrapper */}
-                  <div className="w-full relative">
-                    {renderComposer()}
-
-                    {/* Paperclip (+) popup menu */}
-                                        {/* Paperclip (+) popup menu */}
-                    <AnimatePresence>
-                      {paperclipOpen && (
-                        <>
-                          <div className="fixed inset-0 z-30" onClick={() => setPaperclipOpen(false)} />
-                          <motion.div
-                            initial={{ opacity: 0, y: 15, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 15, scale: 0.95 }}
-                            transition={{ duration: 0.18, ease: "easeOut" }}
-                            className="absolute bottom-[68px] left-3 z-40 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl p-1.5 w-60 flex flex-col gap-0.5 text-left"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => { fileInputRef.current?.click(); setPaperclipOpen(false); }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                            >
-                              <Paperclip className="size-4 text-neutral-500" />
-                              Add from local files
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setDriveModalOpen(true); setPaperclipOpen(false); }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                            >
-                              <svg className="size-4" viewBox="0 0 24 24" fill="none">
-                                <path d="M15.43 14.5H23L15.43 1.5H7.86L15.43 14.5Z" fill="#0066DA" />
-                                <path d="M15.43 14.5H7.86L0.29 1.5H7.86L15.43 14.5Z" fill="#00A1F1" />
-                                <path d="M15.43 14.5L7.86 21.5H23L15.43 14.5Z" fill="#F2B200" />
-                              </svg>
-                              Add from Google Drive
-                            </button>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Connectors Dropdown menu */}
-                    <AnimatePresence>
-                      {connectorsDropdownOpen && (
-                        <>
-                          <div className="fixed inset-0 z-30" onClick={() => setConnectorsDropdownOpen(false)} />
-                          <motion.div
-                            initial={{ opacity: 0, y: 15, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 15, scale: 0.95 }}
-                            transition={{ duration: 0.18, ease: "easeOut" }}
-                            className="absolute bottom-[68px] left-12 z-40 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl p-2 w-72 flex flex-col gap-1 text-left font-sans"
-                          >
-                            <div className="px-3 py-1 text-[10px] font-bold text-neutral-450 uppercase tracking-wider border-b border-neutral-100 dark:border-neutral-850 mb-1">
-                              Active Connectors
-                            </div>
-
-                            {/* Google Calendar */}
-                            <div className="flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-xl transition-colors">
-                              <div className="flex items-center gap-2.5">
-                                <div className="size-5 shrink-0 flex items-center justify-center">
-                                  <svg className="size-4.5" viewBox="0 0 24 24" fill="none">
-                                    <rect width="24" height="24" rx="4.5" fill="#4285F4" />
-                                    <text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="sans-serif">31</text>
-                                  </svg>
-                                </div>
-                                <span className="text-xs font-semibold text-neutral-750 dark:text-neutral-200">Google Calendar</span>
-                              </div>
-                              {googleConnected ? (
-                                <div
-                                  className={`w-8 h-4.5 rounded-full p-0.5 transition-colors cursor-pointer ${syncGoogleCalendar ? "bg-blue-600" : "bg-neutral-250 dark:bg-neutral-700"}`}
-                                  onClick={() => setSyncGoogleCalendar(!syncGoogleCalendar)}
-                                >
-                                  <div className={`w-3.5 h-3.5 bg-white rounded-full transition-transform shadow-sm ${syncGoogleCalendar ? "translate-x-3.5" : "translate-x-0"}`} />
-                                </div>
-                              ) : (
-                                <button type="button" onClick={() => handleConnectCloud("google")} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Connect</button>
-                              )}
-                            </div>
-
-                            {/* Google Drive */}
-                            <div className="flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-xl transition-colors">
-                              <div className="flex items-center gap-2.5">
-                                <div className="size-5 shrink-0 flex items-center justify-center">
-                                  <svg className="size-4.5" viewBox="0 0 24 24" fill="none">
-                                    <path d="M15.43 14.5H23L15.43 1.5H7.86L15.43 14.5Z" fill="#0066DA" />
-                                    <path d="M15.43 14.5H7.86L0.29 1.5H7.86L15.43 14.5Z" fill="#00A1F1" />
-                                    <path d="M15.43 14.5L7.86 21.5H23L15.43 14.5Z" fill="#F2B200" />
-                                  </svg>
-                                </div>
-                                <span className="text-xs font-semibold text-neutral-750 dark:text-neutral-200">Google Drive</span>
-                              </div>
-                              {googleConnected ? (
-                                <div
-                                  className={`w-8 h-4.5 rounded-full p-0.5 transition-colors cursor-pointer ${syncGoogleDrive ? "bg-blue-600" : "bg-neutral-250 dark:bg-neutral-700"}`}
-                                  onClick={() => setSyncGoogleDrive(!syncGoogleDrive)}
-                                >
-                                  <div className={`w-3.5 h-3.5 bg-white rounded-full transition-transform shadow-sm ${syncGoogleDrive ? "translate-x-3.5" : "translate-x-0"}`} />
-                                </div>
-                              ) : (
-                                <button type="button" onClick={() => handleConnectCloud("google")} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Connect</button>
-                              )}
-                            </div>
-
-                            {/* Microsoft OneDrive */}
-                            <div className="flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-xl transition-colors">
-                              <div className="flex items-center gap-2.5">
-                                <div className="size-5 shrink-0 flex items-center justify-center">
-                                  <svg className="size-4.5" viewBox="0 0 24 24" fill="none">
-                                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z" fill="#0078D4"/>
-                                  </svg>
-                                </div>
-                                <span className="text-xs font-semibold text-neutral-750 dark:text-neutral-200">OneDrive</span>
-                              </div>
-                              {microsoftConnected ? (
-                                <div
-                                  className={`w-8 h-4.5 rounded-full p-0.5 transition-colors cursor-pointer ${syncOneDrive ? "bg-blue-600" : "bg-neutral-250 dark:bg-neutral-700"}`}
-                                  onClick={() => setSyncOneDrive(!syncOneDrive)}
-                                >
-                                  <div className={`w-3.5 h-3.5 bg-white rounded-full transition-transform shadow-sm ${syncOneDrive ? "translate-x-3.5" : "translate-x-0"}`} />
-                                </div>
-                              ) : (
-                                <button type="button" onClick={() => handleConnectCloud("microsoft")} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Connect</button>
-                              )}
-                            </div>
-
-                            {/* Microsoft Outlook Calendar */}
-                            <div className="flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-xl transition-colors">
-                              <div className="flex items-center gap-2.5">
-                                <div className="size-5 shrink-0 flex items-center justify-center">
-                                  <svg className="size-4.5" viewBox="0 0 24 24" fill="none">
-                                    <rect width="24" height="24" rx="4.5" fill="#0078D4" />
-                                    <path d="M6 18H18V10H6V18ZM18 6H16V5c0-.55-.45-1-1-1s-1 .45-1 1v1H10V5c0-.55-.45-1-1-1s-1 .45-1 1v1H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" fill="white"/>
-                                  </svg>
-                                </div>
-                                <span className="text-xs font-semibold text-neutral-750 dark:text-neutral-200">Outlook Calendar</span>
-                              </div>
-                              {microsoftConnected ? (
-                                <div
-                                  className={`w-8 h-4.5 rounded-full p-0.5 transition-colors cursor-pointer ${syncOutlookCalendar ? "bg-blue-600" : "bg-neutral-250 dark:bg-neutral-700"}`}
-                                  onClick={() => setSyncOutlookCalendar(!syncOutlookCalendar)}
-                                >
-                                  <div className={`w-3.5 h-3.5 bg-white rounded-full transition-transform shadow-sm ${syncOutlookCalendar ? "translate-x-3.5" : "translate-x-0"}`} />
-                                </div>
-                              ) : (
-                                <button type="button" onClick={() => handleConnectCloud("microsoft")} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Connect</button>
-                              )}
-                            </div>
-
-                            <div className="border-t border-neutral-100 dark:border-neutral-850 my-1"></div>
-
-                            <button
-                              type="button"
-                              onClick={() => { setActiveTab("integrations"); setConnectorsDropdownOpen(false); }}
-                              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs font-semibold text-neutral-850 dark:text-neutral-250 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                            >
-                              <Sliders className="size-4 text-neutral-500" />
-                              <span>Manage connectors</span>
-                            </button>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-
-                </div>
-              ) : (
-                <>
-                  {/* Chat Header */}
-                  <div className="flex flex-col border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md shrink-0 z-10">
-                    {/* Setup progress bar */}
-                    {agenticSetupStep > 0 && !onboardingCompleted && (
-                      <div className="w-full bg-neutral-100 dark:bg-neutral-800 h-0.5">
-                        <div
-                          className="bg-gradient-to-r from-[#f97316] to-[#ec4899] h-full transition-all duration-500"
-                          style={{ width: `${(agenticSetupStep / 8) * 100}%` }}
-                        />
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between px-4 sm:px-6 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="size-9 rounded-xl bg-gradient-to-br from-[#f97316] to-[#ec4899] flex items-center justify-center text-white font-bold text-sm shadow-md">
-                        KM
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm leading-none">
-                          {agenticSetupStep > 0 && !onboardingCompleted ? "AI Assistant Setup" : "Knowledge Manager"}
-                        </h4>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          {agenticSetupStep > 0 && !onboardingCompleted ? (
-                            <span className="text-[10px] text-[#f97316] font-semibold">Step {agenticSetupStep} of 8 — {["","Welcome","Upload Data","Instructions","Lead Setup","Lead Fields","Meetings","Calendar","Done"][agenticSetupStep] || ""}</span>
-                          ) : (
-                            <span className="text-[10px] text-neutral-450">{sources.length} sources trained • {sources.reduce((a, s) => a + s.charCount, 0).toLocaleString()} chars</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setShowSourcesSidebar(!showSourcesSidebar)}
-                        className={`flex items-center gap-1.5 text-[9px] font-bold border rounded-full px-2.5 py-1 transition-all cursor-pointer ${
-                          showSourcesSidebar
-                            ? "bg-[#f97316]/15 text-[#f97316] border-[#f97316]/30 dark:bg-[#f97316]/20"
-                            : "bg-neutral-150 text-neutral-600 border-neutral-200 dark:bg-neutral-850 dark:text-neutral-400 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-750"
-                        }`}
-                      >
-                        <Layers className="size-3" />
-                        {showSourcesSidebar ? "Hide Sources" : "Show Sources"}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          // Clear chat + full setup reset
-                          setKnowledgeMessages([]);
-                          setOnboardingCompleted(false);
-                          setAgenticSetupStep(1);
-                          setSources([]);
-                          setLeads([]);
-                          setLeadFields(["name", "email", "phone"]);
-                          setPendingLeadFields(["name", "email", "phone"]);
-                          setBotTimezone("UTC");
-                          setBotCountry("");
-                          setSyncGoogleCalendar(false);
-                          setSyncOutlookCalendar(false);
-                          setMeetingProvider("google_meet");
-                        }}
-                        className="text-[9px] font-semibold text-neutral-450 hover:text-red-500 dark:hover:text-red-400 cursor-pointer transition-colors px-1.5 py-1"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    </div>
-                  </div>
-
-                  {/* Chat Messages Area */}
-                  <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4 scrollbar-thin">
-                    {knowledgeMessages.map((msg, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25, ease: "easeOut" }}
-                        className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                      >
-                        {msg.role !== "user" && (
-                          <div className="size-7 rounded-lg bg-gradient-to-br from-[#f97316] to-[#ec4899] flex items-center justify-center text-white font-bold text-[9px] shrink-0 mt-0.5 shadow-sm">
-                            KM
-                          </div>
-                        )}
-                        <div className="max-w-[80%] flex flex-col gap-1">
-                          <div
-                            className={`px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                              msg.role === "user"
-                                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-2xl rounded-br-md"
-                                : msg.status === "error"
-                                ? "bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/20 dark:text-red-350 dark:border-red-900/40 rounded-2xl rounded-bl-md"
-                                : msg.status === "success"
-                                ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-350 dark:border-emerald-900/40 rounded-2xl rounded-bl-md"
-                                : msg.status === "pending"
-                                ? "bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-350 dark:border-amber-900/40 rounded-2xl rounded-bl-md"
-                                : "bg-neutral-100 text-neutral-800 dark:bg-neutral-850 dark:text-neutral-200 rounded-2xl rounded-bl-md"
-                            }`}
-                          >
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm, remarkMath]}
-                              rehypePlugins={[rehypeKatex]}
-                              components={{
-                                p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
-                                ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-0.5">{children}</ul>,
-                                ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
-                                li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                                strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                                pre: ({ children }) => <pre className="bg-neutral-900 text-neutral-100 rounded-lg p-2.5 overflow-x-auto my-2 text-[11px] font-mono leading-normal">{children}</pre>,
-                                code: ({ children }) => (
-                                  <code className={msg.role === "user" ? "bg-white/15 px-1 py-0.5 rounded text-[11px] font-mono" : "bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[11px] font-mono"}>
-                                    {children}
-                                  </code>
-                                )
-                              }}
-                            >
-                              {msg.content}
-                            </ReactMarkdown>
-                          </div>
-
-                          {/* Inline connector buttons for drive/calendar setup */}
-                          {msg.connectorButtons && msg.role === "assistant" && (
-                            <div className="flex flex-wrap gap-2 mt-2 ml-1">
-                              {!googleConnected ? (
-                                <button
-                                  onClick={() => handleConnectCloud("google")}
-                                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
-                                >
-                                  <svg className="size-3.5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                                  Connect Google Drive
-                                </button>
-                              ) : (
-                                <span className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                                  <span className="size-1.5 rounded-full bg-emerald-500" /> Google Drive Connected
-                                </span>
-                              )}
-                              {!microsoftConnected ? (
-                                <button
-                                  onClick={() => handleConnectCloud("microsoft")}
-                                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
-                                >
-                                  <svg className="size-3.5" viewBox="0 0 23 23"><path fill="#f3f3f3" d="M0 0h23v23H0z"/><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>
-                                  Connect Microsoft
-                                </button>
-                              ) : (
-                                <span className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded-xl text-xs font-semibold text-blue-700 dark:text-blue-400">
-                                  <span className="size-1.5 rounded-full bg-blue-500" /> Microsoft Connected
-                                </span>
-                              )}
-                              <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
-                              >
-                                <Paperclip className="size-3.5 text-neutral-500" />
-                                Upload Files
-                              </button>
-                            </div>
-                          )}
-
-                          {/* Calendar connection buttons for scheduling step */}
-                          {msg.calendarButtons && msg.role === "assistant" && (
-                            <div className="flex flex-wrap gap-2 mt-2 ml-1">
-                              {!googleConnected ? (
-                                <button
-                                  onClick={() => handleConnectCloud("google")}
-                                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
-                                >
-                                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4.5" fill="#4285F4"/><text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="sans-serif">31</text></svg>
-                                  Google Calendar
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => { setSyncGoogleCalendar(true); handleSetupQuickReply("skip_calendar"); }}
-                                  className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-400 cursor-pointer"
-                                >
-                                  <span className="size-1.5 rounded-full bg-emerald-500" /> Google Calendar ✓ Use this
-                                </button>
-                              )}
-                              {!microsoftConnected ? (
-                                <button
-                                  onClick={() => handleConnectCloud("microsoft")}
-                                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm transition-all cursor-pointer"
-                                >
-                                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4.5" fill="#0078D4"/><path d="M6 18H18V10H6V18ZM18 6H16V5c0-.55-.45-1-1-1s-1 .45-1 1v1H10V5c0-.55-.45-1-1-1s-1 .45-1 1v1H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" fill="white"/></svg>
-                                  Outlook Calendar
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => { setSyncOutlookCalendar(true); handleSetupQuickReply("skip_calendar"); }}
-                                  className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded-xl text-xs font-semibold text-blue-700 dark:text-blue-400 cursor-pointer"
-                                >
-                                  <span className="size-1.5 rounded-full bg-blue-500" /> Outlook Calendar ✓ Use this
-                                </button>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Lead field picker embedded in chat */}
-                          {msg.leadFieldPicker && msg.role === "assistant" && (
-                            <div className="mt-2 ml-1 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-2">
-                              <div className="grid grid-cols-2 gap-2">
-                                {[
-                                  { key: "name", label: "Full Name", required: true },
-                                  { key: "email", label: "Email Address", required: true },
-                                  { key: "phone", label: "Phone Number", required: false },
-                                  { key: "company", label: "Company", required: false },
-                                  { key: "job_title", label: "Job Title", required: false },
-                                  { key: "country", label: "Country", required: false },
-                                  { key: "industry", label: "Industry", required: false },
-                                  { key: "budget", label: "Budget", required: false },
-                                ].map(field => (
-                                  <label key={field.key} className="flex items-center gap-2 p-2 rounded-lg border border-neutral-100 dark:border-neutral-800 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-[11px] font-medium">
-                                    <input
-                                      type="checkbox"
-                                      checked={pendingLeadFields.includes(field.key)}
-                                      disabled={field.required}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setPendingLeadFields(prev => [...prev, field.key]);
-                                        } else {
-                                          setPendingLeadFields(prev => prev.filter(f => f !== field.key));
-                                        }
-                                      }}
-                                      className="accent-[#f97316]"
-                                    />
-                                    {field.label}
-                                    {field.required && <span className="text-[9px] text-neutral-400 ml-auto">(required)</span>}
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Quick reply buttons */}
-                          {msg.quickReplies && msg.quickReplies.length > 0 && msg.role === "assistant" && (
-                            <div className="flex flex-wrap gap-2 mt-2 ml-1">
-                              {msg.quickReplies.map((qr) => (
-                                <button
-                                  key={qr.value}
-                                  onClick={() => handleSetupQuickReply(qr.value)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-full text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-[#f97316]/5 hover:border-[#f97316]/40 hover:text-[#f97316] transition-all shadow-sm cursor-pointer"
-                                >
-                                  {qr.icon && <span>{qr.icon}</span>}
-                                  {qr.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-
-                          {msg.status === "pending" && (
-                            <div className="flex items-center gap-1 ml-1">
-                              <Loader2 className="size-2.5 animate-spin text-amber-500" />
-                              <span className="text-[9px] text-amber-500 font-medium">Processing...</span>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    ))}
-
-                    {isKnowledgeLoading && !knowledgeMessages.some(m => m.status === "pending") && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex gap-2.5 justify-start"
-                      >
-                        <div className="size-7 rounded-lg bg-gradient-to-br from-[#f97316] to-[#ec4899] flex items-center justify-center text-white font-bold text-[9px] shrink-0 mt-0.5 shadow-sm">
-                          KM
-                        </div>
-                        <div className="px-4 py-3 bg-neutral-100 dark:bg-neutral-850 rounded-2xl rounded-bl-md flex items-center gap-1.5">
-                          <span className="size-2 rounded-full bg-neutral-400 animate-bounce"></span>
-                          <span className="size-2 rounded-full bg-neutral-400 animate-bounce [animation-delay:0.15s]"></span>
-                          <span className="size-2 rounded-full bg-neutral-400 animate-bounce [animation-delay:0.3s]"></span>
-                        </div>
-                      </motion.div>
-                    )}
-                    <div ref={knowledgeEndRef} />
-                  </div>
-
-                  {/* Upload status banner */}
-                  <AnimatePresence>
-                    {uploadingFile && (
-                      <div className="mx-4 sm:mx-6 mb-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl flex items-center gap-2 text-[11px] text-amber-700 dark:text-amber-400">
-                        <Loader2 className="size-3.5 animate-spin" />
-                        <span>Uploading and indexing <strong>{uploadingFile}</strong>...</span>
-                      </div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Bottom Composer and Popups Area */}
-                  <div className="px-4 sm:px-6 pb-4 pt-2 shrink-0 relative">
-                    <div className="w-full relative">
-                      {renderComposer()}
-
-                      {/* Paperclip (+) popup menu */}
-                                          {/* Paperclip (+) popup menu */}
-                    <AnimatePresence>
-                      {paperclipOpen && (
-                        <>
-                          <div className="fixed inset-0 z-30" onClick={() => setPaperclipOpen(false)} />
-                          <motion.div
-                            initial={{ opacity: 0, y: 15, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 15, scale: 0.95 }}
-                            transition={{ duration: 0.18, ease: "easeOut" }}
-                            className="absolute bottom-[68px] left-3 z-40 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl p-1.5 w-60 flex flex-col gap-0.5 text-left"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => { fileInputRef.current?.click(); setPaperclipOpen(false); }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                            >
-                              <Paperclip className="size-4 text-neutral-500" />
-                              Add from local files
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setDriveModalOpen(true); setPaperclipOpen(false); }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                            >
-                              <svg className="size-4" viewBox="0 0 24 24" fill="none">
-                                <path d="M15.43 14.5H23L15.43 1.5H7.86L15.43 14.5Z" fill="#0066DA" />
-                                <path d="M15.43 14.5H7.86L0.29 1.5H7.86L15.43 14.5Z" fill="#00A1F1" />
-                                <path d="M15.43 14.5L7.86 21.5H23L15.43 14.5Z" fill="#F2B200" />
-                              </svg>
-                              Add from Google Drive
-                            </button>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-
-                      {/* Connectors Dropdown menu */}
-                      <AnimatePresence>
-                        {connectorsDropdownOpen && (
-                          <>
-                            <div className="fixed inset-0 z-30" onClick={() => setConnectorsDropdownOpen(false)} />
-                            <motion.div
-                              initial={{ opacity: 0, y: 15, scale: 0.95 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: 15, scale: 0.95 }}
-                              transition={{ duration: 0.18, ease: "easeOut" }}
-                              className="absolute bottom-[68px] left-12 z-40 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl p-2 w-72 flex flex-col gap-1 text-left font-sans"
-                            >
-                              <div className="px-3 py-1 text-[10px] font-bold text-neutral-450 uppercase tracking-wider border-b border-neutral-100 dark:border-neutral-850 mb-1">
-                                Active Connectors
-                              </div>
-
-                              {/* Google Calendar */}
-                              <div className="flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-xl transition-colors">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="size-5 shrink-0 flex items-center justify-center">
-                                    <svg className="size-4.5" viewBox="0 0 24 24" fill="none">
-                                      <rect width="24" height="24" rx="4.5" fill="#4285F4" />
-                                      <text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="sans-serif">31</text>
-                                    </svg>
-                                  </div>
-                                  <span className="text-xs font-semibold text-neutral-750 dark:text-neutral-200">Google Calendar</span>
-                                </div>
-                                {googleConnected ? (
-                                  <div
-                                    className={`w-8 h-4.5 rounded-full p-0.5 transition-colors cursor-pointer ${syncGoogleCalendar ? "bg-blue-600" : "bg-neutral-250 dark:bg-neutral-700"}`}
-                                    onClick={() => setSyncGoogleCalendar(!syncGoogleCalendar)}
-                                  >
-                                    <div className={`w-3.5 h-3.5 bg-white rounded-full transition-transform shadow-sm ${syncGoogleCalendar ? "translate-x-3.5" : "translate-x-0"}`} />
-                                  </div>
-                                ) : (
-                                  <button type="button" onClick={() => handleConnectCloud("google")} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Connect</button>
-                                )}
-                              </div>
-
-                              {/* Google Drive */}
-                              <div className="flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-xl transition-colors">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="size-5 shrink-0 flex items-center justify-center">
-                                    <svg className="size-4.5" viewBox="0 0 24 24" fill="none">
-                                      <path d="M15.43 14.5H23L15.43 1.5H7.86L15.43 14.5Z" fill="#0066DA" />
-                                      <path d="M15.43 14.5H7.86L0.29 1.5H7.86L15.43 14.5Z" fill="#00A1F1" />
-                                      <path d="M15.43 14.5L7.86 21.5H23L15.43 14.5Z" fill="#F2B200" />
-                                    </svg>
-                                  </div>
-                                  <span className="text-xs font-semibold text-neutral-750 dark:text-neutral-200">Google Drive</span>
-                                </div>
-                                {googleConnected ? (
-                                  <div
-                                    className={`w-8 h-4.5 rounded-full p-0.5 transition-colors cursor-pointer ${syncGoogleDrive ? "bg-blue-600" : "bg-neutral-250 dark:bg-neutral-700"}`}
-                                    onClick={() => setSyncGoogleDrive(!syncGoogleDrive)}
-                                  >
-                                    <div className={`w-3.5 h-3.5 bg-white rounded-full transition-transform shadow-sm ${syncGoogleDrive ? "translate-x-3.5" : "translate-x-0"}`} />
-                                  </div>
-                                ) : (
-                                  <button type="button" onClick={() => handleConnectCloud("google")} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Connect</button>
-                                )}
-                              </div>
-
-                              {/* Microsoft OneDrive */}
-                              <div className="flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-xl transition-colors">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="size-5 shrink-0 flex items-center justify-center">
-                                    <svg className="size-4.5" viewBox="0 0 24 24" fill="none">
-                                      <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z" fill="#0078D4"/>
-                                    </svg>
-                                  </div>
-                                  <span className="text-xs font-semibold text-neutral-750 dark:text-neutral-200">OneDrive</span>
-                                </div>
-                                {microsoftConnected ? (
-                                  <div
-                                    className={`w-8 h-4.5 rounded-full p-0.5 transition-colors cursor-pointer ${syncOneDrive ? "bg-blue-600" : "bg-neutral-250 dark:bg-neutral-700"}`}
-                                    onClick={() => setSyncOneDrive(!syncOneDrive)}
-                                  >
-                                    <div className={`w-3.5 h-3.5 bg-white rounded-full transition-transform shadow-sm ${syncOneDrive ? "translate-x-3.5" : "translate-x-0"}`} />
-                                  </div>
-                                ) : (
-                                  <button type="button" onClick={() => handleConnectCloud("microsoft")} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Connect</button>
-                                )}
-                              </div>
-
-                              {/* Microsoft Outlook Calendar */}
-                              <div className="flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-xl transition-colors">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="size-5 shrink-0 flex items-center justify-center">
-                                    <svg className="size-4.5" viewBox="0 0 24 24" fill="none">
-                                      <rect width="24" height="24" rx="4.5" fill="#0078D4" />
-                                      <path d="M6 18H18V10H6V18ZM18 6H16V5c0-.55-.45-1-1-1s-1 .45-1 1v1H10V5c0-.55-.45-1-1-1s-1 .45-1 1v1H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" fill="white"/>
-                                    </svg>
-                                  </div>
-                                  <span className="text-xs font-semibold text-neutral-750 dark:text-neutral-200">Outlook Calendar</span>
-                                </div>
-                                {microsoftConnected ? (
-                                  <div
-                                    className={`w-8 h-4.5 rounded-full p-0.5 transition-colors cursor-pointer ${syncOutlookCalendar ? "bg-blue-600" : "bg-neutral-250 dark:bg-neutral-700"}`}
-                                    onClick={() => setSyncOutlookCalendar(!syncOutlookCalendar)}
-                                  >
-                                    <div className={`w-3.5 h-3.5 bg-white rounded-full transition-transform shadow-sm ${syncOutlookCalendar ? "translate-x-3.5" : "translate-x-0"}`} />
-                                  </div>
-                                ) : (
-                                  <button type="button" onClick={() => handleConnectCloud("microsoft")} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline">Connect</button>
-                                )}
-                              </div>
-
-                              <div className="border-t border-neutral-100 dark:border-neutral-850 my-1"></div>
-
-                              <button
-                                type="button"
-                                onClick={() => { setActiveTab("integrations"); setConnectorsDropdownOpen(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs font-semibold text-neutral-855 dark:text-neutral-250 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                              >
-                                <Sliders className="size-4 text-neutral-500" />
-                                <span>Manage connectors</span>
-                              </button>
-                            </motion.div>
-                          </>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-                </>
-              )}
-            
-              </div>
-              
-              {/* Right Column: Active Sources & Connectors Sidebar */}
-              {showSourcesSidebar && (
-                <div className="w-full lg:w-80 xl:w-96 shrink-0 h-full overflow-y-auto space-y-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 scrollbar-thin">
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-                    <Sparkles className="size-4 text-[#f97316]" /> Cloud API Connectors
-                  </h4>
-                  <p className="text-[10px] text-neutral-450 leading-normal">
-                    Sync your cloud storage accounts to enable automatic document reading and booking rules.
-                  </p>
-
-                  {/* Google Connector Card */}
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3.5 space-y-3 bg-neutral-50/50 dark:bg-neutral-950/20">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <svg className="size-4" viewBox="0 0 24 24">
-                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                        </svg>
-                        <span className="text-xs font-bold">Google</span>
-                      </div>
-                      {googleConnected ? (
-                        <button
-                          type="button"
-                          onClick={() => handleDisconnectCloud("google")}
-                          className="text-[9px] font-bold text-red-500 hover:underline cursor-pointer"
-                        >
-                          Disconnect
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleConnectCloud("google")}
-                          className="text-[9px] font-bold text-blue-500 hover:underline cursor-pointer"
-                        >
-                          Connect
-                        </button>
-                      )}
-                    </div>
-                    {googleConnected && (
-                      <div className="space-y-2 pt-1 border-t border-neutral-100 dark:border-neutral-800 text-[10px]">
-                        <div className="text-[9px] text-neutral-400 truncate mb-1">Signed in: {googleEmail}</div>
-                        
-                        <div className="flex items-center justify-between">
-                          <span className="text-neutral-500">Google Drive Sync</span>
-                          <button
-                            type="button"
-                            onClick={() => handleInputChange(setSyncGoogleDrive, !syncGoogleDrive)}
-                            className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${syncGoogleDrive ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"}`}
-                          >
-                            <div className={`size-3 rounded-full bg-white transition-transform ${syncGoogleDrive ? "translate-x-3" : ""}`} />
-                          </button>
-                        </div>
-                        {syncGoogleDrive && (
-                          <button
-                            type="button"
-                            onClick={() => setDriveModalOpen(true)}
-                            className="w-full py-1 border border-neutral-200 dark:border-neutral-800 rounded mt-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-[9px] font-bold transition-colors cursor-pointer"
-                          >
-                            Index Folder
-                          </button>
-                        )}
-                        
-                        <div className="flex items-center justify-between mt-1.5">
-                          <span className="text-neutral-500">Google Calendar Sync</span>
-                          <button
-                            type="button"
-                            onClick={() => handleInputChange(setSyncGoogleCalendar, !syncGoogleCalendar)}
-                            className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${syncGoogleCalendar ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"}`}
-                          >
-                            <div className={`size-3 rounded-full bg-white transition-transform ${syncGoogleCalendar ? "translate-x-3" : ""}`} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Microsoft Connector Card */}
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3.5 space-y-3 bg-neutral-50/50 dark:bg-neutral-955/20">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <svg className="size-4" viewBox="0 0 24 24" fill="none">
-                          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z" fill="#0078D4"/>
-                        </svg>
-                        <span className="text-xs font-bold">Microsoft</span>
-                      </div>
-                      {microsoftConnected ? (
-                        <button
-                          type="button"
-                          onClick={() => handleDisconnectCloud("microsoft")}
-                          className="text-[9px] font-bold text-red-500 hover:underline cursor-pointer"
-                        >
-                          Disconnect
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleConnectCloud("microsoft")}
-                          className="text-[9px] font-bold text-blue-500 hover:underline cursor-pointer"
-                        >
-                          Connect
-                        </button>
-                      )}
-                    </div>
-                    {microsoftConnected && (
-                      <div className="space-y-2 pt-1 border-t border-neutral-100 dark:border-neutral-800 text-[10px]">
-                        <div className="text-[9px] text-neutral-400 truncate mb-1">Signed in: {microsoftEmail}</div>
-                        
-                        <div className="flex items-center justify-between">
-                          <span className="text-neutral-500">OneDrive Sync</span>
-                          <button
-                            type="button"
-                            onClick={() => handleInputChange(setSyncOneDrive, !syncOneDrive)}
-                            className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${syncOneDrive ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"}`}
-                          >
-                            <div className={`size-3 rounded-full bg-white transition-transform ${syncOneDrive ? "translate-x-3" : ""}`} />
-                          </button>
-                        </div>
-                        
-                        <div className="flex items-center justify-between mt-1.5">
-                          <span className="text-neutral-500">Outlook Calendar Sync</span>
-                          <button
-                            type="button"
-                            onClick={() => handleInputChange(setSyncOutlookCalendar, !syncOutlookCalendar)}
-                            className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${syncOutlookCalendar ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"}`}
-                          >
-                            <div className={`size-3 rounded-full bg-white transition-transform ${syncOutlookCalendar ? "translate-x-3" : ""}`} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border-t border-neutral-200 dark:border-neutral-800 my-4" />
-
-                {/* Trained Sources Section */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
-                    Active Sources ({sources.length})
-                  </h4>
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                    {sources.map((src) => (
-                      <div
-                        key={src.id}
-                        className="p-3 bg-neutral-50/50 dark:bg-neutral-955/20 border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center justify-between gap-3 shadow-sm text-left"
-                      >
-                        <div className="overflow-hidden min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className={`px-1.2 py-0.2 rounded text-[7px] font-bold uppercase tracking-wider shrink-0 ${
-                              src.type === "url" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/45 dark:text-blue-400" : "bg-purple-100 text-purple-800 dark:bg-purple-950/45 dark:text-purple-400"
-                            }`}>
-                              {src.type}
-                            </span>
-                            <span className="text-[10px] font-bold truncate block">{src.name}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-1.5 text-[8px] text-neutral-400 font-semibold">
-                            <span>{src.charCount} chars</span>
-                            <span className="size-1 rounded-full bg-neutral-300 dark:bg-neutral-700"></span>
-                            {src.status === "training" ? (
-                              <span className="text-[#f97316] animate-pulse">Syncing...</span>
-                            ) : (
-                              <span className="text-green-500">Trained</span>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSource(src.id)}
-                          className="p-1 rounded-lg border border-neutral-100 dark:border-neutral-800 hover:bg-red-50 dark:hover:bg-red-950/20 text-neutral-400 hover:text-red-500 transition-colors shrink-0 cursor-pointer"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                    {sources.length === 0 && (
-                      <div className="text-center py-6 border border-dashed border-neutral-250 dark:border-neutral-800 rounded-xl p-3 text-neutral-400">
-                        <Database className="size-5 mx-auto mb-1 opacity-50" />
-                        <span className="text-[10px] block font-medium">No sources trained yet</span>
-                        <span className="text-[8px] block opacity-85 mt-0.5">Upload local files or type in the chat to train your AI.</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            </div>
-          )}
-
           {/* TAB 4: PLAYGROUND */}
           {activeTab === "playground" && (
             <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
@@ -4241,7 +3408,7 @@ export default function Dashboard() {
                 });
                 if (res.ok) {
                   setDriveModalOpen(false);
-                  setKnowledgeMessages(prev => [
+                  setPlaygroundMessages(prev => [
                     ...prev,
                     {
                       role: "assistant",
