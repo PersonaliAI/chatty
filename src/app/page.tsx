@@ -157,6 +157,27 @@ const faqs = [
 ];
 
 export default function Home() {
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.08,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.8,
+        ease: [0.16, 1, 0.3, 1] as any,
+      },
+    },
+  };
   const [isYearly, setIsYearly] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
@@ -177,12 +198,7 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      window.scrollTo({ top: 150, behavior: "smooth" });
-    }, 600);
-    return () => clearTimeout(timer);
-  }, []);
+
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -262,35 +278,62 @@ export default function Home() {
           <div className="mx-auto max-w-5xl px-6">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-12 items-center">
               {/* Left Column */}
-              <div className="md:col-span-7 flex flex-col space-y-6 text-left">
-                <span className="inline-flex items-center gap-1.5 w-fit rounded-full border border-neutral-200 dark:border-neutral-800 px-3 py-1 text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                  <span className="size-1.5 rounded-full bg-[#f97316]"></span>
+              <motion.div 
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="md:col-span-7 flex flex-col space-y-6 text-left"
+              >
+                <motion.span 
+                  variants={itemVariants}
+                  className="inline-flex items-center gap-1.5 w-fit rounded-full border border-neutral-200 dark:border-neutral-800 px-3 py-1 text-xs text-neutral-500 dark:text-neutral-400 font-medium bg-neutral-50/50 dark:bg-neutral-900/50"
+                >
+                  <span className="size-1.5 rounded-full bg-[#f97316] animate-pulse"></span>
                   PersonaliAI Product
-                </span>
-                <h1 className="text-4xl sm:text-5xl md:text-[54px] font-bold tracking-tight leading-[1.1] text-neutral-900 dark:text-white">
+                </motion.span>
+                <motion.h1 
+                  variants={itemVariants}
+                  className="text-4xl sm:text-5xl md:text-[56px] font-bold tracking-tight leading-[1.08] text-neutral-900 dark:text-white"
+                >
                   Custom chatbot that <br />
-                  <span className="text-[#f97316]">pays for itself</span>.
-                </h1>
-                <p className="text-base sm:text-lg text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed">
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#f97316] to-[#ec4899] font-extrabold">pays for itself</span>.
+                </motion.h1>
+                <motion.p 
+                  variants={itemVariants}
+                  className="text-base sm:text-lg text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed font-normal"
+                >
                   An AI chatbot that does more than just chatting. Plug in your content and data sources. Integrate with your services. Create a custom AI chatbot that not only chats but converts. Zero coding, on your website in minutes.
-                </p>
-                <div className="flex flex-wrap items-center gap-4 pt-2">
+                </motion.p>
+                <motion.div 
+                  variants={itemVariants}
+                  className="flex flex-wrap items-center gap-4 pt-2"
+                >
                   <Link href="/dashboard">
-                    <Button size="lg" className="h-11 px-6 text-sm font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 cursor-pointer">
+                    <Button size="lg" className="h-11 px-6 text-sm font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 cursor-pointer shadow-lg shadow-neutral-950/10 dark:shadow-white/5">
                       Start free 14-day trial
                     </Button>
                   </Link>
                   <Link href="#features">
-                    <Button variant="outline" size="lg" className="h-11 px-6 text-sm font-semibold border-neutral-200 dark:border-neutral-800 bg-transparent rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer">
+                    <Button variant="outline" size="lg" className="h-11 px-6 text-sm font-semibold border-neutral-200 dark:border-neutral-850 bg-transparent rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer">
                       See details
                     </Button>
                   </Link>
-                </div>
-                <p className="text-xs text-neutral-400 dark:text-neutral-500">No credit card required. Cancel anytime.</p>
-              </div>
+                </motion.div>
+                <motion.p 
+                  variants={itemVariants}
+                  className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium"
+                >
+                  No credit card required. Cancel anytime.
+                </motion.p>
+              </motion.div>
 
               {/* Right Column: Simulated Chat Widget */}
-              <div className="md:col-span-5 flex justify-center">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.96, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ delay: 0.35, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                className="md:col-span-5 flex justify-center"
+              >
                 <div className="w-full max-w-[360px] h-[480px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 flex flex-col overflow-hidden relative">
                   {/* Chat Header */}
                   <div className="p-4 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-900/50 flex items-center gap-3">
@@ -373,7 +416,7 @@ export default function Home() {
                     </button>
                   </form>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
         </section>
