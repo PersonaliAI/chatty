@@ -59,7 +59,9 @@ import {
   MoreHorizontal,
   Monitor,
   Mic,
-  Puzzle
+  Puzzle,
+  Search,
+  Type
 } from "lucide-react";
 
 // Types
@@ -536,6 +538,12 @@ export default function Dashboard() {
   const [showSourcesSidebar, setShowSourcesSidebar] = useState(false);
   const knowledgeEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Knowledge Base tab UI state
+  const [kbSourceTab, setKbSourceTab] = useState<"text" | "url" | "file" | "drive">("text");
+  const [sourcesSearch, setSourcesSearch] = useState("");
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<"all" | "text" | "url" | "file">("all");
+  const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
 
   // Copy code animation state
   const [copiedScript, setCopiedScript] = useState(false);
@@ -2120,7 +2128,7 @@ export default function Dashboard() {
             {[
               { id: "home", label: t("overview"), icon: Home },
               { id: "customizer", label: t("customizer"), icon: Sliders },
-              
+              { id: "knowledge", label: t("knowledge_base"), icon: Database },
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
               { id: "leads", label: t("leads"), icon: Users },
               { id: "meetings", label: t("meetings"), icon: Calendar },
@@ -2470,6 +2478,348 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+          {/* TAB 3: KNOWLEDGE BASE */}
+          {activeTab === "knowledge" && (
+            <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-6">
+              {/* Hidden file input (re-uses existing upload handler) */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleKnowledgeUpload}
+                accept=".pdf,.docx,.txt,.md"
+                className="hidden"
+              />
+
+              {/* Header */}
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2">
+                    <Database className="size-4 text-[#f97316]" />
+                    {t("knowledge_base")}
+                  </h3>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
+                    Everything your assistant knows. Add text, crawl websites, upload documents, or sync a Google Drive folder — all sources are chunked and embedded into RAG memory.
+                  </p>
+                </div>
+                <button
+                  onClick={() => user && loadBotSettings(user.id)}
+                  disabled={loadingLists}
+                  className="shrink-0 flex items-center gap-1.5 text-[11px] font-semibold border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-350 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`size-3.5 ${loadingLists ? "animate-spin" : ""}`} />
+                  Refresh
+                </button>
+              </div>
+
+              {/* Stats Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Total Sources</span>
+                    <h4 className="text-2xl font-bold mt-1">{sources.length}</h4>
+                  </div>
+                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500"><Layers className="size-5" /></div>
+                </div>
+                <div className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Characters Indexed</span>
+                    <h4 className="text-2xl font-bold mt-1">{sources.reduce((acc, s) => acc + (s.charCount || 0), 0).toLocaleString()}</h4>
+                  </div>
+                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500"><FileText className="size-5" /></div>
+                </div>
+                <div className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Status</span>
+                    <h4 className="text-2xl font-bold mt-1">{sources.filter(s => s.status === "trained").length}<span className="text-sm font-medium text-neutral-400"> / {sources.length} trained</span></h4>
+                    {sources.some(s => s.status === "training") && (
+                      <span className="text-[9px] text-[#f97316] font-medium flex items-center gap-1 mt-1">
+                        <Loader2 className="size-3 animate-spin" /> {sources.filter(s => s.status === "training").length} training…
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-3 rounded-xl bg-green-50 dark:bg-green-950/30 text-green-500"><Check className="size-5" /></div>
+                </div>
+              </div>
+
+              {/* Add Source Card */}
+              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
+                <div className="p-1.5 border-b border-neutral-100 dark:border-neutral-800 flex gap-1 overflow-x-auto">
+                  {[
+                    { id: "text", label: "Text / FAQ", icon: Type },
+                    { id: "url", label: "Website URL", icon: Globe },
+                    { id: "file", label: "Upload File", icon: FileUp },
+                    { id: "drive", label: "Google Drive", icon: FolderOpen },
+                  ].map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setKbSourceTab(tab.id as "text" | "url" | "file" | "drive")}
+                        className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                          kbSourceTab === tab.id
+                            ? "bg-[#f97316]/10 text-[#f97316]"
+                            : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                        }`}
+                      >
+                        <Icon className="size-3.5" />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="p-5">
+                  {/* Text source */}
+                  {kbSourceTab === "text" && (
+                    <form onSubmit={handleTrainText} className="space-y-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Title</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Refund Policy"
+                          value={inputTitle}
+                          onChange={(e) => setInputTitle(e.target.value)}
+                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Content</label>
+                        <textarea
+                          placeholder="Paste FAQ answers, policies, product details, or any knowledge the bot should learn…"
+                          value={inputText}
+                          onChange={(e) => setInputText(e.target.value)}
+                          rows={5}
+                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-y leading-relaxed"
+                        />
+                        <p className="text-[9px] text-neutral-400 mt-1">{inputText.length.toLocaleString()} characters</p>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={!inputText.trim() || !inputTitle.trim() || !botId}
+                          className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        >
+                          <Plus className="size-3.5" /> Add to Knowledge
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* URL source */}
+                  {kbSourceTab === "url" && (
+                    <form onSubmit={handleTrainUrl} className="space-y-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Website URL</label>
+                        <input
+                          type="url"
+                          placeholder="https://example.com/about"
+                          value={inputUrl}
+                          onChange={(e) => setInputUrl(e.target.value)}
+                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        />
+                        <p className="text-[9px] text-neutral-400 mt-1 flex items-center gap-1">
+                          <Sparkles className="size-3 text-[#f97316]" /> The page is crawled live and its text content indexed.
+                        </p>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={!inputUrl.trim() || !botId}
+                          className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        >
+                          <Link2 className="size-3.5" /> Crawl &amp; Index
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* File upload */}
+                  {kbSourceTab === "file" && (
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isKnowledgeLoading || !botId}
+                        className="w-full border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl p-8 flex flex-col items-center justify-center gap-2 text-center hover:border-[#f97316]/50 hover:bg-[#f97316]/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isKnowledgeLoading ? (
+                          <>
+                            <Loader2 className="size-6 text-[#f97316] animate-spin" />
+                            <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Indexing {uploadingFile}…</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileUp className="size-6 text-neutral-400" />
+                            <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Click to upload a document</span>
+                            <span className="text-[10px] text-neutral-400">PDF, DOCX, TXT, MD — up to 20MB</span>
+                          </>
+                        )}
+                      </button>
+                      <p className="text-[9px] text-neutral-400 text-center">Uploaded files are sent to the backend, chunked, and embedded automatically.</p>
+                    </div>
+                  )}
+
+                  {/* Google Drive folder */}
+                  {kbSourceTab === "drive" && (
+                    <form onSubmit={handleIndexDriveFolder} className="space-y-3">
+                      {!googleConnected && (
+                        <div className="flex items-center gap-2 text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-lg px-3 py-2">
+                          <AlertCircle className="size-3.5 shrink-0" />
+                          Connect Google in Agent Settings first for private folders. Public folders work without it.
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Folder URL or ID</label>
+                        <input
+                          type="text"
+                          placeholder="https://drive.google.com/drive/folders/…"
+                          value={driveFolderUrl}
+                          onChange={(e) => setDriveFolderUrl(e.target.value)}
+                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Files</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={200}
+                          value={driveMaxFiles}
+                          onChange={(e) => setDriveMaxFiles(parseInt(e.target.value, 10) || 50)}
+                          className="w-32 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        />
+                      </div>
+                      {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
+                      {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={isIndexingDrive || !driveFolderUrl.trim()}
+                          className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        >
+                          {isIndexingDrive ? <Loader2 className="size-3.5 animate-spin" /> : <FolderOpen className="size-3.5" />}
+                          Index Folder
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+
+              {/* Sources List */}
+              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-3 flex-wrap">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
+                    {t("training_data")}
+                    <span className="text-neutral-300 dark:text-neutral-600 normal-case">({sources.length})</span>
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    {/* Type filter */}
+                    <div className="flex items-center gap-0.5 bg-neutral-50 dark:bg-neutral-950 rounded-lg p-0.5 border border-neutral-200 dark:border-neutral-800">
+                      {(["all", "text", "url", "file"] as const).map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => setSourceTypeFilter(f)}
+                          className={`px-2 py-1 text-[10px] font-semibold rounded-md capitalize transition-colors cursor-pointer ${
+                            sourceTypeFilter === f ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm" : "text-neutral-400 hover:text-neutral-600"
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="size-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search sources…"
+                        value={sourcesSearch}
+                        onChange={(e) => setSourcesSearch(e.target.value)}
+                        className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg pl-8 pr-3 py-1.5 text-[11px] w-40 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-neutral-100 dark:divide-neutral-850">
+                  {(() => {
+                    const q = sourcesSearch.toLowerCase();
+                    const filtered = sources.filter(s =>
+                      (sourceTypeFilter === "all" || s.type === sourceTypeFilter) &&
+                      (s.name.toLowerCase().includes(q) || (s.content || "").toLowerCase().includes(q))
+                    );
+
+                    if (sources.length === 0) {
+                      return (
+                        <div className="p-10 text-center">
+                          <Database className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
+                          <p className="text-xs font-semibold text-neutral-500 mt-3">No knowledge sources yet</p>
+                          <p className="text-[10px] text-neutral-400 mt-1">Add your first source above to start training your assistant.</p>
+                        </div>
+                      );
+                    }
+                    if (filtered.length === 0) {
+                      return <div className="p-10 text-center text-xs text-neutral-400">No sources match your filter.</div>;
+                    }
+
+                    return filtered.map((s) => {
+                      const TypeIcon = s.type === "url" ? Globe : s.type === "file" ? FileUp : Type;
+                      const expanded = expandedSourceId === s.id;
+                      return (
+                        <div key={s.id} className="p-4 hover:bg-neutral-50/50 dark:hover:bg-neutral-850/30 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="size-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 shrink-0 mt-0.5">
+                              <TypeIcon className="size-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate max-w-xs">{s.name}</p>
+                                {s.status === "trained" ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+                                    <Check className="size-2.5" /> Trained
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400">
+                                    <Loader2 className="size-2.5 animate-spin" /> Training
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1 text-[10px] text-neutral-400">
+                                <span className="capitalize">{s.type}</span>
+                                <span className="flex items-center gap-1"><FileText className="size-3" /> {(s.charCount || 0).toLocaleString()} chars</span>
+                                {s.content && (
+                                  <button
+                                    onClick={() => setExpandedSourceId(expanded ? null : s.id)}
+                                    className="text-[#f97316] hover:underline font-semibold cursor-pointer"
+                                  >
+                                    {expanded ? "Hide" : "Preview"}
+                                  </button>
+                                )}
+                              </div>
+                              {expanded && s.content && (
+                                <div className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3 max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed font-mono">
+                                  {s.content.slice(0, 2000)}{s.content.length > 2000 ? "…" : ""}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteSource(s.id)}
+                              className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer shrink-0"
+                              title="Delete source"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 4: PLAYGROUND */}
           {activeTab === "playground" && (
             <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
