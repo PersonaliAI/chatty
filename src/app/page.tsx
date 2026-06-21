@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   ChevronDown,
@@ -157,27 +156,6 @@ const faqs = [
 ];
 
 export default function Home() {
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.08,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 15 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.8,
-        ease: [0.16, 1, 0.3, 1] as any,
-      },
-    },
-  };
   const [isYearly, setIsYearly] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
@@ -280,36 +258,19 @@ export default function Home() {
           <div className="mx-auto max-w-5xl px-6">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-12 items-center">
               {/* Left Column */}
-              <motion.div 
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="md:col-span-7 flex flex-col space-y-6 text-left"
-              >
-                <motion.span 
-                  variants={itemVariants}
-                  className="inline-flex items-center gap-1.5 w-fit rounded-full border border-neutral-200 dark:border-neutral-800 px-3 py-1 text-xs text-neutral-500 dark:text-neutral-400 font-medium bg-neutral-50/50 dark:bg-neutral-900/50"
-                >
+              <div className="md:col-span-7 flex flex-col space-y-6 text-left">
+                <span className="inline-flex items-center gap-1.5 w-fit rounded-full border border-neutral-200 dark:border-neutral-800 px-3 py-1 text-xs text-neutral-500 dark:text-neutral-400 font-medium bg-neutral-50/50 dark:bg-neutral-900/50">
                   <span className="size-1.5 rounded-full bg-[#f97316] animate-pulse"></span>
                   PersonaliAI Product
-                </motion.span>
-                <motion.h1 
-                  variants={itemVariants}
-                  className="text-4xl sm:text-5xl md:text-[56px] font-bold tracking-tight leading-[1.08] text-neutral-900 dark:text-white"
-                >
+                </span>
+                <h1 className="text-4xl sm:text-5xl md:text-[56px] font-bold tracking-tight leading-[1.08] text-neutral-900 dark:text-white">
                   Custom chatbot that <br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#f97316] to-[#ec4899] font-extrabold">pays for itself</span>.
-                </motion.h1>
-                <motion.p 
-                  variants={itemVariants}
-                  className="text-base sm:text-lg text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed font-normal"
-                >
+                </h1>
+                <p className="text-base sm:text-lg text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed font-normal">
                   An AI chatbot that does more than just chatting. Plug in your content and data sources. Integrate with your services. Create a custom AI chatbot that not only chats but converts. Zero coding, on your website in minutes.
-                </motion.p>
-                <motion.div 
-                  variants={itemVariants}
-                  className="flex flex-wrap items-center gap-4 pt-2"
-                >
+                </p>
+                <div className="flex flex-wrap items-center gap-4 pt-2">
                   <Link href="/dashboard">
                     <Button size="lg" className="h-11 px-6 text-sm font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 cursor-pointer shadow-lg shadow-neutral-950/10 dark:shadow-white/5">
                       Start free 14-day trial
@@ -320,22 +281,14 @@ export default function Home() {
                       See details
                     </Button>
                   </Link>
-                </motion.div>
-                <motion.p 
-                  variants={itemVariants}
-                  className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium"
-                >
+                </div>
+                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">
                   No credit card required. Cancel anytime.
-                </motion.p>
-              </motion.div>
+                </p>
+              </div>
 
               {/* Right Column: Simulated Chat Widget */}
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.96, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ delay: 0.35, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                className="md:col-span-5 flex justify-center"
-              >
+              <div className="md:col-span-5 flex justify-center">
                 <div className="w-full max-w-[360px] h-[480px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 flex flex-col overflow-hidden relative">
                   {/* Chat Header */}
                   <div className="p-4 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-900/50 flex items-center gap-3">
@@ -352,11 +305,8 @@ export default function Home() {
                   {/* Message Container */}
                   <div className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin text-xs">
                     {messages.map((msg, index) => (
-                      <motion.div
+                      <div
                         key={index}
-                        initial={{ opacity: 0, scale: 0.92, y: 12 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ duration: 0.25, ease: "easeOut" }}
                         className={`flex gap-2 max-w-[85%] ${
                           msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
                         }`}
@@ -373,35 +323,27 @@ export default function Home() {
                         >
                           {msg.content}
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                     {isTyping && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex gap-2 mr-auto max-w-[85%]"
-                      >
+                      <div className="flex gap-2 mr-auto max-w-[85%]">
                         <div className="size-6 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
                         <div className="p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-400 dark:bg-neutral-900 flex items-center gap-1.5">
                           <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce"></span>
                           <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.2s]"></span>
                           <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.4s]"></span>
                         </div>
-                      </motion.div>
+                      </div>
                     )}
                     <div ref={chatEndRef} />
                   </div>
 
                   {/* Lead Captured Alert Banner */}
                   {collectedLead && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="absolute bottom-[60px] left-4 right-4 p-2 bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900/50 rounded-lg flex items-center gap-2 text-[10px] text-green-700 dark:text-green-400"
-                    >
+                    <div className="absolute bottom-[60px] left-4 right-4 p-2 bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900/50 rounded-lg flex items-center gap-2 text-[10px] text-green-700 dark:text-green-400">
                       <CheckCircle2 className="size-3.5 shrink-0" />
                       <span>Lead captured! Check the dashboard.</span>
-                    </motion.div>
+                    </div>
                   )}
 
                   {/* Input Form */}
@@ -418,7 +360,7 @@ export default function Home() {
                     </button>
                   </form>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
@@ -576,11 +518,10 @@ export default function Home() {
               {featuresList.map((f, i) => {
                 const Icon = f.icon;
                 return (
-                  <motion.div
+                  <div
                     key={i}
-                    whileHover={{ y: -3 }}
                     onClick={() => setSelectedFeature(f)}
-                    className="p-6 rounded-2xl border border-neutral-100 dark:border-neutral-900 bg-white dark:bg-neutral-950 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer group"
+                    className="p-6 rounded-2xl border border-neutral-100 dark:border-neutral-900 bg-white dark:bg-neutral-950 hover:border-neutral-300 dark:hover:border-neutral-700 hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
                   >
                     <div className="size-10 rounded-lg bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center border border-neutral-100 dark:border-neutral-800 text-neutral-900 dark:text-white mb-4 group-hover:bg-[#f97316]/10 group-hover:text-[#f97316] transition-colors">
                       <Icon className="size-5" />
@@ -592,7 +533,7 @@ export default function Home() {
                     <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed line-clamp-2">
                       {f.desc}
                     </p>
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>
@@ -600,61 +541,51 @@ export default function Home() {
         </section>
 
         {/* Feature Detail Modal */}
-        <AnimatePresence>
-          {selectedFeature && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              {/* Backdrop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.5 }}
-                exit={{ opacity: 0 }}
+        {selectedFeature && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              onClick={() => setSelectedFeature(null)}
+              className="absolute inset-0 bg-black/50"
+            />
+            {/* Content Panel */}
+            <div className="relative w-full max-w-md bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl z-10">
+              <button
                 onClick={() => setSelectedFeature(null)}
-                className="absolute inset-0 bg-black"
-              />
-              {/* Content Panel */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                className="relative w-full max-w-md bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl z-10"
+                className="absolute top-4 right-4 p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
+                aria-label="Close modal"
               >
-                <button
-                  onClick={() => setSelectedFeature(null)}
-                  className="absolute top-4 right-4 p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
-                  aria-label="Close modal"
-                >
-                  <X className="size-4" />
-                </button>
-                <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-lg bg-[#f97316]/10 flex items-center justify-center text-[#f97316]">
-                    {(() => {
-                      const Icon = selectedFeature.icon;
-                      return <Icon className="size-5" />;
-                    })()}
-                  </div>
-                  <h3 className="text-base font-bold text-neutral-900 dark:text-white">{selectedFeature.title}</h3>
+                <X className="size-4" />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-lg bg-[#f97316]/10 flex items-center justify-center text-[#f97316]">
+                  {(() => {
+                    const Icon = selectedFeature.icon;
+                    return <Icon className="size-5" />;
+                  })()}
                 </div>
-                <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-350 leading-relaxed">
-                  {selectedFeature.desc}
-                </p>
-                <div className="mt-6 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-xl border border-neutral-100 dark:border-neutral-900 text-xs text-neutral-500">
-                  <span className="font-semibold text-neutral-850 dark:text-neutral-300">How to use:</span>
-                  <p className="mt-1">Setup this feature directly inside the Chatty Dashboard under the corresponding management tab in under two clicks.</p>
-                </div>
-                <div className="mt-6 flex justify-end gap-2">
-                  <Button size="sm" onClick={() => setSelectedFeature(null)} className="h-8 border-neutral-200 dark:border-neutral-800 text-neutral-700 bg-transparent border rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 text-xs cursor-pointer">
-                    Dismiss
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white">{selectedFeature.title}</h3>
+              </div>
+              <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-350 leading-relaxed">
+                {selectedFeature.desc}
+              </p>
+              <div className="mt-6 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-xl border border-neutral-100 dark:border-neutral-900 text-xs text-neutral-500">
+                <span className="font-semibold text-neutral-850 dark:text-neutral-300">How to use:</span>
+                <p className="mt-1">Setup this feature directly inside the Chatty Dashboard under the corresponding management tab in under two clicks.</p>
+              </div>
+              <div className="mt-6 flex justify-end gap-2">
+                <Button size="sm" onClick={() => setSelectedFeature(null)} className="h-8 border-neutral-200 dark:border-neutral-800 text-neutral-700 bg-transparent border rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 text-xs cursor-pointer">
+                  Dismiss
+                </Button>
+                <Link href="/dashboard" onClick={() => setSelectedFeature(null)}>
+                  <Button size="sm" className="h-8 px-4 text-xs font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 cursor-pointer">
+                    Try in Dashboard
                   </Button>
-                  <Link href="/dashboard" onClick={() => setSelectedFeature(null)}>
-                    <Button size="sm" className="h-8 px-4 text-xs font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 cursor-pointer">
-                      Try in Dashboard
-                    </Button>
-                  </Link>
-                </div>
-              </motion.div>
+                </Link>
+              </div>
             </div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
 
         {/* FAQ Section */}
         <section id="faq" className="py-16 md:py-24 border-t border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-950/20">
@@ -680,20 +611,11 @@ export default function Home() {
                         }`}
                       />
                     </button>
-                    <AnimatePresence initial={false}>
-                      {isOpen && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <div className="px-6 pb-4 pt-1 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed border-t border-neutral-100 dark:border-neutral-900 bg-neutral-50/20 dark:bg-neutral-950/20">
-                            {faq.answer}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {isOpen && (
+                      <div className="px-6 pb-4 pt-1 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed border-t border-neutral-100 dark:border-neutral-900 bg-neutral-50/20 dark:bg-neutral-950/20">
+                        {faq.answer}
+                      </div>
+                    )}
                   </div>
                 );
               })}
