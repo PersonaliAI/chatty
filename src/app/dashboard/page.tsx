@@ -2110,8 +2110,8 @@ export default function Dashboard() {
   };
 
   // Code snippets
-  const embedScriptCode = `<script\n  src="https://cdn.personaliai.com/chatty.js"\n  data-id="bot_chatty_${botName.toLowerCase().replace(/[^a-z0-9]/g, "_")}"\n  data-color="${primaryColor}"\n  data-style="${widgetStyle}"\n></script>`;
-  const embedIframeCode = `<iframe\n  src="https://chatty.personaliai.com/embed/bot_chatty_${botName.toLowerCase().replace(/[^a-z0-9]/g, "_")}?color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}"\n  width="100%"\n  height="600"\n  frameborder="0"\n></iframe>`;
+  const embedScriptCode = `<script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  data-color="${primaryColor}"\n  data-style="${widgetStyle}"\n  defer\n></script>`;
+  const embedIframeCode = `<iframe\n  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}?color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}"\n  width="100%"\n  height="600"\n  frameborder="0"\n></iframe>`;
 
   // Reusable Chatty composer (input card)
   const renderComposer = () => {
