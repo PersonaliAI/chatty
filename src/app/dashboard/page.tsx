@@ -3484,10 +3484,10 @@ export default function Dashboard() {
                             />
                             <p className="text-[9px] text-neutral-400 mt-1">
                               {meetingProvider === "google_meet"
-                                ? "Real Meet links are generated from the connected Google Calendar."
+                                ? "Real Meet links are generated automatically on the connected Google Calendar."
                                 : meetingProvider === "zoom"
-                                ? "Real Zoom links require Zoom credentials configured on the backend."
-                                : "Teams links use the connected Microsoft calendar."}
+                                ? "Real Zoom links require Zoom credentials configured on the backend (else a placeholder is used)."
+                                : "Teams isn't fully integrated yet — bookings fall back to a calendar event link."}
                             </p>
                           </div>
 
