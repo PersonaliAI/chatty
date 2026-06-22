@@ -24,8 +24,11 @@
   var style = (script.getAttribute("data-style") || "minimalist");
   var position = (script.getAttribute("data-position") || "right"); // right | left
   var origin = new URL(script.src, location.href).origin;
+  // location.hostname is the host site embedding the widget — used for the
+  // backend domain allowlist check.
   var embedUrl = origin + "/embed/" + encodeURIComponent(botId) +
-    "?color=" + encodeURIComponent(color) + "&style=" + encodeURIComponent(style);
+    "?color=" + encodeURIComponent(color) + "&style=" + encodeURIComponent(style) +
+    "&host=" + encodeURIComponent(location.hostname);
 
   var side = position === "left" ? "left" : "right";
   var open = false;

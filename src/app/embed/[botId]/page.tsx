@@ -84,6 +84,20 @@ export default function EmbedWidget() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isBotResponding]);
 
+  // Determine the host site embedding this widget, for the backend domain
+  // allowlist. Prefer the browser-set referrer (not spoofable via URL params);
+  // fall back to the ?host param passed by widget.js.
+  const getEmbedHost = (): string => {
+    try {
+      if (typeof document !== "undefined" && document.referrer) {
+        return new URL(document.referrer).hostname;
+      }
+    } catch {
+      /* ignore */
+    }
+    return searchParams.get("host") || "";
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isBotResponding) return;
@@ -107,7 +121,8 @@ export default function EmbedWidget() {
           bot_id: botId,
           session_id: sessionId,
           text: userText,
-          visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+          visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          host: getEmbedHost()
         })
       });
 

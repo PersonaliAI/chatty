@@ -428,6 +428,10 @@ export default function Dashboard() {
   const [zoomConfigured, setZoomConfigured] = useState(false);
   const [onesignalConfigured, setOnesignalConfigured] = useState(false);
 
+  // Security: allowed domains for the embed widget
+  const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
+  const [newDomain, setNewDomain] = useState("");
+
   // Google Drive indexing settings
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
   const [driveMaxFiles, setDriveMaxFiles] = useState(50);
@@ -782,6 +786,7 @@ export default function Dashboard() {
         setWorkingDays(activeBot.working_days || ["mon", "tue", "wed", "thu", "fri"]);
         setBufferMinutes(activeBot.buffer_minutes ?? 0);
         setAdvanceNoticeHours(activeBot.advance_notice_hours ?? 0);
+        setAllowedDomains(activeBot.allowed_domains || []);
         setOnboardingStep(activeBot.onboarding_step || 0);
         setOnboardingCompleted(activeBot.onboarding_completed || false);
         setLeadFields(activeBot.lead_fields || ["name", "email", "phone"]);
@@ -1313,6 +1318,7 @@ export default function Dashboard() {
           working_days: workingDays,
           buffer_minutes: bufferMinutes,
           advance_notice_hours: advanceNoticeHours,
+          allowed_domains: allowedDomains,
           updated_at: new Date().toISOString()
         })
         .eq("id", botId);
@@ -3505,6 +3511,68 @@ export default function Dashboard() {
                     {embedIframeCode}
                   </pre>
                 </div>
+              </div>
+
+              {/* Security: Allowed Domains */}
+              <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <ShieldAlert className="size-4 text-[#f97316]" /> Allowed Domains
+                </h3>
+                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                  Restrict where this widget can run. Leave empty to allow <b>any</b> website. Add domains to lock the
+                  assistant to only your sites — requests from other domains are rejected.
+                </p>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const d = newDomain.trim().toLowerCase()
+                      .replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
+                    if (d && !allowedDomains.includes(d)) {
+                      handleInputChange(setAllowedDomains, [...allowedDomains, d]);
+                    }
+                    setNewDomain("");
+                  }}
+                  className="flex gap-2 mt-4"
+                >
+                  <input
+                    type="text"
+                    value={newDomain}
+                    onChange={(e) => setNewDomain(e.target.value)}
+                    placeholder="example.com"
+                    className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newDomain.trim()}
+                    className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                  >
+                    <Plus className="size-3.5" /> Add
+                  </button>
+                </form>
+
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {allowedDomains.length === 0 ? (
+                    <span className="text-[11px] text-neutral-400 flex items-center gap-1.5">
+                      <Globe className="size-3.5" /> Open to all domains (no restriction)
+                    </span>
+                  ) : (
+                    allowedDomains.map((d) => (
+                      <span key={d} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+                        {d}
+                        <button
+                          onClick={() => handleInputChange(setAllowedDomains, allowedDomains.filter((x) => x !== d))}
+                          className="text-neutral-400 hover:text-red-500 cursor-pointer"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+                {allowedDomains.length > 0 && (
+                  <p className="text-[10px] text-neutral-400 mt-3">Remember to click <b>Save Changes</b> to apply.</p>
+                )}
               </div>
             </div>
           )}
