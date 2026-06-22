@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import { LeadsMap } from "@/components/leads-map";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { InboxPanel } from "@/components/inbox-panel";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -66,7 +67,8 @@ import {
   Puzzle,
   Search,
   Type,
-  MapPin
+  MapPin,
+  Inbox
 } from "lucide-react";
 
 // Types
@@ -396,6 +398,8 @@ export default function Dashboard() {
   const [microsoftConnected, setMicrosoftConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [microsoftEmail, setMicrosoftEmail] = useState<string | null>(null);
+  const [zoomConnected, setZoomConnected] = useState(false);
+  const [zoomEmail, setZoomEmail] = useState<string | null>(null);
   const [telegramId, setTelegramId] = useState<number | null>(null);
   const [telegramLinkOpen, setTelegramLinkOpen] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<"google" | "microsoft" | null>(null);
@@ -641,7 +645,7 @@ export default function Dashboard() {
       // Query public users table for integrated emails
       const { data: uData } = await supabase
         .from("users")
-        .select("google_email, microsoft_email, telegram_id")
+        .select("google_email, microsoft_email, telegram_id, zoom_email")
         .eq("auth_user_id", userId)
         .maybeSingle();
 
@@ -651,6 +655,8 @@ export default function Dashboard() {
         setTelegramId(uData.telegram_id || null);
         setGoogleConnected(!!uData.google_email);
         setMicrosoftConnected(!!uData.microsoft_email);
+        setZoomEmail(uData.zoom_email || null);
+        setZoomConnected(!!uData.zoom_email);
       } else if (res.ok) {
         const body = await res.json();
         setGoogleConnected(body.connected?.google || false);
@@ -884,8 +890,8 @@ export default function Dashboard() {
         value: "zoom",
         label: "Zoom",
         icon: <span>🔵</span>,
-        disabled: !zoomConfigured,
-        hint: zoomConfigured ? undefined : "needs Zoom keys",
+        disabled: !(zoomConfigured || zoomConnected),
+        hint: (zoomConfigured || zoomConnected) ? undefined : "connect Zoom",
       },
       {
         value: "teams",
@@ -895,7 +901,7 @@ export default function Dashboard() {
         hint: microsoftConnected ? undefined : "connect Microsoft",
       },
     ],
-    [googleConnected, microsoftConnected, zoomConfigured]
+    [googleConnected, microsoftConnected, zoomConfigured, zoomConnected]
   );
   const languageOptions: ModernSelectOption[] = useMemo(
     () => [
@@ -1932,6 +1938,36 @@ export default function Dashboard() {
     }
   };
 
+  // ── Zoom OAuth (per-user) ───────────────────────────────────────────────────
+  const handleConnectZoom = async () => {
+    try {
+      const res = await fetchWithFallback("/api/integrations/zoom/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origin: window.location.origin }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.url) window.location.href = d.url;
+      } else {
+        const d = await res.json();
+        alert(d.detail || "Zoom OAuth is not configured on the server yet.");
+      }
+    } catch (err) {
+      console.error("Zoom connect error:", err);
+    }
+  };
+
+  const handleDisconnectZoom = async () => {
+    if (!confirm("Disconnect your Zoom account?")) return;
+    try {
+      const res = await fetchWithFallback("/api/integrations/zoom/disconnect", { method: "POST" });
+      if (res.ok) { setZoomConnected(false); setZoomEmail(null); }
+    } catch (err) {
+      console.error("Zoom disconnect error:", err);
+    }
+  };
+
   // ── API key management ─────────────────────────────────────────────────────
   const loadApiKeys = async (bId: string) => {
     setLoadingApiKeys(true);
@@ -2324,6 +2360,7 @@ export default function Dashboard() {
               { id: "customizer", label: t("customizer"), icon: Sliders },
               { id: "knowledge", label: t("knowledge_base"), icon: Database },
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
+              { id: "inbox", label: "Inbox", icon: Inbox },
               { id: "leads", label: t("leads"), icon: Users },
               { id: "map", label: "Map", icon: MapPin },
               { id: "meetings", label: t("meetings"), icon: Calendar },
@@ -2737,6 +2774,33 @@ export default function Dashboard() {
                 >
                   <FileUp className="size-3.5" /> Upload
                 </button>
+              </div>
+
+              {/* Scheduling quick-config */}
+              <div className="flex flex-wrap items-center gap-4 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5"><Calendar className="size-3.5" /> Scheduling:</span>
+                <button
+                  onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
+                  className="flex items-center gap-2 text-[11px] font-semibold cursor-pointer"
+                >
+                  <span className={`w-8 h-4.5 rounded-full p-0.5 transition-colors ${calendarSchedulingEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"}`}>
+                    <span className={`block size-3.5 rounded-full bg-white transition-transform ${calendarSchedulingEnabled ? "translate-x-3.5" : ""}`} />
+                  </span>
+                  {calendarSchedulingEnabled ? "Booking on" : "Booking off"}
+                </button>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-neutral-400">Provider</span>
+                  <div className="w-40"><ModernSelect value={meetingProvider} options={providerOptions} onChange={(v) => handleInputChange(setMeetingProvider, v)} size="sm" /></div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-neutral-400">Calendar</span>
+                  <div className="w-44"><ModernSelect
+                    value={meetingProvider === "teams" ? "outlook" : "google"}
+                    options={[{ value: "google", label: "Google Calendar" }, { value: "outlook", label: "Outlook Calendar" }]}
+                    onChange={(v) => { handleInputChange(v === "outlook" ? setSyncOutlookCalendar : setSyncGoogleCalendar, true); }}
+                    size="sm"
+                  /></div>
+                </div>
               </div>
 
               {/* Stats Row */}
@@ -3444,6 +3508,21 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* TAB: INBOX */}
+          {activeTab === "inbox" && (
+            <div className="max-w-6xl mx-auto w-full py-6 px-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <Inbox className="size-4 text-[#f97316]" /> Shared Inbox
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
+                  Every visitor conversation, live. Jump in any time — replying takes over from the AI; toggle back to let the assistant continue.
+                </p>
+              </div>
+              {botId && <InboxPanel botId={botId} fetchBackend={fetchWithFallback} formatDateTime={formatDateTime} color={primaryColor} />}
+            </div>
+          )}
+
           {/* TAB: MAP */}
           {activeTab === "map" && (
             <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
@@ -3839,11 +3918,29 @@ export default function Dashboard() {
                     </div>
                   )}
 
+                  {/* Zoom Connection Status */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
+                    <div>
+                      <span className="text-xs font-semibold flex items-center gap-1.5">
+                        <svg className="size-3.5" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#2D8CFF"/><path d="M6 9.5c0-.55.45-1 1-1h6c.55 0 1 .45 1 1v5c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-5zm9 1.2 2.6-1.7c.3-.2.7 0 .7.4v5.2c0 .4-.4.6-.7.4L15 14.3v-3.6z" fill="#fff"/></svg>
+                        Zoom Account
+                      </span>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                        {zoomConnected ? `Connected${zoomEmail ? ` · ${zoomEmail}` : ""} — bookings use your own Zoom.` : "Connect your own Zoom for per-account meeting links."}
+                      </p>
+                    </div>
+                    {zoomConnected ? (
+                      <button onClick={handleDisconnectZoom} className="px-3 py-1.5 bg-red-50 text-red-650 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors">Disconnect</button>
+                    ) : (
+                      <button onClick={handleConnectZoom} className="px-3 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors">Connect</button>
+                    )}
+                  </div>
+
                   {/* Provider readiness grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
                       { label: "Google Meet", ready: googleConnected, hint: googleConnected ? "Ready" : "Connect Google" },
-                      { label: "Zoom", ready: zoomConfigured, hint: zoomConfigured ? "Ready" : "Needs Zoom keys" },
+                      { label: "Zoom", ready: zoomConfigured || zoomConnected, hint: zoomConnected ? "Your Zoom" : zoomConfigured ? "Shared app" : "Connect Zoom" },
                       { label: "MS Teams", ready: microsoftConnected, hint: microsoftConnected ? "Ready" : "Connect Microsoft" },
                       { label: "Google Drive", ready: googleConnected, hint: googleConnected ? "Ready" : "Connect Google" },
                       { label: "OneDrive", ready: microsoftConnected, hint: microsoftConnected ? "Ready" : "Connect Microsoft" },

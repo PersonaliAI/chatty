@@ -58,9 +58,58 @@ export default function EmbedWidget() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
+  const [liveAgent, setLiveAgent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const sessionId = `widget-session-${botId}`;
+  const lastPollRef = useRef<string>(new Date().toISOString());
+
+  // Persistent per-visitor session id (survives reloads, unique per visitor)
+  const [sessionId] = useState(() => {
+    if (typeof window === "undefined") return `widget-session-${botId}`;
+    const k = `chatty_sid_${botId}`;
+    let s = localStorage.getItem(k);
+    if (!s) { s = `v-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`; localStorage.setItem(k, s); }
+    return s;
+  });
+
+  // Restore prior messages from localStorage
+  useEffect(() => {
+    if (typeof window === "undefined" || !botId) return;
+    try {
+      const raw = localStorage.getItem(`chatty_msgs_${botId}`);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (Array.isArray(saved) && saved.length) setMessages(saved);
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botId]);
+
+  // Persist messages (cap to last 100)
+  useEffect(() => {
+    if (typeof window === "undefined" || !botId || messages.length === 0) return;
+    try { localStorage.setItem(`chatty_msgs_${botId}`, JSON.stringify(messages.slice(-100))); } catch {}
+  }, [messages, botId]);
+
+  // Poll for live human-agent replies
+  useEffect(() => {
+    if (!botId || !sessionId) return;
+    const id = setInterval(async () => {
+      try {
+        const url = `${BACKEND_URL}/api/widget/poll?bot_id=${botId}&session_id=${encodeURIComponent(sessionId)}&after=${encodeURIComponent(lastPollRef.current)}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const d = await res.json();
+        setLiveAgent(!!d.ai_paused);
+        if (Array.isArray(d.messages) && d.messages.length) {
+          lastPollRef.current = d.messages[d.messages.length - 1].created_at;
+          setMessages((p) => [...p, ...d.messages.map((m: any) => ({ role: "assistant" as const, content: m.content }))]);
+          setIsBotResponding(false);
+        }
+      } catch {}
+    }, 4000);
+    return () => clearInterval(id);
+  }, [botId, sessionId]);
 
   const getHost = (): string => {
     try { if (typeof document !== "undefined" && document.referrer) return new URL(document.referrer).hostname; } catch {}
@@ -78,7 +127,7 @@ export default function EmbedWidget() {
           setPrimaryColor(paramColor || bot.primary_color || "#f97316");
           setWidgetStyle(paramStyle || bot.widget_style || "minimalist");
           setLogoUrl(bot.logo_url || null);
-          setMessages([{ role: "assistant", content: bot.welcome_message || "Hello! How can I help you today?" }]);
+          setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: bot.welcome_message || "Hello! How can I help you today?" }]);
         }
         const { data: srcs } = await supabase
           .from("chatty_sources").select("id,name,content").eq("bot_id", botId).eq("status", "trained");
@@ -107,7 +156,13 @@ export default function EmbedWidget() {
         body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, host: getHost() }),
       });
       const body = await res.json();
-      setMessages((p) => [...p, { role: "assistant", content: res.ok ? body.reply : `⚠️ ${body.detail || "Something went wrong."}` }]);
+      if (res.ok && body.ai_paused) {
+        // A human agent is handling this chat — reply arrives via polling.
+        setLiveAgent(true);
+        lastPollRef.current = new Date(Date.now() - 2000).toISOString();
+      } else {
+        setMessages((p) => [...p, { role: "assistant", content: res.ok ? body.reply : `⚠️ ${body.detail || "Something went wrong."}` }]);
+      }
     } catch {
       setMessages((p) => [...p, { role: "assistant", content: "Sorry, I can't connect right now." }]);
     } finally {
@@ -221,7 +276,7 @@ export default function EmbedWidget() {
           </div>
           <div className="leading-tight">
             <h4 className="font-semibold text-sm text-white">{botName}</h4>
-            <p className="text-[9px] text-white/80 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />Online · replies instantly</p>
+            <p className="text-[9px] text-white/80 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />{liveAgent ? "Live agent · we're with you" : "Online · replies instantly"}</p>
           </div>
         </div>
         {/* Tabs */}
