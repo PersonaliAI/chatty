@@ -3,30 +3,36 @@
 import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Loader2, Sparkles } from "lucide-react";
+import {
+  Send, Loader2, Sparkles, Home, MessageSquare, FileText, Search,
+  Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useParams, useSearchParams } from "next/navigation";
 
-// Supabase client instance
 const supabase = createClient();
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
+const EMOJIS = ["😀", "😊", "👍", "🙏", "🎉", "❤️", "🔥", "😍", "🤔", "👋", "✅", "😅", "🙌", "💯", "😎", "🚀"];
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  fileUrl?: string;
+  fileType?: string;
 }
+interface Source { id: string; name: string; content: string; }
+
+type Tab = "home" | "messages" | "articles" | "search";
 
 export default function EmbedWidget() {
   const { botId } = useParams();
   const searchParams = useSearchParams();
-  
-  // Custom styling overrides from URL params
   const paramColor = searchParams.get("color");
   const paramStyle = searchParams.get("style");
-  const disableShadows = searchParams.get("shadows") === "false" || true; // defaults to true as requested: "dont include shadows around chat assistant"
 
   const [loading, setLoading] = useState(true);
   const [botName, setBotName] = useState("Chatty Assistant");
@@ -34,36 +40,49 @@ export default function EmbedWidget() {
   const [primaryColor, setPrimaryColor] = useState("#f97316");
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
 
+  const [tab, setTab] = useState<Tab>("home");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
 
-  // Fetch bot preferences
+  const [sources, setSources] = useState<Source[]>([]);
+  const [openArticle, setOpenArticle] = useState<Source | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchAnswer, setSearchAnswer] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  const [recording, setRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const sessionId = `widget-session-${botId}`;
+
+  const getHost = (): string => {
+    try { if (typeof document !== "undefined" && document.referrer) return new URL(document.referrer).hostname; } catch {}
+    return searchParams.get("host") || "";
+  };
+
   useEffect(() => {
     async function loadBot() {
       if (!botId) return;
       try {
-        const { data: bot, error } = await supabase
-          .from("chatty_bots")
-          .select("*")
-          .eq("id", botId)
-          .maybeSingle();
-
-        if (error) throw error;
-
+        const { data: bot } = await supabase.from("chatty_bots").select("*").eq("id", botId).maybeSingle();
         if (bot) {
           setBotName(bot.name || "Chatty Assistant");
           setWelcomeMsg(bot.welcome_message || "Hello! How can I help you today?");
           setPrimaryColor(paramColor || bot.primary_color || "#f97316");
           setWidgetStyle(paramStyle || bot.widget_style || "minimalist");
-          
-          setMessages([
-            { role: "assistant", content: bot.welcome_message || "Hello! How can I help you today?" }
-          ]);
+          setMessages([{ role: "assistant", content: bot.welcome_message || "Hello! How can I help you today?" }]);
         }
+        const { data: srcs } = await supabase
+          .from("chatty_sources").select("id,name,content").eq("bot_id", botId).eq("status", "trained");
+        if (srcs) setSources(srcs as Source[]);
       } catch (err) {
-        console.error("Failed to load bot preferences:", err);
+        console.error("Failed to load bot:", err);
       } finally {
         setLoading(false);
       }
@@ -71,217 +90,280 @@ export default function EmbedWidget() {
     loadBot();
   }, [botId, paramColor, paramStyle]);
 
-  // Handle open smooth scroll a tiny bit down
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      window.scrollTo({ top: 30, behavior: "smooth" });
-    }, 400);
-    return () => clearTimeout(timer);
-  }, []);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotResponding, tab]);
 
-  // Always scroll chat window to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isBotResponding]);
-
-  // Determine the host site embedding this widget, for the backend domain
-  // allowlist. Prefer the browser-set referrer (not spoofable via URL params);
-  // fall back to the ?host param passed by widget.js.
-  const getEmbedHost = (): string => {
-    try {
-      if (typeof document !== "undefined" && document.referrer) {
-        return new URL(document.referrer).hostname;
-      }
-    } catch {
-      /* ignore */
-    }
-    return searchParams.get("host") || "";
-  };
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isBotResponding) return;
-
-    const userText = inputValue;
-    setMessages((prev) => [...prev, { role: "user", content: userText }]);
+  // ---- Text message ----
+  const sendText = async (text: string) => {
+    if (!text.trim() || isBotResponding) return;
+    setMessages((p) => [...p, { role: "user", content: text }]);
     setInputValue("");
+    setEmojiOpen(false);
     setIsBotResponding(true);
-
-    const sessionId = `widget-session-${botId}`;
-
     try {
-      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
-      
       const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          bot_id: botId,
-          session_id: sessionId,
-          text: userText,
-          visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          host: getEmbedHost()
-        })
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, host: getHost() }),
       });
-
-      if (res.ok) {
-        const body = await res.json();
-        setMessages((prev) => [...prev, { role: "assistant", content: body.reply }]);
-      } else {
-        const body = await res.json();
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `Error: ${body.detail || "Failed to get response from assistant."}` }
-        ]);
-      }
-    } catch (err) {
-      console.error("Widget send message error:", err);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Sorry, I am unable to connect to the server right now." }
-      ]);
+      const body = await res.json();
+      setMessages((p) => [...p, { role: "assistant", content: res.ok ? body.reply : `⚠️ ${body.detail || "Something went wrong."}` }]);
+    } catch {
+      setMessages((p) => [...p, { role: "assistant", content: "Sorry, I can't connect right now." }]);
     } finally {
       setIsBotResponding(false);
     }
   };
 
+  // ---- Media message (image / audio / file) ----
+  const sendMedia = async (file: File | Blob, filename: string, caption = "") => {
+    if (isBotResponding) return;
+    const isImage = file.type.startsWith("image/");
+    const isAudio = file.type.startsWith("audio/");
+    const localUrl = URL.createObjectURL(file);
+    setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? "🎤 Voice message" : `📎 ${filename}`), fileUrl: localUrl, fileType: file.type }]);
+    setIsBotResponding(true);
+    try {
+      const fd = new FormData();
+      fd.append("bot_id", String(botId));
+      fd.append("session_id", sessionId);
+      fd.append("text", caption);
+      fd.append("visitor_timezone", Intl.DateTimeFormat().resolvedOptions().timeZone);
+      fd.append("host", getHost());
+      fd.append("file", file, filename);
+      const res = await fetch(`${BACKEND_URL}/api/widget/chat/media`, { method: "POST", body: fd });
+      const body = await res.json();
+      setMessages((p) => [...p, { role: "assistant", content: res.ok ? body.reply : `⚠️ ${body.detail || "Couldn't process that file."}` }]);
+    } catch {
+      setMessages((p) => [...p, { role: "assistant", content: "Sorry, I couldn't upload that." }]);
+    } finally {
+      setIsBotResponding(false);
+    }
+    void isImage;
+  };
+
+  const onFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) sendMedia(f, f.name);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // ---- Audio recording ----
+  const toggleRecord = async () => {
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mr.ondataavailable = (ev) => { if (ev.data.size > 0) audioChunksRef.current.push(ev.data); };
+      mr.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (blob.size > 0) sendMedia(blob, "voice-message.webm");
+        setRecording(false);
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setRecording(true);
+    } catch {
+      alert("Microphone access denied.");
+    }
+  };
+
+  // ---- AI search ----
+  const runSearch = async (q: string) => {
+    if (!q.trim() || searching) return;
+    setSearching(true);
+    setSearchAnswer(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: `${sessionId}-search`, text: q, visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, host: getHost() }),
+      });
+      const body = await res.json();
+      setSearchAnswer(res.ok ? body.reply : (body.detail || "No answer found."));
+    } catch {
+      setSearchAnswer("Couldn't reach the assistant.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-transparent">
-        <Loader2 className="size-6 animate-spin text-neutral-400" />
-      </div>
-    );
+    return <div className="flex h-screen items-center justify-center bg-transparent"><Loader2 className="size-6 animate-spin text-neutral-400" /></div>;
   }
 
-  const activeColor = primaryColor;
+  const tabs: { id: Tab; label: string; icon: typeof Home }[] = [
+    { id: "home", label: "Home", icon: Home },
+    { id: "messages", label: "Messages", icon: MessageSquare },
+    { id: "articles", label: "Articles", icon: FileText },
+    { id: "search", label: "Search", icon: Search },
+  ];
+
+  const mdComponents = {
+    p: ({ children }: any) => <p className="mb-1 last:mb-0">{children}</p>,
+    ul: ({ children }: any) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+    ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+    a: ({ href, children }: any) => <a href={href} target="_blank" rel="noreferrer" className="underline" style={{ color: primaryColor }}>{children}</a>,
+    code: ({ children }: any) => <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono">{children}</code>,
+  };
 
   return (
-    <div className="w-full h-screen bg-transparent flex justify-center items-center p-0">
-      <div 
-        className={`w-full h-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-none overflow-hidden relative flex flex-col style-${widgetStyle} ${
-          disableShadows ? "shadow-none" : "shadow-xl"
-        }`}
-      >
-        {/* Chat Header */}
-        <div
-          style={widgetStyle === "minimalist" ? { backgroundColor: activeColor } : {}}
-          className={`chat-header p-4 flex items-center justify-between border-b ${
-            widgetStyle === "minimalist" ? "text-white border-transparent" : "border-neutral-200 dark:border-neutral-850"
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div 
-              style={widgetStyle !== "minimalist" ? { backgroundColor: activeColor, color: "white" } : {}}
-              className="size-8 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-sm"
-            >
-              {botName[0].toUpperCase()}
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
-              <p className="text-[9px] opacity-80 flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                Online
-              </p>
-            </div>
+    <div className="w-full h-screen bg-white dark:bg-neutral-900 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans">
+      {/* Header */}
+      <div className="px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
+        <div className="flex items-center gap-2.5">
+          <div className="size-8 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-sm">{botName[0]?.toUpperCase()}</div>
+          <div className="leading-tight">
+            <h4 className="font-semibold text-sm text-white">{botName}</h4>
+            <p className="text-[9px] text-white/80 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />Online · replies instantly</p>
           </div>
         </div>
-
-        {/* Chat Messages */}
-        <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs scrollbar-thin">
-          <AnimatePresence initial={false}>
-            {messages.map((msg, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className={`flex gap-2 max-w-[85%] ${
-                  msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
-                }`}
-              >
-                {msg.role !== "user" && (
-                  <div 
-                    style={{ backgroundColor: activeColor, color: "white" }}
-                    className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
-                  >
-                    {botName[0].toUpperCase()}
-                  </div>
-                )}
-                <div
-                  className={`p-3 rounded-2xl leading-relaxed ${
-                    msg.role === "user"
-                      ? "text-white rounded-tr-none"
-                      : "bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 rounded-tl-none"
-                  }`}
-                  style={msg.role === "user" ? { backgroundColor: activeColor } : {}}
-                >
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                    components={{
-                      p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
-                      ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-                      ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-                      li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                      pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
-                      code: ({ children }) => (
-                        <code className={msg.role === "user" ? "bg-white/20 text-white px-1 py-0.5 rounded text-[10px] font-mono" : "bg-neutral-200 dark:bg-neutral-850 px-1 py-0.5 rounded text-[10px] font-mono"}>
-                          {children}
-                        </code>
-                      )
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
-              </motion.div>
-            ))}
-
-            {isBotResponding && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                className="flex gap-2 max-w-[85%] mr-auto"
-              >
-                <div 
-                  style={{ backgroundColor: activeColor, color: "white" }}
-                  className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 animate-pulse"
-                >
-                  {botName[0].toUpperCase()}
-                </div>
-                <div className="p-3 bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 rounded-2xl rounded-tl-none flex items-center gap-1 min-h-[36px]">
-                  <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                  <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                  <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <div ref={messagesEndRef} />
+        {/* Tabs */}
+        <div className="flex gap-1 mt-3">
+          {tabs.map((tb) => {
+            const Icon = tb.icon;
+            const active = tab === tb.id;
+            return (
+              <button key={tb.id} onClick={() => { setTab(tb.id); setOpenArticle(null); }}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${active ? "bg-white text-neutral-900" : "text-white/85 hover:bg-white/15"}`}>
+                <Icon className="size-3.5" />{tb.label}
+              </button>
+            );
+          })}
         </div>
-
-        {/* Chat Input */}
-        <form onSubmit={handleSendMessage} className="p-3 border-t border-neutral-150 dark:border-neutral-900 flex gap-2">
-          <input
-            type="text"
-            placeholder="Type your message..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            disabled={isBotResponding}
-            className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
-          />
-          <button
-            type="submit"
-            disabled={isBotResponding || !inputValue.trim()}
-            style={{ backgroundColor: activeColor }}
-            className="size-8 rounded-lg flex items-center justify-center text-white hover:opacity-90 transition-opacity cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Send className="size-4" />
-          </button>
-        </form>
       </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin">
+        {/* HOME */}
+        {tab === "home" && (
+          <div className="p-4 space-y-3">
+            <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
+              <h3 className="text-sm font-bold flex items-center gap-1.5"><Sparkles className="size-4" style={{ color: primaryColor }} />Hi there 👋</h3>
+              <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{welcomeMsg}</p>
+            </div>
+            <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
+              <span className="flex items-center gap-2 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
+              <ChevronRight className="size-4 text-neutral-400" />
+            </button>
+            <button onClick={() => setTab("articles")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
+              <span className="flex items-center gap-2 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
+              <ChevronRight className="size-4 text-neutral-400" />
+            </button>
+            <button onClick={() => setTab("search")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
+              <span className="flex items-center gap-2 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Search for answers</span>
+              <ChevronRight className="size-4 text-neutral-400" />
+            </button>
+          </div>
+        )}
+
+        {/* MESSAGES */}
+        {tab === "messages" && (
+          <div className="p-4 space-y-4 text-xs">
+            <AnimatePresence initial={false}>
+              {messages.map((msg, i) => (
+                <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
+                  {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: primaryColor }}>{botName[0]?.toUpperCase()}</div>}
+                  <div className={`p-2.5 rounded-2xl leading-relaxed ${msg.role === "user" ? "text-white rounded-tr-none" : "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
+                    {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
+                    {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
+                    {msg.role === "assistant"
+                      ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>{msg.content}</ReactMarkdown>
+                      : <span>{msg.content}</span>}
+                  </div>
+                </motion.div>
+              ))}
+              {isBotResponding && (
+                <div className="flex gap-2 mr-auto">
+                  <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: primaryColor }}>{botName[0]?.toUpperCase()}</div>
+                  <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none flex items-center gap-1">
+                    <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce" />
+                    <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" />
+                    <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:300ms]" />
+                  </div>
+                </div>
+              )}
+            </AnimatePresence>
+            <div ref={messagesEndRef} />
+          </div>
+        )}
+
+        {/* ARTICLES */}
+        {tab === "articles" && (
+          <div className="p-4">
+            {openArticle ? (
+              <div>
+                <button onClick={() => setOpenArticle(null)} className="flex items-center gap-1 text-[11px] font-semibold text-neutral-500 mb-3"><ArrowLeft className="size-3.5" />All articles</button>
+                <h3 className="text-sm font-bold mb-2">{openArticle.name}</h3>
+                <div className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap">{openArticle.content}</div>
+              </div>
+            ) : sources.length === 0 ? (
+              <div className="text-center py-10"><FileText className="size-8 text-neutral-300 mx-auto" /><p className="text-xs text-neutral-400 mt-2">No articles yet.</p></div>
+            ) : (
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-400 mb-1">Help articles</h3>
+                {sources.map((s) => (
+                  <button key={s.id} onClick={() => setOpenArticle(s)} className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 text-left">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold truncate">{s.name}</p>
+                      <p className="text-[10px] text-neutral-400 truncate">{s.content.slice(0, 60)}</p>
+                    </div>
+                    <ChevronRight className="size-4 text-neutral-400 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SEARCH */}
+        {tab === "search" && (
+          <div className="p-4">
+            <form onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery); }} className="relative">
+              <Search className="size-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search our help center…"
+                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-9 pr-3 py-2.5 text-xs focus:outline-none" />
+            </form>
+            {searching && <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4"><Loader2 className="size-4 animate-spin" />Generating answer…</div>}
+            {searchAnswer && !searching && (
+              <div className="mt-4 p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
+                <p className="text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 mb-1.5" style={{ color: primaryColor }}><Sparkles className="size-3" />AI-generated answer</p>
+                <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{searchAnswer}</ReactMarkdown>
+                </div>
+                <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: primaryColor }}>Still have questions? Message us</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Composer (Messages tab only) */}
+      {tab === "messages" && (
+        <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
+          <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
+          {emojiOpen && (
+            <div className="absolute bottom-16 left-2.5 right-2.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-2 grid grid-cols-8 gap-1 shadow-lg z-10">
+              {EMOJIS.map((e) => <button key={e} onClick={() => { setInputValue((v) => v + e); setEmojiOpen(false); }} className="text-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded">{e}</button>)}
+            </div>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); sendText(inputValue); }} className="flex items-center gap-1">
+            <button type="button" onClick={() => setEmojiOpen((o) => !o)} className="p-2 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></button>
+            <button type="button" onClick={toggleRecord} className={`p-2 rounded-full ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
+              {recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
+            </button>
+            <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setEmojiOpen(false)}
+              placeholder={recording ? "Recording… tap ◼ to send" : "Compose your message…"} disabled={isBotResponding || recording}
+              className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-full px-3.5 py-2 text-xs focus:outline-none disabled:opacity-60" />
+            <button type="submit" disabled={isBotResponding || !inputValue.trim()} style={{ background: primaryColor }}
+              className="size-8 rounded-full flex items-center justify-center text-white hover:opacity-90 disabled:opacity-40 shrink-0"><Send className="size-4" /></button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

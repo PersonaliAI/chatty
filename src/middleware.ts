@@ -19,7 +19,40 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(`${publicOrigin(request)}/auth/callback?code=${code}`)
   }
 
-  return await updateSession(request)
+  const response = await updateSession(request)
+
+  // Embed domain lock: restrict which sites may iframe the widget (browser-enforced).
+  const embedMatch = request.nextUrl.pathname.match(/^\/embed\/([^/]+)/)
+  if (embedMatch) {
+    const frameAncestors = await embedFrameAncestors(embedMatch[1])
+    response.headers.set('Content-Security-Policy', `frame-ancestors ${frameAncestors}`)
+  }
+
+  return response
+}
+
+async function embedFrameAncestors(botId: string): Promise<string> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return '*'
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/chatty_bots?id=eq.${encodeURIComponent(botId)}&select=allowed_domains`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+    )
+    if (!res.ok) return '*'
+    const rows = (await res.json()) as { allowed_domains?: string[] }[]
+    const domains = rows?.[0]?.allowed_domains
+    if (!domains || domains.length === 0) return '*' // empty allowlist = embeddable anywhere
+    const parts = ["'self'"]
+    for (const d of domains) {
+      const clean = d.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+      parts.push(`https://${clean}`, `https://*.${clean}`)
+    }
+    return parts.join(' ')
+  } catch {
+    return '*' // fail-open so the widget never breaks on a transient error
+  }
 }
 
 export const config = {
