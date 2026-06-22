@@ -482,6 +482,10 @@ export default function Dashboard() {
   const [onboardingStep, setOnboardingStep] = useState<number>(0);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
   const [leadFields, setLeadFields] = useState<string[]>(["name", "email", "phone"]);
+  const [leadCaptureEnabled, setLeadCaptureEnabled] = useState(true);
+  const [leadRequiredFields, setLeadRequiredFields] = useState<string[]>(["name", "email"]);
+  const [newLeadField, setNewLeadField] = useState("");
+  const [savingLeadCapture, setSavingLeadCapture] = useState(false);
   const [botCountry, setBotCountry] = useState<string>("");
   const [syncOffice365Calendar, setSyncOffice365Calendar] = useState<boolean>(false);
   const [meetingProvider, setMeetingProvider] = useState<string>("google_meet");
@@ -804,6 +808,8 @@ export default function Dashboard() {
         setOnboardingStep(activeBot.onboarding_step || 0);
         setOnboardingCompleted(activeBot.onboarding_completed || false);
         setLeadFields(activeBot.lead_fields || ["name", "email", "phone"]);
+        setLeadCaptureEnabled(activeBot.lead_capture_enabled ?? true);
+        setLeadRequiredFields(activeBot.lead_required_fields || ["name", "email"]);
         setBotCountry(activeBot.bot_country || "");
         setSyncOutlookCalendar(activeBot.sync_outlook_calendar || false);
         setSyncOffice365Calendar(activeBot.sync_office365_calendar || false);
@@ -2791,6 +2797,57 @@ export default function Dashboard() {
                 >
                   <RefreshCw className={`size-3.5 ${loadingLists ? "animate-spin" : ""}`} />
                   Refresh
+                </button>
+              </div>
+
+              {/* Lead Capture */}
+              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-xs font-bold flex items-center gap-2"><Database className="size-4 text-[#f97316]" />Lead Capture</h4>
+                    <p className="text-[10px] text-neutral-400 mt-1 max-w-md">Collect visitor details in conversations. Required fields must be gathered; new fields create columns in the Leads table automatically.</p>
+                  </div>
+                  <button type="button" onClick={() => setLeadCaptureEnabled((v) => !v)} aria-label="Toggle lead capture"
+                    className={`relative w-10 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${leadCaptureEnabled ? "bg-[#f97316]" : "bg-neutral-300 dark:bg-neutral-700"}`}>
+                    <span className={`absolute top-0.5 size-5 rounded-full bg-white transition-all ${leadCaptureEnabled ? "left-[18px]" : "left-0.5"}`} />
+                  </button>
+                </div>
+
+                {leadCaptureEnabled && (
+                  <>
+                    <div className="space-y-2">
+                      {leadFields.map((field) => {
+                        const required = leadRequiredFields.map((f) => f.toLowerCase()).includes(field.toLowerCase());
+                        return (
+                          <div key={field} className="flex items-center justify-between gap-2 p-2 pl-3 rounded-lg border border-neutral-100 dark:border-neutral-800">
+                            <span className="text-xs font-medium capitalize">{field.replace(/_/g, " ")}</span>
+                            <div className="flex items-center gap-2">
+                              <button type="button" onClick={() => setLeadRequiredFields((prev) => required ? prev.filter((f) => f.toLowerCase() !== field.toLowerCase()) : [...prev, field])}
+                                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold cursor-pointer transition-colors ${required ? "bg-[#f97316]/10 text-[#f97316]" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500"}`}>
+                                {required ? "Required" : "Optional"}
+                              </button>
+                              <button type="button" onClick={() => { setLeadFields((prev) => prev.filter((f) => f !== field)); setLeadRequiredFields((prev) => prev.filter((f) => f.toLowerCase() !== field.toLowerCase())); }}
+                                className="px-1.5 text-neutral-400 hover:text-red-500 text-xs cursor-pointer" aria-label="Remove field">✕</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <input value={newLeadField} onChange={(e) => setNewLeadField(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const f = newLeadField.trim().toLowerCase().replace(/\s+/g, "_"); if (f && !leadFields.map((x) => x.toLowerCase()).includes(f)) setLeadFields((p) => [...p, f]); setNewLeadField(""); } }}
+                        placeholder="Add a field (e.g. company, budget)"
+                        className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none" />
+                      <button type="button" onClick={() => { const f = newLeadField.trim().toLowerCase().replace(/\s+/g, "_"); if (f && !leadFields.map((x) => x.toLowerCase()).includes(f)) setLeadFields((p) => [...p, f]); setNewLeadField(""); }}
+                        className="px-3 py-1.5 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 text-[11px] font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer">+ Add</button>
+                    </div>
+                  </>
+                )}
+
+                <button type="button" disabled={savingLeadCapture || !botId}
+                  onClick={async () => { if (!botId) return; setSavingLeadCapture(true); try { await saveOnboardingStep(onboardingStep || 0, onboardingCompleted, { lead_fields: leadFields, lead_capture_enabled: leadCaptureEnabled, lead_required_fields: leadRequiredFields }); } finally { setSavingLeadCapture(false); } }}
+                  className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50">
+                  {savingLeadCapture ? "Saving…" : "Save lead settings"}
                 </button>
               </div>
 
