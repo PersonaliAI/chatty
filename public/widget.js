@@ -20,8 +20,11 @@
   var botId = script && script.getAttribute("data-id");
   if (!botId) { console.error("[Chatty] Missing data-id on widget script tag."); return; }
 
-  var color = (script.getAttribute("data-color") || "#f97316");
-  var style = (script.getAttribute("data-style") || "minimalist");
+  // data-color / data-style are OPTIONAL overrides. When omitted, the embed
+  // uses the bot's saved customization (color, style) from the dashboard.
+  var colorAttr = script.getAttribute("data-color");
+  var styleAttr = script.getAttribute("data-style");
+  var color = colorAttr || "#f97316"; // launcher button visuals only
   var position = (script.getAttribute("data-position") || "right"); // right | left
   // Mobile full-screen is the default; developers can disable with
   // data-mobile-fullscreen="false" to keep the floating panel on phones.
@@ -36,9 +39,10 @@
   } catch (e) {}
   // location.hostname is the host site embedding the widget — used for the
   // backend domain allowlist check.
-  var embedUrl = origin + "/embed/" + encodeURIComponent(botId) +
-    "?color=" + encodeURIComponent(color) + "&style=" + encodeURIComponent(style) +
-    "&host=" + encodeURIComponent(location.hostname);
+  var embedParams = "host=" + encodeURIComponent(location.hostname);
+  if (colorAttr) embedParams += "&color=" + encodeURIComponent(colorAttr);
+  if (styleAttr) embedParams += "&style=" + encodeURIComponent(styleAttr);
+  var embedUrl = origin + "/embed/" + encodeURIComponent(botId) + "?" + embedParams;
 
   var side = position === "left" ? "left" : "right";
   var open = false;
