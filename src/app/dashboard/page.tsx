@@ -464,6 +464,7 @@ export default function Dashboard() {
 
   const [liveThinkingSteps, setLiveThinkingSteps] = useState<string[]>([]);
   const [playgroundInput, setPlaygroundInput] = useState("");
+  const [playgroundView, setPlaygroundView] = useState<"test" | "live">("test");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [collectedInPlayground, setCollectedInPlayground] = useState(false);
   
@@ -3161,8 +3162,27 @@ export default function Dashboard() {
 
           {/* TAB 4: PLAYGROUND */}
           {activeTab === "playground" && (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
-              <div className={`w-full max-w-lg h-[500px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative flex flex-col style-${widgetStyle}`}>
+            <div className="max-w-4xl mx-auto w-full py-6 px-4 flex flex-col items-center gap-3">
+              <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-800 p-0.5 text-[11px] font-semibold">
+                <button onClick={() => setPlaygroundView("test")} className={`px-3 py-1.5 rounded-md cursor-pointer transition-colors ${playgroundView === "test" ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : "text-neutral-500"}`}>AI Test</button>
+                <button onClick={() => setPlaygroundView("live")} className={`px-3 py-1.5 rounded-md cursor-pointer transition-colors ${playgroundView === "live" ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : "text-neutral-500"}`}>Live Widget</button>
+              </div>
+              {playgroundView === "live" && (
+                botId ? (
+                  <>
+                    <iframe
+                      key={`${botId}-${primaryColor}-${widgetStyle}`}
+                      src={`/embed/${botId}?color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}`}
+                      title="Live widget preview"
+                      className="w-full max-w-lg h-[500px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
+                    />
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Exactly what visitors see — reflects your last <span className="font-semibold">saved</span> settings.</p>
+                  </>
+                ) : (
+                  <div className="w-full max-w-lg h-[500px] rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-xs text-neutral-400">Save your bot to preview the live widget.</div>
+                )
+              )}
+              <div className={`w-full max-w-lg h-[500px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative flex flex-col style-${widgetStyle} ${playgroundView === "live" ? "hidden" : ""}`}>
                 
                 {/* Playground Header */}
                 <div
