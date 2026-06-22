@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
+import { LeadsMap } from "@/components/leads-map";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -63,7 +64,8 @@ import {
   Mic,
   Puzzle,
   Search,
-  Type
+  Type,
+  MapPin
 } from "lucide-react";
 
 // Types
@@ -2302,6 +2304,7 @@ export default function Dashboard() {
               { id: "knowledge", label: t("knowledge_base"), icon: Database },
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
               { id: "leads", label: t("leads"), icon: Users },
+              { id: "map", label: "Map", icon: MapPin },
               { id: "meetings", label: t("meetings"), icon: Calendar },
               { id: "mailbox", label: "Mailbox", icon: Mail },
               { id: "notifications", label: t("notifications"), icon: Bell },
@@ -3417,6 +3420,32 @@ export default function Dashboard() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: MAP */}
+          {activeTab === "map" && (
+            <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2">
+                    <MapPin className="size-4 text-[#f97316]" /> Client Map
+                  </h3>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
+                    Where your leads are coming from. Each bubble is a country — bigger means more leads. Click a bubble for details.
+                  </p>
+                </div>
+                <button
+                  onClick={() => user && loadBotSettings(user.id)}
+                  disabled={loadingLists}
+                  className="shrink-0 flex items-center gap-1.5 text-[11px] font-semibold border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-350 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`size-3.5 ${loadingLists ? "animate-spin" : ""}`} /> Refresh
+                </button>
+              </div>
+              <div className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <LeadsMap leads={leads} color={primaryColor} />
+              </div>
             </div>
           )}
 

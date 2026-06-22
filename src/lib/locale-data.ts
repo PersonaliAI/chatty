@@ -55,6 +55,31 @@ export const COUNTRIES: CountryOption[] = [
   { code: "IL", name: "Israel", flag: "🇮🇱" },
 ];
 
+// Approx country centroids [lat, lng] for plotting leads on a map.
+export const COUNTRY_CENTROIDS: Record<string, [number, number]> = {
+  US: [39.8, -98.6], GB: [54, -2], CA: [56, -106], AU: [-25, 133], DE: [51, 10],
+  FR: [46, 2], ES: [40, -4], IT: [42, 12], NL: [52, 5], IE: [53, -8], IN: [22, 79],
+  LK: [7.8, 80.7], SG: [1.35, 103.8], AE: [24, 54], SA: [24, 45], JP: [36, 138],
+  CN: [35, 105], HK: [22.3, 114.2], KR: [36, 128], BR: [-10, -55], MX: [23, -102],
+  AR: [-34, -64], ZA: [-29, 24], NG: [9, 8], KE: [0, 38], EG: [27, 30], SE: [62, 15],
+  NO: [62, 10], DK: [56, 10], FI: [64, 26], PL: [52, 19], PT: [39.5, -8], CH: [47, 8],
+  AT: [47.5, 14], BE: [50.8, 4], NZ: [-42, 174], MY: [4, 102], ID: [-2, 118],
+  TH: [15, 101], PH: [13, 122], VN: [16, 108], PK: [30, 70], BD: [24, 90], TR: [39, 35],
+  IL: [31, 35],
+};
+
+// Resolve a free-text country value (name or code) to an ISO code we can map.
+export function resolveCountryCode(value: string): string | null {
+  if (!value) return null;
+  const v = value.trim().toLowerCase();
+  const byCode = COUNTRIES.find((c) => c.code.toLowerCase() === v);
+  if (byCode) return byCode.code;
+  const byName = COUNTRIES.find(
+    (c) => c.name.toLowerCase() === v || c.name.toLowerCase().includes(v) || v.includes(c.name.toLowerCase())
+  );
+  return byName ? byName.code : null;
+}
+
 // Minimal IANA timezone -> ISO country map for auto-detection.
 const TZ_TO_COUNTRY: Record<string, string> = {
   "America/New_York": "US", "America/Chicago": "US", "America/Denver": "US",
