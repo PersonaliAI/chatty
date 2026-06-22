@@ -3534,13 +3534,22 @@ export default function Dashboard() {
                     onChange={(e) => setPlaygroundInput(e.target.value)}
                     className="chat-input-bar flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
                   />
-                  <button
-                    type="submit"
-                    style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
-                    className="p-2.5 text-white rounded-lg flex items-center justify-center shrink-0 hover:opacity-90 cursor-pointer"
-                  >
-                    <Send className="size-3.5" />
-                  </button>
+                  {(() => {
+                    const map: Record<string, { shape: string; icon: any; label?: string }> = {
+                      plane: { shape: "size-9 rounded-full", icon: <Send className="size-4" /> },
+                      arrowUp: { shape: "size-9 rounded-full", icon: <ArrowUp className="size-4" /> },
+                      arrowRight: { shape: "size-9 rounded-full", icon: <ArrowRight className="size-4" /> },
+                      square: { shape: "size-9 rounded-lg", icon: <Send className="size-4" /> },
+                      label: { shape: "h-9 px-3.5 rounded-full gap-1.5", icon: <Send className="size-3.5" />, label: "Send" },
+                    };
+                    const c = map[sendButtonStyle] || map.plane;
+                    return (
+                      <button type="submit" style={{ backgroundColor: primaryColor }}
+                        className={`${c.shape} text-white flex items-center justify-center shrink-0 hover:opacity-90 cursor-pointer`}>
+                        {c.icon}{c.label && <span className="text-xs font-semibold">{c.label}</span>}
+                      </button>
+                    );
+                  })()}
                 </form>
               </div>
             </div>
@@ -3930,12 +3939,23 @@ export default function Dashboard() {
 
               {/* Endpoint docs */}
               <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Endpoint</h4>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="px-2 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400 font-bold text-[10px]">POST</span>
-                  <code className="font-mono text-neutral-700 dark:text-neutral-300">{BACKEND_URL}/api/v1/chat</code>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Endpoints</h4>
+                <div className="space-y-1.5">
+                  {[
+                    { m: "POST", p: "/api/v1/chat", d: "Send a message, get the assistant's reply" },
+                    { m: "GET", p: "/api/v1/bot", d: "Bot details (name, model, settings)" },
+                    { m: "GET", p: "/api/v1/leads", d: "List captured leads (?limit&offset)" },
+                    { m: "GET", p: "/api/v1/conversations", d: "Recent conversation messages (?limit)" },
+                    { m: "GET", p: "/api/v1/usage", d: "This key's usage stats" },
+                  ].map((e) => (
+                    <div key={e.p} className="flex items-center gap-2 text-xs">
+                      <span className={`px-2 py-0.5 rounded font-bold text-[10px] w-12 text-center ${e.m === "POST" ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400" : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"}`}>{e.m}</span>
+                      <code className="font-mono text-neutral-700 dark:text-neutral-300">{e.p}</code>
+                      <span className="text-[10px] text-neutral-400 truncate">— {e.d}</span>
+                    </div>
+                  ))}
                 </div>
-                <p className="text-[10px] text-neutral-400">Auth header: <code className="font-mono">Authorization: Bearer &lt;your_api_key&gt;</code> · Rate limit: 60 requests/min per key.</p>
+                <p className="text-[10px] text-neutral-400">Base URL: <code className="font-mono">{BACKEND_URL}</code> · Auth: <code className="font-mono">Authorization: Bearer &lt;your_api_key&gt;</code> · Rate limit: 60 requests/min per key.</p>
                 <pre className="bg-neutral-950 text-neutral-100 rounded-xl p-4 overflow-x-auto text-[11px] font-mono leading-relaxed">{`curl -X POST ${BACKEND_URL}/api/v1/chat \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
