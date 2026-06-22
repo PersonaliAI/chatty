@@ -398,8 +398,6 @@ export default function Dashboard() {
   const [microsoftConnected, setMicrosoftConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [microsoftEmail, setMicrosoftEmail] = useState<string | null>(null);
-  const [zoomConnected, setZoomConnected] = useState(false);
-  const [zoomEmail, setZoomEmail] = useState<string | null>(null);
   const [telegramId, setTelegramId] = useState<number | null>(null);
   const [telegramLinkOpen, setTelegramLinkOpen] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<"google" | "microsoft" | null>(null);
@@ -645,7 +643,7 @@ export default function Dashboard() {
       // Query public users table for integrated emails
       const { data: uData } = await supabase
         .from("users")
-        .select("google_email, microsoft_email, telegram_id, zoom_email")
+        .select("google_email, microsoft_email, telegram_id")
         .eq("auth_user_id", userId)
         .maybeSingle();
 
@@ -655,8 +653,6 @@ export default function Dashboard() {
         setTelegramId(uData.telegram_id || null);
         setGoogleConnected(!!uData.google_email);
         setMicrosoftConnected(!!uData.microsoft_email);
-        setZoomEmail(uData.zoom_email || null);
-        setZoomConnected(!!uData.zoom_email);
       } else if (res.ok) {
         const body = await res.json();
         setGoogleConnected(body.connected?.google || false);
@@ -890,8 +886,8 @@ export default function Dashboard() {
         value: "zoom",
         label: "Zoom",
         icon: <span>🔵</span>,
-        disabled: !(zoomConfigured || zoomConnected),
-        hint: (zoomConfigured || zoomConnected) ? undefined : "connect Zoom",
+        disabled: !zoomConfigured,
+        hint: zoomConfigured ? undefined : "Zoom not configured",
       },
       {
         value: "teams",
@@ -901,7 +897,7 @@ export default function Dashboard() {
         hint: microsoftConnected ? undefined : "connect Microsoft",
       },
     ],
-    [googleConnected, microsoftConnected, zoomConfigured, zoomConnected]
+    [googleConnected, microsoftConnected, zoomConfigured]
   );
   const languageOptions: ModernSelectOption[] = useMemo(
     () => [
@@ -1938,35 +1934,6 @@ export default function Dashboard() {
     }
   };
 
-  // ── Zoom OAuth (per-user) ───────────────────────────────────────────────────
-  const handleConnectZoom = async () => {
-    try {
-      const res = await fetchWithFallback("/api/integrations/zoom/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ origin: window.location.origin }),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        if (d.url) window.location.href = d.url;
-      } else {
-        const d = await res.json();
-        alert(d.detail || "Zoom OAuth is not configured on the server yet.");
-      }
-    } catch (err) {
-      console.error("Zoom connect error:", err);
-    }
-  };
-
-  const handleDisconnectZoom = async () => {
-    if (!confirm("Disconnect your Zoom account?")) return;
-    try {
-      const res = await fetchWithFallback("/api/integrations/zoom/disconnect", { method: "POST" });
-      if (res.ok) { setZoomConnected(false); setZoomEmail(null); }
-    } catch (err) {
-      console.error("Zoom disconnect error:", err);
-    }
-  };
 
   // ── API key management ─────────────────────────────────────────────────────
   const loadApiKeys = async (bId: string) => {
@@ -3918,29 +3885,27 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* Zoom Connection Status */}
+                  {/* Zoom Status */}
                   <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
                     <div>
                       <span className="text-xs font-semibold flex items-center gap-1.5">
                         <svg className="size-3.5" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#2D8CFF"/><path d="M6 9.5c0-.55.45-1 1-1h6c.55 0 1 .45 1 1v5c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-5zm9 1.2 2.6-1.7c.3-.2.7 0 .7.4v5.2c0 .4-.4.6-.7.4L15 14.3v-3.6z" fill="#fff"/></svg>
-                        Zoom Account
+                        Zoom Meetings
                       </span>
                       <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                        {zoomConnected ? `Connected${zoomEmail ? ` · ${zoomEmail}` : ""} — bookings use your own Zoom.` : "Connect your own Zoom for per-account meeting links."}
+                        {zoomConfigured ? "Ready — bookings create real Zoom links automatically." : "Zoom is not configured on the server yet."}
                       </p>
                     </div>
-                    {zoomConnected ? (
-                      <button onClick={handleDisconnectZoom} className="px-3 py-1.5 bg-red-50 text-red-650 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors">Disconnect</button>
-                    ) : (
-                      <button onClick={handleConnectZoom} className="px-3 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors">Connect</button>
-                    )}
+                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${zoomConfigured ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400" : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"}`}>
+                      {zoomConfigured ? "Ready" : "Unavailable"}
+                    </span>
                   </div>
 
                   {/* Provider readiness grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
                       { label: "Google Meet", ready: googleConnected, hint: googleConnected ? "Ready" : "Connect Google" },
-                      { label: "Zoom", ready: zoomConfigured || zoomConnected, hint: zoomConnected ? "Your Zoom" : zoomConfigured ? "Shared app" : "Connect Zoom" },
+                      { label: "Zoom", ready: zoomConfigured, hint: zoomConfigured ? "Ready" : "Unavailable" },
                       { label: "MS Teams", ready: microsoftConnected, hint: microsoftConnected ? "Ready" : "Connect Microsoft" },
                       { label: "Google Drive", ready: googleConnected, hint: googleConnected ? "Ready" : "Connect Google" },
                       { label: "OneDrive", ready: microsoftConnected, hint: microsoftConnected ? "Ready" : "Connect Microsoft" },
