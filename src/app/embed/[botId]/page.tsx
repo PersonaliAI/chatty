@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Loader2, Sparkles, Home, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
+  ArrowUp, ArrowRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useParams, useSearchParams } from "next/navigation";
@@ -17,6 +18,15 @@ import { useParams, useSearchParams } from "next/navigation";
 const supabase = createClient();
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
 const EMOJIS = ["😀", "😊", "👍", "🙏", "🎉", "❤️", "🔥", "😍", "🤔", "👋", "✅", "😅", "🙌", "💯", "😎", "🚀"];
+
+// Send-button variants (icon + shape). Keyed by chatty_bots.send_button_style.
+const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: any; label?: string }> = {
+  plane:      { shape: "size-8 rounded-full",        icon: <Send className="size-4" /> },
+  arrowUp:    { shape: "size-8 rounded-full",        icon: <ArrowUp className="size-4" /> },
+  arrowRight: { shape: "size-8 rounded-full",        icon: <ArrowRight className="size-4" /> },
+  square:     { shape: "size-8 rounded-lg",          icon: <Send className="size-4" /> },
+  label:      { shape: "h-8 px-3.5 rounded-full gap-1.5", icon: <Send className="size-3.5" />, label: "Send" },
+};
 
 interface Message {
   role: "user" | "assistant";
@@ -38,6 +48,7 @@ export default function EmbedWidget() {
   const [botName, setBotName] = useState("Chatty Assistant");
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
   const [starters, setStarters] = useState<string[]>([]);
+  const [sendStyle, setSendStyle] = useState("plane");
   const [primaryColor, setPrimaryColor] = useState("#f97316");
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -126,6 +137,7 @@ export default function EmbedWidget() {
           setBotName(bot.name || "Chatty Assistant");
           setWelcomeMsg(bot.welcome_message || "Hello! How can I help you today?");
           setStarters(Array.isArray(bot.conversation_starters) ? bot.conversation_starters.filter(Boolean) : []);
+          setSendStyle(bot.send_button_style || "plane");
           setPrimaryColor(paramColor || bot.primary_color || "#f97316");
           setWidgetStyle(paramStyle || bot.widget_style || "minimalist");
           setLogoUrl(bot.logo_url || null);
@@ -431,8 +443,15 @@ export default function EmbedWidget() {
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setEmojiOpen(false)}
               placeholder={recording ? "Recording… tap ◼ to send" : "Compose your message…"} disabled={isBotResponding || recording}
               className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-full px-3.5 py-2 text-xs focus:outline-none disabled:opacity-60" />
-            <button type="submit" disabled={isBotResponding || !inputValue.trim()} style={{ background: primaryColor }}
-              className="size-8 rounded-full flex items-center justify-center text-white hover:opacity-90 disabled:opacity-40 shrink-0"><Send className="size-4" /></button>
+            {(() => {
+              const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
+              return (
+                <button type="submit" disabled={isBotResponding || !inputValue.trim()} style={{ background: primaryColor }}
+                  className={`${c.shape} flex items-center justify-center text-white hover:opacity-90 disabled:opacity-40 shrink-0`}>
+                  {c.icon}{c.label && <span className="text-xs font-semibold">{c.label}</span>}
+                </button>
+              );
+            })()}
           </form>
         </div>
       )}

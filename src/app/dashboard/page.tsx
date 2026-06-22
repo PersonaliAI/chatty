@@ -371,6 +371,7 @@ export default function Dashboard() {
   const [conversationStarters, setConversationStarters] = useState<string[]>([]);
   const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
   const [widgetStyle, setWidgetStyle] = useState<"minimalist" | "glassmorphism" | "liquid" | "neumorphism">("minimalist");
+  const [sendButtonStyle, setSendButtonStyle] = useState("plane");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini");
@@ -762,6 +763,7 @@ export default function Dashboard() {
             welcome_message: "Hello! How can I help you today?",
             primary_color: "#f97316",
             widget_style: "minimalist",
+            send_button_style: "plane",
             selected_model: "gemini",
             system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
             strict_mode: true,
@@ -781,6 +783,7 @@ export default function Dashboard() {
         setConversationStarters(Array.isArray(activeBot.conversation_starters) ? activeBot.conversation_starters : []);
         setPrimaryColor(activeBot.primary_color);
         setWidgetStyle(activeBot.widget_style || "minimalist");
+        setSendButtonStyle(activeBot.send_button_style || "plane");
         setLogoUrl(activeBot.logo_url || null);
         setSelectedModel(activeBot.selected_model);
         setSystemInstructions(activeBot.system_instructions);
@@ -1313,6 +1316,7 @@ export default function Dashboard() {
           conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
           primary_color: primaryColor,
           widget_style: widgetStyle,
+          send_button_style: sendButtonStyle,
           selected_model: selectedModel,
           system_instructions: systemInstructions,
           strict_mode: strictMode,
@@ -2632,6 +2636,38 @@ export default function Dashboard() {
                               primaryColor === color ? "border-neutral-900 dark:border-white ring-2 ring-[#f97316]/20" : "border-transparent"
                             }`}
                           />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Send Button</label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { key: "plane", shape: "size-8 rounded-full", icon: <Send className="size-4" /> },
+                          { key: "arrowUp", shape: "size-8 rounded-full", icon: <ArrowUp className="size-4" /> },
+                          { key: "arrowRight", shape: "size-8 rounded-full", icon: <ArrowRight className="size-4" /> },
+                          { key: "square", shape: "size-8 rounded-lg", icon: <Send className="size-4" /> },
+                          { key: "label", shape: "h-8 px-3 rounded-full gap-1.5", icon: <Send className="size-3.5" />, label: "Send" },
+                        ].map((opt) => (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => handleInputChange(setSendButtonStyle, opt.key)}
+                            title={opt.key}
+                            className={`p-1.5 rounded-xl border cursor-pointer transition-colors ${
+                              sendButtonStyle === opt.key
+                                ? "border-neutral-900 dark:border-white ring-2 ring-[#f97316]/20"
+                                : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300"
+                            }`}
+                          >
+                            <span
+                              style={{ backgroundColor: primaryColor }}
+                              className={`${opt.shape} flex items-center justify-center text-white`}
+                            >
+                              {opt.icon}{opt.label && <span className="text-xs font-semibold">{opt.label}</span>}
+                            </span>
+                          </button>
                         ))}
                       </div>
                     </div>
