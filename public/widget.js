@@ -23,7 +23,17 @@
   var color = (script.getAttribute("data-color") || "#f97316");
   var style = (script.getAttribute("data-style") || "minimalist");
   var position = (script.getAttribute("data-position") || "right"); // right | left
+  // Mobile full-screen is the default; developers can disable with
+  // data-mobile-fullscreen="false" to keep the floating panel on phones.
+  var mobileFull = (script.getAttribute("data-mobile-fullscreen") || "true") !== "false";
   var origin = new URL(script.src, location.href).origin;
+
+  // Speed up the first open: warm up the connection to the widget origin.
+  try {
+    var pc = document.createElement("link");
+    pc.rel = "preconnect"; pc.href = origin; pc.crossOrigin = "anonymous";
+    document.head.appendChild(pc);
+  } catch (e) {}
   // location.hostname is the host site embedding the widget — used for the
   // backend domain allowlist check.
   var embedUrl = origin + "/embed/" + encodeURIComponent(botId) +
@@ -69,7 +79,7 @@
   panel.appendChild(iframe);
 
   function applyMobile() {
-    if (window.innerWidth <= 480) {
+    if (mobileFull && window.innerWidth <= 480) {
       panel.style.width = "100vw";
       panel.style.height = "100vh";
       panel.style.maxWidth = "100vw";
@@ -77,6 +87,15 @@
       panel.style.bottom = "0";
       panel.style[side] = "0";
       panel.style.borderRadius = "0";
+    } else {
+      // Floating panel (desktop, or mobile when full-screen is disabled).
+      panel.style.width = "380px";
+      panel.style.height = "560px";
+      panel.style.maxWidth = "calc(100vw - 40px)";
+      panel.style.maxHeight = "calc(100vh - 120px)";
+      panel.style.bottom = "92px";
+      panel.style[side] = "20px";
+      panel.style.borderRadius = "16px";
     }
   }
 

@@ -17,7 +17,13 @@ import { useParams, useSearchParams } from "next/navigation";
 
 const supabase = createClient();
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
-const EMOJIS = ["😀", "😊", "👍", "🙏", "🎉", "❤️", "🔥", "😍", "🤔", "👋", "✅", "😅", "🙌", "💯", "😎", "🚀"];
+const EMOJI_CATEGORIES: { name: string; emojis: string[] }[] = [
+  { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","😂","🤣","🙂","🙃","😉","😊","😇","😍","🥰","😘","😋","😛","😜","🤪","🤨","🧐","🤓","😎","🥳","🤗","🤔","🤭","😴","😬","🙄","😏","😒","😞","😢","😭","😤","😠","😡","🤯","😱","😪"] },
+  { name: "Gestures", emojis: ["👍","👎","👌","🤌","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","👇","☝️","✋","🤚","🖐️","👋","🤝","🙏","✍️","💪","👏","🙌","🫶","💯"] },
+  { name: "Hearts", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💖","💗","💓","💞","💕","💘","💝","❣️","💔"] },
+  { name: "Objects", emojis: ["🔥","✨","⭐","🌟","💫","💡","🎉","🎊","🎁","🏆","📌","📎","🔗","✅","☑️","❌","⚠️","❓","❗","💬","💭","📞","📱","📧","🚀","💰","💳","🛒","📦","📅","🕐","⏰"] },
+  { name: "Nature", emojis: ["🌸","🌷","🌼","🌻","🌹","🌈","☀️","⛅","☁️","🌙","⭐","⚡","❄️","☃️","🍀","🌿","🌍","🌊"] },
+];
 
 // Send-button variants (icon + shape). Keyed by chatty_bots.send_button_style.
 const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: any; label?: string }> = {
@@ -58,6 +64,7 @@ export default function EmbedWidget() {
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [emojiCat, setEmojiCat] = useState(0);
 
   const [sources, setSources] = useState<Source[]>([]);
   const [openArticle, setOpenArticle] = useState<Source | null>(null);
@@ -410,28 +417,46 @@ export default function EmbedWidget() {
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
           {emojiOpen && (
-            <div className="absolute bottom-16 left-2.5 right-2.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-2 grid grid-cols-8 gap-1 shadow-lg z-10">
-              {EMOJIS.map((e) => <button key={e} onClick={() => { setInputValue((v) => v + e); setEmojiOpen(false); }} className="text-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded">{e}</button>)}
+            <div className="absolute bottom-[84px] left-2.5 right-2.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-lg z-10 overflow-hidden">
+              <div className="flex gap-1 p-1.5 border-b border-neutral-100 dark:border-neutral-800 overflow-x-auto scrollbar-thin">
+                {EMOJI_CATEGORIES.map((cat, i) => (
+                  <button key={cat.name} type="button" onClick={() => setEmojiCat(i)} title={cat.name}
+                    className={`px-2 py-1 rounded-md text-base leading-none shrink-0 ${emojiCat === i ? "bg-neutral-100 dark:bg-neutral-800" : "opacity-50 hover:opacity-100"}`}>
+                    {cat.emojis[0]}
+                  </button>
+                ))}
+              </div>
+              <div className="p-2 grid grid-cols-8 gap-1 max-h-40 overflow-y-auto scrollbar-thin">
+                {EMOJI_CATEGORIES[emojiCat].emojis.map((e, i) => (
+                  <button key={i} type="button" onClick={() => setInputValue((v) => v + e)}
+                    className="text-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded p-0.5">{e}</button>
+                ))}
+              </div>
             </div>
           )}
-          <form onSubmit={(e) => { e.preventDefault(); sendText(inputValue); }} className="flex items-center gap-1">
-            <button type="button" onClick={() => setEmojiOpen((o) => !o)} className="p-2 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></button>
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></button>
-            <button type="button" onClick={toggleRecord} className={`p-2 rounded-full ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
-              {recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
-            </button>
+          <form onSubmit={(e) => { e.preventDefault(); sendText(inputValue); }}
+            className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setEmojiOpen(false)}
               placeholder={recording ? "Recording… tap ◼ to send" : "Compose your message…"} disabled={isBotResponding || recording}
-              className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-full px-3.5 py-2 text-xs focus:outline-none disabled:opacity-60" />
-            {(() => {
-              const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
-              return (
-                <button type="submit" disabled={isBotResponding || !inputValue.trim()} style={{ background: primaryColor }}
-                  className={`${c.shape} flex items-center justify-center text-white hover:opacity-90 disabled:opacity-40 shrink-0`}>
-                  {c.icon}{c.label && <span className="text-xs font-semibold">{c.label}</span>}
+              className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-0.5">
+                <button type="button" onClick={() => setEmojiOpen((o) => !o)} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></button>
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></button>
+                <button type="button" onClick={toggleRecord} className={`p-1.5 rounded-full ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
+                  {recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                 </button>
-              );
-            })()}
+              </div>
+              {(() => {
+                const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
+                return (
+                  <button type="submit" disabled={isBotResponding || !inputValue.trim()} style={{ background: primaryColor }}
+                    className={`${c.shape} flex items-center justify-center text-white hover:opacity-90 disabled:opacity-40 shrink-0`}>
+                    {c.icon}{c.label && <span className="text-xs font-semibold">{c.label}</span>}
+                  </button>
+                );
+              })()}
+            </div>
           </form>
         </div>
       )}
