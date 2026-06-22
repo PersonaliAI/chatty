@@ -8,7 +8,7 @@ import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Send, Loader2, Sparkles, Home, MessageSquare, FileText, Search,
+  Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight,
 } from "lucide-react";
@@ -53,7 +53,7 @@ export default function EmbedWidget() {
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>("messages");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
@@ -265,13 +265,6 @@ export default function EmbedWidget() {
     return <div className="flex h-screen items-center justify-center bg-transparent"><Loader2 className="size-6 animate-spin text-neutral-400" /></div>;
   }
 
-  const tabs: { id: Tab; label: string; icon: typeof Home }[] = [
-    { id: "home", label: "Home", icon: Home },
-    { id: "messages", label: "Messages", icon: MessageSquare },
-    { id: "articles", label: "Articles", icon: FileText },
-    { id: "search", label: "Search", icon: Search },
-  ];
-
   const mdComponents = {
     p: ({ children }: any) => <p className="mb-1 last:mb-0">{children}</p>,
     ul: ({ children }: any) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
@@ -292,19 +285,6 @@ export default function EmbedWidget() {
             <h4 className="font-semibold text-sm text-white">{botName}</h4>
             <p className="text-[9px] text-white/80 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />{liveAgent ? "Live agent · we're with you" : "Online · replies instantly"}</p>
           </div>
-        </div>
-        {/* Tabs */}
-        <div className="flex gap-1 mt-3">
-          {tabs.map((tb) => {
-            const Icon = tb.icon;
-            const active = tab === tb.id;
-            return (
-              <button key={tb.id} onClick={() => { setTab(tb.id); setOpenArticle(null); }}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${active ? "bg-white text-neutral-900" : "text-white/85 hover:bg-white/15"}`}>
-                <Icon className="size-3.5" />{tb.label}
-              </button>
-            );
-          })}
         </div>
       </div>
 
