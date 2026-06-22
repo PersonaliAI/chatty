@@ -57,14 +57,34 @@
     "transition:transform .2s ease;padding:0;";
   btn.onmouseenter = function () { btn.style.transform = "scale(1.06)"; };
   btn.onmouseleave = function () { btn.style.transform = "scale(1)"; };
-  var chatIcon =
-    '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-    '<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="#fff"/>' +
-    '<circle cx="8.5" cy="11" r="1.3" fill="' + color + '"/><circle cx="12" cy="11" r="1.3" fill="' + color + '"/>' +
-    '<circle cx="15.5" cy="11" r="1.3" fill="' + color + '"/></svg>';
+  function buildChatIcon(c) {
+    return '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+      '<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="#fff"/>' +
+      '<circle cx="8.5" cy="11" r="1.3" fill="' + c + '"/><circle cx="12" cy="11" r="1.3" fill="' + c + '"/>' +
+      '<circle cx="15.5" cy="11" r="1.3" fill="' + c + '"/></svg>';
+  }
+  var chatIcon = buildChatIcon(color);
   var closeIcon =
     '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
   btn.innerHTML = chatIcon;
+
+  // Auto-match the launcher to the bot's saved dashboard color, unless the
+  // developer pinned one with data-color.
+  function applyTheme(c) {
+    if (!c || colorAttr) return;
+    color = c;
+    btn.style.background = c;
+    chatIcon = buildChatIcon(c);
+    if (!open) btn.innerHTML = chatIcon;
+  }
+  if (!colorAttr) {
+    try {
+      fetch("https://personaliai-api-376030619262.us-central1.run.app/api/widget/theme?bot_id=" + encodeURIComponent(botId))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.primary_color) applyTheme(d.primary_color); })
+        .catch(function () {});
+    } catch (e) {}
+  }
 
   // ---- Chat panel (iframe container) ----
   var panel = document.createElement("div");
