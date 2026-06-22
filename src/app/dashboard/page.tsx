@@ -368,6 +368,7 @@ export default function Dashboard() {
   // Chatbot State
   const [botName, setBotName] = useState("Chatty Assistant");
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
+  const [conversationStarters, setConversationStarters] = useState<string[]>([]);
   const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
   const [widgetStyle, setWidgetStyle] = useState<"minimalist" | "glassmorphism" | "liquid" | "neumorphism">("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -776,6 +777,7 @@ export default function Dashboard() {
         setBotId(activeBot.id);
         setBotName(activeBot.name);
         setWelcomeMsg(activeBot.welcome_message);
+        setConversationStarters(Array.isArray(activeBot.conversation_starters) ? activeBot.conversation_starters : []);
         setPrimaryColor(activeBot.primary_color);
         setWidgetStyle(activeBot.widget_style || "minimalist");
         setLogoUrl(activeBot.logo_url || null);
@@ -1307,6 +1309,7 @@ export default function Dashboard() {
         .update({
           name: botName,
           welcome_message: welcomeMsg,
+          conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
           primary_color: primaryColor,
           widget_style: widgetStyle,
           selected_model: selectedModel,
@@ -2569,6 +2572,37 @@ export default function Dashboard() {
                         onChange={(e) => handleInputChange(setWelcomeMsg, e.target.value)}
                         className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Suggested Messages</label>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-2">Tappable starter prompts shown to visitors (up to 4).</p>
+                      <div className="space-y-2">
+                        {conversationStarters.map((s, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={s}
+                              placeholder={`e.g. How can you help me?`}
+                              onChange={(e) => { const next = [...conversationStarters]; next[i] = e.target.value; handleInputChange(setConversationStarters, next); }}
+                              className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleInputChange(setConversationStarters, conversationStarters.filter((_, j) => j !== i))}
+                              className="px-2 py-1.5 text-neutral-400 hover:text-red-500 rounded-lg cursor-pointer transition-colors"
+                              aria-label="Remove suggested message"
+                            >✕</button>
+                          </div>
+                        ))}
+                        {conversationStarters.length < 4 && (
+                          <button
+                            type="button"
+                            onClick={() => handleInputChange(setConversationStarters, [...conversationStarters, ""])}
+                            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer transition-colors"
+                          >+ Add suggested message</button>
+                        )}
+                      </div>
                     </div>
 
                     <div>

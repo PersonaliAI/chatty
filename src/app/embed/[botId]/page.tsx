@@ -37,6 +37,7 @@ export default function EmbedWidget() {
   const [loading, setLoading] = useState(true);
   const [botName, setBotName] = useState("Chatty Assistant");
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
+  const [starters, setStarters] = useState<string[]>([]);
   const [primaryColor, setPrimaryColor] = useState("#f97316");
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -124,6 +125,7 @@ export default function EmbedWidget() {
         if (bot) {
           setBotName(bot.name || "Chatty Assistant");
           setWelcomeMsg(bot.welcome_message || "Hello! How can I help you today?");
+          setStarters(Array.isArray(bot.conversation_starters) ? bot.conversation_starters.filter(Boolean) : []);
           setPrimaryColor(paramColor || bot.primary_color || "#f97316");
           setWidgetStyle(paramStyle || bot.widget_style || "minimalist");
           setLogoUrl(bot.logo_url || null);
@@ -346,6 +348,17 @@ export default function EmbedWidget() {
                 </div>
               )}
             </AnimatePresence>
+            {starters.length > 0 && !isBotResponding && messages.filter((m) => m.role === "user").length === 0 && (
+              <div className="flex flex-col items-end gap-2 pt-1">
+                {starters.slice(0, 4).map((s, i) => (
+                  <button key={i} onClick={() => sendText(s)}
+                    className="px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                    style={{ borderColor: primaryColor, color: primaryColor }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         )}
