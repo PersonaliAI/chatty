@@ -3792,6 +3792,22 @@ export default function Dashboard() {
                 </p>
               </div>
 
+              {/* Usage summary */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Total Requests</p>
+                  <p className="text-2xl font-bold mt-1 text-neutral-900 dark:text-white">{apiKeys.reduce((s: number, k: any) => s + (k.request_count || 0), 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Active Keys</p>
+                  <p className="text-2xl font-bold mt-1 text-neutral-900 dark:text-white">{apiKeys.filter((k: any) => !k.revoked).length}</p>
+                </div>
+                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Last Activity</p>
+                  <p className="text-sm font-semibold mt-2 text-neutral-700 dark:text-neutral-300">{(() => { const t = apiKeys.map((k: any) => k.last_used_at).filter(Boolean).sort(); return t.length ? formatDateTime(t[t.length - 1]) : "—"; })()}</p>
+                </div>
+              </div>
+
               {/* Newly created key (shown once) */}
               {newApiKey && (
                 <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-2xl">
@@ -3869,6 +3885,16 @@ export default function Dashboard() {
   -d '{"text": "What are your business hours?"}'
 
 # Response: { "reply": "...", "session_id": "..." }`}</pre>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 pt-1">JavaScript</p>
+                <pre className="bg-neutral-950 text-neutral-100 rounded-xl p-4 overflow-x-auto text-[11px] font-mono leading-relaxed">{`const res = await fetch("${BACKEND_URL}/api/v1/chat", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ text: "What are your business hours?" }),
+});
+const { reply, session_id } = await res.json();`}</pre>
               </div>
             </div>
           )}
