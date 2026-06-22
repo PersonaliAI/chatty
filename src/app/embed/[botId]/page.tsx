@@ -34,6 +34,32 @@ const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: any; label?: str
   label:      { shape: "h-8 px-3.5 rounded-full gap-1.5", icon: <Send className="size-3.5" />, label: "Send" },
 };
 
+// Browsers record audio as webm/opus, which Gemini does NOT accept. Decode and
+// re-encode to 16-bit mono WAV (a Gemini-supported format) client-side.
+async function audioBlobToWav(blob: Blob): Promise<Blob> {
+  const AC: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+  const ctx = new AC();
+  const audioBuf = await ctx.decodeAudioData(await blob.arrayBuffer());
+  ctx.close();
+  const len = audioBuf.length;
+  const rate = audioBuf.sampleRate;
+  const numCh = audioBuf.numberOfChannels;
+  const mono = new Float32Array(len);
+  for (let ch = 0; ch < numCh; ch++) {
+    const d = audioBuf.getChannelData(ch);
+    for (let i = 0; i < len; i++) mono[i] += d[i] / numCh;
+  }
+  const view = new DataView(new ArrayBuffer(44 + len * 2));
+  const ws = (o: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, "RIFF"); view.setUint32(4, 36 + len * 2, true); ws(8, "WAVE"); ws(12, "fmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true); ws(36, "data"); view.setUint32(40, len * 2, true);
+  let off = 44;
+  for (let i = 0; i < len; i++) { const s = Math.max(-1, Math.min(1, mono[i])); view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); off += 2; }
+  return new Blob([view], { type: "audio/wav" });
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -235,11 +261,17 @@ export default function EmbedWidget() {
       const mr = new MediaRecorder(stream);
       audioChunksRef.current = [];
       mr.ondataavailable = (ev) => { if (ev.data.size > 0) audioChunksRef.current.push(ev.data); };
-      mr.onstop = () => {
+      mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        if (blob.size > 0) sendMedia(blob, "voice-message.webm");
+        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
         setRecording(false);
+        if (blob.size === 0) return;
+        try {
+          const wav = await audioBlobToWav(blob);
+          sendMedia(wav, "voice-message.wav");
+        } catch {
+          sendMedia(blob, "voice-message.webm"); // fallback
+        }
       };
       mediaRecorderRef.current = mr;
       mr.start();
