@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import { LeadsMap } from "@/components/leads-map";
+import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -367,6 +368,8 @@ export default function Dashboard() {
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
   const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
   const [widgetStyle, setWidgetStyle] = useState<"minimalist" | "glassmorphism" | "liquid" | "neumorphism">("minimalist");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [showWizard, setShowWizard] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini");
   const [systemInstructions, setSystemInstructions] = useState(
     "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite."
@@ -773,6 +776,7 @@ export default function Dashboard() {
         setWelcomeMsg(activeBot.welcome_message);
         setPrimaryColor(activeBot.primary_color);
         setWidgetStyle(activeBot.widget_style || "minimalist");
+        setLogoUrl(activeBot.logo_url || null);
         setSelectedModel(activeBot.selected_model);
         setSystemInstructions(activeBot.system_instructions);
         setStrictMode(activeBot.strict_mode);
@@ -797,8 +801,8 @@ export default function Dashboard() {
         setSyncOffice365Calendar(activeBot.sync_office365_calendar || false);
         setMeetingProvider(activeBot.meeting_provider || "google_meet");
         if (!activeBot.onboarding_completed) {
-          // Start the agentic chat-based setup flow immediately in the knowledge chat
-          setAgenticSetupStep(1);
+          // Show the structured onboarding wizard for new bots
+          setShowWizard(true);
         }
 
         // Fetch sources
@@ -2242,6 +2246,23 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen bg-neutral-50 dark:bg-neutral-955 font-sans text-neutral-900 dark:text-neutral-100 overflow-hidden antialiased">
       
+      {/* Onboarding Wizard */}
+      {showWizard && botId && (
+        <OnboardingWizard
+          botId={botId}
+          initial={{ name: botName, primaryColor, widgetStyle, welcomeMessage: welcomeMsg, systemInstructions, logoUrl }}
+          fetchBackend={fetchWithFallback}
+          supabase={supabase}
+          onComplete={(f) => {
+            setBotName(f.name); setPrimaryColor(f.primaryColor);
+            setWidgetStyle(f.widgetStyle as typeof widgetStyle);
+            setWelcomeMsg(f.welcomeMessage); setSystemInstructions(f.systemInstructions);
+            setLogoUrl(f.logoUrl); setOnboardingCompleted(true);
+          }}
+          onClose={() => setShowWizard(false)}
+        />
+      )}
+
       {/* Floating Save Changes Banner */}
       {hasUnsavedChanges && (
         <div className="fixed bottom-6 right-6 z-50 bg-neutral-950 text-white dark:bg-white dark:text-black border border-neutral-800 dark:border-neutral-200 shadow-2xl rounded-xl px-5 py-3.5 flex items-center gap-4 transition-all duration-300">
@@ -2394,7 +2415,7 @@ export default function Dashboard() {
             {/* Re-run Setup (agentic flow) */}
             {onboardingCompleted && (
               <button
-                onClick={() => { setOnboardingCompleted(false); setAgenticSetupStep(1); setPlaygroundMessages([]); setActiveTab("playground"); }}
+                onClick={() => setShowWizard(true)}
                 className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2.5 py-1.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
               >
                 <Sparkles className="size-3 text-[#f97316]" />

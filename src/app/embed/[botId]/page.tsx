@@ -39,6 +39,7 @@ export default function EmbedWidget() {
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
   const [primaryColor, setPrimaryColor] = useState("#f97316");
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const [tab, setTab] = useState<Tab>("home");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -76,6 +77,7 @@ export default function EmbedWidget() {
           setWelcomeMsg(bot.welcome_message || "Hello! How can I help you today?");
           setPrimaryColor(paramColor || bot.primary_color || "#f97316");
           setWidgetStyle(paramStyle || bot.widget_style || "minimalist");
+          setLogoUrl(bot.logo_url || null);
           setMessages([{ role: "assistant", content: bot.welcome_message || "Hello! How can I help you today?" }]);
         }
         const { data: srcs } = await supabase
@@ -214,7 +216,9 @@ export default function EmbedWidget() {
       {/* Header */}
       <div className="px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
-          <div className="size-8 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-sm">{botName[0]?.toUpperCase()}</div>
+          <div className="size-8 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
+            {logoUrl ? <img src={logoUrl} alt="" className="size-full object-cover" /> : botName[0]?.toUpperCase()}
+          </div>
           <div className="leading-tight">
             <h4 className="font-semibold text-sm text-white">{botName}</h4>
             <p className="text-[9px] text-white/80 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />Online · replies instantly</p>
