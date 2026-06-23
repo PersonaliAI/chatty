@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
-  ArrowUp, ArrowRight,
+  ArrowUp, ArrowRight, RefreshCw,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useParams, useSearchParams } from "next/navigation";
@@ -91,6 +91,12 @@ export default function EmbedWidget() {
   // Notify the parent widget loader of a new assistant reply (unread badge).
   const notifyParent = () => {
     try { window.parent?.postMessage({ type: "chatty:message", role: "assistant" }, "*"); } catch {}
+  };
+
+  // Clear the visible conversation back to the welcome message.
+  const clearChat = () => {
+    setMessages([{ role: "assistant", content: welcomeMsg }]);
+    try { localStorage.removeItem(`chatty_msgs_${botId}_${hostKey}`); } catch {}
   };
 
   const [loading, setLoading] = useState(true);
@@ -345,6 +351,9 @@ export default function EmbedWidget() {
             <h4 className="font-semibold text-sm text-white">{botName}</h4>
             <p className="text-[9px] text-white/80 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />{liveAgent ? "Live agent · we're with you" : "Online · replies instantly"}</p>
           </div>
+          <button onClick={clearChat} className="ml-auto p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Clear conversation" title="Clear conversation">
+            <RefreshCw className="size-4" />
+          </button>
         </div>
       </div>
 
