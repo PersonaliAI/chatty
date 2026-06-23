@@ -76,6 +76,18 @@ export default function EmbedWidget() {
   const paramColor = searchParams.get("color");
   const paramStyle = searchParams.get("style");
 
+  // Scope stored session + history per embedding site, so different host sites
+  // (and the dashboard playground) don't share one conversation.
+  const hostKey = (() => {
+    if (typeof window === "undefined") return "direct";
+    try {
+      const p = new URLSearchParams(window.location.search).get("host");
+      if (p) return p;
+      if (document.referrer) return new URL(document.referrer).hostname;
+    } catch {}
+    return "direct";
+  })();
+
   const [loading, setLoading] = useState(true);
   const [botName, setBotName] = useState("Chatty Assistant");
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
@@ -111,7 +123,7 @@ export default function EmbedWidget() {
   // Persistent per-visitor session id (survives reloads, unique per visitor)
   const [sessionId] = useState(() => {
     if (typeof window === "undefined") return `widget-session-${botId}`;
-    const k = `chatty_sid_${botId}`;
+    const k = `chatty_sid_${botId}_${hostKey}`;
     let s = localStorage.getItem(k);
     if (!s) { s = `v-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`; localStorage.setItem(k, s); }
     return s;
@@ -121,7 +133,7 @@ export default function EmbedWidget() {
   useEffect(() => {
     if (typeof window === "undefined" || !botId) return;
     try {
-      const raw = localStorage.getItem(`chatty_msgs_${botId}`);
+      const raw = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}`);
       if (raw) {
         const saved = JSON.parse(raw);
         if (Array.isArray(saved) && saved.length) setMessages(saved);
@@ -133,8 +145,8 @@ export default function EmbedWidget() {
   // Persist messages (cap to last 100)
   useEffect(() => {
     if (typeof window === "undefined" || !botId || messages.length === 0) return;
-    try { localStorage.setItem(`chatty_msgs_${botId}`, JSON.stringify(messages.slice(-100))); } catch {}
-  }, [messages, botId]);
+    try { localStorage.setItem(`chatty_msgs_${botId}_${hostKey}`, JSON.stringify(messages.slice(-100))); } catch {}
+  }, [messages, botId, hostKey]);
 
   // Poll for live human-agent replies
   useEffect(() => {
