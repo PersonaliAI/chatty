@@ -6,7 +6,8 @@
  *
  * JS API (after load): window.Chatty.open() / .close() / .toggle()
  * Data attributes: data-color, data-style, data-position(left|right),
- *   data-mobile-fullscreen("false" to disable), data-teaser("false" to disable).
+ *   data-mobile-fullscreen("false" to disable), data-teaser("false" to disable),
+ *   data-sound("false" to disable the new-message chime).
  */
 (function () {
   "use strict";
@@ -33,6 +34,7 @@
   var position = (script.getAttribute("data-position") || "right"); // right | left
   var mobileFull = (script.getAttribute("data-mobile-fullscreen") || "true") !== "false";
   var teaserEnabled = (script.getAttribute("data-teaser") || "true") !== "false";
+  var soundEnabled = (script.getAttribute("data-sound") || "true") !== "false";
   var origin = new URL(script.src, location.href).origin;
 
   try {
@@ -54,6 +56,28 @@
 
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  // Subtle two-tone notification chime (Web Audio — no asset needed). Browsers
+  // only allow this after the visitor has interacted with the page.
+  var audioCtx = null;
+  function playPing() {
+    if (!soundEnabled) return;
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      var now = audioCtx.currentTime;
+      [880, 1320].forEach(function (freq, i) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = "sine"; o.frequency.value = freq;
+        o.connect(g); g.connect(audioCtx.destination);
+        var t = now + i * 0.12;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        o.start(t); o.stop(t + 0.2);
+      });
+    } catch (e) {}
+  }
 
   // ---- Launcher button ----
   var btn = document.createElement("button");
@@ -179,7 +203,7 @@
     var d = ev.data;
     if (!d || typeof d !== "object") return;
     if (d.type === "chatty:message" && d.role === "assistant" && !open) {
-      unread++; renderBadge();
+      unread++; renderBadge(); playPing();
     }
   });
 
