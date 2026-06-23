@@ -369,6 +369,7 @@ export default function Dashboard() {
   const [botName, setBotName] = useState("Chatty Assistant");
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
   const [conversationStarters, setConversationStarters] = useState<string[]>([]);
+  const [teaserMessage, setTeaserMessage] = useState("👋 Need help? Chat with us.");
   const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
   const [widgetStyle, setWidgetStyle] = useState<"minimalist" | "glassmorphism" | "liquid" | "neumorphism">("minimalist");
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
@@ -785,6 +786,7 @@ export default function Dashboard() {
         setBotName(activeBot.name);
         setWelcomeMsg(activeBot.welcome_message);
         setConversationStarters(Array.isArray(activeBot.conversation_starters) ? activeBot.conversation_starters : []);
+        setTeaserMessage(activeBot.teaser_message || "👋 Need help? Chat with us.");
         setPrimaryColor(activeBot.primary_color);
         setWidgetStyle(activeBot.widget_style || "minimalist");
         setSendButtonStyle(activeBot.send_button_style || "plane");
@@ -1320,6 +1322,7 @@ export default function Dashboard() {
           name: botName,
           welcome_message: welcomeMsg,
           conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
+          teaser_message: teaserMessage,
           primary_color: primaryColor,
           widget_style: widgetStyle,
           send_button_style: sendButtonStyle,
@@ -2583,6 +2586,18 @@ export default function Dashboard() {
                         onChange={(e) => handleInputChange(setWelcomeMsg, e.target.value)}
                         className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Teaser Message</label>
+                      <input
+                        type="text"
+                        value={teaserMessage}
+                        placeholder="👋 Need help? Chat with us."
+                        onChange={(e) => handleInputChange(setTeaserMessage, e.target.value)}
+                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      />
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Proactive bubble shown next to the launcher a few seconds after a visitor lands.</p>
                     </div>
 
                     <div>

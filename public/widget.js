@@ -150,7 +150,7 @@
       .then(function (d) {
         if (!d) return;
         if (d.primary_color) applyTheme(d.primary_color);
-        if (d.welcome_message) teaserText = d.welcome_message;
+        teaserText = d.teaser_message || d.welcome_message || teaserText;
       })
       .catch(function () {});
   } catch (e) {}
