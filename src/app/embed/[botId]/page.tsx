@@ -177,8 +177,11 @@ export default function EmbedWidget() {
     async function loadBot() {
       if (!botId) return;
       try {
-        const { data: bot } = await supabase.from("chatty_bots").select("*").eq("id", botId).maybeSingle();
-        if (bot) {
+        // Load config from the backend (service role) — works inside third-party
+        // iframes where the browser Supabase client is blocked by storage partitioning.
+        const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}`);
+        if (res.ok) {
+          const bot = await res.json();
           setBotName(bot.name || "Chatty Assistant");
           setWelcomeMsg(bot.welcome_message || "Hello! How can I help you today?");
           setStarters(Array.isArray(bot.conversation_starters) ? bot.conversation_starters.filter(Boolean) : []);
@@ -188,9 +191,6 @@ export default function EmbedWidget() {
           setLogoUrl(bot.logo_url || null);
           setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: bot.welcome_message || "Hello! How can I help you today?" }]);
         }
-        const { data: srcs } = await supabase
-          .from("chatty_sources").select("id,name,content").eq("bot_id", botId).eq("status", "trained");
-        if (srcs) setSources(srcs as Source[]);
       } catch (err) {
         console.error("Failed to load bot:", err);
       } finally {
