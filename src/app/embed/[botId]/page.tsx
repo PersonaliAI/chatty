@@ -201,6 +201,7 @@ export default function EmbedWidget() {
         console.error("Failed to load bot:", err);
       } finally {
         setLoading(false);
+        try { window.parent?.postMessage({ type: "chatty:ready" }, "*"); } catch {}
       }
     }
     loadBot();

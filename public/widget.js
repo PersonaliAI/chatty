@@ -41,6 +41,9 @@
     var pc = document.createElement("link");
     pc.rel = "preconnect"; pc.href = origin; pc.crossOrigin = "anonymous";
     document.head.appendChild(pc);
+    var spinStyle = document.createElement("style");
+    spinStyle.textContent = "@keyframes chatty-spin{to{transform:rotate(360deg)}}";
+    document.head.appendChild(spinStyle);
   } catch (e) {}
 
   var embedParams = "host=" + encodeURIComponent(location.hostname);
@@ -50,6 +53,7 @@
 
   var side = position === "left" ? "left" : "right";
   var open = false;
+  var ready = false; // embed iframe finished loading bot config
   var unread = 0;
   var teaserText = "";
   var FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
@@ -98,6 +102,11 @@
   var chatIcon = buildChatIcon(color);
   var closeIcon =
     '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
+  var spinnerIcon =
+    '<svg width="26" height="26" viewBox="0 0 24 24" style="animation:chatty-spin .7s linear infinite;transform-origin:center">' +
+    '<circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="3"/>' +
+    '<path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>';
+  function setBtnIcon() { btn.innerHTML = open ? (ready ? closeIcon : spinnerIcon) : chatIcon; }
   btn.innerHTML = chatIcon;
 
   // ---- Unread badge ----
@@ -184,13 +193,18 @@
 
   function setOpen(v) {
     open = v;
-    if (open) { unread = 0; hideTeaser(); if (!iframeLoaded) { iframe.src = embedUrl; iframeLoaded = true; } }
+    if (open) {
+      unread = 0; hideTeaser();
+      if (!iframeLoaded) { iframe.src = embedUrl; iframeLoaded = true; }
+      // Fail-safe: never spin forever if the ready signal doesn't arrive.
+      if (!ready) setTimeout(function () { if (!ready) { ready = true; setBtnIcon(); } }, 6000);
+    }
     renderBadge();
     applyMobile();
     panel.style.opacity = open ? "1" : "0";
     panel.style.transform = open ? "translateY(0) scale(1)" : "translateY(12px) scale(.98)";
     panel.style.pointerEvents = open ? "auto" : "none";
-    btn.innerHTML = open ? closeIcon : chatIcon;
+    setBtnIcon();
     btn.setAttribute("aria-label", open ? "Close chat" : "Open chat");
   }
 
@@ -202,6 +216,7 @@
     if (ev.origin !== origin) return;
     var d = ev.data;
     if (!d || typeof d !== "object") return;
+    if (d.type === "chatty:ready") { ready = true; setBtnIcon(); }
     if (d.type === "chatty:message" && d.role === "assistant" && !open) {
       unread++; renderBadge(); playPing();
     }
