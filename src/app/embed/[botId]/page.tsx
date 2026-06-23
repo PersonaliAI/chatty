@@ -93,10 +93,17 @@ export default function EmbedWidget() {
     try { window.parent?.postMessage({ type: "chatty:message", role: "assistant" }, "*"); } catch {}
   };
 
-  // Clear the visible conversation back to the welcome message.
+  // Clear the conversation AND start a fresh backend session (new session_id),
+  // so the assistant treats the next message as a brand-new conversation.
   const clearChat = () => {
+    const fresh = `v-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+    try {
+      localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, fresh);
+      localStorage.removeItem(`chatty_msgs_${botId}_${hostKey}`);
+    } catch {}
+    setSessionId(fresh);
     setMessages([{ role: "assistant", content: welcomeMsg }]);
-    try { localStorage.removeItem(`chatty_msgs_${botId}_${hostKey}`); } catch {}
+    lastPollRef.current = new Date().toISOString();
   };
 
   const [loading, setLoading] = useState(true);
@@ -132,7 +139,7 @@ export default function EmbedWidget() {
   const lastPollRef = useRef<string>(new Date().toISOString());
 
   // Persistent per-visitor session id (survives reloads, unique per visitor)
-  const [sessionId] = useState(() => {
+  const [sessionId, setSessionId] = useState(() => {
     if (typeof window === "undefined") return `widget-session-${botId}`;
     const k = `chatty_sid_${botId}_${hostKey}`;
     let s = localStorage.getItem(k);
