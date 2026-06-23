@@ -88,6 +88,11 @@ export default function EmbedWidget() {
     return "direct";
   })();
 
+  // Notify the parent widget loader of a new assistant reply (unread badge).
+  const notifyParent = () => {
+    try { window.parent?.postMessage({ type: "chatty:message", role: "assistant" }, "*"); } catch {}
+  };
+
   const [loading, setLoading] = useState(true);
   const [botName, setBotName] = useState("Chatty Assistant");
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
@@ -162,6 +167,7 @@ export default function EmbedWidget() {
           lastPollRef.current = d.messages[d.messages.length - 1].created_at;
           setMessages((p) => [...p, ...d.messages.map((m: any) => ({ role: "assistant" as const, content: m.content }))]);
           setIsBotResponding(false);
+          notifyParent();
         }
       } catch {}
     }, 4000);
@@ -221,6 +227,7 @@ export default function EmbedWidget() {
         lastPollRef.current = new Date(Date.now() - 2000).toISOString();
       } else {
         setMessages((p) => [...p, { role: "assistant", content: res.ok ? body.reply : `⚠️ ${body.detail || "Something went wrong."}` }]);
+        notifyParent();
       }
     } catch {
       setMessages((p) => [...p, { role: "assistant", content: "Sorry, I can't connect right now." }]);
@@ -248,6 +255,7 @@ export default function EmbedWidget() {
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/media`, { method: "POST", body: fd });
       const body = await res.json();
       setMessages((p) => [...p, { role: "assistant", content: res.ok ? body.reply : `⚠️ ${body.detail || "Couldn't process that file."}` }]);
+      notifyParent();
     } catch {
       setMessages((p) => [...p, { role: "assistant", content: "Sorry, I couldn't upload that." }]);
     } finally {

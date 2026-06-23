@@ -3,14 +3,19 @@
  *   <script src="https://chatty.personaliai.com/widget.js"
  *           data-id="YOUR_BOT_UUID" data-color="#f97316" data-style="minimalist" defer></script>
  * Injects a floating button that opens the assistant in an iframe.
+ *
+ * JS API (after load): window.Chatty.open() / .close() / .toggle()
+ * Data attributes: data-color, data-style, data-position(left|right),
+ *   data-mobile-fullscreen("false" to disable), data-teaser("false" to disable).
  */
 (function () {
   "use strict";
   if (window.__chattyWidgetLoaded) return;
   window.__chattyWidgetLoaded = true;
 
+  var BACKEND = "https://personaliai-api-376030619262.us-central1.run.app";
+
   var script = document.currentScript;
-  // Fallback: find our own <script> tag if currentScript is unavailable
   if (!script) {
     var all = document.getElementsByTagName("script");
     for (var i = 0; i < all.length; i++) {
@@ -21,24 +26,21 @@
   if (!botId) { console.error("[Chatty] Missing data-id on widget script tag."); return; }
 
   // data-color / data-style are OPTIONAL overrides. When omitted, the embed
-  // uses the bot's saved customization (color, style) from the dashboard.
+  // uses the bot's saved customization from the dashboard.
   var colorAttr = script.getAttribute("data-color");
   var styleAttr = script.getAttribute("data-style");
   var color = colorAttr || "#f97316"; // launcher button visuals only
   var position = (script.getAttribute("data-position") || "right"); // right | left
-  // Mobile full-screen is the default; developers can disable with
-  // data-mobile-fullscreen="false" to keep the floating panel on phones.
   var mobileFull = (script.getAttribute("data-mobile-fullscreen") || "true") !== "false";
+  var teaserEnabled = (script.getAttribute("data-teaser") || "true") !== "false";
   var origin = new URL(script.src, location.href).origin;
 
-  // Speed up the first open: warm up the connection to the widget origin.
   try {
     var pc = document.createElement("link");
     pc.rel = "preconnect"; pc.href = origin; pc.crossOrigin = "anonymous";
     document.head.appendChild(pc);
   } catch (e) {}
-  // location.hostname is the host site embedding the widget — used for the
-  // backend domain allowlist check.
+
   var embedParams = "host=" + encodeURIComponent(location.hostname);
   if (colorAttr) embedParams += "&color=" + encodeURIComponent(colorAttr);
   if (styleAttr) embedParams += "&style=" + encodeURIComponent(styleAttr);
@@ -46,6 +48,12 @@
 
   var side = position === "left" ? "left" : "right";
   var open = false;
+  var unread = 0;
+  var teaserText = "";
+  var FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
   // ---- Launcher button ----
   var btn = document.createElement("button");
@@ -68,23 +76,60 @@
     '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
   btn.innerHTML = chatIcon;
 
-  // Auto-match the launcher to the bot's saved dashboard color, unless the
-  // developer pinned one with data-color.
+  // ---- Unread badge ----
+  var badge = document.createElement("div");
+  badge.style.cssText =
+    "position:fixed;bottom:64px;" + side + ":14px;min-width:20px;height:20px;border-radius:10px;" +
+    "background:#ef4444;color:#fff;font:bold 11px " + FONT + ";display:none;align-items:center;" +
+    "justify-content:center;padding:0 6px;z-index:2147483647;box-shadow:0 1px 4px rgba(0,0,0,.3);";
+  function renderBadge() {
+    if (unread > 0 && !open) { badge.textContent = unread > 9 ? "9+" : String(unread); badge.style.display = "flex"; }
+    else { badge.style.display = "none"; }
+  }
+
+  // ---- Proactive greeting teaser ----
+  var teaser = document.createElement("div");
+  teaser.style.cssText =
+    "position:fixed;bottom:92px;" + side + ":20px;max-width:260px;background:#fff;color:#111827;" +
+    "border-radius:14px;padding:12px 32px 12px 14px;font:14px/1.45 " + FONT + ";" +
+    "box-shadow:0 8px 30px rgba(0,0,0,.18);cursor:pointer;display:none;opacity:0;" +
+    "transform:translateY(8px);transition:opacity .25s ease,transform .25s ease;z-index:2147483646;";
+  var teaserClose = document.createElement("div");
+  teaserClose.innerHTML = "&times;";
+  teaserClose.style.cssText = "position:absolute;top:6px;right:9px;font-size:18px;line-height:1;color:#9ca3af;cursor:pointer;";
+  var teaserMsg = document.createElement("span");
+  teaser.appendChild(teaserClose);
+  teaser.appendChild(teaserMsg);
+  function showTeaser() {
+    if (open || !teaserEnabled) return;
+    if (lsGet("chatty_teaser_" + botId) === "dismissed") return;
+    teaserMsg.textContent = teaserText || "👋 Need help? Chat with us.";
+    teaser.style.display = "block";
+    requestAnimationFrame(function () { teaser.style.opacity = "1"; teaser.style.transform = "translateY(0)"; });
+  }
+  function hideTeaser() {
+    teaser.style.opacity = "0"; teaser.style.transform = "translateY(8px)";
+    setTimeout(function () { teaser.style.display = "none"; }, 250);
+  }
+  teaser.addEventListener("click", function () { hideTeaser(); setOpen(true); });
+  teaserClose.addEventListener("click", function (e) { e.stopPropagation(); hideTeaser(); lsSet("chatty_teaser_" + botId, "dismissed"); });
+
+  // ---- Theme + teaser text from dashboard ----
   function applyTheme(c) {
     if (!c || colorAttr) return;
-    color = c;
-    btn.style.background = c;
-    chatIcon = buildChatIcon(c);
+    color = c; btn.style.background = c; chatIcon = buildChatIcon(c);
     if (!open) btn.innerHTML = chatIcon;
   }
-  if (!colorAttr) {
-    try {
-      fetch("https://personaliai-api-376030619262.us-central1.run.app/api/widget/theme?bot_id=" + encodeURIComponent(botId))
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) { if (d && d.primary_color) applyTheme(d.primary_color); })
-        .catch(function () {});
-    } catch (e) {}
-  }
+  try {
+    fetch(BACKEND + "/api/widget/theme?bot_id=" + encodeURIComponent(botId))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+        if (d.primary_color) applyTheme(d.primary_color);
+        if (d.welcome_message) teaserText = d.welcome_message;
+      })
+      .catch(function () {});
+  } catch (e) {}
 
   // ---- Chat panel (iframe container) ----
   var panel = document.createElement("div");
@@ -97,35 +142,26 @@
   var iframe = document.createElement("iframe");
   iframe.style.cssText = "width:100%;height:100%;border:0;display:block;";
   iframe.setAttribute("title", "Chat assistant");
-  iframe.setAttribute("allow", "clipboard-write");
-  // Lazy-load the iframe only when first opened
+  iframe.setAttribute("allow", "clipboard-write;microphone");
   var iframeLoaded = false;
   panel.appendChild(iframe);
 
   function applyMobile() {
     if (mobileFull && window.innerWidth <= 480) {
-      panel.style.width = "100vw";
-      panel.style.height = "100vh";
-      panel.style.maxWidth = "100vw";
-      panel.style.maxHeight = "100vh";
-      panel.style.bottom = "0";
-      panel.style[side] = "0";
-      panel.style.borderRadius = "0";
+      panel.style.width = "100vw"; panel.style.height = "100vh";
+      panel.style.maxWidth = "100vw"; panel.style.maxHeight = "100vh";
+      panel.style.bottom = "0"; panel.style[side] = "0"; panel.style.borderRadius = "0";
     } else {
-      // Floating panel (desktop, or mobile when full-screen is disabled).
-      panel.style.width = "380px";
-      panel.style.height = "560px";
-      panel.style.maxWidth = "calc(100vw - 40px)";
-      panel.style.maxHeight = "calc(100vh - 120px)";
-      panel.style.bottom = "92px";
-      panel.style[side] = "20px";
-      panel.style.borderRadius = "16px";
+      panel.style.width = "380px"; panel.style.height = "560px";
+      panel.style.maxWidth = "calc(100vw - 40px)"; panel.style.maxHeight = "calc(100vh - 120px)";
+      panel.style.bottom = "92px"; panel.style[side] = "20px"; panel.style.borderRadius = "16px";
     }
   }
 
   function setOpen(v) {
     open = v;
-    if (open && !iframeLoaded) { iframe.src = embedUrl; iframeLoaded = true; }
+    if (open) { unread = 0; hideTeaser(); if (!iframeLoaded) { iframe.src = embedUrl; iframeLoaded = true; } }
+    renderBadge();
     applyMobile();
     panel.style.opacity = open ? "1" : "0";
     panel.style.transform = open ? "translateY(0) scale(1)" : "translateY(12px) scale(.98)";
@@ -137,9 +173,29 @@
   btn.addEventListener("click", function () { setOpen(!open); });
   window.addEventListener("resize", function () { if (open) applyMobile(); });
 
+  // ---- Messages from the embed iframe (unread badge) ----
+  window.addEventListener("message", function (ev) {
+    if (ev.origin !== origin) return;
+    var d = ev.data;
+    if (!d || typeof d !== "object") return;
+    if (d.type === "chatty:message" && d.role === "assistant" && !open) {
+      unread++; renderBadge();
+    }
+  });
+
+  // ---- Public JS API ----
+  window.Chatty = {
+    open: function () { setOpen(true); },
+    close: function () { setOpen(false); },
+    toggle: function () { setOpen(!open); }
+  };
+
   function mount() {
     document.body.appendChild(panel);
+    document.body.appendChild(teaser);
     document.body.appendChild(btn);
+    document.body.appendChild(badge);
+    setTimeout(showTeaser, 6000);
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mount);
