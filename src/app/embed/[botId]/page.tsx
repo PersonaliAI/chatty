@@ -342,7 +342,7 @@ export default function EmbedWidget() {
     p: ({ children }: any) => <p className="mb-1 last:mb-0">{children}</p>,
     ul: ({ children }: any) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
     ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-    a: ({ href, children }: any) => <a href={href} target="_blank" rel="noreferrer" className="underline" style={{ color: primaryColor }}>{children}</a>,
+    a: ({ href, children }: any) => <a href={href} target="_blank" rel="noreferrer" className="underline break-all" style={{ color: primaryColor }}>{children}</a>,
     code: ({ children }: any) => <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono">{children}</code>,
   };
 
@@ -396,7 +396,7 @@ export default function EmbedWidget() {
                 <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
                   {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: primaryColor }}>{botName[0]?.toUpperCase()}</div>}
-                  <div className={`p-2.5 rounded-2xl leading-relaxed ${msg.role === "user" ? "text-white rounded-tr-none" : "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
+                  <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "text-white rounded-tr-none" : "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
                     {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                     {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
                     {msg.role === "assistant"
