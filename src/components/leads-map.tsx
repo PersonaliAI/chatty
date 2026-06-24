@@ -32,7 +32,12 @@ function loadLeaflet(): Promise<any> {
 }
 
 interface Lead {
+  name?: string;
   country?: string;
+  city?: string;
+  region?: string;
+  lat?: number;
+  lon?: number;
   custom_fields?: Record<string, any>;
   [key: string]: any;
 }
@@ -43,17 +48,20 @@ export function LeadsMap({ leads, color = "#f97316" }: { leads: Lead[]; color?: 
   const layerRef = useRef<any>(null);
 
   const getCountry = (l: Lead): string => l.country || l.custom_fields?.country || "";
+  const hasCoords = (l: Lead) => typeof l.lat === "number" && typeof l.lon === "number";
 
-  // Aggregate leads by resolved country code
+  // Precise city points (leads with lat/lon) vs. country-level fallback.
+  const precise = leads.filter(hasCoords);
   const byCountry: Record<string, { count: number; names: string[] }> = {};
   for (const l of leads) {
+    if (hasCoords(l)) continue;
     const code = resolveCountryCode(getCountry(l));
     if (!code || !COUNTRY_CENTROIDS[code]) continue;
     if (!byCountry[code]) byCountry[code] = { count: 0, names: [] };
     byCountry[code].count += 1;
     if (l.name && l.name !== "Anonymous") byCountry[code].names.push(l.name);
   }
-  const located = Object.values(byCountry).reduce((a, c) => a + c.count, 0);
+  const located = precise.length + Object.values(byCountry).reduce((a, c) => a + c.count, 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +77,19 @@ export function LeadsMap({ leads, color = "#f97316" }: { leads: Lead[]; color?: 
       }
       if (layerRef.current) layerRef.current.remove();
       layerRef.current = L.layerGroup().addTo(mapRef.current);
+
+      // Precise city-level markers (exact lat/lon from geo-IP).
+      for (const l of precise) {
+        const place = [l.city, l.region, l.country].filter(Boolean).join(", ");
+        const marker = L.circleMarker([l.lat, l.lon], {
+          radius: 6, color, fillColor: color, fillOpacity: 0.8, weight: 1.5,
+        }).addTo(layerRef.current);
+        marker.bindPopup(
+          `<strong>${l.name && l.name !== "Anonymous" ? l.name : "Visitor"}</strong>` +
+          (place ? `<br/><span style="color:#888;font-size:11px">${place}</span>` : "")
+        );
+        if (place) marker.bindTooltip(place, { direction: "top" });
+      }
 
       const counts = Object.values(byCountry).map((c) => c.count);
       const maxCount = Math.max(1, ...counts);
@@ -96,8 +117,8 @@ export function LeadsMap({ leads, color = "#f97316" }: { leads: Lead[]; color?: 
     <div>
       <div className="flex items-center gap-4 mb-3 text-[11px] text-neutral-500">
         <span><b className="text-neutral-800 dark:text-neutral-200">{located}</b> of {leads.length} leads mapped</span>
-        <span><b className="text-neutral-800 dark:text-neutral-200">{Object.keys(byCountry).length}</b> countries</span>
-        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ background: color, opacity: 0.6 }} /> bubble size = lead count</span>
+        <span><b className="text-neutral-800 dark:text-neutral-200">{precise.length}</b> precise (city)</span>
+        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ background: color, opacity: 0.6 }} /> small dot = exact city · big bubble = country</span>
       </div>
       <div ref={containerRef} className="w-full h-[460px] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 z-0" />
       {located === 0 && (
