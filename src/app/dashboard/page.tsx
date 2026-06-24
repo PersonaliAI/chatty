@@ -4263,8 +4263,8 @@ const { reply, session_id } = await res.json();`}</pre>
                   {microsoftConnected && (
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-xs font-semibold">Sync Outlook Calendar</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Required for Microsoft Teams bookings via the chat widget.</p>
+                        <span className="text-xs font-semibold">Use Outlook Calendar for Teams bookings</span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Turn on so the assistant books on Outlook/Teams instead of Google.</p>
                       </div>
                       <button
                         onClick={() => handleInputChange(setSyncOutlookCalendar, !syncOutlookCalendar)}
@@ -4356,22 +4356,6 @@ const { reply, session_id } = await res.json();`}</pre>
                           }`}
                         >
                           <div className={`size-4 rounded-full bg-white transition-transform ${syncGoogleDrive ? "translate-x-4" : ""}`} />
-                        </button>
-                      </div>
-
-                      {/* Sync Google Calendar */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-semibold">Sync Google Calendar</span>
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Allow bot to read calendar events to check availability.</p>
-                        </div>
-                        <button
-                          onClick={() => handleInputChange(setSyncGoogleCalendar, !syncGoogleCalendar)}
-                          className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                            syncGoogleCalendar ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                          }`}
-                        >
-                          <div className={`size-4 rounded-full bg-white transition-transform ${syncGoogleCalendar ? "translate-x-4" : ""}`} />
                         </button>
                       </div>
 
