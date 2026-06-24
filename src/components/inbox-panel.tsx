@@ -1,12 +1,44 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2 } from "lucide-react";
+import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2, Paperclip, Smile, Mic, Square, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
+
+const EMOJI_CATEGORIES: { name: string; emojis: string[] }[] = [
+  { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","😂","🤣","🙂","🙃","😉","😊","😇","😍","🥰","😘","😋","😛","😜","🤪","🤨","🧐","🤓","😎","🥳","🤗","🤔","🤭","😴","😬","🙄","😏","😒","😞","😢","😭","😤","😠","😡","🤯","😱","😪"] },
+  { name: "Gestures", emojis: ["👍","👎","👌","🤌","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","👇","☝️","✋","🤚","🖐️","👋","🤝","🙏","✍️","💪","👏","🙌","🫶","💯"] },
+  { name: "Hearts", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💖","💗","💓","💞","💕","💘","💝","❣️","💔"] },
+  { name: "Objects", emojis: ["🔥","✨","⭐","🌟","💫","💡","🎉","🎊","🎁","🏆","📌","📎","🔗","✅","☑️","❌","⚠️","❓","❗","💬","💭","📞","📱","📧","🚀","💰","💳","🛒","📦","📅","🕐","⏰"] },
+  { name: "Nature", emojis: ["🌸","🌷","🌼","🌻","🌹","🌈","☀️","⛅","☁️","🌙","⭐","⚡","❄️","☃️","🍀","🌿","🌍","🌊"] },
+];
+
+async function audioBlobToWav(blob: Blob): Promise<Blob> {
+  const AC: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+  const ctx = new AC();
+  const audioBuf = await ctx.decodeAudioData(await blob.arrayBuffer());
+  ctx.close();
+  const len = audioBuf.length;
+  const rate = audioBuf.sampleRate;
+  const numCh = audioBuf.numberOfChannels;
+  const mono = new Float32Array(len);
+  for (let ch = 0; ch < numCh; ch++) {
+    const d = audioBuf.getChannelData(ch);
+    for (let i = 0; i < len; i++) mono[i] += d[i] / numCh;
+  }
+  const view = new DataView(new ArrayBuffer(44 + len * 2));
+  const ws = (o: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, "RIFF"); view.setUint32(4, 36 + len * 2, true); ws(8, "WAVE"); ws(12, "fmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true); ws(36, "data"); view.setUint32(40, len * 2, true);
+  let off = 44;
+  for (let i = 0; i < len; i++) { const s = Math.max(-1, Math.min(1, mono[i])); view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); off += 2; }
+  return new Blob([view], { type: "audio/wav" });
+}
 
 interface Session {
   id: string;
@@ -34,6 +66,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  const [recording, setRecording] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [emojiCat, setEmojiCat] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const current = sessions.find((s) => s.session_id === selected);
 
@@ -75,6 +114,70 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       });
       loadSessions();
     } catch {} finally { setSending(false); }
+  };
+
+  const sendMedia = async (file: File | Blob, filename: string, caption = "") => {
+    if (!selected) return;
+    setSending(true);
+    const localUrl = URL.createObjectURL(file);
+    const display = (caption.trim() + (caption.trim() ? "\n" : "")) + `[attachment: ${filename}]`;
+    const tempContent = display + `\n${localUrl}`;
+    setMessages((p) => [...p, { role: "assistant", content: tempContent, sender: "human" }]);
+    setReply("");
+    setEmojiOpen(false);
+    try {
+      const fd = new FormData();
+      fd.append("bot_id", botId);
+      fd.append("session_id", selected);
+      fd.append("text", caption);
+      fd.append("file", file, filename);
+      await fetchBackend("/api/admin/inbox/reply/media", {
+        method: "POST",
+        body: fd,
+      });
+      loadSessions();
+      if (selected) loadMessages(selected);
+    } catch {
+      alert("Failed to upload attachment");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const onFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) sendMedia(f, f.name);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const toggleRecord = async () => {
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mr.ondataavailable = (ev) => { if (ev.data.size > 0) audioChunksRef.current.push(ev.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
+        setRecording(false);
+        if (blob.size === 0) return;
+        try {
+          const wav = await audioBlobToWav(blob);
+          sendMedia(wav, "voice-message.wav");
+        } catch {
+          sendMedia(blob, "voice-message.webm");
+        }
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setRecording(true);
+    } catch {
+      alert("Microphone access denied.");
+    }
   };
 
   const deleteSession = async (sid: string, e: React.MouseEvent) => {
@@ -156,43 +259,129 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               {messages.map((m, i) => {
                 const isVisitor = m.role === "user";
                 const isHuman = m.sender === "human";
+
+                // Parse attachment if exists in m.content
+                let cleanContent = m.content;
+                let attachmentUrl: string | null = null;
+                let attachmentName = "";
+
+                const lines = m.content.split("\n");
+                if (lines.length >= 2) {
+                  const lastLine = lines[lines.length - 1].trim();
+                  const prevLine = lines[lines.length - 2].trim();
+                  if (lastLine.startsWith("http://") || lastLine.startsWith("https://") || lastLine.startsWith("blob:")) {
+                    if (prevLine.includes("[attachment:")) {
+                      attachmentUrl = lastLine;
+                      const match = prevLine.match(/\[attachment:\s*(.*?)\]/);
+                      attachmentName = match ? match[1] : "attachment";
+                      cleanContent = lines.slice(0, lines.length - 2).join("\n").trim();
+                    }
+                  }
+                }
+
+                const isImage = attachmentUrl && (
+                  attachmentName.toLowerCase().endsWith(".png") ||
+                  attachmentName.toLowerCase().endsWith(".jpg") ||
+                  attachmentName.toLowerCase().endsWith(".jpeg") ||
+                  attachmentName.toLowerCase().endsWith(".gif") ||
+                  attachmentName.toLowerCase().endsWith(".webp") ||
+                  attachmentUrl.includes("image/")
+                );
+
+                const isAudio = attachmentUrl && (
+                  attachmentName.toLowerCase().endsWith(".wav") ||
+                  attachmentName.toLowerCase().endsWith(".mp3") ||
+                  attachmentName.toLowerCase().endsWith(".webm") ||
+                  attachmentName.toLowerCase().endsWith(".ogg") ||
+                  attachmentUrl.includes("audio/")
+                );
+
                 return (
                   <div key={i} className={`flex gap-2 max-w-[85%] ${isVisitor ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
                     <div className={`size-5 rounded-full flex items-center justify-center shrink-0 ${isVisitor ? "bg-neutral-200 dark:bg-neutral-700" : isHuman ? "bg-purple-500 text-white" : "text-white"}`} style={!isVisitor && !isHuman ? { background: color } : {}}>
                       {isVisitor ? <User className="size-3" /> : isHuman ? <Headphones className="size-3" /> : <Bot className="size-3" />}
                     </div>
                     <div className={`p-2.5 rounded-2xl ${isVisitor ? "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none" : isHuman ? "bg-purple-500 text-white rounded-tr-none" : "text-white rounded-tr-none"}`} style={!isVisitor && !isHuman ? { background: color } : {}}>
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                        components={{
-                          p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
-                          ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-                          ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-                          li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                          pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
-                          code: ({ children }) => (
-                            <code className={isVisitor || isHuman ? "bg-black/10 dark:bg-white/20 px-1 py-0.5 rounded text-[10px] font-mono" : "bg-white/20 text-white px-1 py-0.5 rounded text-[10px] font-mono"}>
-                              {children}
-                            </code>
-                          )
-                        }}
-                      >
-                        {m.content}
-                      </ReactMarkdown>
+                      {attachmentUrl && isImage && (
+                        <img src={attachmentUrl} alt="attachment" className="rounded-lg mb-1.5 max-h-40 object-cover" />
+                      )}
+                      {attachmentUrl && isAudio && (
+                        <audio controls src={attachmentUrl} className="mb-1.5 max-w-[180px]" />
+                      )}
+                      {attachmentUrl && !isImage && !isAudio && (
+                        <a href={attachmentUrl} target="_blank" rel="noreferrer" className={`flex items-center gap-1 text-[10px] underline mb-1.5 ${isVisitor ? "text-neutral-600 dark:text-neutral-300" : "text-white"}`}>
+                          <Paperclip className="size-3 animate-[pulse_2s_infinite]" />
+                          {attachmentName}
+                        </a>
+                      )}
+                      {cleanContent && (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+                            ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+                            li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                            pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
+                            code: ({ children }) => (
+                              <code className={isVisitor || isHuman ? "bg-black/10 dark:bg-white/20 px-1 py-0.5 rounded text-[10px] font-mono" : "bg-white/20 text-white px-1 py-0.5 rounded text-[10px] font-mono"}>
+                                {children}
+                              </code>
+                            )
+                          }}
+                        >
+                          {cleanContent}
+                        </ReactMarkdown>
+                      )}
                     </div>
                   </div>
                 );
               })}
               <div ref={endRef} />
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); sendReply(); }} className="p-3 border-t border-neutral-100 dark:border-neutral-850 flex gap-2">
-              <input value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Type a reply (this takes over from AI)…"
-                className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none" />
-              <button type="submit" disabled={sending || !reply.trim()} style={{ background: color }} className="size-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 shrink-0">
-                {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-              </button>
-            </form>
+            <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
+              <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
+              {emojiOpen && (
+                <div className="absolute bottom-[84px] left-2.5 right-2.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-lg z-10 overflow-hidden">
+                  <div className="flex gap-1 p-1.5 border-b border-neutral-100 dark:border-neutral-800 overflow-x-auto scrollbar-thin">
+                    {EMOJI_CATEGORIES.map((cat, i) => (
+                      <button key={cat.name} type="button" onClick={() => setEmojiCat(i)} title={cat.name}
+                        className={`px-2 py-1 rounded-md text-base leading-none shrink-0 ${emojiCat === i ? "bg-neutral-100 dark:bg-neutral-800" : "opacity-50 hover:opacity-100"}`}>
+                        {cat.emojis[0]}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="p-2 grid grid-cols-8 gap-1 max-h-40 overflow-y-auto scrollbar-thin">
+                    {EMOJI_CATEGORIES[emojiCat].emojis.map((e, i) => (
+                      <button key={i} type="button" onClick={() => setReply((v) => v + e)}
+                        className="text-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded p-0.5">{e}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <form onSubmit={(e) => { e.preventDefault(); sendReply(); }}
+                className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
+                <input value={reply} onChange={(e) => setReply(e.target.value)} onFocus={() => setEmojiOpen(false)}
+                  placeholder={recording ? "Recording… tap ◼ to send" : "Type a reply (this takes over from AI)…"} disabled={sending || recording}
+                  className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-0.5">
+                    <button type="button" onClick={() => setEmojiOpen((o) => !o)} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></button>
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full group" aria-label="Attach file">
+                      <Paperclip className="size-4.5 group-hover:animate-bounce transition-transform" />
+                    </button>
+                    <button type="button" onClick={toggleRecord} className={`p-1.5 rounded-full ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
+                      {recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
+                    </button>
+                  </div>
+                  <button type="submit" disabled={sending || !reply.trim()} style={{ background: color }}
+                    className="size-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 shrink-0 hover:opacity-90 transition-opacity">
+                    {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  </button>
+                </div>
+              </form>
+            </div>
           </>
         )}
       </div>
