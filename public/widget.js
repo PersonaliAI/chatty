@@ -207,6 +207,11 @@
     panel.style.pointerEvents = open ? "auto" : "none";
     setBtnIcon();
     btn.setAttribute("aria-label", open ? "Close chat" : "Open chat");
+    // On mobile full-screen, hide the floating launcher while open — the
+    // in-panel header close button handles closing, avoiding overlap with the
+    // composer's send button.
+    var hideLauncher = open && mobileFull && window.innerWidth <= 480;
+    btn.style.display = hideLauncher ? "none" : "flex";
   }
 
   btn.addEventListener("click", function () {
@@ -221,13 +226,14 @@
     }
     setOpen(true);
   });
-  window.addEventListener("resize", function () { if (open) applyMobile(); });
+  window.addEventListener("resize", function () { if (open) { applyMobile(); setOpen(true); } });
 
   // ---- Messages from the embed iframe (unread badge) ----
   window.addEventListener("message", function (ev) {
     if (ev.origin !== origin) return;
     var d = ev.data;
     if (!d || typeof d !== "object") return;
+    if (d.type === "chatty:close") { setOpen(false); return; }
     if (d.type === "chatty:ready") { ready = true; if (pendingOpen) { pendingOpen = false; setOpen(true); } else setBtnIcon(); }
     if (d.type === "chatty:message" && d.role === "assistant" && !open) {
       unread++; renderBadge(); playPing();

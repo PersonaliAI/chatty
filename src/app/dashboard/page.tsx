@@ -20,6 +20,9 @@ import {
   Sliders,
   Database,
   MessageSquare,
+  Bot,
+  Headphones,
+  User,
   Bell,
   BarChart3,
   Code2,
@@ -373,6 +376,7 @@ export default function Dashboard() {
   const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
   const [widgetStyle, setWidgetStyle] = useState<"minimalist" | "glassmorphism" | "liquid" | "neumorphism">("minimalist");
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
+  const [avatarIcon, setAvatarIcon] = useState("logo");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini");
@@ -795,6 +799,7 @@ export default function Dashboard() {
         setPrimaryColor(activeBot.primary_color);
         setWidgetStyle(activeBot.widget_style || "minimalist");
         setSendButtonStyle(activeBot.send_button_style || "plane");
+        setAvatarIcon(activeBot.avatar_icon || "logo");
         setLogoUrl(activeBot.logo_url || null);
         setSelectedModel(activeBot.selected_model);
         setSystemInstructions(activeBot.system_instructions);
@@ -1331,6 +1336,7 @@ export default function Dashboard() {
           primary_color: primaryColor,
           widget_style: widgetStyle,
           send_button_style: sendButtonStyle,
+          avatar_icon: avatarIcon,
           selected_model: selectedModel,
           system_instructions: systemInstructions,
           strict_mode: strictMode,
@@ -2188,6 +2194,17 @@ export default function Dashboard() {
     window.location.href = "/";
   };
 
+  // Assistant avatar for the dashboard previews (preset icon / logo / initial).
+  const dashAvatar = (iconCls: string) => {
+    const ICONS: Record<string, any> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
+    if (avatarIcon && avatarIcon !== "logo" && ICONS[avatarIcon]) {
+      const Ic = ICONS[avatarIcon];
+      return <Ic className={iconCls} />;
+    }
+    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />;
+    return (botName?.[0] || "C").toUpperCase();
+  };
+
   // Code snippets
   const embedScriptCode = `<script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  data-color="${primaryColor}"\n  data-style="${widgetStyle}"\n  defer\n></script>`;
   const embedIframeCode = `<iframe\n  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}?color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}"\n  width="100%"\n  height="600"\n  frameborder="0"\n></iframe>`;
@@ -2739,6 +2756,26 @@ export default function Dashboard() {
                         ))}
                       </div>
                     </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Assistant Icon</label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { key: "logo", node: logoUrl ? <img src={logoUrl} alt="" className="size-5 rounded-full object-cover" /> : <span className="text-xs font-bold">{(botName?.[0] || "C").toUpperCase()}</span> },
+                          { key: "bot", node: <Bot className="size-4" /> },
+                          { key: "headset", node: <Headphones className="size-4" /> },
+                          { key: "sparkles", node: <Sparkles className="size-4" /> },
+                          { key: "message", node: <MessageSquare className="size-4" /> },
+                          { key: "user", node: <User className="size-4" /> },
+                        ].map((opt) => (
+                          <button key={opt.key} type="button" onClick={() => handleInputChange(setAvatarIcon, opt.key)} title={opt.key === "logo" ? "Logo / initial" : opt.key}
+                            className={`size-9 rounded-xl border flex items-center justify-center cursor-pointer transition-colors ${avatarIcon === opt.key ? "border-[#f97316] ring-2 ring-[#f97316]/20 text-[#f97316]" : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300"}`}>
+                            {opt.node}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">&quot;Logo&quot; uses your uploaded logo (or the initial). Pick a preset to override it everywhere.</p>
+                    </div>
                   </div>
                 </div>
 
@@ -2753,7 +2790,7 @@ export default function Dashboard() {
                         widgetStyle === "minimalist" ? "text-white" : ""
                       }`}
                     >
-                      <div className="size-8 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-sm">C</div>
+                      <div className="size-8 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-sm overflow-hidden">{dashAvatar("size-[18px]")}</div>
                       <div>
                         <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
                         <p className="text-[9px] opacity-80">Online • presets: {widgetStyle}</p>
@@ -2763,7 +2800,7 @@ export default function Dashboard() {
                     {/* Messages list */}
                     <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
                       <div className="flex gap-2 max-w-[85%]">
-                        <div className="size-6 rounded-full bg-neutral-200/50 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
+                        <div className="size-6 rounded-full bg-neutral-200/50 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden">{dashAvatar("size-3.5")}</div>
                         <div className="bot-bubble p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-800 dark:bg-neutral-850 dark:text-neutral-200 leading-relaxed">
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm, remarkMath]}
@@ -3413,7 +3450,7 @@ export default function Dashboard() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="size-8 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-sm">C</div>
+                    <div className="size-8 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-sm overflow-hidden">{dashAvatar("size-[18px]")}</div>
                     <div>
                       <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
                       <p className="text-[9px] opacity-80 flex items-center gap-1">
@@ -3455,7 +3492,7 @@ export default function Dashboard() {
                       }`}
                     >
                       {msg.role !== "user" && (
-                        <div className="size-6 rounded-full bg-neutral-150 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
+                        <div className="size-6 rounded-full bg-neutral-150 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden">{dashAvatar("size-3.5")}</div>
                       )}
                       <div className="flex flex-col gap-1 w-full">
                         {/* Collapsible HTML5 Details for Reasoning Trace */}
@@ -3601,7 +3638,7 @@ export default function Dashboard() {
 
                   {isBotResponding && (
                     <div className="flex gap-2 mr-auto max-w-[85%] w-full">
-                      <div className="size-6 rounded-full bg-neutral-150 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
+                      <div className="size-6 rounded-full bg-neutral-150 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden">{dashAvatar("size-3.5")}</div>
                       <div className="flex-grow flex flex-col gap-1">
                         {/* Live Thinking Status & Trace */}
                         <div className="text-[9px] text-neutral-400 dark:text-neutral-500 bg-neutral-50/50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-lg p-2">

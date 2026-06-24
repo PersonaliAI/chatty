@@ -10,8 +10,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
-  ArrowUp, ArrowRight, RefreshCw,
+  ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User,
 } from "lucide-react";
+
+// Preset assistant avatar icons (selectable in the customizer).
+const AVATAR_ICONS: Record<string, any> = {
+  bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User,
+};
 import { createClient } from "@/lib/supabase/client";
 import { useParams, useSearchParams } from "next/navigation";
 
@@ -93,6 +98,16 @@ export default function EmbedWidget() {
     try { window.parent?.postMessage({ type: "chatty:message", role: "assistant" }, "*"); } catch {}
   };
 
+  // Render the assistant avatar: preset icon, uploaded logo, or initial.
+  const avatarInner = (iconCls: string) => {
+    if (avatarIcon && avatarIcon !== "logo" && AVATAR_ICONS[avatarIcon]) {
+      const Icon = AVATAR_ICONS[avatarIcon];
+      return <Icon className={iconCls} />;
+    }
+    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />;
+    return botName[0]?.toUpperCase();
+  };
+
   // Clear the conversation AND start a fresh backend session (new session_id),
   // so the assistant treats the next message as a brand-new conversation.
   const clearChat = () => {
@@ -111,6 +126,7 @@ export default function EmbedWidget() {
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
   const [starters, setStarters] = useState<string[]>([]);
   const [sendStyle, setSendStyle] = useState("plane");
+  const [avatarIcon, setAvatarIcon] = useState("logo");
   const [primaryColor, setPrimaryColor] = useState("#f97316");
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -205,6 +221,7 @@ export default function EmbedWidget() {
           setWelcomeMsg(bot.welcome_message || "Hello! How can I help you today?");
           setStarters(Array.isArray(bot.conversation_starters) ? bot.conversation_starters.filter(Boolean) : []);
           setSendStyle(bot.send_button_style || "plane");
+          setAvatarIcon(bot.avatar_icon || "logo");
           setPrimaryColor(paramColor || bot.primary_color || "#f97316");
           setWidgetStyle(paramStyle || bot.widget_style || "minimalist");
           setLogoUrl(bot.logo_url || null);
@@ -352,7 +369,7 @@ export default function EmbedWidget() {
       <div className="px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
           <div className="size-8 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
-            {logoUrl ? <img src={logoUrl} alt="" className="size-full object-cover" /> : botName[0]?.toUpperCase()}
+            {avatarInner("size-[18px]")}
           </div>
           <div className="leading-tight">
             <h4 className="font-semibold text-sm text-white">{botName}</h4>
@@ -360,6 +377,9 @@ export default function EmbedWidget() {
           </div>
           <button onClick={clearChat} className="ml-auto p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Clear conversation" title="Clear conversation">
             <RefreshCw className="size-4" />
+          </button>
+          <button onClick={() => { try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }} className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Close chat" title="Close">
+            <X className="size-4" />
           </button>
         </div>
       </div>
@@ -395,7 +415,7 @@ export default function EmbedWidget() {
               {messages.map((msg, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
-                  {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{logoUrl ? <img src={logoUrl} alt="" className="size-full object-cover" /> : botName[0]?.toUpperCase()}</div>}
+                  {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{avatarInner("size-3.5")}</div>}
                   <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "text-white rounded-tr-none" : "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
                     {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                     {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
@@ -407,7 +427,7 @@ export default function EmbedWidget() {
               ))}
               {isBotResponding && (
                 <div className="flex gap-2 mr-auto">
-                  <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{logoUrl ? <img src={logoUrl} alt="" className="size-full object-cover" /> : botName[0]?.toUpperCase()}</div>
+                  <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{avatarInner("size-3.5")}</div>
                   <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none flex items-center gap-1">
                     <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce" />
                     <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" />
