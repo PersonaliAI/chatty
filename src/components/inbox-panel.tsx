@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones } from "lucide-react";
+import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2 } from "lucide-react";
 
 interface Session {
   id: string;
@@ -71,6 +71,19 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     } catch {} finally { setSending(false); }
   };
 
+  const deleteSession = async (sid: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Delete this conversation? This can't be undone.")) return;
+    setSessions((p) => p.filter((s) => s.session_id !== sid));
+    if (selected === sid) { setSelected(null); setMessages([]); }
+    try {
+      await fetchBackend("/api/admin/inbox/delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: sid }),
+      });
+    } catch {}
+  };
+
   const toggleAI = async (paused: boolean) => {
     if (!selected) return;
     setSessions((p) => p.map((s) => s.session_id === selected ? { ...s, ai_paused: paused } : s));
@@ -94,17 +107,23 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           {sessions.length === 0 ? (
             <div className="p-8 text-center"><InboxIcon className="size-7 text-neutral-300 mx-auto" /><p className="text-xs text-neutral-400 mt-2">No conversations yet</p></div>
           ) : sessions.map((s) => (
-            <button key={s.id} onClick={() => setSelected(s.session_id)}
-              className={`w-full text-left p-3 transition-colors ${selected === s.session_id ? "bg-[#f97316]/5 border-l-2 border-l-[#f97316]" : "hover:bg-neutral-50 dark:hover:bg-neutral-850/40 border-l-2 border-l-transparent"}`}>
+            <div key={s.id} role="button" tabIndex={0} onClick={() => setSelected(s.session_id)}
+              className={`group w-full text-left p-3 transition-colors cursor-pointer ${selected === s.session_id ? "bg-[#f97316]/5 border-l-2 border-l-[#f97316]" : "hover:bg-neutral-50 dark:hover:bg-neutral-850/40 border-l-2 border-l-transparent"}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold truncate">{s.visitor_name || `Visitor ${s.session_id.slice(-5)}`}</span>
-                {s.ai_paused
-                  ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400 flex items-center gap-1"><Headphones className="size-2.5" />Live</span>
-                  : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400 flex items-center gap-1"><Bot className="size-2.5" />AI</span>}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {s.ai_paused
+                    ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400 flex items-center gap-1"><Headphones className="size-2.5" />Live</span>
+                    : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400 flex items-center gap-1"><Bot className="size-2.5" />AI</span>}
+                  <button onClick={(e) => deleteSession(s.session_id, e)} aria-label="Delete conversation"
+                    className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-red-500 transition-opacity p-0.5 cursor-pointer">
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
               </div>
               <p className="text-[10px] text-neutral-400 truncate mt-0.5">{s.last_message || "…"}</p>
               {s.last_message_at && <p className="text-[9px] text-neutral-300 dark:text-neutral-600 mt-0.5">{formatDateTime(s.last_message_at)}</p>}
-            </button>
+            </div>
           ))}
         </div>
       </div>

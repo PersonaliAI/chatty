@@ -395,7 +395,7 @@ export default function EmbedWidget() {
               {messages.map((msg, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
-                  {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: primaryColor }}>{botName[0]?.toUpperCase()}</div>}
+                  {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{logoUrl ? <img src={logoUrl} alt="" className="size-full object-cover" /> : botName[0]?.toUpperCase()}</div>}
                   <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "text-white rounded-tr-none" : "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
                     {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                     {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
@@ -407,7 +407,7 @@ export default function EmbedWidget() {
               ))}
               {isBotResponding && (
                 <div className="flex gap-2 mr-auto">
-                  <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: primaryColor }}>{botName[0]?.toUpperCase()}</div>
+                  <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{logoUrl ? <img src={logoUrl} alt="" className="size-full object-cover" /> : botName[0]?.toUpperCase()}</div>
                   <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none flex items-center gap-1">
                     <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce" />
                     <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" />

@@ -54,6 +54,7 @@
   var side = position === "left" ? "left" : "right";
   var open = false;
   var ready = false; // embed iframe finished loading bot config
+  var pendingOpen = false; // clicked to open, waiting for the iframe to be ready
   var unread = 0;
   var teaserText = "";
   var FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
@@ -106,7 +107,7 @@
     '<svg width="26" height="26" viewBox="0 0 24 24" style="animation:chatty-spin .7s linear infinite;transform-origin:center">' +
     '<circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="3"/>' +
     '<path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>';
-  function setBtnIcon() { btn.innerHTML = open ? (ready ? closeIcon : spinnerIcon) : chatIcon; }
+  function setBtnIcon() { btn.innerHTML = (pendingOpen || (open && !ready)) ? spinnerIcon : (open ? closeIcon : chatIcon); }
   btn.innerHTML = chatIcon;
 
   // ---- Unread badge ----
@@ -208,7 +209,18 @@
     btn.setAttribute("aria-label", open ? "Close chat" : "Open chat");
   }
 
-  btn.addEventListener("click", function () { setOpen(!open); });
+  btn.addEventListener("click", function () {
+    if (open) { setOpen(false); return; }
+    if (pendingOpen) return;
+    if (!ready) {
+      // Load first, spin, and reveal the panel only once the chat is ready.
+      if (!iframeLoaded) { iframe.src = embedUrl; iframeLoaded = true; }
+      pendingOpen = true; hideTeaser(); setBtnIcon();
+      setTimeout(function () { if (pendingOpen) { ready = true; pendingOpen = false; setOpen(true); } }, 8000);
+      return;
+    }
+    setOpen(true);
+  });
   window.addEventListener("resize", function () { if (open) applyMobile(); });
 
   // ---- Messages from the embed iframe (unread badge) ----
@@ -216,7 +228,7 @@
     if (ev.origin !== origin) return;
     var d = ev.data;
     if (!d || typeof d !== "object") return;
-    if (d.type === "chatty:ready") { ready = true; setBtnIcon(); }
+    if (d.type === "chatty:ready") { ready = true; if (pendingOpen) { pendingOpen = false; setOpen(true); } else setBtnIcon(); }
     if (d.type === "chatty:message" && d.role === "assistant" && !open) {
       unread++; renderBadge(); playPing();
     }
