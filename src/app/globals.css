@@ -322,3 +322,47 @@ body {
   color: #f3f4f6 !important;
 }
 
+/* 5. Brutalism / Neo-Brutalism */
+.style-brutalism { background-color: #fff !important; border: 3px solid #111 !important; }
+.style-brutalism .chat-header { border-bottom: 3px solid #111 !important; }
+.style-brutalism .bot-bubble { background: #fff !important; border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; color: #111 !important; }
+.style-brutalism .user-bubble { border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; }
+.style-brutalism .chat-input-bar { border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; }
+.dark .style-brutalism { background-color: #0a0a0a !important; border-color: #fff !important; }
+.dark .style-brutalism .chat-header { border-bottom-color: #fff !important; }
+.dark .style-brutalism .bot-bubble { background: #161616 !important; border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; color: #fff !important; }
+.dark .style-brutalism .user-bubble, .dark .style-brutalism .chat-input-bar { border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; }
+
+/* 6. Claymorphism */
+.style-claymorphism { background-color: #f1eefc !important; border: none !important; }
+.style-claymorphism .bot-bubble { background: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: 5px 5px 12px rgba(80,60,160,0.12), inset 1px 1px 2px rgba(255,255,255,0.9) !important; color: #2a2440 !important; }
+.style-claymorphism .user-bubble { border: none !important; border-radius: 18px !important; box-shadow: 5px 5px 12px rgba(80,60,160,0.22), inset 1px 1px 2px rgba(255,255,255,0.4) !important; }
+.style-claymorphism .chat-input-bar { background: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: inset 3px 3px 7px rgba(80,60,160,0.10), inset -3px -3px 7px rgba(255,255,255,0.9) !important; }
+.dark .style-claymorphism { background-color: #1a1726 !important; }
+.dark .style-claymorphism .bot-bubble { background: #241f36 !important; box-shadow: 5px 5px 12px rgba(0,0,0,0.4) !important; color: #efeaff !important; }
+.dark .style-claymorphism .chat-input-bar { background: #241f36 !important; box-shadow: inset 3px 3px 7px rgba(0,0,0,0.35) !important; }
+
+/* 7. Bento Grid */
+.style-bento { background-color: #fafafa !important; border: 1px solid #e5e5e5 !important; }
+.style-bento .chat-header { border-bottom: 1px solid #e5e5e5 !important; }
+.style-bento .bot-bubble { background: #fff !important; border: 1px solid #ececec !important; border-radius: 12px !important; color: #1f2937 !important; }
+.style-bento .user-bubble { border-radius: 12px !important; }
+.style-bento .chat-input-bar { background: #fff !important; border: 1px solid #e5e5e5 !important; border-radius: 12px !important; }
+.dark .style-bento { background-color: #0d0d0d !important; border-color: #262626 !important; }
+.dark .style-bento .bot-bubble { background: #171717 !important; border-color: #262626 !important; color: #e5e5e5 !important; }
+.dark .style-bento .chat-input-bar { background: #171717 !important; border-color: #262626 !important; }
+
+/* 8. Retro / Y2K / Cyber */
+.style-retro { background-color: #0b0b1a !important; border: 1px solid #00ffd5 !important; box-shadow: 0 0 24px rgba(0,255,213,0.18) !important; }
+.style-retro .chat-header { background: linear-gradient(90deg, #ff00cc, #3333ff) !important; color: #fff !important; border-bottom: 1px solid #00ffd5 !important; }
+.style-retro .bot-bubble { background: rgba(255,255,255,0.06) !important; border: 1px solid #00ffd5 !important; color: #d6fff8 !important; box-shadow: 0 0 10px rgba(0,255,213,0.18) !important; }
+.style-retro .user-bubble { background: linear-gradient(90deg, #ff00cc, #7a00ff) !important; color: #fff !important; box-shadow: 0 0 10px rgba(255,0,204,0.28) !important; }
+.style-retro .chat-input-bar { background: rgba(255,255,255,0.05) !important; border: 1px solid #00ffd5 !important; color: #d6fff8 !important; }
+
+/* 9. Aurora / Gradient Mesh */
+.style-aurora { background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 50%, #c2f0e6 100%) !important; border: 1px solid rgba(255,255,255,0.4) !important; }
+.style-aurora .chat-header { background: linear-gradient(120deg, rgba(255,255,255,0.28), rgba(255,255,255,0.04)) !important; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); color: #1a1a2e !important; border-bottom: 1px solid rgba(255,255,255,0.35) !important; }
+.style-aurora .bot-bubble { background: rgba(255,255,255,0.62) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.5) !important; color: #1a1a2e !important; border-radius: 14px !important; }
+.style-aurora .user-bubble { background: linear-gradient(120deg, #a18cd1, #7aa5fb) !important; color: #fff !important; border-radius: 14px !important; }
+.style-aurora .chat-input-bar { background: rgba(255,255,255,0.55) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.5) !important; }
+

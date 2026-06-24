@@ -100,6 +100,7 @@ export default function EmbedWidget() {
 
   // Render the assistant avatar: preset icon, uploaded logo, or initial.
   const avatarInner = (iconCls: string) => {
+    if (avatarIcon === "custom" && avatarUrl) return <img src={avatarUrl} alt="" className="size-full object-cover" />;
     if (avatarIcon && avatarIcon !== "logo" && AVATAR_ICONS[avatarIcon]) {
       const Icon = AVATAR_ICONS[avatarIcon];
       return <Icon className={iconCls} />;
@@ -127,6 +128,7 @@ export default function EmbedWidget() {
   const [starters, setStarters] = useState<string[]>([]);
   const [sendStyle, setSendStyle] = useState("plane");
   const [avatarIcon, setAvatarIcon] = useState("logo");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [primaryColor, setPrimaryColor] = useState("#f97316");
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -222,6 +224,7 @@ export default function EmbedWidget() {
           setStarters(Array.isArray(bot.conversation_starters) ? bot.conversation_starters.filter(Boolean) : []);
           setSendStyle(bot.send_button_style || "plane");
           setAvatarIcon(bot.avatar_icon || "logo");
+          setAvatarUrl(bot.avatar_url || null);
           setPrimaryColor(paramColor || bot.primary_color || "#f97316");
           setWidgetStyle(paramStyle || bot.widget_style || "minimalist");
           setLogoUrl(bot.logo_url || null);
@@ -364,9 +367,9 @@ export default function EmbedWidget() {
   };
 
   return (
-    <div className="w-full h-screen bg-white dark:bg-neutral-900 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans">
+    <div className={`w-full h-screen bg-white dark:bg-neutral-900 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle}`}>
       {/* Header */}
-      <div className="px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
+      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
           <div className="size-8 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
             {avatarInner("size-[18px]")}
@@ -416,7 +419,7 @@ export default function EmbedWidget() {
                 <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
                   {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{avatarInner("size-3.5")}</div>}
-                  <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "text-white rounded-tr-none" : "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
+                  <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble text-white rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
                     {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                     {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
                     {msg.role === "assistant"
@@ -524,7 +527,7 @@ export default function EmbedWidget() {
             </div>
           )}
           <form onSubmit={(e) => { e.preventDefault(); sendText(inputValue); }}
-            className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
+            className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setEmojiOpen(false)}
               placeholder={recording ? "Recording… tap ◼ to send" : "Compose your message…"} disabled={isBotResponding || recording}
               className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />

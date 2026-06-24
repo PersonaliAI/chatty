@@ -374,9 +374,12 @@ export default function Dashboard() {
   const [conversationStarters, setConversationStarters] = useState<string[]>([]);
   const [teaserMessage, setTeaserMessage] = useState("👋 Need help? Chat with us.");
   const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
-  const [widgetStyle, setWidgetStyle] = useState<"minimalist" | "glassmorphism" | "liquid" | "neumorphism">("minimalist");
+  const [widgetStyle, setWidgetStyle] = useState<string>("minimalist");
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
   const [avatarIcon, setAvatarIcon] = useState("logo");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini");
@@ -800,6 +803,7 @@ export default function Dashboard() {
         setWidgetStyle(activeBot.widget_style || "minimalist");
         setSendButtonStyle(activeBot.send_button_style || "plane");
         setAvatarIcon(activeBot.avatar_icon || "logo");
+        setAvatarUrl(activeBot.avatar_url || null);
         setLogoUrl(activeBot.logo_url || null);
         setSelectedModel(activeBot.selected_model);
         setSystemInstructions(activeBot.system_instructions);
@@ -1337,6 +1341,7 @@ export default function Dashboard() {
           widget_style: widgetStyle,
           send_button_style: sendButtonStyle,
           avatar_icon: avatarIcon,
+          avatar_url: avatarUrl,
           selected_model: selectedModel,
           system_instructions: systemInstructions,
           strict_mode: strictMode,
@@ -2195,8 +2200,25 @@ export default function Dashboard() {
   };
 
   // Assistant avatar for the dashboard previews (preset icon / logo / initial).
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !botId) return;
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append("bot_id", botId);
+      fd.append("file", file);
+      const res = await fetchWithFallback("/api/bot/avatar", { method: "POST", body: fd });
+      if (res.ok) { const d = await res.json(); setAvatarUrl(d.avatar_url); setAvatarIcon("custom"); setHasUnsavedChanges(false); }
+    } catch {} finally {
+      setUploadingAvatar(false);
+      if (avatarFileRef.current) avatarFileRef.current.value = "";
+    }
+  };
+
   const dashAvatar = (iconCls: string) => {
     const ICONS: Record<string, any> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
+    if (avatarIcon === "custom" && avatarUrl) return <img src={avatarUrl} alt="" className="size-full object-cover" />;
     if (avatarIcon && avatarIcon !== "logo" && ICONS[avatarIcon]) {
       const Ic = ICONS[avatarIcon];
       return <Ic className={iconCls} />;
@@ -2339,7 +2361,7 @@ export default function Dashboard() {
           supabase={supabase}
           onComplete={(f) => {
             setBotName(f.name); setPrimaryColor(f.primaryColor);
-            setWidgetStyle(f.widgetStyle as typeof widgetStyle);
+            setWidgetStyle(f.widgetStyle);
             setWelcomeMsg(f.welcomeMessage); setSystemInstructions(f.systemInstructions);
             setLogoUrl(f.logoUrl); setOnboardingCompleted(true);
           }}
@@ -2613,7 +2635,12 @@ export default function Dashboard() {
                         { id: "minimalist", name: "Minimalist", desc: "Sharp borders, solid colors." },
                         { id: "glassmorphism", name: "Glassmorphism", desc: "Frosted blur, soft shadows." },
                         { id: "liquid", name: "Liquid Glass", desc: "Fluid saturated reflections." },
-                        { id: "neumorphism", name: "Neumorphism", desc: "Sleek dual pillowy bevels." }
+                        { id: "neumorphism", name: "Neumorphism", desc: "Sleek dual pillowy bevels." },
+                        { id: "brutalism", name: "Brutalism", desc: "Bold blocks, thick borders." },
+                        { id: "claymorphism", name: "Claymorphism", desc: "Soft 3D puffy clay." },
+                        { id: "bento", name: "Bento Grid", desc: "Clean modular cards." },
+                        { id: "retro", name: "Retro / Y2K", desc: "Neon glow, cyber vibe." },
+                        { id: "aurora", name: "Aurora Mesh", desc: "Flowing premium gradients." }
                       ].map((style) => (
                         <button
                           key={style.id}
@@ -2773,8 +2800,13 @@ export default function Dashboard() {
                             {opt.node}
                           </button>
                         ))}
+                        <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+                        <button type="button" onClick={() => avatarFileRef.current?.click()} title="Upload custom image"
+                          className={`size-9 rounded-xl border flex items-center justify-center cursor-pointer transition-colors overflow-hidden ${avatarIcon === "custom" ? "border-[#f97316] ring-2 ring-[#f97316]/20" : "border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-[#f97316]/50"}`}>
+                          {uploadingAvatar ? <Loader2 className="size-4 animate-spin" /> : (avatarIcon === "custom" && avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <Plus className="size-4" />)}
+                        </button>
                       </div>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">&quot;Logo&quot; uses your uploaded logo (or the initial). Pick a preset to override it everywhere.</p>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">&quot;Logo&quot; uses your uploaded logo (or the initial). Pick a preset, or upload a custom avatar image (+).</p>
                     </div>
                   </div>
                 </div>
@@ -2959,7 +2991,7 @@ export default function Dashboard() {
                     googleConnected ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400" : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
                   }`}
                 >
-                  <svg className="size-3.5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                  <img src={googleConnected ? "/logos/google-drive.png" : "/logos/google-meet.png"} alt="" className="size-4 object-contain" />
                   {googleConnected ? "Google Drive" : "Connect Google"}
                   {googleConnected && <Check className="size-3" />}
                 </button>
@@ -2969,7 +3001,7 @@ export default function Dashboard() {
                     microsoftConnected ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400" : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
                   }`}
                 >
-                  <svg className="size-3.5" viewBox="0 0 24 24"><path fill="#F25022" d="M3 3h8v8H3z"/><path fill="#7FBA00" d="M13 3h8v8h-8z"/><path fill="#00A4EF" d="M3 13h8v8H3z"/><path fill="#FFB900" d="M13 13h8v8h-8z"/></svg>
+                  <img src={microsoftConnected ? "/logos/onedrive.png" : "/logos/ms-teams.png"} alt="" className="size-4 object-contain" />
                   {microsoftConnected ? "OneDrive" : "Connect Microsoft"}
                   {microsoftConnected && <Check className="size-3" />}
                 </button>
@@ -3007,7 +3039,7 @@ export default function Dashboard() {
                   <span className="text-[10px] text-neutral-400">Calendar</span>
                   <div className="w-44"><ModernSelect
                     value={meetingProvider === "teams" ? "outlook" : "google"}
-                    options={[{ value: "google", label: "Google Calendar" }, { value: "outlook", label: "Outlook Calendar" }]}
+                    options={[{ value: "google", label: "Google Calendar", icon: <img src="/logos/google-calendar.png" alt="" className="size-4 object-contain" /> }, { value: "outlook", label: "Outlook Calendar", icon: <img src="/logos/outlook-calendar.png" alt="" className="size-4 object-contain" /> }]}
                     onChange={(v) => { handleInputChange(v === "outlook" ? setSyncOutlookCalendar : setSyncGoogleCalendar, true); }}
                     size="sm"
                   /></div>
