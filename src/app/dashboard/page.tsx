@@ -2516,7 +2516,7 @@ export default function Dashboard() {
               onChange={(v) => setLanguage(v as "EN" | "ES" | "FR" | "DE" | "IT")}
               align="right"
               size="sm"
-              className="w-24 sm:w-36"
+              className="w-28 sm:w-36"
             />
 
             {/* Re-run Setup (agentic flow) */}
