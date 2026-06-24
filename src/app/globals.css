@@ -204,7 +204,7 @@ body {
 }
 
 .style-glassmorphism .user-bubble {
-  background-color: rgba(249, 115, 22, 0.75) !important;
+  background-color: color-mix(in srgb, var(--primary-color, #f97316) 75%, transparent) !important;
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
   color: #ffffff !important;
 }
@@ -248,7 +248,7 @@ body {
 }
 
 .style-liquid .user-bubble {
-  background: linear-gradient(135deg, #f97316, #ec4899) !important;
+  background: linear-gradient(135deg, var(--primary-color, #f97316), #ec4899) !important;
   border: 1px solid rgba(255, 255, 255, 0.3) !important;
   color: #ffffff !important;
   box-shadow: 0 4px 15px rgba(249, 115, 22, 0.2) !important;
@@ -303,7 +303,7 @@ body {
 }
 
 .style-neumorphism .user-bubble {
-  background-color: #f97316 !important;
+  background-color: var(--primary-color, #f97316) !important;
   border: none !important;
   box-shadow: 3px 3px 6px rgba(249, 115, 22, 0.2), -3px -3px 6px rgba(255, 255, 255, 0.5) !important;
   color: #ffffff !important;
@@ -326,17 +326,18 @@ body {
 .style-brutalism { background-color: #fff !important; border: 3px solid #111 !important; }
 .style-brutalism .chat-header { border-bottom: 3px solid #111 !important; }
 .style-brutalism .bot-bubble { background: #fff !important; border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; color: #111 !important; }
-.style-brutalism .user-bubble { border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; }
+.style-brutalism .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #111111 !important; border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; }
 .style-brutalism .chat-input-bar { border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; }
 .dark .style-brutalism { background-color: #0a0a0a !important; border-color: #fff !important; }
 .dark .style-brutalism .chat-header { border-bottom-color: #fff !important; }
 .dark .style-brutalism .bot-bubble { background: #161616 !important; border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; color: #fff !important; }
-.dark .style-brutalism .user-bubble, .dark .style-brutalism .chat-input-bar { border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; }
+.dark .style-brutalism .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #111111 !important; border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; }
+.dark .style-brutalism .chat-input-bar { border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; }
 
 /* 6. Claymorphism */
 .style-claymorphism { background-color: #f1eefc !important; border: none !important; }
 .style-claymorphism .bot-bubble { background: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: 5px 5px 12px rgba(80,60,160,0.12), inset 1px 1px 2px rgba(255,255,255,0.9) !important; color: #2a2440 !important; }
-.style-claymorphism .user-bubble { border: none !important; border-radius: 18px !important; box-shadow: 5px 5px 12px rgba(80,60,160,0.22), inset 1px 1px 2px rgba(255,255,255,0.4) !important; }
+.style-claymorphism .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: 5px 5px 12px rgba(80,60,160,0.22), inset 1px 1px 2px rgba(255,255,255,0.4) !important; }
 .style-claymorphism .chat-input-bar { background: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: inset 3px 3px 7px rgba(80,60,160,0.10), inset -3px -3px 7px rgba(255,255,255,0.9) !important; }
 .dark .style-claymorphism { background-color: #1a1726 !important; }
 .dark .style-claymorphism .bot-bubble { background: #241f36 !important; box-shadow: 5px 5px 12px rgba(0,0,0,0.4) !important; color: #efeaff !important; }
@@ -346,11 +347,12 @@ body {
 .style-bento { background-color: #fafafa !important; border: 1px solid #e5e5e5 !important; }
 .style-bento .chat-header { border-bottom: 1px solid #e5e5e5 !important; }
 .style-bento .bot-bubble { background: #fff !important; border: 1px solid #ececec !important; border-radius: 12px !important; color: #1f2937 !important; }
-.style-bento .user-bubble { border-radius: 12px !important; }
+.style-bento .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #ffffff !important; border-radius: 12px !important; }
 .style-bento .chat-input-bar { background: #fff !important; border: 1px solid #e5e5e5 !important; border-radius: 12px !important; }
 .dark .style-bento { background-color: #0d0d0d !important; border-color: #262626 !important; }
 .dark .style-bento .bot-bubble { background: #171717 !important; border-color: #262626 !important; color: #e5e5e5 !important; }
 .dark .style-bento .chat-input-bar { background: #171717 !important; border-color: #262626 !important; }
+
 
 /* 8. Retro / Y2K / Cyber */
 .style-retro { background-color: #0b0b1a !important; border: 1px solid #00ffd5 !important; box-shadow: 0 0 24px rgba(0,255,213,0.18) !important; }

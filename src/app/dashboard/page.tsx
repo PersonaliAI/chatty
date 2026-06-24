@@ -2814,7 +2814,10 @@ export default function Dashboard() {
                 {/* Live visual mockup preview */}
                 <div className="lg:col-span-5 flex flex-col items-center">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
-                  <div className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}>
+                  <div
+                    className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
+                    style={{ "--primary-color": primaryColor } as React.CSSProperties}
+                  >
                                        {/* Header styled dynamically */}
                     <div
                       style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
@@ -2853,7 +2856,7 @@ export default function Dashboard() {
                       <div className="flex gap-2 ml-auto flex-row-reverse max-w-[85%]">
                         <div
                           className="user-bubble p-3 rounded-2xl rounded-tr-none text-white leading-relaxed"
-                          style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
+                          style={{ backgroundColor: primaryColor }}
                         >
                           Hi there, testing theme preview!
                         </div>
@@ -4159,365 +4162,370 @@ const { reply, session_id } = await res.json();`}</pre>
           {/* TAB 8: AGENT SETTINGS */}
           {activeTab === "settings" && (
             <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
-              <div className="w-full max-w-xl p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-6">
+              <div className="w-full max-w-2xl p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-8">
                 
-                {/* Model Selector */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">AI Foundation Model</label>
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => handleInputChange(setSelectedModel, e.target.value)}
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 cursor-pointer"
-                  >
-                    <option value="gemini">Gemini 3.5 Flash (Default)</option>
-                    <option value="gpt5">GPT-5.3 Turbo</option>
-                    <option value="claude">Claude Opus</option>
-                    <option value="mistral">Mistral Large</option>
-                  </select>
-                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Selected model handles logic & responses inside your widget.</p>
-                </div>
-
-                {/* System Instructions / Guardrails */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">System Instructions / Guardrails</label>
-                  <textarea
-                    rows={4}
-                    value={systemInstructions}
-                    onChange={(e) => handleInputChange(setSystemInstructions, e.target.value)}
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
-                  />
-                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Configures behavior limitations and answers guidelines.</p>
-                </div>
-
-                <hr className="border-neutral-100 dark:border-neutral-800" />
-
-                {/* Toggles */}
+                {/* SECTION 1: AI ENGINE */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold">Knowledge Base Strict Mode</span>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Only answer questions using verified trained memory sources.</p>
-                    </div>
-                    <button
-                      onClick={() => handleInputChange(setStrictMode, !strictMode)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                        strictMode ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                      }`}
+                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <Sliders className="size-4 text-[#f97316]" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">AI Engine Settings</h3>
+                  </div>
+
+                  {/* Model Selector */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">AI Foundation Model</label>
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => handleInputChange(setSelectedModel, e.target.value)}
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 cursor-pointer"
                     >
-                      <div className={`size-4 rounded-full bg-white transition-transform ${strictMode ? "translate-x-4" : ""}`} />
-                    </button>
+                      <option value="gemini">Gemini 3.5 Flash (Default)</option>
+                      <option value="gpt5">GPT-5.3 Turbo</option>
+                      <option value="claude">Claude Opus</option>
+                      <option value="mistral">Mistral Large</option>
+                    </select>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Selected model handles logic & responses inside your widget.</p>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold">Email Lead Alerts</span>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Receive instant email updates when visitors submit contact info.</p>
-                    </div>
-                    <button
-                      onClick={() => handleInputChange(setEmailNotify, !emailNotify)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                        emailNotify ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                      }`}
-                    >
-                      <div className={`size-4 rounded-full bg-white transition-transform ${emailNotify ? "translate-x-4" : ""}`} />
-                    </button>
-                  </div>
-                </div>
-
-                <hr className="border-neutral-100 dark:border-neutral-800" />
-
-                {/* Connections & Calendar Booking Rules */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Connections & Calendar Rules</h4>
-
-                  {/* Microsoft Connection Status */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
-                    <div>
-                      <span className="text-xs font-semibold flex items-center gap-1.5">
-                        <svg className="size-3.5" viewBox="0 0 24 24"><path fill="#F25022" d="M3 3h8v8H3z"/><path fill="#7FBA00" d="M13 3h8v8h-8z"/><path fill="#00A4EF" d="M3 13h8v8H3z"/><path fill="#FFB900" d="M13 13h8v8h-8z"/></svg>
-                        Microsoft 365 Account
-                      </span>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                        {microsoftConnected ? "Connected — enables Teams, Outlook Calendar & OneDrive." : "Connect for Teams meetings, Outlook calendar & OneDrive."}
-                      </p>
-                    </div>
-                    {microsoftConnected ? (
-                      <button
-                        onClick={() => handleDisconnectCloud("microsoft")}
-                        className="px-3 py-1.5 bg-red-50 text-red-650 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleConnectCloud("microsoft")}
-                        disabled={connectingProvider !== null}
-                        className="px-3 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-55 flex items-center gap-1.5"
-                      >
-                        {connectingProvider === "microsoft" && <Loader2 className="size-3 animate-spin" />}
-                        Connect
-                      </button>
-                    )}
+                  {/* System Instructions / Guardrails */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">System Instructions / Guardrails</label>
+                    <textarea
+                      rows={4}
+                      value={systemInstructions}
+                      onChange={(e) => handleInputChange(setSystemInstructions, e.target.value)}
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
+                    />
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Configures behavior limitations and answers guidelines.</p>
                   </div>
 
-                  {microsoftConnected && (
+                  {/* Toggles */}
+                  <div className="space-y-4 pt-1">
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-xs font-semibold">Use Outlook Calendar for Teams bookings</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Turn on so the assistant books on Outlook/Teams instead of Google.</p>
+                        <span className="text-xs font-semibold">Knowledge Base Strict Mode</span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Only answer questions using verified trained memory sources.</p>
                       </div>
                       <button
-                        onClick={() => handleInputChange(setSyncOutlookCalendar, !syncOutlookCalendar)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${syncOutlookCalendar ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"}`}
+                        onClick={() => handleInputChange(setStrictMode, !strictMode)}
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                          strictMode ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                        }`}
                       >
-                        <div className={`size-4 rounded-full bg-white transition-transform ${syncOutlookCalendar ? "translate-x-4" : ""}`} />
+                        <div className={`size-4 rounded-full bg-white transition-transform ${strictMode ? "translate-x-4" : ""}`} />
                       </button>
                     </div>
-                  )}
 
-                  {/* Zoom Status */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
-                    <div>
-                      <span className="text-xs font-semibold flex items-center gap-1.5">
-                        <svg className="size-3.5" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#2D8CFF"/><path d="M6 9.5c0-.55.45-1 1-1h6c.55 0 1 .45 1 1v5c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-5zm9 1.2 2.6-1.7c.3-.2.7 0 .7.4v5.2c0 .4-.4.6-.7.4L15 14.3v-3.6z" fill="#fff"/></svg>
-                        Zoom Meetings
-                      </span>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                        {zoomConfigured ? "Ready — bookings create real Zoom links automatically." : "Zoom is not configured on the server yet."}
-                      </p>
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${zoomConfigured ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400" : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"}`}>
-                      {zoomConfigured ? "Ready" : "Unavailable"}
-                    </span>
-                  </div>
-
-                  {/* Provider readiness grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {[
-                      { label: "Google Meet", ready: googleConnected, hint: googleConnected ? "Ready" : "Connect Google" },
-                      { label: "Zoom", ready: zoomConfigured, hint: zoomConfigured ? "Ready" : "Unavailable" },
-                      { label: "MS Teams", ready: microsoftConnected, hint: microsoftConnected ? "Ready" : "Connect Microsoft" },
-                      { label: "Google Drive", ready: googleConnected, hint: googleConnected ? "Ready" : "Connect Google" },
-                      { label: "OneDrive", ready: microsoftConnected, hint: microsoftConnected ? "Ready" : "Connect Microsoft" },
-                      { label: "Email (OneSignal)", ready: onesignalConfigured, hint: onesignalConfigured ? "OneSignal" : "Gmail fallback" },
-                    ].map((p) => (
-                      <div key={p.label} className="p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">{p.label}</span>
-                          <span className={`size-2 rounded-full ${p.ready ? "bg-green-500" : "bg-neutral-300 dark:bg-neutral-700"}`} />
-                        </div>
-                        <p className="text-[9px] text-neutral-400 mt-0.5">{p.hint}</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-semibold">Email Lead Alerts</span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Receive instant email updates when visitors submit contact info.</p>
                       </div>
-                    ))}
-                  </div>
-
-                  {/* Google Connection Status */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
-                    <div>
-                      <span className="text-xs font-semibold flex items-center gap-1.5">
-                        <svg className="size-3.5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                        Google Workspace Account
-                      </span>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                        {googleConnected ? "Connected successfully." : "Not connected yet."}
-                      </p>
+                      <button
+                        onClick={() => handleInputChange(setEmailNotify, !emailNotify)}
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                          emailNotify ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                        }`}
+                      >
+                        <div className={`size-4 rounded-full bg-white transition-transform ${emailNotify ? "translate-x-4" : ""}`} />
+                      </button>
                     </div>
-                    {googleConnected ? (
-                      <button
-                        onClick={() => handleDisconnectCloud("google")}
-                        className="px-3 py-1.5 bg-red-50 text-red-650 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleConnectCloud("google")}
-                        disabled={connectingProvider !== null}
-                        className="px-3 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-55 flex items-center gap-1.5"
-                      >
-                        {connectingProvider === "google" && <Loader2 className="size-3 animate-spin" />}
-                        Connect
-                      </button>
-                    )}
+                  </div>
+                </div>
+
+                {/* SECTION 2: CONNECTIONS */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <Link2 className="size-4 text-[#f97316]" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Connections & Integrations</h3>
                   </div>
 
-                  {googleConnected && (
-                    <div className="space-y-4 pt-1">
-                      {/* Sync Google Drive */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-semibold">Sync Google Drive (RAG)</span>
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Allow bot to reference files from your Google Drive.</p>
-                        </div>
+                  <div className="space-y-3">
+                    {/* Google Connection Card */}
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
+                      <div>
+                        <span className="text-xs font-semibold flex items-center gap-1.5">
+                          <svg className="size-3.5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                          Google Workspace Account
+                        </span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                          {googleConnected ? "Connected successfully." : "Not connected yet."}
+                        </p>
+                      </div>
+                      {googleConnected ? (
                         <button
-                          onClick={() => handleInputChange(setSyncGoogleDrive, !syncGoogleDrive)}
-                          className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                            syncGoogleDrive ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                          }`}
+                          onClick={() => handleDisconnectCloud("google")}
+                          className="px-3 py-1.5 bg-red-50 text-red-650 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
                         >
-                          <div className={`size-4 rounded-full bg-white transition-transform ${syncGoogleDrive ? "translate-x-4" : ""}`} />
+                          Disconnect
                         </button>
-                      </div>
-
-                      {/* Calendar Scheduling Enabled */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-semibold">Enable Calendar Booking Rules</span>
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Allow visitors to book slots directly via the chat widget.</p>
-                        </div>
+                      ) : (
                         <button
-                          onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
-                          className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                            calendarSchedulingEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                          }`}
+                          onClick={() => handleConnectCloud("google")}
+                          disabled={connectingProvider !== null}
+                          className="px-3 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-55 flex items-center gap-1.5"
                         >
-                          <div className={`size-4 rounded-full bg-white transition-transform ${calendarSchedulingEnabled ? "translate-x-4" : ""}`} />
+                          {connectingProvider === "google" && <Loader2 className="size-3 animate-spin" />}
+                          Connect
                         </button>
-                      </div>
-
-                      {calendarSchedulingEnabled && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          className="pl-4 border-l-2 border-neutral-200 dark:border-neutral-800 space-y-4 pt-1"
-                        >
-                          {/* Meeting Provider */}
-                          <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Meeting Provider</label>
-                            <ModernSelect
-                              value={meetingProvider}
-                              options={providerOptions}
-                              onChange={(v) => handleInputChange(setMeetingProvider, v)}
-                            />
-                            <p className="text-[9px] text-neutral-400 mt-1">
-                              {meetingProvider === "google_meet"
-                                ? "Real Meet links are generated automatically on the connected Google Calendar."
-                                : meetingProvider === "zoom"
-                                ? "Real Zoom links require Zoom credentials configured on the backend (else a placeholder is used)."
-                                : "Real Microsoft Teams links are generated on booking — requires the owner to connect Microsoft/Outlook."}
-                            </p>
-                          </div>
-
-                          {/* Duration Selector */}
-                          <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Allowed Time Duration</label>
-                            <ModernSelect
-                              value={String(schedulingDuration)}
-                              options={[15, 30, 45, 60].map((m) => ({ value: String(m), label: `${m} Minutes` }))}
-                              onChange={(v) => handleInputChange(setSchedulingDuration, parseInt(v, 10))}
-                            />
-                          </div>
-
-                          {/* Country + Timezone (auto-detected, searchable) */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("country")}</label>
-                              <ModernSelect
-                                value={botCountry}
-                                options={countryOptions}
-                                onChange={(v) => handleInputChange(setBotCountry, v)}
-                                searchable
-                                placeholder="Select country"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("timezone")}</label>
-                              <ModernSelect
-                                value={botTimezone}
-                                options={timezoneOptions}
-                                onChange={(v) => handleInputChange(setBotTimezone, v)}
-                                searchable
-                                placeholder="Select timezone"
-                              />
-                            </div>
-                          </div>
-
-                          {/* ── Booking Rules ── */}
-                          <div className="pt-2 border-t border-neutral-100 dark:border-neutral-850 space-y-3">
-                            <h5 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-                              <Calendar className="size-3.5 text-[#f97316]" /> Booking Rules
-                            </h5>
-
-                            {/* Business hours */}
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Open From</label>
-                                <ModernSelect
-                                  value={String(businessHoursStart)}
-                                  options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${(h % 12) || 12}:00 ${h < 12 ? "AM" : "PM"}` }))}
-                                  onChange={(v) => handleInputChange(setBusinessHoursStart, parseInt(v, 10))}
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Open Until</label>
-                                <ModernSelect
-                                  value={String(businessHoursEnd)}
-                                  options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${(h % 12) || 12}:00 ${h < 12 ? "AM" : "PM"}` }))}
-                                  onChange={(v) => handleInputChange(setBusinessHoursEnd, parseInt(v, 10))}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Working days */}
-                            <div>
-                              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Working Days</label>
-                              <div className="flex flex-wrap gap-1.5">
-                                {[
-                                  { id: "mon", label: "Mon" }, { id: "tue", label: "Tue" }, { id: "wed", label: "Wed" },
-                                  { id: "thu", label: "Thu" }, { id: "fri", label: "Fri" }, { id: "sat", label: "Sat" }, { id: "sun", label: "Sun" },
-                                ].map((d) => {
-                                  const on = workingDays.includes(d.id);
-                                  return (
-                                    <button
-                                      key={d.id}
-                                      onClick={() => handleInputChange(setWorkingDays, on ? workingDays.filter((x) => x !== d.id) : [...workingDays, d.id])}
-                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors cursor-pointer ${
-                                        on ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]" : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                                      }`}
-                                    >
-                                      {d.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Buffer + advance notice */}
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Buffer Between Meetings</label>
-                                <ModernSelect
-                                  value={String(bufferMinutes)}
-                                  options={[0, 5, 10, 15, 30].map((m) => ({ value: String(m), label: m === 0 ? "No buffer" : `${m} min` }))}
-                                  onChange={(v) => handleInputChange(setBufferMinutes, parseInt(v, 10))}
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Minimum Advance Notice</label>
-                                <ModernSelect
-                                  value={String(advanceNoticeHours)}
-                                  options={[0, 1, 2, 4, 12, 24, 48].map((h) => ({ value: String(h), label: h === 0 ? "None" : `${h} hours` }))}
-                                  onChange={(v) => handleInputChange(setAdvanceNoticeHours, parseInt(v, 10))}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Read-only summary of ALL active rules */}
-                            <div className="text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3 space-y-1 leading-relaxed">
-                              <p className="font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[9px] tracking-wider mb-1">All active booking rules</p>
-                              <p>• Hours: <b>{(businessHoursStart % 12) || 12}:00 {businessHoursStart < 12 ? "AM" : "PM"}</b> – <b>{(businessHoursEnd % 12) || 12}:00 {businessHoursEnd < 12 ? "AM" : "PM"}</b> ({botTimezone})</p>
-                              <p>• Days: <b>{workingDays.length ? workingDays.map((d) => d.toUpperCase()).join(", ") : "None set"}</b></p>
-                              <p>• Duration: <b>{schedulingDuration} min</b>{bufferMinutes ? <> · Buffer: <b>{bufferMinutes} min</b></> : null}</p>
-                              {advanceNoticeHours ? <p>• Advance notice: <b>{advanceNoticeHours} hours</b></p> : null}
-                              <p>• Platform: <b>{meetingProvider.replace("_", " ")}</b></p>
-                              <p>• Collects all lead fields (<b>{leadFields.join(", ")}</b>) + visitor timezone before booking</p>
-                            </div>
-                          </div>
-                        </motion.div>
                       )}
+                    </div>
+
+                    {/* Microsoft Connection Card */}
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
+                      <div>
+                        <span className="text-xs font-semibold flex items-center gap-1.5">
+                          <svg className="size-3.5" viewBox="0 0 24 24"><path fill="#F25022" d="M3 3h8v8H3z"/><path fill="#7FBA00" d="M13 3h8v8h-8z"/><path fill="#00A4EF" d="M3 13h8v8H3z"/><path fill="#FFB900" d="M13 13h8v8h-8z"/></svg>
+                          Microsoft 365 Account
+                        </span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                          {microsoftConnected ? "Connected — enables Teams, Outlook Calendar & OneDrive." : "Connect for Teams meetings, Outlook calendar & OneDrive."}
+                        </p>
+                      </div>
+                      {microsoftConnected ? (
+                        <button
+                          onClick={() => handleDisconnectCloud("microsoft")}
+                          className="px-3 py-1.5 bg-red-50 text-red-650 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                        >
+                          Disconnect
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleConnectCloud("microsoft")}
+                          disabled={connectingProvider !== null}
+                          className="px-3 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-55 flex items-center gap-1.5"
+                        >
+                          {connectingProvider === "microsoft" && <Loader2 className="size-3 animate-spin" />}
+                          Connect
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Zoom Status Card */}
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
+                      <div>
+                        <span className="text-xs font-semibold flex items-center gap-1.5">
+                          <svg className="size-3.5" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#2D8CFF"/><path d="M6 9.5c0-.55.45-1 1-1h6c.55 0 1 .45 1 1v5c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-5zm9 1.2 2.6-1.7c.3-.2.7 0 .7.4v5.2c0 .4-.4.6-.7.4L15 14.3v-3.6z" fill="#fff"/></svg>
+                          Zoom Meetings
+                        </span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                          {zoomConfigured ? "Ready — bookings create real Zoom links automatically." : "Zoom is not configured on the server yet."}
+                        </p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${zoomConfigured ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400" : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"}`}>
+                        {zoomConfigured ? "Ready" : "Unavailable"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 3: DOCUMENT SYNC */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <FolderOpen className="size-4 text-[#f97316]" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Document Sync (RAG)</h3>
+                  </div>
+
+                  {googleConnected || microsoftConnected ? (
+                    <div className="space-y-4">
+                      {googleConnected && (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-semibold">Sync Google Drive (RAG)</span>
+                            <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Allow bot to reference files from your Google Drive.</p>
+                          </div>
+                          <button
+                            onClick={() => handleInputChange(setSyncGoogleDrive, !syncGoogleDrive)}
+                            className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                              syncGoogleDrive ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                            }`}
+                          >
+                            <div className={`size-4 rounded-full bg-white transition-transform ${syncGoogleDrive ? "translate-x-4" : ""}`} />
+                          </button>
+                        </div>
+                      )}
+
+                      {microsoftConnected && (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-semibold">Use Outlook Calendar for Teams bookings</span>
+                            <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Turn on so the assistant books on Outlook/Teams instead of Google.</p>
+                          </div>
+                          <button
+                            onClick={() => handleInputChange(setSyncOutlookCalendar, !syncOutlookCalendar)}
+                            className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${syncOutlookCalendar ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"}`}
+                          >
+                            <div className={`size-4 rounded-full bg-white transition-transform ${syncOutlookCalendar ? "translate-x-4" : ""}`} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800/60 rounded-xl p-3 text-center leading-relaxed">
+                      Connect your Google Workspace or Microsoft 365 account to enable knowledge base document synchronization.
                     </div>
                   )}
                 </div>
+
+                {/* SECTION 4: CALENDAR SCHEDULING & BOOKING RULES */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="size-4 text-[#f97316]" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Calendar Scheduling</h3>
+                    </div>
+                    <button
+                      onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        calendarSchedulingEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                      }`}
+                    >
+                      <div className={`size-4 rounded-full bg-white transition-transform ${calendarSchedulingEnabled ? "translate-x-4" : ""}`} />
+                    </button>
+                  </div>
+
+                  {calendarSchedulingEnabled && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="space-y-4 pt-1"
+                    >
+                      {/* Meeting Provider */}
+                      <div>
+                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Meeting Provider</label>
+                        <ModernSelect
+                          value={meetingProvider}
+                          options={providerOptions}
+                          onChange={(v) => handleInputChange(setMeetingProvider, v)}
+                        />
+                        <p className="text-[9px] text-neutral-400 mt-1">
+                          {meetingProvider === "google_meet"
+                            ? "Real Meet links are generated automatically on the connected Google Calendar."
+                            : meetingProvider === "zoom"
+                            ? "Real Zoom links require Zoom credentials configured on the backend (else a placeholder is used)."
+                            : "Real Microsoft Teams links are generated on booking — requires the owner to connect Microsoft/Outlook."}
+                        </p>
+                      </div>
+
+                      {/* Duration Selector */}
+                      <div>
+                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Allowed Time Duration</label>
+                        <ModernSelect
+                          value={String(schedulingDuration)}
+                          options={[15, 30, 45, 60].map((m) => ({ value: String(m), label: `${m} Minutes` }))}
+                          onChange={(v) => handleInputChange(setSchedulingDuration, parseInt(v, 10))}
+                        />
+                      </div>
+
+                      {/* Country + Timezone (auto-detected, searchable) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("country")}</label>
+                          <ModernSelect
+                            value={botCountry}
+                            options={countryOptions}
+                            onChange={(v) => handleInputChange(setBotCountry, v)}
+                            searchable
+                            placeholder="Select country"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("timezone")}</label>
+                          <ModernSelect
+                            value={botTimezone}
+                            options={timezoneOptions}
+                            onChange={(v) => handleInputChange(setBotTimezone, v)}
+                            searchable
+                            placeholder="Select timezone"
+                          />
+                        </div>
+                      </div>
+
+                      {/* ── Booking Rules ── */}
+                      <div className="pt-2 border-t border-neutral-100 dark:border-neutral-850 space-y-3">
+                        <h5 className="text-[11px] font-bold uppercase tracking-wider text-neutral-450 flex items-center gap-1.5">
+                          <Calendar className="size-3.5 text-[#f97316]" /> Booking Rules
+                        </h5>
+
+                        {/* Business hours */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Open From</label>
+                            <ModernSelect
+                              value={String(businessHoursStart)}
+                              options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${(h % 12) || 12}:00 ${h < 12 ? "AM" : "PM"}` }))}
+                              onChange={(v) => handleInputChange(setBusinessHoursStart, parseInt(v, 10))}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Open Until</label>
+                            <ModernSelect
+                              value={String(businessHoursEnd)}
+                              options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${(h % 12) || 12}:00 ${h < 12 ? "AM" : "PM"}` }))}
+                              onChange={(v) => handleInputChange(setBusinessHoursEnd, parseInt(v, 10))}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Working days */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Working Days</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[
+                              { id: "mon", label: "Mon" }, { id: "tue", label: "Tue" }, { id: "wed", label: "Wed" },
+                              { id: "thu", label: "Thu" }, { id: "fri", label: "Fri" }, { id: "sat", label: "Sat" }, { id: "sun", label: "Sun" },
+                            ].map((d) => {
+                              const on = workingDays.includes(d.id);
+                              return (
+                                <button
+                                  key={d.id}
+                                  onClick={() => handleInputChange(setWorkingDays, on ? workingDays.filter((x) => x !== d.id) : [...workingDays, d.id])}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors cursor-pointer ${
+                                    on ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]" : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                                  }`}
+                                >
+                                  {d.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Buffer + advance notice */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Buffer Between Meetings</label>
+                            <ModernSelect
+                              value={String(bufferMinutes)}
+                              options={[0, 5, 10, 15, 30].map((m) => ({ value: String(m), label: m === 0 ? "No buffer" : `${m} min` }))}
+                              onChange={(v) => handleInputChange(setBufferMinutes, parseInt(v, 10))}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Minimum Advance Notice</label>
+                            <ModernSelect
+                              value={String(advanceNoticeHours)}
+                              options={[0, 1, 2, 4, 12, 24, 48].map((h) => ({ value: String(h), label: h === 0 ? "None" : `${h} hours` }))}
+                              onChange={(v) => handleInputChange(setAdvanceNoticeHours, parseInt(v, 10))}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Read-only summary of ALL active rules */}
+                        <div className="text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3 space-y-1 leading-relaxed">
+                          <p className="font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[9px] tracking-wider mb-1">All active booking rules</p>
+                          <p>• Hours: <b>{(businessHoursStart % 12) || 12}:00 {businessHoursStart < 12 ? "AM" : "PM"}</b> – <b>{(businessHoursEnd % 12) || 12}:00 {businessHoursEnd < 12 ? "AM" : "PM"}</b> ({botTimezone})</p>
+                          <p>• Days: <b>{workingDays.length ? workingDays.map((d) => d.toUpperCase()).join(", ") : "None set"}</b></p>
+                          <p>• Duration: <b>{schedulingDuration} min</b>{bufferMinutes ? <> · Buffer: <b>{bufferMinutes} min</b></> : null}</p>
+                          {advanceNoticeHours ? <p>• Advance notice: <b>{advanceNoticeHours} hours</b></p> : null}
+                          <p>• Platform: <b>{meetingProvider.replace("_", " ")}</b></p>
+                          <p>• Collects all lead fields (<b>{leadFields.join(", ")}</b>) + visitor timezone before booking</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
               </div>
             </div>
           )}
