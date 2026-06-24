@@ -10,6 +10,7 @@ interface Session {
   last_message?: string;
   last_message_at?: string;
   ai_paused?: boolean;
+  needs_attention?: boolean;
 }
 interface Msg { role: string; content: string; sender?: string; created_at?: string; }
 
@@ -108,11 +109,16 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <div className="p-8 text-center"><InboxIcon className="size-7 text-neutral-300 mx-auto" /><p className="text-xs text-neutral-400 mt-2">No conversations yet</p></div>
           ) : sessions.map((s) => (
             <div key={s.id} role="button" tabIndex={0} onClick={() => setSelected(s.session_id)}
-              className={`group w-full text-left p-3 transition-colors cursor-pointer ${selected === s.session_id ? "bg-[#f97316]/5 border-l-2 border-l-[#f97316]" : "hover:bg-neutral-50 dark:hover:bg-neutral-850/40 border-l-2 border-l-transparent"}`}>
+              className={`group w-full text-left p-3 transition-colors cursor-pointer ${selected === s.session_id ? "bg-[#f97316]/5 border-l-2 border-l-[#f97316]" : s.needs_attention ? "bg-red-50/60 dark:bg-red-950/15 border-l-2 border-l-red-500" : "hover:bg-neutral-50 dark:hover:bg-neutral-850/40 border-l-2 border-l-transparent"}`}>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold truncate">{s.visitor_name || `Visitor ${s.session_id.slice(-5)}`}</span>
+                <span className="text-xs font-semibold truncate flex items-center gap-1.5">
+                  {s.needs_attention && <span className="size-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />}
+                  {s.visitor_name || `Visitor ${s.session_id.slice(-5)}`}
+                </span>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {s.ai_paused
+                  {s.needs_attention
+                    ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400 flex items-center gap-1"><Headphones className="size-2.5" />Needs you</span>
+                    : s.ai_paused
                     ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400 flex items-center gap-1"><Headphones className="size-2.5" />Live</span>
                     : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400 flex items-center gap-1"><Bot className="size-2.5" />AI</span>}
                   <button onClick={(e) => deleteSession(s.session_id, e)} aria-label="Delete conversation"
