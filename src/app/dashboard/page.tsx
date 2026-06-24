@@ -581,6 +581,11 @@ export default function Dashboard() {
 
   // Knowledge Base tab UI state
   const [kbSourceTab, setKbSourceTab] = useState<"text" | "url" | "file" | "drive" | "onedrive">("text");
+  const [discoveredUrls, setDiscoveredUrls] = useState<string[]>([]);
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  const [scanningSitemap, setScanningSitemap] = useState(false);
+  const [crawlingPages, setCrawlingPages] = useState(false);
+  const [crawlSummary, setCrawlSummary] = useState<string | null>(null);
   const [sourcesSearch, setSourcesSearch] = useState("");
   const [sourceTypeFilter, setSourceTypeFilter] = useState<"all" | "text" | "url" | "file">("all");
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
@@ -1779,6 +1784,48 @@ export default function Dashboard() {
   };
 
   // Handle training URL crawl
+  // Scan a site's sitemap.xml → list all page URLs for the admin to pick.
+  const handleScanSitemap = async () => {
+    if (!inputUrl.trim()) return;
+    setScanningSitemap(true); setCrawlSummary(null); setDiscoveredUrls([]);
+    try {
+      const res = await fetchWithFallback("/api/crawl/discover", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: inputUrl.trim() }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        const urls: string[] = d.urls || [];
+        setDiscoveredUrls(urls);
+        setSelectedUrls(new Set(urls));
+        if (!d.sitemap_found) setCrawlSummary("No sitemap found — only this single page is available.");
+      } else {
+        setCrawlSummary("Could not scan that site.");
+      }
+    } catch { setCrawlSummary("Scan failed."); }
+    finally { setScanningSitemap(false); }
+  };
+
+  // Crawl the admin-selected URLs and index each as a knowledge source.
+  const handleCrawlSelected = async () => {
+    const urls = Array.from(selectedUrls);
+    if (!urls.length || !botId) return;
+    setCrawlingPages(true); setCrawlSummary(null);
+    try {
+      const res = await fetchWithFallback("/api/crawl/pages", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, urls }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setCrawlSummary(`Indexed ${d.indexed} of ${urls.length} pages into your knowledge base.`);
+        setDiscoveredUrls([]); setSelectedUrls(new Set());
+        if (user) loadBotSettings(user.id);
+      } else { setCrawlSummary("Crawl failed."); }
+    } catch { setCrawlSummary("Crawl failed."); }
+    finally { setCrawlingPages(false); }
+  };
+
   const handleTrainUrl = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputUrl.trim()) return;
@@ -3027,30 +3074,76 @@ export default function Dashboard() {
 
                   {/* URL source */}
                   {kbSourceTab === "url" && (
-                    <form onSubmit={handleTrainUrl} className="space-y-3">
+                    <div className="space-y-3">
                       <div>
                         <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Website URL</label>
                         <input
                           type="url"
-                          placeholder="https://example.com/about"
+                          placeholder="https://example.com"
                           value={inputUrl}
                           onChange={(e) => setInputUrl(e.target.value)}
                           className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                         />
                         <p className="text-[9px] text-neutral-400 mt-1 flex items-center gap-1">
-                          <Sparkles className="size-3 text-[#f97316]" /> The page is crawled live and its text content indexed.
+                          <Sparkles className="size-3 text-[#f97316]" /> Scan the sitemap to list every page, then tick which ones to index.
                         </p>
                       </div>
-                      <div className="flex justify-end">
+                      <div className="flex gap-2">
                         <button
-                          type="submit"
-                          disabled={!inputUrl.trim() || !botId}
-                          className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                          type="button"
+                          onClick={handleScanSitemap}
+                          disabled={!inputUrl.trim() || scanningSitemap}
+                          className="px-3 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
                         >
-                          <Link2 className="size-3.5" /> Crawl &amp; Index
+                          {scanningSitemap ? <Loader2 className="size-3.5 animate-spin" /> : <Globe className="size-3.5" />} Scan sitemap
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleTrainUrl(e as unknown as React.FormEvent)}
+                          disabled={!inputUrl.trim() || !botId}
+                          className="px-3 py-2 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                        >
+                          <Link2 className="size-3.5" /> Just this page
                         </button>
                       </div>
-                    </form>
+
+                      {discoveredUrls.length > 0 && (
+                        <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden">
+                          <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+                            <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">{selectedUrls.size} of {discoveredUrls.length} selected</span>
+                            <div className="flex gap-3 text-[11px] font-semibold text-[#f97316]">
+                              <button type="button" onClick={() => setSelectedUrls(new Set(discoveredUrls))} className="cursor-pointer hover:underline">Select all</button>
+                              <button type="button" onClick={() => setSelectedUrls(new Set())} className="cursor-pointer hover:underline">None</button>
+                            </div>
+                          </div>
+                          <div className="max-h-56 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-850">
+                            {discoveredUrls.map((u) => (
+                              <label key={u} className="flex items-center gap-2 px-3 py-2 text-[11px] cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedUrls.has(u)}
+                                  onChange={(e) => { const next = new Set(selectedUrls); if (e.target.checked) next.add(u); else next.delete(u); setSelectedUrls(next); }}
+                                  className="accent-[#f97316] shrink-0"
+                                />
+                                <span className="truncate text-neutral-700 dark:text-neutral-300">{u}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <div className="flex justify-end p-2 border-t border-neutral-100 dark:border-neutral-800">
+                            <button
+                              type="button"
+                              onClick={handleCrawlSelected}
+                              disabled={!selectedUrls.size || crawlingPages || !botId}
+                              className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                            >
+                              {crawlingPages ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />} Crawl selected ({selectedUrls.size})
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {crawlSummary && <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{crawlSummary}</p>}
+                    </div>
                   )}
 
                   {/* File upload */}
