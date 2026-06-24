@@ -2498,7 +2498,7 @@ export default function Dashboard() {
       {/* Main Panel */}
       <main className="flex-1 flex flex-col overflow-y-auto">
         {/* Header bar */}
-        <header className="h-16 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-6 md:px-8 flex items-center justify-between shrink-0">
+        <header className="h-16 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 sm:px-6 md:px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <button className="md:hidden p-1 text-neutral-500 hover:text-neutral-950" onClick={() => setSidebarOpen(true)}>
               <Menu className="size-5" />
@@ -2508,7 +2508,7 @@ export default function Dashboard() {
               <h2 className="text-sm font-semibold capitalize mt-0.5">{activeTab === "home" ? "Overview" : activeTab.replace("_", " ")}</h2>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-xs text-neutral-500">
+          <div className="flex items-center gap-2 sm:gap-4 text-xs text-neutral-500">
             {/* Language Selector */}
             <ModernSelect
               value={language}
@@ -2516,23 +2516,24 @@ export default function Dashboard() {
               onChange={(v) => setLanguage(v as "EN" | "ES" | "FR" | "DE" | "IT")}
               align="right"
               size="sm"
-              className="w-36"
+              className="w-24 sm:w-36"
             />
 
             {/* Re-run Setup (agentic flow) */}
             {onboardingCompleted && (
               <button
                 onClick={() => setShowWizard(true)}
-                className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2.5 py-1.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
+                className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2 py-1.5 sm:px-2.5 sm:py-1.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
+                title="Re-run Setup"
               >
                 <Sparkles className="size-3 text-[#f97316]" />
-                Re-run Setup
+                <span className="hidden sm:inline">Re-run Setup</span>
               </button>
             )}
 
-            <span className="flex items-center gap-1.5">
+            <span className="flex items-center gap-1.5" title={user ? "Database Active" : "Offline"}>
               <span className={`size-2 rounded-full ${user ? "bg-green-500" : "bg-yellow-500"}`}></span>
-              {user ? "Database Active" : "Offline"}
+              <span className="hidden sm:inline">{user ? "Database Active" : "Offline"}</span>
             </span>
           </div>
         </header>
