@@ -3118,13 +3118,16 @@ export default function Dashboard() {
                           </div>
                           <div className="max-h-56 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-850">
                             {discoveredUrls.map((u) => (
-                              <label key={u} className="flex items-center gap-2 px-3 py-2 text-[11px] cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900">
+                              <label key={u} className="flex items-center gap-2.5 px-3 py-2 text-[11px] cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900">
                                 <input
                                   type="checkbox"
                                   checked={selectedUrls.has(u)}
                                   onChange={(e) => { const next = new Set(selectedUrls); if (e.target.checked) next.add(u); else next.delete(u); setSelectedUrls(next); }}
-                                  className="accent-[#f97316] shrink-0"
+                                  className="sr-only"
                                 />
+                                <span className={`size-[18px] rounded-md border flex items-center justify-center shrink-0 transition-colors ${selectedUrls.has(u) ? "bg-[#f97316] border-[#f97316]" : "border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900"}`}>
+                                  {selectedUrls.has(u) && <Check className="size-3 text-white" strokeWidth={3.5} />}
+                                </span>
                                 <span className="truncate text-neutral-700 dark:text-neutral-300">{u}</span>
                               </label>
                             ))}
