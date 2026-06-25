@@ -207,7 +207,6 @@ export default function Home() {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          setIsWidgetOpen(true); // Auto-open live chatbot widget
           return 100;
         }
         return prev + 1;
@@ -737,53 +736,43 @@ export default function Home() {
       {/* Floating Chat Button & Waiting Circle */}
       <div className="fixed bottom-6 right-6 z-50 flex items-center justify-center select-none">
         {/* Progress circular waiting indicator */}
-        <svg className="absolute size-14 -rotate-90">
+        <svg className="absolute w-[72px] h-[72px] -rotate-90">
           <circle
-            cx="28"
-            cy="28"
-            r="24"
+            cx="36"
+            cy="36"
+            r="32"
             className="stroke-neutral-200 dark:stroke-neutral-800"
             strokeWidth="2.5"
             fill="transparent"
           />
           <circle
-            cx="28"
-            cy="28"
-            r="24"
+            cx="36"
+            cy="36"
+            r="32"
             className="stroke-[#f97316] transition-all duration-75"
             strokeWidth="2.5"
             fill="transparent"
-            strokeDasharray="150.8"
-            strokeDashoffset={150.8 - (150.8 * progress) / 100}
+            strokeDasharray="201.1"
+            strokeDashoffset={201.1 - (201.1 * progress) / 100}
           />
         </svg>
         {/* Toggle Button */}
         <button
           onClick={() => setIsWidgetOpen(!isWidgetOpen)}
-          className="size-11 rounded-full bg-neutral-950 text-white dark:bg-white dark:text-black flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity cursor-pointer z-10 focus:outline-none"
+          className="size-14 rounded-full bg-neutral-950 text-white dark:bg-white dark:text-black flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity cursor-pointer z-10 focus:outline-none"
           title="Chat Assistant"
         >
           {isWidgetOpen ? (
-            <X className="size-5" />
+            <X className="size-6" />
           ) : (
-            <MessageSquare className="size-5" />
+            <MessageSquare className="size-6" />
           )}
         </button>
       </div>
 
       {/* Live Chatbot Widget Overlay */}
       {isWidgetOpen && (
-        <div className="fixed bottom-20 right-6 w-[380px] h-[540px] max-w-[calc(100vw-2rem)] bg-white dark:bg-black border border-neutral-200 dark:border-neutral-900 shadow-2xl z-50 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-200 rounded-none">
-          {/* Header Bar */}
-          <div className="p-3 border-b border-neutral-200 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-950 flex items-center justify-between font-mono text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-            <span className="font-semibold text-neutral-900 dark:text-white">[ ACTIVE ASSISTANT ]</span>
-            <button
-              onClick={() => setIsWidgetOpen(false)}
-              className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
+        <div className="fixed bottom-24 right-6 w-[380px] h-[540px] max-w-[calc(100vw-2rem)] bg-white dark:bg-black border border-neutral-200 dark:border-neutral-900 shadow-2xl z-50 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-200 rounded-none">
           {/* Iframe */}
           <iframe
             src="https://chatty.personaliai.com/embed/88330496-43be-48cc-a587-65b0c8ab09d7?color=%23f97316&style=minimalist"
