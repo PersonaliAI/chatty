@@ -171,6 +171,7 @@ export default function Home() {
   const [themeColor, setThemeColor] = useState("#f97316");
   const [themeIcon, setThemeIcon] = useState("/favicon.png");
   const [logoBgColor, setLogoBgColor] = useState("");
+  const [avatarIconType, setAvatarIconType] = useState("logo");
 
   useEffect(() => {
     async function loadTheme() {
@@ -179,6 +180,7 @@ export default function Home() {
         if (res.ok) {
           const d = await res.json();
           if (d.primary_color) setThemeColor(d.primary_color);
+          if (d.avatar_icon) setAvatarIconType(d.avatar_icon);
           
           let logoToUse = "/favicon.png";
           if (d.avatar_icon === "custom" && d.avatar_url) {
@@ -774,17 +776,30 @@ export default function Home() {
           {isWidgetOpen || isConnecting ? (
             <X className="size-6" />
           ) : (
-            <Image
-              src={themeIcon}
-              alt="Chat"
-              width={36}
-              height={36}
-              className={`size-9 ${themeIcon === "/favicon.png" ? "object-contain" : "object-cover rounded-full"}`}
-              style={{
-                ...((themeIcon === "/favicon.png" && themeColor.toLowerCase().replace(/\s+/g, "") === "#f97316") ? { filter: "brightness(0) invert(1)" } : {}),
-                ...(logoBgColor ? { backgroundColor: logoBgColor } : {})
-              }}
-            />
+            themeIcon !== "/favicon.png" && avatarIconType === "custom" ? (
+              <Image
+                src={themeIcon}
+                alt="Chat"
+                width={44}
+                height={44}
+                className="size-11 object-cover rounded-full"
+                style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
+              />
+            ) : (
+              <div 
+                className="size-11 rounded-full flex items-center justify-center overflow-hidden transition-colors"
+                style={logoBgColor ? { backgroundColor: logoBgColor } : (themeIcon === "/favicon.png" ? {} : { backgroundColor: "rgba(255,255,255,0.2)" })}
+              >
+                <Image
+                  src={themeIcon}
+                  alt="Chat"
+                  width={themeIcon === "/favicon.png" ? 36 : 28}
+                  height={themeIcon === "/favicon.png" ? 36 : 28}
+                  className={themeIcon === "/favicon.png" ? "size-9 object-contain" : "w-7 h-7 object-contain rounded-full"}
+                  style={(themeIcon === "/favicon.png" && themeColor.toLowerCase().replace(/\s+/g, "") === "#f97316") ? { filter: "brightness(0) invert(1)" } : {}}
+                />
+              </div>
+            )
           )}
         </button>
       </div>
