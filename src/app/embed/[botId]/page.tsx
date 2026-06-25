@@ -190,6 +190,14 @@ export default function EmbedWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId]);
 
+  // Reset html and body backgrounds to transparent to prevent white corners in rounded iframe borders
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      document.documentElement.style.setProperty("background-color", "transparent", "important");
+      document.body.style.setProperty("background-color", "transparent", "important");
+    }
+  }, []);
+
   // Persist messages (cap to last 100)
   useEffect(() => {
     if (typeof window === "undefined" || !botId || messages.length === 0) return;

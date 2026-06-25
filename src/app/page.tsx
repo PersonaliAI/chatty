@@ -841,7 +841,7 @@ export default function Home() {
           sm:w-[380px] sm:h-[540px] sm:bottom-24 sm:right-6 sm:rounded-2xl sm:border sm:border-neutral-200 sm:dark:border-neutral-900 sm:shadow-2xl
           ${
             isWidgetOpen 
-              ? "opacity-100 translate-y-0 scale-100 pointer-events-auto" 
+              ? "opacity-100 transform-none pointer-events-auto" 
               : "opacity-0 translate-y-4 scale-95 pointer-events-none"
           }`}
         >

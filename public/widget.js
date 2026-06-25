@@ -299,7 +299,7 @@
     renderBadge();
     applyMobile();
     panel.style.setProperty("opacity", open ? "1" : "0", "important");
-    panel.style.setProperty("transform", open ? "translateY(0) scale(1)" : "translateY(12px) scale(.98)", "important");
+    panel.style.setProperty("transform", open ? "none" : "translateY(12px) scale(.98)", "important");
     panel.style.setProperty("pointer-events", open ? "auto" : "none", "important");
     setBtnIcon();
     btn.setAttribute("aria-label", open ? "Close chat" : "Open chat");
