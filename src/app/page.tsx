@@ -15,6 +15,7 @@ import {
   Sliders,
   BarChart3,
   Bot,
+  Headphones,
   Layers,
   Inbox,
   Cpu,
@@ -155,6 +156,13 @@ const faqs = [
   },
 ];
 
+const LAUNCHER_ICONS: Record<string, any> = {
+  bot: Bot,
+  headset: Headphones,
+  sparkles: Sparkles,
+  message: MessageSquare,
+  user: User,
+};
 
 export default function Home() {
   const [isYearly, setIsYearly] = useState(false);
@@ -776,29 +784,36 @@ export default function Home() {
           {isWidgetOpen || isConnecting ? (
             <X className="size-6" />
           ) : (
-            themeIcon !== "/favicon.png" && avatarIconType === "custom" ? (
-              <Image
-                src={themeIcon}
-                alt="Chat"
-                width={44}
-                height={44}
-                className="size-11 object-cover rounded-full"
-                style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
-              />
+            LAUNCHER_ICONS[avatarIconType] ? (
+              (() => {
+                const IconComponent = LAUNCHER_ICONS[avatarIconType];
+                return <IconComponent className="size-7 text-white" />;
+              })()
             ) : (
-              <div 
-                className="size-11 rounded-full flex items-center justify-center overflow-hidden transition-colors"
-                style={logoBgColor ? { backgroundColor: logoBgColor } : (themeIcon === "/favicon.png" ? {} : { backgroundColor: "rgba(255,255,255,0.2)" })}
-              >
+              themeIcon !== "/favicon.png" && avatarIconType === "custom" ? (
                 <Image
                   src={themeIcon}
                   alt="Chat"
-                  width={themeIcon === "/favicon.png" ? 36 : 34}
-                  height={themeIcon === "/favicon.png" ? 36 : 34}
-                  className={themeIcon === "/favicon.png" ? "size-9 object-contain" : "w-[34px] h-[34px] object-contain rounded-full"}
-                  style={(themeIcon === "/favicon.png" && themeColor.toLowerCase().replace(/\s+/g, "") === "#f97316") ? { filter: "brightness(0) invert(1)" } : {}}
+                  width={44}
+                  height={44}
+                  className="size-11 object-cover rounded-full"
+                  style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
                 />
-              </div>
+              ) : (
+                <div 
+                  className="size-11 rounded-full flex items-center justify-center overflow-hidden transition-colors"
+                  style={logoBgColor ? { backgroundColor: logoBgColor } : (themeIcon === "/favicon.png" ? {} : { backgroundColor: "rgba(255,255,255,0.2)" })}
+                >
+                  <Image
+                    src={themeIcon}
+                    alt="Chat"
+                    width={themeIcon === "/favicon.png" ? 36 : 34}
+                    height={themeIcon === "/favicon.png" ? 36 : 34}
+                    className={themeIcon === "/favicon.png" ? "size-9 object-contain" : "w-[34px] h-[34px] object-contain rounded-full"}
+                    style={(themeIcon === "/favicon.png" && themeColor.toLowerCase().replace(/\s+/g, "") === "#f97316") ? { filter: "brightness(0) invert(1)" } : {}}
+                  />
+                </div>
+              )
             )
           )}
         </button>
