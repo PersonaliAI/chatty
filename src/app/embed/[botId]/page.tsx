@@ -227,12 +227,7 @@ export default function EmbedWidget() {
       try {
         // Load config from the backend (service role) — works inside third-party
         // iframes where the browser Supabase client is blocked by storage partitioning.
-        const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}&t=${Date.now()}`, {
-          headers: {
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache"
-          }
-        });
+        const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}&t=${Date.now()}`);
         if (res.ok) {
           const bot = await res.json();
           // In preview mode (dashboard playground), query parameters override DB values
