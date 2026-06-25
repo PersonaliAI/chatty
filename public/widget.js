@@ -169,7 +169,7 @@
   var panel = document.createElement("div");
   panel.style.cssText =
     "position:fixed;bottom:92px;" + side + ":20px;width:380px;height:560px;max-width:calc(100vw - 40px);" +
-    "max-height:calc(100vh - 120px);background:#fff;border-radius:16px;overflow:hidden;z-index:2147483646;" +
+    "max-height:calc(100vh - 120px);border-radius:16px;overflow:hidden;z-index:2147483646;" +
     "box-shadow:0 12px 48px rgba(0,0,0,.28);opacity:0;transform:translateY(12px) scale(.98);" +
     "pointer-events:none;transition:opacity .2s ease,transform .2s ease;";
 
