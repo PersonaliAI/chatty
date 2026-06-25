@@ -174,7 +174,7 @@
     "pointer-events:none;transition:opacity .2s ease,transform .2s ease;";
 
   var iframe = document.createElement("iframe");
-  iframe.style.cssText = "width:100%;height:100%;border:0;display:block;";
+  iframe.style.cssText = "width:100%;height:100%;border:0;display:block;border-radius:16px;overflow:hidden;";
   iframe.setAttribute("title", "Chat assistant");
   iframe.setAttribute("allow", "clipboard-write;microphone");
   var iframeLoaded = false;
@@ -185,10 +185,12 @@
       panel.style.width = "100vw"; panel.style.height = "100vh";
       panel.style.maxWidth = "100vw"; panel.style.maxHeight = "100vh";
       panel.style.bottom = "0"; panel.style[side] = "0"; panel.style.borderRadius = "0";
+      iframe.style.borderRadius = "0";
     } else {
       panel.style.width = "380px"; panel.style.height = "560px";
       panel.style.maxWidth = "calc(100vw - 40px)"; panel.style.maxHeight = "calc(100vh - 120px)";
       panel.style.bottom = "92px"; panel.style[side] = "20px"; panel.style.borderRadius = "16px";
+      iframe.style.borderRadius = "16px";
     }
   }
 

@@ -719,7 +719,7 @@ export default function Home() {
 
       {/* Live Chatbot Widget Overlay */}
       {(isWidgetOpen || isConnecting) && (
-        <div className={`fixed bottom-24 right-6 w-[380px] h-[540px] max-w-[calc(100vw-2rem)] bg-white dark:bg-black border border-neutral-200 dark:border-neutral-900 shadow-2xl z-50 flex flex-col rounded-none transition-all duration-350 ease-out ${
+        <div className={`fixed bottom-24 right-6 w-[380px] h-[540px] max-w-[calc(100vw-2rem)] bg-white dark:bg-black border border-neutral-200 dark:border-neutral-900 shadow-2xl z-50 flex flex-col rounded-2xl overflow-hidden transition-all duration-350 ease-out ${
           isWidgetOpen 
             ? "opacity-100 translate-y-0 scale-100 pointer-events-auto" 
             : "opacity-0 translate-y-4 scale-95 pointer-events-none"
@@ -727,7 +727,7 @@ export default function Home() {
           {/* Iframe */}
           <iframe
             src="https://chatty.personaliai.com/embed/88330496-43be-48cc-a587-65b0c8ab09d7?color=%23f97316&style=minimalist"
-            className="flex-1 w-full border-0"
+            className="flex-1 w-full border-0 rounded-2xl"
             allow="microphone"
             onLoad={handleIframeLoad}
           />
