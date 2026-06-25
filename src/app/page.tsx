@@ -219,106 +219,114 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground font-sans relative antialiased">
-      {/* Navbar */}
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 ${
-          scrolled
-            ? "bg-background/80 backdrop-blur-md border-b border-neutral-100 dark:border-neutral-900"
-            : "bg-transparent"
-        }`}
-      >
-        <div className="mx-auto max-w-5xl px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="font-semibold text-lg tracking-tight flex items-center gap-1.5">
-              <span className="size-5 rounded-md bg-neutral-950 dark:bg-white flex items-center justify-center text-white dark:text-black font-bold text-xs">C</span>
-              Chatty
-            </span>
-          </Link>
-          <nav className="hidden md:flex items-center gap-6">
-            <Link href="#features" className="text-sm text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 transition-colors">Features</Link>
-            <Link href="#pricing" className="text-sm text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 transition-colors">Pricing</Link>
-            <Link href="#faq" className="text-sm text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 transition-colors">FAQ</Link>
-            <Link href="/dashboard" className="text-sm font-medium text-neutral-900 dark:text-neutral-100 hover:underline underline-offset-4">Dashboard</Link>
-          </nav>
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="hidden sm:inline-flex text-sm text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 py-1.5 px-3">Log in</Link>
-            <Link href="/dashboard">
-              <Button size="sm" className="h-8 px-4 font-medium text-xs bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 cursor-pointer">
-                Start Free Trial
-              </Button>
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans antialiased selection:bg-neutral-200 dark:selection:bg-neutral-800">
+      {/* Boxed Grid Layout container */}
+      <div className="max-w-6xl mx-auto border-x border-neutral-200 dark:border-neutral-900 bg-white dark:bg-black min-h-screen flex flex-col relative">
+        {/* Navbar */}
+        <header
+          className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 ${
+            scrolled
+              ? "bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-900"
+              : "bg-transparent border-b border-transparent"
+          }`}
+        >
+          <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between border-x border-neutral-200 dark:border-neutral-900">
+            <Link href="/" className="flex items-center gap-2 shrink-0">
+              <span className="font-mono text-sm tracking-widest font-bold flex items-center gap-1.5 uppercase">
+                <span className="size-5 bg-neutral-950 dark:bg-white flex items-center justify-center text-white dark:text-black font-mono font-bold text-xs">C</span>
+                Chatty
+              </span>
             </Link>
+            <nav className="hidden md:flex items-center gap-8 font-mono text-xs uppercase tracking-wider">
+              <Link href="#features" className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-450 dark:hover:text-white transition-colors">Features</Link>
+              <Link href="#pricing" className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-450 dark:hover:text-white transition-colors">Pricing</Link>
+              <Link href="#faq" className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-450 dark:hover:text-white transition-colors">FAQ</Link>
+              <Link href="/dashboard" className="text-neutral-900 dark:text-white font-semibold">Dashboard</Link>
+            </nav>
+            <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
+              <Link href="/dashboard" className="hidden sm:inline-flex text-neutral-500 hover:text-neutral-900 dark:text-neutral-450 dark:hover:text-white uppercase tracking-wider py-1.5">
+                Log in
+              </Link>
+              <Link href="/dashboard">
+                <Button size="sm" className="h-9 px-4 font-mono text-xs uppercase tracking-wider bg-neutral-950 text-white dark:bg-white dark:text-black rounded-none border border-neutral-950 dark:border-white hover:opacity-90 cursor-pointer">
+                  Free Trial
+                </Button>
+              </Link>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="flex-1 pt-24">
-        {/* Hero Section */}
-        <section className="pb-16 md:pb-24">
-          <div className="mx-auto max-w-5xl px-6">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-12 items-center">
+        <main className="flex-1 pt-16">
+          {/* Hero Section */}
+          <section className="border-b border-neutral-200 dark:border-neutral-900">
+            <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-900">
               {/* Left Column */}
-              <div className="md:col-span-7 flex flex-col space-y-6 text-left">
-                <span className="inline-flex items-center gap-1.5 w-fit rounded-full border border-neutral-200 dark:border-neutral-800 px-3 py-1 text-xs text-neutral-500 dark:text-neutral-400 font-medium bg-neutral-50/50 dark:bg-neutral-900/50">
-                  <span className="size-1.5 rounded-full bg-[#f97316] animate-pulse"></span>
-                  PersonaliAI Product
-                </span>
-                <h1 className="text-4xl sm:text-5xl md:text-[56px] font-bold tracking-tight leading-[1.08] text-neutral-900 dark:text-white">
-                  Custom chatbot that <br />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#f97316] to-[#ec4899] font-extrabold">pays for itself</span>.
+              <div className="md:col-span-7 p-8 md:p-12 lg:p-16 flex flex-col justify-center space-y-8 text-left">
+                <div className="flex items-center gap-2 text-xs font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">
+                  <span className="size-1.5 bg-[#f97316]"></span>
+                  <span>[ 00 / CUSTOM AGENT ]</span>
+                </div>
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight leading-[1.1] text-neutral-900 dark:text-white">
+                  Trained on your content. <br />
+                  <span className="text-neutral-400 dark:text-neutral-500 font-light">Optimized for conversion.</span>
                 </h1>
-                <p className="text-base sm:text-lg text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed font-normal">
-                  An AI chatbot that does more than just chatting. Plug in your content and data sources. Integrate with your services. Create a custom AI chatbot that not only chats but converts. Zero coding, on your website in minutes.
+                <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xl font-sans font-normal">
+                  An AI chatbot that does more than just chat. Plug in your website, files, and tools. Deploy a custom assistant that captures leads and triggers actions. Zero coding, active on your website in under five minutes.
                 </p>
                 <div className="flex flex-wrap items-center gap-4 pt-2">
                   <Link href="/dashboard">
-                    <Button size="lg" className="h-11 px-6 text-sm font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 cursor-pointer shadow-lg shadow-neutral-950/10 dark:shadow-white/5">
+                    <Button className="h-12 px-6 bg-neutral-950 hover:bg-neutral-900 text-white dark:bg-white dark:text-black dark:hover:bg-neutral-100 rounded-none text-xs font-mono uppercase tracking-wider transition-colors border border-neutral-950 dark:border-white cursor-pointer">
                       Start free 14-day trial
                     </Button>
                   </Link>
                   <Link href="#features">
-                    <Button variant="outline" size="lg" className="h-11 px-6 text-sm font-semibold border-neutral-200 dark:border-neutral-850 bg-transparent rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer">
-                      See details
+                    <Button variant="outline" className="h-12 px-6 border-neutral-200 dark:border-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-900 rounded-none text-xs font-mono uppercase tracking-wider transition-colors bg-transparent cursor-pointer">
+                      Explore features
                     </Button>
                   </Link>
                 </div>
-                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">
-                  No credit card required. Cancel anytime.
-                </p>
+                <div className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 flex items-center gap-1.5">
+                  <span>[ ✓ ] 14-DAY TRIAL</span>
+                  <span>•</span>
+                  <span>NO CREDIT CARD REQUIRED</span>
+                </div>
               </div>
 
               {/* Right Column: Simulated Chat Widget */}
-              <div className="md:col-span-5 flex justify-center">
-                <div className="w-full max-w-[360px] h-[480px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 flex flex-col overflow-hidden relative">
+              <div className="md:col-span-5 p-8 md:p-12 lg:p-16 flex items-center justify-center bg-neutral-50/30 dark:bg-neutral-950/10">
+                <div className="w-full max-w-[360px] h-[460px] border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black flex flex-col overflow-hidden relative shadow-sm">
                   {/* Chat Header */}
-                  <div className="p-4 border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-900/50 flex items-center gap-3">
-                    <div className="size-8 rounded-full bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-black font-bold text-sm">C</div>
-                    <div>
-                      <h4 className="font-semibold text-sm leading-tight text-neutral-900 dark:text-white">Chatty</h4>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 flex items-center gap-1">
-                        <span className="size-1.5 rounded-full bg-[#f97316] animate-pulse"></span>
-                        Active • Powered by PersonaliAI
-                      </p>
+                  <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex items-center justify-between font-mono text-xs text-neutral-500 dark:text-neutral-455">
+                    <div className="flex items-center gap-2">
+                      <div className="size-2 bg-[#f97316]"></div>
+                      <span className="font-semibold text-neutral-900 dark:text-white uppercase">chatty_agent_v1</span>
                     </div>
+                    <span>[ ACTIVE ]</span>
                   </div>
 
                   {/* Message Container */}
-                  <div className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin text-xs">
+                  <div className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin text-xs">
                     {messages.map((msg, index) => (
                       <div
                         key={index}
-                        className={`flex gap-2 max-w-[85%] ${
+                        className={`flex gap-3 max-w-[90%] ${
                           msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
                         }`}
                       >
-                        {msg.role !== "user" && (
-                          <div className="size-6 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
+                        {msg.role !== "user" ? (
+                          <div className="size-6 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center font-mono text-[10px] text-neutral-500 dark:text-neutral-450 shrink-0 select-none bg-neutral-50 dark:bg-neutral-950">
+                            A
+                          </div>
+                        ) : (
+                          <div className="size-6 border border-neutral-950 dark:border-white flex items-center justify-center font-mono text-[10px] text-neutral-950 dark:text-white shrink-0 select-none bg-neutral-950 dark:bg-white text-white dark:text-black">
+                            U
+                          </div>
                         )}
                         <div
-                          className={`p-3 rounded-2xl leading-relaxed ${
+                          className={`p-3 border leading-relaxed ${
                             msg.role === "user"
-                              ? "bg-neutral-950 text-white rounded-tr-none dark:bg-neutral-100 dark:text-black"
-                              : "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 rounded-tl-none"
+                              ? "bg-neutral-950 text-white border-neutral-950 dark:bg-white dark:text-black dark:border-white"
+                              : "bg-neutral-50 text-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 border-neutral-200 dark:border-neutral-850"
                           }`}
                         >
                           {msg.content}
@@ -326,12 +334,14 @@ export default function Home() {
                       </div>
                     ))}
                     {isTyping && (
-                      <div className="flex gap-2 mr-auto max-w-[85%]">
-                        <div className="size-6 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-[10px] font-bold shrink-0">C</div>
-                        <div className="p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-400 dark:bg-neutral-900 flex items-center gap-1.5">
-                          <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce"></span>
-                          <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.2s]"></span>
-                          <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.4s]"></span>
+                      <div className="flex gap-3 max-w-[90%] mr-auto">
+                        <div className="size-6 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center font-mono text-[10px] text-neutral-500 dark:text-neutral-455 shrink-0 select-none bg-neutral-50 dark:bg-neutral-950">
+                          A
+                        </div>
+                        <div className="p-3 border border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950 flex items-center gap-1.5">
+                          <span className="size-1.5 bg-neutral-400 dark:bg-neutral-600 animate-bounce"></span>
+                          <span className="size-1.5 bg-neutral-400 dark:bg-neutral-600 animate-bounce [animation-delay:0.2s]"></span>
+                          <span className="size-1.5 bg-neutral-400 dark:bg-neutral-600 animate-bounce [animation-delay:0.4s]"></span>
                         </div>
                       </div>
                     )}
@@ -340,310 +350,422 @@ export default function Home() {
 
                   {/* Lead Captured Alert Banner */}
                   {collectedLead && (
-                    <div className="absolute bottom-[60px] left-4 right-4 p-2 bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900/50 rounded-lg flex items-center gap-2 text-[10px] text-green-700 dark:text-green-400">
-                      <CheckCircle2 className="size-3.5 shrink-0" />
-                      <span>Lead captured! Check the dashboard.</span>
+                    <div className="absolute bottom-[60px] left-4 right-4 p-3 bg-white dark:bg-black border-2 border-emerald-500 text-emerald-600 dark:text-emerald-450 font-mono text-[10px] flex items-center gap-2 tracking-tight">
+                      <Check className="size-3.5 shrink-0" />
+                      <span>[ LEAD CAPTURED: CHECK DASHBOARD ]</span>
                     </div>
                   )}
 
                   {/* Input Form */}
-                  <form onSubmit={handleSendMessage} className="p-3 border-t border-neutral-100 dark:border-neutral-900 flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Ask me a question or type 'lead'..."
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      className="flex-1 bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                    />
-                    <button type="submit" className="p-2 bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 flex items-center justify-center shrink-0 cursor-pointer">
-                      <Send className="size-3.5" />
+                  <form onSubmit={handleSendMessage} className="p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex gap-2">
+                    <div className="flex-1 relative flex items-center">
+                      <span className="absolute left-3 font-mono text-neutral-400 dark:text-neutral-500 select-none">&gt;</span>
+                      <input
+                        type="text"
+                        placeholder="Ask a question..."
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        className="w-full bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 rounded-none pl-7 pr-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-900 dark:focus:border-white font-mono"
+                      />
+                    </div>
+                    <button type="submit" className="px-4 bg-neutral-950 text-white dark:bg-white dark:text-black rounded-none border border-neutral-950 dark:border-white hover:opacity-90 flex items-center justify-center font-mono text-xs cursor-pointer uppercase tracking-tight">
+                      Send
                     </button>
                   </form>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* Pricing Section */}
-        <section id="pricing" className="py-16 md:py-24 border-t border-neutral-100 dark:border-neutral-900">
-          <div className="mx-auto max-w-5xl px-6 text-center flex flex-col items-center">
-            <h2 className="text-3xl font-bold text-neutral-900 dark:text-white">Pricing plans</h2>
-            <p className="mt-3 text-neutral-500 dark:text-neutral-400 max-w-lg">
-              All plans come with a 14-day free trial and you can cancel anytime.
-            </p>
-
-            {/* Toggle Switch */}
-            <div className="mt-8 flex items-center gap-3">
-              <span className={`text-sm ${!isYearly ? "text-neutral-900 dark:text-white font-medium" : "text-neutral-400"}`}>Billed monthly</span>
-              <button
-                onClick={() => setIsYearly(!isYearly)}
-                className="w-11 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 p-0.5 transition-colors relative cursor-pointer"
-                aria-label="Toggle billing interval"
-              >
-                <div
-                  className={`size-5 rounded-full bg-neutral-900 dark:bg-white transition-transform ${
-                    isYearly ? "translate-x-5" : ""
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-1.5">
-                <span className={`text-sm ${isYearly ? "text-neutral-900 dark:text-white font-medium" : "text-neutral-400"}`}>Billed yearly</span>
-                <span className="px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] text-[10px] font-bold">2 months free!</span>
-              </div>
-            </div>
-
-            {/* Cards Matrix */}
-            <div className="mt-12 w-full grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
-              {/* Hobby */}
-              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-8 bg-white dark:bg-neutral-950 flex flex-col justify-between relative">
-                <div>
-                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white">Hobby</h3>
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-neutral-900 dark:text-white">${isYearly ? "15" : "19"}</span>
-                    <span className="text-sm text-neutral-500 dark:text-neutral-400">/month</span>
-                  </div>
-                  {isYearly && <p className="text-[10px] text-[#f97316] font-medium mt-1">Billed annually ($190/yr)</p>}
-                  <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400">Perfect for individuals and side projects.</p>
-
-                  <Link href="/dashboard" className="block mt-6">
-                    <Button variant="outline" className="w-full h-10 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 text-xs font-semibold rounded-lg cursor-pointer">
-                      Start free 14-day trial
-                    </Button>
-                  </Link>
-
-                  <hr className="my-6 border-neutral-100 dark:border-neutral-900" />
-
-                  <ul className="space-y-3 text-xs text-neutral-600 dark:text-neutral-400">
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> 1,000 message credits/month</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> 10M training characters</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> 1 chatbot</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Fast & Advanced AI models</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> AI Actions</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Analytics</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Refinements</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Guardrails</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Notifications</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Integrations</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Chat API</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Lead collection</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Domain allowlist</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Community support</li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* Standard */}
-              <div className="rounded-2xl border-2 border-neutral-900 dark:border-white p-8 bg-white dark:bg-neutral-950 flex flex-col justify-between relative">
-                <div className="absolute top-0 right-8 -translate-y-1/2 px-2.5 py-0.5 rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black text-[10px] font-bold uppercase tracking-wider">Most Popular</div>
-                <div>
-                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white">Standard</h3>
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-neutral-900 dark:text-white">${isYearly ? "82" : "99"}</span>
-                    <span className="text-sm text-neutral-500 dark:text-neutral-400">/month</span>
-                  </div>
-                  {isYearly && <p className="text-[10px] text-[#f97316] font-medium mt-1">Billed annually ($990/yr)</p>}
-                  <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400">All in Hobby, plus advanced automation.</p>
-
-                  <Link href="/dashboard" className="block mt-6">
-                    <Button className="w-full h-10 bg-neutral-950 text-white dark:bg-white dark:text-black hover:opacity-90 text-xs font-semibold rounded-lg cursor-pointer">
-                      Start free 14-day trial
-                    </Button>
-                  </Link>
-
-                  <hr className="my-6 border-neutral-100 dark:border-neutral-900" />
-
-                  <ul className="space-y-3 text-xs text-neutral-600 dark:text-neutral-400">
-                    <li className="font-semibold text-neutral-800 dark:text-neutral-200">All in Hobby, plus:</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> 10,000 message credits/month</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> 20M training characters</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> 3 chatbots</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Regular Auto Train</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Advanced notifications</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Remove branding</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Unlimited team members</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Standard support</li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* Business */}
-              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-8 bg-white dark:bg-neutral-950 flex flex-col justify-between relative">
-                <div>
-                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white">Business</h3>
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-neutral-900 dark:text-white">${isYearly ? "332" : "399"}</span>
-                    <span className="text-sm text-neutral-500 dark:text-neutral-400">/month</span>
-                  </div>
-                  {isYearly && <p className="text-[10px] text-[#f97316] font-medium mt-1">Billed annually ($3,990/yr)</p>}
-                  <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400">For enterprise scale and heavy usage.</p>
-
-                  <Link href="/dashboard" className="block mt-6">
-                    <Button variant="outline" className="w-full h-10 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 text-xs font-semibold rounded-lg cursor-pointer">
-                      Start free 14-day trial
-                    </Button>
-                  </Link>
-
-                  <hr className="my-6 border-neutral-100 dark:border-neutral-900" />
-
-                  <ul className="space-y-3 text-xs text-neutral-600 dark:text-neutral-400">
-                    <li className="font-semibold text-neutral-800 dark:text-neutral-200">All in Standard, plus:</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> 40,000 message credits/month</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> 50M training characters</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> 5 chatbots</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Use your own API keys (BYOK)</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Max Auto Train</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Whitelabel</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Management API</li>
-                    <li className="flex items-center gap-2"><Check className="size-3.5 text-neutral-900 dark:text-white" /> Premium support</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <p className="mt-8 text-xs text-neutral-400 dark:text-neutral-500">All prices are in USD and exclude local taxes (if applicable).</p>
-          </div>
-        </section>
-
-        {/* Features Grid ("The details that matter") */}
-        <section id="features" className="py-16 md:py-24 border-t border-neutral-100 dark:border-neutral-900">
-          <div className="mx-auto max-w-5xl px-6">
-            <div className="text-center max-w-lg mx-auto">
-              <h2 className="text-3xl font-bold text-neutral-900 dark:text-white">The details that matter</h2>
-              <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
-                Explore the depth of Chatty's feature set. Click on any feature card to view a quick explanation.
+          {/* Pricing Section */}
+          <section id="pricing" className="border-b border-neutral-200 dark:border-neutral-900">
+            <div className="p-8 md:p-12 lg:p-16 text-center flex flex-col items-center">
+              <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">[ 01 / TRANSPARENT FEES ]</span>
+              <h2 className="text-3xl font-bold tracking-tight uppercase mt-2">Pricing plans</h2>
+              <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400 max-w-lg font-sans">
+                All plans include a 14-day free trial. Scale up or down as your traffic changes.
               </p>
-            </div>
 
-            <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {featuresList.map((f, i) => {
-                const Icon = f.icon;
-                return (
-                  <div
-                    key={i}
-                    onClick={() => setSelectedFeature(f)}
-                    className="p-6 rounded-2xl border border-neutral-100 dark:border-neutral-900 bg-white dark:bg-neutral-950 hover:border-neutral-300 dark:hover:border-neutral-700 hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
+              {/* Custom Switcher */}
+              <div className="flex justify-center mt-8">
+                <div className="inline-flex border border-neutral-200 dark:border-neutral-800 p-1 bg-neutral-50 dark:bg-neutral-950">
+                  <button
+                    onClick={() => setIsYearly(false)}
+                    className={`px-4 py-1.5 text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
+                      !isYearly
+                        ? "bg-neutral-950 text-white dark:bg-white dark:text-black font-semibold"
+                        : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                    }`}
                   >
-                    <div className="size-10 rounded-lg bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center border border-neutral-100 dark:border-neutral-800 text-neutral-900 dark:text-white mb-4 group-hover:bg-[#f97316]/10 group-hover:text-[#f97316] transition-colors">
-                      <Icon className="size-5" />
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setIsYearly(true)}
+                    className={`px-4 py-1.5 text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      isYearly
+                        ? "bg-neutral-950 text-white dark:bg-white dark:text-black font-semibold"
+                        : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <span>Yearly</span>
+                    <span className="px-1.5 py-0.5 bg-[#f97316] text-white text-[9px] font-bold uppercase tracking-tight">
+                      2 Months Free
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-900 border border-neutral-200 dark:border-neutral-900 mt-12 w-full text-left">
+                {/* Hobby Plan */}
+                <div className="p-8 flex flex-col justify-between min-h-[500px]">
+                  <div>
+                    <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">
+                      [ PLAN: HOBBY ]
+                    </span>
+                    <h3 className="text-xl font-bold mt-2 text-neutral-900 dark:text-white">Hobby</h3>
+                    <div className="mt-6 flex items-baseline gap-1">
+                      <span className="text-5xl font-mono tracking-tight font-semibold text-neutral-900 dark:text-white">
+                        ${isYearly ? "15" : "19"}
+                      </span>
+                      <span className="text-xs font-mono text-neutral-400 dark:text-neutral-500">/mo</span>
                     </div>
-                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                      {f.title}
-                      <ArrowRight className="size-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-[#f97316]" />
-                    </h3>
-                    <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed line-clamp-2">
-                      {f.desc}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* Feature Detail Modal */}
-        {selectedFeature && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div
-              onClick={() => setSelectedFeature(null)}
-              className="absolute inset-0 bg-black/50"
-            />
-            {/* Content Panel */}
-            <div className="relative w-full max-w-md bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl z-10">
-              <button
-                onClick={() => setSelectedFeature(null)}
-                className="absolute top-4 right-4 p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
-                aria-label="Close modal"
-              >
-                <X className="size-4" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="size-10 rounded-lg bg-[#f97316]/10 flex items-center justify-center text-[#f97316]">
-                  {(() => {
-                    const Icon = selectedFeature.icon;
-                    return <Icon className="size-5" />;
-                  })()}
-                </div>
-                <h3 className="text-base font-bold text-neutral-900 dark:text-white">{selectedFeature.title}</h3>
-              </div>
-              <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-350 leading-relaxed">
-                {selectedFeature.desc}
-              </p>
-              <div className="mt-6 p-4 bg-neutral-50 dark:bg-neutral-900/50 rounded-xl border border-neutral-100 dark:border-neutral-900 text-xs text-neutral-500">
-                <span className="font-semibold text-neutral-850 dark:text-neutral-300">How to use:</span>
-                <p className="mt-1">Setup this feature directly inside the Chatty Dashboard under the corresponding management tab in under two clicks.</p>
-              </div>
-              <div className="mt-6 flex justify-end gap-2">
-                <Button size="sm" onClick={() => setSelectedFeature(null)} className="h-8 border-neutral-200 dark:border-neutral-800 text-neutral-700 bg-transparent border rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900 text-xs cursor-pointer">
-                  Dismiss
-                </Button>
-                <Link href="/dashboard" onClick={() => setSelectedFeature(null)}>
-                  <Button size="sm" className="h-8 px-4 text-xs font-semibold bg-neutral-950 text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 cursor-pointer">
-                    Try in Dashboard
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* FAQ Section */}
-        <section id="faq" className="py-16 md:py-24 border-t border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-950/20">
-          <div className="mx-auto max-w-3xl px-6">
-            <h2 className="text-3xl font-bold text-neutral-900 dark:text-white text-center">Frequently asked questions</h2>
-            <div className="mt-12 space-y-4">
-              {faqs.map((faq, index) => {
-                const isOpen = activeFaq === index;
-                return (
-                  <div
-                    key={index}
-                    className="border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 rounded-xl overflow-hidden transition-all duration-200"
-                  >
-                    <button
-                      onClick={() => setActiveFaq(isOpen ? null : index)}
-                      className="w-full px-6 py-4 flex items-center justify-between text-left font-medium text-sm text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors cursor-pointer"
-                      aria-expanded={isOpen}
-                    >
-                      {faq.question}
-                      <ChevronDown
-                        className={`size-4 text-neutral-500 transition-transform duration-200 ${
-                          isOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-                    {isOpen && (
-                      <div className="px-6 pb-4 pt-1 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed border-t border-neutral-100 dark:border-neutral-900 bg-neutral-50/20 dark:bg-neutral-950/20">
-                        {faq.answer}
-                      </div>
+                    {isYearly && (
+                      <span className="text-[9px] font-mono text-[#f97316] block mt-1 uppercase tracking-tight">
+                        Billed annually ($190/yr)
+                      </span>
                     )}
+                    <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-sans">
+                      Perfect for individuals, developers, and side projects.
+                    </p>
+
+                    <ul className="mt-8 space-y-3.5 text-xs text-neutral-600 dark:text-neutral-400">
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>1,000 message credits/mo</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>10M training characters</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>1 chatbot</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>Fast & Advanced AI models</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>AI Actions & Analytics</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>Guardrails & Notifications</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>Lead collection & API</span>
+                      </li>
+                    </ul>
                   </div>
-                );
-              })}
+                  <div className="mt-8">
+                    <Link href="/dashboard" className="block">
+                      <Button className="w-full h-11 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 bg-transparent text-neutral-800 dark:text-neutral-200 text-xs font-mono uppercase tracking-wider rounded-none transition-colors cursor-pointer">
+                        Start 14-day trial
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Standard Plan */}
+                <div className="p-8 flex flex-col justify-between min-h-[500px] bg-neutral-50/30 dark:bg-neutral-950/20 relative">
+                  <div className="absolute top-0 right-8 -translate-y-1/2 px-2.5 py-0.5 border border-neutral-955 bg-neutral-955 text-white dark:border-white dark:bg-white dark:text-black font-mono text-[9px] uppercase tracking-wider">
+                    Popular Choice
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono text-[#f97316] uppercase tracking-widest block font-semibold">
+                      [ PLAN: STANDARD ]
+                    </span>
+                    <h3 className="text-xl font-bold mt-2 text-neutral-900 dark:text-white">Standard</h3>
+                    <div className="mt-6 flex items-baseline gap-1">
+                      <span className="text-5xl font-mono tracking-tight font-semibold text-neutral-900 dark:text-white">
+                        ${isYearly ? "82" : "99"}
+                      </span>
+                      <span className="text-xs font-mono text-neutral-400 dark:text-neutral-500">/mo</span>
+                    </div>
+                    {isYearly && (
+                      <span className="text-[9px] font-mono text-[#f97316] block mt-1 uppercase tracking-tight">
+                        Billed annually ($990/yr)
+                      </span>
+                    )}
+                    <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-sans">
+                      All in Hobby, plus advanced automation and multi-bot systems.
+                    </p>
+
+                    <ul className="mt-8 space-y-3.5 text-xs text-neutral-600 dark:text-neutral-400">
+                      <li className="font-mono text-[10px] uppercase text-neutral-900 dark:text-white tracking-wider list-none font-semibold">All in Hobby, plus:</li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>10,000 message credits/mo</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>20M training characters</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>3 chatbots</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>Daily Auto Train sync</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>Remove branding completely</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>Unlimited team members</span>
+                      </li>
+                    </ul>
+                  </div>
+                  <div className="mt-8">
+                    <Link href="/dashboard" className="block">
+                      <Button className="w-full h-11 bg-neutral-950 hover:bg-neutral-900 text-white dark:bg-white dark:text-black dark:hover:bg-neutral-100 text-xs font-mono uppercase tracking-wider rounded-none transition-colors border border-neutral-950 dark:border-white cursor-pointer">
+                        Start 14-day trial
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Business Plan */}
+                <div className="p-8 flex flex-col justify-between min-h-[500px]">
+                  <div>
+                    <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">
+                      [ PLAN: BUSINESS ]
+                    </span>
+                    <h3 className="text-xl font-bold mt-2 text-neutral-900 dark:text-white">Business</h3>
+                    <div className="mt-6 flex items-baseline gap-1">
+                      <span className="text-5xl font-mono tracking-tight font-semibold text-neutral-900 dark:text-white">
+                        ${isYearly ? "332" : "399"}
+                      </span>
+                      <span className="text-xs font-mono text-neutral-400 dark:text-neutral-500">/mo</span>
+                    </div>
+                    {isYearly && (
+                      <span className="text-[9px] font-mono text-[#f97316] block mt-1 uppercase tracking-tight">
+                        Billed annually ($3,990/yr)
+                      </span>
+                    )}
+                    <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-sans">
+                      For enterprise scale, heavy traffic, and reseller options.
+                    </p>
+
+                    <ul className="mt-8 space-y-3.5 text-xs text-neutral-600 dark:text-neutral-400">
+                      <li className="font-mono text-[10px] uppercase text-neutral-900 dark:text-white tracking-wider list-none font-semibold">All in Standard, plus:</li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>40,000 message credits/mo</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>50M training characters</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>5 chatbots</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>BYOK (Bring-Your-Own-Key) option</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>White-label configuration</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>Management Admin API</span>
+                      </li>
+                    </ul>
+                  </div>
+                  <div className="mt-8">
+                    <Link href="/dashboard" className="block">
+                      <Button className="w-full h-11 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 bg-transparent text-neutral-800 dark:text-neutral-200 text-xs font-mono uppercase tracking-wider rounded-none transition-colors cursor-pointer">
+                        Start 14-day trial
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+              <p className="my-8 text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase">
+                [ TAXES & COMPLIANCE ] ALL PLANS ARE SUBJECT TO LOCAL TAX SYSTEM REGULATION.
+              </p>
+            </div>
+          </section>
+
+          {/* Features Grid Section */}
+          <section id="features" className="border-b border-neutral-200 dark:border-neutral-900">
+            <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-900">
+              {/* Left block: Title */}
+              <div className="md:col-span-4 p-8 md:p-12 flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">[ 02 / CAPABILITIES ]</span>
+                  <h2 className="text-3xl font-bold tracking-tight uppercase">Core Features</h2>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-sans max-w-sm">
+                  A granular index of Chatty's feature set. Click on any block to see detailed configuration parameters and dashboard instructions.
+                </p>
+              </div>
+
+              {/* Right block: Grid cells */}
+              <div className="md:col-span-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 -mt-px -ml-px">
+                  {featuresList.map((f, i) => {
+                    const Icon = f.icon;
+                    const indexStr = String(i + 1).padStart(2, "0");
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => setSelectedFeature(f)}
+                        className="border-b border-r border-neutral-200 dark:border-neutral-900 p-6 flex flex-col justify-between min-h-[180px] hover:bg-neutral-50 dark:hover:bg-neutral-950/45 transition-colors cursor-pointer group"
+                      >
+                        <div className="flex items-start justify-between">
+                          <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500">[{indexStr}]</span>
+                          <Icon className="size-4 text-neutral-400 group-hover:text-[#f97316] transition-colors" />
+                        </div>
+                        <div className="mt-8 space-y-2">
+                          <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-neutral-900 dark:text-white flex items-center justify-between">
+                            {f.title}
+                            <ArrowRight className="size-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-[#f97316]" />
+                          </h3>
+                          <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed line-clamp-2">
+                            {f.desc}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* FAQ Section */}
+          <section id="faq" className="border-b border-neutral-200 dark:border-neutral-900">
+            <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-900">
+              {/* Left block: Title */}
+              <div className="md:col-span-4 p-8 md:p-12 flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">[ 03 / COMMON INQUIRIES ]</span>
+                  <h2 className="text-3xl font-bold tracking-tight uppercase">Questions</h2>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-sans max-w-sm">
+                  Everything you need to know about Chatty's training mechanics, costs, safety layers, and white-label setups.
+                </p>
+              </div>
+
+              {/* Right block: Accordions */}
+              <div className="md:col-span-8 p-8 md:p-12">
+                <div className="divide-y divide-neutral-200 dark:divide-neutral-900">
+                  {faqs.map((faq, index) => {
+                    const isOpen = activeFaq === index;
+                    return (
+                      <div key={index} className="py-5 first:pt-0 last:pb-0">
+                        <button
+                          onClick={() => setActiveFaq(isOpen ? null : index)}
+                          className="w-full flex items-center justify-between text-left font-medium text-sm text-neutral-900 dark:text-white hover:text-[#f97316] transition-colors cursor-pointer group"
+                          aria-expanded={isOpen}
+                        >
+                          <span className="font-sans font-semibold tracking-tight">{faq.question}</span>
+                          <ChevronDown
+                            className={`size-4 text-neutral-400 transition-transform duration-200 group-hover:text-[#f97316] ${
+                              isOpen ? "rotate-180 text-[#f97316]" : ""
+                            }`}
+                          />
+                        </button>
+                        {isOpen && (
+                          <div className="mt-3 text-xs text-neutral-550 dark:text-neutral-400 leading-relaxed font-sans pr-8">
+                            {faq.answer}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        {/* Footer */}
+        <footer className="p-8 md:p-12 bg-neutral-50/50 dark:bg-neutral-950/20 font-mono text-xs border-t border-neutral-200 dark:border-neutral-900">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm tracking-widest font-bold flex items-center gap-1.5 uppercase text-neutral-900 dark:text-white">
+                <span className="size-5 bg-neutral-950 dark:bg-white flex items-center justify-center text-white dark:text-black font-mono font-bold text-xs">C</span>
+                Chatty
+              </span>
+              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">[ BY PERSONALIAI ]</span>
+            </div>
+            <div className="flex flex-wrap gap-x-8 gap-y-4 uppercase tracking-wider text-neutral-500 dark:text-neutral-450">
+              <Link href="#features" className="hover:text-neutral-950 dark:hover:text-white transition-colors">Features</Link>
+              <Link href="#pricing" className="hover:text-neutral-950 dark:hover:text-white transition-colors">Pricing</Link>
+              <Link href="#faq" className="hover:text-neutral-950 dark:hover:text-white transition-colors">FAQ</Link>
+              <Link href="/privacy" className="hover:text-neutral-950 dark:hover:text-white transition-colors">Privacy</Link>
+              <Link href="/terms" className="hover:text-neutral-950 dark:hover:text-white transition-colors">Terms</Link>
+            </div>
+            <p className="text-[10px] text-neutral-450 dark:text-neutral-500">&copy; {new Date().getFullYear()} PersonaliAI. All rights reserved.</p>
+          </div>
+        </footer>
+      </div>
+
+      {/* Feature Detail Modal overlay */}
+      {selectedFeature && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 dark:bg-black/70 backdrop-blur-xs">
+          <div
+            onClick={() => setSelectedFeature(null)}
+            className="absolute inset-0"
+          />
+          <div className="relative w-full max-w-md bg-white dark:bg-neutral-950 border border-neutral-900 dark:border-neutral-100 rounded-none p-6 shadow-2xl z-10 text-left">
+            <button
+              onClick={() => setSelectedFeature(null)}
+              className="absolute top-4 right-4 p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer border border-transparent hover:border-neutral-200 dark:hover:border-neutral-800"
+              aria-label="Close modal"
+            >
+              <X className="size-4" />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="size-8 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center text-[#f97316]">
+                {(() => {
+                  const Icon = selectedFeature.icon;
+                  return <Icon className="size-4" />;
+                })()}
+              </div>
+              <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-neutral-900 dark:text-white">{selectedFeature.title}</h3>
+            </div>
+            <p className="mt-4 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed font-sans">
+              {selectedFeature.desc}
+            </p>
+            <div className="mt-6 p-4 border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 text-[11px] text-neutral-500 font-mono">
+              <span className="font-bold text-neutral-900 dark:text-white uppercase">[ IMPLEMENTATION ]</span>
+              <p className="mt-2 text-neutral-450 leading-relaxed">Configure this parameter inside the Chatty administration panel. No custom code injection or server-side configuration is needed.</p>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button size="sm" onClick={() => setSelectedFeature(null)} className="h-9 px-4 text-xs font-mono uppercase tracking-wider border border-neutral-200 dark:border-neutral-850 hover:bg-neutral-100 dark:hover:bg-neutral-900 bg-transparent text-neutral-700 dark:text-neutral-300 rounded-none cursor-pointer">
+                Dismiss
+              </Button>
+              <Link href="/dashboard" onClick={() => setSelectedFeature(null)}>
+                <Button size="sm" className="h-9 px-4 text-xs font-mono uppercase tracking-wider bg-neutral-950 text-white dark:bg-white dark:text-black hover:opacity-90 rounded-none cursor-pointer border border-neutral-950 dark:border-white">
+                  Try Feature
+                </Button>
+              </Link>
             </div>
           </div>
-        </section>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-neutral-100 dark:border-neutral-900 py-12 bg-white dark:bg-neutral-950">
-        <div className="mx-auto max-w-5xl px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm tracking-tight flex items-center gap-1.5">
-              <span className="size-5 rounded-md bg-neutral-950 dark:bg-white flex items-center justify-center text-white dark:text-black font-bold text-xs">C</span>
-              Chatty
-            </span>
-            <span className="text-[10px] text-neutral-400 dark:text-neutral-500">by PersonaliAI</span>
-          </div>
-          <div className="flex flex-wrap justify-center gap-6 text-xs text-neutral-500 dark:text-neutral-400">
-            <Link href="#features" className="hover:text-neutral-950 dark:hover:text-white transition-colors">Features</Link>
-            <Link href="#pricing" className="hover:text-neutral-950 dark:hover:text-white transition-colors">Pricing</Link>
-            <Link href="#faq" className="hover:text-neutral-950 dark:hover:text-white transition-colors">FAQ</Link>
-            <Link href="/privacy" className="hover:text-neutral-950 dark:hover:text-white transition-colors">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-neutral-950 dark:hover:text-white transition-colors">Terms of Service</Link>
-          </div>
-          <p className="text-[11px] text-neutral-400 dark:text-neutral-500">&copy; {new Date().getFullYear()} PersonaliAI. All rights reserved.</p>
         </div>
-      </footer>
+      )}
     </div>
   );
 }
