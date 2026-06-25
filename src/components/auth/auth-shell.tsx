@@ -25,7 +25,7 @@ export function AuthShell({
         <div className="flex flex-col items-center text-center mb-8">
           <Link href="/" className="mb-6">
             <Image
-              src="/logo.webp"
+              src="/logo.png"
               alt="PersonaliAI"
               width={140}
               height={28}
