@@ -246,6 +246,15 @@ export default function EmbedWidget() {
     loadBot();
   }, [botId, paramColor, paramStyle]);
 
+  // Force transparent iframe body background to resolve sub-pixel corner bleeding
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.style.setProperty("background-color", "transparent", "important");
+      document.body.style.setProperty("background-color", "transparent", "important");
+      document.body.style.setProperty("background", "transparent", "important");
+    }
+  }, []);
+
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotResponding, tab]);
 
   // ---- Text message ----
@@ -373,7 +382,7 @@ export default function EmbedWidget() {
   };
 
   return (
-    <div className={`w-full h-screen bg-white dark:bg-neutral-900 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} rounded-2xl`}>
+    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} rounded-2xl`} style={{ backgroundColor: primaryColor }}>
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
@@ -394,7 +403,7 @@ export default function EmbedWidget() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
+      <div className="flex-1 overflow-y-auto scrollbar-thin bg-card">
         {/* HOME */}
         {tab === "home" && (
           <div className="p-4 space-y-3">
@@ -512,7 +521,7 @@ export default function EmbedWidget() {
 
       {/* Composer (Messages tab only) */}
       {tab === "messages" && (
-        <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
+        <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
           {emojiOpen && (
             <div className="absolute bottom-[84px] left-2.5 right-2.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-lg z-10 overflow-hidden">
