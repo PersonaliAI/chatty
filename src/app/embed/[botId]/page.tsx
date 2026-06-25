@@ -114,6 +114,11 @@ export default function EmbedWidget() {
     return botName[0]?.toUpperCase();
   };
 
+  const headerLogoInner = (iconCls: string) => {
+    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />;
+    return avatarInner(iconCls);
+  };
+
   // Clear the conversation AND start a fresh backend session (new session_id),
   // so the assistant treats the next message as a brand-new conversation.
   const clearChat = () => {
@@ -396,7 +401,7 @@ export default function EmbedWidget() {
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
           <div className="size-11 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-base overflow-hidden shrink-0">
-            {avatarInner("size-6")}
+            {headerLogoInner("size-6")}
           </div>
           <div className="leading-tight">
             <h4 className="font-semibold text-sm text-white">{botName}</h4>

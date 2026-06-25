@@ -2252,6 +2252,11 @@ export default function Dashboard() {
     return (botName?.[0] || "C").toUpperCase();
   };
 
+  const dashHeaderLogo = (iconCls: string) => {
+    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />;
+    return dashAvatar(iconCls);
+  };
+
   // Code snippets
   const embedScriptCode = `<script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  defer\n></script>`;
   const embedIframeCode = `<iframe\n  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}"\n  width="100%"\n  height="600"\n  frameborder="0"\n></iframe>`;
@@ -2869,7 +2874,7 @@ export default function Dashboard() {
                         widgetStyle === "minimalist" ? "text-white" : ""
                       }`}
                     >
-                      <div className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0">{dashAvatar("size-6")}</div>
+                      <div className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0">{dashHeaderLogo("size-6")}</div>
                       <div>
                         <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
                         <p className="text-[9px] opacity-80">Online • presets: {widgetStyle}</p>
@@ -3532,7 +3537,7 @@ export default function Dashboard() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="size-8 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-sm overflow-hidden">{dashAvatar("size-[18px]")}</div>
+                    <div className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0">{dashHeaderLogo("size-6")}</div>
                     <div>
                       <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
                       <p className="text-[9px] opacity-80 flex items-center gap-1">
