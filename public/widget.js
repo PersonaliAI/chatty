@@ -182,15 +182,23 @@
 
   function applyMobile() {
     if (mobileFull && window.innerWidth <= 480) {
-      panel.style.width = "100vw"; panel.style.height = "100vh";
-      panel.style.maxWidth = "100vw"; panel.style.maxHeight = "100vh";
-      panel.style.bottom = "0"; panel.style[side] = "0"; panel.style.borderRadius = "0";
-      iframe.style.borderRadius = "0";
+      panel.style.setProperty("width", "100vw", "important");
+      panel.style.setProperty("height", "100vh", "important");
+      panel.style.setProperty("max-width", "100vw", "important");
+      panel.style.setProperty("max-height", "100vh", "important");
+      panel.style.setProperty("bottom", "0px", "important");
+      panel.style.setProperty(side, "0px", "important");
+      panel.style.setProperty("border-radius", "0px", "important");
+      iframe.style.setProperty("border-radius", "0px", "important");
     } else {
-      panel.style.width = "380px"; panel.style.height = "560px";
-      panel.style.maxWidth = "calc(100vw - 40px)"; panel.style.maxHeight = "calc(100vh - 120px)";
-      panel.style.bottom = "92px"; panel.style[side] = "20px"; panel.style.borderRadius = "16px";
-      iframe.style.borderRadius = "16px";
+      panel.style.setProperty("width", "380px", "important");
+      panel.style.setProperty("height", "560px", "important");
+      panel.style.setProperty("max-width", "calc(100vw - 40px)", "important");
+      panel.style.setProperty("max-height", "calc(100vh - 120px)", "important");
+      panel.style.setProperty("bottom", "92px", "important");
+      panel.style.setProperty(side, "20px", "important");
+      panel.style.setProperty("border-radius", "16px", "important");
+      iframe.style.setProperty("border-radius", "16px", "important");
     }
   }
 
@@ -204,16 +212,16 @@
     }
     renderBadge();
     applyMobile();
-    panel.style.opacity = open ? "1" : "0";
-    panel.style.transform = open ? "translateY(0) scale(1)" : "translateY(12px) scale(.98)";
-    panel.style.pointerEvents = open ? "auto" : "none";
+    panel.style.setProperty("opacity", open ? "1" : "0", "important");
+    panel.style.setProperty("transform", open ? "translateY(0) scale(1)" : "translateY(12px) scale(.98)", "important");
+    panel.style.setProperty("pointer-events", open ? "auto" : "none", "important");
     setBtnIcon();
     btn.setAttribute("aria-label", open ? "Close chat" : "Open chat");
     // On mobile full-screen, hide the floating launcher while open — the
     // in-panel header close button handles closing, avoiding overlap with the
     // composer's send button.
     var hideLauncher = open && mobileFull && window.innerWidth <= 480;
-    btn.style.display = hideLauncher ? "none" : "flex";
+    btn.style.setProperty("display", hideLauncher ? "none" : "flex", "important");
   }
 
   btn.addEventListener("click", function () {

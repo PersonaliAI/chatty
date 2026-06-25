@@ -173,6 +173,21 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Listen for close/ready messages from the embedded iframe chatbot
+  useEffect(() => {
+    const handleMessage = (ev: MessageEvent) => {
+      if (ev.data && typeof ev.data === "object") {
+        if (ev.data.type === "chatty:close") {
+          setIsWidgetOpen(false);
+          setIsConnecting(false);
+          setProgress(0);
+        }
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
   // Waiting wheel circulation progress when connecting
   useEffect(() => {
     if (!isConnecting) {
@@ -719,15 +734,19 @@ export default function Home() {
 
       {/* Live Chatbot Widget Overlay */}
       {(isWidgetOpen || isConnecting) && (
-        <div className={`fixed bottom-24 right-6 w-[380px] h-[540px] max-w-[calc(100vw-2rem)] bg-transparent border border-neutral-200 dark:border-neutral-900 shadow-2xl z-50 flex flex-col rounded-2xl overflow-hidden transition-all duration-350 ease-out ${
-          isWidgetOpen 
-            ? "opacity-100 translate-y-0 scale-100 pointer-events-auto" 
-            : "opacity-0 translate-y-4 scale-95 pointer-events-none"
-        }`}>
+        <div className={`fixed z-50 flex flex-col overflow-hidden transition-all duration-350 ease-out bg-transparent
+          w-full h-full bottom-0 right-0 rounded-none border-0
+          sm:w-[380px] sm:h-[540px] sm:bottom-24 sm:right-6 sm:rounded-2xl sm:border sm:border-neutral-200 sm:dark:border-neutral-900 sm:shadow-2xl
+          ${
+            isWidgetOpen 
+              ? "opacity-100 translate-y-0 scale-100 pointer-events-auto" 
+              : "opacity-0 translate-y-4 scale-95 pointer-events-none"
+          }`}
+        >
           {/* Iframe */}
           <iframe
-            src="https://chatty.personaliai.com/embed/88330496-43be-48cc-a587-65b0c8ab09d7?color=%23f97316&style=minimalist"
-            className="flex-1 w-full border-0 rounded-2xl"
+            src="https://chatty.personaliai.com/embed/88330496-43be-48cc-a587-65b0c8ab09d7"
+            className="flex-1 w-full border-0 rounded-none sm:rounded-2xl"
             allow="microphone"
             onLoad={handleIframeLoad}
           />
