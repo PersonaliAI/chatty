@@ -90,12 +90,15 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
   const finish = async () => {
     setSaving(true);
     try {
-      await supabase.from("chatty_bots").update({
+      const { error } = await supabase.from("chatty_bots").update({
         name, primary_color: primaryColor, widget_style: widgetStyle,
         welcome_message: welcomeMessage, system_instructions: systemInstructions,
-        logo_url: logoUrl, onboarding_completed: true, onboarding_step: 9,
+        logo_url: logoUrl,
+        avatar_icon: logoUrl ? "logo" : "bot",
+        onboarding_completed: true, onboarding_step: 9,
         updated_at: new Date().toISOString(),
       }).eq("id", botId);
+      if (error) throw error;
       onComplete({ name, primaryColor, widgetStyle, welcomeMessage, systemInstructions, logoUrl });
       onClose();
     } catch (e) {

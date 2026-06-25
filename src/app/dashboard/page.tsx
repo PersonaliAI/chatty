@@ -2244,6 +2244,7 @@ export default function Dashboard() {
   const dashAvatar = (iconCls: string) => {
     const ICONS: Record<string, any> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
     if (avatarIcon === "custom" && avatarUrl) return <img src={avatarUrl} alt="" className="size-full object-cover" />;
+    if (logoUrl && (avatarIcon === "logo" || avatarIcon === "bot")) return <img src={logoUrl} alt="" className="size-full object-cover" />;
     if (avatarIcon && avatarIcon !== "logo" && ICONS[avatarIcon]) {
       const Ic = ICONS[avatarIcon];
       return <Ic className={iconCls} />;

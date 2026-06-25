@@ -171,9 +171,7 @@
     if (!open) btn.innerHTML = chatIcon;
   }
   try {
-    fetch(BACKEND + "/api/widget/theme?bot_id=" + encodeURIComponent(botId) + "&t=" + new Date().getTime(), {
-      headers: { "Cache-Control": "no-cache" }
-    })
+    fetch(BACKEND + "/api/widget/theme?bot_id=" + encodeURIComponent(botId) + "&t=" + new Date().getTime())
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (!d) return;
