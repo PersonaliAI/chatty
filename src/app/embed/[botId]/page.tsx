@@ -106,7 +106,6 @@ export default function EmbedWidget() {
 
   const avatarInner = (iconCls: string) => {
     if (avatarIcon === "custom" && avatarUrl) return <img src={avatarUrl} alt="" className="size-full object-cover" />;
-    if (logoUrl && (avatarIcon === "logo" || avatarIcon === "bot")) return <img src={logoUrl} alt="" className="size-full object-cover" />;
     if (avatarIcon && avatarIcon !== "logo" && AVATAR_ICONS[avatarIcon]) {
       const Icon = AVATAR_ICONS[avatarIcon];
       return <Icon className={iconCls} />;
