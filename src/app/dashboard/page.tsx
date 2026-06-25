@@ -2232,6 +2232,7 @@ export default function Dashboard() {
       if (res.ok) {
         const d = await res.json();
         setLogoUrl(d.logo_url);
+        setAvatarIcon("logo");
         setHasUnsavedChanges(true);
       }
     } catch {} finally {
