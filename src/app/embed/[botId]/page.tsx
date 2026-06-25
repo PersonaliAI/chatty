@@ -210,6 +210,12 @@ export default function EmbedWidget() {
     return searchParams.get("host") || "";
   };
 
+  const isOfficialWebsite = (() => {
+    if (typeof window === "undefined") return true;
+    const host = getHost().toLowerCase();
+    return host.includes("chatty.personaliai.com");
+  })();
+
   useEffect(() => {
     async function loadBot() {
       if (!botId) return;
@@ -550,6 +556,19 @@ export default function EmbedWidget() {
               })()}
             </div>
           </form>
+          {!isOfficialWebsite && (
+            <div className="text-center pt-2 pb-0.5 text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide">
+              Powered by{" "}
+              <a
+                href="https://chatty.personaliai.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
+              >
+                Chatty
+              </a>
+            </div>
+          )}
         </div>
       )}
     </div>
