@@ -165,35 +165,7 @@ export default function Home() {
   // Live Widget States
   const [progress, setProgress] = useState(0);
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
-  const [copied1, setCopied1] = useState(false);
-  const [copied2, setCopied2] = useState(false);
-
-  const scriptCode = `<script
-  src="https://chatty.personaliai.com/widget.js"
-  data-id="88330496-43be-48cc-a587-65b0c8ab09d7"
-  data-color="#f97316"
-  data-style="minimalist"
-  defer
-></script>`;
-
-  const iframeCode = `<iframe
-  src="https://chatty.personaliai.com/embed/88330496-43be-48cc-a587-65b0c8ab09d7?color=%23f97316&style=minimalist"
-  width="100%"
-  height="600"
-  frameborder="0"
-></iframe>`;
-
-  const handleCopy1 = () => {
-    navigator.clipboard.writeText(scriptCode);
-    setCopied1(true);
-    setTimeout(() => setCopied1(false), 2000);
-  };
-
-  const handleCopy2 = () => {
-    navigator.clipboard.writeText(iframeCode);
-    setCopied2(true);
-    setTimeout(() => setCopied2(false), 2000);
-  };
+  const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -201,19 +173,49 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Waiting wheel circulation progress
+  // Waiting wheel circulation progress when connecting
   useEffect(() => {
+    if (!isConnecting) {
+      if (!isWidgetOpen) {
+        setProgress(0);
+      }
+      return;
+    }
+
     const interval = setInterval(() => {
       setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
+        if (prev >= 90) {
+          return 90; // Wait at 90% until iframe load triggers 100%
         }
-        return prev + 1;
+        return prev + 5; // Climb to 90% smoothly
       });
-    }, 35); // 3.5 seconds total
+    }, 50);
+
     return () => clearInterval(interval);
-  }, []);
+  }, [isConnecting, isWidgetOpen]);
+
+  const handleIframeLoad = () => {
+    if (isConnecting) {
+      setProgress(100);
+      setTimeout(() => {
+        setIsConnecting(false);
+        setIsWidgetOpen(true);
+      }, 150); // short delay to show 100% progress
+    }
+  };
+
+  const handleToggleWidget = () => {
+    if (isWidgetOpen) {
+      setIsWidgetOpen(false);
+      setProgress(0);
+    } else if (isConnecting) {
+      setIsConnecting(false);
+      setProgress(0);
+    } else {
+      setIsConnecting(true);
+      setProgress(0);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans antialiased selection:bg-neutral-200 dark:selection:bg-neutral-800">
@@ -255,90 +257,35 @@ export default function Home() {
 
         <main className="flex-1 pt-16">
           {/* Hero Section */}
-          <section className="border-b border-neutral-200 dark:border-neutral-900">
-            <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-900">
-              {/* Left Column */}
-              <div className="md:col-span-7 p-8 md:p-12 lg:p-16 flex flex-col justify-center space-y-8 text-left">
-                <div className="flex items-center gap-2 text-xs font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">
-                  <span className="size-1.5 bg-[#f97316]"></span>
-                  <span>[ 00 / CUSTOM AGENT ]</span>
-                </div>
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight leading-[1.1] text-neutral-900 dark:text-white">
-                  Trained on your content. <br />
-                  <span className="text-neutral-400 dark:text-neutral-500 font-light">Optimized for conversion.</span>
-                </h1>
-                <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xl font-sans font-normal">
-                  An AI chatbot that does more than just chat. Plug in your website, files, and tools. Deploy a custom assistant that captures leads and triggers actions. Zero coding, active on your website in under five minutes.
-                </p>
-                <div className="flex flex-wrap items-center gap-4 pt-2">
-                  <Link href="/dashboard">
-                    <Button className="h-12 px-6 bg-neutral-950 hover:bg-neutral-900 text-white dark:bg-white dark:text-black dark:hover:bg-neutral-100 rounded-none text-xs font-mono uppercase tracking-wider transition-colors border border-neutral-950 dark:border-white cursor-pointer">
-                      Start free 14-day trial
-                    </Button>
-                  </Link>
-                  <Link href="#features">
-                    <Button variant="outline" className="h-12 px-6 border-neutral-200 dark:border-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-900 rounded-none text-xs font-mono uppercase tracking-wider transition-colors bg-transparent cursor-pointer">
-                      Explore features
-                    </Button>
-                  </Link>
-                </div>
-                <div className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 flex items-center gap-1.5">
-                  <span>[ ✓ ] 14-DAY TRIAL</span>
-                  <span>•</span>
-                  <span>NO CREDIT CARD REQUIRED</span>
-                </div>
+          <section className="border-b border-neutral-200 dark:border-neutral-900 py-16 md:py-24">
+            <div className="max-w-3xl mx-auto px-8 flex flex-col items-center text-center space-y-8">
+              <div className="flex items-center gap-2 text-xs font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest justify-center">
+                <span className="size-1.5 bg-[#f97316]"></span>
+                <span>[ 00 / CUSTOM AGENT ]</span>
               </div>
-              {/* Right Column: Embed Chatbot Code */}
-              <div className="md:col-span-5 p-6 md:p-8 flex flex-col justify-center space-y-6 bg-neutral-50/20 dark:bg-neutral-950/10 font-sans border-t md:border-t-0 border-neutral-200 dark:border-neutral-900">
-                <div className="space-y-2">
-                  <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">
-                    [ 00 / INTEGRATION ]
-                  </span>
-                  <h3 className="text-xl font-bold uppercase tracking-tight text-neutral-900 dark:text-white">
-                    Embed Chatbot
-                  </h3>
-                  <p className="text-xs text-neutral-555 dark:text-neutral-400 leading-relaxed">
-                    Copy and paste either the Javascript bundle or the inline iframe element onto your website.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Option 1 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="text-neutral-500 dark:text-neutral-450 uppercase tracking-wide text-[10px]">
-                        Option 1: Script (Recommended)
-                      </span>
-                      <button
-                        onClick={handleCopy1}
-                        className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 font-mono text-[9px] uppercase tracking-wider text-neutral-600 dark:text-neutral-350 cursor-pointer"
-                      >
-                        {copied1 ? "Copied!" : "Copy Code"}
-                      </button>
-                    </div>
-                    <pre className="p-3 bg-neutral-950 text-neutral-200 border border-neutral-800 font-mono text-[10px] overflow-x-auto whitespace-pre rounded-none select-all max-h-[120px] scrollbar-thin">
-                      {scriptCode}
-                    </pre>
-                  </div>
-
-                  {/* Option 2 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="text-neutral-500 dark:text-neutral-450 uppercase tracking-wide text-[10px]">
-                        Option 2: Dedicated Embed Iframe
-                      </span>
-                      <button
-                        onClick={handleCopy2}
-                        className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 font-mono text-[9px] uppercase tracking-wider text-neutral-600 dark:text-neutral-350 cursor-pointer"
-                      >
-                        {copied2 ? "Copied!" : "Copy Code"}
-                      </button>
-                    </div>
-                    <pre className="p-3 bg-neutral-950 text-neutral-200 border border-neutral-800 font-mono text-[10px] overflow-x-auto whitespace-pre rounded-none select-all max-h-[120px] scrollbar-thin">
-                      {iframeCode}
-                    </pre>
-                  </div>
-                </div>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight leading-[1.1] text-neutral-900 dark:text-white">
+                Trained on your content. <br />
+                <span className="text-neutral-400 dark:text-neutral-500 font-light">Optimized for conversion.</span>
+              </h1>
+              <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xl font-sans font-normal">
+                An AI chatbot that does more than just chat. Plug in your website, files, and tools. Deploy a custom assistant that captures leads and triggers actions. Zero coding, active on your website in under five minutes.
+              </p>
+              <div className="flex flex-wrap justify-center items-center gap-4 pt-2">
+                <Link href="/dashboard">
+                  <Button className="h-12 px-6 bg-neutral-950 hover:bg-neutral-900 text-white dark:bg-white dark:text-black dark:hover:bg-neutral-100 rounded-none text-xs font-mono uppercase tracking-wider transition-colors border border-neutral-955 dark:border-white cursor-pointer">
+                    Start free 14-day trial
+                  </Button>
+                </Link>
+                <Link href="#features">
+                  <Button variant="outline" className="h-12 px-6 border-neutral-200 dark:border-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-900 rounded-none text-xs font-mono uppercase tracking-wider transition-colors bg-transparent cursor-pointer">
+                    Explore features
+                  </Button>
+                </Link>
+              </div>
+              <div className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 flex items-center gap-1.5 justify-center">
+                <span>[ ✓ ] 14-DAY TRIAL</span>
+                <span>•</span>
+                <span>NO CREDIT CARD REQUIRED</span>
               </div>
             </div>
           </section>
@@ -736,7 +683,7 @@ export default function Home() {
       {/* Floating Chat Button & Waiting Circle */}
       <div className="fixed bottom-6 right-6 z-50 flex items-center justify-center select-none">
         {/* Progress circular waiting indicator */}
-        <svg className="absolute w-[72px] h-[72px] -rotate-90">
+        <svg className={`absolute w-[72px] h-[72px] -rotate-90 transition-opacity duration-300 ${isConnecting ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
           <circle
             cx="36"
             cy="36"
@@ -758,11 +705,11 @@ export default function Home() {
         </svg>
         {/* Toggle Button */}
         <button
-          onClick={() => setIsWidgetOpen(!isWidgetOpen)}
+          onClick={handleToggleWidget}
           className="size-14 rounded-full bg-neutral-950 text-white dark:bg-white dark:text-black flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity cursor-pointer z-10 focus:outline-none"
           title="Chat Assistant"
         >
-          {isWidgetOpen ? (
+          {isWidgetOpen || isConnecting ? (
             <X className="size-6" />
           ) : (
             <MessageSquare className="size-6" />
@@ -771,13 +718,18 @@ export default function Home() {
       </div>
 
       {/* Live Chatbot Widget Overlay */}
-      {isWidgetOpen && (
-        <div className="fixed bottom-24 right-6 w-[380px] h-[540px] max-w-[calc(100vw-2rem)] bg-white dark:bg-black border border-neutral-200 dark:border-neutral-900 shadow-2xl z-50 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-200 rounded-none">
+      {(isWidgetOpen || isConnecting) && (
+        <div className={`fixed bottom-24 right-6 w-[380px] h-[540px] max-w-[calc(100vw-2rem)] bg-white dark:bg-black border border-neutral-200 dark:border-neutral-900 shadow-2xl z-50 flex flex-col rounded-none transition-all duration-350 ease-out ${
+          isWidgetOpen 
+            ? "opacity-100 translate-y-0 scale-100 pointer-events-auto" 
+            : "opacity-0 translate-y-4 scale-95 pointer-events-none"
+        }`}>
           {/* Iframe */}
           <iframe
             src="https://chatty.personaliai.com/embed/88330496-43be-48cc-a587-65b0c8ab09d7?color=%23f97316&style=minimalist"
             className="flex-1 w-full border-0"
             allow="microphone"
+            onLoad={handleIframeLoad}
           />
         </div>
       )}
