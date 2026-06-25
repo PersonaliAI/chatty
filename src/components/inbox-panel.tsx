@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2, Paperclip, Smile, Mic, Square, X } from "lucide-react";
+import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2, Paperclip, Smile, Mic, Square, X, Check, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -74,6 +74,21 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Custom states for toast and confirm modal
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   const current = sessions.find((s) => s.session_id === selected);
 
   const loadSessions = useCallback(async () => {
@@ -138,7 +153,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       loadSessions();
       if (selected) loadMessages(selected);
     } catch {
-      alert("Failed to upload attachment");
+      showToast("Failed to upload attachment", "error");
     } finally {
       setSending(false);
     }
@@ -176,21 +191,27 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       mr.start();
       setRecording(true);
     } catch {
-      alert("Microphone access denied.");
+      showToast("Microphone access denied.", "error");
     }
   };
 
   const deleteSession = async (sid: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Delete this conversation? This can't be undone.")) return;
-    setSessions((p) => p.filter((s) => s.session_id !== sid));
-    if (selected === sid) { setSelected(null); setMessages([]); }
-    try {
-      await fetchBackend("/api/admin/inbox/delete", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, session_id: sid }),
-      });
-    } catch {}
+    setConfirmModal({
+      title: "Delete Conversation",
+      message: "Are you sure you want to delete this conversation? This can't be undone.",
+      onConfirm: async () => {
+        setSessions((p) => p.filter((s) => s.session_id !== sid));
+        if (selected === sid) { setSelected(null); setMessages([]); }
+        try {
+          await fetchBackend("/api/admin/inbox/delete", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bot_id: botId, session_id: sid }),
+          });
+          showToast("Conversation deleted successfully.", "success");
+        } catch {}
+      }
+    });
   };
 
   const toggleAI = async (paused: boolean) => {
@@ -385,6 +406,61 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </>
         )}
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-4 py-3 shadow-2xl text-xs font-semibold text-neutral-855 dark:text-white animate-in slide-in-from-bottom-5 fade-in duration-300">
+          {toast.type === "success" ? (
+            <span className="flex size-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/30 text-green-600 dark:text-green-400">
+              <Check className="size-3.5" />
+            </span>
+          ) : (
+            <span className="flex size-5 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400">
+              <AlertCircle className="size-3.5" />
+            </span>
+          )}
+          <span className="max-w-[250px] truncate">{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Confirm Dialog */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
+            <h4 className="text-sm font-bold">{confirmModal.title}</h4>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              {confirmModal.message}
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const onConfirm = confirmModal.onConfirm;
+                  setConfirmModal(null);
+                  onConfirm();
+                }}
+                className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

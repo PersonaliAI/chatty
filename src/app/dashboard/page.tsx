@@ -424,6 +424,31 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [botDropdownOpen, setBotDropdownOpen] = useState(false);
+  
+  // Custom Toast, Confirm & Dialog States
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [createBotModalOpen, setCreateBotModalOpen] = useState(false);
+  const [newBotNameInput, setNewBotNameInput] = useState("");
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ message, type });
+  };
+  const showConfirm = (title: string, message: string, onConfirm: () => void | Promise<void>) => {
+    setConfirmModal({ title, message, onConfirm });
+  };
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   const supabase = createClient();
 
   // User State
@@ -1073,10 +1098,9 @@ export default function Dashboard() {
   }
 
   // Create a new chatbot configuration
-  async function handleCreateBot() {
+  async function handleCreateBot(name: string) {
     if (!user) return;
-    const name = prompt("Enter a name for your new chatbot:", "My Assistant");
-    if (!name) return;
+    if (!name.trim()) return;
 
     setLoadingLists(true);
     try {
@@ -1084,7 +1108,7 @@ export default function Dashboard() {
         .from("chatty_bots")
         .insert({
           user_id: user.id,
-          name: name,
+          name: name.trim(),
           welcome_message: "Hello! How can I help you today?",
           primary_color: "#f97316",
           widget_style: "minimalist",
@@ -1104,11 +1128,11 @@ export default function Dashboard() {
       if (newBot) {
         setUserBots((prev) => [newBot, ...prev]);
         switchActiveBot(newBot.id);
-        alert(`Chatbot "${name}" created successfully!`);
+        showToast(`Chatbot "${name}" created successfully!`, "success");
       }
     } catch (err: any) {
       console.error("Error creating bot:", err);
-      alert(`Failed to create chatbot: ${err.message}`);
+      showToast(`Failed to create chatbot: ${err.message}`, "error");
     } finally {
       setLoadingLists(false);
     }
@@ -1119,8 +1143,6 @@ export default function Dashboard() {
     if (!user) return;
     const targetBot = userBots.find((b) => b.id === targetBotId);
     if (!targetBot) return;
-
-    if (!confirm(`Are you sure you want to delete the chatbot "${targetBot.name}"? This action is permanent and will delete all associated training data, history, and leads.`)) return;
 
     setLoadingLists(true);
     try {
@@ -1142,10 +1164,10 @@ export default function Dashboard() {
           await loadBotSettings(user.id);
         }
       }
-      alert(`Chatbot "${targetBot.name}" deleted successfully.`);
+      showToast(`Chatbot "${targetBot.name}" deleted successfully.`, "success");
     } catch (err: any) {
       console.error("Error deleting bot:", err);
-      alert(`Failed to delete chatbot: ${err.message}`);
+      showToast(`Failed to delete chatbot: ${err.message}`, "error");
     } finally {
       setLoadingLists(false);
     }
@@ -1526,28 +1548,35 @@ export default function Dashboard() {
 
   // Handle Cloud Connector Disconnects
   const handleDisconnectCloud = async (provider: "google" | "microsoft") => {
-    if (!confirm(`Disconnect ${provider === "google" ? "Google" : "Microsoft"}? This will turn off all syncing sources and clear connection tokens.`)) {
-      return;
-    }
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.access_token) return;
+    showConfirm(
+      `Disconnect ${provider === "google" ? "Google" : "Microsoft"}`,
+      `Are you sure you want to disconnect ${provider === "google" ? "Google" : "Microsoft"}? This will turn off all syncing sources and clear connection tokens.`,
+      async () => {
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (!data.session?.access_token) return;
 
-      const res = await fetchWithFallback(`/api/integrations/${provider}/disconnect`, {
-        method: "POST"
-      });
-      if (res.ok) {
-        if (provider === "google") {
-          setGoogleConnected(false);
-          setGoogleEmail(null);
-        } else {
-          setMicrosoftConnected(false);
-          setMicrosoftEmail(null);
+          const res = await fetchWithFallback(`/api/integrations/${provider}/disconnect`, {
+            method: "POST"
+          });
+          if (res.ok) {
+            if (provider === "google") {
+              setGoogleConnected(false);
+              setGoogleEmail(null);
+            } else {
+              setMicrosoftConnected(false);
+              setMicrosoftEmail(null);
+            }
+            showToast(`${provider === "google" ? "Google" : "Microsoft"} disconnected successfully.`, "success");
+          } else {
+            showToast(`Failed to disconnect ${provider}.`, "error");
+          }
+        } catch (err) {
+          console.error(`Error disconnecting ${provider}:`, err);
+          showToast(`Error disconnecting ${provider}.`, "error");
         }
       }
-    } catch (err) {
-      console.error(`Error disconnecting ${provider}:`, err);
-    }
+    );
   };
 
   // Telegram link and unlink
@@ -1577,20 +1606,29 @@ export default function Dashboard() {
   };
 
   const handleUnlinkTelegram = async () => {
-    if (!confirm("Unlink this Telegram chat?")) return;
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.access_token) return;
+    showConfirm(
+      "Unlink Telegram",
+      "Are you sure you want to unlink this Telegram chat?",
+      async () => {
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (!data.session?.access_token) return;
 
-      const res = await fetchWithFallback(`/api/integrations/telegram/unlink`, {
-        method: "POST"
-      });
-      if (res.ok) {
-        setTelegramId(null);
+          const res = await fetchWithFallback(`/api/integrations/telegram/unlink`, {
+            method: "POST"
+          });
+          if (res.ok) {
+            setTelegramId(null);
+            showToast("Telegram chat unlinked successfully.", "success");
+          } else {
+            showToast("Failed to unlink Telegram chat.", "error");
+          }
+        } catch (err) {
+          console.error("Error unlinking Telegram:", err);
+          showToast("Error unlinking Telegram chat.", "error");
+        }
       }
-    } catch (err) {
-      console.error("Error unlinking Telegram:", err);
-    }
+    );
   };
 
   // Persist chatbot appearance/settings to Supabase
@@ -1710,7 +1748,7 @@ export default function Dashboard() {
     // Check size limit: 20MB
     const MAX_SIZE = 20 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      alert("File is too large. Max size allowed is 20MB.");
+      showToast("File is too large. Max size allowed is 20MB.", "error");
       return;
     }
 
@@ -2348,25 +2386,38 @@ export default function Dashboard() {
         const d = await res.json();
         setNewApiKey(d.api_key);
         await loadApiKeys(botId);
+        showToast("API Key created successfully.", "success");
       } else {
         const d = await res.json();
-        alert(`Failed to create key: ${d.detail || "error"}`);
+        showToast(`Failed to create key: ${d.detail || "error"}`, "error");
       }
     } catch (err) {
       console.error("Create API key error:", err);
+      showToast("Error creating API Key.", "error");
     } finally {
       setCreatingApiKey(false);
     }
   };
 
   const handleRevokeApiKey = async (keyId: string) => {
-    if (!confirm("Revoke this API key? Apps using it will stop working immediately.")) return;
-    try {
-      const res = await fetchWithFallback(`/api/keys/${keyId}`, { method: "DELETE" });
-      if (res.ok && botId) await loadApiKeys(botId);
-    } catch (err) {
-      console.error("Revoke API key error:", err);
-    }
+    showConfirm(
+      "Revoke API Key",
+      "Are you sure you want to revoke this API key? Apps using it will stop working immediately.",
+      async () => {
+        try {
+          const res = await fetchWithFallback(`/api/keys/${keyId}`, { method: "DELETE" });
+          if (res.ok && botId) {
+            await loadApiKeys(botId);
+            showToast("API Key revoked successfully.", "success");
+          } else {
+            showToast("Failed to revoke API Key.", "error");
+          }
+        } catch (err) {
+          console.error("Revoke API key error:", err);
+          showToast("Error revoking API Key.", "error");
+        }
+      }
+    );
   };
 
   // Clipboard Copiers
@@ -2743,7 +2794,7 @@ export default function Dashboard() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div>
+        <div className="flex flex-col flex-1 min-h-0">
           {/* Brand Logo */}
           <div className="h-16 px-6 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
@@ -2797,9 +2848,17 @@ export default function Dashboard() {
                         {userBots.length > 1 && (
                           <button
                             type="button"
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation();
-                              await handleDeleteBot(bot.id);
+                              setBotDropdownOpen(false);
+                              const targetBot = userBots.find((b) => b.id === bot.id);
+                              if (targetBot) {
+                                showConfirm(
+                                  "Delete Chatbot",
+                                  `Are you sure you want to delete the chatbot "${targetBot.name}"? This action is permanent and will delete all associated training data, history, and leads.`,
+                                  () => handleDeleteBot(bot.id)
+                                );
+                              }
                             }}
                             className="p-1 rounded text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
                             title="Delete chatbot"
@@ -2814,9 +2873,10 @@ export default function Dashboard() {
                     
                     <button
                       type="button"
-                      onClick={async () => {
+                      onClick={() => {
                         setBotDropdownOpen(false);
-                        await handleCreateBot();
+                        setNewBotNameInput("My Assistant");
+                        setCreateBotModalOpen(true);
                       }}
                       className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#f97316] hover:bg-[#f97316]/5 dark:hover:bg-[#f97316]/10 transition-colors text-left cursor-pointer"
                     >
@@ -2830,7 +2890,7 @@ export default function Dashboard() {
           )}
 
           {/* Navigation Links */}
-          <nav className="p-4 space-y-1">
+          <nav className="p-4 space-y-1 flex-1 overflow-y-auto scrollbar-none">
             {[
               { id: "home", label: t("overview"), icon: Home },
               { id: "customizer", label: t("customizer"), icon: Sliders },
@@ -5717,7 +5777,120 @@ const { reply, session_id } = await res.json();`}</pre>
           </div>
         </div>
       )}
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-4 py-3 shadow-2xl text-xs font-semibold text-neutral-850 dark:text-white animate-in slide-in-from-bottom-5 fade-in duration-300">
+          {toast.type === "success" && (
+            <span className="flex size-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/30 text-green-600 dark:text-green-400">
+              <Check className="size-3.5" />
+            </span>
+          )}
+          {toast.type === "error" && (
+            <span className="flex size-5 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400">
+              <AlertCircle className="size-3.5" />
+            </span>
+          )}
+          {toast.type === "info" && (
+            <span className="flex size-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
+              <AlertCircle className="size-3.5" />
+            </span>
+          )}
+          <span className="max-w-[250px] truncate">{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-2 text-neutral-400 hover:text-neutral-650 dark:hover:text-neutral-200 cursor-pointer"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
 
+      {/* Confirm Dialog */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
+            <h4 className="text-sm font-bold">{confirmModal.title}</h4>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              {confirmModal.message}
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-850 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const onConfirm = confirmModal.onConfirm;
+                  setConfirmModal(null);
+                  await onConfirm();
+                }}
+                className={`px-3 py-1.5 text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer ${
+                  confirmModal.title.toLowerCase().includes("delete") ||
+                  confirmModal.title.toLowerCase().includes("revoke") ||
+                  confirmModal.title.toLowerCase().includes("disconnect") ||
+                  confirmModal.title.toLowerCase().includes("unlink")
+                    ? "bg-red-650 hover:bg-red-700 bg-red-600"
+                    : "bg-[#f97316]"
+                }`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Bot Modal */}
+      {createBotModalOpen && (
+        <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-105 dark:border-neutral-850">
+              <h4 className="text-sm font-bold">Create New Assistant</h4>
+              <button onClick={() => setCreateBotModalOpen(false)} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer">
+                <X className="size-4" />
+              </button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!newBotNameInput.trim()) return;
+              setCreateBotModalOpen(false);
+              await handleCreateBot(newBotNameInput);
+            }} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Assistant Name</label>
+                <input
+                  type="text"
+                  placeholder="My Assistant"
+                  value={newBotNameInput}
+                  onChange={(e) => setNewBotNameInput(e.target.value)}
+                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-250 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateBotModalOpen(false)}
+                  className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer"
+                >
+                  Create
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

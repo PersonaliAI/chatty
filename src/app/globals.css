@@ -368,3 +368,14 @@ body {
 .style-aurora .user-bubble { background: linear-gradient(120deg, #a18cd1, #7aa5fb) !important; color: #fff !important; border-radius: 14px !important; }
 .style-aurora .chat-input-bar { background: rgba(255,255,255,0.55) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.5) !important; }
 
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+

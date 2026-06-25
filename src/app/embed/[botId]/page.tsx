@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
-  ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User,
+  ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
 } from "lucide-react";
 
 // Preset assistant avatar icons (selectable in the customizer).
@@ -167,6 +167,18 @@ export default function EmbedWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastPollRef = useRef<string>(new Date().toISOString());
+
+  // Custom toast state
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+  };
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Persistent per-visitor session id (survives reloads, unique per visitor)
   const [sessionId, setSessionId] = useState(() => {
@@ -377,7 +389,7 @@ export default function EmbedWidget() {
       mr.start();
       setRecording(true);
     } catch {
-      alert("Microphone access denied.");
+      showToast("Microphone access denied.", "error");
     }
   };
 
@@ -636,6 +648,29 @@ export default function EmbedWidget() {
           )}
         </div>
       )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="absolute top-4 left-4 right-4 z-[999] flex items-center gap-2.5 bg-neutral-900/95 dark:bg-neutral-950/95 border border-neutral-800 dark:border-neutral-900 rounded-xl px-3 py-2 shadow-2xl text-[11px] font-semibold text-white animate-in slide-in-from-top-4 fade-in duration-300">
+          {toast.type === "success" ? (
+            <span className="flex size-4.5 items-center justify-center rounded-full bg-green-950/40 text-green-400">
+              <Check className="size-3" />
+            </span>
+          ) : (
+            <span className="flex size-4.5 items-center justify-center rounded-full bg-red-950/40 text-red-400">
+              <AlertCircle className="size-3" />
+            </span>
+          )}
+          <span className="flex-1 truncate">{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="text-neutral-400 hover:text-neutral-200 cursor-pointer"
+          >
+            <X className="size-3" />
+          </button>
+        </div>
+      )}
+
     </div>
   );
 }
