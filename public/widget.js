@@ -95,10 +95,17 @@
   btn.onmouseenter = function () { btn.style.transform = "scale(1.06)"; };
   btn.onmouseleave = function () { btn.style.transform = "scale(1)"; };
   function buildChatIcon(c) {
-    return '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-      '<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="#fff"/>' +
-      '<circle cx="8.5" cy="11" r="1.3" fill="' + c + '"/><circle cx="12" cy="11" r="1.3" fill="' + c + '"/>' +
-      '<circle cx="15.5" cy="11" r="1.3" fill="' + c + '"/></svg>';
+    var isOrange = false;
+    if (c) {
+      var lower = c.toLowerCase().replace(/\s+/g, "");
+      isOrange = (
+        lower === "#f97316" || 
+        lower.indexOf("f97316") !== -1 ||
+        lower.indexOf("249,115,22") !== -1
+      );
+    }
+    var filterStyle = isOrange ? "filter: brightness(0) invert(1) !important;" : "";
+    return '<img src="' + origin + '/favicon.png" style="width:30px !important;height:30px !important;object-fit:contain !important;display:block !important;' + filterStyle + '" alt="Chat" />';
   }
   var chatIcon = buildChatIcon(color);
   var closeIcon =

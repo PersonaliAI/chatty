@@ -249,9 +249,9 @@ export default function Home() {
               <Image
                 src="/favicon.png"
                 alt="Chatty Logo"
-                width={20}
-                height={20}
-                className="size-5 object-contain"
+                width={36}
+                height={36}
+                className="size-9 object-contain"
               />
               <span className="font-mono text-sm tracking-widest font-bold uppercase">
                 Chatty
@@ -739,7 +739,13 @@ export default function Home() {
           {isWidgetOpen || isConnecting ? (
             <X className="size-6" />
           ) : (
-            <MessageSquare className="size-6" />
+            <Image
+              src="/favicon.png"
+              alt="Chat"
+              width={28}
+              height={28}
+              className="size-7 object-contain"
+            />
           )}
         </button>
       </div>
