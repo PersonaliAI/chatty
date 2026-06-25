@@ -94,9 +94,11 @@
     "transition:transform .2s ease;padding:0;";
   btn.onmouseenter = function () { btn.style.transform = "scale(1.06)"; };
   btn.onmouseleave = function () { btn.style.transform = "scale(1)"; };
+  var customIconUrl = null;
   function buildChatIcon(c) {
+    var iconSrc = customIconUrl || (origin + "/favicon.png");
     var isOrange = false;
-    if (c) {
+    if (c && !customIconUrl) {
       var lower = c.toLowerCase().replace(/\s+/g, "");
       isOrange = (
         lower === "#f97316" || 
@@ -105,7 +107,12 @@
       );
     }
     var filterStyle = isOrange ? "filter: brightness(0) invert(1) !important;" : "";
-    return '<img src="' + origin + '/favicon.png" style="width:36px !important;height:36px !important;object-fit:contain !important;display:block !important;' + filterStyle + '" alt="Chat" />';
+    var borderStyle = customIconUrl ? "border-radius:50% !important;object-fit:cover !important;" : "object-fit:contain !important;";
+    return '<img src="' + iconSrc + '" style="width:44px !important;height:44px !important;display:block !important;' + borderStyle + filterStyle + '" alt="Chat" />';
+  }
+  function updateLauncherIcon() {
+    chatIcon = buildChatIcon(color);
+    if (!open) btn.innerHTML = chatIcon;
   }
   var chatIcon = buildChatIcon(color);
   var closeIcon =
@@ -156,8 +163,10 @@
   teaserClose.addEventListener("click", function (e) { e.stopPropagation(); hideTeaser(); lsSet("chatty_teaser_" + botId, "dismissed"); });
 
   // ---- Theme + teaser text from dashboard ----
+  // Always apply the database color — even when data-color is set on the script
+  // tag — so that dashboard customization changes propagate automatically.
   function applyTheme(c) {
-    if (!c || colorAttr) return;
+    if (!c) return;
     color = c; btn.style.background = c; chatIcon = buildChatIcon(c);
     if (!open) btn.innerHTML = chatIcon;
   }
@@ -168,6 +177,17 @@
         if (!d) return;
         if (d.primary_color) applyTheme(d.primary_color);
         teaserText = d.teaser_message || d.welcome_message || teaserText;
+        // Use the customer's uploaded logo/avatar as the launcher icon
+        var logoToUse = null;
+        if (d.avatar_icon === "custom" && d.avatar_url) {
+          logoToUse = d.avatar_url;
+        } else if (d.logo_url) {
+          logoToUse = d.logo_url;
+        }
+        if (logoToUse) {
+          customIconUrl = logoToUse;
+          updateLauncherIcon();
+        }
       })
       .catch(function () {});
   } catch (e) {}

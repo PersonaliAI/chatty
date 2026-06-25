@@ -71,7 +71,8 @@ import {
   Search,
   Type,
   MapPin,
-  Inbox
+  Inbox,
+  Upload
 } from "lucide-react";
 
 // Types
@@ -381,6 +382,8 @@ export default function Dashboard() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const logoFileRef = useRef<HTMLInputElement>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini");
   const [systemInstructions, setSystemInstructions] = useState(
@@ -1342,6 +1345,7 @@ export default function Dashboard() {
           send_button_style: sendButtonStyle,
           avatar_icon: avatarIcon,
           avatar_url: avatarUrl,
+          logo_url: logoUrl,
           selected_model: selectedModel,
           system_instructions: systemInstructions,
           strict_mode: strictMode,
@@ -2216,6 +2220,26 @@ export default function Dashboard() {
     }
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !botId) return;
+    setUploadingLogo(true);
+    try {
+      const fd = new FormData();
+      fd.append("bot_id", botId);
+      fd.append("file", file);
+      const res = await fetchWithFallback("/api/bot/logo", { method: "POST", body: fd });
+      if (res.ok) {
+        const d = await res.json();
+        setLogoUrl(d.logo_url);
+        setHasUnsavedChanges(true);
+      }
+    } catch {} finally {
+      setUploadingLogo(false);
+      if (logoFileRef.current) logoFileRef.current.value = "";
+    }
+  };
+
   const dashAvatar = (iconCls: string) => {
     const ICONS: Record<string, any> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
     if (avatarIcon === "custom" && avatarUrl) return <img src={avatarUrl} alt="" className="size-full object-cover" />;
@@ -2228,8 +2252,8 @@ export default function Dashboard() {
   };
 
   // Code snippets
-  const embedScriptCode = `<script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  data-color="${primaryColor}"\n  data-style="${widgetStyle}"\n  defer\n></script>`;
-  const embedIframeCode = `<iframe\n  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}?color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}"\n  width="100%"\n  height="600"\n  frameborder="0"\n></iframe>`;
+  const embedScriptCode = `<script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  defer\n></script>`;
+  const embedIframeCode = `<iframe\n  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}"\n  width="100%"\n  height="600"\n  frameborder="0"\n></iframe>`;
 
   // Reusable Chatty composer (input card)
   const renderComposer = () => {
@@ -2809,6 +2833,24 @@ export default function Dashboard() {
                       </div>
                       <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">&quot;Logo&quot; uses your uploaded logo (or the initial). Pick a preset, or upload a custom avatar image (+).</p>
                     </div>
+
+                    {/* Brand Logo Upload */}
+                    <div className="mt-1 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1.5">Business / Brand Logo</label>
+                      <div className="flex items-center gap-4">
+                        <div className="size-12 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-neutral-50 dark:bg-neutral-950 overflow-hidden shrink-0">
+                          {logoUrl ? <img src={logoUrl} alt="Logo" className="size-full object-cover" /> : <span className="text-sm font-bold text-neutral-400">{(botName?.[0] || "C").toUpperCase()}</span>}
+                        </div>
+                        <div>
+                          <input ref={logoFileRef} type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                          <button type="button" onClick={() => logoFileRef.current?.click()} disabled={uploadingLogo}
+                            className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 cursor-pointer disabled:opacity-55 flex items-center gap-1.5 transition-colors hover:opacity-90">
+                            {uploadingLogo ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3" />} Change Logo
+                          </button>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">PNG/JPG, max 10 MB. Used as the widget avatar when &quot;Logo&quot; is selected.</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -2826,7 +2868,7 @@ export default function Dashboard() {
                         widgetStyle === "minimalist" ? "text-white" : ""
                       }`}
                     >
-                      <div className="size-8 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-sm overflow-hidden">{dashAvatar("size-[18px]")}</div>
+                      <div className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0">{dashAvatar("size-6")}</div>
                       <div>
                         <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
                         <p className="text-[9px] opacity-80">Online • presets: {widgetStyle}</p>
@@ -3465,12 +3507,12 @@ export default function Dashboard() {
                 botId ? (
                   <>
                     <iframe
-                      key={`${botId}-${primaryColor}-${widgetStyle}`}
-                      src={`/embed/${botId}?color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}`}
+                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${botName}`}
+                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}`}
                       title="Live widget preview"
                       className="w-full max-w-lg h-[500px] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Exactly what visitors see — reflects your last <span className="font-semibold">saved</span> settings.</p>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Live preview — reflects your <span className="font-semibold">current</span> customizer settings in real time.</p>
                   </>
                 ) : (
                   <div className="w-full max-w-lg h-[500px] rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-xs text-neutral-400">Save your bot to preview the live widget.</div>

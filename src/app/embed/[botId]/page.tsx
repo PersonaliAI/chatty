@@ -80,6 +80,12 @@ export default function EmbedWidget() {
   const searchParams = useSearchParams();
   const paramColor = searchParams.get("color");
   const paramStyle = searchParams.get("style");
+  const isPreview = searchParams.get("preview") === "true";
+  const paramName = searchParams.get("name");
+  const paramWelcome = searchParams.get("welcome");
+  const paramAvatarIcon = searchParams.get("avatar_icon");
+  const paramAvatarUrl = searchParams.get("avatar_url");
+  const paramLogoUrl = searchParams.get("logo_url");
 
   // Scope stored session + history per embedding site, so different host sites
   // (and the dashboard playground) don't share one conversation.
@@ -230,16 +236,20 @@ export default function EmbedWidget() {
         });
         if (res.ok) {
           const bot = await res.json();
-          setBotName(bot.name || "Chatty Assistant");
-          setWelcomeMsg(bot.welcome_message || "Hello! How can I help you today?");
+          // In preview mode (dashboard playground), query parameters override DB values
+          // so the user sees their unsaved changes in real time.
+          // In production, DB values take priority so dashboard edits apply automatically.
+          setBotName(isPreview ? (paramName || bot.name || "Chatty Assistant") : (bot.name || "Chatty Assistant"));
+          const wMsg = isPreview ? (paramWelcome || bot.welcome_message || "Hello! How can I help you today?") : (bot.welcome_message || "Hello! How can I help you today?");
+          setWelcomeMsg(wMsg);
           setStarters(Array.isArray(bot.conversation_starters) ? bot.conversation_starters.filter(Boolean) : []);
           setSendStyle(bot.send_button_style || "plane");
-          setAvatarIcon(bot.avatar_icon || "logo");
-          setAvatarUrl(bot.avatar_url || null);
-          setPrimaryColor(paramColor || bot.primary_color || "#f97316");
-          setWidgetStyle(paramStyle || bot.widget_style || "minimalist");
-          setLogoUrl(bot.logo_url || null);
-          setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: bot.welcome_message || "Hello! How can I help you today?" }]);
+          setAvatarIcon(isPreview ? (paramAvatarIcon || bot.avatar_icon || "logo") : (bot.avatar_icon || "logo"));
+          setAvatarUrl(isPreview ? (paramAvatarUrl || bot.avatar_url || null) : (bot.avatar_url || null));
+          setPrimaryColor(isPreview ? (paramColor || bot.primary_color || "#f97316") : (bot.primary_color || paramColor || "#f97316"));
+          setWidgetStyle(isPreview ? (paramStyle || bot.widget_style || "minimalist") : (bot.widget_style || paramStyle || "minimalist"));
+          setLogoUrl(isPreview ? (paramLogoUrl || bot.logo_url || null) : (bot.logo_url || null));
+          setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg }]);
         }
       } catch (err) {
         console.error("Failed to load bot:", err);
@@ -249,7 +259,7 @@ export default function EmbedWidget() {
       }
     }
     loadBot();
-  }, [botId, paramColor, paramStyle]);
+  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl]);
 
   // Force transparent iframe body background to resolve sub-pixel corner bleeding
   useEffect(() => {
@@ -391,8 +401,8 @@ export default function EmbedWidget() {
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
-          <div className="size-8 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
-            {avatarInner("size-[18px]")}
+          <div className="size-11 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-base overflow-hidden shrink-0">
+            {avatarInner("size-6")}
           </div>
           <div className="leading-tight">
             <h4 className="font-semibold text-sm text-white">{botName}</h4>
