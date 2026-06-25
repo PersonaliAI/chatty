@@ -223,6 +223,7 @@ export default function Home() {
   const [collectedLead, setCollectedLead] = useState(false);
   const [isSimulating, setIsSimulating] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const simulationTimeoutsRef = useRef<any[]>([]);
 
   const clearSimulation = () => {
@@ -316,8 +317,12 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (messages.length > 1) {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = chatContainerRef.current;
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
     }
   }, [messages, isTyping]);
 
@@ -443,7 +448,7 @@ export default function Home() {
                   </div>
 
                   {/* Message Container */}
-                  <div className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin text-xs">
+                  <div ref={chatContainerRef} className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin text-xs">
                     {messages.map((msg, index) => (
                       <div
                         key={index}
