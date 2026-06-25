@@ -2414,7 +2414,7 @@ export default function Dashboard() {
           <div className="h-16 px-6 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
               <span className="font-semibold text-base tracking-tight flex items-center gap-1.5">
-                <span className="size-5 rounded-md bg-neutral-950 dark:bg-white flex items-center justify-center text-white dark:text-black font-bold text-xs">C</span>
+                <img src="/favicon.png" alt="Chatty Logo" className="size-5 object-contain" />
                 Chatty
               </span>
             </Link>

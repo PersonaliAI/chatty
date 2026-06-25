@@ -246,8 +246,14 @@ export default function Home() {
         >
           <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between border-x border-neutral-200 dark:border-neutral-900">
             <Link href="/" className="flex items-center gap-2 shrink-0">
-              <span className="font-mono text-sm tracking-widest font-bold flex items-center gap-1.5 uppercase">
-                <span className="size-5 bg-neutral-950 dark:bg-white flex items-center justify-center text-white dark:text-black font-mono font-bold text-xs">C</span>
+              <Image
+                src="/favicon.png"
+                alt="Chatty Logo"
+                width={20}
+                height={20}
+                className="size-5 object-contain"
+              />
+              <span className="font-mono text-sm tracking-widest font-bold uppercase">
                 Chatty
               </span>
             </Link>
@@ -632,8 +638,14 @@ export default function Home() {
         <footer className="p-8 md:p-12 bg-neutral-50/50 dark:bg-neutral-950/20 font-mono text-xs border-t border-neutral-200 dark:border-neutral-900">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-sm tracking-widest font-bold flex items-center gap-1.5 uppercase text-neutral-900 dark:text-white">
-                <span className="size-5 bg-neutral-950 dark:bg-white flex items-center justify-center text-white dark:text-black font-mono font-bold text-xs">C</span>
+              <Image
+                src="/favicon.png"
+                alt="Chatty Logo"
+                width={20}
+                height={20}
+                className="size-5 object-contain"
+              />
+              <span className="font-mono text-sm tracking-widest font-bold uppercase text-neutral-900 dark:text-white">
                 Chatty
               </span>
               <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">[ BY PERSONALIAI ]</span>
