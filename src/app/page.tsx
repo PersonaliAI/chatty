@@ -175,7 +175,7 @@ export default function Home() {
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const botId = "08b10dc1-c339-4171-818a-35b9cb684d40"; // The official landing page bot ID
+  const botId = "8e7713d5-af4e-41d2-a1d1-191fab125d18"; // The official landing page bot ID
   const [themeColor, setThemeColor] = useState("#f97316");
   const [themeIcon, setThemeIcon] = useState("/favicon.png");
   const [logoBgColor, setLogoBgColor] = useState("");
