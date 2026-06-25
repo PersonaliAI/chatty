@@ -97,6 +97,15 @@
   var customIconUrl = null;
   var customLogoBgColor = "";
   var avatarIconType = "logo";
+  var launcherShape = "circle";
+  function getBorderRadiusStyle(shape, side) {
+    if (shape === "square") return "0px";
+    if (shape === "rounded") return "12px";
+    if (shape === "bubble") {
+      return side === "left" ? "30px 30px 30px 4px" : "30px 30px 4px 30px";
+    }
+    return "50%";
+  }
   function buildChatIcon(c) {
     var svgIcons = {
       bot: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>',
@@ -216,6 +225,9 @@
             if (parts.length > 1) {
               customLogoBgColor = parts[1];
             }
+            if (parts.length > 2) {
+              launcherShape = parts[2] || "circle";
+            }
           }
           if (d.avatar_icon) {
             avatarIconType = d.avatar_icon;
@@ -228,6 +240,7 @@
           }
           customIconUrl = logoToUse;
           updateLauncherIcon();
+          btn.style.borderRadius = getBorderRadiusStyle(launcherShape, side);
         }
         revealBtn();
       })

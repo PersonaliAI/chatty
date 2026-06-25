@@ -442,6 +442,7 @@ export default function Dashboard() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
+  const [launcherShape, setLauncherShape] = useState("circle");
   const [suggestedColors, setSuggestedColors] = useState<string[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -877,9 +878,10 @@ export default function Dashboard() {
         setTeaserMessage(activeBot.teaser_message || "👋 Need help? Chat with us.");
         setPrimaryColor(activeBot.primary_color);
         const styleVal = activeBot.widget_style || "minimalist";
-        const [styleName, logoBg] = styleVal.split(":");
+        const [styleName, logoBg, shapeVal] = styleVal.split(":");
         setWidgetStyle(styleName || "minimalist");
         setLogoBgColor(logoBg || "");
+        setLauncherShape(shapeVal || "circle");
         setSendButtonStyle(activeBot.send_button_style || "plane");
         setAvatarIcon(activeBot.avatar_icon || "logo");
         setAvatarUrl(activeBot.avatar_url || null);
@@ -1417,7 +1419,7 @@ export default function Dashboard() {
           conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
           teaser_message: teaserMessage,
           primary_color: primaryColor,
-          widget_style: logoBgColor ? `${widgetStyle}:${logoBgColor}` : widgetStyle,
+          widget_style: `${widgetStyle}:${logoBgColor || ""}:${launcherShape}`,
           send_button_style: sendButtonStyle,
           avatar_icon: avatarIcon,
           avatar_url: avatarUrl,
@@ -3001,6 +3003,38 @@ export default function Dashboard() {
                           </div>
                         </div>
                       )}
+
+                      {/* Launcher Button Shape */}
+                      <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+                        <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-450 mb-1.5">Launcher Button Shape</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { key: "circle", name: "Circle", radiusClass: "rounded-full" },
+                            { key: "bubble", name: "WhatsApp Bubble", radiusClass: "rounded-3xl rounded-br-sm" },
+                            { key: "rounded", name: "Rounded Square", radiusClass: "rounded-xl" },
+                            { key: "square", name: "Square", radiusClass: "rounded-none" },
+                          ].map((shape) => (
+                            <button
+                              key={shape.key}
+                              type="button"
+                              onClick={() => handleInputChange(setLauncherShape, shape.key)}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer transition-all flex items-center gap-2 ${
+                                launcherShape === shape.key
+                                  ? "border-[#f97316] bg-[#f97316]/5 text-[#f97316] font-bold"
+                                  : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-350"
+                              }`}
+                            >
+                              <span 
+                                className={`w-3.5 h-3.5 border border-current ${shape.radiusClass} bg-current opacity-70 shrink-0`}
+                              />
+                              {shape.name}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                          Select the outer shape of the floating chat button. &quot;WhatsApp Bubble&quot; automatically mirrors if the launcher position is set to the left.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3094,6 +3128,58 @@ export default function Dashboard() {
                           </button>
                         );
                       })()}
+                    </div>
+                  </div>
+
+                  {/* Floating Launcher preview in Customizer */}
+                  <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
+                    <span className="text-[10px] text-neutral-450 dark:text-neutral-500 uppercase font-bold tracking-wider">Button Preview</span>
+                    <div className="relative">
+                      <div 
+                        style={{ 
+                          backgroundColor: primaryColor,
+                          borderRadius: launcherShape === "circle" ? "50%" : 
+                                        launcherShape === "square" ? "0px" : 
+                                        launcherShape === "rounded" ? "12px" : 
+                                        "24px 24px 4px 24px" // bubble (right side)
+                        }}
+                        className="w-14 h-14 text-white flex items-center justify-center shadow-lg transition-all duration-300 select-none cursor-pointer"
+                      >
+                        {(() => {
+                          const ICONS: Record<string, any> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
+                          if (avatarIcon === "custom" && avatarUrl) {
+                            return <img src={avatarUrl} alt="" className="size-10 rounded-full object-cover" />;
+                          }
+                          if (avatarIcon && avatarIcon !== "logo" && ICONS[avatarIcon]) {
+                            const IconComponent = ICONS[avatarIcon];
+                            return <IconComponent className="size-6 text-white" />;
+                          }
+                          // Default brand logo
+                          if (logoUrl) {
+                            return (
+                              <div 
+                                className="size-10 rounded-full flex items-center justify-center overflow-hidden"
+                                style={logoBgColor ? { backgroundColor: logoBgColor } : { backgroundColor: "rgba(255,255,255,0.2)" }}
+                              >
+                                <img src={logoUrl} alt="" className="w-8 h-8 object-contain rounded-full" />
+                              </div>
+                            );
+                          }
+                          return (
+                            <div 
+                              className="size-10 rounded-full flex items-center justify-center overflow-hidden"
+                              style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
+                            >
+                              <img 
+                                src="/favicon.png" 
+                                alt="" 
+                                className="size-8 object-contain" 
+                                style={primaryColor.toLowerCase().replace(/\s+/g, "") === "#f97316" ? { filter: "brightness(0) invert(1)" } : {}}
+                              />
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -180,6 +180,7 @@ export default function Home() {
   const [themeIcon, setThemeIcon] = useState("/favicon.png");
   const [logoBgColor, setLogoBgColor] = useState("");
   const [avatarIconType, setAvatarIconType] = useState("logo");
+  const [launcherShape, setLauncherShape] = useState("circle");
   const [themeLoaded, setThemeLoaded] = useState(false);
 
   useEffect(() => {
@@ -200,8 +201,9 @@ export default function Home() {
           setThemeIcon(logoToUse);
 
           if (d.widget_style) {
-            const [, bg] = d.widget_style.split(":");
+            const [styleName, bg, shape] = d.widget_style.split(":");
             setLogoBgColor(bg || "");
+            setLauncherShape(shape || "circle");
           }
         }
       } catch (err) {
@@ -784,8 +786,14 @@ export default function Home() {
         {/* Toggle Button */}
         <button
           onClick={handleToggleWidget}
-          style={{ backgroundColor: themeColor }}
-          className="size-14 rounded-full text-white flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity cursor-pointer z-10 focus:outline-none"
+          style={{ 
+            backgroundColor: themeColor,
+            borderRadius: launcherShape === "circle" ? "50%" : 
+                          launcherShape === "square" ? "0px" : 
+                          launcherShape === "rounded" ? "12px" : 
+                          "24px 24px 4px 24px" // bubble (right side)
+          }}
+          className="size-14 text-white flex items-center justify-center shadow-lg hover:opacity-90 transition-all cursor-pointer z-10 focus:outline-none"
           title="Chat Assistant"
         >
           {isWidgetOpen || isConnecting ? (
