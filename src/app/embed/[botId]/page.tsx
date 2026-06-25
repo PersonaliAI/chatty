@@ -413,7 +413,29 @@ export default function EmbedWidget() {
   };
 
   return (
-    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} rounded-2xl`} style={{ backgroundColor: primaryColor, ["--primary-color" as any]: primaryColor }}>
+    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle}`} style={{ backgroundColor: primaryColor, ["--primary-color" as any]: primaryColor }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        html, body {
+          background: transparent !important;
+          background-image: none !important;
+          animation: none !important;
+          overflow: hidden !important;
+        }
+        /* Strip borders and shadows inside the iframe to prevent subpixel bleeding and white spaces on zoom */
+        .style-minimalist,
+        .style-glassmorphism,
+        .style-liquid,
+        .style-neumorphism,
+        .style-brutalism,
+        .style-claymorphism,
+        .style-bento,
+        .style-retro,
+        .style-aurora {
+          border: none !important;
+          box-shadow: none !important;
+          border-radius: 0px !important;
+        }
+      ` }} />
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">

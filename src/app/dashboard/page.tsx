@@ -60,6 +60,7 @@ import {
   FileUp,
   Link2,
   ChevronUp,
+  ChevronDown,
   Layers,
   ArrowUp,
   Palette,
@@ -422,6 +423,7 @@ async function extractColorsFromUrl(url: string): Promise<string[]> {
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [botDropdownOpen, setBotDropdownOpen] = useState(false);
   const supabase = createClient();
 
   // User State
@@ -1065,6 +1067,85 @@ export default function Dashboard() {
       await loadAnalyticsData(selected.id, currentLeadsCount);
     } catch (err) {
       console.error("Error switching bot:", err);
+    } finally {
+      setLoadingLists(false);
+    }
+  }
+
+  // Create a new chatbot configuration
+  async function handleCreateBot() {
+    if (!user) return;
+    const name = prompt("Enter a name for your new chatbot:", "My Assistant");
+    if (!name) return;
+
+    setLoadingLists(true);
+    try {
+      const { data: newBot, error } = await supabase
+        .from("chatty_bots")
+        .insert({
+          user_id: user.id,
+          name: name,
+          welcome_message: "Hello! How can I help you today?",
+          primary_color: "#f97316",
+          widget_style: "minimalist",
+          send_button_style: "plane",
+          selected_model: "gemini",
+          system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
+          strict_mode: true,
+          email_notify: true,
+          onboarding_step: 9,
+          onboarding_completed: true
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (newBot) {
+        setUserBots((prev) => [newBot, ...prev]);
+        switchActiveBot(newBot.id);
+        alert(`Chatbot "${name}" created successfully!`);
+      }
+    } catch (err: any) {
+      console.error("Error creating bot:", err);
+      alert(`Failed to create chatbot: ${err.message}`);
+    } finally {
+      setLoadingLists(false);
+    }
+  }
+
+  // Delete an existing chatbot configuration
+  async function handleDeleteBot(targetBotId: string) {
+    if (!user) return;
+    const targetBot = userBots.find((b) => b.id === targetBotId);
+    if (!targetBot) return;
+
+    if (!confirm(`Are you sure you want to delete the chatbot "${targetBot.name}"? This action is permanent and will delete all associated training data, history, and leads.`)) return;
+
+    setLoadingLists(true);
+    try {
+      const { error } = await supabase
+        .from("chatty_bots")
+        .delete()
+        .eq("id", targetBotId);
+
+      if (error) throw error;
+
+      const remainingBots = userBots.filter((b) => b.id !== targetBotId);
+      setUserBots(remainingBots);
+
+      if (botId === targetBotId) {
+        if (remainingBots.length > 0) {
+          switchActiveBot(remainingBots[0].id);
+        } else {
+          // If no bots left, force loadBotSettings to create a default one
+          await loadBotSettings(user.id);
+        }
+      }
+      alert(`Chatbot "${targetBot.name}" deleted successfully.`);
+    } catch (err: any) {
+      console.error("Error deleting bot:", err);
+      alert(`Failed to delete chatbot: ${err.message}`);
     } finally {
       setLoadingLists(false);
     }
@@ -2677,20 +2758,74 @@ export default function Dashboard() {
           </div>
 
           {/* Chatbot Selector Dropdown */}
-          {userBots.length > 1 && (
-            <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+          {userBots.length > 0 && (
+            <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 relative">
               <label className="block text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mb-1">Active Chatbot</label>
-              <select
-                value={botId || ""}
-                onChange={(e) => switchActiveBot(e.target.value)}
-                className="w-full bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200 focus:outline-none cursor-pointer"
+              
+              {/* Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setBotDropdownOpen(!botDropdownOpen)}
+                className="w-full flex items-center justify-between bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors focus:outline-none cursor-pointer"
               >
-                {userBots.map((bot) => (
-                  <option key={bot.id} value={bot.id}>
-                    {bot.name || "Chatbot"} ({bot.id.slice(0, 8)})
-                  </option>
-                ))}
-              </select>
+                <span className="flex items-center gap-1.5 truncate">
+                  <Bot className="size-3.5 text-neutral-400 shrink-0" />
+                  <span className="truncate">{userBots.find(b => b.id === botId)?.name || "Select Chatbot"}</span>
+                </span>
+                <ChevronDown className={`size-3.5 text-neutral-400 transition-transform ${botDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown Menu */}
+              {botDropdownOpen && (
+                <>
+                  {/* Click-outside backdrop */}
+                  <div className="fixed inset-0 z-10 bg-transparent" onClick={() => setBotDropdownOpen(false)} />
+                  
+                  <div className="absolute left-4 right-4 mt-1 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg z-20 py-1 max-h-60 overflow-y-auto scrollbar-thin">
+                    {userBots.map((bot) => (
+                      <div
+                        key={bot.id}
+                        className={`flex items-center justify-between px-3 py-2 text-xs cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors ${
+                          bot.id === botId ? "bg-neutral-50/70 dark:bg-neutral-900/70 font-semibold text-neutral-900 dark:text-white" : "text-neutral-700 dark:text-neutral-350"
+                        }`}
+                        onClick={() => {
+                          switchActiveBot(bot.id);
+                          setBotDropdownOpen(false);
+                        }}
+                      >
+                        <span className="truncate pr-2">{bot.name || "Chatbot"}</span>
+                        {userBots.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await handleDeleteBot(bot.id);
+                            }}
+                            className="p-1 rounded text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
+                            title="Delete chatbot"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    
+                    <div className="border-t border-neutral-100 dark:border-neutral-850 my-1"></div>
+                    
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setBotDropdownOpen(false);
+                        await handleCreateBot();
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#f97316] hover:bg-[#f97316]/5 dark:hover:bg-[#f97316]/10 transition-colors text-left cursor-pointer"
+                    >
+                      <Plus className="size-3.5" />
+                      Create New Assistant
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
