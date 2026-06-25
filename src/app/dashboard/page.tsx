@@ -2743,7 +2743,7 @@ export default function Dashboard() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto scrollbar-thin">
+        <div>
           {/* Brand Logo */}
           <div className="h-16 px-6 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
@@ -2872,7 +2872,7 @@ export default function Dashboard() {
         </div>
 
         {/* Footer info & Logout link */}
-        <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 shrink-0">
+        <div className="p-4 border-t border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center gap-3 mb-4">
             <div className="size-8 rounded-full bg-[#f97316]/10 flex items-center justify-center text-[#f97316] font-bold text-xs">P</div>
             <div className="overflow-hidden">
