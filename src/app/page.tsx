@@ -155,6 +155,55 @@ const faqs = [
   },
 ];
 
+// Simulated audio player component for the landing page chatbot widget
+function SimulatedAudioPlayer({ name }: { name: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  return (
+    <div className="flex items-center gap-3 p-2 bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 font-mono text-[10px] mt-2 select-none">
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          setIsPlaying(!isPlaying);
+        }}
+        className="size-6 border border-neutral-300 dark:border-neutral-850 flex items-center justify-center hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer text-neutral-800 dark:text-neutral-200 shrink-0"
+      >
+        {isPlaying ? (
+          <span className="size-2 bg-neutral-900 dark:bg-white animate-pulse" />
+        ) : (
+          <svg className="size-2.5 fill-current ml-0.5" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        )}
+      </button>
+      <div className="flex-1 flex items-end gap-0.5 h-5 select-none">
+        <span className={`w-0.5 bg-neutral-300 dark:bg-neutral-800 transition-all ${isPlaying ? "animate-pulse h-4" : "h-2"}`}></span>
+        <span className={`w-0.5 bg-neutral-400 dark:bg-neutral-700 transition-all ${isPlaying ? "animate-pulse [animation-delay:0.1s] h-5" : "h-3"}`}></span>
+        <span className={`w-0.5 bg-neutral-900 dark:bg-white transition-all ${isPlaying ? "animate-pulse [animation-delay:0.2s] h-3" : "h-1"}`}></span>
+        <span className={`w-0.5 bg-neutral-400 dark:bg-neutral-700 transition-all ${isPlaying ? "animate-pulse [animation-delay:0.3s] h-4" : "h-2"}`}></span>
+        <span className={`w-0.5 bg-neutral-300 dark:bg-neutral-800 transition-all ${isPlaying ? "animate-pulse [animation-delay:0.4s] h-2" : "h-3"}`}></span>
+        <span className={`w-0.5 bg-neutral-900 dark:bg-white transition-all ${isPlaying ? "animate-pulse [animation-delay:0.5s] h-5" : "h-1"}`}></span>
+        <span className={`w-0.5 bg-neutral-450 dark:bg-neutral-700 transition-all ${isPlaying ? "animate-pulse [animation-delay:0.6s] h-3" : "h-2"}`}></span>
+      </div>
+      <span className="text-neutral-400 dark:text-neutral-500 text-[9px] shrink-0">{isPlaying ? "0:04" : "0:08"}</span>
+    </div>
+  );
+}
+
+// Simulated file clip component for the landing page chatbot widget
+function SimulatedFileClip({ name }: { name: string }) {
+  return (
+    <div className="flex items-center justify-between p-2 bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 font-mono text-[10px] mt-2 select-none">
+      <div className="flex items-center gap-2 truncate">
+        <svg className="size-3.5 text-[#f97316] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+        </svg>
+        <span className="truncate text-neutral-800 dark:text-neutral-200">{name}</span>
+      </div>
+      <span className="text-neutral-400 dark:text-neutral-500 text-[9px] shrink-0 ml-2">1.2 MB</span>
+    </div>
+  );
+}
+
 export default function Home() {
   const [isYearly, setIsYearly] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -162,13 +211,25 @@ export default function Home() {
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
 
   // Chat Widget Simulation State
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<{
+    role: string;
+    content: string;
+    attachment?: { type: "audio" | "file"; name: string; url: string };
+  }[]>([
     { role: "assistant", content: "Hi! I'm Chatty. I'm a custom AI chatbot that captures leads and answers questions. Ask me anything about my pricing or features!" }
   ]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [collectedLead, setCollectedLead] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const simulationTimeoutsRef = useRef<any[]>([]);
+
+  const clearSimulation = () => {
+    setIsSimulating(false);
+    simulationTimeoutsRef.current.forEach(clearTimeout);
+    simulationTimeoutsRef.current = [];
+  };
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -176,7 +237,83 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    // Start auto-simulation sequence
+    const t1 = setTimeout(() => {
+      if (!isSimulating) return;
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: "Can you show me how a file upload or audio message looks in Chatty? 📎🎙️" }
+      ]);
+      
+      const t2 = setTimeout(() => {
+        setIsTyping(true);
+        
+        const t3 = setTimeout(() => {
+          setIsTyping(false);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "Certainly! Chatty supports rich media and voice notes. Here is a voice message example:",
+              attachment: { type: "audio", name: "voice_note.wav", url: "#" }
+            }
+          ]);
+          
+          const t4 = setTimeout(() => {
+            setIsTyping(true);
+            
+            const t5 = setTimeout(() => {
+              setIsTyping(false);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: "And here is a document attachment sent by a customer:",
+                  attachment: { type: "file", name: "product_specs.pdf", url: "#" }
+                }
+              ]);
+              
+              const t6 = setTimeout(() => {
+                setMessages((prev) => [
+                  ...prev,
+                  { role: "user", content: "Wow, that looks extremely clean! Emojis work too? 😀🔥" }
+                ]);
+                
+                const t7 = setTimeout(() => {
+                  setIsTyping(true);
+                  
+                  const t8 = setTimeout(() => {
+                    setIsTyping(false);
+                    setMessages((prev) => [
+                      ...prev,
+                      {
+                        role: "assistant",
+                        content: "Absolutely! Emojis, files, and voice notes are fully supported. Try asking me about 'pricing' or enter your email to test lead capture! 👍"
+                      }
+                    ]);
+                    setIsSimulating(false);
+                  }, 1500);
+                  simulationTimeoutsRef.current.push(t8);
+                }, 1000);
+                simulationTimeoutsRef.current.push(t7);
+              }, 2500);
+              simulationTimeoutsRef.current.push(t6);
+            }, 1500);
+            simulationTimeoutsRef.current.push(t5);
+          }, 1000);
+          simulationTimeoutsRef.current.push(t4);
+        }, 1500);
+        simulationTimeoutsRef.current.push(t3);
+      }, 1000);
+      simulationTimeoutsRef.current.push(t2);
+    }, 2500);
+    simulationTimeoutsRef.current.push(t1);
 
+    return () => {
+      simulationTimeoutsRef.current.forEach(clearTimeout);
+    };
+  }, []);
 
   useEffect(() => {
     if (messages.length > 1) {
@@ -188,6 +325,7 @@ export default function Home() {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
+    clearSimulation();
     const userMsg = inputValue;
     setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setInputValue("");
@@ -329,7 +467,16 @@ export default function Home() {
                               : "bg-neutral-50 text-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 border-neutral-200 dark:border-neutral-850"
                           }`}
                         >
-                          {msg.content}
+                          <div>{msg.content}</div>
+                          {msg.attachment && (
+                            <div className="mt-2.5 pt-2 border-t border-neutral-200/50 dark:border-neutral-800/50">
+                              {msg.attachment.type === "audio" ? (
+                                <SimulatedAudioPlayer name={msg.attachment.name} />
+                              ) : (
+                                <SimulatedFileClip name={msg.attachment.name} />
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -338,7 +485,7 @@ export default function Home() {
                         <div className="size-6 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center font-mono text-[10px] text-neutral-500 dark:text-neutral-455 shrink-0 select-none bg-neutral-50 dark:bg-neutral-950">
                           A
                         </div>
-                        <div className="p-3 border border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950 flex items-center gap-1.5">
+                        <div className="p-3 border border-neutral-200 dark:border-neutral-855 bg-neutral-50 dark:bg-neutral-950 flex items-center gap-1.5">
                           <span className="size-1.5 bg-neutral-400 dark:bg-neutral-600 animate-bounce"></span>
                           <span className="size-1.5 bg-neutral-400 dark:bg-neutral-600 animate-bounce [animation-delay:0.2s]"></span>
                           <span className="size-1.5 bg-neutral-400 dark:bg-neutral-600 animate-bounce [animation-delay:0.4s]"></span>
@@ -350,28 +497,94 @@ export default function Home() {
 
                   {/* Lead Captured Alert Banner */}
                   {collectedLead && (
-                    <div className="absolute bottom-[60px] left-4 right-4 p-3 bg-white dark:bg-black border-2 border-emerald-500 text-emerald-600 dark:text-emerald-450 font-mono text-[10px] flex items-center gap-2 tracking-tight">
+                    <div className="absolute bottom-[60px] left-4 right-4 p-3 bg-white dark:bg-black border-2 border-emerald-500 text-emerald-600 dark:text-emerald-455 font-mono text-[10px] flex items-center gap-2 tracking-tight">
                       <Check className="size-3.5 shrink-0" />
                       <span>[ LEAD CAPTURED: CHECK DASHBOARD ]</span>
                     </div>
                   )}
 
                   {/* Input Form */}
-                  <form onSubmit={handleSendMessage} className="p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex gap-2">
-                    <div className="flex-1 relative flex items-center">
-                      <span className="absolute left-3 font-mono text-neutral-400 dark:text-neutral-500 select-none">&gt;</span>
-                      <input
-                        type="text"
-                        placeholder="Ask a question..."
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        className="w-full bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 rounded-none pl-7 pr-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-900 dark:focus:border-white font-mono"
-                      />
+                  <form onSubmit={handleSendMessage} className="p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      {/* Left actions */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearSimulation();
+                            setInputValue((prev) => prev + " 📎 ");
+                          }}
+                          className="p-1 hover:text-[#f97316] text-neutral-450 dark:text-neutral-500 transition-colors group cursor-pointer"
+                          title="Attach file"
+                        >
+                          <svg className="size-3.5 group-hover:animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearSimulation();
+                            setInputValue((prev) => prev + " 🎙️ ");
+                          }}
+                          className="p-1 hover:text-[#f97316] text-neutral-450 dark:text-neutral-500 transition-colors cursor-pointer"
+                          title="Voice message"
+                        >
+                          <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearSimulation();
+                            setInputValue((prev) => prev + " 😀 ");
+                          }}
+                          className="p-1 hover:text-[#f97316] text-neutral-450 dark:text-neutral-500 transition-colors cursor-pointer"
+                          title="Insert emoji"
+                        >
+                          <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      {/* Input field */}
+                      <div className="flex-1 relative flex items-center">
+                        <span className="absolute left-2.5 font-mono text-neutral-405 dark:text-neutral-500 select-none text-[10px]">&gt;</span>
+                        <input
+                          type="text"
+                          placeholder="Ask a question..."
+                          value={inputValue}
+                          onChange={(e) => {
+                            clearSimulation();
+                            setInputValue(e.target.value);
+                          }}
+                          className="w-full bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 rounded-none pl-6 pr-2 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-900 dark:focus:border-white font-mono"
+                        />
+                      </div>
+
+                      {/* Send button */}
+                      <button type="submit" className="px-3 py-1.5 bg-neutral-950 text-white dark:bg-white dark:text-black rounded-none border border-neutral-955 dark:border-white hover:opacity-90 flex items-center justify-center font-mono text-xs cursor-pointer uppercase tracking-tight">
+                        Send
+                      </button>
                     </div>
-                    <button type="submit" className="px-4 bg-neutral-950 text-white dark:bg-white dark:text-black rounded-none border border-neutral-950 dark:border-white hover:opacity-90 flex items-center justify-center font-mono text-xs cursor-pointer uppercase tracking-tight">
-                      Send
-                    </button>
                   </form>
+                  
+                  {/* Branding / Website Link */}
+                  <div className="p-2 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-center select-none shrink-0">
+                    <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                      Powered by{" "}
+                      <a
+                        href="https://personaliai.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-neutral-600 dark:text-neutral-300 hover:text-[#f97316] underline font-semibold"
+                      >
+                        PersonaliAI
+                      </a>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
