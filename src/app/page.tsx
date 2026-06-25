@@ -180,6 +180,7 @@ export default function Home() {
   const [themeIcon, setThemeIcon] = useState("/favicon.png");
   const [logoBgColor, setLogoBgColor] = useState("");
   const [avatarIconType, setAvatarIconType] = useState("logo");
+  const [themeLoaded, setThemeLoaded] = useState(false);
 
   useEffect(() => {
     async function loadTheme() {
@@ -205,6 +206,8 @@ export default function Home() {
         }
       } catch (err) {
         console.error("Failed to load landing page widget theme:", err);
+      } finally {
+        setThemeLoaded(true);
       }
     }
     loadTheme();
@@ -751,7 +754,11 @@ export default function Home() {
       )}
 
       {/* Floating Chat Button & Waiting Circle */}
-      <div className="fixed bottom-6 right-6 z-50 flex items-center justify-center select-none">
+      <div 
+        className={`fixed bottom-6 right-6 z-50 flex items-center justify-center select-none transition-all duration-350 ease-out ${
+          themeLoaded ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-90 pointer-events-none"
+        }`}
+      >
         {/* Progress circular waiting indicator */}
         <svg className={`absolute w-[72px] h-[72px] -rotate-90 transition-opacity duration-300 ${isConnecting ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
           <circle

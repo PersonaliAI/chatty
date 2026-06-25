@@ -91,9 +91,9 @@
     "position:fixed;bottom:20px;" + side + ":20px;width:60px;height:60px;border:none;" +
     "border-radius:50%;background:" + color + ";cursor:pointer;z-index:2147483646;" +
     "box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;" +
-    "transition:transform .2s ease;padding:0;";
-  btn.onmouseenter = function () { btn.style.transform = "scale(1.06)"; };
-  btn.onmouseleave = function () { btn.style.transform = "scale(1)"; };
+    "transition:opacity .25s ease,transform .2s ease !important;padding:0;opacity:0 !important;pointer-events:none !important;";
+  btn.onmouseenter = function () { btn.style.setProperty("transform", "scale(1.06)", "important"); };
+  btn.onmouseleave = function () { btn.style.setProperty("transform", "scale(1)", "important"); };
   var customIconUrl = null;
   var customLogoBgColor = "";
   var avatarIconType = "logo";
@@ -195,36 +195,48 @@
     color = c; btn.style.background = c; chatIcon = buildChatIcon(c);
     if (!open) btn.innerHTML = chatIcon;
   }
+  var btnRevealed = false;
+  function revealBtn() {
+    if (btnRevealed) return;
+    btnRevealed = true;
+    btn.style.setProperty("opacity", "1", "important");
+    btn.style.setProperty("pointer-events", "auto", "important");
+  }
+  setTimeout(revealBtn, 3000);
+
   try {
     fetch(BACKEND + "/api/widget/theme?bot_id=" + encodeURIComponent(botId) + "&t=" + new Date().getTime())
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
-        if (!d) return;
-        if (d.primary_color) applyTheme(d.primary_color);
-        teaserText = d.teaser_message || d.welcome_message || teaserText;
-        if (d.widget_style) {
-          var parts = d.widget_style.split(":");
-          if (parts.length > 1) {
-            customLogoBgColor = parts[1];
+        if (d) {
+          if (d.primary_color) applyTheme(d.primary_color);
+          teaserText = d.teaser_message || d.welcome_message || teaserText;
+          if (d.widget_style) {
+            var parts = d.widget_style.split(":");
+            if (parts.length > 1) {
+              customLogoBgColor = parts[1];
+            }
           }
-        }
-        if (d.avatar_icon) {
-          avatarIconType = d.avatar_icon;
-        }
-        // Use the customer's uploaded logo/avatar as the launcher icon
-        var logoToUse = null;
-        if (d.avatar_icon === "custom" && d.avatar_url) {
-          logoToUse = d.avatar_url;
-        } else if (d.logo_url) {
-          logoToUse = d.logo_url;
-        }
-        if (logoToUse) {
+          if (d.avatar_icon) {
+            avatarIconType = d.avatar_icon;
+          }
+          var logoToUse = null;
+          if (d.avatar_icon === "custom" && d.avatar_url) {
+            logoToUse = d.avatar_url;
+          } else if (d.logo_url) {
+            logoToUse = d.logo_url;
+          }
           customIconUrl = logoToUse;
           updateLauncherIcon();
         }
+        revealBtn();
       })
-      .catch(function () {});
-  } catch (e) {}
+      .catch(function () {
+        revealBtn();
+      });
+  } catch (e) {
+    revealBtn();
+  }
 
   // ---- Chat panel (iframe container) ----
   var panel = document.createElement("div");
