@@ -3468,7 +3468,7 @@ export default function Dashboard() {
                       key={`${botId}-${primaryColor}-${widgetStyle}`}
                       src={`/embed/${botId}?color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}`}
                       title="Live widget preview"
-                      className="w-full max-w-lg h-[500px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
+                      className="w-full max-w-lg h-[500px] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
                     />
                     <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Exactly what visitors see — reflects your last <span className="font-semibold">saved</span> settings.</p>
                   </>
