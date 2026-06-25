@@ -167,6 +167,39 @@ export default function Home() {
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
+  const botId = "08b10dc1-c339-4171-818a-35b9cb684d40"; // The official landing page bot ID
+  const [themeColor, setThemeColor] = useState("#f97316");
+  const [themeIcon, setThemeIcon] = useState("/favicon.png");
+  const [logoBgColor, setLogoBgColor] = useState("");
+
+  useEffect(() => {
+    async function loadTheme() {
+      try {
+        const res = await fetch(`https://personaliai-api-376030619262.us-central1.run.app/api/widget/theme?bot_id=${botId}&t=${Date.now()}`);
+        if (res.ok) {
+          const d = await res.json();
+          if (d.primary_color) setThemeColor(d.primary_color);
+          
+          let logoToUse = "/favicon.png";
+          if (d.avatar_icon === "custom" && d.avatar_url) {
+            logoToUse = d.avatar_url;
+          } else if (d.logo_url) {
+            logoToUse = d.logo_url;
+          }
+          setThemeIcon(logoToUse);
+
+          if (d.widget_style) {
+            const [, bg] = d.widget_style.split(":");
+            setLogoBgColor(bg || "");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load landing page widget theme:", err);
+      }
+    }
+    loadTheme();
+  }, []);
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
@@ -723,7 +756,8 @@ export default function Home() {
             cx="36"
             cy="36"
             r="32"
-            className="stroke-[#f97316] transition-all duration-75"
+            style={{ stroke: themeColor }}
+            className="transition-all duration-75"
             strokeWidth="2.5"
             fill="transparent"
             strokeDasharray="201.1"
@@ -733,19 +767,23 @@ export default function Home() {
         {/* Toggle Button */}
         <button
           onClick={handleToggleWidget}
-          className="size-14 rounded-full bg-[#f97316] text-white flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity cursor-pointer z-10 focus:outline-none"
+          style={{ backgroundColor: themeColor }}
+          className="size-14 rounded-full text-white flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity cursor-pointer z-10 focus:outline-none"
           title="Chat Assistant"
         >
           {isWidgetOpen || isConnecting ? (
             <X className="size-6" />
           ) : (
             <Image
-              src="/favicon.png"
+              src={themeIcon}
               alt="Chat"
               width={36}
               height={36}
-              className="size-9 object-contain"
-              style={{ filter: "brightness(0) invert(1)" }}
+              className={`size-9 ${themeIcon === "/favicon.png" ? "object-contain" : "object-cover rounded-full"}`}
+              style={{
+                ...((themeIcon === "/favicon.png" && themeColor.toLowerCase().replace(/\s+/g, "") === "#f97316") ? { filter: "brightness(0) invert(1)" } : {}),
+                ...(logoBgColor ? { backgroundColor: logoBgColor } : {})
+              }}
             />
           )}
         </button>
@@ -764,7 +802,7 @@ export default function Home() {
         >
           {/* Iframe */}
           <iframe
-            src="https://chatty.personaliai.com/embed/88330496-43be-48cc-a587-65b0c8ab09d7"
+            src={`https://chatty.personaliai.com/embed/${botId}`}
             className="flex-1 w-full border-0 rounded-none sm:rounded-2xl"
             allow="microphone"
             onLoad={handleIframeLoad}
