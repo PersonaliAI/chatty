@@ -113,7 +113,7 @@
     if (customIconUrl && !isCustomAvatar) {
       var bgStyle = customLogoBgColor ? "background-color:" + customLogoBgColor + " !important;" : "background-color:rgba(255,255,255,0.2) !important;";
       return '<div style="width:44px !important;height:44px !important;border-radius:50% !important;display:flex !important;align-items:center !important;justify-content:center !important;overflow:hidden !important;' + bgStyle + '">' +
-             '<img src="' + iconSrc + '" style="width:28px !important;height:28px !important;display:block !important;object-fit:contain !important;border-radius:50% !important;' + filterStyle + '" alt="Chat" />' +
+             '<img src="' + iconSrc + '" style="width:34px !important;height:34px !important;display:block !important;object-fit:contain !important;border-radius:50% !important;' + filterStyle + '" alt="Chat" />' +
              '</div>';
     } else {
       var borderStyle = customIconUrl ? "border-radius:50% !important;object-fit:cover !important;" : "object-fit:contain !important;";

@@ -2329,7 +2329,7 @@ export default function Dashboard() {
   };
 
   const dashHeaderLogo = (iconCls: string) => {
-    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />;
+    if (logoUrl) return <img src={logoUrl} alt="" className="w-[34px] h-[34px] object-contain rounded-full" />;
     return dashAvatar(iconCls);
   };
 

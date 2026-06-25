@@ -793,9 +793,9 @@ export default function Home() {
                 <Image
                   src={themeIcon}
                   alt="Chat"
-                  width={themeIcon === "/favicon.png" ? 36 : 28}
-                  height={themeIcon === "/favicon.png" ? 36 : 28}
-                  className={themeIcon === "/favicon.png" ? "size-9 object-contain" : "w-7 h-7 object-contain rounded-full"}
+                  width={themeIcon === "/favicon.png" ? 36 : 34}
+                  height={themeIcon === "/favicon.png" ? 36 : 34}
+                  className={themeIcon === "/favicon.png" ? "size-9 object-contain" : "w-[34px] h-[34px] object-contain rounded-full"}
                   style={(themeIcon === "/favicon.png" && themeColor.toLowerCase().replace(/\s+/g, "") === "#f97316") ? { filter: "brightness(0) invert(1)" } : {}}
                 />
               </div>
