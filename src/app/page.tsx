@@ -155,54 +155,6 @@ const faqs = [
   },
 ];
 
-// Simulated audio player component for the landing page chatbot widget
-function SimulatedAudioPlayer({ name }: { name: string }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  return (
-    <div className="flex items-center gap-3 p-2 bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 font-mono text-[10px] mt-2 select-none">
-      <button
-        onClick={(e) => {
-          e.preventDefault();
-          setIsPlaying(!isPlaying);
-        }}
-        className="size-6 border border-neutral-300 dark:border-neutral-850 flex items-center justify-center hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer text-neutral-800 dark:text-neutral-200 shrink-0"
-      >
-        {isPlaying ? (
-          <span className="size-2 bg-neutral-900 dark:bg-white animate-pulse" />
-        ) : (
-          <svg className="size-2.5 fill-current ml-0.5" viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        )}
-      </button>
-      <div className="flex-1 flex items-end gap-0.5 h-5 select-none">
-        <span className={`w-0.5 bg-neutral-300 dark:bg-neutral-800 transition-all ${isPlaying ? "animate-pulse h-4" : "h-2"}`}></span>
-        <span className={`w-0.5 bg-neutral-400 dark:bg-neutral-700 transition-all ${isPlaying ? "animate-pulse [animation-delay:0.1s] h-5" : "h-3"}`}></span>
-        <span className={`w-0.5 bg-neutral-900 dark:bg-white transition-all ${isPlaying ? "animate-pulse [animation-delay:0.2s] h-3" : "h-1"}`}></span>
-        <span className={`w-0.5 bg-neutral-400 dark:bg-neutral-700 transition-all ${isPlaying ? "animate-pulse [animation-delay:0.3s] h-4" : "h-2"}`}></span>
-        <span className={`w-0.5 bg-neutral-300 dark:bg-neutral-800 transition-all ${isPlaying ? "animate-pulse [animation-delay:0.4s] h-2" : "h-3"}`}></span>
-        <span className={`w-0.5 bg-neutral-900 dark:bg-white transition-all ${isPlaying ? "animate-pulse [animation-delay:0.5s] h-5" : "h-1"}`}></span>
-        <span className={`w-0.5 bg-neutral-450 dark:bg-neutral-700 transition-all ${isPlaying ? "animate-pulse [animation-delay:0.6s] h-3" : "h-2"}`}></span>
-      </div>
-      <span className="text-neutral-400 dark:text-neutral-500 text-[9px] shrink-0">{isPlaying ? "0:04" : "0:08"}</span>
-    </div>
-  );
-}
-
-// Simulated file clip component for the landing page chatbot widget
-function SimulatedFileClip({ name }: { name: string }) {
-  return (
-    <div className="flex items-center justify-between p-2 bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 font-mono text-[10px] mt-2 select-none">
-      <div className="flex items-center gap-2 truncate">
-        <svg className="size-3.5 text-[#f97316] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-        </svg>
-        <span className="truncate text-neutral-800 dark:text-neutral-200">{name}</span>
-      </div>
-      <span className="text-neutral-400 dark:text-neutral-500 text-[9px] shrink-0 ml-2">1.2 MB</span>
-    </div>
-  );
-}
 
 export default function Home() {
   const [isYearly, setIsYearly] = useState(false);
@@ -210,26 +162,37 @@ export default function Home() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
 
-  // Chat Widget Simulation State
-  const [messages, setMessages] = useState<{
-    role: string;
-    content: string;
-    attachment?: { type: "audio" | "file"; name: string; url: string };
-  }[]>([
-    { role: "assistant", content: "Hi! I'm Chatty. I'm a custom AI chatbot that captures leads and answers questions. Ask me anything about my pricing or features!" }
-  ]);
-  const [inputValue, setInputValue] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [collectedLead, setCollectedLead] = useState(false);
-  const [isSimulating, setIsSimulating] = useState(true);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-  const simulationTimeoutsRef = useRef<any[]>([]);
+  // Live Widget States
+  const [progress, setProgress] = useState(0);
+  const [isWidgetOpen, setIsWidgetOpen] = useState(false);
+  const [copied1, setCopied1] = useState(false);
+  const [copied2, setCopied2] = useState(false);
 
-  const clearSimulation = () => {
-    setIsSimulating(false);
-    simulationTimeoutsRef.current.forEach(clearTimeout);
-    simulationTimeoutsRef.current = [];
+  const scriptCode = `<script
+  src="https://chatty.personaliai.com/widget.js"
+  data-id="88330496-43be-48cc-a587-65b0c8ab09d7"
+  data-color="#f97316"
+  data-style="minimalist"
+  defer
+></script>`;
+
+  const iframeCode = `<iframe
+  src="https://chatty.personaliai.com/embed/88330496-43be-48cc-a587-65b0c8ab09d7?color=%23f97316&style=minimalist"
+  width="100%"
+  height="600"
+  frameborder="0"
+></iframe>`;
+
+  const handleCopy1 = () => {
+    navigator.clipboard.writeText(scriptCode);
+    setCopied1(true);
+    setTimeout(() => setCopied1(false), 2000);
+  };
+
+  const handleCopy2 = () => {
+    navigator.clipboard.writeText(iframeCode);
+    setCopied2(true);
+    setTimeout(() => setCopied2(false), 2000);
   };
 
   useEffect(() => {
@@ -238,128 +201,20 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Waiting wheel circulation progress
   useEffect(() => {
-    // Start auto-simulation sequence
-    const t1 = setTimeout(() => {
-      if (!isSimulating) return;
-      setMessages((prev) => [
-        ...prev,
-        { role: "user", content: "Can you show me how a file upload or audio message looks in Chatty? 📎🎙️" }
-      ]);
-      
-      const t2 = setTimeout(() => {
-        setIsTyping(true);
-        
-        const t3 = setTimeout(() => {
-          setIsTyping(false);
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: "Certainly! Chatty supports rich media and voice notes. Here is a voice message example:",
-              attachment: { type: "audio", name: "voice_note.wav", url: "#" }
-            }
-          ]);
-          
-          const t4 = setTimeout(() => {
-            setIsTyping(true);
-            
-            const t5 = setTimeout(() => {
-              setIsTyping(false);
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "assistant",
-                  content: "And here is a document attachment sent by a customer:",
-                  attachment: { type: "file", name: "product_specs.pdf", url: "#" }
-                }
-              ]);
-              
-              const t6 = setTimeout(() => {
-                setMessages((prev) => [
-                  ...prev,
-                  { role: "user", content: "Wow, that looks extremely clean! Emojis work too? 😀🔥" }
-                ]);
-                
-                const t7 = setTimeout(() => {
-                  setIsTyping(true);
-                  
-                  const t8 = setTimeout(() => {
-                    setIsTyping(false);
-                    setMessages((prev) => [
-                      ...prev,
-                      {
-                        role: "assistant",
-                        content: "Absolutely! Emojis, files, and voice notes are fully supported. Try asking me about 'pricing' or enter your email to test lead capture! 👍"
-                      }
-                    ]);
-                    setIsSimulating(false);
-                  }, 1500);
-                  simulationTimeoutsRef.current.push(t8);
-                }, 1000);
-                simulationTimeoutsRef.current.push(t7);
-              }, 2500);
-              simulationTimeoutsRef.current.push(t6);
-            }, 1500);
-            simulationTimeoutsRef.current.push(t5);
-          }, 1000);
-          simulationTimeoutsRef.current.push(t4);
-        }, 1500);
-        simulationTimeoutsRef.current.push(t3);
-      }, 1000);
-      simulationTimeoutsRef.current.push(t2);
-    }, 2500);
-    simulationTimeoutsRef.current.push(t1);
-
-    return () => {
-      simulationTimeoutsRef.current.forEach(clearTimeout);
-    };
-  }, []);
-
-  useEffect(() => {
-    const container = chatContainerRef.current;
-    if (container) {
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior: "smooth",
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setIsWidgetOpen(true); // Auto-open live chatbot widget
+          return 100;
+        }
+        return prev + 1;
       });
-    }
-  }, [messages, isTyping]);
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim()) return;
-
-    clearSimulation();
-    const userMsg = inputValue;
-    setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
-    setInputValue("");
-    setIsTyping(true);
-
-    // Simulated chatbot intelligence
-    setTimeout(() => {
-      let reply = "I can definitely help with that! Chatty allows you to import any website or files to instantly train your AI. Would you like to check our pricing plans?";
-      
-      const lower = userMsg.toLowerCase();
-      if (lower.includes("price") || lower.includes("cost") || lower.includes("plan") || lower.includes("pricing")) {
-        reply = "Our plans start at $19/mo (Hobby) which includes 1 chatbot and 1,000 messages. Standard is $99/mo with 3 chatbots. If you toggle yearly billing, you get 2 months free!";
-      } else if (lower.includes("train") || lower.includes("knowledge") || lower.includes("source")) {
-        reply = "Training is super simple! You can paste your website link, upload PDFs/text files, or write custom Q&As. I will learn it instantly in under a minute.";
-      } else if (lower.includes("lead") || lower.includes("convert") || lower.includes("email")) {
-        reply = "Yes! I can collect visitor names, emails, and phone numbers. Let's see: what is your email? (Type your email to see me collect a lead!)";
-      } else if (lower.includes("@") && (lower.includes(".com") || lower.includes(".org") || lower.includes(".net"))) {
-        setCollectedLead(true);
-        reply = "Awesome! I've successfully collected your email as a lead. In a real scenario, this would be instantly visible in your dashboard under the 'Leads' tab and sent to your CRM.";
-      } else if (lower.includes("model") || lower.includes("gpt") || lower.includes("claude") || lower.includes("gemini")) {
-        reply = "You can switch between GPT-5.3, Claude Opus, Gemini, and Mistral at any time directly in your dashboard to find the best fit for your users.";
-      } else if (lower.includes("free") || lower.includes("trial")) {
-        reply = "All our plans come with a 14-day free trial. No credit card required to get started!";
-      }
-
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-      setIsTyping(false);
-    }, 1000);
-  };
+    }, 35); // 3.5 seconds total
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans antialiased selection:bg-neutral-200 dark:selection:bg-neutral-800">
@@ -434,161 +289,55 @@ export default function Home() {
                   <span>NO CREDIT CARD REQUIRED</span>
                 </div>
               </div>
+              {/* Right Column: Embed Chatbot Code */}
+              <div className="md:col-span-5 p-6 md:p-8 flex flex-col justify-center space-y-6 bg-neutral-50/20 dark:bg-neutral-950/10 font-sans border-t md:border-t-0 border-neutral-200 dark:border-neutral-900">
+                <div className="space-y-2">
+                  <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">
+                    [ 00 / INTEGRATION ]
+                  </span>
+                  <h3 className="text-xl font-bold uppercase tracking-tight text-neutral-900 dark:text-white">
+                    Embed Chatbot
+                  </h3>
+                  <p className="text-xs text-neutral-555 dark:text-neutral-400 leading-relaxed">
+                    Copy and paste either the Javascript bundle or the inline iframe element onto your website.
+                  </p>
+                </div>
 
-              {/* Right Column: Simulated Chat Widget */}
-              <div className="md:col-span-5 p-8 md:p-12 lg:p-16 flex items-center justify-center bg-neutral-50/30 dark:bg-neutral-950/10">
-                <div className="w-full max-w-[360px] h-[460px] border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black flex flex-col overflow-hidden relative shadow-sm">
-                  {/* Chat Header */}
-                  <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex items-center justify-between font-mono text-xs text-neutral-500 dark:text-neutral-455">
-                    <div className="flex items-center gap-2">
-                      <div className="size-2 bg-[#f97316]"></div>
-                      <span className="font-semibold text-neutral-900 dark:text-white uppercase">chatty_agent_v1</span>
-                    </div>
-                    <span>[ ACTIVE ]</span>
-                  </div>
-
-                  {/* Message Container */}
-                  <div ref={chatContainerRef} className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin text-xs">
-                    {messages.map((msg, index) => (
-                      <div
-                        key={index}
-                        className={`flex gap-3 max-w-[90%] ${
-                          msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
-                        }`}
+                <div className="space-y-4">
+                  {/* Option 1 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-neutral-500 dark:text-neutral-450 uppercase tracking-wide text-[10px]">
+                        Option 1: Script (Recommended)
+                      </span>
+                      <button
+                        onClick={handleCopy1}
+                        className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 font-mono text-[9px] uppercase tracking-wider text-neutral-600 dark:text-neutral-350 cursor-pointer"
                       >
-                        {msg.role !== "user" ? (
-                          <div className="size-6 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center font-mono text-[10px] text-neutral-500 dark:text-neutral-450 shrink-0 select-none bg-neutral-50 dark:bg-neutral-950">
-                            A
-                          </div>
-                        ) : (
-                          <div className="size-6 border border-neutral-950 dark:border-white flex items-center justify-center font-mono text-[10px] text-neutral-950 dark:text-white shrink-0 select-none bg-neutral-950 dark:bg-white text-white dark:text-black">
-                            U
-                          </div>
-                        )}
-                        <div
-                          className={`p-3 border leading-relaxed ${
-                            msg.role === "user"
-                              ? "bg-neutral-950 text-white border-neutral-950 dark:bg-white dark:text-black dark:border-white"
-                              : "bg-neutral-50 text-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 border-neutral-200 dark:border-neutral-850"
-                          }`}
-                        >
-                          <div>{msg.content}</div>
-                          {msg.attachment && (
-                            <div className="mt-2.5 pt-2 border-t border-neutral-200/50 dark:border-neutral-800/50">
-                              {msg.attachment.type === "audio" ? (
-                                <SimulatedAudioPlayer name={msg.attachment.name} />
-                              ) : (
-                                <SimulatedFileClip name={msg.attachment.name} />
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {isTyping && (
-                      <div className="flex gap-3 max-w-[90%] mr-auto">
-                        <div className="size-6 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center font-mono text-[10px] text-neutral-500 dark:text-neutral-455 shrink-0 select-none bg-neutral-50 dark:bg-neutral-950">
-                          A
-                        </div>
-                        <div className="p-3 border border-neutral-200 dark:border-neutral-855 bg-neutral-50 dark:bg-neutral-950 flex items-center gap-1.5">
-                          <span className="size-1.5 bg-neutral-400 dark:bg-neutral-600 animate-bounce"></span>
-                          <span className="size-1.5 bg-neutral-400 dark:bg-neutral-600 animate-bounce [animation-delay:0.2s]"></span>
-                          <span className="size-1.5 bg-neutral-400 dark:bg-neutral-600 animate-bounce [animation-delay:0.4s]"></span>
-                        </div>
-                      </div>
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
-
-                  {/* Lead Captured Alert Banner */}
-                  {collectedLead && (
-                    <div className="absolute bottom-[60px] left-4 right-4 p-3 bg-white dark:bg-black border-2 border-emerald-500 text-emerald-600 dark:text-emerald-455 font-mono text-[10px] flex items-center gap-2 tracking-tight">
-                      <Check className="size-3.5 shrink-0" />
-                      <span>[ LEAD CAPTURED: CHECK DASHBOARD ]</span>
-                    </div>
-                  )}
-
-                  {/* Input Form */}
-                  <form onSubmit={handleSendMessage} className="p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      {/* Left actions */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            clearSimulation();
-                            setInputValue((prev) => prev + " 📎 ");
-                          }}
-                          className="p-1 hover:text-[#f97316] text-neutral-450 dark:text-neutral-500 transition-colors group cursor-pointer"
-                          title="Attach file"
-                        >
-                          <svg className="size-3.5 group-hover:animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            clearSimulation();
-                            setInputValue((prev) => prev + " 🎙️ ");
-                          }}
-                          className="p-1 hover:text-[#f97316] text-neutral-450 dark:text-neutral-500 transition-colors cursor-pointer"
-                          title="Voice message"
-                        >
-                          <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            clearSimulation();
-                            setInputValue((prev) => prev + " 😀 ");
-                          }}
-                          className="p-1 hover:text-[#f97316] text-neutral-450 dark:text-neutral-500 transition-colors cursor-pointer"
-                          title="Insert emoji"
-                        >
-                          <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </button>
-                      </div>
-                      
-                      {/* Input field */}
-                      <div className="flex-1 relative flex items-center">
-                        <span className="absolute left-2.5 font-mono text-neutral-405 dark:text-neutral-500 select-none text-[10px]">&gt;</span>
-                        <input
-                          type="text"
-                          placeholder="Ask a question..."
-                          value={inputValue}
-                          onChange={(e) => {
-                            clearSimulation();
-                            setInputValue(e.target.value);
-                          }}
-                          className="w-full bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 rounded-none pl-6 pr-2 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-900 dark:focus:border-white font-mono"
-                        />
-                      </div>
-
-                      {/* Send button */}
-                      <button type="submit" className="px-3 py-1.5 bg-neutral-950 text-white dark:bg-white dark:text-black rounded-none border border-neutral-955 dark:border-white hover:opacity-90 flex items-center justify-center font-mono text-xs cursor-pointer uppercase tracking-tight">
-                        Send
+                        {copied1 ? "Copied!" : "Copy Code"}
                       </button>
                     </div>
-                  </form>
-                  
-                  {/* Branding / Website Link */}
-                  <div className="p-2 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-center select-none shrink-0">
-                    <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                      Powered by{" "}
-                      <a
-                        href="https://personaliai.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-neutral-600 dark:text-neutral-300 hover:text-[#f97316] underline font-semibold"
+                    <pre className="p-3 bg-neutral-950 text-neutral-200 border border-neutral-800 font-mono text-[10px] overflow-x-auto whitespace-pre rounded-none select-all max-h-[120px] scrollbar-thin">
+                      {scriptCode}
+                    </pre>
+                  </div>
+
+                  {/* Option 2 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-neutral-500 dark:text-neutral-450 uppercase tracking-wide text-[10px]">
+                        Option 2: Dedicated Embed Iframe
+                      </span>
+                      <button
+                        onClick={handleCopy2}
+                        className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 font-mono text-[9px] uppercase tracking-wider text-neutral-600 dark:text-neutral-350 cursor-pointer"
                       >
-                        PersonaliAI
-                      </a>
-                    </span>
+                        {copied2 ? "Copied!" : "Copy Code"}
+                      </button>
+                    </div>
+                    <pre className="p-3 bg-neutral-950 text-neutral-200 border border-neutral-800 font-mono text-[10px] overflow-x-auto whitespace-pre rounded-none select-all max-h-[120px] scrollbar-thin">
+                      {iframeCode}
+                    </pre>
                   </div>
                 </div>
               </div>
@@ -982,6 +731,65 @@ export default function Home() {
               </Link>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Floating Chat Button & Waiting Circle */}
+      <div className="fixed bottom-6 right-6 z-50 flex items-center justify-center select-none">
+        {/* Progress circular waiting indicator */}
+        <svg className="absolute size-14 -rotate-90">
+          <circle
+            cx="28"
+            cy="28"
+            r="24"
+            className="stroke-neutral-200 dark:stroke-neutral-800"
+            strokeWidth="2.5"
+            fill="transparent"
+          />
+          <circle
+            cx="28"
+            cy="28"
+            r="24"
+            className="stroke-[#f97316] transition-all duration-75"
+            strokeWidth="2.5"
+            fill="transparent"
+            strokeDasharray="150.8"
+            strokeDashoffset={150.8 - (150.8 * progress) / 100}
+          />
+        </svg>
+        {/* Toggle Button */}
+        <button
+          onClick={() => setIsWidgetOpen(!isWidgetOpen)}
+          className="size-11 rounded-full bg-neutral-950 text-white dark:bg-white dark:text-black flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity cursor-pointer z-10 focus:outline-none"
+          title="Chat Assistant"
+        >
+          {isWidgetOpen ? (
+            <X className="size-5" />
+          ) : (
+            <MessageSquare className="size-5" />
+          )}
+        </button>
+      </div>
+
+      {/* Live Chatbot Widget Overlay */}
+      {isWidgetOpen && (
+        <div className="fixed bottom-20 right-6 w-[380px] h-[540px] max-w-[calc(100vw-2rem)] bg-white dark:bg-black border border-neutral-200 dark:border-neutral-900 shadow-2xl z-50 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-200 rounded-none">
+          {/* Header Bar */}
+          <div className="p-3 border-b border-neutral-200 dark:border-neutral-900 bg-neutral-50 dark:bg-neutral-950 flex items-center justify-between font-mono text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+            <span className="font-semibold text-neutral-900 dark:text-white">[ ACTIVE ASSISTANT ]</span>
+            <button
+              onClick={() => setIsWidgetOpen(false)}
+              className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          {/* Iframe */}
+          <iframe
+            src="https://chatty.personaliai.com/embed/88330496-43be-48cc-a587-65b0c8ab09d7?color=%23f97316&style=minimalist"
+            className="flex-1 w-full border-0"
+            allow="microphone"
+          />
         </div>
       )}
     </div>
