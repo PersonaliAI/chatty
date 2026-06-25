@@ -375,7 +375,7 @@ export default function EmbedWidget() {
   return (
     <div className={`w-full h-screen bg-white dark:bg-neutral-900 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} rounded-2xl`}>
       {/* Header */}
-      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850 rounded-t-2xl" style={{ background: primaryColor }}>
+      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
           <div className="size-8 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
             {avatarInner("size-[18px]")}
