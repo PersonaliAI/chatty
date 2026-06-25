@@ -222,7 +222,12 @@ export default function EmbedWidget() {
       try {
         // Load config from the backend (service role) — works inside third-party
         // iframes where the browser Supabase client is blocked by storage partitioning.
-        const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}`);
+        const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}&t=${Date.now()}`, {
+          headers: {
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache"
+          }
+        });
         if (res.ok) {
           const bot = await res.json();
           setBotName(bot.name || "Chatty Assistant");
@@ -382,7 +387,7 @@ export default function EmbedWidget() {
   };
 
   return (
-    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} rounded-2xl`} style={{ backgroundColor: primaryColor }}>
+    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} rounded-2xl`} style={{ backgroundColor: primaryColor, ["--primary-color" as any]: primaryColor }}>
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">

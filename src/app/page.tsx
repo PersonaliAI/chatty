@@ -733,7 +733,7 @@ export default function Home() {
         {/* Toggle Button */}
         <button
           onClick={handleToggleWidget}
-          className="size-14 rounded-full bg-neutral-950 text-white dark:bg-white dark:text-black flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity cursor-pointer z-10 focus:outline-none"
+          className="size-14 rounded-full bg-[#f97316] text-white flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity cursor-pointer z-10 focus:outline-none"
           title="Chat Assistant"
         >
           {isWidgetOpen || isConnecting ? (
@@ -742,9 +742,10 @@ export default function Home() {
             <Image
               src="/favicon.png"
               alt="Chat"
-              width={28}
-              height={28}
-              className="size-7 object-contain"
+              width={36}
+              height={36}
+              className="size-9 object-contain"
+              style={{ filter: "brightness(0) invert(1)" }}
             />
           )}
         </button>

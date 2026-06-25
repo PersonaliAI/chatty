@@ -105,7 +105,7 @@
       );
     }
     var filterStyle = isOrange ? "filter: brightness(0) invert(1) !important;" : "";
-    return '<img src="' + origin + '/favicon.png" style="width:30px !important;height:30px !important;object-fit:contain !important;display:block !important;' + filterStyle + '" alt="Chat" />';
+    return '<img src="' + origin + '/favicon.png" style="width:36px !important;height:36px !important;object-fit:contain !important;display:block !important;' + filterStyle + '" alt="Chat" />';
   }
   var chatIcon = buildChatIcon(color);
   var closeIcon =
