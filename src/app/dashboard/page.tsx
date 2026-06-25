@@ -443,6 +443,7 @@ export default function Dashboard() {
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
   const [launcherShape, setLauncherShape] = useState("circle");
+  const [userBots, setUserBots] = useState<any[]>([]);
   const [suggestedColors, setSuggestedColors] = useState<string[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -835,6 +836,7 @@ export default function Dashboard() {
   }
 
   // Fetch bot settings, sources, and leads
+  // Fetch bot settings, sources, and leads
   async function loadBotSettings(userId: string) {
     setLoadingLists(true);
     try {
@@ -842,9 +844,11 @@ export default function Dashboard() {
         .from("chatty_bots")
         .select("*")
         .eq("user_id", userId)
-        .limit(1);
+        .order("updated_at", { ascending: false });
 
       if (error) throw error;
+      
+      setUserBots(bots || []);
       let activeBot = bots?.[0];
 
       if (!activeBot) {
@@ -868,6 +872,7 @@ export default function Dashboard() {
 
         if (createError) throw createError;
         activeBot = newBot;
+        setUserBots([newBot]);
       }
 
       if (activeBot) {
@@ -959,6 +964,107 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Error loading bot database config:", err);
+    } finally {
+      setLoadingLists(false);
+    }
+  }
+
+  // Switch active bot in dashboard settings
+  const switchActiveBot = async (targetBotId: string) => {
+    const selected = userBots.find((b) => b.id === targetBotId);
+    if (!selected) return;
+
+    setLoadingLists(true);
+    try {
+      setBotId(selected.id);
+      setBotName(selected.name);
+      setWelcomeMsg(selected.welcome_message);
+      setConversationStarters(Array.isArray(selected.conversation_starters) ? selected.conversation_starters : []);
+      setTeaserMessage(selected.teaser_message || "👋 Need help? Chat with us.");
+      setPrimaryColor(selected.primary_color);
+      
+      const styleVal = selected.widget_style || "minimalist";
+      const [styleName, logoBg, shapeVal] = styleVal.split(":");
+      setWidgetStyle(styleName || "minimalist");
+      setLogoBgColor(logoBg || "");
+      setLauncherShape(shapeVal || "circle");
+      
+      setSendButtonStyle(selected.send_button_style || "plane");
+      setAvatarIcon(selected.avatar_icon || "logo");
+      setAvatarUrl(selected.avatar_url || null);
+      setLogoUrl(selected.logo_url || null);
+      setSelectedModel(selected.selected_model);
+      setSystemInstructions(selected.system_instructions);
+      setStrictMode(selected.strict_mode);
+      setEmailNotify(selected.email_notify);
+
+      setSyncGoogleDrive(selected.sync_google_drive || false);
+      setSyncGoogleCalendar(selected.sync_google_calendar || false);
+      setCalendarSchedulingEnabled(selected.calendar_scheduling_enabled || false);
+      setSchedulingDuration(selected.scheduling_duration_minutes || 30);
+      setBotTimezone(selected.bot_timezone || "UTC");
+      setBusinessHoursStart(selected.business_hours_start ?? 9);
+      setBusinessHoursEnd(selected.business_hours_end ?? 17);
+      setWorkingDays(selected.working_days || ["mon", "tue", "wed", "thu", "fri"]);
+      setBufferMinutes(selected.buffer_minutes ?? 0);
+      setAdvanceNoticeHours(selected.advance_notice_hours ?? 0);
+      setAllowedDomains(selected.allowed_domains || []);
+      setOnboardingStep(selected.onboarding_step || 0);
+      setOnboardingCompleted(selected.onboarding_completed || false);
+      setLeadFields(selected.lead_fields || ["name", "email", "phone"]);
+      setLeadCaptureEnabled(selected.lead_capture_enabled ?? true);
+      setLeadRequiredFields(selected.lead_required_fields || ["name", "email"]);
+      setBotCountry(selected.bot_country || "");
+      setSyncOutlookCalendar(selected.sync_outlook_calendar || false);
+      setSyncOffice365Calendar(selected.sync_office365_calendar || false);
+      setMeetingProvider(selected.meeting_provider || "google_meet");
+
+      // Fetch sources
+      const { data: srcList } = await supabase
+        .from("chatty_sources")
+        .select("*")
+        .eq("bot_id", selected.id);
+
+      if (srcList) {
+        setSources(srcList.map(s => ({
+          id: s.id,
+          type: s.type,
+          name: s.name,
+          content: s.content,
+          status: s.status,
+          charCount: s.char_count
+        })));
+      } else {
+        setSources([]);
+      }
+
+      // Fetch leads
+      const { data: leadList } = await supabase
+        .from("chatty_leads")
+        .select("*")
+        .eq("bot_id", selected.id)
+        .order("created_at", { ascending: false });
+
+      let currentLeadsCount = 0;
+      if (leadList) {
+        const mappedLeads = leadList.map(l => ({
+          ...l,
+          id: l.id,
+          name: l.name || "Anonymous",
+          email: l.email || "N/A",
+          phone: l.phone || "N/A",
+          created_at: new Date(l.created_at).toISOString().slice(0, 16).replace("T", " ")
+        }));
+        setLeads(mappedLeads);
+        currentLeadsCount = mappedLeads.length;
+      } else {
+        setLeads([]);
+      }
+
+      // Recalculate real analytics
+      await loadAnalyticsData(selected.id, currentLeadsCount);
+    } catch (err) {
+      console.error("Error switching bot:", err);
     } finally {
       setLoadingLists(false);
     }
@@ -1448,6 +1554,45 @@ export default function Dashboard() {
 
       if (error) throw error;
       setHasUnsavedChanges(false);
+
+      // Update local userBots array so switcher dropdown has fresh names / values
+      setUserBots((prev) =>
+        prev.map((b) =>
+          b.id === botId
+            ? {
+                ...b,
+                name: botName,
+                welcome_message: welcomeMsg,
+                conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
+                teaser_message: teaserMessage,
+                primary_color: primaryColor,
+                widget_style: `${widgetStyle}:${logoBgColor || ""}:${launcherShape}`,
+                send_button_style: sendButtonStyle,
+                avatar_icon: avatarIcon,
+                avatar_url: avatarUrl,
+                logo_url: logoUrl,
+                selected_model: selectedModel,
+                system_instructions: systemInstructions,
+                strict_mode: strictMode,
+                email_notify: emailNotify,
+                sync_google_drive: syncGoogleDrive,
+                sync_google_calendar: syncGoogleCalendar,
+                sync_outlook_calendar: syncOutlookCalendar,
+                calendar_scheduling_enabled: calendarSchedulingEnabled,
+                scheduling_duration_minutes: schedulingDuration,
+                bot_timezone: botTimezone,
+                bot_country: botCountry,
+                meeting_provider: meetingProvider,
+                business_hours_start: businessHoursStart,
+                business_hours_end: businessHoursEnd,
+                working_days: workingDays,
+                buffer_minutes: bufferMinutes,
+                advance_notice_hours: advanceNoticeHours,
+                allowed_domains: allowedDomains,
+              }
+            : b
+        )
+      );
     } catch (err) {
       console.error("Error saving chatbot changes:", err);
     } finally {
@@ -2530,6 +2675,24 @@ export default function Dashboard() {
               <X className="size-4" />
             </button>
           </div>
+
+          {/* Chatbot Selector Dropdown */}
+          {userBots.length > 1 && (
+            <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+              <label className="block text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mb-1">Active Chatbot</label>
+              <select
+                value={botId || ""}
+                onChange={(e) => switchActiveBot(e.target.value)}
+                className="w-full bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200 focus:outline-none cursor-pointer"
+              >
+                {userBots.map((bot) => (
+                  <option key={bot.id} value={bot.id}>
+                    {bot.name || "Chatbot"} ({bot.id.slice(0, 8)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Navigation Links */}
           <nav className="p-4 space-y-1">
