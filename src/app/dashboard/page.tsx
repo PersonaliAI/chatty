@@ -359,6 +359,66 @@ const LOCALE_TEXTS: Record<string, Record<string, string>> = {
   }
 };
 
+async function extractColorsFromUrl(url: string): Promise<string[]> {
+  return new Promise((resolve) => {
+    if (!url) return resolve([]);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve([]);
+        
+        // Resize to small size for faster processing and color clustering
+        canvas.width = 40;
+        canvas.height = 40;
+        ctx.drawImage(img, 0, 0, 40, 40);
+        
+        const imgData = ctx.getImageData(0, 0, 40, 40).data;
+        const colorCounts: Record<string, number> = {};
+        
+        for (let i = 0; i < imgData.length; i += 4) {
+          const r = imgData[i];
+          const g = imgData[i + 1];
+          const b = imgData[i + 2];
+          const a = imgData[i + 3];
+          
+          // Ignore transparent or near-transparent pixels
+          if (a < 128) continue;
+          
+          // Ignore extreme white or extreme black to get actual brand colors
+          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+          if (brightness > 245 || brightness < 15) continue;
+          
+          // Round RGB values to group similar colors (clustering)
+          const clusterR = Math.round(r / 16) * 16;
+          const clusterG = Math.round(g / 16) * 16;
+          const clusterB = Math.round(b / 16) * 16;
+          
+          const hex = "#" + [clusterR, clusterG, clusterB].map(x => {
+            const hexStr = Math.min(255, Math.max(0, x)).toString(16);
+            return hexStr.length === 1 ? "0" + hexStr : hexStr;
+          }).join("");
+          
+          colorCounts[hex] = (colorCounts[hex] || 0) + 1;
+        }
+        
+        // Sort by frequency
+        const sortedColors = Object.keys(colorCounts).sort((a, b) => colorCounts[b] - colorCounts[a]);
+        
+        // Take top 5 colors
+        resolve(sortedColors.slice(0, 5));
+      } catch (e) {
+        console.error("Color extraction error:", e);
+        resolve([]);
+      }
+    };
+    img.onerror = () => resolve([]);
+    img.src = url;
+  });
+}
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -381,9 +441,22 @@ export default function Dashboard() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarFileRef = useRef<HTMLInputElement>(null);
+  const [logoBgColor, setLogoBgColor] = useState("");
+  const [suggestedColors, setSuggestedColors] = useState<string[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const logoFileRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoFileRef = useRef<HTMLInputElement>(null);
+
+  // Extract colors when logoUrl changes
+  useEffect(() => {
+    if (logoUrl) {
+      extractColorsFromUrl(logoUrl).then((colors) => {
+        setSuggestedColors(colors);
+      });
+    } else {
+      setSuggestedColors([]);
+    }
+  }, [logoUrl]);
   const [showWizard, setShowWizard] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini");
   const [systemInstructions, setSystemInstructions] = useState(
@@ -803,7 +876,10 @@ export default function Dashboard() {
         setConversationStarters(Array.isArray(activeBot.conversation_starters) ? activeBot.conversation_starters : []);
         setTeaserMessage(activeBot.teaser_message || "👋 Need help? Chat with us.");
         setPrimaryColor(activeBot.primary_color);
-        setWidgetStyle(activeBot.widget_style || "minimalist");
+        const styleVal = activeBot.widget_style || "minimalist";
+        const [styleName, logoBg] = styleVal.split(":");
+        setWidgetStyle(styleName || "minimalist");
+        setLogoBgColor(logoBg || "");
         setSendButtonStyle(activeBot.send_button_style || "plane");
         setAvatarIcon(activeBot.avatar_icon || "logo");
         setAvatarUrl(activeBot.avatar_url || null);
@@ -1341,7 +1417,7 @@ export default function Dashboard() {
           conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
           teaser_message: teaserMessage,
           primary_color: primaryColor,
-          widget_style: widgetStyle,
+          widget_style: logoBgColor ? `${widgetStyle}:${logoBgColor}` : widgetStyle,
           send_button_style: sendButtonStyle,
           avatar_icon: avatarIcon,
           avatar_url: avatarUrl,
@@ -2844,7 +2920,10 @@ export default function Dashboard() {
                     <div className="mt-1 pt-4 border-t border-neutral-100 dark:border-neutral-800">
                       <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1.5">Business / Brand Logo</label>
                       <div className="flex items-center gap-4">
-                        <div className="size-12 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-neutral-50 dark:bg-neutral-950 overflow-hidden shrink-0">
+                        <div 
+                          className="size-12 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-neutral-50 dark:bg-neutral-950 overflow-hidden shrink-0 transition-colors"
+                          style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
+                        >
                           {logoUrl ? <img src={logoUrl} alt="Logo" className="size-full object-cover" /> : <span className="text-sm font-bold text-neutral-400">{(botName?.[0] || "C").toUpperCase()}</span>}
                         </div>
                         <div>
@@ -2856,6 +2935,72 @@ export default function Dashboard() {
                           <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">PNG/JPG, max 10 MB. Used as the widget avatar when &quot;Logo&quot; is selected.</p>
                         </div>
                       </div>
+
+                      {/* Brand Logo Background Color Setting */}
+                      <div className="mt-4">
+                        <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1.5">Logo Background Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={logoBgColor || "#ffffff"}
+                            onChange={(e) => handleInputChange(setLogoBgColor, e.target.value)}
+                            className="size-8 rounded border border-neutral-200 bg-transparent p-0.5 cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={logoBgColor}
+                            placeholder="e.g. #ffffff or transparent"
+                            onChange={(e) => handleInputChange(setLogoBgColor, e.target.value)}
+                            className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                          />
+                          {logoBgColor && (
+                            <button
+                              type="button"
+                              onClick={() => handleInputChange(setLogoBgColor, "")}
+                              className="text-[10px] text-red-500 hover:underline shrink-0"
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Color Suggestions */}
+                      {suggestedColors.length > 0 && (
+                        <div className="mt-4">
+                          <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1.5 font-medium">Suggested Colors (from Logo)</label>
+                          <div className="flex flex-wrap gap-2.5">
+                            {suggestedColors.map((color) => (
+                              <div key={color} className="flex flex-col items-center gap-1 p-1.5 border border-neutral-200 dark:border-neutral-850 rounded-xl bg-neutral-50/50 dark:bg-neutral-950/50">
+                                <div 
+                                  className="w-7 h-7 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-sm transition-transform hover:scale-105"
+                                  style={{ backgroundColor: color }}
+                                  title={color}
+                                />
+                                <span className="text-[8px] font-mono text-neutral-500 dark:text-neutral-400">{color.toUpperCase()}</span>
+                                <div className="flex gap-1 mt-1">
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleInputChange(setPrimaryColor, color)}
+                                    title="Set as Widget Primary Color"
+                                    className="px-1 py-0.5 text-[8px] font-semibold rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-85 cursor-pointer"
+                                  >
+                                    Primary
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleInputChange(setLogoBgColor, color)}
+                                    title="Set as Logo Background Color"
+                                    className="px-1 py-0.5 text-[8px] font-semibold rounded border border-neutral-350 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
+                                  >
+                                    Logo BG
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2874,7 +3019,12 @@ export default function Dashboard() {
                         widgetStyle === "minimalist" ? "text-white" : ""
                       }`}
                     >
-                      <div className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0">{dashHeaderLogo("size-6")}</div>
+                      <div 
+                        className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
+                        style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
+                      >
+                        {dashHeaderLogo("size-6")}
+                      </div>
                       <div>
                         <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
                         <p className="text-[9px] opacity-80">Online • presets: {widgetStyle}</p>
@@ -3513,8 +3663,8 @@ export default function Dashboard() {
                 botId ? (
                   <>
                     <iframe
-                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${botName}`}
-                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}`}
+                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}`}
+                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}`}
                       title="Live widget preview"
                       className="w-full max-w-lg h-[500px] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
                     />
@@ -3537,7 +3687,12 @@ export default function Dashboard() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0">{dashHeaderLogo("size-6")}</div>
+                    <div 
+                      className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
+                      style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
+                    >
+                      {dashHeaderLogo("size-6")}
+                    </div>
                     <div>
                       <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
                       <p className="text-[9px] opacity-80 flex items-center gap-1">

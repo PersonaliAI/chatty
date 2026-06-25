@@ -86,6 +86,7 @@ export default function EmbedWidget() {
   const paramAvatarIcon = searchParams.get("avatar_icon");
   const paramAvatarUrl = searchParams.get("avatar_url");
   const paramLogoUrl = searchParams.get("logo_url");
+  const paramLogoBgColor = searchParams.get("logo_bg_color");
 
   // Scope stored session + history per embedding site, so different host sites
   // (and the dashboard playground) don't share one conversation.
@@ -142,6 +143,7 @@ export default function EmbedWidget() {
   const [primaryColor, setPrimaryColor] = useState("#f97316");
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoBgColor, setLogoBgColor] = useState("");
 
   const [tab, setTab] = useState<Tab>("messages");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -246,7 +248,14 @@ export default function EmbedWidget() {
           setAvatarIcon(isPreview ? (paramAvatarIcon || bot.avatar_icon || "logo") : (bot.avatar_icon || "logo"));
           setAvatarUrl(isPreview ? (paramAvatarUrl || bot.avatar_url || null) : (bot.avatar_url || null));
           setPrimaryColor(isPreview ? (paramColor || bot.primary_color || "#f97316") : (bot.primary_color || paramColor || "#f97316"));
-          setWidgetStyle(isPreview ? (paramStyle || bot.widget_style || "minimalist") : (bot.widget_style || paramStyle || "minimalist"));
+          const rawStyle = isPreview ? (paramStyle || bot.widget_style || "minimalist") : (bot.widget_style || paramStyle || "minimalist");
+          const [styleName, dbLogoBg] = rawStyle.split(":");
+          setWidgetStyle(styleName || "minimalist");
+          if (isPreview) {
+            setLogoBgColor(paramLogoBgColor ?? dbLogoBg ?? "");
+          } else {
+            setLogoBgColor(dbLogoBg || "");
+          }
           setLogoUrl(isPreview ? (paramLogoUrl || bot.logo_url || null) : (bot.logo_url || null));
           setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg }]);
         }
@@ -258,7 +267,7 @@ export default function EmbedWidget() {
       }
     }
     loadBot();
-  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl]);
+  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor]);
 
   // Force transparent iframe body background to resolve sub-pixel corner bleeding
   useEffect(() => {
@@ -400,7 +409,10 @@ export default function EmbedWidget() {
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
-          <div className="size-11 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-base overflow-hidden shrink-0">
+          <div 
+            className="size-11 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-base overflow-hidden shrink-0 transition-colors"
+            style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
+          >
             {headerLogoInner("size-6")}
           </div>
           <div className="leading-tight">

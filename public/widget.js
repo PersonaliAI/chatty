@@ -95,6 +95,7 @@
   btn.onmouseenter = function () { btn.style.transform = "scale(1.06)"; };
   btn.onmouseleave = function () { btn.style.transform = "scale(1)"; };
   var customIconUrl = null;
+  var customLogoBgColor = "";
   function buildChatIcon(c) {
     var iconSrc = customIconUrl || (origin + "/favicon.png");
     var isOrange = false;
@@ -108,7 +109,8 @@
     }
     var filterStyle = isOrange ? "filter: brightness(0) invert(1) !important;" : "";
     var borderStyle = customIconUrl ? "border-radius:50% !important;object-fit:cover !important;" : "object-fit:contain !important;";
-    return '<img src="' + iconSrc + '" style="width:44px !important;height:44px !important;display:block !important;' + borderStyle + filterStyle + '" alt="Chat" />';
+    var bgStyle = (customIconUrl && customLogoBgColor) ? "background-color:" + customLogoBgColor + " !important;" : "";
+    return '<img src="' + iconSrc + '" style="width:44px !important;height:44px !important;display:block !important;' + borderStyle + filterStyle + bgStyle + '" alt="Chat" />';
   }
   function updateLauncherIcon() {
     chatIcon = buildChatIcon(color);
@@ -177,6 +179,12 @@
         if (!d) return;
         if (d.primary_color) applyTheme(d.primary_color);
         teaserText = d.teaser_message || d.welcome_message || teaserText;
+        if (d.widget_style) {
+          var parts = d.widget_style.split(":");
+          if (parts.length > 1) {
+            customLogoBgColor = parts[1];
+          }
+        }
         // Use the customer's uploaded logo/avatar as the launcher icon
         var logoToUse = null;
         if (d.avatar_icon === "custom" && d.avatar_url) {
