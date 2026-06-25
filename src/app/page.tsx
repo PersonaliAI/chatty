@@ -267,6 +267,33 @@ export default function Home() {
     }
   };
 
+  // Helper to get waiting wheel path and perimeter based on button shape
+  const getWaitingPathAndPerimeter = () => {
+    switch (launcherShape) {
+      case "square":
+        return {
+          d: "M 36 4 L 68 4 L 68 68 L 4 68 L 4 4 Z",
+          perimeter: 256
+        };
+      case "rounded":
+        return {
+          d: "M 36 4 L 53 4 A 15 15 0 0 1 68 19 L 68 53 A 15 15 0 0 1 53 68 L 19 68 A 15 15 0 0 1 4 53 L 4 19 A 15 15 0 0 1 19 4 Z",
+          perimeter: 230.2
+        };
+      case "bubble":
+        return {
+          d: "M 36 4 L 41 4 A 27 27 0 0 1 68 31 L 68 61 A 7 7 0 0 1 61 68 L 31 68 A 27 27 0 0 1 4 41 L 4 31 A 27 27 0 0 1 31 4 Z",
+          perimeter: 218.2
+        };
+      case "circle":
+      default:
+        return {
+          d: "M 36 4 A 32 32 0 1 1 35.99 4 Z",
+          perimeter: 201.1
+        };
+    }
+  };
+
   const handleToggleWidget = () => {
     if (isWidgetOpen) {
       setIsWidgetOpen(false);
@@ -761,26 +788,24 @@ export default function Home() {
           themeLoaded ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-90 pointer-events-none"
         }`}
       >
-        {/* Progress circular waiting indicator */}
-        <svg className={`absolute w-[72px] h-[72px] -rotate-90 transition-opacity duration-300 ${isConnecting ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-          <circle
-            cx="36"
-            cy="36"
-            r="32"
+        {/* Progress waiting indicator (matches shape of the floating button) */}
+        <svg className={`absolute w-[72px] h-[72px] transition-opacity duration-300 ${isConnecting ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+          {/* Background track path */}
+          <path
+            d={getWaitingPathAndPerimeter().d}
             className="stroke-neutral-200 dark:stroke-neutral-800"
             strokeWidth="2.5"
             fill="transparent"
           />
-          <circle
-            cx="36"
-            cy="36"
-            r="32"
+          {/* Active progress path */}
+          <path
+            d={getWaitingPathAndPerimeter().d}
             style={{ stroke: themeColor }}
             className="transition-all duration-75"
             strokeWidth="2.5"
             fill="transparent"
-            strokeDasharray="201.1"
-            strokeDashoffset={201.1 - (201.1 * progress) / 100}
+            strokeDasharray={getWaitingPathAndPerimeter().perimeter}
+            strokeDashoffset={getWaitingPathAndPerimeter().perimeter - (getWaitingPathAndPerimeter().perimeter * progress) / 100}
           />
         </svg>
         {/* Toggle Button */}
