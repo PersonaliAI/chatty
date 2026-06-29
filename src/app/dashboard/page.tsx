@@ -2190,16 +2190,24 @@ export default function Dashboard() {
     const urlName = inputUrl.trim();
     setInputUrl("");
 
-    const newId = `src-${Date.now()}`;
-    const tempSource: Source = {
-      id: newId,
-      type: "url",
-      name: urlName,
-      content: "Crawling website contents in progress...",
-      status: "training",
-      charCount: 0
-    };
-    setSources((prev) => [...prev, tempSource]);
+    const existingInState = sources.find((s) => s.name === urlName && s.type === "url");
+    const newId = existingInState ? existingInState.id : `src-${Date.now()}`;
+
+    if (existingInState) {
+      setSources((prev) =>
+        prev.map((s) => (s.id === newId ? { ...s, status: "training", content: "Crawling website contents in progress..." } : s))
+      );
+    } else {
+      const tempSource: Source = {
+        id: newId,
+        type: "url",
+        name: urlName,
+        content: "Crawling website contents in progress...",
+        status: "training",
+        charCount: 0
+      };
+      setSources((prev) => [...prev, tempSource]);
+    }
 
     try {
       let crawledContent = `This source represents the crawled contents of ${urlName}.`;
@@ -2217,21 +2225,46 @@ export default function Dashboard() {
       }
 
       if (user && botId) {
-        const { data: dbSrc, error } = await supabase
+        // Query to check if duplicate exists in database
+        const { data: existingSrc } = await supabase
           .from("chatty_sources")
-          .insert({
-            bot_id: botId,
-            type: "url",
-            name: urlName,
-            content: crawledContent,
-            status: "training",
-            char_count: crawledContent.length
-          })
-          .select()
-          .single();
+          .select("id")
+          .eq("bot_id", botId)
+          .eq("type", "url")
+          .eq("name", urlName)
+          .maybeSingle();
 
-        if (error) throw error;
-        
+        let dbSrc;
+        if (existingSrc) {
+          const { data: updated, error } = await supabase
+            .from("chatty_sources")
+            .update({
+              content: crawledContent,
+              status: "training",
+              char_count: crawledContent.length
+            })
+            .eq("id", existingSrc.id)
+            .select()
+            .single();
+          if (error) throw error;
+          dbSrc = updated;
+        } else {
+          const { data: inserted, error } = await supabase
+            .from("chatty_sources")
+            .insert({
+              bot_id: botId,
+              type: "url",
+              name: urlName,
+              content: crawledContent,
+              status: "training",
+              char_count: crawledContent.length
+            })
+            .select()
+            .single();
+          if (error) throw error;
+          dbSrc = inserted;
+        }
+
         setTimeout(async () => {
           await supabase
             .from("chatty_sources")
@@ -2239,13 +2272,15 @@ export default function Dashboard() {
             .eq("id", dbSrc.id);
 
           setSources((prev) =>
-            prev.map((s) => (s.id === newId ? { ...s, id: dbSrc.id, content: crawledContent, status: "trained", charCount: crawledContent.length } : s))
+            prev.map((s) => (s.id === newId || s.id === dbSrc.id ? { ...s, id: dbSrc.id, content: crawledContent, status: "trained", charCount: crawledContent.length } : s))
           );
         }, 1500);
       }
     } catch (err) {
       console.error("Error inserting url source:", err);
-      setSources((prev) => prev.filter((s) => s.id !== newId));
+      if (!existingInState) {
+        setSources((prev) => prev.filter((s) => s.id !== newId));
+      }
     }
   };
 
