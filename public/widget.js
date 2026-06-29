@@ -12,6 +12,12 @@
 (function () {
   "use strict";
   if (window.__chattyWidgetLoaded) return;
+
+  // Exit immediately if loaded by a crawler, headless browser, or scraper
+  var ua = (navigator.userAgent || "").toLowerCase();
+  var isBot = /jina|bot|crawl|spider|headless|lighthouse/i.test(ua) || navigator.webdriver;
+  if (isBot) return;
+
   window.__chattyWidgetLoaded = true;
 
   var BACKEND = "https://personaliai-api-376030619262.us-central1.run.app";
