@@ -581,6 +581,8 @@ export default function Dashboard() {
   const [isIndexingDrive, setIsIndexingDrive] = useState(false);
   const [driveIndexError, setDriveIndexError] = useState<string | null>(null);
   const [driveIndexSuccess, setDriveIndexSuccess] = useState<string | null>(null);
+  const [driveSyncSchedule, setDriveSyncSchedule] = useState<"off" | "daily" | "weekly" | "monthly">("off");
+  const [onedriveSyncSchedule, setOnedriveSyncSchedule] = useState<"off" | "daily" | "weekly" | "monthly">("off");
 
   const [syncOneDrive, setSyncOneDrive] = useState(false);
   const [syncMicrosoftToDo, setSyncMicrosoftToDo] = useState(false);
@@ -1329,6 +1331,9 @@ export default function Dashboard() {
     }
     if (botId && activeTab === "settings") {
       loadByokStatus(botId);
+    }
+    if (botId && activeTab === "knowledge") {
+      loadDriveSyncSchedule();
     }
   }, [activeTab, botId]);
 
@@ -2395,6 +2400,38 @@ export default function Dashboard() {
   };
 
   // Handle Google Drive folder indexing
+  const loadDriveSyncSchedule = async () => {
+    try {
+      const res = await fetchWithFallback("/api/documents/sync-schedule");
+      if (res.ok) {
+        const d = await res.json();
+        setDriveSyncSchedule(d.gdrive?.schedule || "off");
+        setOnedriveSyncSchedule(d.onedrive?.schedule || "off");
+      }
+    } catch (err) {
+      console.error("Failed to load Drive/OneDrive sync schedule:", err);
+    }
+  };
+
+  const handleSetDriveSyncSchedule = async (source: "gdrive" | "onedrive", schedule: "off" | "daily" | "weekly" | "monthly") => {
+    const setter = source === "gdrive" ? setDriveSyncSchedule : setOnedriveSyncSchedule;
+    setter(schedule);
+    try {
+      const res = await fetchWithFallback("/api/documents/sync-schedule", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source, schedule }),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        showToast(body.detail || "Failed to update sync schedule.", "error");
+        await loadDriveSyncSchedule();
+      }
+    } catch (err) {
+      console.error("Failed to set Drive/OneDrive sync schedule:", err);
+    }
+  };
+
   const handleIndexDriveFolder = async (e: React.FormEvent, source: "gdrive" | "onedrive" = "gdrive") => {
     e.preventDefault();
     if (!driveFolderUrl.trim()) return;
@@ -4075,7 +4112,20 @@ export default function Dashboard() {
                       </div>
                       {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
                       {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
-                      <div className="flex justify-end">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="size-3 text-neutral-400" />
+                          <select
+                            value={driveSyncSchedule}
+                            onChange={(e) => handleSetDriveSyncSchedule("gdrive", e.target.value as "off" | "daily" | "weekly" | "monthly")}
+                            className="text-[10px] font-medium bg-transparent border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 cursor-pointer focus:outline-none"
+                          >
+                            <option value="off">No auto re-sync</option>
+                            <option value="daily">Re-sync daily</option>
+                            <option value="weekly">Re-sync weekly</option>
+                            <option value="monthly">Re-sync monthly</option>
+                          </select>
+                        </div>
                         <button
                           type="submit"
                           disabled={isIndexingDrive || !driveFolderUrl.trim()}
@@ -4085,6 +4135,7 @@ export default function Dashboard() {
                           Index Folder
                         </button>
                       </div>
+                      <p className="text-[9px] text-neutral-400">Auto re-sync requires indexing this folder at least once first.</p>
                     </form>
                   )}
 
@@ -4120,7 +4171,20 @@ export default function Dashboard() {
                       </div>
                       {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
                       {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
-                      <div className="flex justify-end">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="size-3 text-neutral-400" />
+                          <select
+                            value={onedriveSyncSchedule}
+                            onChange={(e) => handleSetDriveSyncSchedule("onedrive", e.target.value as "off" | "daily" | "weekly" | "monthly")}
+                            className="text-[10px] font-medium bg-transparent border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 cursor-pointer focus:outline-none"
+                          >
+                            <option value="off">No auto re-sync</option>
+                            <option value="daily">Re-sync daily</option>
+                            <option value="weekly">Re-sync weekly</option>
+                            <option value="monthly">Re-sync monthly</option>
+                          </select>
+                        </div>
                         <button
                           type="submit"
                           disabled={isIndexingDrive || !driveFolderUrl.trim() || !microsoftConnected}
@@ -4130,6 +4194,7 @@ export default function Dashboard() {
                           Index OneDrive Folder
                         </button>
                       </div>
+                      <p className="text-[9px] text-neutral-400">Auto re-sync requires indexing this folder at least once first.</p>
                     </form>
                   )}
                 </div>
