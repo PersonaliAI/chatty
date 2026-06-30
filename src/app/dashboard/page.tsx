@@ -503,6 +503,7 @@ export default function Dashboard() {
   const [strictMode, setStrictMode] = useState(true);
   const [emailNotify, setEmailNotify] = useState(true);
   const [hideBranding, setHideBranding] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState("");
   const [customCss, setCustomCss] = useState("");
   const [customJs, setCustomJs] = useState("");
   const [responseLanguage, setResponseLanguage] = useState("");
@@ -946,6 +947,7 @@ export default function Dashboard() {
         setStrictMode(activeBot.strict_mode);
         setEmailNotify(activeBot.email_notify);
         setHideBranding(activeBot.hide_branding || false);
+        setWebhookUrl(activeBot.webhook_url || "");
         setCustomCss(activeBot.custom_css || "");
         setCustomJs(activeBot.custom_js || "");
         setResponseLanguage(activeBot.response_language || "");
@@ -1057,6 +1059,7 @@ export default function Dashboard() {
       setStrictMode(selected.strict_mode);
       setEmailNotify(selected.email_notify);
       setHideBranding(selected.hide_branding || false);
+      setWebhookUrl(selected.webhook_url || "");
       setCustomCss(selected.custom_css || "");
       setCustomJs(selected.custom_js || "");
       setResponseLanguage(selected.response_language || "");
@@ -1701,6 +1704,7 @@ export default function Dashboard() {
           strict_mode: strictMode,
           email_notify: emailNotify,
           hide_branding: hideBranding,
+          webhook_url: webhookUrl,
           custom_css: customCss,
           custom_js: customJs,
           response_language: responseLanguage,
@@ -1749,6 +1753,7 @@ export default function Dashboard() {
                 strict_mode: strictMode,
                 email_notify: emailNotify,
                 hide_branding: hideBranding,
+                webhook_url: webhookUrl,
                 custom_css: customCss,
                 custom_js: customJs,
                 response_language: responseLanguage,
@@ -6102,6 +6107,25 @@ const { reply, session_id } = await res.json();`}</pre>
           {/* TAB 10: NOTIFICATIONS */}
           {activeTab === "notifications" && (
             <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
+              <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <Link2 className="size-4 text-[#f97316]" /> Outbound Webhook
+                </h3>
+                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                  Get a POST request whenever this bot starts a new conversation or captures a new lead — wire it into Zapier, Slack, or your own backend.
+                </p>
+                <input
+                  type="url"
+                  value={webhookUrl}
+                  onChange={(e) => handleInputChange(setWebhookUrl, e.target.value)}
+                  placeholder="https://hooks.zapier.com/hooks/catch/…"
+                  className="w-full mt-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                />
+                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-2">
+                  Payload: <code className="font-mono">{"{ event: \"new_conversation\" | \"new_lead\", bot_id, data, timestamp }"}</code>. Remember to click <b>Save Changes</b>.
+                </p>
+              </div>
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Automated Notification Logs</h4>
