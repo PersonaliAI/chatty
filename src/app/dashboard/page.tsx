@@ -4793,28 +4793,21 @@ export default function Dashboard() {
                 <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mt-5 mb-2.5">Select your option:</p>
 
                 {(() => {
+                  const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
+                  const mobileLogoUrl = (domain: string) =>
+                    `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
+                  const MobilePlatformIcon = ({ domain, label }: { domain: string; label: string }) => (
+                    <img
+                      src={mobileLogoUrl(domain)}
+                      alt={label}
+                      className="size-6 rounded-md object-contain"
+                      onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }}
+                    />
+                  );
                   const mobilePlatforms = [
-                    {
-                      id: "ios",
-                      label: "iOS SDK",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-6" fill="none"><rect width="24" height="24" rx="6" fill="#000"/><path d="M16.5 12.3c0-1.9 1.6-2.8 1.6-2.9-.9-1.3-2.3-1.5-2.8-1.5-1.2-.1-2.3.7-2.9.7-.6 0-1.5-.7-2.5-.7-1.3 0-2.5.7-3.1 1.9-1.3 2.3-.3 5.7.9 7.6.6.9 1.3 2 2.3 1.9.9 0 1.3-.6 2.4-.6s1.4.6 2.4.6c1 0 1.6-.9 2.3-1.8.7-1 1-2 1-2.1-.1 0-1.9-.7-1.9-2.9zM14.5 6.4c.5-.6.9-1.5.8-2.4-.8 0-1.7.5-2.3 1.2-.5.6-.9 1.5-.8 2.4.9.1 1.8-.5 2.3-1.2z" fill="#fff"/></svg>
-                      ),
-                    },
-                    {
-                      id: "android",
-                      label: "Android SDK",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-6" fill="none"><rect width="24" height="24" rx="6" fill="#3DDC84"/><path d="M7 10.5v4.2c0 .4.3.8.8.8h.6v2.1c0 .6.5 1 1 1s1-.4 1-1v-2.1h1.2v2.1c0 .6.5 1 1 1s1-.4 1-1v-2.1h.6c.4 0 .8-.3.8-.8v-4.2H7zM6.4 10.5c-.4 0-.8.3-.8.8v3.1c0 .4.3.8.8.8s.8-.3.8-.8v-3.1c0-.4-.4-.8-.8-.8zM17.6 10.5c-.4 0-.8.3-.8.8v3.1c0 .4.3.8.8.8s.8-.3.8-.8v-3.1c0-.4-.4-.8-.8-.8zM14.9 6.1l.7-1.3a.2.2 0 00-.4-.2l-.7 1.3a3.6 3.6 0 00-2.9 0l-.7-1.3a.2.2 0 10-.4.2l.7 1.3c-1.1.6-1.9 1.8-2 3.2h8.3c-.1-1.4-.9-2.6-2-3.2zM10.8 8c-.2 0-.4-.2-.4-.4s.2-.4.4-.4.4.2.4.4-.2.4-.4.4zm3.8 0c-.2 0-.4-.2-.4-.4s.2-.4.4-.4.4.2.4.4-.2.4-.4.4z" fill="#fff"/></svg>
-                      ),
-                    },
-                    {
-                      id: "react-native",
-                      label: "React Native SDK",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-6" fill="none"><circle cx="12" cy="12" r="2" fill="#61DAFB"/><g stroke="#61DAFB" strokeWidth="1.1" fill="none"><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(120 12 12)"/></g></svg>
-                      ),
-                    },
+                    { id: "ios", label: "iOS SDK", icon: <MobilePlatformIcon domain="apple.com" label="iOS" /> },
+                    { id: "android", label: "Android SDK", icon: <MobilePlatformIcon domain="android.com" label="Android" /> },
+                    { id: "react-native", label: "React Native SDK", icon: <MobilePlatformIcon domain="reactnative.dev" label="React Native" /> },
                   ];
 
                   const mobileInstructions: Record<string, { title: string; steps: { label: string; code?: string; note?: string }[] }> = {
