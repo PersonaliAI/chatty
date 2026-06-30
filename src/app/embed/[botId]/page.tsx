@@ -7,6 +7,7 @@ import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
+import EmojiPicker, { EmojiStyle, Theme as EmojiTheme } from "emoji-picker-react";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
@@ -22,13 +23,6 @@ import { useParams, useSearchParams } from "next/navigation";
 
 const supabase = createClient();
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
-const EMOJI_CATEGORIES: { name: string; emojis: string[] }[] = [
-  { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","😂","🤣","🙂","🙃","😉","😊","😇","😍","🥰","😘","😋","😛","😜","🤪","🤨","🧐","🤓","😎","🥳","🤗","🤔","🤭","😴","😬","🙄","😏","😒","😞","😢","😭","😤","😠","😡","🤯","😱","😪"] },
-  { name: "Gestures", emojis: ["👍","👎","👌","🤌","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","👇","☝️","✋","🤚","🖐️","👋","🤝","🙏","✍️","💪","👏","🙌","🫶","💯"] },
-  { name: "Hearts", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💖","💗","💓","💞","💕","💘","💝","❣️","💔"] },
-  { name: "Objects", emojis: ["🔥","✨","⭐","🌟","💫","💡","🎉","🎊","🎁","🏆","📌","📎","🔗","✅","☑️","❌","⚠️","❓","❗","💬","💭","📞","📱","📧","🚀","💰","💳","🛒","📦","📅","🕐","⏰"] },
-  { name: "Nature", emojis: ["🌸","🌷","🌼","🌻","🌹","🌈","☀️","⛅","☁️","🌙","⭐","⚡","❄️","☃️","🍀","🌿","🌍","🌊"] },
-];
 
 // Send-button variants (icon + shape). Keyed by chatty_bots.send_button_style.
 const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: any; label?: string }> = {
@@ -156,7 +150,6 @@ export default function EmbedWidget() {
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [emojiCat, setEmojiCat] = useState(0);
 
   const [sources, setSources] = useState<Source[]>([]);
   const [openArticle, setOpenArticle] = useState<Source | null>(null);
@@ -602,21 +595,17 @@ export default function EmbedWidget() {
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
           {emojiOpen && (
-            <div className="absolute bottom-[84px] left-2.5 right-2.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-lg z-10 overflow-hidden">
-              <div className="flex gap-1 p-1.5 border-b border-neutral-100 dark:border-neutral-800 overflow-x-auto scrollbar-thin">
-                {EMOJI_CATEGORIES.map((cat, i) => (
-                  <button key={cat.name} type="button" onClick={() => setEmojiCat(i)} title={cat.name}
-                    className={`px-2 py-1 rounded-md text-base leading-none shrink-0 ${emojiCat === i ? "bg-neutral-100 dark:bg-neutral-800" : "opacity-50 hover:opacity-100"}`}>
-                    {cat.emojis[0]}
-                  </button>
-                ))}
-              </div>
-              <div className="p-2 grid grid-cols-8 gap-1 max-h-40 overflow-y-auto scrollbar-thin">
-                {EMOJI_CATEGORIES[emojiCat].emojis.map((e, i) => (
-                  <button key={i} type="button" onClick={() => setInputValue((v) => v + e)}
-                    className="text-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded p-0.5">{e}</button>
-                ))}
-              </div>
+            <div className="absolute bottom-[84px] left-2.5 right-2.5 z-10 overflow-hidden rounded-xl shadow-lg">
+              <EmojiPicker
+                onEmojiClick={(emojiData) => setInputValue((v) => v + emojiData.emoji)}
+                theme={EmojiTheme.AUTO}
+                emojiStyle={EmojiStyle.NATIVE}
+                searchDisabled={false}
+                skinTonesDisabled
+                lazyLoadEmojis
+                width="100%"
+                height={320}
+              />
             </div>
           )}
           <form onSubmit={(e) => { e.preventDefault(); sendText(inputValue); }}

@@ -2,19 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2, Paperclip, Smile, Mic, Square, X, Check, AlertCircle } from "lucide-react";
+import EmojiPicker, { EmojiStyle, Theme as EmojiTheme } from "emoji-picker-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
-
-const EMOJI_CATEGORIES: { name: string; emojis: string[] }[] = [
-  { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","😂","🤣","🙂","🙃","😉","😊","😇","😍","🥰","😘","😋","😛","😜","🤪","🤨","🧐","🤓","😎","🥳","🤗","🤔","🤭","😴","😬","🙄","😏","😒","😞","😢","😭","😤","😠","😡","🤯","😱","😪"] },
-  { name: "Gestures", emojis: ["👍","👎","👌","🤌","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","👇","☝️","✋","🤚","🖐️","👋","🤝","🙏","✍️","💪","👏","🙌","🫶","💯"] },
-  { name: "Hearts", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💖","💗","💓","💞","💕","💘","💝","❣️","💔"] },
-  { name: "Objects", emojis: ["🔥","✨","⭐","🌟","💫","💡","🎉","🎊","🎁","🏆","📌","📎","🔗","✅","☑️","❌","⚠️","❓","❗","💬","💭","📞","📱","📧","🚀","💰","💳","🛒","📦","📅","🕐","⏰"] },
-  { name: "Nature", emojis: ["🌸","🌷","🌼","🌻","🌹","🌈","☀️","⛅","☁️","🌙","⭐","⚡","❄️","☃️","🍀","🌿","🌍","🌊"] },
-];
 
 async function audioBlobToWav(blob: Blob): Promise<Blob> {
   const AC: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
@@ -75,7 +68,6 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
   const [recording, setRecording] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [emojiCat, setEmojiCat] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -374,21 +366,16 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
               <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
               {emojiOpen && (
-                <div className="absolute bottom-[84px] left-2.5 right-2.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-lg z-10 overflow-hidden">
-                  <div className="flex gap-1 p-1.5 border-b border-neutral-100 dark:border-neutral-800 overflow-x-auto scrollbar-thin">
-                    {EMOJI_CATEGORIES.map((cat, i) => (
-                      <button key={cat.name} type="button" onClick={() => setEmojiCat(i)} title={cat.name}
-                        className={`px-2 py-1 rounded-md text-base leading-none shrink-0 ${emojiCat === i ? "bg-neutral-100 dark:bg-neutral-800" : "opacity-50 hover:opacity-100"}`}>
-                        {cat.emojis[0]}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="p-2 grid grid-cols-8 gap-1 max-h-40 overflow-y-auto scrollbar-thin">
-                    {EMOJI_CATEGORIES[emojiCat].emojis.map((e, i) => (
-                      <button key={i} type="button" onClick={() => setReply((v) => v + e)}
-                        className="text-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded p-0.5">{e}</button>
-                    ))}
-                  </div>
+                <div className="absolute bottom-[84px] left-2.5 right-2.5 z-10 overflow-hidden rounded-xl shadow-lg">
+                  <EmojiPicker
+                    onEmojiClick={(emojiData) => setReply((v) => v + emojiData.emoji)}
+                    theme={EmojiTheme.AUTO}
+                    emojiStyle={EmojiStyle.NATIVE}
+                    skinTonesDisabled
+                    lazyLoadEmojis
+                    width="100%"
+                    height={320}
+                  />
                 </div>
               )}
               <form onSubmit={(e) => { e.preventDefault(); sendReply(); }}
