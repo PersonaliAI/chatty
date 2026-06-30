@@ -4621,56 +4621,25 @@ export default function Dashboard() {
 
                 {/* Platform selector */}
                 {(() => {
+                  const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
+                  const logoUrl = (domain: string) =>
+                    `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
+                  const PlatformIcon = ({ domain, label }: { domain: string; label: string }) => (
+                    <img
+                      src={logoUrl(domain)}
+                      alt={label}
+                      className="size-7 rounded-md object-contain"
+                      onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }}
+                    />
+                  );
                   const platforms = [
-                    {
-                      id: "html",
-                      label: "HTML",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#E44D26"/><path d="M5 3l1.5 16.5L12 21l5.5-1.5L19 3H5zm11.5 4H8.5l.3 3h7.4l-.9 9-3.3.9-3.3-.9-.2-2.7H11l.1 1.3 1 .3 1-.3.1-1.5H8.7l-.5-5.5h7.6l.4-4.6H7.8L7.5 7h9l-.5 4.5H9.8l.2 2.5h5l-.3 3-2.7.7-2.7-.7-.2-1.3H7.3l.4 3.5L12 19l4.3-1.3.7-7.5H9.8l-.3-4H17l-.5.8z" fill="white"/></svg>
-                      ),
-                    },
-                    {
-                      id: "wordpress",
-                      label: "WordPress",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#21759B"/><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zM3.6 12c0-1.2.26-2.34.72-3.37L7.9 19.1A8.4 8.4 0 013.6 12zm8.4 8.4a8.41 8.41 0 01-2.38-.34l2.53-7.35 2.59 7.1c.02.04.04.08.06.12A8.4 8.4 0 0112 20.4zm1.16-12.47c.51-.03.97-.08.97-.08.46-.05.4-.73-.06-.71 0 0-1.37.11-2.25.11-.83 0-2.22-.11-2.22-.11-.46-.02-.52.68-.06.71 0 0 .44.05.9.08l1.34 3.67-1.88 5.63-3.13-9.3c.5-.03.97-.08.97-.08.46-.05.4-.73-.06-.71 0 0-1.37.11-2.25.11-.16 0-.34 0-.53-.01A8.4 8.4 0 0112 3.6c2.2 0 4.21.84 5.72 2.22-.04 0-.07-.01-.11-.01-.83 0-1.42.72-1.42 1.5 0 .7.4 1.28.83 1.98.32.56.7 1.28.7 2.32 0 .72-.28 1.56-.64 2.72l-.84 2.8-3.08-9.2zm4.58 10.23l2.57-7.43c.48-1.2.64-2.16.64-3.02 0-.31-.02-.6-.06-.87A8.4 8.4 0 0120.4 12a8.4 8.4 0 01-2.66 6.16z" fill="white"/></svg>
-                      ),
-                    },
-                    {
-                      id: "shopify",
-                      label: "Shopify",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#95BF47"/><path d="M15.34 5.06c-.01-.08-.08-.13-.14-.13-.06 0-1.18-.02-1.18-.02s-.94-.93-1.04-1.03c-.1-.1-.29-.07-.36-.05L12 4.1C11.7 3.26 11.13 2.5 10.23 2.5c-.03 0-.05 0-.08.01-.26-.34-.59-.49-.87-.49-2.15 0-3.18 2.69-3.5 4.06-.84.26-1.43.44-1.5.46-.46.15-.47.16-.53.59C3.7 7.5 2 20.5 2 20.5l12.5 2.15 6.75-1.46S15.35 5.14 15.34 5.06zM12.53 4.5l-1.15.36c0-.06.01-.12.01-.18 0-.57-.08-1.03-.2-1.41.5.07.83.63 1.01 1.09.1.06.2.1.33.14zm-1.96-.28c.14.37.22.88.22 1.58l-.02.06-1.66.51c.32-1.23.92-1.83 1.46-2.15zm-.63-.36c.1 0 .19.03.28.08-.7.38-1.46 1.24-1.77 2.84l-1.33.41C7.44 5.88 8.37 3.86 9.94 3.86zm2.8 8.28l-.57-4.73s-.98.14-1.04.14c-.06 0-.16-.06-.22-.1l-.62 4.67c0 .01 1.01.24 1.01.24l1.44-.22z" fill="white"/></svg>
-                      ),
-                    },
-                    {
-                      id: "prestashop",
-                      label: "Prestashop",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#DF0067"/><text x="12" y="16" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">PS</text></svg>
-                      ),
-                    },
-                    {
-                      id: "woocommerce",
-                      label: "WooCommerce",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#7F54B3"/><text x="12" y="16" textAnchor="middle" fill="white" fontSize="9" fontWeight="bold">Woo</text></svg>
-                      ),
-                    },
-                    {
-                      id: "whmcs",
-                      label: "WHMCS",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#FF6600"/><text x="12" y="16" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">WHMCS</text></svg>
-                      ),
-                    },
-                    {
-                      id: "adobe",
-                      label: "Adobe Commerce",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#E31B23"/><path d="M5 18.5L9.5 6h2L16 18.5h-2.2l-1.1-3H8.3l-1.1 3H5zm4-4.8h3.2L10.6 9.5 9 13.7z" fill="white"/></svg>
-                      ),
-                    },
+                    { id: "html", label: "HTML", icon: <PlatformIcon domain="w3.org" label="HTML" /> },
+                    { id: "wordpress", label: "WordPress", icon: <PlatformIcon domain="wordpress.org" label="WordPress" /> },
+                    { id: "shopify", label: "Shopify", icon: <PlatformIcon domain="shopify.com" label="Shopify" /> },
+                    { id: "prestashop", label: "Prestashop", icon: <PlatformIcon domain="prestashop.com" label="Prestashop" /> },
+                    { id: "woocommerce", label: "WooCommerce", icon: <PlatformIcon domain="woocommerce.com" label="WooCommerce" /> },
+                    { id: "whmcs", label: "WHMCS", icon: <PlatformIcon domain="whmcs.com" label="WHMCS" /> },
+                    { id: "adobe", label: "Adobe Commerce", icon: <PlatformIcon domain="business.adobe.com" label="Adobe Commerce" /> },
                     {
                       id: "iframe",
                       label: "iFrame",
