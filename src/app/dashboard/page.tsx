@@ -722,6 +722,8 @@ export default function Dashboard() {
   const [scanningSitemap, setScanningSitemap] = useState(false);
   const [crawlingPages, setCrawlingPages] = useState(false);
   const [crawlSummary, setCrawlSummary] = useState<string | null>(null);
+  const [bulkUrlsText, setBulkUrlsText] = useState("");
+  const [bulkUrlsOpen, setBulkUrlsOpen] = useState(false);
   const [sourcesSearch, setSourcesSearch] = useState("");
   const [sourceTypeFilter, setSourceTypeFilter] = useState<"all" | "text" | "url" | "file">("all");
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
@@ -2247,6 +2249,34 @@ export default function Dashboard() {
       } else { setCrawlSummary("Crawl failed."); }
     } catch { setCrawlSummary("Crawl failed."); }
     finally { setCrawlingPages(false); }
+  };
+
+  const handleBulkAddUrls = async () => {
+    const urls = Array.from(new Set(
+      bulkUrlsText.split("\n").map((u) => u.trim()).filter(Boolean)
+    )).slice(0, 100);
+    if (!urls.length || !botId) return;
+    setCrawlingPages(true);
+    setCrawlSummary(null);
+    try {
+      const res = await fetchWithFallback("/api/crawl/pages", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, urls }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setCrawlSummary(`Indexed ${d.indexed} of ${urls.length} pages into your knowledge base.`);
+        setBulkUrlsText("");
+        setBulkUrlsOpen(false);
+        if (user) loadBotSettings(user.id);
+      } else {
+        setCrawlSummary("Bulk crawl failed.");
+      }
+    } catch {
+      setCrawlSummary("Bulk crawl failed.");
+    } finally {
+      setCrawlingPages(false);
+    }
   };
 
   const handleTrainUrl = async (e: React.FormEvent) => {
@@ -4015,6 +4045,39 @@ export default function Dashboard() {
                         >
                           <Link2 className="size-3.5" /> Just this page
                         </button>
+                      </div>
+
+                      <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setBulkUrlsOpen((o) => !o)}
+                          className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5"><Layers className="size-3.5" /> Bulk add URLs (paste a list)</span>
+                          {bulkUrlsOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                        </button>
+                        {bulkUrlsOpen && (
+                          <div className="p-3 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
+                            <textarea
+                              rows={5}
+                              value={bulkUrlsText}
+                              onChange={(e) => setBulkUrlsText(e.target.value)}
+                              placeholder={"https://example.com/page-1\nhttps://example.com/page-2\nhttps://example.com/page-3"}
+                              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none"
+                            />
+                            <div className="flex items-center justify-between">
+                              <p className="text-[9px] text-neutral-400">One URL per line, up to 100.</p>
+                              <button
+                                type="button"
+                                onClick={handleBulkAddUrls}
+                                disabled={!bulkUrlsText.trim() || crawlingPages || !botId}
+                                className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                              >
+                                {crawlingPages ? <Loader2 className="size-3.5 animate-spin" /> : <Layers className="size-3.5" />} Index all
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {discoveredUrls.length > 0 && (
