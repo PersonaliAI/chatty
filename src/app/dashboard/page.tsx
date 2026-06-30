@@ -556,6 +556,8 @@ export default function Dashboard() {
 
   // Embed platform selector
   const [embedPlatform, setEmbedPlatform] = useState<string | null>(null);
+  const [embedMobilePlatform, setEmbedMobilePlatform] = useState<string | null>(null);
+  const [copiedMobile, setCopiedMobile] = useState(false);
 
   // Google Drive indexing settings
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
@@ -2459,14 +2461,17 @@ export default function Dashboard() {
   };
 
   // Clipboard Copiers
-  const copyToClipboard = (text: string, type: "script" | "iframe") => {
+  const copyToClipboard = (text: string, type: "script" | "iframe" | "mobile") => {
     navigator.clipboard.writeText(text);
     if (type === "script") {
       setCopiedScript(true);
       setTimeout(() => setCopiedScript(false), 2000);
-    } else {
+    } else if (type === "iframe") {
       setCopiedIframe(true);
       setTimeout(() => setCopiedIframe(false), 2000);
+    } else {
+      setCopiedMobile(true);
+      setTimeout(() => setCopiedMobile(false), 2000);
     }
   };
 
@@ -4762,6 +4767,135 @@ export default function Dashboard() {
                                   >
                                     {copiedScript ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
                                     {copiedScript ? "Copied!" : "Copy"}
+                                  </button>
+                                </div>
+                              )}
+                              {step.note && (
+                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 italic pl-6">{step.note}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Mobile SDKs */}
+              <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <h3 className="text-sm font-bold">Embed the widget within your mobile app</h3>
+                <p className="text-xs text-neutral-400 mt-1 leading-relaxed max-w-xl">
+                  Enhance and personalize your user experience by integrating the Chatty SDK into your app. Whether you&apos;re using
+                  iOS, Android, or React Native, the Chatty SDK renders a fully native chat UI — no WebView — talking directly to
+                  your bot&apos;s API.
+                </p>
+                <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mt-5 mb-2.5">Select your option:</p>
+
+                {(() => {
+                  const mobilePlatforms = [
+                    {
+                      id: "ios",
+                      label: "iOS SDK",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-6" fill="none"><rect width="24" height="24" rx="6" fill="#000"/><path d="M16.5 12.3c0-1.9 1.6-2.8 1.6-2.9-.9-1.3-2.3-1.5-2.8-1.5-1.2-.1-2.3.7-2.9.7-.6 0-1.5-.7-2.5-.7-1.3 0-2.5.7-3.1 1.9-1.3 2.3-.3 5.7.9 7.6.6.9 1.3 2 2.3 1.9.9 0 1.3-.6 2.4-.6s1.4.6 2.4.6c1 0 1.6-.9 2.3-1.8.7-1 1-2 1-2.1-.1 0-1.9-.7-1.9-2.9zM14.5 6.4c.5-.6.9-1.5.8-2.4-.8 0-1.7.5-2.3 1.2-.5.6-.9 1.5-.8 2.4.9.1 1.8-.5 2.3-1.2z" fill="#fff"/></svg>
+                      ),
+                    },
+                    {
+                      id: "android",
+                      label: "Android SDK",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-6" fill="none"><rect width="24" height="24" rx="6" fill="#3DDC84"/><path d="M7 10.5v4.2c0 .4.3.8.8.8h.6v2.1c0 .6.5 1 1 1s1-.4 1-1v-2.1h1.2v2.1c0 .6.5 1 1 1s1-.4 1-1v-2.1h.6c.4 0 .8-.3.8-.8v-4.2H7zM6.4 10.5c-.4 0-.8.3-.8.8v3.1c0 .4.3.8.8.8s.8-.3.8-.8v-3.1c0-.4-.4-.8-.8-.8zM17.6 10.5c-.4 0-.8.3-.8.8v3.1c0 .4.3.8.8.8s.8-.3.8-.8v-3.1c0-.4-.4-.8-.8-.8zM14.9 6.1l.7-1.3a.2.2 0 00-.4-.2l-.7 1.3a3.6 3.6 0 00-2.9 0l-.7-1.3a.2.2 0 10-.4.2l.7 1.3c-1.1.6-1.9 1.8-2 3.2h8.3c-.1-1.4-.9-2.6-2-3.2zM10.8 8c-.2 0-.4-.2-.4-.4s.2-.4.4-.4.4.2.4.4-.2.4-.4.4zm3.8 0c-.2 0-.4-.2-.4-.4s.2-.4.4-.4.4.2.4.4-.2.4-.4.4z" fill="#fff"/></svg>
+                      ),
+                    },
+                    {
+                      id: "react-native",
+                      label: "React Native SDK",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-6" fill="none"><circle cx="12" cy="12" r="2" fill="#61DAFB"/><g stroke="#61DAFB" strokeWidth="1.1" fill="none"><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(120 12 12)"/></g></svg>
+                      ),
+                    },
+                  ];
+
+                  const mobileInstructions: Record<string, { title: string; steps: { label: string; code?: string; note?: string }[] }> = {
+                    ios: {
+                      title: "iOS SDK (Swift Package, SwiftUI)",
+                      steps: [
+                        { label: "In Xcode: File → Add Package Dependencies, then point at the ChattySDK package URL provided by your Chatty workspace." },
+                        { label: "Add a floating launcher anywhere in your view hierarchy:", code: `import ChattySDK\n\nstruct RootView: View {\n    var body: some View {\n        ContentView()\n            .overlay(ChattyLauncher(botId: "${botId || "YOUR_BOT_ID"}"))\n    }\n}` },
+                        { label: "Or embed a full-screen chat screen directly:", code: `ChattyChatView(botId: "${botId || "YOUR_BOT_ID"}")` },
+                        { label: "Renders a fully native SwiftUI chat UI — no WebView.", note: "Requires iOS 15+." },
+                      ],
+                    },
+                    android: {
+                      title: "Android SDK (Kotlin, Jetpack Compose)",
+                      steps: [
+                        { label: "Include the chatty-sdk Gradle module in settings.gradle.kts, then add it as a dependency in your app module:", code: `implementation(project(":chatty-sdk"))` },
+                        { label: "Add a floating launcher to your root composable:", code: `@Composable\nfun AppRoot() {\n    Box(Modifier.fillMaxSize()) {\n        // your app content\n        ChattyLauncher(botId = "${botId || "YOUR_BOT_ID"}")\n    }\n}` },
+                        { label: "Or embed a full-screen chat composable directly:", code: `ChattyChatScreen(botId = "${botId || "YOUR_BOT_ID"}", modifier = Modifier.fillMaxSize())` },
+                        { label: "Renders a fully native Jetpack Compose chat UI — no WebView.", note: "Requires minSdk 24+." },
+                      ],
+                    },
+                    "react-native": {
+                      title: "React Native SDK",
+                      steps: [
+                        { label: "Install the package and its peer dependency:", code: `npm install @chatty/react-native @react-native-async-storage/async-storage` },
+                        { label: "Add a floating launcher anywhere in your app:", code: `import { ChattyLauncher } from "@chatty/react-native";\n\nexport default function App() {\n  return (\n    <>\n      {/* ...your app... */}\n      <ChattyLauncher botId="${botId || "YOUR_BOT_ID"}" position="right" />\n    </>\n  );\n}` },
+                        { label: "Or embed a full-screen chat view directly:", code: `import { ChattyChatView } from "@chatty/react-native";\n\nfunction SupportScreen() {\n  return <ChattyChatView botId="${botId || "YOUR_BOT_ID"}" />;\n}` },
+                        { label: "Renders real React Native components — no WebView — on both iOS and Android.", note: "Requires React Native 0.72+." },
+                      ],
+                    },
+                  };
+
+                  const selected = embedMobilePlatform ? mobileInstructions[embedMobilePlatform] : null;
+
+                  return (
+                    <>
+                      <div className="grid grid-cols-3 gap-2.5">
+                        {mobilePlatforms.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => setEmbedMobilePlatform(embedMobilePlatform === p.id ? null : p.id)}
+                            className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              embedMobilePlatform === p.id
+                                ? "border-[#f97316] bg-orange-50 dark:bg-orange-950/20"
+                                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
+                            }`}
+                          >
+                            {p.icon}
+                            <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{p.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {selected && (
+                        <div className="mt-5 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selected.title}</h4>
+                            <button
+                              onClick={() => setEmbedMobilePlatform(null)}
+                              className="text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer transition-colors"
+                            >
+                              ← Back
+                            </button>
+                          </div>
+                          {selected.steps.map((step, i) => (
+                            <div key={i} className="space-y-1.5">
+                              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                                <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#f97316] text-white text-[9px] font-bold mr-1.5">{i + 1}</span>
+                                {step.label}
+                              </p>
+                              {step.code && (
+                                <div className="relative">
+                                  <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-350 leading-relaxed">
+                                    {step.code}
+                                  </pre>
+                                  <button
+                                    onClick={() => copyToClipboard(step.code!, "mobile")}
+                                    className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer bg-white dark:bg-neutral-900 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
+                                  >
+                                    {copiedMobile ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
+                                    {copiedMobile ? "Copied!" : "Copy"}
                                   </button>
                                 </div>
                               )}
