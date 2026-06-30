@@ -502,6 +502,13 @@ export default function Dashboard() {
   );
   const [strictMode, setStrictMode] = useState(true);
   const [emailNotify, setEmailNotify] = useState(true);
+  const [hideBranding, setHideBranding] = useState(false);
+  const [customCss, setCustomCss] = useState("");
+  const [customJs, setCustomJs] = useState("");
+  const [responseLanguage, setResponseLanguage] = useState("");
+  const [guardrailTopics, setGuardrailTopics] = useState("");
+  const [guardrailBlockProfanity, setGuardrailBlockProfanity] = useState(false);
+  const [guardrailRefusalMessage, setGuardrailRefusalMessage] = useState("");
 
   // Unsaved Changes Tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -936,6 +943,13 @@ export default function Dashboard() {
         setSystemInstructions(activeBot.system_instructions);
         setStrictMode(activeBot.strict_mode);
         setEmailNotify(activeBot.email_notify);
+        setHideBranding(activeBot.hide_branding || false);
+        setCustomCss(activeBot.custom_css || "");
+        setCustomJs(activeBot.custom_js || "");
+        setResponseLanguage(activeBot.response_language || "");
+        setGuardrailTopics(activeBot.guardrail_topics || "");
+        setGuardrailBlockProfanity(activeBot.guardrail_block_profanity || false);
+        setGuardrailRefusalMessage(activeBot.guardrail_refusal_message || "");
 
         setSyncGoogleDrive(activeBot.sync_google_drive || false);
         setSyncGoogleCalendar(activeBot.sync_google_calendar || false);
@@ -1040,6 +1054,13 @@ export default function Dashboard() {
       setSystemInstructions(selected.system_instructions);
       setStrictMode(selected.strict_mode);
       setEmailNotify(selected.email_notify);
+      setHideBranding(selected.hide_branding || false);
+      setCustomCss(selected.custom_css || "");
+      setCustomJs(selected.custom_js || "");
+      setResponseLanguage(selected.response_language || "");
+      setGuardrailTopics(selected.guardrail_topics || "");
+      setGuardrailBlockProfanity(selected.guardrail_block_profanity || false);
+      setGuardrailRefusalMessage(selected.guardrail_refusal_message || "");
 
       setSyncGoogleDrive(selected.sync_google_drive || false);
       setSyncGoogleCalendar(selected.sync_google_calendar || false);
@@ -1674,6 +1695,13 @@ export default function Dashboard() {
           system_instructions: systemInstructions,
           strict_mode: strictMode,
           email_notify: emailNotify,
+          hide_branding: hideBranding,
+          custom_css: customCss,
+          custom_js: customJs,
+          response_language: responseLanguage,
+          guardrail_topics: guardrailTopics,
+          guardrail_block_profanity: guardrailBlockProfanity,
+          guardrail_refusal_message: guardrailRefusalMessage,
           sync_google_drive: syncGoogleDrive,
           sync_google_calendar: syncGoogleCalendar,
           sync_outlook_calendar: syncOutlookCalendar,
@@ -1715,6 +1743,13 @@ export default function Dashboard() {
                 system_instructions: systemInstructions,
                 strict_mode: strictMode,
                 email_notify: emailNotify,
+                hide_branding: hideBranding,
+                custom_css: customCss,
+                custom_js: customJs,
+                response_language: responseLanguage,
+                guardrail_topics: guardrailTopics,
+                guardrail_block_profanity: guardrailBlockProfanity,
+                guardrail_refusal_message: guardrailRefusalMessage,
                 sync_google_drive: syncGoogleDrive,
                 sync_google_calendar: syncGoogleCalendar,
                 sync_outlook_calendar: syncOutlookCalendar,
@@ -5321,6 +5356,113 @@ const { reply, session_id } = await res.json();`}</pre>
                         <div className={`size-4 rounded-full bg-white transition-transform ${emailNotify ? "translate-x-4" : ""}`} />
                       </button>
                     </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-semibold">Remove &quot;Powered by Chatty&quot; Branding</span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Hide the Chatty footer mark in the widget (white-label).</p>
+                      </div>
+                      <button
+                        onClick={() => handleInputChange(setHideBranding, !hideBranding)}
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                          hideBranding ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                        }`}
+                      >
+                        <div className={`size-4 rounded-full bg-white transition-transform ${hideBranding ? "translate-x-4" : ""}`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 1B: GUARDRAILS & LANGUAGE */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <ShieldAlert className="size-4 text-[#f97316]" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Guardrails & Language</h3>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Off-Topic Refusal</label>
+                    <textarea
+                      rows={2}
+                      value={guardrailTopics}
+                      onChange={(e) => handleInputChange(setGuardrailTopics, e.target.value)}
+                      placeholder="e.g. politics, medical advice, legal advice, competitor products"
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
+                    />
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Comma-separated topics the assistant should always decline to discuss. Leave empty to allow any on-topic discussion.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom Refusal Message</label>
+                    <input
+                      type="text"
+                      value={guardrailRefusalMessage}
+                      onChange={(e) => handleInputChange(setGuardrailRefusalMessage, e.target.value)}
+                      placeholder="Sorry, I can't help with that — but I'm happy to answer questions about our product!"
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold">Block Profanity & Abuse</span>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Refuse to engage with abusive or profane visitor messages.</p>
+                    </div>
+                    <button
+                      onClick={() => handleInputChange(setGuardrailBlockProfanity, !guardrailBlockProfanity)}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        guardrailBlockProfanity ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                      }`}
+                    >
+                      <div className={`size-4 rounded-full bg-white transition-transform ${guardrailBlockProfanity ? "translate-x-4" : ""}`} />
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Response Language</label>
+                    <ModernSelect
+                      value={responseLanguage}
+                      onChange={(v) => handleInputChange(setResponseLanguage, v)}
+                      options={[
+                        { value: "", label: "Mirror visitor's language (default)" },
+                        { value: "en", label: "Always English" },
+                        { value: "es", label: "Always Spanish" },
+                        { value: "fr", label: "Always French" },
+                        { value: "de", label: "Always German" },
+                        { value: "it", label: "Always Italian" },
+                        { value: "pt", label: "Always Portuguese" },
+                        { value: "ja", label: "Always Japanese" },
+                        { value: "zh", label: "Always Chinese (Simplified)" },
+                      ]}
+                    />
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">By default the assistant replies in whatever language the visitor writes in. Force a single language here if you need consistent transcripts.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom CSS</label>
+                    <textarea
+                      rows={4}
+                      value={customCss}
+                      onChange={(e) => handleInputChange(setCustomCss, e.target.value)}
+                      placeholder=".chat-input-bar { border-radius: 4px; }"
+                      spellCheck={false}
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
+                    />
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Injected into the widget iframe. Advanced — invalid CSS is ignored by the browser, won&apos;t break the widget.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom JavaScript</label>
+                    <textarea
+                      rows={4}
+                      value={customJs}
+                      onChange={(e) => handleInputChange(setCustomJs, e.target.value)}
+                      placeholder="console.log('Chatty widget loaded');"
+                      spellCheck={false}
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
+                    />
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Runs once inside the widget iframe after it loads. Advanced — a script error here only affects the widget, not your site.</p>
                   </div>
                 </div>
 

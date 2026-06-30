@@ -140,6 +140,9 @@ export default function EmbedWidget() {
   const [sendStyle, setSendStyle] = useState("plane");
   const [avatarIcon, setAvatarIcon] = useState("logo");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [hideBranding, setHideBranding] = useState(false);
+  const [customCss, setCustomCss] = useState("");
+  const [customJs, setCustomJs] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#f97316");
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -276,6 +279,9 @@ export default function EmbedWidget() {
             setLogoBgColor(dbLogoBg || "");
           }
           setLogoUrl(isPreview ? (paramLogoUrl || bot.logo_url || null) : (bot.logo_url || null));
+          setHideBranding(!!bot.hide_branding);
+          setCustomCss(bot.custom_css || "");
+          setCustomJs(bot.custom_js || "");
           setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg }]);
         }
       } catch (err) {
@@ -287,6 +293,18 @@ export default function EmbedWidget() {
     }
     loadBot();
   }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor]);
+
+  // Run the bot owner's custom JS once, after the widget config has loaded. Scoped to
+  // this embed iframe only — same trust model as the owner's own custom CSS.
+  useEffect(() => {
+    if (!customJs) return;
+    try {
+      const fn = new Function(customJs);
+      fn();
+    } catch (err) {
+      console.error("Chatty custom JS error:", err);
+    }
+  }, [customJs]);
 
   // Force transparent iframe body background to resolve sub-pixel corner bleeding
   useEffect(() => {
@@ -451,6 +469,7 @@ export default function EmbedWidget() {
           border-radius: 0px !important;
         }
       ` }} />
+      {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
@@ -632,7 +651,7 @@ export default function EmbedWidget() {
               })()}
             </div>
           </form>
-          {!isOfficialWebsite && (
+          {!isOfficialWebsite && !hideBranding && (
             <div className="text-center pt-2 pb-0.5 text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide">
               Powered by{" "}
               <a
