@@ -554,6 +554,9 @@ export default function Dashboard() {
   const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState("");
 
+  // Embed platform selector
+  const [embedPlatform, setEmbedPlatform] = useState<string | null>(null);
+
   // Google Drive indexing settings
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
   const [driveMaxFiles, setDriveMaxFiles] = useState(50);
@@ -4613,42 +4616,196 @@ export default function Dashboard() {
               <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
                 <h3 className="text-sm font-bold">Embed Chatbot</h3>
                 <p className="text-xs text-neutral-400 mt-1">
-                  Copy and paste either the Javascript bundle or the inline iframe element onto your website.
+                  Select your website builder to get tailored installation instructions.
                 </p>
 
-                {/* Script snippet */}
-                <div className="mt-6 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-350">Option 1: Inline Chat Widget script (Recommended)</span>
-                    <button
-                      onClick={() => copyToClipboard(embedScriptCode, "script")}
-                      className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
-                    >
-                      {copiedScript ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
-                      {copiedScript ? "Copied!" : "Copy Code"}
-                    </button>
-                  </div>
-                  <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-350 leading-relaxed">
-                    {embedScriptCode}
-                  </pre>
-                </div>
+                {/* Platform selector */}
+                {(() => {
+                  const platforms = [
+                    {
+                      id: "html",
+                      label: "HTML",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#E44D26"/><path d="M5 3l1.5 16.5L12 21l5.5-1.5L19 3H5zm11.5 4H8.5l.3 3h7.4l-.9 9-3.3.9-3.3-.9-.2-2.7H11l.1 1.3 1 .3 1-.3.1-1.5H8.7l-.5-5.5h7.6l.4-4.6H7.8L7.5 7h9l-.5 4.5H9.8l.2 2.5h5l-.3 3-2.7.7-2.7-.7-.2-1.3H7.3l.4 3.5L12 19l4.3-1.3.7-7.5H9.8l-.3-4H17l-.5.8z" fill="white"/></svg>
+                      ),
+                    },
+                    {
+                      id: "wordpress",
+                      label: "WordPress",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#21759B"/><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zM3.6 12c0-1.2.26-2.34.72-3.37L7.9 19.1A8.4 8.4 0 013.6 12zm8.4 8.4a8.41 8.41 0 01-2.38-.34l2.53-7.35 2.59 7.1c.02.04.04.08.06.12A8.4 8.4 0 0112 20.4zm1.16-12.47c.51-.03.97-.08.97-.08.46-.05.4-.73-.06-.71 0 0-1.37.11-2.25.11-.83 0-2.22-.11-2.22-.11-.46-.02-.52.68-.06.71 0 0 .44.05.9.08l1.34 3.67-1.88 5.63-3.13-9.3c.5-.03.97-.08.97-.08.46-.05.4-.73-.06-.71 0 0-1.37.11-2.25.11-.16 0-.34 0-.53-.01A8.4 8.4 0 0112 3.6c2.2 0 4.21.84 5.72 2.22-.04 0-.07-.01-.11-.01-.83 0-1.42.72-1.42 1.5 0 .7.4 1.28.83 1.98.32.56.7 1.28.7 2.32 0 .72-.28 1.56-.64 2.72l-.84 2.8-3.08-9.2zm4.58 10.23l2.57-7.43c.48-1.2.64-2.16.64-3.02 0-.31-.02-.6-.06-.87A8.4 8.4 0 0120.4 12a8.4 8.4 0 01-2.66 6.16z" fill="white"/></svg>
+                      ),
+                    },
+                    {
+                      id: "shopify",
+                      label: "Shopify",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#95BF47"/><path d="M15.34 5.06c-.01-.08-.08-.13-.14-.13-.06 0-1.18-.02-1.18-.02s-.94-.93-1.04-1.03c-.1-.1-.29-.07-.36-.05L12 4.1C11.7 3.26 11.13 2.5 10.23 2.5c-.03 0-.05 0-.08.01-.26-.34-.59-.49-.87-.49-2.15 0-3.18 2.69-3.5 4.06-.84.26-1.43.44-1.5.46-.46.15-.47.16-.53.59C3.7 7.5 2 20.5 2 20.5l12.5 2.15 6.75-1.46S15.35 5.14 15.34 5.06zM12.53 4.5l-1.15.36c0-.06.01-.12.01-.18 0-.57-.08-1.03-.2-1.41.5.07.83.63 1.01 1.09.1.06.2.1.33.14zm-1.96-.28c.14.37.22.88.22 1.58l-.02.06-1.66.51c.32-1.23.92-1.83 1.46-2.15zm-.63-.36c.1 0 .19.03.28.08-.7.38-1.46 1.24-1.77 2.84l-1.33.41C7.44 5.88 8.37 3.86 9.94 3.86zm2.8 8.28l-.57-4.73s-.98.14-1.04.14c-.06 0-.16-.06-.22-.1l-.62 4.67c0 .01 1.01.24 1.01.24l1.44-.22z" fill="white"/></svg>
+                      ),
+                    },
+                    {
+                      id: "prestashop",
+                      label: "Prestashop",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#DF0067"/><text x="12" y="16" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">PS</text></svg>
+                      ),
+                    },
+                    {
+                      id: "woocommerce",
+                      label: "WooCommerce",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#7F54B3"/><text x="12" y="16" textAnchor="middle" fill="white" fontSize="9" fontWeight="bold">Woo</text></svg>
+                      ),
+                    },
+                    {
+                      id: "whmcs",
+                      label: "WHMCS",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#FF6600"/><text x="12" y="16" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">WHMCS</text></svg>
+                      ),
+                    },
+                    {
+                      id: "adobe",
+                      label: "Adobe Commerce",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#E31B23"/><path d="M5 18.5L9.5 6h2L16 18.5h-2.2l-1.1-3H8.3l-1.1 3H5zm4-4.8h3.2L10.6 9.5 9 13.7z" fill="white"/></svg>
+                      ),
+                    },
+                    {
+                      id: "iframe",
+                      label: "iFrame",
+                      icon: (
+                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#6B7280"/><rect x="4" y="6" width="16" height="12" rx="1.5" stroke="white" strokeWidth="1.5"/><path d="M9 10l-2 2 2 2M15 10l2 2-2 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      ),
+                    },
+                  ];
 
-                {/* Iframe snippet */}
-                <div className="mt-6 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-355">Option 2: Dedicated Embed Iframe</span>
-                    <button
-                      onClick={() => copyToClipboard(embedIframeCode, "iframe")}
-                      className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
-                    >
-                      {copiedIframe ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
-                      {copiedIframe ? "Copied!" : "Copy Code"}
-                    </button>
-                  </div>
-                  <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-355 leading-relaxed">
-                    {embedIframeCode}
-                  </pre>
-                </div>
+                  const platformInstructions: Record<string, { title: string; steps: { label: string; code?: string; note?: string }[] }> = {
+                    html: {
+                      title: "Add to any HTML page",
+                      steps: [
+                        { label: "Paste this snippet just before the closing </body> tag of your page:", code: embedScriptCode },
+                      ],
+                    },
+                    wordpress: {
+                      title: "Add to WordPress",
+                      steps: [
+                        { label: "Go to Appearance → Theme File Editor → functions.php and add:", code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');` },
+                        { label: "Alternatively, install the Insert Headers and Footers plugin and paste the snippet into the Footer Scripts field.", note: "No code editing required." },
+                      ],
+                    },
+                    shopify: {
+                      title: "Add to Shopify",
+                      steps: [
+                        { label: "In your Shopify admin go to Online Store → Themes → Edit code." },
+                        { label: "Open layout/theme.liquid and paste the snippet just before </body>:", code: embedScriptCode },
+                        { label: "Click Save.", note: "The widget will appear on all storefront pages." },
+                      ],
+                    },
+                    prestashop: {
+                      title: "Add to Prestashop",
+                      steps: [
+                        { label: "Go to Modules → Module Manager → search for Custom HTML." },
+                        { label: "If unavailable, edit your active theme's footer.tpl and paste just before </body>:", code: embedScriptCode },
+                        { label: "Clear the Prestashop cache under Advanced Parameters → Performance.", note: "Requires FTP access to edit templates directly." },
+                      ],
+                    },
+                    woocommerce: {
+                      title: "Add to WooCommerce (WordPress)",
+                      steps: [
+                        { label: "WooCommerce runs on WordPress — follow the WordPress steps above, or add to Appearance → Theme File Editor → functions.php:", code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');` },
+                        { label: "The widget appears on all WooCommerce product and checkout pages automatically.", note: "No WooCommerce-specific plugin needed." },
+                      ],
+                    },
+                    whmcs: {
+                      title: "Add to WHMCS",
+                      steps: [
+                        { label: "Navigate to your WHMCS template folder: /templates/<your-theme>/footer.tpl" },
+                        { label: "Paste the snippet just before </body>:", code: embedScriptCode },
+                        { label: "Save and clear the WHMCS template cache.", note: "Make sure to replace <your-theme> with your active template name." },
+                      ],
+                    },
+                    adobe: {
+                      title: "Add to Adobe Commerce (Magento)",
+                      steps: [
+                        { label: "In your Magento admin go to Content → Configuration → Edit your store view." },
+                        { label: "Under HTML Head → Scripts and Style Sheets, or use a CMS Block / Widget. Alternatively edit app/design/frontend/<Vendor>/<theme>/Magento_Theme/layout/default.xml and add a block referencing a custom .phtml containing:", code: embedScriptCode },
+                        { label: "Run bin/magento cache:flush after saving.", note: "Using a CMS Static Block is the no-deploy option." },
+                      ],
+                    },
+                    iframe: {
+                      title: "Embed as a standalone iFrame",
+                      steps: [
+                        { label: "Paste this iframe wherever you want a full embedded chat window:", code: embedIframeCode },
+                        { label: "Adjust width and height attributes to fit your layout.", note: "The iframe embed does not show the floating launcher button." },
+                      ],
+                    },
+                  };
+
+                  const selected = embedPlatform ? platformInstructions[embedPlatform] : null;
+
+                  return (
+                    <>
+                      {/* Grid */}
+                      <div className="mt-5 grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                        {platforms.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => setEmbedPlatform(embedPlatform === p.id ? null : p.id)}
+                            className={`flex flex-col items-center gap-2 p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                              embedPlatform === p.id
+                                ? "border-[#f97316] bg-orange-50 dark:bg-orange-950/20"
+                                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
+                            }`}
+                          >
+                            {p.icon}
+                            <span className="text-[10px] font-medium text-neutral-700 dark:text-neutral-300 leading-tight">{p.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Instructions */}
+                      {selected && (
+                        <div className="mt-5 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selected.title}</h4>
+                            <button
+                              onClick={() => setEmbedPlatform(null)}
+                              className="text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer transition-colors"
+                            >
+                              ← Back
+                            </button>
+                          </div>
+                          {selected.steps.map((step, i) => (
+                            <div key={i} className="space-y-1.5">
+                              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                                <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#f97316] text-white text-[9px] font-bold mr-1.5">{i + 1}</span>
+                                {step.label}
+                              </p>
+                              {step.code && (
+                                <div className="relative">
+                                  <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-350 leading-relaxed">
+                                    {step.code}
+                                  </pre>
+                                  <button
+                                    onClick={() => copyToClipboard(step.code!, "script")}
+                                    className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer bg-white dark:bg-neutral-900 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
+                                  >
+                                    {copiedScript ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
+                                    {copiedScript ? "Copied!" : "Copy"}
+                                  </button>
+                                </div>
+                              )}
+                              {step.note && (
+                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 italic pl-6">{step.note}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Security: Allowed Domains */}
