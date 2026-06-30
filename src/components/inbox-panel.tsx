@@ -22,6 +22,12 @@ async function audioBlobToWav(blob: Blob): Promise<Blob> {
   const audioBuf = await ctx.decodeAudioData(await blob.arrayBuffer());
   ctx.close();
   const len = audioBuf.length;
+  // A near-instant tap-to-stop can decode to an AudioBuffer with ~0 samples —
+  // that still produces a "valid" (44-byte-header) WAV with no audio content,
+  // which Gemini silently treats as empty. Require a minimum of ~150ms.
+  if (len < audioBuf.sampleRate * 0.15) {
+    throw new Error("Recording too short");
+  }
   const rate = audioBuf.sampleRate;
   const numCh = audioBuf.numberOfChannels;
   const mono = new Float32Array(len);
@@ -184,7 +190,11 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           const wav = await audioBlobToWav(blob);
           sendMedia(wav, "voice-message.wav");
         } catch {
-          sendMedia(blob, "voice-message.webm");
+          // Don't fall back to sending the raw recording — Gemini doesn't
+          // accept audio/webm (the browser's native recording format), so a
+          // silent fallback used to upload audio the AI could never read,
+          // appearing as a sent-but-ignored "empty" message.
+          showToast("Couldn't process that recording — try again.", "error");
         }
       };
       mediaRecorderRef.current = mr;
