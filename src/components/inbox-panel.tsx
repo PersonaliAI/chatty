@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2, Paperclip, Smile, Mic, Square, X, Check, AlertCircle } from "lucide-react";
+import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2, Paperclip, Smile, Mic, Square, X, Check, AlertCircle, ThumbsUp, ThumbsDown } from "lucide-react";
 import EmojiPicker, { EmojiStyle, Theme as EmojiTheme } from "emoji-picker-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -48,7 +48,15 @@ interface Session {
   ai_paused?: boolean;
   needs_attention?: boolean;
 }
-interface Msg { role: string; content: string; sender?: string; created_at?: string; }
+interface Msg {
+  id?: string;
+  role: string;
+  content: string;
+  sender?: string;
+  created_at?: string;
+  feedback_rating?: string | null;
+  correction?: string | null;
+}
 
 interface Props {
   botId: string;
@@ -68,6 +76,8 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
   const [recording, setRecording] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [correctingId, setCorrectingId] = useState<string | null>(null);
+  const [correctionDraft, setCorrectionDraft] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,6 +123,24 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     const id = setInterval(() => { loadSessions(); if (selected) loadMessages(selected); }, 5000);
     return () => clearInterval(id);
   }, [selected, loadSessions, loadMessages]);
+
+  const setFeedback = async (messageId: string, rating: "up" | "down" | null, correction?: string) => {
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, feedback_rating: rating, correction: correction ?? m.correction } : m)));
+    try {
+      const res = await fetchBackend(`/api/admin/inbox/messages/${messageId}/feedback`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, rating, correction: correction ?? null }),
+      });
+      if (res.ok && correction) {
+        showToast("Correction saved — added to the knowledge base.", "success");
+        setCorrectingId(null);
+        setCorrectionDraft("");
+      }
+    } catch {
+      showToast("Failed to save feedback.", "error");
+    }
+  };
 
   const sendReply = async () => {
     if (!reply.trim() || !selected) return;
@@ -358,6 +386,59 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                         </ReactMarkdown>
                       )}
                     </div>
+                    {!isVisitor && !isHuman && m.id && (
+                      <div className="flex flex-col gap-1 self-end pb-1">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setFeedback(m.id!, m.feedback_rating === "up" ? null : "up")}
+                            className={`p-1 rounded cursor-pointer ${m.feedback_rating === "up" ? "text-green-600" : "text-neutral-300 hover:text-neutral-500"}`}
+                            title="Good answer"
+                          >
+                            <ThumbsUp className="size-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = m.feedback_rating === "down" ? null : "down";
+                              setFeedback(m.id!, next);
+                              if (next === "down") { setCorrectingId(m.id!); setCorrectionDraft(m.correction || ""); }
+                            }}
+                            className={`p-1 rounded cursor-pointer ${m.feedback_rating === "down" ? "text-red-500" : "text-neutral-300 hover:text-neutral-500"}`}
+                            title="Needs correction"
+                          >
+                            <ThumbsDown className="size-3" />
+                          </button>
+                        </div>
+                        {correctingId === m.id && (
+                          <div className="w-56 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-2 shadow-lg">
+                            <textarea
+                              rows={3}
+                              value={correctionDraft}
+                              onChange={(e) => setCorrectionDraft(e.target.value)}
+                              placeholder="What should it have said?"
+                              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-2 py-1.5 text-[10px] resize-none focus:outline-none"
+                            />
+                            <div className="flex justify-end gap-1.5 mt-1.5">
+                              <button onClick={() => { setCorrectingId(null); setCorrectionDraft(""); }} className="text-[10px] text-neutral-400 hover:text-neutral-600 cursor-pointer px-2 py-1">Cancel</button>
+                              <button
+                                onClick={() => setFeedback(m.id!, "down", correctionDraft.trim())}
+                                disabled={!correctionDraft.trim()}
+                                className="text-[10px] font-semibold text-white rounded-md px-2 py-1 cursor-pointer disabled:opacity-40"
+                                style={{ background: color }}
+                              >
+                                Save correction
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {m.correction && correctingId !== m.id && (
+                          <button onClick={() => { setCorrectingId(m.id!); setCorrectionDraft(m.correction || ""); }} className="text-[9px] text-neutral-400 hover:underline cursor-pointer text-right">
+                            Edit correction
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
