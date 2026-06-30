@@ -99,6 +99,8 @@ interface Source {
   content: string;
   status: "training" | "trained";
   charCount: number;
+  crawlSchedule?: "off" | "daily" | "weekly" | "monthly";
+  nextCrawlAt?: string | null;
 }
 
 interface QuickReply {
@@ -966,7 +968,9 @@ export default function Dashboard() {
             name: s.name,
             content: s.content,
             status: s.status,
-            charCount: s.char_count
+            charCount: s.char_count,
+            crawlSchedule: s.crawl_schedule || "off",
+            nextCrawlAt: s.next_crawl_at
           })));
         }
 
@@ -1064,7 +1068,9 @@ export default function Dashboard() {
           name: s.name,
           content: s.content,
           status: s.status,
-          charCount: s.char_count
+          charCount: s.char_count,
+          crawlSchedule: s.crawl_schedule || "off",
+          nextCrawlAt: s.next_crawl_at
         })));
       } else {
         setSources([]);
@@ -2392,6 +2398,23 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Error deleting source:", err);
+    }
+  };
+
+  const handleSetCrawlSchedule = async (id: string, schedule: "off" | "daily" | "weekly" | "monthly") => {
+    setSources((prev) => prev.map((s) => (s.id === id ? { ...s, crawlSchedule: schedule } : s)));
+    try {
+      const res = await fetchWithFallback(`/api/sources/${id}/schedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schedule }),
+      });
+      const body = await res.json();
+      if (res.ok) {
+        setSources((prev) => prev.map((s) => (s.id === id ? { ...s, nextCrawlAt: body.next_crawl_at } : s)));
+      }
+    } catch (err) {
+      console.error("Error setting crawl schedule:", err);
     }
   };
 
@@ -4116,6 +4139,26 @@ export default function Dashboard() {
                                   </button>
                                 )}
                               </div>
+                              {s.type === "url" && (
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  <RefreshCw className="size-3 text-neutral-400" />
+                                  <select
+                                    value={s.crawlSchedule || "off"}
+                                    onChange={(e) => handleSetCrawlSchedule(s.id, e.target.value as "off" | "daily" | "weekly" | "monthly")}
+                                    className="text-[10px] font-medium bg-transparent border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 cursor-pointer focus:outline-none"
+                                  >
+                                    <option value="off">No auto re-crawl</option>
+                                    <option value="daily">Re-crawl daily</option>
+                                    <option value="weekly">Re-crawl weekly</option>
+                                    <option value="monthly">Re-crawl monthly</option>
+                                  </select>
+                                  {s.crawlSchedule && s.crawlSchedule !== "off" && s.nextCrawlAt && (
+                                    <span className="text-[10px] text-neutral-400">
+                                      Next: {new Date(s.nextCrawlAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               {expanded && s.content && (
                                 <div className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3 max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed font-mono">
                                   {s.content.slice(0, 2000)}{s.content.length > 2000 ? "…" : ""}
