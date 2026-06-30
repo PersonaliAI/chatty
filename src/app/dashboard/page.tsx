@@ -490,6 +490,13 @@ export default function Dashboard() {
   }, [logoUrl]);
   const [showWizard, setShowWizard] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini");
+  // BYOK — bring-your-own-key for non-Gemini models. The key itself is never
+  // round-tripped to the client; only `byokConfigured` reflects whether one is set.
+  const [byokProvider, setByokProvider] = useState("");
+  const [byokModel, setByokModel] = useState("");
+  const [byokApiKeyInput, setByokApiKeyInput] = useState("");
+  const [byokConfigured, setByokConfigured] = useState(false);
+  const [savingByok, setSavingByok] = useState(false);
   const [systemInstructions, setSystemInstructions] = useState(
     "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite."
   );
@@ -1298,6 +1305,9 @@ export default function Dashboard() {
     }
     if (botId && activeTab === "developer") {
       loadApiKeys(botId);
+    }
+    if (botId && activeTab === "settings") {
+      loadByokStatus(botId);
     }
   }, [activeTab, botId]);
 
@@ -2432,6 +2442,48 @@ export default function Dashboard() {
       console.error("Failed to load API keys:", err);
     } finally {
       setLoadingApiKeys(false);
+    }
+  };
+
+  const loadByokStatus = async (bId: string) => {
+    try {
+      const res = await fetchWithFallback(`/api/bots/${bId}/byok`);
+      if (res.ok) {
+        const d = await res.json();
+        setByokProvider(d.provider || "");
+        setByokModel(d.model || "");
+        setByokConfigured(!!d.configured);
+      }
+    } catch (err) {
+      console.error("Failed to load BYOK status:", err);
+    }
+  };
+
+  const handleSaveByok = async (clear = false) => {
+    if (!botId) return;
+    setSavingByok(true);
+    try {
+      const res = await fetchWithFallback(`/api/bots/${botId}/byok`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: clear ? "" : byokProvider,
+          api_key: clear ? undefined : (byokApiKeyInput || undefined),
+          model: clear ? undefined : (byokModel || undefined),
+        }),
+      });
+      if (res.ok) {
+        setByokApiKeyInput("");
+        await loadByokStatus(botId);
+        showToast(clear ? "BYOK key removed." : "BYOK key saved.", "success");
+      } else {
+        showToast("Failed to save BYOK key.", "error");
+      }
+    } catch (err) {
+      console.error("Failed to save BYOK key:", err);
+      showToast("Failed to save BYOK key.", "error");
+    } finally {
+      setSavingByok(false);
     }
   };
 
@@ -5156,18 +5208,75 @@ const { reply, session_id } = await res.json();`}</pre>
                   {/* Model Selector */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">AI Foundation Model</label>
-                    <select
+                    <ModernSelect
                       value={selectedModel}
-                      onChange={(e) => handleInputChange(setSelectedModel, e.target.value)}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 cursor-pointer"
-                    >
-                      <option value="gemini">Gemini 3.5 Flash (Default)</option>
-                      <option value="gpt5">GPT-5.3 Turbo</option>
-                      <option value="claude">Claude Opus</option>
-                      <option value="mistral">Mistral Large</option>
-                    </select>
+                      onChange={(v) => handleInputChange(setSelectedModel, v)}
+                      options={[
+                        { value: "gemini", label: "Gemini 3.5 Flash", hint: "Default — included, no setup" },
+                        { value: "gpt5", label: "GPT-5.3 Turbo", hint: "Requires your OpenAI key below" },
+                        { value: "claude", label: "Claude Opus", hint: "Requires your Anthropic key below" },
+                        { value: "mistral", label: "Mistral Large", hint: "Requires your OpenRouter key below" },
+                      ]}
+                    />
                     <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Selected model handles logic & responses inside your widget.</p>
                   </div>
+
+                  {/* BYOK — required for any non-Gemini model */}
+                  {selectedModel !== "gemini" && (() => {
+                    const providerForModel: Record<string, { provider: string; label: string; placeholder: string }> = {
+                      gpt5: { provider: "openai", label: "OpenAI API key", placeholder: "sk-..." },
+                      claude: { provider: "anthropic", label: "Anthropic API key", placeholder: "sk-ant-..." },
+                      mistral: { provider: "openrouter", label: "OpenRouter API key", placeholder: "sk-or-..." },
+                    };
+                    const expected = providerForModel[selectedModel];
+                    return (
+                      <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Bring Your Own Key (BYOK)</span>
+                          {byokConfigured && byokProvider === expected?.provider && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+                              <Check className="size-2.5" /> Configured
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-neutral-400 leading-relaxed">
+                          This model runs on your own {expected?.label.replace(" API key", "")} key — Chatty doesn&apos;t supply one. Note: lead capture and meeting booking tools currently only work on Gemini; BYOK models still answer from your knowledge base.
+                        </p>
+                        <input
+                          type="password"
+                          value={byokApiKeyInput}
+                          onChange={(e) => setByokApiKeyInput(e.target.value)}
+                          placeholder={byokConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : expected?.placeholder}
+                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        />
+                        <input
+                          type="text"
+                          value={byokModel}
+                          onChange={(e) => setByokModel(e.target.value)}
+                          placeholder="Model override (optional, e.g. gpt-4o-mini)"
+                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setByokProvider(expected!.provider); handleSaveByok(false); }}
+                            disabled={savingByok || !byokApiKeyInput.trim()}
+                            className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
+                          >
+                            {savingByok ? "Saving…" : "Save key"}
+                          </button>
+                          {byokConfigured && (
+                            <button
+                              onClick={() => handleSaveByok(true)}
+                              disabled={savingByok}
+                              className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
+                            >
+                              Remove key
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* System Instructions / Guardrails */}
                   <div>
