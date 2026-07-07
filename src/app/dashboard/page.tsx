@@ -3222,6 +3222,18 @@ export default function Dashboard() {
               </button>
             )}
 
+            <a
+              href="https://docs.personaliai.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2 py-1.5 sm:px-2.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
+              title="Documentation"
+            >
+              <BookOpen className="size-3 text-[#f97316]" />
+              <span className="hidden sm:inline">Docs</span>
+              <ExternalLink className="size-2.5 hidden sm:inline" />
+            </a>
+
             <span className="flex items-center gap-1.5" title={user ? "Database Active" : "Offline"}>
               <span className={`size-2 rounded-full ${user ? "bg-green-500" : "bg-yellow-500"}`}></span>
               <span className="hidden sm:inline">{user ? "Database Active" : "Offline"}</span>
