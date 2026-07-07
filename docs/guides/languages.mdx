@@ -1,0 +1,89 @@
+---
+title: Multilingual Support
+description: Configure your bot to reply in any of 90+ supported languages
+---
+
+## Default behaviour
+
+By default, the bot **mirrors the visitor's language** — if a visitor writes in French, the bot replies in French, even if your knowledge base is in English. The underlying AI handles translation automatically.
+
+## Forcing a single language
+
+To make the bot always reply in one language regardless of what the visitor writes — go to **Agent Settings → Response Language** and pick a language.
+
+This is useful when:
+- You need consistent transcripts for your CRM or analytics
+- Your support team only reads one language
+- Local regulations require a specific language
+
+## Supported languages
+
+All 90+ languages below are available in the dashboard dropdown and in the `response_language` field of the bot API.
+
+| Code | Language | Code | Language |
+|------|----------|------|----------|
+| `af` | Afrikaans | `lt` | Lithuanian |
+| `sq` | Albanian | `mk` | Macedonian |
+| `am` | Amharic | `ms` | Malay |
+| `ar` | Arabic | `ml` | Malayalam |
+| `hy` | Armenian | `mt` | Maltese |
+| `az` | Azerbaijani | `mi` | Māori |
+| `eu` | Basque | `mr` | Marathi |
+| `bn` | Bengali | `mn` | Mongolian |
+| `bs` | Bosnian | `my` | Burmese |
+| `bg` | Bulgarian | `ne` | Nepali |
+| `ca` | Catalan | `no` | Norwegian |
+| `zh` | Chinese (Simplified) | `fa` | Persian (Farsi) |
+| `zh-TW` | Chinese (Traditional) | `pl` | Polish |
+| `hr` | Croatian | `pt` | Portuguese |
+| `cs` | Czech | `pt-BR` | Portuguese (Brazil) |
+| `da` | Danish | `pa` | Punjabi |
+| `nl` | Dutch | `ro` | Romanian |
+| `en` | English | `ru` | Russian |
+| `et` | Estonian | `sr` | Serbian |
+| `fi` | Finnish | `si` | Sinhala |
+| `fr` | French | `sk` | Slovak |
+| `gl` | Galician | `sl` | Slovenian |
+| `ka` | Georgian | `so` | Somali |
+| `de` | German | `es` | Spanish |
+| `el` | Greek | `es-MX` | Spanish (Mexico) |
+| `gu` | Gujarati | `sw` | Swahili |
+| `ht` | Haitian Creole | `sv` | Swedish |
+| `ha` | Hausa | `tl` | Filipino (Tagalog) |
+| `he` | Hebrew | `tg` | Tajik |
+| `hi` | Hindi | `ta` | Tamil |
+| `hu` | Hungarian | `tt` | Tatar |
+| `is` | Icelandic | `te` | Telugu |
+| `ig` | Igbo | `th` | Thai |
+| `id` | Indonesian | `tr` | Turkish |
+| `ga` | Irish | `tk` | Turkmen |
+| `it` | Italian | `uk` | Ukrainian |
+| `ja` | Japanese | `ur` | Urdu |
+| `kn` | Kannada | `uz` | Uzbek |
+| `kk` | Kazakh | `vi` | Vietnamese |
+| `km` | Khmer | `cy` | Welsh |
+| `ko` | Korean | `xh` | Xhosa |
+| `ku` | Kurdish | `yi` | Yiddish |
+| `ky` | Kyrgyz | `yo` | Yoruba |
+| `lo` | Lao | `zu` | Zulu |
+| `lv` | Latvian | | |
+
+## Set language via API
+
+You can read the bot's current language setting via `GET /api/v1/bot`:
+
+```json
+{
+  "response_language": "fr"
+}
+```
+
+An empty string (`""`) means the bot mirrors the visitor's language (default).
+
+To change the language, use the dashboard. Language configuration is a bot-level setting, not an API key setting.
+
+## Knowledge base language
+
+Your knowledge base content can be in **any language**. The AI retrieves the relevant content and responds in the forced language (or the visitor's language), translating as needed.
+
+For best accuracy, keep your knowledge base in the same language as your primary audience.

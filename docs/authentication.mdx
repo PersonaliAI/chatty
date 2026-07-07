@@ -1,0 +1,107 @@
+---
+title: Authentication
+description: API keys, scopes, and IP allowlists
+---
+
+## API keys
+
+All Chatty API requests are authenticated with a **Bearer API key** in the `Authorization` header:
+
+```
+Authorization: Bearer chatty_sk_<your-key>
+```
+
+Keys are created per bot in the dashboard under **Settings → API Keys**. A single bot can have multiple keys — create separate keys for different environments or integrations and revoke them independently.
+
+<Warning>
+  API keys are shown **once** at creation time and cannot be retrieved again. Store them securely in environment variables, never in source code.
+</Warning>
+
+## Scopes
+
+Every key carries one or more **scopes** that control which endpoints it can call. Assign the minimum scopes needed for each integration.
+
+| Scope | Endpoints unlocked |
+|-------|-------------------|
+| `chat` | `POST /api/v1/chat` |
+| `read` | `GET /api/v1/bot`, `GET /api/v1/leads`, `GET /api/v1/conversations`, `GET /api/v1/knowledge`, `GET /api/v1/analytics`, `GET /api/v1/usage` |
+| `write` | `POST /api/v1/knowledge`, `DELETE /api/v1/knowledge/{id}`, `DELETE /api/v1/conversations/{session_id}` |
+| `admin` | All of the above (super-scope) |
+
+### Choosing scopes
+
+<CardGroup cols={2}>
+  <Card title="Embed integration" icon="code">
+    Needs only `chat`. Visitors can send messages but can't read your data.
+  </Card>
+  <Card title="CRM sync" icon="database">
+    Needs `read` to pull leads and conversations.
+  </Card>
+  <Card title="Content pipeline" icon="rss">
+    Needs `write` to add/remove knowledge sources.
+  </Card>
+  <Card title="Internal dashboard" icon="chart-bar">
+    Use `admin` or combine `chat + read + write` for full access.
+  </Card>
+</CardGroup>
+
+### Scope error
+
+If you call an endpoint that requires a scope your key doesn't have, you'll receive:
+
+```json
+{
+  "detail": "This API key is missing the 'write' scope. Current scopes: ['chat', 'read']. Update your key's scopes in the Chatty dashboard → API Keys."
+}
+```
+
+## IP allowlist
+
+Restrict an API key to specific IP addresses or CIDR ranges. Requests from any other IP will be rejected with `403 Forbidden`.
+
+Allowlist entries are set when creating or updating a key in the dashboard:
+
+```json
+["203.0.113.42", "10.0.0.0/8", "2001:db8::/32"]
+```
+
+Use this for:
+- Server-to-server integrations where your server IP is fixed
+- CI/CD systems that send knowledge updates
+- Any key that should never be used from a browser
+
+<Note>
+  Leave the allowlist empty to allow requests from any IP. The bot widget itself uses a separate authentication mechanism and is not affected by API key allowlists.
+</Note>
+
+## Key management endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/keys` | Create a new key |
+| `GET` | `/api/keys?bot_id=...` | List all keys for a bot |
+| `PATCH` | `/api/keys/{id}` | Update name, scopes, allowlist |
+| `DELETE` | `/api/keys/{id}` | Revoke a key permanently |
+
+These endpoints require a **Supabase session token** (dashboard login), not an API key.
+
+## Security headers
+
+Every API response includes the following security headers:
+
+| Header | Value |
+|--------|-------|
+| `X-Request-ID` | Unique UUID per request — include this in bug reports |
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains; preload` |
+| `Content-Security-Policy` | `default-src 'none'` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+
+## Environments
+
+Chatty has a single production environment. For testing, create a dedicated test bot in the dashboard and generate keys against it.
+
+<Tip>
+  Name your keys descriptively — e.g. `production-embed`, `crm-sync-staging`, `github-actions-crawler` — so you can identify and revoke them quickly.
+</Tip>

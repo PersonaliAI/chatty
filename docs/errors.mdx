@@ -1,0 +1,112 @@
+---
+title: Errors
+description: HTTP status codes and error response format
+---
+
+## Error format
+
+All errors return a JSON body with a single `detail` field:
+
+```json
+{
+  "detail": "Human-readable description of what went wrong."
+}
+```
+
+Every response also includes an `X-Request-ID` header. Include this ID when contacting support — it lets us locate the exact request in our logs.
+
+## HTTP status codes
+
+| Code | Name | When it occurs |
+|------|------|---------------|
+| `400` | Bad Request | Missing required field, invalid value, or malformed input |
+| `401` | Unauthorized | Missing `Authorization` header, invalid key, or revoked key |
+| `403` | Forbidden | Key lacks required scope, or request IP not on allowlist |
+| `404` | Not Found | Resource doesn't exist or belongs to a different bot |
+| `422` | Unprocessable Entity | The request was valid but the operation couldn't complete (e.g. URL returned no content) |
+| `429` | Too Many Requests | Rate limit exceeded — see [Rate Limits](/rate-limits) |
+| `500` | Internal Server Error | Unexpected server error |
+| `502` | Bad Gateway | Upstream AI provider error or timeout |
+
+## Common errors
+
+<AccordionGroup>
+
+  <Accordion title="401 — Missing Bearer API key">
+    ```json
+    { "detail": "Missing Bearer API key" }
+    ```
+    You didn't include the `Authorization` header, or it doesn't start with `Bearer `.
+
+    **Fix:** Add `Authorization: Bearer chatty_sk_your_key` to your request headers.
+  </Accordion>
+
+  <Accordion title="401 — Invalid API key">
+    ```json
+    { "detail": "Invalid API key" }
+    ```
+    The key doesn't match any key in the database.
+
+    **Fix:** Check for typos or trailing whitespace. Regenerate the key if needed.
+  </Accordion>
+
+  <Accordion title="401 — API key revoked">
+    ```json
+    { "detail": "API key revoked" }
+    ```
+    The key was revoked from the dashboard.
+
+    **Fix:** Create a new key in Dashboard → API Keys.
+  </Accordion>
+
+  <Accordion title="403 — Missing scope">
+    ```json
+    {
+      "detail": "This API key is missing the 'write' scope. Current scopes: ['chat', 'read']. Update your key's scopes in the Chatty dashboard → API Keys."
+    }
+    ```
+    **Fix:** Edit the key in the dashboard and add the required scope.
+  </Accordion>
+
+  <Accordion title="403 — IP not on allowlist">
+    ```json
+    {
+      "detail": "IP address '203.0.113.42' is not permitted for this API key. Update the allowlist in your Chatty dashboard → API Keys."
+    }
+    ```
+    **Fix:** Add your IP to the allowlist, or remove the allowlist restriction entirely.
+  </Accordion>
+
+  <Accordion title="400 — Empty message text">
+    ```json
+    { "detail": "text is required and must not be empty" }
+    ```
+    **Fix:** Make sure the `text` field in your request body is a non-empty string.
+  </Accordion>
+
+  <Accordion title="422 — URL returned no content">
+    ```json
+    { "detail": "URL returned no usable content" }
+    ```
+    The URL was fetched successfully but contained no text (e.g. a JavaScript SPA, a login wall, or a blank page).
+
+    **Fix:** Try a different URL, or use `type: "text"` to add the content manually.
+  </Accordion>
+
+  <Accordion title="502 — AI provider error">
+    ```json
+    { "detail": "assistant error: ..." }
+    ```
+    The underlying AI provider returned an error or timed out.
+
+    **Fix:** Retry with exponential backoff. If persistent, check your BYOK provider status or contact support with the `X-Request-ID`.
+  </Accordion>
+
+</AccordionGroup>
+
+## Debugging tips
+
+1. **Always log `X-Request-ID`** from the response header. This is your trace ID.
+2. **Check the `detail` message** — it's designed to tell you exactly what to fix.
+3. **Test with cURL first** to rule out client library issues.
+4. **Use `/api/v1/usage`** to confirm your key is valid and hasn't been revoked.

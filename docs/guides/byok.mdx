@@ -1,0 +1,77 @@
+---
+title: Bring Your Own Key (BYOK)
+description: Use your own OpenAI, Anthropic, or OpenRouter API key
+---
+
+## Overview
+
+By default Chatty uses Google Gemini to power your bot. With BYOK you can switch to **OpenAI**, **Anthropic Claude**, or **any model on OpenRouter** using your own API key and billing account.
+
+## Why use BYOK?
+
+- **Volume discounts**: you may have negotiated better rates with OpenAI/Anthropic
+- **Model choice**: access GPT-4o, Claude 3.5 Sonnet, Mistral Large, Llama 3.1, and more
+- **Data residency**: your conversations go to your provider, not Chatty's account
+- **Existing credits**: use up prepaid credits with your AI provider
+
+## Setup
+
+1. Go to **Dashboard → Agent Settings → AI Models**
+2. Select your provider (OpenAI, Anthropic, or OpenRouter)
+3. Enter your API key — it's encrypted with AES-256 (Fernet) before storage
+4. Optionally override the model (e.g. `gpt-4o-mini` instead of `gpt-4o`)
+5. Click **Save key**
+
+<Warning>
+  Your API key is **write-only** — it cannot be retrieved after saving. Only a masked indicator ("•••• saved") is shown. If you need to rotate the key, simply paste the new one and save again.
+</Warning>
+
+## Supported providers
+
+<CardGroup cols={3}>
+  <Card title="OpenAI" icon="openai">
+    **Default model:** `gpt-4o`
+
+    **Other options:** `gpt-4o-mini`, `gpt-4-turbo`, `o1-mini`
+
+    Get a key at [platform.openai.com](https://platform.openai.com/api-keys)
+  </Card>
+  <Card title="Anthropic" icon="a">
+    **Default model:** `claude-3-5-sonnet-latest`
+
+    **Other options:** `claude-3-haiku-20240307`, `claude-opus-4-8`
+
+    Get a key at [console.anthropic.com](https://console.anthropic.com)
+  </Card>
+  <Card title="OpenRouter" icon="route">
+    **Default model:** `mistralai/mistral-large`
+
+    **Other options:** any model on [openrouter.ai/models](https://openrouter.ai/models)
+
+    Get a key at [openrouter.ai](https://openrouter.ai/keys)
+  </Card>
+</CardGroup>
+
+## How it works
+
+When a visitor sends a message, Chatty:
+
+1. Builds the full system prompt (persona + RAG knowledge context + guardrails + language)
+2. Routes the request to your BYOK provider with the built prompt
+3. Returns the provider's reply to the visitor
+
+The knowledge base, guardrails, lead capture forms, and language settings all work identically regardless of provider. The only difference is which model generates the final text.
+
+<Note>
+  **Agentic tools** (calendar booking, lead capture form) remain Gemini-only. If your bot uses these features, Chatty automatically falls back to Gemini for those specific interactions — your BYOK key is used for everything else.
+</Note>
+
+## Removing BYOK
+
+To revert to Gemini, click **Remove key** in Agent Settings → AI Models. Your bot immediately switches back to Gemini.
+
+## Security
+
+- Keys are encrypted with **Fernet symmetric encryption** (AES-128 in CBC mode with HMAC-SHA256 authentication) before being stored in the database.
+- The encryption key (`BYOK_ENCRYPTION_KEY`) is held in the server environment — separate from the database.
+- The decrypted key is only used in-memory during a request and is never logged or returned to the client.

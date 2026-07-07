@@ -1,0 +1,133 @@
+---
+title: Webhooks
+description: Receive real-time events when conversations and leads happen
+---
+
+## Overview
+
+Chatty can POST a JSON payload to your server when key events occur. Use webhooks to:
+- Sync leads to your CRM in real time
+- Trigger Slack/email notifications for new conversations
+- Log events to your data warehouse
+
+## Setup
+
+In **Dashboard → Notifications → Outbound Webhook**, enter your endpoint URL and save. Chatty will immediately start sending events to it.
+
+## Events
+
+### `new_conversation`
+
+Fired when a visitor sends their first message in a new session.
+
+```json
+{
+  "event": "new_conversation",
+  "bot_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": "2026-07-07T15:30:00Z",
+  "data": {
+    "session_id": "visitor-xyz-789"
+  }
+}
+```
+
+### `new_lead`
+
+Fired when the bot successfully captures a visitor's contact details.
+
+```json
+{
+  "event": "new_lead",
+  "bot_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": "2026-07-07T15:32:10Z",
+  "data": {
+    "name": "Sarah Chen",
+    "email": "sarah.chen@example.com",
+    "phone": "+1-555-0123",
+    "session_id": "visitor-xyz-789"
+  }
+}
+```
+
+## Receiving webhooks
+
+<CodeGroup>
+
+```python Python (FastAPI)
+from fastapi import FastAPI, Request
+
+app = FastAPI()
+
+@app.post("/webhooks/chatty")
+async def chatty_webhook(request: Request):
+    payload = await request.json()
+    event = payload.get("event")
+    data = payload.get("data", {})
+
+    if event == "new_lead":
+        await push_to_crm(data)
+    elif event == "new_conversation":
+        await notify_team(data["session_id"])
+
+    return {"ok": True}
+```
+
+```javascript Node.js (Express)
+const express = require("express");
+const app = express();
+app.use(express.json());
+
+app.post("/webhooks/chatty", async (req, res) => {
+  const { event, bot_id, data } = req.body;
+
+  if (event === "new_lead") {
+    await syncToCRM(data);
+  } else if (event === "new_conversation") {
+    await notifySlack(`New chat started: ${data.session_id}`);
+  }
+
+  res.json({ ok: true });
+});
+```
+
+```php PHP
+<?php
+$payload = json_decode(file_get_contents('php://input'), true);
+$event = $payload['event'];
+$data  = $payload['data'];
+
+if ($event === 'new_lead') {
+    // push to CRM
+    pushToCRM($data['email'], $data['name'], $data['phone']);
+}
+
+http_response_code(200);
+echo json_encode(['ok' => true]);
+```
+
+</CodeGroup>
+
+## Reliability
+
+- Webhooks are **fire-and-forget** — Chatty sends one POST with a 10-second timeout and does not retry on failure.
+- Always return a `2xx` status quickly. Do heavy processing asynchronously (queue it, then return 200).
+- If your endpoint is down, events are lost. For critical integrations, use polling via [`GET /api/v1/leads`](/api-reference/leads/list) as a fallback.
+
+## Security
+
+Chatty does not currently sign webhook payloads with HMAC. To secure your endpoint:
+
+1. **Use a secret path**: add a hard-to-guess token in your URL, e.g. `/webhooks/chatty/tk_a3b2c1d4e5f6`.
+2. **Verify the `bot_id`**: reject payloads where `bot_id` doesn't match your expected bot.
+3. **Allowlist our IPs**: contact support for the current list of Chatty egress IPs.
+
+<Tip>
+  Validate the `bot_id` field against your expected bot ID to prevent payload spoofing:
+
+  ```python
+  EXPECTED_BOT_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+  if payload["bot_id"] != EXPECTED_BOT_ID:
+      return {"error": "unknown bot"}, 403
+  ```
+</Tip>
