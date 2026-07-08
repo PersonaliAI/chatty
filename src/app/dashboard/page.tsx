@@ -501,6 +501,7 @@ export default function Dashboard() {
   const [systemInstructions, setSystemInstructions] = useState(
     "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite."
   );
+  const [isGeneratingInstructions, setIsGeneratingInstructions] = useState(false);
   const [strictMode, setStrictMode] = useState(true);
   const [emailNotify, setEmailNotify] = useState(true);
   const [hideBranding, setHideBranding] = useState(false);
@@ -1792,6 +1793,34 @@ export default function Dashboard() {
   const handleInputChange = (setter: any, val: any) => {
     setter(val);
     setHasUnsavedChanges(true);
+  };
+
+  const generateInstructions = async () => {
+    if (!botId || isGeneratingInstructions) return;
+    setIsGeneratingInstructions(true);
+    try {
+      const res = await fetchWithFallback("/api/widget/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: `__gen_instructions_${Date.now()}`,
+          text: "Based solely on your knowledge base, write a concise system prompt for yourself (2-4 sentences). Describe: 1) what you are and what business/product you represent, 2) what topics you help with, 3) your tone and response style. Output ONLY the system prompt text, no preamble or explanation.",
+          visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        const generated = body.reply || body.message || body.response || "";
+        if (generated) {
+          handleInputChange(setSystemInstructions, generated.trim());
+        }
+      }
+    } catch (e) {
+      console.error("Failed to generate instructions", e);
+    } finally {
+      setIsGeneratingInstructions(false);
+    }
   };
 
   useEffect(() => {
@@ -5461,7 +5490,20 @@ const { reply, session_id } = await res.json();`}</pre>
 
                   {/* System Instructions / Guardrails */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">System Instructions / Guardrails</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">System Instructions / Guardrails</label>
+                      <button
+                        onClick={generateInstructions}
+                        disabled={isGeneratingInstructions}
+                        className="flex items-center gap-1 text-[10px] font-semibold text-[#f97316] hover:text-[#ea6b0e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title="Auto-generate from trained knowledge"
+                      >
+                        {isGeneratingInstructions
+                          ? <Loader2 className="size-3 animate-spin" />
+                          : <Sparkles className="size-3" />}
+                        {isGeneratingInstructions ? "Generating…" : "Auto-generate"}
+                      </button>
+                    </div>
                     <textarea
                       rows={4}
                       value={systemInstructions}
