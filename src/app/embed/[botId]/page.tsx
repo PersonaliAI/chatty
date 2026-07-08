@@ -75,6 +75,33 @@ interface Source { id: string; name: string; content: string; }
 
 type Tab = "home" | "messages" | "articles" | "search";
 
+function CodeBlock({ lang, text }: { lang: string; text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div className="my-2 rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-700 text-[11px]">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-neutral-100 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
+        <span className="text-neutral-500 dark:text-neutral-400 font-mono">{lang}</span>
+        <button
+          onClick={copy}
+          className="flex items-center gap-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100 transition-colors"
+        >
+          {copied ? <Check className="size-3" /> : <svg className="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>}
+          <span>{copied ? "Copied!" : "Copy"}</span>
+        </button>
+      </div>
+      <pre className="p-3 overflow-x-auto bg-neutral-50 dark:bg-neutral-900 font-mono leading-relaxed whitespace-pre">
+        <code>{text}</code>
+      </pre>
+    </div>
+  );
+}
+
 export default function EmbedWidget() {
   const { botId } = useParams();
   const searchParams = useSearchParams();
@@ -442,7 +469,13 @@ export default function EmbedWidget() {
     ul: ({ children }: any) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
     ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
     a: ({ href, children }: any) => <a href={href} target="_blank" rel="noreferrer" className="underline break-all" style={{ color: primaryColor }}>{children}</a>,
-    code: ({ children }: any) => <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono">{children}</code>,
+    code: ({ className, children, ...rest }: any) => {
+      const isBlock = className?.startsWith("language-");
+      if (!isBlock) return <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
+      const lang = (className ?? "").replace("language-", "") || "code";
+      const text = String(children).replace(/\n$/, "");
+      return <CodeBlock lang={lang} text={text} />;
+    },
   };
 
   return (
