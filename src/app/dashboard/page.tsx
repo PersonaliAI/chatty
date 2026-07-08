@@ -5119,7 +5119,7 @@ export default function Dashboard() {
                     ios: {
                       title: "iOS SDK (Swift Package, SwiftUI)",
                       steps: [
-                        { label: "In Xcode: File → Add Package Dependencies, then point at the ChattySDK package URL provided by your Chatty workspace." },
+                        { label: "In Xcode: File → Add Package Dependencies, paste the URL below and select version 1.0.0:", code: `https://github.com/Damayantha/chatty-ios-sdk` },
                         { label: "Add a floating launcher anywhere in your view hierarchy:", code: `import ChattySDK\n\nstruct RootView: View {\n    var body: some View {\n        ContentView()\n            .overlay(ChattyLauncher(botId: "${botId || "YOUR_BOT_ID"}"))\n    }\n}` },
                         { label: "Or embed a full-screen chat screen directly:", code: `ChattyChatView(botId: "${botId || "YOUR_BOT_ID"}")` },
                         { label: "Renders a fully native SwiftUI chat UI — no WebView.", note: "Requires iOS 15+." },
@@ -5128,7 +5128,7 @@ export default function Dashboard() {
                     android: {
                       title: "Android SDK (Kotlin, Jetpack Compose)",
                       steps: [
-                        { label: "Include the chatty-sdk Gradle module in settings.gradle.kts, then add it as a dependency in your app module:", code: `implementation(project(":chatty-sdk"))` },
+                        { label: "Add JitPack to your root settings.gradle.kts and the SDK dependency to your app module:", code: `// settings.gradle.kts\ndependencyResolutionManagement {\n    repositories {\n        maven { url = uri("https://jitpack.io") }\n    }\n}\n\n// app/build.gradle.kts\ndependencies {\n    implementation("com.github.Damayantha:chatty-android-sdk:1.0.0")\n}` },
                         { label: "Add a floating launcher to your root composable:", code: `@Composable\nfun AppRoot() {\n    Box(Modifier.fillMaxSize()) {\n        // your app content\n        ChattyLauncher(botId = "${botId || "YOUR_BOT_ID"}")\n    }\n}` },
                         { label: "Or embed a full-screen chat composable directly:", code: `ChattyChatScreen(botId = "${botId || "YOUR_BOT_ID"}", modifier = Modifier.fillMaxSize())` },
                         { label: "Renders a fully native Jetpack Compose chat UI — no WebView.", note: "Requires minSdk 24+." },
@@ -5137,9 +5137,9 @@ export default function Dashboard() {
                     "react-native": {
                       title: "React Native SDK",
                       steps: [
-                        { label: "Install the package and its peer dependency:", code: `npm install @chatty/react-native @react-native-async-storage/async-storage` },
-                        { label: "Add a floating launcher anywhere in your app:", code: `import { ChattyLauncher } from "@chatty/react-native";\n\nexport default function App() {\n  return (\n    <>\n      {/* ...your app... */}\n      <ChattyLauncher botId="${botId || "YOUR_BOT_ID"}" position="right" />\n    </>\n  );\n}` },
-                        { label: "Or embed a full-screen chat view directly:", code: `import { ChattyChatView } from "@chatty/react-native";\n\nfunction SupportScreen() {\n  return <ChattyChatView botId="${botId || "YOUR_BOT_ID"}" />;\n}` },
+                        { label: "Install the SDK and its peer dependency:", code: `npm install github:Damayantha/chatty-react-native-sdk @react-native-async-storage/async-storage` },
+                        { label: "Add a floating launcher anywhere in your app:", code: `import { ChattyLauncher } from "chatty-react-native-sdk";\n\nexport default function App() {\n  return (\n    <>\n      {/* ...your app... */}\n      <ChattyLauncher botId="${botId || "YOUR_BOT_ID"}" position="right" />\n    </>\n  );\n}` },
+                        { label: "Or embed a full-screen chat view directly:", code: `import { ChattyChatView } from "chatty-react-native-sdk";\n\nfunction SupportScreen() {\n  return <ChattyChatView botId="${botId || "YOUR_BOT_ID"}" />;\n}` },
                         { label: "Renders real React Native components — no WebView — on both iOS and Android.", note: "Requires React Native 0.72+." },
                       ],
                     },
