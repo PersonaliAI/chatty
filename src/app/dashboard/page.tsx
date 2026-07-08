@@ -74,8 +74,7 @@ import {
   MapPin,
   Inbox,
   Upload,
-  BookOpen,
-  ExternalLink
+  BookOpen
 } from "lucide-react";
 
 // Types
