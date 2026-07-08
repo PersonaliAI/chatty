@@ -729,6 +729,7 @@ export default function Dashboard() {
   const [sourcesSearch, setSourcesSearch] = useState("");
   const [sourceTypeFilter, setSourceTypeFilter] = useState<"all" | "text" | "url" | "file">("all");
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
+  const [crawlDropdownOpen, setCrawlDropdownOpen] = useState<string | null>(null);
 
   // Mailbox tab state
   const [mailboxFilter, setMailboxFilter] = useState<"all" | "client" | "admin">("all");
@@ -4405,21 +4406,44 @@ export default function Dashboard() {
                                 <div className="flex items-center gap-2 mt-1.5">
                                   <RefreshCw className="size-3 text-neutral-400 shrink-0" />
                                   <div className="relative">
-                                    <select
-                                      value={s.crawlSchedule || "off"}
-                                      onChange={(e) => handleSetCrawlSchedule(s.id, e.target.value as "off" | "daily" | "weekly" | "monthly")}
-                                      className={`appearance-none text-[10px] font-semibold pl-2.5 pr-6 py-1 rounded-full border cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400/40 transition-colors ${
+                                    <button
+                                      type="button"
+                                      onClick={() => setCrawlDropdownOpen(crawlDropdownOpen === s.id ? null : s.id)}
+                                      className={`flex items-center gap-1 text-[10px] font-semibold pl-2.5 pr-2 py-1 rounded-full border cursor-pointer transition-colors ${
                                         s.crawlSchedule && s.crawlSchedule !== "off"
                                           ? "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400"
                                           : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400"
                                       }`}
                                     >
-                                      <option value="off">No auto re-crawl</option>
-                                      <option value="daily">Re-crawl daily</option>
-                                      <option value="weekly">Re-crawl weekly</option>
-                                      <option value="monthly">Re-crawl monthly</option>
-                                    </select>
-                                    <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 size-3 pointer-events-none text-neutral-400" />
+                                      {s.crawlSchedule === "daily" ? "Re-crawl daily"
+                                        : s.crawlSchedule === "weekly" ? "Re-crawl weekly"
+                                        : s.crawlSchedule === "monthly" ? "Re-crawl monthly"
+                                        : "No auto re-crawl"}
+                                      <ChevronDown className={`size-3 transition-transform ${crawlDropdownOpen === s.id ? "rotate-180" : ""}`} />
+                                    </button>
+                                    {crawlDropdownOpen === s.id && (
+                                      <div className="absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-lg overflow-hidden">
+                                        {([
+                                          { value: "off", label: "No auto re-crawl" },
+                                          { value: "daily", label: "Re-crawl daily" },
+                                          { value: "weekly", label: "Re-crawl weekly" },
+                                          { value: "monthly", label: "Re-crawl monthly" },
+                                        ] as const).map((opt) => (
+                                          <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => { handleSetCrawlSchedule(s.id, opt.value); setCrawlDropdownOpen(null); }}
+                                            className={`w-full text-left px-3 py-2 text-[11px] font-medium transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800 ${
+                                              (s.crawlSchedule || "off") === opt.value
+                                                ? "text-orange-500 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30"
+                                                : "text-neutral-700 dark:text-neutral-300"
+                                            }`}
+                                          >
+                                            {opt.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                   {s.crawlSchedule && s.crawlSchedule !== "off" && s.nextCrawlAt && (
                                     <span className="text-[10px] text-neutral-400">
