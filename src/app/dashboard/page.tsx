@@ -5137,9 +5137,9 @@ export default function Dashboard() {
                     "react-native": {
                       title: "React Native SDK",
                       steps: [
-                        { label: "Install the SDK and its peer dependency:", code: `npm install github:Damayantha/chatty-react-native-sdk @react-native-async-storage/async-storage` },
-                        { label: "Add a floating launcher anywhere in your app:", code: `import { ChattyLauncher } from "chatty-react-native-sdk";\n\nexport default function App() {\n  return (\n    <>\n      {/* ...your app... */}\n      <ChattyLauncher botId="${botId || "YOUR_BOT_ID"}" position="right" />\n    </>\n  );\n}` },
-                        { label: "Or embed a full-screen chat view directly:", code: `import { ChattyChatView } from "chatty-react-native-sdk";\n\nfunction SupportScreen() {\n  return <ChattyChatView botId="${botId || "YOUR_BOT_ID"}" />;\n}` },
+                        { label: "Install the SDK and its peer dependency:", code: `npm install @personaliai/react-native @react-native-async-storage/async-storage` },
+                        { label: "Add a floating launcher anywhere in your app:", code: `import { ChattyLauncher } from "@personaliai/react-native";\n\nexport default function App() {\n  return (\n    <>\n      {/* ...your app... */}\n      <ChattyLauncher botId="${botId || "YOUR_BOT_ID"}" position="right" />\n    </>\n  );\n}` },
+                        { label: "Or embed a full-screen chat view directly:", code: `import { ChattyChatView } from "@personaliai/react-native";\n\nfunction SupportScreen() {\n  return <ChattyChatView botId="${botId || "YOUR_BOT_ID"}" />;\n}` },
                         { label: "Renders real React Native components — no WebView — on both iOS and Android.", note: "Requires React Native 0.72+." },
                       ],
                     },
