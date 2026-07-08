@@ -4403,17 +4403,24 @@ export default function Dashboard() {
                               </div>
                               {s.type === "url" && (
                                 <div className="flex items-center gap-2 mt-1.5">
-                                  <RefreshCw className="size-3 text-neutral-400" />
-                                  <select
-                                    value={s.crawlSchedule || "off"}
-                                    onChange={(e) => handleSetCrawlSchedule(s.id, e.target.value as "off" | "daily" | "weekly" | "monthly")}
-                                    className="text-[10px] font-medium bg-transparent border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 cursor-pointer focus:outline-none"
-                                  >
-                                    <option value="off">No auto re-crawl</option>
-                                    <option value="daily">Re-crawl daily</option>
-                                    <option value="weekly">Re-crawl weekly</option>
-                                    <option value="monthly">Re-crawl monthly</option>
-                                  </select>
+                                  <RefreshCw className="size-3 text-neutral-400 shrink-0" />
+                                  <div className="relative">
+                                    <select
+                                      value={s.crawlSchedule || "off"}
+                                      onChange={(e) => handleSetCrawlSchedule(s.id, e.target.value as "off" | "daily" | "weekly" | "monthly")}
+                                      className={`appearance-none text-[10px] font-semibold pl-2.5 pr-6 py-1 rounded-full border cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400/40 transition-colors ${
+                                        s.crawlSchedule && s.crawlSchedule !== "off"
+                                          ? "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400"
+                                          : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400"
+                                      }`}
+                                    >
+                                      <option value="off">No auto re-crawl</option>
+                                      <option value="daily">Re-crawl daily</option>
+                                      <option value="weekly">Re-crawl weekly</option>
+                                      <option value="monthly">Re-crawl monthly</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 size-3 pointer-events-none text-neutral-400" />
+                                  </div>
                                   {s.crawlSchedule && s.crawlSchedule !== "off" && s.nextCrawlAt && (
                                     <span className="text-[10px] text-neutral-400">
                                       Next: {new Date(s.nextCrawlAt).toLocaleDateString()}
