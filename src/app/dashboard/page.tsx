@@ -37,6 +37,9 @@ import {
   ShieldAlert,
   ArrowRight,
   TrendingUp,
+  CheckCircle2,
+  Clock,
+  Star,
   Users,
   MessageCircle,
   HelpCircle,
@@ -603,6 +606,9 @@ export default function Dashboard() {
   const [totalQueries, setTotalQueries] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);
   const [conversionRate, setConversionRate] = useState("0.0");
+  const [resolutionRate, setResolutionRate] = useState("—");
+  const [csatScore, setCsatScore] = useState("—");
+  const [busiestHour, setBusiestHour] = useState("—");
   const [analyticsChartData, setAnalyticsChartData] = useState<Array<{ day: string; count: number; height: string }>>([]);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
@@ -889,6 +895,43 @@ export default function Dashboard() {
         height: `${(d.count / maxCount) * 100}%`
       }));
       setAnalyticsChartData(chart);
+
+      // 5. AI resolution rate — sessions the bot handled without needing a human.
+      const { data: sessRows } = await supabase
+        .from("chatty_sessions")
+        .select("needs_attention")
+        .eq("bot_id", activeBotId);
+      if (sessRows && sessRows.length) {
+        const resolved = sessRows.filter(s => !s.needs_attention).length;
+        setResolutionRate(`${((resolved / sessRows.length) * 100).toFixed(0)}%`);
+      } else {
+        setResolutionRate("—");
+      }
+
+      // 6. CSAT — visitor thumbs up / (up + down).
+      const { data: fbRows } = await supabase
+        .from("chatty_conversations")
+        .select("feedback_rating")
+        .eq("bot_id", activeBotId)
+        .in("feedback_rating", ["up", "down"]);
+      if (fbRows && fbRows.length) {
+        const ups = fbRows.filter(f => f.feedback_rating === "up").length;
+        setCsatScore(`${((ups / fbRows.length) * 100).toFixed(0)}%`);
+      } else {
+        setCsatScore("—");
+      }
+
+      // 7. Busiest hour of day (from the last-7-days user queries).
+      if (queryData && queryData.length) {
+        const hours = new Array(24).fill(0);
+        queryData.forEach(q => { hours[new Date(q.created_at).getHours()]++; });
+        const peak = hours.indexOf(Math.max(...hours));
+        const ampm = peak < 12 ? "AM" : "PM";
+        const h12 = peak % 12 || 12;
+        setBusiestHour(`${h12} ${ampm}`);
+      } else {
+        setBusiestHour("—");
+      }
     } catch (err) {
       console.error("Error loading analytics data:", err);
     } finally {
@@ -3399,6 +3442,42 @@ export default function Dashboard() {
                   </div>
                   <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-[#f97316]">
                     <Users className="size-5" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance Row — the ROI metrics */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">AI Resolution Rate</span>
+                    <h4 className="text-2xl font-bold mt-1">{resolutionRate}</h4>
+                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 block">Sessions handled without a human</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-500">
+                    <CheckCircle2 className="size-5" />
+                  </div>
+                </div>
+
+                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">CSAT</span>
+                    <h4 className="text-2xl font-bold mt-1">{csatScore}</h4>
+                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 block">Visitor thumbs-up ratio</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-500">
+                    <Star className="size-5" />
+                  </div>
+                </div>
+
+                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Busiest Hour</span>
+                    <h4 className="text-2xl font-bold mt-1">{busiestHour}</h4>
+                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 block">Peak traffic (last 7 days)</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                    <Clock className="size-5" />
                   </div>
                 </div>
               </div>

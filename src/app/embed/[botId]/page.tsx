@@ -12,7 +12,7 @@ import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
-  Link2,
+  Link2, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 
 // Preset assistant avatar icons (selectable in the customizer).
@@ -73,6 +73,7 @@ interface Message {
   fileUrl?: string;
   fileType?: string;
   sources?: Citation[];
+  feedback?: "up" | "down";
 }
 interface Source { id: string; name: string; content: string; }
 
@@ -359,6 +360,16 @@ export default function EmbedWidget() {
     });
   };
 
+  const rateMessage = async (index: number, rating: "up" | "down") => {
+    setMessages((p) => { const c = [...p]; if (c[index]) c[index] = { ...c[index], feedback: rating }; return c; });
+    try {
+      await fetch(`${BACKEND_URL}/api/widget/feedback`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, rating }),
+      });
+    } catch { /* best-effort */ }
+  };
+
   const sendText = async (text: string) => {
     if (!text.trim() || isBotResponding) return;
     setMessages((p) => [...p, { role: "user", content: text }, { role: "assistant", content: "" }]);
@@ -633,6 +644,18 @@ export default function EmbedWidget() {
                     {msg.role === "assistant"
                       ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>{msg.content}</ReactMarkdown>
                       : <span>{msg.content}</span>}
+                    {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
+                      <div className="mt-1.5 flex items-center gap-1">
+                        <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
+                          className={`p-1 rounded-md transition-colors ${msg.feedback === "up" ? "text-green-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
+                          <ThumbsUp className="size-3" />
+                        </button>
+                        <button onClick={() => rateMessage(i, "down")} aria-label="Not helpful"
+                          className={`p-1 rounded-md transition-colors ${msg.feedback === "down" ? "text-red-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
+                          <ThumbsDown className="size-3" />
+                        </button>
+                      </div>
+                    )}
                     {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
                       <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap gap-1">
                         {msg.sources.map((s, si) => {
