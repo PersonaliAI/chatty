@@ -249,25 +249,71 @@ export default function EmbedWidget() {
     try { localStorage.setItem(`chatty_msgs_${botId}_${hostKey}`, JSON.stringify(messages.slice(-100))); } catch {}
   }, [messages, botId, hostKey]);
 
-  // Poll for live human-agent replies
+  // Live human-agent replies via SSE (one persistent connection). Falls back
+  // to the /poll endpoint if the stream can't be established.
   useEffect(() => {
     if (!botId || !sessionId) return;
-    const id = setInterval(async () => {
+    let stopped = false;
+    const ctrl = new AbortController();
+
+    const applyEvent = (payload: { type: string; content?: string; created_at?: string; value?: boolean }) => {
+      if (payload.type === "message") {
+        if (payload.created_at) lastPollRef.current = payload.created_at;
+        setMessages((p) => [...p, { role: "assistant" as const, content: payload.content || "" }]);
+        setIsBotResponding(false);
+        notifyParent();
+      } else if (payload.type === "ai_paused") {
+        setLiveAgent(!!payload.value);
+      }
+    };
+
+    const pollOnce = async () => {
       try {
         const url = `${BACKEND_URL}/api/widget/poll?bot_id=${botId}&session_id=${encodeURIComponent(sessionId)}&after=${encodeURIComponent(lastPollRef.current)}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: ctrl.signal });
         if (!res.ok) return;
         const d = await res.json();
         setLiveAgent(!!d.ai_paused);
         if (Array.isArray(d.messages) && d.messages.length) {
           lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-          setMessages((p) => [...p, ...d.messages.map((m: any) => ({ role: "assistant" as const, content: m.content }))]);
+          setMessages((p) => [...p, ...d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content }))]);
           setIsBotResponding(false);
           notifyParent();
         }
       } catch {}
-    }, 4000);
-    return () => clearInterval(id);
+    };
+
+    const run = async () => {
+      while (!stopped) {
+        try {
+          const url = `${BACKEND_URL}/api/widget/live?bot_id=${botId}&session_id=${encodeURIComponent(sessionId)}&after=${encodeURIComponent(lastPollRef.current)}`;
+          const res = await fetch(url, { signal: ctrl.signal });
+          if (!res.ok || !res.body) throw new Error("no stream");
+          const reader = res.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            let sep: number;
+            while ((sep = buf.indexOf("\n\n")) >= 0) {
+              const frame = buf.slice(0, sep); buf = buf.slice(sep + 2);
+              const line = frame.split("\n").find((l) => l.startsWith("data:"));
+              if (!line) continue;
+              try { applyEvent(JSON.parse(line.slice(5).trim())); } catch {}
+            }
+          }
+          // Server closed the stream (~4 min) — loop reconnects immediately.
+        } catch {
+          if (stopped || ctrl.signal.aborted) return;
+          await pollOnce();
+          await new Promise((r) => setTimeout(r, 4000));
+        }
+      }
+    };
+    run();
+    return () => { stopped = true; ctrl.abort(); };
   }, [botId, sessionId]);
 
   const getHost = (): string => {
