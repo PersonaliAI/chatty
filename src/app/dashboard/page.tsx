@@ -522,6 +522,11 @@ export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
 
+  // Unanswered questions queue (knowledge gaps the bot couldn't answer)
+  const [unanswered, setUnanswered] = useState<{ id: string; question: string; created_at: string }[]>([]);
+  const [answeringId, setAnsweringId] = useState<string | null>(null);
+  const [answerText, setAnswerText] = useState("");
+
   // Training inputs
   const [inputText, setInputText] = useState("");
   const [inputTitle, setInputTitle] = useState("");
@@ -1342,8 +1347,53 @@ export default function Dashboard() {
     }
     if (botId && activeTab === "knowledge") {
       loadDriveSyncSchedule();
+      loadUnanswered();
     }
   }, [activeTab, botId]);
+
+  // Knowledge gaps: questions the bot couldn't confidently answer.
+  async function loadUnanswered() {
+    if (!botId) return;
+    try {
+      const { data } = await supabase
+        .from("chatty_unanswered")
+        .select("id, question, created_at")
+        .eq("bot_id", botId)
+        .eq("status", "open")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setUnanswered(data || []);
+    } catch {
+      setUnanswered([]);
+    }
+  }
+
+  async function dismissUnanswered(id: string) {
+    setUnanswered((p) => p.filter((u) => u.id !== id));
+    try {
+      await supabase.from("chatty_unanswered").update({ status: "dismissed" }).eq("id", id);
+    } catch { /* optimistic */ }
+  }
+
+  // Save the owner's answer as a knowledge source and close the gap.
+  async function resolveUnanswered(id: string, question: string) {
+    const answer = answerText.trim();
+    if (!answer || !botId) return;
+    const content = `Q: ${question}\nA: ${answer}`;
+    try {
+      await supabase.from("chatty_sources").insert({
+        bot_id: botId, type: "text", name: question.slice(0, 80),
+        content, status: "trained", char_count: content.length,
+      });
+      await supabase.from("chatty_unanswered").update({ status: "resolved" }).eq("id", id);
+      setUnanswered((p) => p.filter((u) => u.id !== id));
+      setAnsweringId(null);
+      setAnswerText("");
+      if (user) loadBotSettings(user.id); // refresh sources list
+    } catch (e) {
+      console.error("Failed to resolve unanswered question", e);
+    }
+  }
 
   // Save Onboarding step progress
   async function saveOnboardingStep(step: number, completed: boolean, extraData: any = {}) {
@@ -4310,6 +4360,61 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
+
+              {/* Unanswered questions (knowledge gaps) */}
+              {unanswered.length > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-2xl overflow-hidden">
+                  <div className="p-4 border-b border-amber-200 dark:border-amber-900 flex items-center gap-2">
+                    <AlertCircle className="size-4 text-amber-500" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                      Unanswered questions
+                    </h4>
+                    <span className="text-amber-400 text-[11px]">({unanswered.length})</span>
+                    <span className="text-[11px] text-amber-500/70 dark:text-amber-500/60 normal-case ml-1">— visitors asked these but the bot didn&apos;t know. Answer to retrain.</span>
+                  </div>
+                  <div className="divide-y divide-amber-100 dark:divide-amber-900/50">
+                    {unanswered.map((u) => (
+                      <div key={u.id} className="p-3.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-xs text-neutral-700 dark:text-neutral-200 flex-1">{u.question}</p>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => { setAnsweringId(answeringId === u.id ? null : u.id); setAnswerText(""); }}
+                              className="px-2.5 py-1 text-[10px] font-semibold rounded-full bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+                            >
+                              {answeringId === u.id ? "Cancel" : "Answer"}
+                            </button>
+                            <button
+                              onClick={() => dismissUnanswered(u.id)}
+                              className="px-2 py-1 text-[10px] font-medium rounded-full text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                        {answeringId === u.id && (
+                          <div className="mt-2.5 flex flex-col gap-2">
+                            <textarea
+                              value={answerText}
+                              onChange={(e) => setAnswerText(e.target.value)}
+                              placeholder="Write the answer — it'll be saved to your knowledge base and the bot will use it next time."
+                              rows={3}
+                              className="w-full text-xs bg-white dark:bg-neutral-900 border border-amber-200 dark:border-amber-900 rounded-lg p-2.5 focus:outline-none focus:border-amber-400 resize-y"
+                            />
+                            <button
+                              onClick={() => resolveUnanswered(u.id, u.question)}
+                              disabled={!answerText.trim()}
+                              className="self-end px-3.5 py-1.5 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+                            >
+                              Save &amp; train
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Sources List */}
               <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
