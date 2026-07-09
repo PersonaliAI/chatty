@@ -477,6 +477,10 @@ export default function Dashboard() {
   const [logoBgColor, setLogoBgColor] = useState("");
   const [launcherShape, setLauncherShape] = useState("circle");
   const [userBots, setUserBots] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; role: string }[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
+  const [invitingTeam, setInvitingTeam] = useState(false);
   const [suggestedColors, setSuggestedColors] = useState<string[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -1386,6 +1390,7 @@ export default function Dashboard() {
       loadApiKeys(botId);
     }
     if (botId && activeTab === "settings") {
+      loadTeam();
       loadByokStatus(botId);
     }
     if (botId && activeTab === "knowledge") {
@@ -1393,6 +1398,35 @@ export default function Dashboard() {
       loadUnanswered();
     }
   }, [activeTab, botId]);
+
+  // Team members (seats) for the active bot.
+  async function loadTeam() {
+    if (!botId) return;
+    try {
+      const res = await fetchWithFallback(`/api/team?bot_id=${botId}`);
+      if (res.ok) { const d = await res.json(); setTeamMembers(d.members || []); }
+    } catch { setTeamMembers([]); }
+  }
+
+  async function inviteTeamMember() {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email.includes("@") || !botId) return;
+    setInvitingTeam(true);
+    try {
+      const res = await fetchWithFallback("/api/team", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, email, role: inviteRole }),
+      });
+      if (res.ok) { setInviteEmail(""); await loadTeam(); }
+    } catch { /* noop */ } finally { setInvitingTeam(false); }
+  }
+
+  async function removeTeamMember(id: string) {
+    setTeamMembers((p) => p.filter((m) => m.id !== id));
+    try {
+      await fetchWithFallback(`/api/team/${id}?bot_id=${botId}`, { method: "DELETE" });
+    } catch { /* optimistic */ }
+  }
 
   // Knowledge gaps: questions the bot couldn't confidently answer.
   async function loadUnanswered() {
@@ -5622,7 +5656,45 @@ const { reply, session_id } = await res.json();`}</pre>
           {activeTab === "settings" && (
             <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
               <div className="w-full max-w-2xl p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-8">
-                
+
+                {/* SECTION 0: TEAM */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <Users className="size-4 text-[#f97316]" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Team</h3>
+                  </div>
+                  <p className="text-[11px] text-neutral-400 -mt-2">Invite teammates to help manage this bot&apos;s inbox and leads. They sign in with the invited email.</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="teammate@company.com"
+                      className="flex-1 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                    />
+                    <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "agent" | "admin")}
+                      className="text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-2 focus:outline-none">
+                      <option value="agent">Agent</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@")}
+                      className="px-3.5 py-2 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap">
+                      {invitingTeam ? "Inviting…" : "Invite"}
+                    </button>
+                  </div>
+                  {teamMembers.length > 0 && (
+                    <div className="space-y-1.5">
+                      {teamMembers.map((m) => (
+                        <div key={m.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-xs text-neutral-700 dark:text-neutral-200 truncate">{m.email}</span>
+                            <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-500">{m.role}</span>
+                          </div>
+                          <button onClick={() => removeTeamMember(m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-red-500 transition-colors shrink-0">Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* SECTION 1: AI ENGINE */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
