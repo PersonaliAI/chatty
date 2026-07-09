@@ -12,6 +12,7 @@ import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
+  Link2,
 } from "lucide-react";
 
 // Preset assistant avatar icons (selectable in the customizer).
@@ -65,11 +66,13 @@ async function audioBlobToWav(blob: Blob): Promise<Blob> {
   return new Blob([view], { type: "audio/wav" });
 }
 
+interface Citation { name: string; type: string; url?: string | null; }
 interface Message {
   role: "user" | "assistant";
   content: string;
   fileUrl?: string;
   fileType?: string;
+  sources?: Citation[];
 }
 interface Source { id: string; name: string; content: string; }
 
@@ -392,7 +395,7 @@ export default function EmbedWidget() {
           buffer = buffer.slice(sep + 2);
           const dataLine = frame.split("\n").find((l) => l.startsWith("data:"));
           if (!dataLine) continue;
-          let payload: { type: string; text?: string; reply?: string; detail?: string };
+          let payload: { type: string; text?: string; reply?: string; detail?: string; sources?: Citation[] };
           try { payload = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
 
           if (payload.type === "token") {
@@ -401,6 +404,16 @@ export default function EmbedWidget() {
             setStreamingAssistant(acc);
           } else if (payload.type === "done") {
             if (payload.reply && payload.reply !== acc) { acc = payload.reply; setStreamingAssistant(acc); }
+            if (payload.sources && payload.sources.length) {
+              const srcs = payload.sources;
+              setMessages((p) => {
+                const copy = [...p];
+                for (let i = copy.length - 1; i >= 0; i--) {
+                  if (copy[i].role === "assistant") { copy[i] = { ...copy[i], sources: srcs }; break; }
+                }
+                return copy;
+              });
+            }
             notifyParent();
           } else if (payload.type === "paused") {
             paused = true;
@@ -620,6 +633,17 @@ export default function EmbedWidget() {
                     {msg.role === "assistant"
                       ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>{msg.content}</ReactMarkdown>
                       : <span>{msg.content}</span>}
+                    {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap gap-1">
+                        {msg.sources.map((s, si) => {
+                          const label = s.url ? (() => { try { return new URL(s.url!).hostname.replace(/^www\./, "") + new URL(s.url!).pathname.replace(/\/$/, ""); } catch { return s.name; } })() : s.name;
+                          const cls = "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-500 max-w-[170px]";
+                          return s.url
+                            ? <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url} className={`${cls} hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors`}><Link2 className="size-2.5 shrink-0" /><span className="truncate">{label}</span></a>
+                            : <span key={si} title={s.name} className={cls}><FileText className="size-2.5 shrink-0" /><span className="truncate">{label}</span></span>;
+                        })}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}
