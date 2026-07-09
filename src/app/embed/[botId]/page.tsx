@@ -344,29 +344,86 @@ export default function EmbedWidget() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotResponding, tab]);
 
-  // ---- Text message ----
+  // ---- Text message (streamed via SSE) ----
+  // Update the most recent assistant bubble's content in place as tokens arrive.
+  const setStreamingAssistant = (content: string) => {
+    setMessages((p) => {
+      const copy = [...p];
+      for (let i = copy.length - 1; i >= 0; i--) {
+        if (copy[i].role === "assistant") { copy[i] = { ...copy[i], content }; break; }
+      }
+      return copy;
+    });
+  };
+
   const sendText = async (text: string) => {
     if (!text.trim() || isBotResponding) return;
-    setMessages((p) => [...p, { role: "user", content: text }]);
+    setMessages((p) => [...p, { role: "user", content: text }, { role: "assistant", content: "" }]);
     setInputValue("");
     setEmojiOpen(false);
     setIsBotResponding(true);
+
+    let acc = "";
+    let firstToken = false;
+    let paused = false;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
+      const res = await fetch(`${BACKEND_URL}/api/widget/chat/stream`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, host: getHost() }),
       });
-      const body = await res.json();
-      if (res.ok && body.ai_paused) {
-        // A human agent is handling this chat — reply arrives via polling.
-        setLiveAgent(true);
-        lastPollRef.current = new Date(Date.now() - 2000).toISOString();
-      } else {
-        setMessages((p) => [...p, { role: "assistant", content: res.ok ? body.reply : `⚠️ ${body.detail || "Something went wrong."}` }]);
-        notifyParent();
+
+      if (!res.ok || !res.body) {
+        let detail = "Something went wrong.";
+        try { const b = await res.json(); detail = b.detail || detail; } catch {}
+        setStreamingAssistant(`⚠️ ${detail}`);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep: number;
+        while ((sep = buffer.indexOf("\n\n")) >= 0) {
+          const frame = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          const dataLine = frame.split("\n").find((l) => l.startsWith("data:"));
+          if (!dataLine) continue;
+          let payload: { type: string; text?: string; reply?: string; detail?: string };
+          try { payload = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
+
+          if (payload.type === "token") {
+            if (!firstToken) { firstToken = true; setIsBotResponding(false); }
+            acc += payload.text || "";
+            setStreamingAssistant(acc);
+          } else if (payload.type === "done") {
+            if (payload.reply && payload.reply !== acc) { acc = payload.reply; setStreamingAssistant(acc); }
+            notifyParent();
+          } else if (payload.type === "paused") {
+            paused = true;
+            setLiveAgent(true);
+            lastPollRef.current = new Date(Date.now() - 2000).toISOString();
+          } else if (payload.type === "error") {
+            setStreamingAssistant(`⚠️ ${payload.detail || "Something went wrong."}`);
+          }
+        }
+      }
+
+      // Human agent took over and streamed no AI text — drop the empty bubble.
+      if (paused && acc === "") {
+        setMessages((p) => {
+          const copy = [...p];
+          for (let i = copy.length - 1; i >= 0; i--) {
+            if (copy[i].role === "assistant") { if (copy[i].content === "") copy.splice(i, 1); break; }
+          }
+          return copy;
+        });
       }
     } catch {
-      setMessages((p) => [...p, { role: "assistant", content: "Sorry, I can't connect right now." }]);
+      setStreamingAssistant("Sorry, I can't connect right now.");
     } finally {
       setIsBotResponding(false);
     }
