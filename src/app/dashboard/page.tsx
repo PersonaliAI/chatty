@@ -3357,9 +3357,9 @@ export default function Dashboard() {
             <button className="md:hidden p-1 text-neutral-500 hover:text-neutral-950" onClick={() => setSidebarOpen(true)}>
               <Menu className="size-5" />
             </button>
-            <div>
-              <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">Chatty Console</span>
-              <h2 className="text-sm font-semibold capitalize mt-0.5">{activeTab === "home" ? "Overview" : activeTab.replace("_", " ")}</h2>
+            <div className="min-w-0">
+              <span className="block text-[10px] uppercase tracking-wider text-neutral-400 font-semibold whitespace-nowrap">Chatty Console</span>
+              <h2 className="text-sm font-semibold capitalize mt-0.5 whitespace-nowrap">{activeTab === "home" ? "Overview" : activeTab.replace("_", " ")}</h2>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 text-xs text-neutral-500">
