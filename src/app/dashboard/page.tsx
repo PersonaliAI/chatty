@@ -510,6 +510,7 @@ export default function Dashboard() {
   );
   const [isGeneratingInstructions, setIsGeneratingInstructions] = useState(false);
   const [strictMode, setStrictMode] = useState(true);
+  const [answerMode, setAnswerMode] = useState<"strict" | "hybrid" | "web">("strict");
   const [emailNotify, setEmailNotify] = useState(true);
   const [hideBranding, setHideBranding] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState("");
@@ -1002,6 +1003,7 @@ export default function Dashboard() {
         setSelectedModel(activeBot.selected_model);
         setSystemInstructions(activeBot.system_instructions);
         setStrictMode(activeBot.strict_mode);
+        setAnswerMode(activeBot.answer_mode || "strict");
         setEmailNotify(activeBot.email_notify);
         setHideBranding(activeBot.hide_branding || false);
         setWebhookUrl(activeBot.webhook_url || "");
@@ -1114,6 +1116,7 @@ export default function Dashboard() {
       setSelectedModel(selected.selected_model);
       setSystemInstructions(selected.system_instructions);
       setStrictMode(selected.strict_mode);
+      setAnswerMode(selected.answer_mode || "strict");
       setEmailNotify(selected.email_notify);
       setHideBranding(selected.hide_branding || false);
       setWebhookUrl(selected.webhook_url || "");
@@ -1834,6 +1837,7 @@ export default function Dashboard() {
           selected_model: selectedModel,
           system_instructions: systemInstructions,
           strict_mode: strictMode,
+          answer_mode: answerMode,
           email_notify: emailNotify,
           hide_branding: hideBranding,
           webhook_url: webhookUrl,
@@ -1883,6 +1887,7 @@ export default function Dashboard() {
                 selected_model: selectedModel,
                 system_instructions: systemInstructions,
                 strict_mode: strictMode,
+          answer_mode: answerMode,
                 email_notify: emailNotify,
                 hide_branding: hideBranding,
                 webhook_url: webhookUrl,
@@ -5716,6 +5721,25 @@ const { reply, session_id } = await res.json();`}</pre>
                       ]}
                     />
                     <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Selected model handles logic & responses inside your widget.</p>
+                  </div>
+
+                  {/* Knowledge Source */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Knowledge Source</label>
+                    <ModernSelect
+                      value={answerMode}
+                      onChange={(v) => handleInputChange(setAnswerMode, v)}
+                      options={[
+                        { value: "strict", label: "Knowledge base only", hint: "Safest — answers strictly from your trained sources" },
+                        { value: "hybrid", label: "Knowledge base + AI knowledge", hint: "Falls back to the model's general knowledge" },
+                        { value: "web", label: "Knowledge base + web search", hint: "Looks up live info on the web when needed" },
+                      ]}
+                    />
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
+                      {answerMode === "strict" && "Only answers from your trained knowledge — best for accuracy and avoiding made-up info."}
+                      {answerMode === "hybrid" && "Answers from your knowledge first, then the model's own general knowledge if needed."}
+                      {answerMode === "web" && "Adds a live web-search tool so the bot can pull current information beyond your knowledge base."}
+                    </p>
                   </div>
 
                   {/* BYOK — required for any non-Gemini model */}

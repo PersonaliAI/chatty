@@ -418,14 +418,25 @@ export default function EmbedWidget() {
 
   const sendText = async (text: string) => {
     if (!text.trim() || isBotResponding) return;
-    setMessages((p) => [...p, { role: "user", content: text }, { role: "assistant", content: "" }]);
+    setMessages((p) => [...p, { role: "user", content: text }]);
     setInputValue("");
     setEmojiOpen(false);
     setIsBotResponding(true);
 
     let acc = "";
-    let firstToken = false;
-    let paused = false;
+    // The assistant bubble is created lazily on the first content so the typing
+    // indicator is the ONLY thing shown until then (no duplicate response icon).
+    let created = false;
+    const writeAssistant = (content: string) => {
+      if (!created) {
+        created = true;
+        setIsBotResponding(false);
+        setMessages((p) => [...p, { role: "assistant" as const, content }]);
+      } else {
+        setStreamingAssistant(content);
+      }
+    };
+
     try {
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/stream`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -435,7 +446,7 @@ export default function EmbedWidget() {
       if (!res.ok || !res.body) {
         let detail = "Something went wrong.";
         try { const b = await res.json(); detail = b.detail || detail; } catch {}
-        setStreamingAssistant(`⚠️ ${detail}`);
+        writeAssistant(`⚠️ ${detail}`);
         return;
       }
 
@@ -456,12 +467,12 @@ export default function EmbedWidget() {
           try { payload = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
 
           if (payload.type === "token") {
-            if (!firstToken) { firstToken = true; setIsBotResponding(false); }
             acc += payload.text || "";
-            setStreamingAssistant(acc);
+            writeAssistant(acc);
           } else if (payload.type === "done") {
-            if (payload.reply && payload.reply !== acc) { acc = payload.reply; setStreamingAssistant(acc); }
-            if (payload.sources && payload.sources.length) {
+            if (payload.reply && payload.reply !== acc) { acc = payload.reply; writeAssistant(acc); }
+            else if (!created && payload.reply) { writeAssistant(payload.reply); }
+            if (payload.sources && payload.sources.length && created) {
               const srcs = payload.sources;
               setMessages((p) => {
                 const copy = [...p];
@@ -473,27 +484,15 @@ export default function EmbedWidget() {
             }
             notifyParent();
           } else if (payload.type === "paused") {
-            paused = true;
             setLiveAgent(true);
             lastPollRef.current = new Date(Date.now() - 2000).toISOString();
           } else if (payload.type === "error") {
-            setStreamingAssistant(`⚠️ ${payload.detail || "Something went wrong."}`);
+            writeAssistant(`⚠️ ${payload.detail || "Something went wrong."}`);
           }
         }
       }
-
-      // Human agent took over and streamed no AI text — drop the empty bubble.
-      if (paused && acc === "") {
-        setMessages((p) => {
-          const copy = [...p];
-          for (let i = copy.length - 1; i >= 0; i--) {
-            if (copy[i].role === "assistant") { if (copy[i].content === "") copy.splice(i, 1); break; }
-          }
-          return copy;
-        });
-      }
     } catch {
-      setStreamingAssistant("Sorry, I can't connect right now.");
+      writeAssistant("Sorry, I can't connect right now.");
     } finally {
       setIsBotResponding(false);
     }
