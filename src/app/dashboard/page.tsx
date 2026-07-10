@@ -5382,7 +5382,7 @@ export default function Dashboard() {
                     android: {
                       title: "Android SDK (Kotlin, Jetpack Compose)",
                       steps: [
-                        { label: "Add JitPack to your root settings.gradle.kts and the SDK dependency to your app module:", code: `// settings.gradle.kts\ndependencyResolutionManagement {\n    repositories {\n        maven { url = uri("https://jitpack.io") }\n    }\n}\n\n// app/build.gradle.kts\ndependencies {\n    implementation("com.github.Damayantha:chatty-android-sdk:1.0.0")\n}` },
+                        { label: "Add the dependency to your app module (published on Maven Central — no extra repository needed):", code: `// app/build.gradle.kts\ndependencies {\n    implementation("com.personaliai:chatty-android-sdk:1.0.0")\n}` },
                         { label: "Add a floating launcher to your root composable:", code: `@Composable\nfun AppRoot() {\n    Box(Modifier.fillMaxSize()) {\n        // your app content\n        ChattyLauncher(botId = "${botId || "YOUR_BOT_ID"}")\n    }\n}` },
                         { label: "Or embed a full-screen chat composable directly:", code: `ChattyChatScreen(botId = "${botId || "YOUR_BOT_ID"}", modifier = Modifier.fillMaxSize())` },
                         { label: "Renders a fully native Jetpack Compose chat UI — no WebView.", note: "Requires minSdk 24+." },
