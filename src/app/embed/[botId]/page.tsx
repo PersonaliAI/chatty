@@ -193,8 +193,14 @@ export default function EmbedWidget() {
   const [searching, setSearching] = useState(false);
 
   const [recording, setRecording] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [usingSpeechToText, setUsingSpeechToText] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const transcriptBaseRef = useRef("");
 
   const [liveAgent, setLiveAgent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -535,18 +541,80 @@ export default function EmbedWidget() {
   // ---- Audio recording ----
   const toggleRecord = async () => {
     if (recording) {
+      recognitionRef.current?.stop();
       mediaRecorderRef.current?.stop();
       return;
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Live amplitude animation, independent of whichever send path below
+      // ends up being used.
+      const AC: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+      const audioCtx = new AC();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      audioContextRef.current = audioCtx;
+      const freqData = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteFrequencyData(freqData);
+        const avg = freqData.reduce((a, b) => a + b, 0) / freqData.length;
+        setAudioLevel(Math.min(1, avg / 90));
+        animationFrameRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+
+      // Live speech-to-text, if the browser supports it (Chrome/Edge/Safari;
+      // no Firefox support as of writing) — transcribed text streams straight
+      // into the message box for the visitor to review and send themselves,
+      // instead of silently uploading an opaque voice-message blob.
+      const SpeechRecognitionCtor =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognitionCtor) {
+        const recognition = new SpeechRecognitionCtor();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = navigator.language || "en-US";
+        transcriptBaseRef.current = inputValue ? `${inputValue} ` : "";
+        recognition.onresult = (event: any) => {
+          let finalText = "";
+          let interimText = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const r = event.results[i];
+            if (r.isFinal) finalText += r[0].transcript;
+            else interimText += r[0].transcript;
+          }
+          if (finalText) transcriptBaseRef.current += `${finalText} `;
+          setInputValue((transcriptBaseRef.current + interimText).trim());
+        };
+        recognition.onerror = () => { /* keep recording running for the animation/fallback */ };
+        recognitionRef.current = recognition;
+        recognition.start();
+        setUsingSpeechToText(true);
+      } else {
+        recognitionRef.current = null;
+        setUsingSpeechToText(false);
+      }
+
       const mr = new MediaRecorder(stream);
       audioChunksRef.current = [];
       mr.ondataavailable = (ev) => { if (ev.data.size > 0) audioChunksRef.current.push(ev.data); };
       mr.onstop = async () => {
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        audioContextRef.current?.close();
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
         setRecording(false);
+        setAudioLevel(0);
+        const wasUsingSpeechToText = !!recognitionRef.current;
+        recognitionRef.current = null;
+        if (wasUsingSpeechToText) {
+          // Transcribed text is already live in the input box — let the
+          // visitor review/edit and press send themselves.
+          return;
+        }
+        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
         if (blob.size === 0) return;
         try {
           const wav = await audioBlobToWav(blob);
@@ -804,6 +872,7 @@ export default function EmbedWidget() {
                 searchDisabled={false}
                 skinTonesDisabled
                 lazyLoadEmojis
+                previewConfig={{ showPreview: false }}
                 width="100%"
                 height={320}
               />
@@ -812,15 +881,26 @@ export default function EmbedWidget() {
           <form onSubmit={(e) => { e.preventDefault(); sendText(inputValue); }}
             className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setEmojiOpen(false)}
-              placeholder={recording ? "Recording… tap ◼ to send" : "Compose your message…"} disabled={isBotResponding || recording}
+              placeholder={recording ? (usingSpeechToText ? "Listening… speak now" : "Recording… tap ◼ to send") : "Compose your message…"} disabled={isBotResponding || recording}
               className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <button type="button" onClick={() => setEmojiOpen((o) => !o)} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></button>
                 <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></button>
-                <button type="button" onClick={toggleRecord} className={`p-1.5 rounded-full ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
+                <button type="button" onClick={toggleRecord} className={`p-1.5 rounded-full ${recording ? "text-red-500" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
                   {recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                 </button>
+                {recording && (
+                  <div className="flex items-end gap-0.5 h-4 px-1" aria-hidden>
+                    {[0.5, 0.85, 1, 0.7, 0.4].map((mult, i) => (
+                      <span
+                        key={i}
+                        className="w-0.5 bg-red-500 rounded-full transition-[height] duration-75"
+                        style={{ height: `${Math.max(3, audioLevel * 16 * mult)}px` }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
