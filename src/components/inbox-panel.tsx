@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2, Paperclip, Smile, Mic, Square, X, Check, AlertCircle, ThumbsUp, ThumbsDown } from "lucide-react";
-import EmojiPicker, { EmojiStyle, Theme as EmojiTheme } from "emoji-picker-react";
+import EmojiPicker from "@emoji-mart/react";
+import emojiData from "@emoji-mart/data";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -447,15 +448,18 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
               <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
               {emojiOpen && (
-                <div className="absolute bottom-[84px] left-2.5 right-2.5 z-10 overflow-hidden rounded-xl shadow-lg">
+                <div className="emoji-panel-picker absolute bottom-[84px] left-2.5 right-2.5 z-10 h-80 overflow-hidden rounded-xl shadow-lg">
                   <EmojiPicker
-                    onEmojiClick={(emojiData) => setReply((v) => v + emojiData.emoji)}
-                    theme={EmojiTheme.AUTO}
-                    emojiStyle={EmojiStyle.NATIVE}
-                    skinTonesDisabled
-                    lazyLoadEmojis
-                    width="100%"
-                    height={320}
+                    data={emojiData}
+                    onEmojiSelect={(emoji: { native: string }) => setReply((v) => v + emoji.native)}
+                    theme="auto"
+                    set="native"
+                    searchPosition="sticky"
+                    previewPosition="none"
+                    skinTonePosition="search"
+                    perLine={8}
+                    maxFrequentRows={1}
+                    dynamicWidth
                   />
                 </div>
               )}

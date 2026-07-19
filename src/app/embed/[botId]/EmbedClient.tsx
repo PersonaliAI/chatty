@@ -7,13 +7,13 @@ import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
-import EmojiPicker, { EmojiStyle, Theme as EmojiTheme, Categories as EmojiCategories, SuggestionMode, type CategoryIcons } from "emoji-picker-react";
+import EmojiPicker from "@emoji-mart/react";
+import emojiData from "@emoji-mart/data";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown,
-  Clock, PawPrint, Coffee, Plane, Trophy, Lightbulb, Hash, Flag,
 } from "lucide-react";
 
 // Preset assistant avatar icons (selectable in the customizer).
@@ -25,21 +25,6 @@ import { useSearchParams } from "next/navigation";
 
 const supabase = createClient();
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
-
-// Custom lucide category icons for the emoji picker, replacing the library's
-// default flat unicode glyphs so the picker matches the rest of the widget's
-// icon language.
-const emojiCategoryIcons: CategoryIcons = {
-  [EmojiCategories.SUGGESTED]: <Clock size={14} strokeWidth={2} />,
-  [EmojiCategories.SMILEYS_PEOPLE]: <Smile size={14} strokeWidth={2} />,
-  [EmojiCategories.ANIMALS_NATURE]: <PawPrint size={14} strokeWidth={2} />,
-  [EmojiCategories.FOOD_DRINK]: <Coffee size={14} strokeWidth={2} />,
-  [EmojiCategories.TRAVEL_PLACES]: <Plane size={14} strokeWidth={2} />,
-  [EmojiCategories.ACTIVITIES]: <Trophy size={14} strokeWidth={2} />,
-  [EmojiCategories.OBJECTS]: <Lightbulb size={14} strokeWidth={2} />,
-  [EmojiCategories.SYMBOLS]: <Hash size={14} strokeWidth={2} />,
-  [EmojiCategories.FLAGS]: <Flag size={14} strokeWidth={2} />,
-};
 
 const RECORD_BAR_COUNT = 14;
 
@@ -82,6 +67,14 @@ async function audioBlobToWav(blob: Blob): Promise<Blob> {
   let off = 44;
   for (let i = 0; i < len; i++) { const s = Math.max(-1, Math.min(1, mono[i])); view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); off += 2; }
   return new Blob([view], { type: "audio/wav" });
+}
+
+// emoji-mart's --rgb-accent CSS var expects a comma-separated "R,G,B"
+// triplet (it's consumed as rgb(var(--em-rgb-accent))), not a hex string.
+function hexToRgbTriplet(hex: string): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return "249,115,22"; // fallback: default brand orange
+  return [1, 2, 3].map((i) => parseInt(m[i], 16)).join(",");
 }
 
 interface Citation { name: string; type: string; url?: string | null; }
@@ -891,26 +884,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 exit={{ opacity: 0, y: 12, scale: 0.97 }}
                 transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                 className="emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(64vh,440px)] min-h-[280px] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
-                style={
-                  {
-                    "--epr-highlight-color": primaryColor,
-                    "--epr-category-icon-active-color": primaryColor,
-                    "--epr-search-border-color-active": primaryColor,
-                    "--epr-search-input-bg-color-active": "transparent",
-                    "--epr-active-skin-hover-color": `${primaryColor}22`,
-                    "--epr-hover-bg-color": `${primaryColor}18`,
-                    "--epr-focus-bg-color": `${primaryColor}18`,
-                    "--epr-picker-border-radius": "0px",
-                    "--epr-picker-border-color": "transparent",
-                    "--epr-category-navigation-button-size": "26px",
-                    "--epr-emoji-size": "26px",
-                    "--epr-emoji-padding": "7px",
-                    "--epr-horizontal-padding": "10px",
-                    "--epr-header-padding": "10px",
-                    "--epr-search-input-height": "34px",
-                    "--epr-category-label-height": "26px",
-                  } as React.CSSProperties
-                }
+                style={{ "--rgb-accent": hexToRgbTriplet(primaryColor) } as React.CSSProperties}
               >
                 <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
                   <span className="text-[11px] font-bold tracking-wide text-neutral-500 dark:text-neutral-400 uppercase">Pick an emoji</span>
@@ -923,20 +897,18 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     <X className="size-3.5" />
                   </button>
                 </div>
-                <div className="flex-1 min-h-0">
+                <div className="emoji-panel-picker flex-1 min-h-0">
                   <EmojiPicker
-                    onEmojiClick={(emojiData) => setInputValue((v) => v + emojiData.emoji)}
-                    theme={EmojiTheme.AUTO}
-                    emojiStyle={EmojiStyle.NATIVE}
-                    searchDisabled={false}
-                    searchPlaceHolder="Search emoji…"
-                    skinTonesDisabled
-                    lazyLoadEmojis
-                    previewConfig={{ showPreview: false }}
-                    suggestedEmojisMode={SuggestionMode.RECENT}
-                    categoryIcons={emojiCategoryIcons}
-                    width="100%"
-                    height="100%"
+                    data={emojiData}
+                    onEmojiSelect={(emoji: { native: string }) => setInputValue((v) => v + emoji.native)}
+                    theme="auto"
+                    set="native"
+                    searchPosition="sticky"
+                    previewPosition="none"
+                    skinTonePosition="search"
+                    perLine={8}
+                    maxFrequentRows={1}
+                    dynamicWidth
                   />
                 </div>
               </motion.div>
