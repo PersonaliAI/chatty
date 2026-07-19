@@ -1440,8 +1440,20 @@ export default function Dashboard() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bot_id: botId, email, role: inviteRole }),
       });
-      if (res.ok) { setInviteEmail(""); await loadTeam(); }
-    } catch { /* noop */ } finally { setInvitingTeam(false); }
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setInviteEmail("");
+        await loadTeam();
+        showToast(
+          data.email_status === "logged"
+            ? `${email} added. We couldn't email them — ask them to sign in with this address directly.`
+            : `${email} added and notified by email.`,
+          data.email_status === "logged" ? "info" : "success"
+        );
+      } else {
+        showToast("Couldn't add team member. Try again.", "error");
+      }
+    } catch { showToast("Couldn't add team member. Try again.", "error"); } finally { setInvitingTeam(false); }
   }
 
   async function removeTeamMember(id: string) {
