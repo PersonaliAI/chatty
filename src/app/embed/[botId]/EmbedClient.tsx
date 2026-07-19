@@ -206,6 +206,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const animationFrameRef = useRef<number | null>(null);
   const recognitionRef = useRef<any>(null);
   const transcriptBaseRef = useRef("");
+  const recognitionFailedRef = useRef(false);
 
   const [liveAgent, setLiveAgent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -594,10 +595,24 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           if (finalText) transcriptBaseRef.current += `${finalText} `;
           setInputValue((transcriptBaseRef.current + interimText).trim());
         };
-        recognition.onerror = () => { /* keep recording running for the animation/fallback */ };
+        recognition.onerror = () => {
+          // Web Speech API is unreliable inside cross-origin iframes in some
+          // Chrome versions even with microphone access already granted
+          // (unlike getUserMedia, which properly supports the iframe `allow`
+          // attribute) — flag it so onstop falls back to sending the raw
+          // audio instead of leaving the visitor with an empty input box.
+          recognitionFailedRef.current = true;
+        };
         recognitionRef.current = recognition;
-        recognition.start();
-        setUsingSpeechToText(true);
+        recognitionFailedRef.current = false;
+        try {
+          recognition.start();
+          setUsingSpeechToText(true);
+        } catch {
+          recognitionRef.current = null;
+          recognitionFailedRef.current = true;
+          setUsingSpeechToText(false);
+        }
       } else {
         recognitionRef.current = null;
         setUsingSpeechToText(false);
@@ -612,9 +627,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         setAudioLevel(0);
-        const wasUsingSpeechToText = !!recognitionRef.current;
+        // Only trust the speech-to-text path if it actually produced text —
+        // a silent failure (common for SpeechRecognition inside iframes) or
+        // an onerror both mean the visitor is left with nothing, so fall
+        // back to sending the raw audio recording in either case.
+        const speechToTextSucceeded =
+          !!recognitionRef.current && !recognitionFailedRef.current && !!transcriptBaseRef.current.trim();
         recognitionRef.current = null;
-        if (wasUsingSpeechToText) {
+        recognitionFailedRef.current = false;
+        if (speechToTextSucceeded) {
           // Transcribed text is already live in the input box — let the
           // visitor review/edit and press send themselves.
           return;
