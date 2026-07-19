@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell, GoogleIcon, MicrosoftIcon } from "@/components/auth/auth-shell";
@@ -10,7 +11,18 @@ import { createClient } from "@/lib/supabase/client";
 type BusyKey = "password" | "google" | "microsoft" | null;
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupPageInner />
+    </Suspense>
+  );
+}
+
+function SignupPageInner() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
+  const dest = next && next.startsWith("/") ? next : "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -20,7 +32,7 @@ export default function SignupPage() {
 
   function redirect(): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/auth/callback?next=/onboarding`;
+    return `${origin}/auth/callback?next=${encodeURIComponent(dest)}`;
   }
 
   async function handlePassword(e: React.FormEvent) {
@@ -45,7 +57,7 @@ export default function SignupPage() {
     // If email confirmation is disabled in Supabase, the session is returned
     // immediately and we route to onboarding. Otherwise, show "check email".
     if (data.session) {
-      window.location.href = "/onboarding";
+      window.location.href = dest;
       return;
     }
     setSent(true);

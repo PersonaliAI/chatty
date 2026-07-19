@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell, GoogleIcon, MicrosoftIcon } from "@/components/auth/auth-shell";
@@ -11,8 +11,18 @@ import { createClient } from "@/lib/supabase/client";
 type BusyKey = "password" | "google" | "microsoft" | null;
 
 export default function LoginPage() {
-  const router = useRouter();
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
+  const dest = next && next.startsWith("/") ? next : "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -21,7 +31,7 @@ export default function LoginPage() {
 
   function redirect(): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/auth/callback`;
+    return `${origin}/auth/callback?next=${encodeURIComponent(dest)}`;
   }
 
   async function handlePassword(e: React.FormEvent) {
@@ -40,7 +50,7 @@ export default function LoginPage() {
     }
     // Successful — let middleware route us. We trigger a hard navigation so
     // the layout + server components re-fetch the new session.
-    window.location.href = "/dashboard";
+    window.location.href = dest;
   }
 
   async function handleOAuth(provider: "google" | "azure") {

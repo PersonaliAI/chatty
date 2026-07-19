@@ -77,7 +77,8 @@ import {
   MapPin,
   Inbox,
   Upload,
-  BookOpen
+  BookOpen,
+  CreditCard
 } from "lucide-react";
 
 // Types
@@ -462,6 +463,13 @@ export default function Dashboard() {
   const [botId, setBotId] = useState<string | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
 
+  // Billing State
+  const [billingInfo, setBillingInfo] = useState<{
+    plan: string;
+    status: string | null;
+    renewsAt: string | null;
+  } | null>(null);
+
   // Chatbot State
   const [botName, setBotName] = useState("Chatty Assistant");
   const [welcomeMsg, setWelcomeMsg] = useState("Hello! How can I help you today?");
@@ -765,6 +773,18 @@ export default function Dashboard() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           setUser(session.user);
+          supabase
+            .from("users")
+            .select("plan, subscription_status, subscription_renews_at")
+            .eq("auth_user_id", session.user.id)
+            .maybeSingle()
+            .then(({ data }) => {
+              setBillingInfo({
+                plan: (data?.plan as string) || "free",
+                status: (data?.subscription_status as string) || null,
+                renewsAt: (data?.subscription_renews_at as string) || null,
+              });
+            });
           await checkCloudConnections(session.user.id);
           await loadBotSettings(session.user.id);
           try {
@@ -3294,6 +3314,7 @@ export default function Dashboard() {
               { id: "analytics", label: t("analytics"), icon: BarChart3 },
               { id: "integrations", label: t("integrations"), icon: Code2 },
               { id: "developer", label: "Developer API", icon: Puzzle },
+              { id: "billing", label: "Billing", icon: CreditCard },
               { id: "settings", label: t("settings"), icon: Settings },
             ].map((link) => {
               const Icon = link.icon;
@@ -5654,6 +5675,120 @@ export default function Dashboard() {
 });
 const { reply, session_id } = await res.json();`}</pre>
               </div>
+            </div>
+          )}
+
+          {/* TAB: BILLING */}
+          {activeTab === "billing" && (
+            <div className="max-w-2xl mx-auto w-full py-6 px-4">
+              {(() => {
+                const PLAN_LABELS: Record<string, string> = {
+                  free: "Free",
+                  chatty_hobby: "Hobby",
+                  chatty_standard: "Standard",
+                  chatty_business: "Business",
+                };
+                const PLAN_FEATURES: Record<string, string[]> = {
+                  free: ["100 message credits/mo", "1 chatbot", "Basic AI models"],
+                  chatty_hobby: [
+                    "1,000 message credits/mo",
+                    "10M training characters",
+                    "1 chatbot",
+                    "AI Actions & Analytics",
+                    "Lead collection & API",
+                  ],
+                  chatty_standard: [
+                    "10,000 message credits/mo",
+                    "20M training characters",
+                    "3 chatbots",
+                    "Remove branding completely",
+                    "Unlimited team members",
+                  ],
+                  chatty_business: [
+                    "40,000 message credits/mo",
+                    "50M training characters",
+                    "5 chatbots",
+                    "BYOK (Bring-Your-Own-Key) option",
+                    "White-label configuration",
+                    "Management Admin API",
+                  ],
+                };
+                const plan = billingInfo?.plan || "free";
+                const status = billingInfo?.status;
+                const isPaid = ["active", "on_trial", "paused"].includes(status || "");
+                const portalUrl = process.env.NEXT_PUBLIC_LEMON_PORTAL_URL || "";
+
+                return (
+                  <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Current plan</div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="text-xl font-bold text-neutral-900 dark:text-white">
+                            {PLAN_LABELS[plan] || plan}
+                          </span>
+                          {status && (
+                            <span
+                              className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                                isPaid
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+                              }`}
+                            >
+                              {status}
+                            </span>
+                          )}
+                        </div>
+                        {billingInfo?.renewsAt && (
+                          <div className="mt-1 text-xs text-neutral-400">
+                            Renews {new Date(billingInfo.renewsAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+                          </div>
+                        )}
+                      </div>
+                      {isPaid && portalUrl && (
+                        <a
+                          href={portalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                        >
+                          Manage subscription <ExternalLink className="size-3.5" />
+                        </a>
+                      )}
+                    </div>
+
+                    <ul className="grid sm:grid-cols-2 gap-2">
+                      {(PLAN_FEATURES[plan] || PLAN_FEATURES.free).map((f) => (
+                        <li key={f} className="flex items-start gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+                          <CheckCircle2 className="size-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="border-t border-neutral-100 dark:border-neutral-800 pt-5 space-y-2">
+                      <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
+                        {isPaid ? "Change plan" : "Upgrade"}
+                      </div>
+                      <div className="grid sm:grid-cols-3 gap-2">
+                        {(["hobby", "standard", "business"] as const).map((p) => (
+                          <Link
+                            key={p}
+                            href={`/checkout?plan=${p}`}
+                            className="text-center text-xs font-mono uppercase tracking-wider border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                          >
+                            {PLAN_LABELS[`chatty_${p}`]}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-neutral-400">
+                      Billing is handled by Lemon Squeezy. Receipts and tax invoices are sent to <b>{user?.email}</b>.
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

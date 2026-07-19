@@ -25,22 +25,9 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/auth/auth-code-error`)
   }
 
-  // Decide destination: if the user hasn't finished onboarding, send them
-  // there regardless of the requested `next` param.
-  let target = requestedNext.startsWith('/') ? requestedNext : '/dashboard'
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (user) {
-    const { data: kin } = await supabase
-      .from('users')
-      .select('onboarding_completed')
-      .eq('auth_user_id', user.id)
-      .maybeSingle()
-    if (!kin || kin.onboarding_completed !== true) {
-      target = '/onboarding'
-    }
-  }
+  // Chatty has no separate /onboarding route (unlike Kin) — onboarding is
+  // per-bot and handled inline in the dashboard, so just honor `next`.
+  const target = requestedNext.startsWith('/') ? requestedNext : '/dashboard'
 
   return NextResponse.redirect(`${origin}${target}`)
 }

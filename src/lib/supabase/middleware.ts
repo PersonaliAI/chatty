@@ -51,29 +51,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(`${origin}/dashboard`)
   }
 
-  // Force onboarding before dashboard.
-  if (user && path.startsWith('/dashboard')) {
-    const { data: kin } = await supabase
-      .from('users')
-      .select('onboarding_completed')
-      .eq('auth_user_id', user.id)
-      .maybeSingle()
-    if (!kin || kin.onboarding_completed !== true) {
-      return NextResponse.redirect(`${origin}/onboarding`)
-    }
-  }
-
-  // Conversely, if onboarding is done, /onboarding bounces to /dashboard.
-  if (user && path.startsWith('/onboarding')) {
-    const { data: kin } = await supabase
-      .from('users')
-      .select('onboarding_completed')
-      .eq('auth_user_id', user.id)
-      .maybeSingle()
-    if (kin?.onboarding_completed === true) {
-      return NextResponse.redirect(`${origin}/dashboard`)
-    }
-  }
+  // NOTE: there is no route-level onboarding gate here (unlike Kin). Chatty's
+  // onboarding is per-bot (chatty_bots.onboarding_completed), rendered inline
+  // in the dashboard via <OnboardingWizard>, not a separate /onboarding route.
 
   return supabaseResponse
 }
