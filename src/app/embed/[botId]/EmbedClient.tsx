@@ -7,12 +7,13 @@ import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
-import EmojiPicker, { EmojiStyle, Theme as EmojiTheme } from "emoji-picker-react";
+import EmojiPicker, { EmojiStyle, Theme as EmojiTheme, Categories as EmojiCategories, SuggestionMode, type CategoryIcons } from "emoji-picker-react";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown,
+  Clock, PawPrint, Coffee, Plane, Trophy, Lightbulb, Hash, Flag,
 } from "lucide-react";
 
 // Preset assistant avatar icons (selectable in the customizer).
@@ -24,6 +25,23 @@ import { useSearchParams } from "next/navigation";
 
 const supabase = createClient();
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
+
+// Custom lucide category icons for the emoji picker, replacing the library's
+// default flat unicode glyphs so the picker matches the rest of the widget's
+// icon language.
+const emojiCategoryIcons: CategoryIcons = {
+  [EmojiCategories.SUGGESTED]: <Clock size={14} strokeWidth={2} />,
+  [EmojiCategories.SMILEYS_PEOPLE]: <Smile size={14} strokeWidth={2} />,
+  [EmojiCategories.ANIMALS_NATURE]: <PawPrint size={14} strokeWidth={2} />,
+  [EmojiCategories.FOOD_DRINK]: <Coffee size={14} strokeWidth={2} />,
+  [EmojiCategories.TRAVEL_PLACES]: <Plane size={14} strokeWidth={2} />,
+  [EmojiCategories.ACTIVITIES]: <Trophy size={14} strokeWidth={2} />,
+  [EmojiCategories.OBJECTS]: <Lightbulb size={14} strokeWidth={2} />,
+  [EmojiCategories.SYMBOLS]: <Hash size={14} strokeWidth={2} />,
+  [EmojiCategories.FLAGS]: <Flag size={14} strokeWidth={2} />,
+};
+
+const RECORD_BAR_COUNT = 14;
 
 // Send-button variants (icon + shape). Keyed by chatty_bots.send_button_style.
 const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: any; label?: string }> = {
@@ -198,7 +216,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [searching, setSearching] = useState(false);
 
   const [recording, setRecording] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
+  const [barLevels, setBarLevels] = useState<number[]>(() => Array(RECORD_BAR_COUNT).fill(0));
   const [transcribing, setTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -556,19 +574,30 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Live amplitude animation while recording.
+      // Live amplitude animation while recording — each bar samples a
+      // distinct slice of the real-time frequency spectrum (not one
+      // averaged number replayed across fixed per-bar multipliers), so
+      // they genuinely fluctuate independently with the actual audio.
       const AC: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
       const audioCtx = new AC();
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = 256; // 128 frequency bins
+      analyser.smoothingTimeConstant = 0.6; // real exponential smoothing from the Web Audio engine
       source.connect(analyser);
       audioContextRef.current = audioCtx;
       const freqData = new Uint8Array(analyser.frequencyBinCount);
+      const USABLE_BINS = 64; // lower half of the spectrum — where voice energy actually lives
+      const binsPerBar = Math.max(1, Math.floor(USABLE_BINS / RECORD_BAR_COUNT));
       const tick = () => {
         analyser.getByteFrequencyData(freqData);
-        const avg = freqData.reduce((a, b) => a + b, 0) / freqData.length;
-        setAudioLevel(Math.min(1, avg / 90));
+        const levels: number[] = new Array(RECORD_BAR_COUNT);
+        for (let i = 0; i < RECORD_BAR_COUNT; i++) {
+          let sum = 0;
+          for (let j = 0; j < binsPerBar; j++) sum += freqData[i * binsPerBar + j];
+          levels[i] = Math.min(1, sum / binsPerBar / 140);
+        }
+        setBarLevels(levels);
         animationFrameRef.current = requestAnimationFrame(tick);
       };
       tick();
@@ -581,7 +610,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         audioContextRef.current?.close();
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
-        setAudioLevel(0);
+        setBarLevels(Array(RECORD_BAR_COUNT).fill(0));
 
         const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
         if (blob.size === 0) return;
@@ -857,26 +886,38 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           <AnimatePresence>
             {emojiOpen && (
               <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                initial={{ opacity: 0, y: 12, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                transition={{ duration: 0.15, ease: "easeOut" }}
-                className="absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(62vh,420px)] min-h-[260px] rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl overflow-hidden bg-card"
+                exit={{ opacity: 0, y: 12, scale: 0.97 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                className="emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(64vh,440px)] min-h-[280px] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
                 style={
                   {
                     "--epr-highlight-color": primaryColor,
                     "--epr-category-icon-active-color": primaryColor,
                     "--epr-search-border-color-active": primaryColor,
+                    "--epr-search-input-bg-color-active": "transparent",
+                    "--epr-active-skin-hover-color": `${primaryColor}22`,
+                    "--epr-hover-bg-color": `${primaryColor}18`,
+                    "--epr-focus-bg-color": `${primaryColor}18`,
                     "--epr-picker-border-radius": "0px",
+                    "--epr-picker-border-color": "transparent",
+                    "--epr-category-navigation-button-size": "26px",
+                    "--epr-emoji-size": "26px",
+                    "--epr-emoji-padding": "7px",
+                    "--epr-horizontal-padding": "10px",
+                    "--epr-header-padding": "10px",
+                    "--epr-search-input-height": "34px",
+                    "--epr-category-label-height": "26px",
                   } as React.CSSProperties
                 }
               >
-                <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
-                  <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Emoji</span>
+                <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
+                  <span className="text-[11px] font-bold tracking-wide text-neutral-500 dark:text-neutral-400 uppercase">Pick an emoji</span>
                   <button
                     type="button"
                     onClick={() => setEmojiOpen(false)}
-                    className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-full"
+                    className="p-1 -m-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
                     aria-label="Close emoji picker"
                   >
                     <X className="size-3.5" />
@@ -888,9 +929,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     theme={EmojiTheme.AUTO}
                     emojiStyle={EmojiStyle.NATIVE}
                     searchDisabled={false}
+                    searchPlaceHolder="Search emoji…"
                     skinTonesDisabled
                     lazyLoadEmojis
                     previewConfig={{ showPreview: false }}
+                    suggestedEmojisMode={SuggestionMode.RECENT}
+                    categoryIcons={emojiCategoryIcons}
                     width="100%"
                     height="100%"
                   />
@@ -911,12 +955,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   {transcribing ? <Loader2 className="size-4.5 animate-spin" /> : recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                 </button>
                 {recording && (
-                  <div className="flex items-end gap-0.5 h-4 px-1" aria-hidden>
-                    {[0.5, 0.85, 1, 0.7, 0.4].map((mult, i) => (
+                  <div className="flex items-center gap-[2px] h-5 px-1" aria-hidden>
+                    {barLevels.map((level, i) => (
                       <span
                         key={i}
-                        className="w-0.5 bg-red-500 rounded-full transition-[height] duration-75"
-                        style={{ height: `${Math.max(3, audioLevel * 16 * mult)}px` }}
+                        className="w-0.5 bg-red-500 rounded-full transition-[height] duration-[50ms] ease-out"
+                        style={{ height: `${Math.max(2, level * 18)}px` }}
                       />
                     ))}
                   </div>
