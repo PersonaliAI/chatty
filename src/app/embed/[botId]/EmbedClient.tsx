@@ -199,14 +199,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   const [recording, setRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
-  const [usingSpeechToText, setUsingSpeechToText] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const transcriptBaseRef = useRef("");
-  const recognitionFailedRef = useRef(false);
 
   const [liveAgent, setLiveAgent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -545,17 +542,21 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   // ---- Audio recording ----
+  // Transcription runs server-side via Gemini (POST /api/widget/transcribe)
+  // rather than the browser's Web Speech API: webkitSpeechRecognition is
+  // well known to be unreliable inside cross-origin iframes (unlike
+  // getUserMedia, which properly honors the iframe allow="microphone"
+  // attribute) — the widget always runs embedded in one, so client-side
+  // live transcription silently failed for most visitors.
   const toggleRecord = async () => {
     if (recording) {
-      recognitionRef.current?.stop();
       mediaRecorderRef.current?.stop();
       return;
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Live amplitude animation, independent of whichever send path below
-      // ends up being used.
+      // Live amplitude animation while recording.
       const AC: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
       const audioCtx = new AC();
       const source = audioCtx.createMediaStreamSource(stream);
@@ -572,52 +573,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       };
       tick();
 
-      // Live speech-to-text, if the browser supports it (Chrome/Edge/Safari;
-      // no Firefox support as of writing) — transcribed text streams straight
-      // into the message box for the visitor to review and send themselves,
-      // instead of silently uploading an opaque voice-message blob.
-      const SpeechRecognitionCtor =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognitionCtor) {
-        const recognition = new SpeechRecognitionCtor();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = navigator.language || "en-US";
-        transcriptBaseRef.current = inputValue ? `${inputValue} ` : "";
-        recognition.onresult = (event: any) => {
-          let finalText = "";
-          let interimText = "";
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const r = event.results[i];
-            if (r.isFinal) finalText += r[0].transcript;
-            else interimText += r[0].transcript;
-          }
-          if (finalText) transcriptBaseRef.current += `${finalText} `;
-          setInputValue((transcriptBaseRef.current + interimText).trim());
-        };
-        recognition.onerror = () => {
-          // Web Speech API is unreliable inside cross-origin iframes in some
-          // Chrome versions even with microphone access already granted
-          // (unlike getUserMedia, which properly supports the iframe `allow`
-          // attribute) — flag it so onstop falls back to sending the raw
-          // audio instead of leaving the visitor with an empty input box.
-          recognitionFailedRef.current = true;
-        };
-        recognitionRef.current = recognition;
-        recognitionFailedRef.current = false;
-        try {
-          recognition.start();
-          setUsingSpeechToText(true);
-        } catch {
-          recognitionRef.current = null;
-          recognitionFailedRef.current = true;
-          setUsingSpeechToText(false);
-        }
-      } else {
-        recognitionRef.current = null;
-        setUsingSpeechToText(false);
-      }
-
       const mr = new MediaRecorder(stream);
       audioChunksRef.current = [];
       mr.ondataavailable = (ev) => { if (ev.data.size > 0) audioChunksRef.current.push(ev.data); };
@@ -627,30 +582,40 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         setAudioLevel(0);
-        // Only trust the speech-to-text path if it actually produced text —
-        // a silent failure (common for SpeechRecognition inside iframes) or
-        // an onerror both mean the visitor is left with nothing, so fall
-        // back to sending the raw audio recording in either case.
-        const speechToTextSucceeded =
-          !!recognitionRef.current && !recognitionFailedRef.current && !!transcriptBaseRef.current.trim();
-        recognitionRef.current = null;
-        recognitionFailedRef.current = false;
-        if (speechToTextSucceeded) {
-          // Transcribed text is already live in the input box — let the
-          // visitor review/edit and press send themselves.
-          return;
-        }
+
         const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
         if (blob.size === 0) return;
+        let wav: Blob;
         try {
-          const wav = await audioBlobToWav(blob);
-          sendMedia(wav, "voice-message.wav");
+          wav = await audioBlobToWav(blob);
         } catch {
-          // Don't fall back to sending the raw recording — Gemini doesn't
-          // accept audio/webm (the browser's native recording format), so a
-          // silent fallback used to upload audio the AI could never read,
-          // appearing to the visitor as a sent-but-ignored "empty" message.
           showToast("Couldn't process that recording — try again.", "error");
+          return;
+        }
+
+        setTranscribing(true);
+        try {
+          const fd = new FormData();
+          fd.append("bot_id", String(botId));
+          fd.append("file", wav, "voice-message.wav");
+          const res = await fetch(`${BACKEND_URL}/api/widget/transcribe`, {
+            method: "POST", headers: widgetTokenHeader, body: fd,
+          });
+          const body = await res.json().catch(() => ({}));
+          const text = (body.text || "").trim();
+          if (res.ok && text) {
+            // Land the transcript in the input box — the visitor reviews/
+            // edits and presses send themselves, same as typing.
+            setInputValue((v) => (v ? `${v} ${text}` : text));
+          } else {
+            // No speech detected, or transcription failed — fall back to
+            // sending the raw audio so the message isn't just lost.
+            sendMedia(wav, "voice-message.wav");
+          }
+        } catch {
+          sendMedia(wav, "voice-message.wav");
+        } finally {
+          setTranscribing(false);
         }
       };
       mediaRecorderRef.current = mr;
@@ -936,14 +901,14 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           <form onSubmit={(e) => { e.preventDefault(); sendText(inputValue); }}
             className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setEmojiOpen(false)}
-              placeholder={recording ? (usingSpeechToText ? "Listening… speak now" : "Recording… tap ◼ to send") : "Compose your message…"} disabled={isBotResponding || recording}
+              placeholder={recording ? "Recording… tap ◼ to stop" : transcribing ? "Transcribing…" : "Compose your message…"} disabled={isBotResponding || recording || transcribing}
               className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <button type="button" onClick={() => setEmojiOpen((o) => !o)} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></button>
                 <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></button>
-                <button type="button" onClick={toggleRecord} className={`p-1.5 rounded-full ${recording ? "text-red-500" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
-                  {recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
+                <button type="button" onClick={toggleRecord} disabled={transcribing} className={`p-1.5 rounded-full disabled:opacity-50 ${recording ? "text-red-500" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
+                  {transcribing ? <Loader2 className="size-4.5 animate-spin" /> : recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                 </button>
                 {recording && (
                   <div className="flex items-end gap-0.5 h-4 px-1" aria-hidden>
