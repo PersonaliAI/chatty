@@ -3176,12 +3176,12 @@ export default function Dashboard() {
 
       {/* Floating Save Changes Banner */}
       {hasUnsavedChanges && (
-        <div className="fixed bottom-6 right-6 z-50 bg-neutral-950 text-white dark:bg-white dark:text-black border border-neutral-800 dark:border-neutral-200 shadow-2xl rounded-xl px-5 py-3.5 flex items-center gap-4 transition-all duration-300">
-          <span className="text-[11px] font-semibold flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-[#f97316] animate-pulse"></span>
+        <div className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:bottom-6 sm:right-6 z-50 bg-neutral-950 text-white dark:bg-white dark:text-black border border-neutral-800 dark:border-neutral-200 shadow-2xl rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-wrap items-center justify-between sm:justify-start gap-3 sm:gap-4 transition-all duration-300">
+          <span className="text-[11px] font-semibold flex items-center gap-1.5 whitespace-nowrap">
+            <span className="size-2 rounded-full bg-[#f97316] animate-pulse shrink-0"></span>
             You have unsaved changes
           </span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <button
               onClick={() => setHasUnsavedChanges(false)}
               className="text-[10px] font-medium border border-neutral-800 hover:bg-neutral-900 rounded-lg px-2.5 py-1.5 cursor-pointer dark:border-neutral-200 dark:hover:bg-neutral-100"
@@ -3191,7 +3191,7 @@ export default function Dashboard() {
             <button
               onClick={handleSaveChanges}
               disabled={isSaving}
-              className="text-[10px] font-semibold bg-[#f97316] text-white rounded-lg px-3 py-1.5 flex items-center gap-1.5 cursor-pointer hover:bg-[#f97316]/90 disabled:opacity-50"
+              className="text-[10px] font-semibold bg-[#f97316] text-white rounded-lg px-3 py-1.5 flex items-center gap-1.5 cursor-pointer hover:bg-[#f97316]/90 disabled:opacity-50 whitespace-nowrap"
             >
               {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
               Save changes
@@ -5711,6 +5711,11 @@ const { reply, session_id } = await res.json();`}</pre>
                   chatty_standard: "Standard",
                   chatty_business: "Business",
                 };
+                const PLAN_PRICES: Record<string, { monthly: number; yearly: number }> = {
+                  hobby: { monthly: 19, yearly: 15 },
+                  standard: { monthly: 99, yearly: 82 },
+                  business: { monthly: 399, yearly: 332 },
+                };
                 const PLAN_FEATURES: Record<string, string[]> = {
                   free: ["100 message credits/mo", "1 chatbot", "Basic AI models"],
                   chatty_hobby: [
@@ -5791,16 +5796,17 @@ const { reply, session_id } = await res.json();`}</pre>
 
                     <div className="border-t border-neutral-100 dark:border-neutral-800 pt-5 space-y-2">
                       <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-2">
-                        {isPaid ? "Change plan" : "Upgrade"}
+                        {isPaid ? "Change plan" : "Upgrade"} <span className="normal-case text-neutral-300 dark:text-neutral-600">(billed monthly — yearly pricing on the public pricing page)</span>
                       </div>
                       <div className="grid sm:grid-cols-3 gap-2">
                         {(["hobby", "standard", "business"] as const).map((p) => (
                           <Link
                             key={p}
                             href={`/checkout?plan=${p}`}
-                            className="text-center text-xs font-mono uppercase tracking-wider border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                            className="flex flex-col items-center text-center border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                           >
-                            {PLAN_LABELS[`chatty_${p}`]}
+                            <span className="text-xs font-mono uppercase tracking-wider">{PLAN_LABELS[`chatty_${p}`]}</span>
+                            <span className="text-[10px] text-neutral-400 mt-0.5">${PLAN_PRICES[p].monthly}/mo</span>
                           </Link>
                         ))}
                       </div>
@@ -7128,26 +7134,26 @@ const { reply, session_id } = await res.json();`}</pre>
       )}
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-4 py-3 shadow-2xl text-xs font-semibold text-neutral-850 dark:text-white animate-in slide-in-from-bottom-5 fade-in duration-300">
+        <div className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:bottom-6 sm:right-6 z-[9999] flex items-start gap-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-4 py-3 shadow-2xl text-xs font-semibold text-neutral-850 dark:text-white animate-in slide-in-from-bottom-5 fade-in duration-300 sm:max-w-sm">
           {toast.type === "success" && (
-            <span className="flex size-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/30 text-green-600 dark:text-green-400">
+            <span className="flex size-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/30 text-green-600 dark:text-green-400 shrink-0">
               <Check className="size-3.5" />
             </span>
           )}
           {toast.type === "error" && (
-            <span className="flex size-5 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400">
+            <span className="flex size-5 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400 shrink-0">
               <AlertCircle className="size-3.5" />
             </span>
           )}
           {toast.type === "info" && (
-            <span className="flex size-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
+            <span className="flex size-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 shrink-0">
               <AlertCircle className="size-3.5" />
             </span>
           )}
-          <span className="max-w-[250px] truncate">{toast.message}</span>
+          <span className="leading-relaxed">{toast.message}</span>
           <button
             onClick={() => setToast(null)}
-            className="ml-2 text-neutral-400 hover:text-neutral-650 dark:hover:text-neutral-200 cursor-pointer"
+            className="ml-auto shrink-0 text-neutral-400 hover:text-neutral-650 dark:hover:text-neutral-200 cursor-pointer"
           >
             <X className="size-3.5" />
           </button>
