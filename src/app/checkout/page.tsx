@@ -18,6 +18,7 @@ export default function CheckoutPage() {
 function CheckoutPageInner() {
   const searchParams = useSearchParams();
   const plan = (searchParams.get("plan") || "").toLowerCase();
+  const interval = searchParams.get("interval") === "yearly" ? "yearly" : "monthly";
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,7 +38,7 @@ function CheckoutPageInner() {
       if (!user) {
         // Not signed in — route through signup, then straight back here once
         // auth completes, so the plan never gets lost along the way.
-        const self = `/checkout?plan=${encodeURIComponent(plan)}`;
+        const self = `/checkout?plan=${encodeURIComponent(plan)}&interval=${interval}`;
         window.location.href = `/signup?next=${encodeURIComponent(self)}`;
         return;
       }
@@ -46,7 +47,7 @@ function CheckoutPageInner() {
         const res = await fetch("/api/billing/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ plan }),
+          body: JSON.stringify({ plan, interval }),
         });
         const data = (await res.json()) as { url?: string; error?: string };
         if (cancelled) return;
@@ -63,7 +64,7 @@ function CheckoutPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [plan]);
+  }, [plan, interval]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">

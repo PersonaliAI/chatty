@@ -4,16 +4,26 @@ import { createClient } from "@/lib/supabase/server";
 const LS_API = "https://api.lemonsqueezy.com/v1";
 const STORE_ID = "161795";
 
-const VARIANT_IDS: Record<string, string | undefined> = {
-  hobby: process.env.LEMONSQUEEZY_VARIANT_CHATTY_HOBBY,
-  standard: process.env.LEMONSQUEEZY_VARIANT_CHATTY_STANDARD,
-  business: process.env.LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS,
+const VARIANT_IDS: Record<string, Record<"monthly" | "yearly", string | undefined>> = {
+  hobby: {
+    monthly: process.env.LEMONSQUEEZY_VARIANT_CHATTY_HOBBY,
+    yearly: process.env.LEMONSQUEEZY_VARIANT_CHATTY_HOBBY_YEARLY,
+  },
+  standard: {
+    monthly: process.env.LEMONSQUEEZY_VARIANT_CHATTY_STANDARD,
+    yearly: process.env.LEMONSQUEEZY_VARIANT_CHATTY_STANDARD_YEARLY,
+  },
+  business: {
+    monthly: process.env.LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS,
+    yearly: process.env.LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS_YEARLY,
+  },
 };
 
 export async function POST(request: Request) {
   const b = await request.json().catch(() => ({}));
   const plan = typeof b.plan === "string" ? b.plan.toLowerCase() : "";
-  const variantId = VARIANT_IDS[plan];
+  const interval = b.interval === "yearly" ? "yearly" : "monthly";
+  const variantId = VARIANT_IDS[plan]?.[interval];
   if (!variantId) return NextResponse.json({ error: "Invalid or unconfigured plan" }, { status: 400 });
 
   const apiKey = process.env.LEMONSQUEEZY_API_KEY;

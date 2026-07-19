@@ -480,7 +480,7 @@ export default function Home() {
                     </ul>
                   </div>
                   <div className="mt-8">
-                    <Link href="/checkout?plan=hobby" className="block">
+                    <Link href={`/checkout?plan=hobby&interval=${isYearly ? "yearly" : "monthly"}`} className="block">
                       <Button className="w-full h-11 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 bg-transparent text-neutral-800 dark:text-neutral-200 text-xs font-mono uppercase tracking-wider rounded-none transition-colors cursor-pointer">
                         Start 14-day trial
                       </Button>
@@ -542,7 +542,7 @@ export default function Home() {
                     </ul>
                   </div>
                   <div className="mt-8">
-                    <Link href="/checkout?plan=standard" className="block">
+                    <Link href={`/checkout?plan=standard&interval=${isYearly ? "yearly" : "monthly"}`} className="block">
                       <Button className="w-full h-11 bg-neutral-950 hover:bg-neutral-900 text-white dark:bg-white dark:text-black dark:hover:bg-neutral-100 text-xs font-mono uppercase tracking-wider rounded-none transition-colors border border-neutral-950 dark:border-white cursor-pointer">
                         Start 14-day trial
                       </Button>
@@ -601,7 +601,7 @@ export default function Home() {
                     </ul>
                   </div>
                   <div className="mt-8">
-                    <Link href="/checkout?plan=business" className="block">
+                    <Link href={`/checkout?plan=business&interval=${isYearly ? "yearly" : "monthly"}`} className="block">
                       <Button className="w-full h-11 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 bg-transparent text-neutral-800 dark:text-neutral-200 text-xs font-mono uppercase tracking-wider rounded-none transition-colors cursor-pointer">
                         Start 14-day trial
                       </Button>

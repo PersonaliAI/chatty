@@ -28,18 +28,27 @@ env:
     value: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiI5NGQ1OWNlZi1kYmI4LTRlYTUtYjE3OC1kMjU0MGZjZDY5MTkiLCJqdGkiOiJkNjZmMzVlMWUyYzRmYTJlZGY1YzM1YjMzZjc4MjYzMDNhNjNjNDM2ZDkxN2ExM2FjNTE4N2E3ZTlhODUzNGZkMDE3MjQ5YTA5MWYxMjBhZCIsImlhdCI6MTc4MDU3MDcxNC4zNzE5NzcsIm5iZiI6MTc4MDU3MDcxNC4zNzE5OCwiZXhwIjoxNzk2MzQyNDAwLjA0MDA3Nywic3ViIjoiNDE4MjM3MiIsInNjb3BlcyI6W119.zJaUi5L_mhn0F-75b3c1eRFAnaR7rcCFjqE4rMWIDi8LQ87lTzgCW4eoOpidfauauv57mWN1liB58qxsTRgMaJlhV-B4liH_O_ImDRAfjedROj6BKhRa3232brqBd5Zhq-AJn4A1LutZQubsxBkjJ53LwM0KeMh9R_sbcAMVZ-pu7L159sl6ICEKoOXLjvtTQ5UsFt8_alomN7NaK4Pid2xKGzN7tHxqz3lsYw0OcqNKpKM0rxlpZRM_KM_1bnk_op4buDD2KD7Y-w81d3F-fziTscEEpuBsZn8B4zdjnSIZurM1awkUBpOUTn2kri69Z0irdoPQEK2vT_vn5o06Igfk4jGeW7ORCQ02Vn0tj47N9iVwqLo-zPn_IImeSVXwPhY_jnsyDcvYfYyTc6dw6O_SoaGwNSaJUgjqfqqPiOQaPD4XIuQQ8KgOJXfVMWMwzcEYOAQ_UMmaYQvc6BZmWWfJiqkNvhGpxDqwfquWX3mn0FryBbMJVgqdGBGdcq5iYd1LIDGG11AYqOwJyYl0Q6mJpnOD8a2a8zevxLK0DgzDSy7THd39TsK_tGx392Gn9L6Yl6yQCR8OKdBiGXsbRf9jlfrOlHUf2VIiXRu8sPg8FkzYtWS2F8mdnlu4EHnJYITGNGK3QUBX2SSCWuZG_7aARnCj3B0TGou03EjFx-0"
     availability:
       - RUNTIME
-  # Fill these in once the 3 Chatty products exist in the priceshield store
-  # (see manual prerequisite step) — checkout returns "unconfigured plan"
-  # until they're set.
-  # - variable: LEMONSQUEEZY_VARIANT_CHATTY_HOBBY
-  #   value: ""
-  #   availability:
-  #     - RUNTIME
-  # - variable: LEMONSQUEEZY_VARIANT_CHATTY_STANDARD
-  #   value: ""
-  #   availability:
-  #     - RUNTIME
-  # - variable: LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS
-  #   value: ""
-  #   availability:
-  #     - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_HOBBY
+    value: "1925005"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_STANDARD
+    value: "1925006"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS
+    value: "1925009"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_HOBBY_YEARLY
+    value: "1925015"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_STANDARD_YEARLY
+    value: "1925018"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS_YEARLY
+    value: "1925020"
+    availability:
+      - RUNTIME
