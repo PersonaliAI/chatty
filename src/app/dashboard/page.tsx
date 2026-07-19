@@ -4142,11 +4142,22 @@ export default function Dashboard() {
                   <span className="text-[10px] text-neutral-400">Calendar</span>
                   <div className="w-44"><ModernSelect
                     value={meetingProvider === "teams" ? "outlook" : "google"}
-                    options={[{ value: "google", label: "Google Calendar", icon: <img src="/logos/google-calendar.png" alt="" className="size-4 object-contain" /> }, { value: "outlook", label: "Outlook Calendar", icon: <img src="/logos/outlook-calendar.png" alt="" className="size-4 object-contain" /> }]}
+                    options={[
+                      { value: "google", label: "Google Calendar", icon: <img src="/logos/google-calendar.png" alt="" className="size-4 object-contain" />, disabled: !googleConnected, hint: googleConnected ? undefined : "connect Google" },
+                      { value: "outlook", label: "Outlook Calendar", icon: <img src="/logos/outlook-calendar.png" alt="" className="size-4 object-contain" />, disabled: !microsoftConnected, hint: microsoftConnected ? undefined : "connect Microsoft" },
+                    ]}
                     onChange={(v) => { handleInputChange(v === "outlook" ? setSyncOutlookCalendar : setSyncGoogleCalendar, true); }}
                     size="sm"
                   /></div>
                 </div>
+                {!googleConnected && !microsoftConnected && calendarSchedulingEnabled && (
+                  <button
+                    onClick={() => setActiveTab("settings")}
+                    className="text-[10px] font-semibold text-[#f97316] hover:underline cursor-pointer"
+                  >
+                    Connect Google or Microsoft to actually sync bookings →
+                  </button>
+                )}
               </div>
 
               {/* Stats Row */}
@@ -5803,7 +5814,12 @@ const { reply, session_id } = await res.json();`}</pre>
                     <Users className="size-4 text-[#f97316]" />
                     <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Team</h3>
                   </div>
-                  <p className="text-[11px] text-neutral-400 -mt-2">Invite teammates to help manage this bot&apos;s inbox and leads. They sign in with the invited email.</p>
+                  <p className="text-[11px] text-neutral-400 -mt-2">
+                    Invite teammates to help manage this bot&apos;s inbox and leads. This doesn&apos;t send an email —
+                    they need their own account: if they don&apos;t have one, they sign up at chatty.personaliai.com
+                    with the exact email below, and this bot appears in their dashboard automatically. Access is
+                    limited to this bot only. Agent and Admin currently have the same permissions.
+                  </p>
                   <div className="flex items-center gap-2">
                     <input
                       type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
