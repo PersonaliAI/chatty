@@ -469,6 +469,7 @@ export default function Dashboard() {
     status: string | null;
     renewsAt: string | null;
   } | null>(null);
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
 
   // Chatbot State
   const [botName, setBotName] = useState("Chatty Assistant");
@@ -5739,10 +5740,10 @@ const { reply, session_id } = await res.json();`}</pre>
                     "Management Admin API",
                   ],
                 };
-                const PLAN_CARDS: { id: "hobby" | "standard" | "business"; label: string; price: number; blurb: string; popular?: boolean }[] = [
-                  { id: "hobby", label: "Hobby", price: 19, blurb: "Perfect for individuals, developers, and side projects." },
-                  { id: "standard", label: "Standard", price: 99, blurb: "All in Hobby, plus advanced automation and multi-bot systems.", popular: true },
-                  { id: "business", label: "Business", price: 399, blurb: "For enterprise scale, heavy traffic, and reseller options." },
+                const PLAN_CARDS: { id: "hobby" | "standard" | "business"; label: string; monthly: number; yearly: number; blurb: string; popular?: boolean }[] = [
+                  { id: "hobby", label: "Hobby", monthly: 19, yearly: 15, blurb: "Perfect for individuals, developers, and side projects." },
+                  { id: "standard", label: "Standard", monthly: 99, yearly: 82, blurb: "All in Hobby, plus advanced automation and multi-bot systems.", popular: true },
+                  { id: "business", label: "Business", monthly: 399, yearly: 332, blurb: "For enterprise scale, heavy traffic, and reseller options." },
                 ];
                 const plan = billingInfo?.plan || "free";
                 const status = billingInfo?.status;
@@ -5799,13 +5800,31 @@ const { reply, session_id } = await res.json();`}</pre>
                       </ul>
 
                       <p className="text-[11px] text-neutral-400">
-                        Billing is handled by Lemon Squeezy. Receipts and tax invoices are sent to <b>{user?.email}</b>. Prices shown are billed monthly — yearly plans (2 months free) are available from the public pricing page.
+                        Billing is handled by Lemon Squeezy. Receipts and tax invoices are sent to <b>{user?.email}</b>.
                       </p>
                     </div>
 
                     <div>
-                      <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 mb-3">
-                        {isPaid ? "Change plan" : "Upgrade"}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                          {isPaid ? "Change plan" : "Upgrade"}
+                        </div>
+                        <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-full p-0.5">
+                          {(["monthly", "yearly"] as const).map((iv) => (
+                            <button
+                              key={iv}
+                              type="button"
+                              onClick={() => setBillingInterval(iv)}
+                              className={`text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 rounded-full transition-colors cursor-pointer ${
+                                billingInterval === iv
+                                  ? "bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white shadow-sm"
+                                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                              }`}
+                            >
+                              {iv === "monthly" ? "Monthly" : "Yearly · 2 months free"}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div className="grid sm:grid-cols-3 gap-4">
                         {PLAN_CARDS.map((card) => {
@@ -5824,9 +5843,14 @@ const { reply, session_id } = await res.json();`}</pre>
                               )}
                               <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">{card.label}</span>
                               <div className="mt-1 flex items-baseline gap-1">
-                                <span className="text-2xl font-bold text-neutral-900 dark:text-white">${card.price}</span>
+                                <span className="text-2xl font-bold text-neutral-900 dark:text-white">
+                                  ${billingInterval === "yearly" ? card.yearly : card.monthly}
+                                </span>
                                 <span className="text-xs text-neutral-400">/mo</span>
                               </div>
+                              {billingInterval === "yearly" && (
+                                <span className="text-[10px] text-emerald-600">billed ${card.yearly * 12}/yr</span>
+                              )}
                               <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">{card.blurb}</p>
                               <ul className="mt-4 space-y-2 flex-1">
                                 {PLAN_FEATURES[`chatty_${card.id}`].map((f) => (
@@ -5842,7 +5866,7 @@ const { reply, session_id } = await res.json();`}</pre>
                                 </span>
                               ) : (
                                 <Link
-                                  href={`/checkout?plan=${card.id}`}
+                                  href={`/checkout?plan=${card.id}&interval=${billingInterval}`}
                                   className={`mt-4 text-center text-xs font-mono uppercase tracking-wider rounded-lg px-3 py-2.5 transition-colors ${
                                     card.popular
                                       ? "bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-black dark:hover:bg-neutral-100"

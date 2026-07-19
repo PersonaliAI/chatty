@@ -868,21 +868,50 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       {tab === "messages" && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
-          {emojiOpen && (
-            <div className="absolute bottom-[84px] left-2.5 right-2.5 z-10 overflow-hidden rounded-xl shadow-lg">
-              <EmojiPicker
-                onEmojiClick={(emojiData) => setInputValue((v) => v + emojiData.emoji)}
-                theme={EmojiTheme.AUTO}
-                emojiStyle={EmojiStyle.NATIVE}
-                searchDisabled={false}
-                skinTonesDisabled
-                lazyLoadEmojis
-                previewConfig={{ showPreview: false }}
-                width="100%"
-                height={320}
-              />
-            </div>
-          )}
+          <AnimatePresence>
+            {emojiOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                className="absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(62vh,420px)] min-h-[260px] rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl overflow-hidden bg-card"
+                style={
+                  {
+                    "--epr-highlight-color": primaryColor,
+                    "--epr-category-icon-active-color": primaryColor,
+                    "--epr-search-border-color-active": primaryColor,
+                    "--epr-picker-border-radius": "0px",
+                  } as React.CSSProperties
+                }
+              >
+                <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
+                  <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Emoji</span>
+                  <button
+                    type="button"
+                    onClick={() => setEmojiOpen(false)}
+                    className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-full"
+                    aria-label="Close emoji picker"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0">
+                  <EmojiPicker
+                    onEmojiClick={(emojiData) => setInputValue((v) => v + emojiData.emoji)}
+                    theme={EmojiTheme.AUTO}
+                    emojiStyle={EmojiStyle.NATIVE}
+                    searchDisabled={false}
+                    skinTonesDisabled
+                    lazyLoadEmojis
+                    previewConfig={{ showPreview: false }}
+                    width="100%"
+                    height="100%"
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <form onSubmit={(e) => { e.preventDefault(); sendText(inputValue); }}
             className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setEmojiOpen(false)}
