@@ -275,9 +275,17 @@
   function applyMobile() {
     if (mobileFull && window.innerWidth <= 480) {
       panel.style.setProperty("width", "100vw", "important");
+      // 100vh is taller than the visible area on mobile browsers with a
+      // collapsible address bar, pushing the panel (anchored at bottom:0)
+      // up past the top of the screen and cropping its header off-screen.
+      // 100dvh tracks the actual visible viewport; the 100vh line stays as
+      // a fallback for browsers that don't understand dvh (setProperty
+      // silently no-ops on an unrecognized value, leaving vh in place).
       panel.style.setProperty("height", "100vh", "important");
+      panel.style.setProperty("height", "100dvh", "important");
       panel.style.setProperty("max-width", "100vw", "important");
       panel.style.setProperty("max-height", "100vh", "important");
+      panel.style.setProperty("max-height", "100dvh", "important");
       panel.style.setProperty("bottom", "0px", "important");
       panel.style.setProperty(side, "0px", "important");
       panel.style.setProperty("border-radius", "0px", "important");
