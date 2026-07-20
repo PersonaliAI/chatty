@@ -587,6 +587,16 @@ export default function Dashboard() {
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [copiedApiKey, setCopiedApiKey] = useState(false);
 
+  // Developer / Webhooks
+  const WEBHOOK_EVENT_OPTIONS = ["lead.created", "message.user", "message.assistant", "session.started", "session.ended"] as const;
+  const [webhooks, setWebhooks] = useState<any[]>([]);
+  const [loadingWebhooks, setLoadingWebhooks] = useState(false);
+  const [creatingWebhook, setCreatingWebhook] = useState(false);
+  const [newWebhookUrl, setNewWebhookUrl] = useState("");
+  const [newWebhookEvents, setNewWebhookEvents] = useState<string[]>(["lead.created"]);
+  const [newWebhookSecret, setNewWebhookSecret] = useState<string | null>(null);
+  const [copiedWebhookSecret, setCopiedWebhookSecret] = useState(false);
+
   // Backend capabilities (which optional integrations have keys configured)
   const [zoomConfigured, setZoomConfigured] = useState(false);
   const [onesignalConfigured, setOnesignalConfigured] = useState(false);
@@ -1412,6 +1422,7 @@ export default function Dashboard() {
     }
     if (botId && activeTab === "developer") {
       loadApiKeys(botId);
+      loadWebhooks(botId);
     }
     if (botId && activeTab === "settings") {
       loadTeam();
@@ -2746,6 +2757,70 @@ export default function Dashboard() {
     } finally {
       setLoadingApiKeys(false);
     }
+  };
+
+  const loadWebhooks = async (bId: string) => {
+    setLoadingWebhooks(true);
+    try {
+      const res = await fetchWithFallback(`/api/bots/${bId}/webhooks`);
+      if (res.ok) {
+        const d = await res.json();
+        setWebhooks(d.webhooks || []);
+      }
+    } catch (err) {
+      console.error("Failed to load webhooks:", err);
+    } finally {
+      setLoadingWebhooks(false);
+    }
+  };
+
+  const handleCreateWebhook = async () => {
+    if (!botId || !newWebhookUrl.trim() || newWebhookEvents.length === 0) return;
+    setCreatingWebhook(true);
+    setNewWebhookSecret(null);
+    try {
+      const res = await fetchWithFallback(`/api/bots/${botId}/webhooks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: newWebhookUrl.trim(), events: newWebhookEvents }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setNewWebhookSecret(d.secret);
+        setNewWebhookUrl("");
+        await loadWebhooks(botId);
+        showToast("Webhook registered.", "success");
+      } else {
+        showToast(`Failed to register webhook: ${d.detail || "error"}`, "error");
+      }
+    } catch (err) {
+      console.error("Create webhook error:", err);
+      showToast("Error registering webhook.", "error");
+    } finally {
+      setCreatingWebhook(false);
+    }
+  };
+
+  const handleDeleteWebhook = async (webhookId: string) => {
+    if (!botId) return;
+    showConfirm(
+      "Delete Webhook",
+      "Are you sure you want to delete this webhook? Deliveries to it will stop immediately.",
+      async () => {
+        try {
+          const res = await fetchWithFallback(`/api/bots/${botId}/webhooks/${webhookId}`, { method: "DELETE" });
+          if (res.ok) {
+            await loadWebhooks(botId);
+            showToast("Webhook deleted.", "success");
+          } else {
+            showToast("Failed to delete webhook.", "error");
+          }
+        } catch (err) {
+          console.error("Delete webhook error:", err);
+          showToast("Error deleting webhook.", "error");
+        }
+      }
+    );
   };
 
   const loadByokStatus = async (bId: string) => {
@@ -5699,6 +5774,106 @@ export default function Dashboard() {
 });
 const { reply, session_id } = await res.json();`}</pre>
               </div>
+
+              {/* Webhooks */}
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <Link2 className="size-4 text-[#f97316]" /> Webhooks
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
+                  Get a signed HTTP POST to your own server whenever a lead is captured or a message is sent, instead of polling. Every request includes an <code className="font-mono">X-Chatty-Signature</code> header (HMAC-SHA256) — verify it with the secret shown below before trusting the payload.
+                </p>
+              </div>
+
+              {newWebhookSecret && (
+                <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-2xl">
+                  <p className="text-[11px] font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                    <Check className="size-3.5" /> Webhook registered — copy the signing secret now, it won't be shown again.
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <code className="flex-1 text-[11px] font-mono bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 truncate">{newWebhookSecret}</code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(newWebhookSecret); setCopiedWebhookSecret(true); setTimeout(() => setCopiedWebhookSecret(false), 2000); }}
+                      className="px-3 py-2 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg text-[11px] font-semibold cursor-pointer flex items-center gap-1.5 shrink-0"
+                    >
+                      {copiedWebhookSecret ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                      {copiedWebhookSecret ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Add a webhook</h4>
+                  <input
+                    type="url"
+                    value={newWebhookUrl}
+                    onChange={(e) => setNewWebhookUrl(e.target.value)}
+                    placeholder="https://your-server.com/chatty-webhook"
+                    className="w-full text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {WEBHOOK_EVENT_OPTIONS.map((ev) => {
+                      const checked = newWebhookEvents.includes(ev);
+                      return (
+                        <button
+                          key={ev}
+                          type="button"
+                          onClick={() => setNewWebhookEvents((prev) => checked ? prev.filter((e) => e !== ev) : [...prev, ev])}
+                          className={`text-[10px] font-mono px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                            checked
+                              ? "bg-[#f97316]/10 border-[#f97316]/40 text-[#f97316]"
+                              : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-350"
+                          }`}
+                        >
+                          {ev}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={handleCreateWebhook}
+                    disabled={creatingWebhook || !botId || !newWebhookUrl.trim() || newWebhookEvents.length === 0}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50"
+                  >
+                    {creatingWebhook ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                    Add Webhook
+                  </button>
+                </div>
+                <div className="divide-y divide-neutral-100 dark:divide-neutral-850">
+                  {webhooks.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-neutral-400">
+                      {loadingWebhooks ? "Loading…" : "No webhooks yet. Add one above to get real-time events."}
+                    </div>
+                  ) : (
+                    webhooks.map((w: any) => (
+                      <div key={w.id} className="p-4 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <code className="text-xs font-mono font-semibold text-neutral-800 dark:text-neutral-200 truncate block">{w.url}</code>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {(w.events || []).map((ev: string) => (
+                              <span key={ev} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{ev}</span>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-neutral-400 mt-1.5">
+                            {w.created_at ? `Created ${formatDateTime(w.created_at)}` : ""}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteWebhook(w.id)}
+                          className="px-3 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer shrink-0"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <p className="text-[10px] text-neutral-400 -mt-3">
+                Full event/payload/retry reference in the <a href="https://docs.personaliai.com/guides/webhooks" target="_blank" rel="noreferrer" className="underline">webhooks docs</a>.
+              </p>
             </div>
           )}
 
