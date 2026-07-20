@@ -370,11 +370,22 @@ body {
 
 /* emoji-mart's <em-emoji-picker> defaults to a min-content/intrinsic size;
    force it (and the wrapper div @emoji-mart/react renders around it) to fill
-   the flex panel it's mounted in instead. */
+   the flex panel it's mounted in instead. Its own :host rule is `display:
+   flex; height: 435px` — #root stretches to fill that via the host's cross
+   axis, and #root's own .scroll child (flex-grow + overflow-y:auto) is what
+   actually scrolls. Don't override display here: doing so (e.g. to `block`)
+   drops the host out of flex layout, #root stops stretching and grows to
+   its full content height instead, and .scroll never gets a bounded height
+   to scroll within — the grid just overflows past the panel with no way to
+   reach the rest of it. Only override the size, on the light-DOM wrapper
+   div's box the picker mounts into. */
 .emoji-panel-picker,
-.emoji-panel-picker > div,
+.emoji-panel-picker > div {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
 .emoji-panel-picker em-emoji-picker {
-  display: block;
   width: 100%;
   height: 100%;
 }
