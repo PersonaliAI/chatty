@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2, Paperclip, Smile, Mic, Square, X, Check, AlertCircle, ThumbsUp, ThumbsDown } from "lucide-react";
-import EmojiPicker from "@emoji-mart/react";
-import emojiData from "@emoji-mart/data";
+import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
+import { AttachMenu } from "@/components/attach-menu";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -77,6 +78,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
   const [recording, setRecording] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
   const [correctingId, setCorrectingId] = useState<string | null>(null);
   const [correctionDraft, setCorrectionDraft] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -190,6 +192,27 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     const f = e.target.files?.[0];
     if (f) sendMedia(f, f.name);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const openFilePicker = (kind: "images" | "documents") => {
+    setAttachOpen(false);
+    if (!fileInputRef.current) return;
+    fileInputRef.current.accept = kind === "images" ? "image/*" : ".pdf,.doc,.docx,.txt,application/pdf";
+    fileInputRef.current.click();
+  };
+
+  const shareLocation = () => {
+    setAttachOpen(false);
+    if (!navigator.geolocation) { showToast("Location isn't supported on this device.", "error"); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const link = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        setReply((v) => (v.trim() ? `${v} 📍 ${link}` : `📍 Location: ${link}`));
+      },
+      () => showToast("Couldn't access your location.", "error"),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const toggleRecord = async () => {
@@ -348,11 +371,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   attachmentUrl.includes("audio/")
                 );
 
+                const senderName = isVisitor
+                  ? (current?.visitor_name || `Visitor ${selected.slice(-5)}`)
+                  : isHuman ? "You" : "Assistant";
+
                 return (
                   <div key={i} className={`flex gap-2 max-w-[85%] ${isVisitor ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
                     <div className={`size-5 rounded-full flex items-center justify-center shrink-0 ${isVisitor ? "bg-neutral-200 dark:bg-neutral-700" : isHuman ? "bg-purple-500 text-white" : "text-white"}`} style={!isVisitor && !isHuman ? { background: color } : {}}>
                       {isVisitor ? <User className="size-3" /> : isHuman ? <Headphones className="size-3" /> : <Bot className="size-3" />}
                     </div>
+                    <div className={`flex flex-col min-w-0 ${isVisitor ? "items-start" : "items-end"}`}>
+                    <span className={`text-[9px] font-semibold text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5 ${isVisitor ? "text-left" : "text-right"}`}>{senderName}</span>
                     <div className={`p-2.5 rounded-2xl ${isVisitor ? "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none" : isHuman ? "bg-purple-500 text-white rounded-tr-none" : "text-white rounded-tr-none"}`} style={!isVisitor && !isHuman ? { background: color } : {}}>
                       {attachmentUrl && isImage && (
                         <img src={attachmentUrl} alt="attachment" className="rounded-lg mb-1.5 max-h-40 object-cover" />
@@ -386,6 +415,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                           {cleanContent}
                         </ReactMarkdown>
                       )}
+                    </div>
                     </div>
                     {!isVisitor && !isHuman && m.id && (
                       <div className="flex flex-col gap-1 self-end pb-1">
@@ -447,33 +477,48 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             </div>
             <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
               <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
-              {emojiOpen && (
-                <div className="emoji-panel-picker absolute bottom-[84px] left-2.5 right-2.5 z-10 h-80 overflow-hidden rounded-xl shadow-lg">
-                  <EmojiPicker
-                    data={emojiData}
-                    onEmojiSelect={(emoji: { native: string }) => setReply((v) => v + emoji.native)}
-                    theme="auto"
-                    set="native"
-                    searchPosition="sticky"
-                    previewPosition="none"
-                    skinTonePosition="search"
-                    perLine={8}
-                    maxFrequentRows={1}
-                    dynamicWidth
-                  />
-                </div>
-              )}
+              <AnimatePresence>
+                {emojiOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
+                    animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
+                    exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
+                    transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                    className="emoji-panel-picker absolute bottom-[84px] left-2.5 right-2.5 z-10 h-80 overflow-hidden rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] bg-white dark:bg-neutral-900"
+                  >
+                    <QuickEmojiPicker onSelect={(emoji) => setReply((v) => v + emoji)} accentColor={color} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <AnimatePresence>
+                {attachOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
+                    animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
+                    exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
+                    transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                    className="absolute bottom-[84px] left-2.5 z-10 w-52 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] bg-white dark:bg-neutral-900"
+                  >
+                    <AttachMenu
+                      onPickImages={() => openFilePicker("images")}
+                      onPickDocuments={() => openFilePicker("documents")}
+                      onShareLocation={shareLocation}
+                      accentColor={color}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <form onSubmit={(e) => { e.preventDefault(); sendReply(); }}
                 className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
-                <input value={reply} onChange={(e) => setReply(e.target.value)} onFocus={() => setEmojiOpen(false)}
+                <input value={reply} onChange={(e) => setReply(e.target.value)} onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }}
                   placeholder={recording ? "Recording… tap ◼ to send" : "Type a reply (this takes over from AI)…"} disabled={sending || recording}
                   className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-0.5">
-                    <button type="button" onClick={() => setEmojiOpen((o) => !o)} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></button>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full group" aria-label="Attach file">
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></motion.button>
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full group" aria-label="Attach file">
                       <Paperclip className="size-4.5 group-hover:animate-bounce transition-transform" />
-                    </button>
+                    </motion.button>
                     <button type="button" onClick={toggleRecord} className={`p-1.5 rounded-full ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
                       {recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                     </button>

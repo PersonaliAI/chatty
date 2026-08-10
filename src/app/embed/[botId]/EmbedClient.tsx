@@ -7,8 +7,8 @@ import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
-import EmojiPicker from "@emoji-mart/react";
-import emojiData from "@emoji-mart/data";
+import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
+import { AttachMenu } from "@/components/attach-menu";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
@@ -67,14 +67,6 @@ async function audioBlobToWav(blob: Blob): Promise<Blob> {
   let off = 44;
   for (let i = 0; i < len; i++) { const s = Math.max(-1, Math.min(1, mono[i])); view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); off += 2; }
   return new Blob([view], { type: "audio/wav" });
-}
-
-// emoji-mart's --rgb-accent CSS var expects a comma-separated "R,G,B"
-// triplet (it's consumed as rgb(var(--em-rgb-accent))), not a hex string.
-function hexToRgbTriplet(hex: string): string {
-  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!m) return "249,115,22"; // fallback: default brand orange
-  return [1, 2, 3].map((i) => parseInt(m[i], 16)).join(",");
 }
 
 interface Citation { name: string; type: string; url?: string | null; }
@@ -200,6 +192,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
 
   const [sources, setSources] = useState<Source[]>([]);
   const [openArticle, setOpenArticle] = useState<Source | null>(null);
@@ -219,6 +212,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [liveAgent, setLiveAgent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFiles, setPendingFiles] = useState<{file: File; preview: string}[]>([]);
   const lastPollRef = useRef<string>(new Date().toISOString());
 
   // Custom toast state
@@ -232,6 +226,14 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+  // Cleanup blob URLs for pending file previews on unmount
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      pendingFiles.forEach(pf => { if (pf.preview) URL.revokeObjectURL(pf.preview); });
+    };
+  }, []);
 
   // Persistent per-visitor session id (survives reloads, unique per visitor)
   const [sessionId, setSessionId] = useState(() => {
@@ -547,9 +549,52 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   const onFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) sendMedia(f, f.name);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const newFiles: {file: File; preview: string}[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const preview = f.type.startsWith("image/") ? URL.createObjectURL(f) : "";
+      newFiles.push({ file: f, preview });
+    }
+    setPendingFiles(prev => [...prev, ...newFiles]);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const openFilePicker = (kind: "images" | "documents") => {
+    setAttachOpen(false);
+    if (!fileInputRef.current) return;
+    fileInputRef.current.accept = kind === "images" ? "image/*" : ".pdf,.doc,.docx,.txt,application/pdf";
+    fileInputRef.current.click();
+  };
+
+  const shareLocation = () => {
+    setAttachOpen(false);
+    if (!navigator.geolocation) { showToast("Location isn't supported on this device.", "error"); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const link = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        setInputValue((v) => (v.trim() ? `${v} 📍 ${link}` : `📍 My location: ${link}`));
+      },
+      () => showToast("Couldn't access your location.", "error"),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const onPaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (file) {
+          const preview = URL.createObjectURL(file);
+          setPendingFiles(prev => [...prev, { file, preview }]);
+        }
+      }
+    }
   };
 
   // ---- Audio recording ----
@@ -875,16 +920,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       {/* Composer (Messages tab only) */}
       {tab === "messages" && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
-          <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
+          <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" multiple />
           <AnimatePresence>
             {emojiOpen && (
               <motion.div
-                initial={{ opacity: 0, y: 12, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.97 }}
-                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                initial={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
+                animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
+                exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
+                transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
                 className="emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(64vh,440px)] min-h-[280px] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
-                style={{ "--rgb-accent": hexToRgbTriplet(primaryColor) } as React.CSSProperties}
               >
                 <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
                   <span className="text-[11px] font-bold tracking-wide text-neutral-500 dark:text-neutral-400 uppercase">Pick an emoji</span>
@@ -898,31 +942,77 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   </button>
                 </div>
                 <div className="emoji-panel-picker flex-1 min-h-0">
-                  <EmojiPicker
-                    data={emojiData}
-                    onEmojiSelect={(emoji: { native: string }) => setInputValue((v) => v + emoji.native)}
-                    theme="auto"
-                    set="native"
-                    searchPosition="sticky"
-                    previewPosition="none"
-                    skinTonePosition="search"
-                    perLine={8}
-                    maxFrequentRows={1}
-                    dynamicWidth
-                  />
+                  <QuickEmojiPicker onSelect={(emoji) => setInputValue((v) => v + emoji)} accentColor={primaryColor} />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
-          <form onSubmit={(e) => { e.preventDefault(); sendText(inputValue); }}
+          <AnimatePresence>
+            {attachOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
+                animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
+                exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
+                transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                className="absolute bottom-[84px] left-2.5 z-10 w-52 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
+              >
+                <AttachMenu
+                  onPickImages={() => openFilePicker("images")}
+                  onPickDocuments={() => openFilePicker("documents")}
+                  onShareLocation={shareLocation}
+                  accentColor={primaryColor}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (pendingFiles.length > 0) {
+                for (let i = 0; i < pendingFiles.length; i++) {
+                  const pf = pendingFiles[i];
+                  const caption = i === 0 ? inputValue.trim() : "";
+                  await sendMedia(pf.file, pf.file.name, caption);
+                  if (pf.preview) URL.revokeObjectURL(pf.preview);
+                }
+                setPendingFiles([]);
+                setInputValue("");
+                return;
+              }
+              sendText(inputValue);
+            }}
             className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
-            <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setEmojiOpen(false)}
+            {pendingFiles.length > 0 && (
+              <div className="flex gap-1.5 px-0 pt-1 pb-1.5 flex-wrap">
+                {pendingFiles.map((pf, idx) => (
+                  <div key={idx} className="relative group">
+                    {pf.file.type.startsWith("image/") ? (
+                      <img src={pf.preview} alt="preview" className="h-14 w-14 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700" />
+                    ) : (
+                      <div className="h-14 w-14 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center bg-neutral-50 dark:bg-neutral-800">
+                        <span className="text-[9px] text-neutral-500 text-center px-0.5 truncate">{pf.file.name.split('.').pop()?.toUpperCase()}</span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (pf.preview) URL.revokeObjectURL(pf.preview);
+                        setPendingFiles(prev => prev.filter((_, i) => i !== idx));
+                      }}
+                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }} onPaste={onPaste}
               placeholder={recording ? "Recording… tap ◼ to stop" : transcribing ? "Transcribing…" : "Compose your message…"} disabled={isBotResponding || recording || transcribing}
               className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
-                <button type="button" onClick={() => setEmojiOpen((o) => !o)} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></button>
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></button>
+                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></motion.button>
+                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></motion.button>
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className={`p-1.5 rounded-full disabled:opacity-50 ${recording ? "text-red-500" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
                   {transcribing ? <Loader2 className="size-4.5 animate-spin" /> : recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                 </button>
@@ -941,9 +1031,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
                 return (
-                  <button type="submit" disabled={isBotResponding || !inputValue.trim()} style={{ background: primaryColor }}
-                    className={`${c.shape} flex items-center justify-center text-white hover:opacity-90 disabled:opacity-40 shrink-0`}>
+                  <button type="submit" disabled={isBotResponding || (!inputValue.trim() && pendingFiles.length === 0)} style={{ background: primaryColor }}
+                    className={`${c.shape} flex items-center justify-center text-white hover:opacity-90 disabled:opacity-40 shrink-0 relative`}>
                     {c.icon}{c.label && <span className="text-xs font-semibold">{c.label}</span>}
+                    {pendingFiles.length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow">{pendingFiles.length}</span>
+                    )}
                   </button>
                 );
               })()}
