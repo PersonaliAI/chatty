@@ -685,15 +685,21 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         if (selectedEdge) {
           const targetNode = flowConfig.nodes.find((n: any) => n.id === selectedEdge.target);
           if (targetNode) {
+            // Silently persist user's answer in background so it's logged in the inbox database
+            fetch(`${BACKEND_URL}/api/widget/chat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: text })
+            }).catch(() => {});
+
             executeFlowNode(targetNode, flowConfig);
+            return; // Stay in flow, do not trigger streaming AI response
           } else {
             // Flow done — fall through to AI below
             setActiveNodeId(null);
             setFlowAwaitingInput(false);
           }
         }
-        // Always fall through to real AI for question node answers
-        // The AI will handle lead saving, follow-up, etc.
 
       } else if (!flowAwaitingInput && outgoingEdges.length > 1) {
         // Message node with labeled choice buttons — don't send to AI, just route
