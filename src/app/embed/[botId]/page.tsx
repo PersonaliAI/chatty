@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import EmbedClient from "./EmbedClient";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://chatty-api-376030619262.us-central1.run.app";
 
 export default async function EmbedPage({
   params,

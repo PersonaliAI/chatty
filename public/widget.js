@@ -20,7 +20,7 @@
 
   window.__chattyWidgetLoaded = true;
 
-  var BACKEND = "https://personaliai-api-376030619262.us-central1.run.app";
+  var BACKEND = "https://chatty-api-376030619262.us-central1.run.app";
 
   var script = document.currentScript;
   if (!script) {

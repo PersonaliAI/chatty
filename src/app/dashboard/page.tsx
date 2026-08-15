@@ -835,7 +835,7 @@ export default function Dashboard() {
       return await fetch(`${BACKEND_URL}${path}`, { ...options, headers });
     } catch (err) {
       console.warn(`Local backend down for ${path}, retrying with production fallback...`);
-      const fallbackUrl = "https://personaliai-api-376030619262.us-central1.run.app";
+      const fallbackUrl = "https://chatty-api-376030619262.us-central1.run.app";
       return await fetch(`${fallbackUrl}${path}`, { ...options, headers });
     }
   };
