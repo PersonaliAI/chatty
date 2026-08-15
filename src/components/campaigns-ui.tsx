@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Trash2, Save, Sparkles, Megaphone, HelpCircle } from "lucide-react";
+import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 
 interface TriggerRule {
   id: string;
@@ -20,6 +21,13 @@ export function CampaignsUI({ botId, color = "#f97316" }: Props) {
   const [type, setType] = useState<"time" | "scroll" | "exit" | "url">("time");
   const [value, setValue] = useState("");
   const [message, setMessage] = useState("");
+
+  const typeOptions: ModernSelectOption[] = [
+    { value: "time", label: "Time on page (Seconds)" },
+    { value: "scroll", label: "Scroll depth (Percentage)" },
+    { value: "exit", label: "Exit Intent (Leaver)" },
+    { value: "url", label: "URL Match (Path/Regexp)" },
+  ];
 
   useEffect(() => {
     if (!botId) return;
@@ -91,16 +99,11 @@ export function CampaignsUI({ botId, color = "#f97316" }: Props) {
           <div className="space-y-3">
             <div className="space-y-1">
               <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Trigger Type</label>
-              <select
+              <ModernSelect
                 value={type}
-                onChange={(e) => setType(e.target.value as any)}
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer"
-              >
-                <option value="time">Time on page (Seconds)</option>
-                <option value="scroll">Scroll depth (Percentage)</option>
-                <option value="exit">Exit Intent (Leaver)</option>
-                <option value="url">URL Match (Path/Regexp)</option>
-              </select>
+                options={typeOptions}
+                onChange={(val) => setType(val as any)}
+              />
             </div>
 
             {type !== "exit" && (
