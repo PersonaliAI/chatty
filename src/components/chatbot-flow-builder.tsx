@@ -53,6 +53,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [flowStatus, setFlowStatus] = useState<"active" | "paused">("paused");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
@@ -106,6 +107,12 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
           setNodes(parsed.nodes);
           setEdges(parsed.edges);
         }
+      }
+      const savedStatus = localStorage.getItem(`chatty_flow_status_${botId}`);
+      if (savedStatus === "active") {
+        setFlowStatus("active");
+      } else {
+        setFlowStatus("paused");
       }
     } catch {}
   }, [botId, setNodes, setEdges]);
@@ -299,6 +306,48 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
           <Controls />
           <MiniMap zoomable pannable />
           <Background color="#ccc" gap={16} />
+          <Panel position="top-left" className="bg-white/90 dark:bg-neutral-900/90 border border-neutral-200 dark:border-neutral-800 p-2.5 rounded-xl shadow-lg flex items-center gap-3 text-xs font-semibold text-neutral-700 dark:text-neutral-350">
+            {/* Status Control */}
+            <div className="flex items-center gap-2 border-r border-neutral-200 dark:border-neutral-800 pr-3">
+              <span className="text-[10px] uppercase text-neutral-400">Flow Status:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextState = flowStatus === "active" ? "paused" : "active";
+                  setFlowStatus(nextState);
+                  if (botId) localStorage.setItem(`chatty_flow_status_${botId}`, nextState);
+                  showToast(`Flow has been ${nextState === "active" ? "Activated" : "Paused"}!`, "success");
+                }}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase cursor-pointer transition-colors ${
+                  flowStatus === "active"
+                    ? "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                    : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+                }`}
+              >
+                ● {flowStatus === "active" ? "Active" : "Paused"}
+              </button>
+            </div>
+
+            {/* Reset/Delete Control */}
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm("Are you sure you want to delete and reset the current workflow?")) {
+                  setNodes(initialNodes);
+                  setEdges(initialEdges);
+                  if (botId) {
+                    localStorage.removeItem(`chatty_flow_${botId}`);
+                    localStorage.setItem(`chatty_flow_status_${botId}`, "paused");
+                  }
+                  setFlowStatus("paused");
+                  showToast("Flow deleted and reset to default.", "success");
+                }
+              }}
+              className="px-2.5 py-1 text-[10px] font-bold border border-red-200 text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer transition-colors"
+            >
+              Delete Flow
+            </button>
+          </Panel>
           <Panel position="top-right" className="bg-white/80 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-850 px-2.5 py-1.5 rounded-lg shadow text-[10px] font-semibold text-neutral-600 dark:text-neutral-300">
             💡 Drag connections from nodes to wire logic paths.
           </Panel>
