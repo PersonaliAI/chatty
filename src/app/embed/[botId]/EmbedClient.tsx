@@ -537,7 +537,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   useEffect(() => {
     if (!customJs) return;
 
-    // 1. Safe extraction and parsing of the visual flow JSON
+    // Safe extraction and parsing of the visual flow JSON
     try {
       const match = customJs.match(/\/\* CHATTY_FLOW_DATA([\s\S]*?)CHATTY_FLOW_DATA \*\//);
       if (match && match[1]) {
@@ -552,13 +552,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               executeFlowNode(firstNode, flow);
             }
           }
+        } else {
+          // Flow is paused or removed — clear any existing flow state
+          setFlowConfig(null);
+          setActiveNodeId(null);
         }
       }
     } catch (err) {
       console.error("Failed to parse visual flow data:", err);
     }
 
-    // 2. Execute any standard custom JS runnable script
+    // Execute any standard custom JS runnable script
     try {
       const runnableJs = customJs.replace(/\/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*\//g, "").trim();
       if (runnableJs) {
@@ -569,6 +573,26 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       console.error("Chatty custom JS execution error:", err);
     }
   }, [customJs]);
+
+  // Real-time flow sync: re-fetch bot config every 30s so that flow builder
+  // changes apply to the widget without requiring a page reload.
+  useEffect(() => {
+    if (!botId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}&t=${Date.now()}`);
+        if (res.ok) {
+          const bot = await res.json();
+          const newJs = bot.custom_js || "";
+          setCustomJs((prev) => {
+            if (prev !== newJs) return newJs;
+            return prev;
+          });
+        }
+      } catch {}
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [botId]);
 
   // Force transparent iframe body background to resolve sub-pixel corner bleeding
   useEffect(() => {
