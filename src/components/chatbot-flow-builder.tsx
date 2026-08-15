@@ -17,6 +17,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Play, MessageSquare, HelpCircle, UserCheck, PhoneCall, Trash2, Save, Plus, Loader2, Sparkles, Check, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@/lib/supabase/client";
 
 interface Props {
   botId: string | null;
@@ -122,18 +123,45 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
     [setEdges]
   );
 
-  const onSave = useCallback(() => {
+  const onSave = useCallback(async () => {
     if (!botId) return;
     try {
       localStorage.setItem(
         `chatty_flow_${botId}`,
         JSON.stringify({ nodes, edges })
       );
-      showToast("Flow configuration saved successfully!", "success");
+      localStorage.setItem(`chatty_flow_status_${botId}`, flowStatus);
+
+      const supabase = createClient();
+      const flowConfig = {
+        status: flowStatus,
+        nodes,
+        edges
+      };
+
+      const { data: botData } = await supabase
+        .from("chatty_bots")
+        .select("custom_js")
+        .eq("id", botId)
+        .maybeSingle();
+
+      let baseJs = botData?.custom_js || "";
+      baseJs = baseJs.replace(/\/\* CHATTY_FLOW_START \*\/[\s\S]*?\/\* CHATTY_FLOW_END \*\//g, "").trim();
+
+      const flowJs = `\n/* CHATTY_FLOW_START */\nwindow.__chatty_flow = ${JSON.stringify(flowConfig)};\n/* CHATTY_FLOW_END */`;
+      const finalJs = (baseJs + flowJs).trim();
+
+      const { error } = await supabase
+        .from("chatty_bots")
+        .update({ custom_js: finalJs })
+        .eq("id", botId);
+
+      if (error) throw error;
+      showToast("Flow successfully saved and synchronized!", "success");
     } catch {
-      showToast("Failed to save flow.", "error");
+      showToast("Failed to synchronize flow with database.", "error");
     }
-  }, [botId, nodes, edges]);
+  }, [botId, nodes, edges, flowStatus]);
 
   const addMessageNode = () => {
     const id = `msg-${Date.now()}`;
@@ -331,15 +359,31 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
             {/* Reset/Delete Control */}
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 if (confirm("Are you sure you want to delete and reset the current workflow?")) {
                   setNodes(initialNodes);
                   setEdges(initialEdges);
+                  setFlowStatus("paused");
                   if (botId) {
                     localStorage.removeItem(`chatty_flow_${botId}`);
                     localStorage.setItem(`chatty_flow_status_${botId}`, "paused");
+                    try {
+                      const supabase = createClient();
+                      const { data: botData } = await supabase
+                        .from("chatty_bots")
+                        .select("custom_js")
+                        .eq("id", botId)
+                        .maybeSingle();
+
+                      let baseJs = botData?.custom_js || "";
+                      baseJs = baseJs.replace(/\/\* CHATTY_FLOW_START \*\/[\s\S]*?\/\* CHATTY_FLOW_END \*\//g, "").trim();
+
+                      await supabase
+                        .from("chatty_bots")
+                        .update({ custom_js: baseJs })
+                        .eq("id", botId);
+                    } catch {}
                   }
-                  setFlowStatus("paused");
                   showToast("Flow deleted and reset to default.", "success");
                 }
               }}

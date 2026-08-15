@@ -214,6 +214,63 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   const [agentTyping, setAgentTyping] = useState(false);
 
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
+  const [flowConfig, setFlowConfig] = useState<any | null>(null);
+
+  const cleanLabel = (label: string = "") => {
+    return label
+      .replace(/^💬\s*(Message:\s*)?/, "")
+      .replace(/^❓\s*(Ask:\s*)?/, "")
+      .replace(/^🏷️\s*(Tag session:\s*)?/, "")
+      .replace(/^🔔\s*(Escalate to Live Agent\s*)?/, "");
+  };
+
+  const executeFlowNode = (node: any, currentConfig: any) => {
+    if (!node || !currentConfig) return;
+    const label = node.data?.label || "";
+    
+    if (label.startsWith("🏷️") || node.id?.startsWith("tag-")) {
+      const tagValue = label.replace(/^🏷️\s*(Tag session:\s*)?/, "").replace(/['"]/g, "").trim();
+      fetch(`${BACKEND_URL}/api/widget/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: `[System Tag applied: ${tagValue}]`, is_private_note: true })
+      }).catch(() => {});
+      
+      const nextEdge = currentConfig.edges.find((e: any) => e.source === node.id);
+      if (nextEdge) {
+        const nextNode = currentConfig.nodes.find((n: any) => n.id === nextEdge.target);
+        if (nextNode) executeFlowNode(nextNode, currentConfig);
+      }
+    } 
+    else if (label.startsWith("🔔") || node.id?.startsWith("esc-")) {
+      setLiveAgent(true);
+      setMessages((prev) => [...prev, { role: "assistant", content: "🚨 Transferring you to a live agent..." }]);
+      fetch(`${BACKEND_URL}/api/widget/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: "[User requested escalation]", ai_paused: true })
+      }).catch(() => {});
+      setActiveNodeId(null);
+    } 
+    else {
+      setActiveNodeId(node.id);
+      setIsBotResponding(false);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) }]);
+    }
+  };
+
+  const handleFlowChoice = (edge: any) => {
+    if (!flowConfig) return;
+    setMessages((prev) => [...prev, { role: "user", content: edge.label || "Selected Option" }]);
+    const targetNode = flowConfig.nodes.find((n: any) => n.id === edge.target);
+    if (targetNode) {
+      executeFlowNode(targetNode, flowConfig);
+    } else {
+      setActiveNodeId(null);
+    }
+  };
+
   const submitCsat = async () => {
     if (csatRating === 0) return;
     try {
@@ -517,6 +574,41 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     setMessages((p) => [...p, { role: "user", content: text }]);
     setInputValue("");
     setEmojiOpen(false);
+
+    if (flowConfig && activeNodeId) {
+      const outgoingEdges = flowConfig.edges.filter((e: any) => e.source === activeNodeId);
+      if (outgoingEdges.length > 0) {
+        let matchedEdge = outgoingEdges.find((e: any) => e.label?.toLowerCase() === text.toLowerCase());
+        
+        if (!matchedEdge) {
+          const isEmail = text.includes("@") && text.includes(".");
+          if (isEmail) {
+            matchedEdge = outgoingEdges.find((e: any) => 
+              e.label?.toLowerCase().includes("email") && 
+              (e.label?.toLowerCase().includes("provided") || e.label?.toLowerCase().includes("valid") || e.label?.toLowerCase().includes("yes"))
+            );
+          } else {
+            matchedEdge = outgoingEdges.find((e: any) => 
+              e.label?.toLowerCase().includes("no email") || 
+              e.label?.toLowerCase().includes("invalid") ||
+              e.label?.toLowerCase().includes("no")
+            );
+          }
+        }
+        
+        const selectedEdge = matchedEdge || outgoingEdges[0];
+        const targetNode = flowConfig.nodes.find((n: any) => n.id === selectedEdge.target);
+        if (targetNode) {
+          executeFlowNode(targetNode, flowConfig);
+        } else {
+          setActiveNodeId(null);
+        }
+        return;
+      } else {
+        setActiveNodeId(null);
+      }
+    }
+
     setIsBotResponding(true);
 
     let acc = "";
@@ -1037,7 +1129,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     </div>
                   )}
                 </AnimatePresence>
-                {starters.length > 0 && !isBotResponding && messages.filter((m) => m.role === "user").length === 0 && (
+                {starters.length > 0 && !activeNodeId && !isBotResponding && messages.filter((m) => m.role === "user").length === 0 && (
                   <div className="flex flex-col items-end gap-2 pt-1">
                     {starters.slice(0, 4).map((s, i) => (
                       <button key={i} onClick={() => sendText(s)}
@@ -1047,6 +1139,27 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                       </button>
                     ))}
                   </div>
+                )}
+                {flowConfig && activeNodeId && !isBotResponding && (
+                  (() => {
+                    const outgoingEdges = flowConfig.edges.filter((e: any) => e.source === activeNodeId);
+                    if (outgoingEdges.length === 0) return null;
+                    return (
+                      <div className="flex flex-col items-end gap-2 pt-1">
+                        {outgoingEdges.map((edge: any, i: number) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => handleFlowChoice(edge)}
+                            className="px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors cursor-pointer"
+                            style={{ borderColor: primaryColor, color: primaryColor }}
+                          >
+                            {edge.label || "Continue"}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()
                 )}
                 <div ref={messagesEndRef} />
               </div>
