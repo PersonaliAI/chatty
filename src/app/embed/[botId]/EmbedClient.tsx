@@ -228,32 +228,70 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [pushGranted, setPushGranted] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setPushGranted(Notification.permission === "granted");
+    if (typeof window !== "undefined") {
+      if ("Notification" in window && Notification.permission === "granted") {
+        setPushGranted(true);
+      }
+      const handleMessage = (e: MessageEvent) => {
+        if (e.data && e.data.type === "chatty-notification-status") {
+          setPushGranted(!!e.data.granted);
+        }
+      };
+      window.addEventListener("message", handleMessage);
+      return () => window.removeEventListener("message", handleMessage);
     }
   }, []);
 
   const requestPushPermission = async () => {
-    if (typeof window === "undefined" || !("Notification" in window)) {
-      alert("Browser push notifications are not supported on this browser.");
-      return;
-    }
+    if (typeof window === "undefined") return;
+
     try {
-      const perm = await Notification.requestPermission();
-      if (perm === "granted") {
-        setPushGranted(true);
-        new Notification(botName, {
-          body: "Notifications enabled! You'll be alerted when support or AI replies.",
-          icon: avatarUrl || undefined,
-        });
-      } else {
-        setPushGranted(false);
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: "chatty-request-notification",
+          botName,
+          avatarUrl: avatarUrl || undefined,
+        }, "*");
       }
     } catch {}
+
+    if ("Notification" in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm === "granted") {
+          setPushGranted(true);
+          try {
+            new Notification(botName, {
+              body: "Notifications enabled! You'll be alerted when support or AI replies.",
+              icon: avatarUrl || undefined,
+            });
+          } catch {}
+        } else if (perm === "denied") {
+          setPushGranted(false);
+          alert("Notification permission was blocked. Please allow notifications in your browser location bar.");
+        }
+      } catch (err) {
+        console.warn("Notification request delegated to parent window", err);
+      }
+    } else {
+      alert("Browser push notifications are not supported on this browser.");
+    }
   };
 
   const triggerPush = (bodyText: string) => {
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted" && document.hidden) {
+    if (typeof window === "undefined") return;
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: "chatty-trigger-notification",
+          botName,
+          bodyText,
+          avatarUrl: avatarUrl || undefined,
+        }, "*");
+      }
+    } catch {}
+
+    if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
       try {
         new Notification(botName, {
           body: bodyText,

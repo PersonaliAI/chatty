@@ -39,7 +39,7 @@ import httpx
 import time
 
 def chat_with_retry(text: str, session_id: str, max_retries: int = 3):
-    url = "https://personaliai-api-376030619262.us-central1.run.app/api/v1/chat"
+    url = "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat"
     headers = {"Authorization": "Bearer chatty_sk_your_key"}
     
     for attempt in range(max_retries):
@@ -63,7 +63,7 @@ def chat_with_retry(text: str, session_id: str, max_retries: int = 3):
 
 ```javascript Node.js (with exponential backoff)
 async function chatWithRetry(text, sessionId, maxRetries = 3) {
-  const url = "https://personaliai-api-376030619262.us-central1.run.app/api/v1/chat";
+  const url = "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat";
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const res = await fetch(url, {

@@ -283,9 +283,42 @@
   var iframe = document.createElement("iframe");
   iframe.style.cssText = "width:100% !important;height:100% !important;border:0 !important;display:block !important;border-radius:16px !important;overflow:hidden !important;background:transparent !important;";
   iframe.setAttribute("title", "Chat assistant");
-  iframe.setAttribute("allow", "clipboard-write;microphone");
+  iframe.setAttribute("allow", "clipboard-write; microphone; notifications");
   var iframeLoaded = false;
   panel.appendChild(iframe);
+
+  window.addEventListener("message", function (e) {
+    if (!e.data || typeof e.data !== "object") return;
+    if (e.data.type === "chatty-request-notification") {
+      if ("Notification" in window) {
+        Notification.requestPermission().then(function (perm) {
+          var isGranted = (perm === "granted");
+          if (isGranted) {
+            try {
+              new Notification(e.data.botName || "Chatty Support", {
+                body: "Notifications enabled! You'll be alerted when support or AI replies.",
+                icon: e.data.avatarUrl || undefined
+              });
+            } catch (err) {}
+          }
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: "chatty-notification-status", granted: isGranted }, "*");
+          }
+        }).catch(function () {});
+      } else {
+        alert("Browser push notifications are not supported on this browser.");
+      }
+    } else if (e.data.type === "chatty-trigger-notification") {
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification(e.data.botName || "Chatty Support", {
+            body: e.data.bodyText || "New message received",
+            icon: e.data.avatarUrl || undefined
+          });
+        } catch (err) {}
+      }
+    }
+  });
 
   function applyMobile() {
     if (mobileFull && window.innerWidth <= 480) {

@@ -125,10 +125,10 @@
     "linkedin": "https://linkedin.com/company/chatty-ai"
   },
   "api": {
-    "baseUrl": "https://personaliai-api-376030619262.us-central1.run.app",
+    "baseUrl": "https://chatty-api-376030619262.us-central1.run.app",
     "auth": {
       "method": "bearer"
     }
   },
-  "openapi": "https://personaliai-api-376030619262.us-central1.run.app/openapi.json"
+  "openapi": "https://chatty-api-376030619262.us-central1.run.app/openapi.json"
 }

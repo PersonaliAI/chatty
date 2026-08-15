@@ -45,7 +45,7 @@ Add content to the bot's knowledge base. Supports two types:
 <RequestExample>
 
 ```bash cURL — Add text
-curl -X POST "https://personaliai-api-376030619262.us-central1.run.app/api/v1/knowledge" \
+curl -X POST "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge" \
   -H "Authorization: Bearer chatty_sk_your_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -56,7 +56,7 @@ curl -X POST "https://personaliai-api-376030619262.us-central1.run.app/api/v1/kn
 ```
 
 ```bash cURL — Crawl URL
-curl -X POST "https://personaliai-api-376030619262.us-central1.run.app/api/v1/knowledge" \
+curl -X POST "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge" \
   -H "Authorization: Bearer chatty_sk_your_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -70,7 +70,7 @@ curl -X POST "https://personaliai-api-376030619262.us-central1.run.app/api/v1/kn
 import httpx
 
 client = httpx.Client(
-    base_url="https://personaliai-api-376030619262.us-central1.run.app",
+    base_url="https://chatty-api-376030619262.us-central1.run.app",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 
@@ -96,7 +96,7 @@ const urls = [
 
 for (const url of urls) {
   const res = await fetch(
-    "https://personaliai-api-376030619262.us-central1.run.app/api/v1/knowledge",
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge",
     {
       method: "POST",
       headers: {

@@ -38,7 +38,7 @@ Permanently deletes all messages in the given session. The next message sent wit
 
 ```bash cURL
 curl -X DELETE \
-  "https://personaliai-api-376030619262.us-central1.run.app/api/v1/conversations/visitor-xyz-789" \
+  "https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/visitor-xyz-789" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
@@ -47,7 +47,7 @@ import httpx
 
 session_id = "visitor-xyz-789"
 res = httpx.delete(
-    f"https://personaliai-api-376030619262.us-central1.run.app/api/v1/conversations/{session_id}",
+    f"https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/{session_id}",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 print(res.json())
@@ -56,7 +56,7 @@ print(res.json())
 ```javascript Node.js
 const sessionId = "visitor-xyz-789";
 const res = await fetch(
-  `https://personaliai-api-376030619262.us-central1.run.app/api/v1/conversations/${sessionId}`,
+  `https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/${sessionId}`,
   {
     method: "DELETE",
     headers: { Authorization: "Bearer chatty_sk_your_key" },

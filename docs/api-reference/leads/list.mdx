@@ -53,7 +53,7 @@ Returns visitor leads captured through the bot's lead collection flow — typica
 
 ```bash cURL
 # First page
-curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/leads?limit=20&offset=0" \
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/leads?limit=20&offset=0" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
@@ -61,7 +61,7 @@ curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/leads?limi
 import httpx
 
 client = httpx.Client(
-    base_url="https://personaliai-api-376030619262.us-central1.run.app",
+    base_url="https://chatty-api-376030619262.us-central1.run.app",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 
@@ -87,7 +87,7 @@ async function syncLeadsToCRM() {
 
   while (true) {
     const res = await fetch(
-      `https://personaliai-api-376030619262.us-central1.run.app/api/v1/leads?limit=${limit}&offset=${offset}`,
+      `https://chatty-api-376030619262.us-central1.run.app/api/v1/leads?limit=${limit}&offset=${offset}`,
       { headers: { Authorization: "Bearer chatty_sk_your_key" } }
     );
     const { leads, total } = await res.json();

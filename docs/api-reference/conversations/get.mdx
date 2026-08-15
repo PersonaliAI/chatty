@@ -38,7 +38,7 @@ Fetch the complete ordered message history for a single conversation session.
 <RequestExample>
 
 ```bash cURL
-curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/conversations/visitor-xyz-789" \
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/visitor-xyz-789" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
@@ -47,7 +47,7 @@ import httpx
 
 session_id = "visitor-xyz-789"
 res = httpx.get(
-    f"https://personaliai-api-376030619262.us-central1.run.app/api/v1/conversations/{session_id}",
+    f"https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/{session_id}",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 thread = res.json()
@@ -58,7 +58,7 @@ for msg in thread["messages"]:
 ```javascript Node.js
 const sessionId = "visitor-xyz-789";
 const res = await fetch(
-  `https://personaliai-api-376030619262.us-central1.run.app/api/v1/conversations/${sessionId}`,
+  `https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/${sessionId}`,
   { headers: { Authorization: "Bearer chatty_sk_your_key" } }
 );
 const { messages } = await res.json();

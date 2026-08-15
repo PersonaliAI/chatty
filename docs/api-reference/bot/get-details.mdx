@@ -59,7 +59,7 @@ Returns configuration details about the bot. Useful for dynamically rendering th
 <RequestExample>
 
 ```bash cURL
-curl https://personaliai-api-376030619262.us-central1.run.app/api/v1/bot \
+curl https://chatty-api-376030619262.us-central1.run.app/api/v1/bot \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
@@ -67,7 +67,7 @@ curl https://personaliai-api-376030619262.us-central1.run.app/api/v1/bot \
 import httpx
 
 res = httpx.get(
-    "https://personaliai-api-376030619262.us-central1.run.app/api/v1/bot",
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/bot",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 bot = res.json()
@@ -76,7 +76,7 @@ print(bot["name"], bot["primary_color"])
 
 ```javascript Node.js
 const res = await fetch(
-  "https://personaliai-api-376030619262.us-central1.run.app/api/v1/bot",
+  "https://chatty-api-376030619262.us-central1.run.app/api/v1/bot",
   { headers: { Authorization: "Bearer chatty_sk_your_key" } }
 );
 const bot = await res.json();

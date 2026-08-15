@@ -31,7 +31,7 @@ Returns all knowledge sources (text snippets, crawled URLs, and uploaded files) 
 <RequestExample>
 
 ```bash cURL
-curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/knowledge" \
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
@@ -39,7 +39,7 @@ curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/knowledge"
 import httpx
 
 res = httpx.get(
-    "https://personaliai-api-376030619262.us-central1.run.app/api/v1/knowledge",
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 for src in res.json()["sources"]:

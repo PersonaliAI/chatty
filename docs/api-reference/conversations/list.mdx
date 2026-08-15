@@ -41,7 +41,7 @@ Returns messages across all conversation sessions for the bot, sorted newest fir
 <RequestExample>
 
 ```bash cURL
-curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/conversations?limit=50" \
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations?limit=50" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
@@ -49,7 +49,7 @@ curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/conversati
 import httpx
 
 res = httpx.get(
-    "https://personaliai-api-376030619262.us-central1.run.app/api/v1/conversations",
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
     params={"limit": 50, "offset": 0},
 )

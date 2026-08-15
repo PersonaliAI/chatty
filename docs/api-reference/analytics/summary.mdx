@@ -31,12 +31,12 @@ Returns lifetime (or time-filtered) usage statistics: message volume, unique ses
 <RequestExample>
 
 ```bash cURL — Lifetime stats
-curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/analytics" \
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/analytics" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
 ```bash cURL — Last 30 days
-curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/analytics?since=2026-06-07T00:00:00Z" \
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/analytics?since=2026-06-07T00:00:00Z" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
@@ -45,7 +45,7 @@ import httpx
 from datetime import datetime, timedelta, timezone
 
 client = httpx.Client(
-    base_url="https://personaliai-api-376030619262.us-central1.run.app",
+    base_url="https://chatty-api-376030619262.us-central1.run.app",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 
@@ -63,7 +63,7 @@ print(f"  Leads:     {stats['total_leads']}")
 async function getWeeklyStats() {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const res = await fetch(
-    `https://personaliai-api-376030619262.us-central1.run.app/api/v1/analytics?since=${since}`,
+    `https://chatty-api-376030619262.us-central1.run.app/api/v1/analytics?since=${since}`,
     { headers: { Authorization: "Bearer chatty_sk_your_key" } }
   );
   return res.json();

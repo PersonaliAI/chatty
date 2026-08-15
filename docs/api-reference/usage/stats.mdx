@@ -43,7 +43,7 @@ Returns configuration and usage statistics for the API key making the request. U
 <RequestExample>
 
 ```bash cURL
-curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/usage" \
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/usage" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
@@ -51,7 +51,7 @@ curl "https://personaliai-api-376030619262.us-central1.run.app/api/v1/usage" \
 import httpx
 
 res = httpx.get(
-    "https://personaliai-api-376030619262.us-central1.run.app/api/v1/usage",
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/usage",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 usage = res.json()

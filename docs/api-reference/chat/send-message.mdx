@@ -43,7 +43,7 @@ Send a message to your bot and get a response based on its knowledge base, guard
 <RequestExample>
 
 ```bash cURL
-curl -X POST https://personaliai-api-376030619262.us-central1.run.app/api/v1/chat \
+curl -X POST https://chatty-api-376030619262.us-central1.run.app/api/v1/chat \
   -H "Authorization: Bearer chatty_sk_your_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -57,7 +57,7 @@ curl -X POST https://personaliai-api-376030619262.us-central1.run.app/api/v1/cha
 import httpx
 
 client = httpx.Client(
-    base_url="https://personaliai-api-376030619262.us-central1.run.app",
+    base_url="https://chatty-api-376030619262.us-central1.run.app",
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 
@@ -72,7 +72,7 @@ print(data["reply"])
 
 ```javascript Node.js
 const res = await fetch(
-  "https://personaliai-api-376030619262.us-central1.run.app/api/v1/chat",
+  "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat",
   {
     method: "POST",
     headers: {
@@ -96,7 +96,7 @@ $data = json_encode([
     'visitor_timezone' => 'America/Chicago',
 ]);
 
-$ch = curl_init('https://personaliai-api-376030619262.us-central1.run.app/api/v1/chat');
+$ch = curl_init('https://chatty-api-376030619262.us-central1.run.app/api/v1/chat');
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
