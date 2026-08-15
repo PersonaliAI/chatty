@@ -185,9 +185,9 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 h-[600px] w-full">
+    <div className="flex flex-col lg:flex-row gap-4 lg:h-[600px] w-full">
       {/* Node properties panel */}
-      <div className="w-full lg:w-72 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 flex flex-col justify-between shrink-0 overflow-y-auto">
+      <div className="w-full lg:w-72 lg:h-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 flex flex-col justify-between shrink-0 overflow-y-auto gap-4">
         <div className="space-y-4">
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Node Toolbox</h4>
@@ -267,13 +267,13 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
           </div>
         </div>
 
-        <button onClick={onSave} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white rounded-xl cursor-pointer" style={{ background: color }}>
+        <button onClick={onSave} className="w-full mt-4 flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white rounded-xl cursor-pointer shrink-0" style={{ background: color }}>
           <Save className="size-4" />Save flow configuration
         </button>
       </div>
 
       {/* Visual Editor canvas */}
-      <div className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative">
+      <div className="flex-1 min-h-[450px] lg:min-h-0 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative">
         <ReactFlow
           nodes={nodes}
           edges={edges}
