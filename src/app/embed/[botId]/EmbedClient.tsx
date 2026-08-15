@@ -216,6 +216,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [flowConfig, setFlowConfig] = useState<any | null>(null);
+  // Track whether the active node is a question node waiting for user typed input
+  const [flowAwaitingInput, setFlowAwaitingInput] = useState(false);
 
   const cleanLabel = (label: string = "") => {
     return label
@@ -225,51 +227,67 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       .replace(/^🔔\s*(Escalate to Live Agent\s*)?/, "");
   };
 
+  const isQuestionNode = (node: any) => {
+    const label = node?.data?.label || "";
+    return label.startsWith("❓") || node?.type === "question" || node?.id?.startsWith("q-");
+  };
+
   const executeFlowNode = (node: any, currentConfig: any) => {
     if (!node || !currentConfig) return;
     const label = node.data?.label || "";
-    
+
+    // Tag node — run silently, auto-advance
     if (label.startsWith("🏷️") || node.id?.startsWith("tag-")) {
-      const tagValue = label.replace(/^🏷️\s*(Tag session:\s*)?/, "").replace(/['"]/g, "").trim();
+      const tagValue = label.replace(/^🏷️\s*(Tag session:\s*)?/, "").replace(/['",]/g, "").trim();
       fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: `[System Tag applied: ${tagValue}]`, is_private_note: true })
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: `[Flow tag: ${tagValue}]`, is_private_note: true })
       }).catch(() => {});
-      
       const nextEdge = currentConfig.edges.find((e: any) => e.source === node.id);
       if (nextEdge) {
         const nextNode = currentConfig.nodes.find((n: any) => n.id === nextEdge.target);
         if (nextNode) executeFlowNode(nextNode, currentConfig);
       }
-    } 
+    }
+    // Escalate node
     else if (label.startsWith("🔔") || node.id?.startsWith("esc-")) {
       setLiveAgent(true);
-      setMessages((prev) => [...prev, { role: "assistant", content: "🚨 Transferring you to a live agent..." }]);
+      setFlowAwaitingInput(false);
+      setActiveNodeId(null);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Connecting you to a live agent now..." }]);
       fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: "[User requested escalation]", ai_paused: true })
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: "[Visitor requested live agent via flow]", ai_paused: true })
       }).catch(() => {});
-      setActiveNodeId(null);
-    } 
-    else {
+    }
+    // Question node — display question, wait for typed user input (no branch buttons)
+    else if (isQuestionNode(node)) {
       setActiveNodeId(node.id);
+      setFlowAwaitingInput(true);
       setIsBotResponding(false);
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) }]);
-
+    }
+    // Message node — display, then auto-advance if single unlabeled edge, or show choice buttons
+    else {
+      setActiveNodeId(node.id);
+      setFlowAwaitingInput(false);
+      setIsBotResponding(false);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) }]);
       const outgoing = currentConfig.edges.filter((e: any) => e.source === node.id);
       if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
+        // Linear — auto-advance after short delay
         setTimeout(() => {
           const nextNode = currentConfig.nodes.find((n: any) => n.id === outgoing[0].target);
           if (nextNode) executeFlowNode(nextNode, currentConfig);
-        }, 1000);
+        }, 900);
       }
+      // Multiple labeled edges → stay on node, show buttons (handled in render)
     }
   };
 
-  // React Flow stores edge labels in edge.label (from addEdge) OR edge.data?.label
-  // depending on how they were set. Always resolve both.
+  // React Flow stores edge labels in edge.label OR edge.data?.label — resolve both.
   const getEdgeLabel = (edge: any): string => edge.label || edge.data?.label || "";
 
   const handleFlowChoice = (edge: any) => {
@@ -280,7 +298,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     if (targetNode) {
       executeFlowNode(targetNode, flowConfig);
     } else {
+      // Flow ended — hand off to real AI
       setActiveNodeId(null);
+      setFlowAwaitingInput(false);
     }
   };
 
@@ -639,39 +659,58 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     setEmojiOpen(false);
 
     if (flowConfig && activeNodeId) {
+      const activeNode = flowConfig.nodes.find((n: any) => n.id === activeNodeId);
       const outgoingEdges = flowConfig.edges.filter((e: any) => e.source === activeNodeId);
-      if (outgoingEdges.length > 0) {
-        // Resolve label from either edge.label or edge.data?.label (React Flow stores both)
+
+      if (flowAwaitingInput && isQuestionNode(activeNode)) {
+        // Question node: user typed a real answer. Route flow AND pass to real AI.
         const resolved = outgoingEdges.map((e: any) => ({ ...e, _label: getEdgeLabel(e) }));
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
 
         let matchedEdge = resolved.find((e: any) => e._label.toLowerCase() === text.toLowerCase());
-
         if (!matchedEdge) {
-          const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
           if (isEmail) {
             matchedEdge = resolved.find((e: any) =>
               e._label.toLowerCase().includes("email") &&
               (e._label.toLowerCase().includes("provided") || e._label.toLowerCase().includes("valid") || e._label.toLowerCase().includes("yes"))
-            );
+            ) || resolved.find((e: any) => !e._label.toLowerCase().includes("invalid") && !e._label.toLowerCase().includes("no"));
           } else {
             matchedEdge = resolved.find((e: any) =>
-              e._label.toLowerCase().includes("no email") ||
-              e._label.toLowerCase().includes("invalid") ||
-              e._label.toLowerCase().includes("no")
+              e._label.toLowerCase().includes("invalid") || e._label.toLowerCase().includes("no")
             );
           }
         }
 
         const selectedEdge = matchedEdge || resolved[0];
-        const targetNode = flowConfig.nodes.find((n: any) => n.id === selectedEdge.target);
+        if (selectedEdge) {
+          const targetNode = flowConfig.nodes.find((n: any) => n.id === selectedEdge.target);
+          if (targetNode) {
+            executeFlowNode(targetNode, flowConfig);
+          } else {
+            // Flow done — fall through to AI below
+            setActiveNodeId(null);
+            setFlowAwaitingInput(false);
+          }
+        }
+        // Always fall through to real AI for question node answers
+        // The AI will handle lead saving, follow-up, etc.
+
+      } else if (!flowAwaitingInput && outgoingEdges.length > 1) {
+        // Message node with labeled choice buttons — don't send to AI, just route
+        const resolved = outgoingEdges.map((e: any) => ({ ...e, _label: getEdgeLabel(e) }));
+        const matchedEdge = resolved.find((e: any) => e._label.toLowerCase() === text.toLowerCase()) || resolved[0];
+        const targetNode = flowConfig.nodes.find((n: any) => n.id === matchedEdge.target);
         if (targetNode) {
           executeFlowNode(targetNode, flowConfig);
         } else {
           setActiveNodeId(null);
+          setFlowAwaitingInput(false);
         }
-        return;
-      } else {
+        return; // Don't send to AI for menu choices
+      } else if (!flowAwaitingInput && outgoingEdges.length === 0) {
+        // Flow is at terminal node — clear flow, hand off to AI
         setActiveNodeId(null);
+        setFlowAwaitingInput(false);
       }
     }
 
@@ -1206,15 +1245,19 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     ))}
                   </div>
                 )}
-                {flowConfig && activeNodeId && !isBotResponding && (
+                {flowConfig && activeNodeId && !isBotResponding && !flowAwaitingInput && (
                   (() => {
+                    const activeNode = flowConfig.nodes.find((n: any) => n.id === activeNodeId);
+                    // Never show buttons on question nodes — user must type their answer
+                    if (isQuestionNode(activeNode)) return null;
                     const outgoingEdges = flowConfig.edges.filter((e: any) => e.source === activeNodeId);
                     const resolvedEdges = outgoingEdges.map((e: any) => ({ ...e, _label: getEdgeLabel(e) }));
-                    // Hide buttons when single unlabeled edge (auto-advance handles it)
-                    if (resolvedEdges.length === 0 || (resolvedEdges.length === 1 && !resolvedEdges[0]._label)) return null;
+                    // Only show buttons if there are multiple labeled outgoing edges (menu-style)
+                    const labeled = resolvedEdges.filter((e: any) => e._label);
+                    if (labeled.length < 2) return null;
                     return (
                       <div className="flex flex-col items-end gap-2 pt-1">
-                        {resolvedEdges.map((edge: any, i: number) => (
+                        {labeled.map((edge: any, i: number) => (
                           <button
                             key={i}
                             type="button"
@@ -1222,7 +1265,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                             className="px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors cursor-pointer"
                             style={{ borderColor: primaryColor, color: primaryColor }}
                           >
-                            {edge._label || "Continue"}
+                            {edge._label}
                           </button>
                         ))}
                       </div>
