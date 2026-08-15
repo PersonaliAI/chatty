@@ -77,7 +77,7 @@ function LoginPageInner() {
   return (
     <AuthShell
       title="Welcome back"
-      subtitle="Sign in to manage your Kin assistant"
+      subtitle="Sign in to manage your Chatty assistant"
       footer={
         <>
           Don't have an account?{" "}

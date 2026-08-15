@@ -188,10 +188,10 @@
   var teaserMsg = document.createElement("span");
   teaser.appendChild(teaserClose);
   teaser.appendChild(teaserMsg);
-  function showTeaser() {
+  function showTeaser(msg) {
     if (open || !teaserEnabled) return;
     if (lsGet("chatty_teaser_" + botId) === "dismissed") return;
-    teaserMsg.textContent = teaserText || "👋 Need help? Chat with us.";
+    teaserMsg.textContent = msg || teaserText || "👋 Need help? Chat with us.";
     teaser.style.display = "block";
     requestAnimationFrame(function () { teaser.style.opacity = "1"; teaser.style.transform = "translateY(0)"; });
   }
@@ -201,6 +201,12 @@
   }
   teaser.addEventListener("click", function () { hideTeaser(); setOpen(true); });
   teaserClose.addEventListener("click", function (e) { e.stopPropagation(); hideTeaser(); lsSet("chatty_teaser_" + botId, "dismissed"); });
+
+  var triggerRules = [];
+  try {
+    var rawRules = script.getAttribute("data-rules");
+    if (rawRules) triggerRules = JSON.parse(rawRules);
+  } catch (e) {}
 
   // ---- Theme + teaser text from dashboard ----
   // Always apply the database color — even when data-color is set on the script
@@ -226,6 +232,12 @@
         if (d) {
           if (d.primary_color) applyTheme(d.primary_color);
           teaserText = d.teaser_message || d.welcome_message || teaserText;
+          if (d.trigger_rules) {
+            try {
+              var loadedRules = typeof d.trigger_rules === "string" ? JSON.parse(d.trigger_rules) : d.trigger_rules;
+              if (Array.isArray(loadedRules)) triggerRules = triggerRules.concat(loadedRules);
+            } catch (ex) {}
+          }
           if (d.widget_style) {
             var parts = d.widget_style.split(":");
             if (parts.length > 1) {
@@ -249,12 +261,15 @@
           btn.style.borderRadius = getBorderRadiusStyle(launcherShape, side);
         }
         revealBtn();
+        tryInitTriggers();
       })
       .catch(function () {
         revealBtn();
+        tryInitTriggers();
       });
   } catch (e) {
     revealBtn();
+    tryInitTriggers();
   }
 
   // ---- Chat panel (iframe container) ----
@@ -350,6 +365,76 @@
     }
   });
 
+  var triggered = {};
+  function triggerRule(rule) {
+    var key = rule.type + "_" + String(rule.value || "");
+    if (triggered[key]) return;
+    triggered[key] = true;
+    showTeaser(rule.message);
+  }
+
+  var triggersInitialized = false;
+  function initTriggers() {
+    if (!triggerRules || triggerRules.length === 0) {
+      setTimeout(function () { showTeaser(); }, 6000);
+      return;
+    }
+
+    triggerRules.forEach(function (rule) {
+      if (rule.type === "time") {
+        setTimeout(function () { triggerRule(rule); }, parseFloat(rule.value || 5) * 1000);
+      }
+      if (rule.type === "url") {
+        try {
+          var rx = new RegExp(rule.value || ".*", "i");
+          if (rx.test(location.href)) {
+            setTimeout(function () { triggerRule(rule); }, 1000);
+          }
+        } catch (e) {}
+      }
+    });
+
+    var hasScroll = false;
+    var hasExit = false;
+    for (var i = 0; i < triggerRules.length; i++) {
+      if (triggerRules[i].type === "scroll") hasScroll = true;
+      if (triggerRules[i].type === "exit") hasExit = true;
+    }
+
+    if (hasScroll) {
+      window.addEventListener("scroll", function () {
+        var totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+        if (totalHeight <= 0) return;
+        var pct = (window.scrollY / totalHeight) * 100;
+        triggerRules.forEach(function (rule) {
+          if (rule.type === "scroll" && pct >= parseFloat(rule.value || 50)) {
+            triggerRule(rule);
+          }
+        });
+      });
+    }
+
+    if (hasExit) {
+      document.addEventListener("mouseleave", function (e) {
+        if (e.clientY < 20) {
+          triggerRules.forEach(function (rule) {
+            if (rule.type === "exit") {
+              triggerRule(rule);
+            }
+          });
+        }
+      });
+    }
+  }
+
+  var mounted = false;
+  function tryInitTriggers() {
+    if (mounted && !triggersInitialized) {
+      triggersInitialized = true;
+      initTriggers();
+    }
+  }
+
   // ---- Public JS API ----
   window.Chatty = {
     open: function () { setOpen(true); },
@@ -362,7 +447,8 @@
     document.body.appendChild(teaser);
     document.body.appendChild(btn);
     document.body.appendChild(badge);
-    setTimeout(showTeaser, 6000);
+    mounted = true;
+    tryInitTriggers();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mount);

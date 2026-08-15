@@ -13,7 +13,7 @@ import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
-  Link2, ThumbsUp, ThumbsDown,
+  Link2, ThumbsUp, ThumbsDown, Mail,
 } from "lucide-react";
 
 // Preset assistant avatar icons (selectable in the customizer).
@@ -201,6 +201,76 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [searchAnswer, setSearchAnswer] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
 
+  // ── CSAT, Offline Ticketing, & Typing States ──
+  const [showCsat, setShowCsat] = useState(false);
+  const [csatRating, setCsatRating] = useState(0);
+  const [csatComment, setCsatComment] = useState("");
+  const [csatSubmitted, setCsatSubmitted] = useState(false);
+
+  const [showOfflineForm, setShowOfflineForm] = useState(false);
+  const [offlineEmail, setOfflineEmail] = useState("");
+  const [offlineMessage, setOfflineMessage] = useState("");
+  const [offlineSubmitted, setOfflineSubmitted] = useState(false);
+
+  const [agentTyping, setAgentTyping] = useState(false);
+
+  const submitCsat = async () => {
+    if (csatRating === 0) return;
+    try {
+      await fetch(`${BACKEND_URL}/api/widget/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          rating: csatRating,
+          comment: csatComment,
+        }),
+      });
+      setCsatSubmitted(true);
+      showToast("Thank you for your feedback!", "success");
+      setTimeout(() => { setShowCsat(false); try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }, 1500);
+    } catch {
+      showToast("Failed to submit feedback.", "error");
+    }
+  };
+
+  const submitOfflineMessage = async () => {
+    if (!offlineEmail.trim() || !offlineMessage.trim()) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          text: `[Offline Support Ticket]\nEmail: ${offlineEmail}\nMessage: ${offlineMessage}`,
+          visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          host: getHost(),
+        }),
+      });
+      if (res.ok) {
+        setOfflineSubmitted(true);
+        showToast("Ticket submitted successfully!", "success");
+        setOfflineEmail("");
+        setOfflineMessage("");
+        setTimeout(() => { setShowOfflineForm(false); setOfflineSubmitted(false); }, 2000);
+      } else {
+        showToast("Error sending message.", "error");
+      }
+    } catch {
+      showToast("Failed to connect to support.", "error");
+    }
+  };
+
+  const handleCloseClick = () => {
+    if (messages.length > 2 && !csatSubmitted) {
+      setShowCsat(true);
+    } else {
+      try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {}
+    }
+  };
+
   const [recording, setRecording] = useState(false);
   const [barLevels, setBarLevels] = useState<number[]>(() => Array(RECORD_BAR_COUNT).fill(0));
   const [transcribing, setTranscribing] = useState(false);
@@ -283,9 +353,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         if (payload.created_at) lastPollRef.current = payload.created_at;
         setMessages((p) => [...p, { role: "assistant" as const, content: payload.content || "" }]);
         setIsBotResponding(false);
+        setAgentTyping(false);
         notifyParent();
       } else if (payload.type === "ai_paused") {
         setLiveAgent(!!payload.value);
+      } else if (payload.type === "typing") {
+        setAgentTyping(!!payload.value);
       }
     };
 
@@ -300,6 +373,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           lastPollRef.current = d.messages[d.messages.length - 1].created_at;
           setMessages((p) => [...p, ...d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content }))]);
           setIsBotResponding(false);
+          setAgentTyping(false);
           notifyParent();
         }
       } catch {}
@@ -771,7 +845,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           <button onClick={clearChat} className="ml-auto p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Clear conversation" title="Clear conversation">
             <RefreshCw className="size-4" />
           </button>
-          <button onClick={() => { try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }} className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Close chat" title="Close">
+          <button onClick={handleCloseClick} className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Close chat" title="Close">
             <X className="size-4" />
           </button>
         </div>
@@ -779,141 +853,254 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto scrollbar-thin bg-card">
-        {/* HOME */}
-        {tab === "home" && (
-          <div className="p-4 space-y-3">
-            <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
-              <h3 className="text-sm font-bold flex items-center gap-1.5"><Sparkles className="size-4" style={{ color: primaryColor }} />Hi there 👋</h3>
-              <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{welcomeMsg}</p>
+        {showCsat ? (
+          /* CSAT Feedback Modal */
+          <div className="p-5 flex flex-col justify-center h-full space-y-4">
+            <div className="text-center space-y-2">
+              <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-250">How was your conversation?</h3>
+              <p className="text-[11px] text-neutral-500">Your rating helps us improve support quality.</p>
             </div>
-            <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-              <span className="flex items-center gap-2 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
-              <ChevronRight className="size-4 text-neutral-400" />
-            </button>
-            <button onClick={() => setTab("articles")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-              <span className="flex items-center gap-2 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
-              <ChevronRight className="size-4 text-neutral-400" />
-            </button>
-            <button onClick={() => setTab("search")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-              <span className="flex items-center gap-2 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Search for answers</span>
-              <ChevronRight className="size-4 text-neutral-400" />
-            </button>
-          </div>
-        )}
-
-        {/* MESSAGES */}
-        {tab === "messages" && (
-          <div className="p-4 space-y-4 text-xs">
-            <AnimatePresence initial={false}>
-              {messages.map((msg, i) => (
-                <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
-                  {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{avatarInner("size-3.5")}</div>}
-                  <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble text-white rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
-                    {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
-                    {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
-                    {msg.role === "assistant"
-                      ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>{msg.content}</ReactMarkdown>
-                      : <span>{msg.content}</span>}
-                    {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
-                      <div className="mt-1.5 flex items-center gap-1">
-                        <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
-                          className={`p-1 rounded-md transition-colors ${msg.feedback === "up" ? "text-green-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
-                          <ThumbsUp className="size-3" />
-                        </button>
-                        <button onClick={() => rateMessage(i, "down")} aria-label="Not helpful"
-                          className={`p-1 rounded-md transition-colors ${msg.feedback === "down" ? "text-red-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
-                          <ThumbsDown className="size-3" />
-                        </button>
-                      </div>
-                    )}
-                    {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap gap-1">
-                        {msg.sources.map((s, si) => {
-                          const label = s.url ? (() => { try { return new URL(s.url!).hostname.replace(/^www\./, "") + new URL(s.url!).pathname.replace(/\/$/, ""); } catch { return s.name; } })() : s.name;
-                          const cls = "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-500 max-w-[170px]";
-                          return s.url
-                            ? <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url} className={`${cls} hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors`}><Link2 className="size-2.5 shrink-0" /><span className="truncate">{label}</span></a>
-                            : <span key={si} title={s.name} className={cls}><FileText className="size-2.5 shrink-0" /><span className="truncate">{label}</span></span>;
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
+            {/* Stars selection */}
+            <div className="flex justify-center gap-1.5 py-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setCsatRating(star)}
+                  className={`text-2xl transition-transform hover:scale-110 cursor-pointer ${
+                    star <= csatRating ? "text-yellow-400" : "text-neutral-300 dark:text-neutral-700"
+                  }`}
+                >
+                  ★
+                </button>
               ))}
-              {isBotResponding && (
-                <div className="flex gap-2 mr-auto">
-                  <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{avatarInner("size-3.5")}</div>
-                  <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none flex items-center gap-1">
-                    <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce" />
-                    <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" />
-                    <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:300ms]" />
-                  </div>
+            </div>
+            {/* Comment */}
+            <textarea
+              rows={3}
+              value={csatComment}
+              onChange={(e) => setCsatComment(e.target.value)}
+              placeholder="What went well or could be better? (optional)..."
+              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-xs resize-none focus:outline-none"
+            />
+            {/* Action buttons */}
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => { setShowCsat(false); try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }}
+                className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer text-neutral-600 dark:text-neutral-350"
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                onClick={submitCsat}
+                disabled={csatRating === 0 || csatSubmitted}
+                className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg cursor-pointer disabled:opacity-40"
+                style={{ background: primaryColor }}
+              >
+                Submit feedback
+              </button>
+            </div>
+          </div>
+        ) : showOfflineForm ? (
+          /* Offline Message Capture Form */
+          <div className="p-5 flex flex-col h-full justify-between gap-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setShowOfflineForm(false)} className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
+                  <ArrowLeft className="size-4 text-neutral-500" />
+                </button>
+                <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Leave a Message</h3>
+              </div>
+              <p className="text-[11px] text-neutral-500 leading-relaxed dark:text-neutral-400">No support agents are currently available to chat. Leave your contact email and description below, and we'll get back to you soon.</p>
+              
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Your Email</label>
+                  <input
+                    type="email"
+                    value={offlineEmail}
+                    onChange={(e) => setOfflineEmail(e.target.value)}
+                    placeholder="name@company.com"
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                  />
                 </div>
-              )}
-            </AnimatePresence>
-            {starters.length > 0 && !isBotResponding && messages.filter((m) => m.role === "user").length === 0 && (
-              <div className="flex flex-col items-end gap-2 pt-1">
-                {starters.slice(0, 4).map((s, i) => (
-                  <button key={i} onClick={() => sendText(s)}
-                    className="px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
-                    style={{ borderColor: primaryColor, color: primaryColor }}>
-                    {s}
-                  </button>
-                ))}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">How can we help?</label>
+                  <textarea
+                    rows={4}
+                    value={offlineMessage}
+                    onChange={(e) => setOfflineMessage(e.target.value)}
+                    placeholder="Describe your issue or question in detail..."
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 mt-auto">
+              <button
+                type="button"
+                onClick={() => setShowOfflineForm(false)}
+                className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer text-neutral-600 dark:text-neutral-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitOfflineMessage}
+                disabled={!offlineEmail.trim() || !offlineMessage.trim() || offlineSubmitted}
+                className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg cursor-pointer disabled:opacity-40"
+                style={{ background: primaryColor }}
+              >
+                Send message
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* HOME */}
+            {tab === "home" && (
+              <div className="p-4 space-y-3">
+                <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
+                  <h3 className="text-sm font-bold flex items-center gap-1.5"><Sparkles className="size-4" style={{ color: primaryColor }} />Hi there 👋</h3>
+                  <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{welcomeMsg}</p>
+                </div>
+                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
+                  <span className="flex items-center gap-2 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
+                  <ChevronRight className="size-4 text-neutral-400" />
+                </button>
+                <button onClick={() => setShowOfflineForm(true)} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
+                  <span className="flex items-center gap-2 text-xs font-semibold"><Mail className="size-4" style={{ color: primaryColor }} />Leave us a message</span>
+                  <ChevronRight className="size-4 text-neutral-400" />
+                </button>
+                <button onClick={() => setTab("articles")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
+                  <span className="flex items-center gap-2 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
+                  <ChevronRight className="size-4 text-neutral-400" />
+                </button>
+                <button onClick={() => setTab("search")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
+                  <span className="flex items-center gap-2 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Search for answers</span>
+                  <ChevronRight className="size-4 text-neutral-400" />
+                </button>
               </div>
             )}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
 
-        {/* ARTICLES */}
-        {tab === "articles" && (
-          <div className="p-4">
-            {openArticle ? (
-              <div>
-                <button onClick={() => setOpenArticle(null)} className="flex items-center gap-1 text-[11px] font-semibold text-neutral-500 mb-3"><ArrowLeft className="size-3.5" />All articles</button>
-                <h3 className="text-sm font-bold mb-2">{openArticle.name}</h3>
-                <div className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap">{openArticle.content}</div>
-              </div>
-            ) : sources.length === 0 ? (
-              <div className="text-center py-10"><FileText className="size-8 text-neutral-300 mx-auto" /><p className="text-xs text-neutral-400 mt-2">No articles yet.</p></div>
-            ) : (
-              <div className="space-y-2">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-400 mb-1">Help articles</h3>
-                {sources.map((s) => (
-                  <button key={s.id} onClick={() => setOpenArticle(s)} className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 text-left">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold truncate">{s.name}</p>
-                      <p className="text-[10px] text-neutral-400 truncate">{s.content.slice(0, 60)}</p>
+            {/* MESSAGES */}
+            {tab === "messages" && (
+              <div className="p-4 space-y-4 text-xs">
+                <AnimatePresence initial={false}>
+                  {messages.map((msg, i) => (
+                    <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
+                      {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{avatarInner("size-3.5")}</div>}
+                      <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble text-white rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
+                        {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
+                        {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
+                        {msg.role === "assistant"
+                          ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>{msg.content}</ReactMarkdown>
+                          : <span>{msg.content}</span>}
+                        {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
+                          <div className="mt-1.5 flex items-center gap-1">
+                            <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
+                              className={`p-1 rounded-md transition-colors ${msg.feedback === "up" ? "text-green-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
+                              <ThumbsUp className="size-3" />
+                            </button>
+                            <button onClick={() => rateMessage(i, "down")} aria-label="Not helpful"
+                              className={`p-1 rounded-md transition-colors ${msg.feedback === "down" ? "text-red-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
+                              <ThumbsDown className="size-3" />
+                            </button>
+                          </div>
+                        )}
+                        {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap gap-1">
+                            {msg.sources.map((s, si) => {
+                              const label = s.url ? (() => { try { return new URL(s.url!).hostname.replace(/^www\./, "") + new URL(s.url!).pathname.replace(/\/$/, ""); } catch { return s.name; } })() : s.name;
+                              const cls = "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-500 max-w-[170px]";
+                              return s.url
+                                ? <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url} className={`${cls} hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors`}><Link2 className="size-2.5 shrink-0" /><span className="truncate">{label}</span></a>
+                                : <span key={si} title={s.name} className={cls}><FileText className="size-2.5 shrink-0" /><span className="truncate">{label}</span></span>;
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                  {(isBotResponding || agentTyping) && (
+                    <div className="flex gap-2 mr-auto">
+                      <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{avatarInner("size-3.5")}</div>
+                      <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none flex items-center gap-1">
+                        <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce" />
+                        <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" />
+                        <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:300ms]" />
+                      </div>
                     </div>
-                    <ChevronRight className="size-4 text-neutral-400 shrink-0" />
-                  </button>
-                ))}
+                  )}
+                </AnimatePresence>
+                {starters.length > 0 && !isBotResponding && messages.filter((m) => m.role === "user").length === 0 && (
+                  <div className="flex flex-col items-end gap-2 pt-1">
+                    {starters.slice(0, 4).map((s, i) => (
+                      <button key={i} onClick={() => sendText(s)}
+                        className="px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                        style={{ borderColor: primaryColor, color: primaryColor }}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
               </div>
             )}
-          </div>
-        )}
 
-        {/* SEARCH */}
-        {tab === "search" && (
-          <div className="p-4">
-            <form onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery); }} className="relative">
-              <Search className="size-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search our help center…"
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-9 pr-3 py-2.5 text-xs focus:outline-none" />
-            </form>
-            {searching && <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4"><Loader2 className="size-4 animate-spin" />Generating answer…</div>}
-            {searchAnswer && !searching && (
-              <div className="mt-4 p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
-                <p className="text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 mb-1.5" style={{ color: primaryColor }}><Sparkles className="size-3" />AI-generated answer</p>
-                <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{searchAnswer}</ReactMarkdown>
-                </div>
-                <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: primaryColor }}>Still have questions? Message us</button>
+            {/* ARTICLES */}
+            {tab === "articles" && (
+              <div className="p-4">
+                {openArticle ? (
+                  <div>
+                    <button onClick={() => setOpenArticle(null)} className="flex items-center gap-1 text-[11px] font-semibold text-neutral-500 mb-3"><ArrowLeft className="size-3.5" />All articles</button>
+                    <h3 className="text-sm font-bold mb-2">{openArticle.name}</h3>
+                    <div className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap">{openArticle.content}</div>
+                  </div>
+                ) : sources.length === 0 ? (
+                  <div className="text-center py-10"><FileText className="size-8 text-neutral-300 mx-auto" /><p className="text-xs text-neutral-400 mt-2">No articles yet.</p></div>
+                ) : (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-400 mb-1">Help articles</h3>
+                    {sources.map((s) => (
+                      <button key={s.id} onClick={() => setOpenArticle(s)} className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 text-left">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate">{s.name}</p>
+                          <p className="text-[10px] text-neutral-400 truncate">{s.content.slice(0, 60)}</p>
+                        </div>
+                        <ChevronRight className="size-4 text-neutral-400 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
+
+            {/* SEARCH */}
+            {tab === "search" && (
+              <div className="p-4">
+                <form onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery); }} className="relative">
+                  <Search className="size-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search our help center…"
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-9 pr-3 py-2.5 text-xs focus:outline-none" />
+                </form>
+                {searching && <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4"><Loader2 className="size-4 animate-spin" />Generating answer…</div>}
+                {searchAnswer && !searching && (
+                  <div className="mt-4 p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
+                    <p className="text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 mb-1.5" style={{ color: primaryColor }}><Sparkles className="size-3" />AI-generated answer</p>
+                    <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{searchAnswer}</ReactMarkdown>
+                    </div>
+                    <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: primaryColor }}>Still have questions? Message us</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 

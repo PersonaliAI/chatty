@@ -13,6 +13,8 @@ import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-se
 import { LeadsMap } from "@/components/leads-map";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { InboxPanel } from "@/components/inbox-panel";
+import { ChatbotFlowBuilder } from "@/components/chatbot-flow-builder";
+import { CampaignsUI } from "@/components/campaigns-ui";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -78,7 +80,9 @@ import {
   Inbox,
   Upload,
   BookOpen,
-  CreditCard
+  CreditCard,
+  GitBranch,
+  Megaphone
 } from "lucide-react";
 
 // Types
@@ -3393,6 +3397,8 @@ export default function Dashboard() {
               { id: "knowledge", label: t("knowledge_base"), icon: Database },
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
               { id: "inbox", label: "Inbox", icon: Inbox },
+              { id: "flows", label: "Flow Builder", icon: GitBranch },
+              { id: "campaigns", label: "Campaigns", icon: Megaphone },
               { id: "leads", label: t("leads"), icon: Users },
               { id: "map", label: "Map", icon: MapPin },
               { id: "meetings", label: t("meetings"), icon: Calendar },
@@ -7205,6 +7211,23 @@ const { reply, session_id } = await res.json();`}</pre>
                 </div>
               )}
             </div>
+          )}
+          {/* TAB: FLOW BUILDER */}
+          {activeTab === "flows" && (
+            <div className="max-w-7xl mx-auto w-full py-6 px-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Visual Flow Builder</h4>
+                  <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">Design visual logic branches and custom chatbot flows.</p>
+                </div>
+              </div>
+              <ChatbotFlowBuilder botId={botId} color={primaryColor} />
+            </div>
+          )}
+
+          {/* TAB: CAMPAIGNS */}
+          {activeTab === "campaigns" && (
+            <CampaignsUI botId={botId} color={primaryColor} />
           )}
         </div>
       </main>

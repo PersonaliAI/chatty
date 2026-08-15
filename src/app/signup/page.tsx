@@ -110,7 +110,7 @@ function SignupPageInner() {
   return (
     <AuthShell
       title="Create your account"
-      subtitle="Start using Kin in under a minute"
+      subtitle="Start using Chatty in under a minute"
       footer={
         <>
           Already have an account?{" "}
