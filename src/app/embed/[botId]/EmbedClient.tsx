@@ -159,8 +159,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     return avatarInner(iconCls);
   };
 
-  // Clear the conversation AND start a fresh backend session (new session_id),
-  // so the assistant treats the next message as a brand-new conversation.
   const clearChat = () => {
     const fresh = `v-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
     try {
@@ -168,8 +166,20 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       localStorage.removeItem(`chatty_msgs_${botId}_${hostKey}`);
     } catch {}
     setSessionId(fresh);
-    setMessages([{ role: "assistant", content: welcomeMsg }]);
     lastPollRef.current = new Date().toISOString();
+
+    if (flowConfig) {
+      const startEdge = flowConfig.edges?.find((e: any) => e.source === "start");
+      if (startEdge) {
+        const firstNode = flowConfig.nodes?.find((n: any) => n.id === startEdge.target);
+        if (firstNode) {
+          setMessages([]);
+          executeFlowNode(firstNode, flowConfig);
+          return;
+        }
+      }
+    }
+    setMessages([{ role: "assistant", content: welcomeMsg }]);
   };
 
   const [loading, setLoading] = useState(true);
@@ -573,8 +583,14 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           if (startEdge) {
             const firstNode = flow.nodes.find((n: any) => n.id === startEdge.target);
             if (firstNode) {
-              setMessages([]);
-              executeFlowNode(firstNode, flow);
+              setMessages((prev) => {
+                // If visitor already has chat history in this session, preserve it!
+                if (prev.length > 0 && prev.some((m) => m.role === "user")) {
+                  return prev;
+                }
+                executeFlowNode(firstNode, flow);
+                return [];
+              });
             }
           }
         } else {
