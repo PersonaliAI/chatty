@@ -3535,8 +3535,8 @@ export default function Dashboard() {
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
                   <button
-                    onClick={() => setActiveTab("playground")}
-                    className="p-4 text-left rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/20 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
+                    onClick={() => setActiveTab("knowledge")}
+                    className="p-4 text-left rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-955 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
                   >
                     <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">1. Train Memory</div>
                     <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Add URLs, text documents, or API sync sources.</p>
