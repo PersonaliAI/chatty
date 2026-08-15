@@ -13,7 +13,7 @@ import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
-  Link2, ThumbsUp, ThumbsDown, Mail,
+  Link2, ThumbsUp, ThumbsDown, Mail, Bell,
 } from "lucide-react";
 
 // Preset assistant avatar icons (selectable in the customizer).
@@ -223,6 +223,45 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [offlineSubmitted, setOfflineSubmitted] = useState(false);
 
   const [agentTyping, setAgentTyping] = useState(false);
+
+  // Browser Push Notifications (OneSignal / Native Web Push)
+  const [pushGranted, setPushGranted] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPushGranted(Notification.permission === "granted");
+    }
+  }, []);
+
+  const requestPushPermission = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      alert("Browser push notifications are not supported on this browser.");
+      return;
+    }
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") {
+        setPushGranted(true);
+        new Notification(botName, {
+          body: "Notifications enabled! You'll be alerted when support or AI replies.",
+          icon: avatarUrl || undefined,
+        });
+      } else {
+        setPushGranted(false);
+      }
+    } catch {}
+  };
+
+  const triggerPush = (bodyText: string) => {
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted" && document.hidden) {
+      try {
+        new Notification(botName, {
+          body: bodyText,
+          icon: avatarUrl || undefined,
+        });
+      } catch {}
+    }
+  };
 
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [flowConfig, setFlowConfig] = useState<any | null>(null);
@@ -451,9 +490,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     const applyEvent = (payload: { type: string; content?: string; created_at?: string; value?: boolean }) => {
       if (payload.type === "message") {
         if (payload.created_at) lastPollRef.current = payload.created_at;
-        setMessages((p) => [...p, { role: "assistant" as const, content: payload.content || "" }]);
+        const textContent = payload.content || "";
+        setMessages((p) => [...p, { role: "assistant" as const, content: textContent }]);
         setIsBotResponding(false);
         setAgentTyping(false);
+        triggerPush(textContent);
         notifyParent();
       } else if (payload.type === "ai_paused") {
         setLiveAgent(!!payload.value);
@@ -471,9 +512,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         setLiveAgent(!!d.ai_paused);
         if (Array.isArray(d.messages) && d.messages.length) {
           lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-          setMessages((p) => [...p, ...d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content }))]);
+          const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content }));
+          setMessages((p) => [...p, ...newMsgs]);
           setIsBotResponding(false);
           setAgentTyping(false);
+          if (newMsgs[0]?.content) triggerPush(newMsgs[0].content);
           notifyParent();
         }
       } catch {}
@@ -1061,7 +1104,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             <h4 className="font-semibold text-sm text-white">{botName}</h4>
             <p className="text-[9px] text-white/80 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />{liveAgent ? "Live agent · we're with you" : "Online · replies instantly"}</p>
           </div>
-          <button onClick={clearChat} className="ml-auto p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Clear conversation" title="Clear conversation">
+          <button
+            onClick={requestPushPermission}
+            className="ml-auto p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0 cursor-pointer"
+            aria-label="Toggle push notifications"
+            title={pushGranted ? "Browser notifications enabled" : "Enable browser notifications"}
+          >
+            <Bell className={`size-4 ${pushGranted ? "text-amber-300 fill-amber-300" : ""}`} />
+          </button>
+          <button onClick={clearChat} className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Clear conversation" title="Clear conversation">
             <RefreshCw className="size-4" />
           </button>
           <button onClick={handleCloseClick} className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Close chat" title="Close">

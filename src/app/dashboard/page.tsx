@@ -527,6 +527,7 @@ export default function Dashboard() {
   const [emailNotify, setEmailNotify] = useState(true);
   const [hideBranding, setHideBranding] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [notificationEmails, setNotificationEmails] = useState("");
   const [customCss, setCustomCss] = useState("");
   const [customJs, setCustomJs] = useState("");
   const [responseLanguage, setResponseLanguage] = useState("");
@@ -1042,6 +1043,7 @@ export default function Dashboard() {
         setEmailNotify(activeBot.email_notify);
         setHideBranding(activeBot.hide_branding || false);
         setWebhookUrl(activeBot.webhook_url || "");
+        setNotificationEmails(activeBot.notification_emails || "");
         setCustomCss(activeBot.custom_css || "");
         setCustomJs(activeBot.custom_js || "");
         setResponseLanguage(activeBot.response_language || "");
@@ -1889,6 +1891,7 @@ export default function Dashboard() {
           email_notify: emailNotify,
           hide_branding: hideBranding,
           webhook_url: webhookUrl,
+          notification_emails: notificationEmails,
           custom_css: customCss,
           custom_js: customJs,
           response_language: responseLanguage,
@@ -7038,6 +7041,22 @@ const { reply, session_id } = await res.json();`}</pre>
           {/* TAB 10: NOTIFICATIONS */}
           {activeTab === "notifications" && (
             <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
+              <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <h3 className="text-sm font-bold flex items-center gap-2">
+                  <Mail className="size-4 text-[#f97316]" /> Support Team Notification Emails
+                </h3>
+                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                  Enter comma-separated email addresses to receive instant alerts when a visitor starts a chat, files an offline ticket, or requests human support escalation.
+                </p>
+                <input
+                  type="text"
+                  value={notificationEmails}
+                  onChange={(e) => handleInputChange(setNotificationEmails, e.target.value)}
+                  placeholder="support@company.com, alex@company.com, escalation@company.com"
+                  className="w-full mt-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                />
+              </div>
+
               <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
                 <h3 className="text-sm font-bold flex items-center gap-2">
                   <Link2 className="size-4 text-[#f97316]" /> Outbound Webhook

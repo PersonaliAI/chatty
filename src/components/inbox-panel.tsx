@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Send, RefreshCw, Inbox as InboxIcon, Bot, User, Headphones, Trash2, Paperclip, Smile, Mic, Square, X, Check, AlertCircle, ThumbsUp, ThumbsDown, Zap, Plus, Pencil, Settings2 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
+import { createClient } from "@/lib/supabase/client";
 
 /* ── Canned Responses helpers ─────────────────────────────────── */
 interface CannedResponse {
@@ -68,6 +69,8 @@ interface Session {
   last_message_at?: string;
   ai_paused?: boolean;
   needs_attention?: boolean;
+  assigned_agent_email?: string;
+  assigned_agent_name?: string;
 }
 interface Msg {
   id?: string;
@@ -451,6 +454,32 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     } catch {}
   };
 
+  const claimSession = async (sid: string) => {
+    if (!sid) return;
+    try {
+      const supabase = createClient();
+      const { data: userData } = await supabase.auth.getUser();
+      const agentEmail = userData?.user?.email || "Support Agent";
+      const agentName = agentEmail.split("@")[0];
+
+      setSessions((p) =>
+        p.map((s) => (s.session_id === sid ? { ...s, assigned_agent_email: agentEmail, assigned_agent_name: agentName, ai_paused: true } : s))
+      );
+
+      await supabase
+        .from("chatty_sessions")
+        .update({
+          assigned_agent_email: agentEmail,
+          assigned_agent_name: agentName,
+          ai_paused: true,
+        })
+        .eq("bot_id", botId)
+        .eq("session_id", sid);
+
+      showToast(`Session assigned to ${agentName}`, "success");
+    } catch {}
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
       {/* Sessions list */}
@@ -614,6 +643,21 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 </button>
               </div>
             </div>
+
+            {current?.assigned_agent_email && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/40 px-3.5 py-1.5 flex items-center justify-between text-xs font-medium text-amber-800 dark:text-amber-300 shrink-0">
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className="font-bold">🔒 Agent Lock:</span>
+                  <span>Currently assigned to {current.assigned_agent_name || current.assigned_agent_email}</span>
+                </div>
+                <button
+                  onClick={() => claimSession(selected)}
+                  className="text-[9px] font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/50 dark:hover:bg-amber-800/60 px-2 py-0.5 rounded transition-colors cursor-pointer text-amber-900 dark:text-amber-100"
+                >
+                  Take Over Session
+                </button>
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
               {viewMode === "notes" ? (
