@@ -33,6 +33,8 @@ import {
   Maximize2,
   Tag,
   Zap,
+  RefreshCw,
+  CloudCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -228,6 +230,13 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [flowStatus, setFlowStatus] = useState<"active" | "paused">("paused");
+
+  // Auto-Save state
+  const [autoSave, setAutoSave] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
+  const isInitialMount = useRef(true);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -272,7 +281,6 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         if (data?.custom_js) {
           const flow = extractFlowFromJs(data.custom_js);
           if (flow) {
-            // Standardize node types for custom rendering
             const formattedNodes = flow.nodes.map((n: any) => {
               let type = n.type || "message";
               const label = n.data?.label || "";
@@ -289,10 +297,17 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
 
             setTimeout(() => {
               reactFlowInstanceRef.current?.fitView({ padding: 0.3, duration: 600 });
-            }, 200);
+              isInitialMount.current = false;
+            }, 300);
+          } else {
+            isInitialMount.current = false;
           }
+        } else {
+          isInitialMount.current = false;
         }
-      } catch {}
+      } catch {
+        isInitialMount.current = false;
+      }
       setLoading(false);
     })();
   }, [botId, setNodes, setEdges]);
@@ -302,36 +317,69 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
     [setEdges]
   );
 
-  const onSave = useCallback(async () => {
-    if (!botId) return;
-    try {
-      const supabase = createClient();
-      const flowConfig = { status: flowStatus, nodes, edges };
+  const saveFlowToBackend = useCallback(
+    async (showNotification = false) => {
+      if (!botId) return;
+      setSaveStatus("saving");
+      try {
+        const supabase = createClient();
+        const flowConfig = { status: flowStatus, nodes, edges };
 
-      const { data: botData } = await supabase
-        .from("chatty_bots")
-        .select("custom_js")
-        .eq("id", botId)
-        .maybeSingle();
+        const { data: botData } = await supabase
+          .from("chatty_bots")
+          .select("custom_js")
+          .eq("id", botId)
+          .maybeSingle();
 
-      let baseJs = botData?.custom_js || "";
-      baseJs = baseJs.replace(/\/\* CHATTY_FLOW_START \*\/[\s\S]*?\/\* CHATTY_FLOW_END \*\//g, "").trim();
-      baseJs = baseJs.replace(/\/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*\//g, "").trim();
+        let baseJs = botData?.custom_js || "";
+        baseJs = baseJs.replace(/\/\* CHATTY_FLOW_START \*\/[\s\S]*?\/\* CHATTY_FLOW_END \*\//g, "").trim();
+        baseJs = baseJs.replace(/\/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*\//g, "").trim();
 
-      const flowJs = `\n/* CHATTY_FLOW_DATA\n${JSON.stringify(flowConfig, null, 2)}\nCHATTY_FLOW_DATA */`;
-      const finalJs = (baseJs + flowJs).trim();
+        const flowJs = `\n/* CHATTY_FLOW_DATA\n${JSON.stringify(flowConfig, null, 2)}\nCHATTY_FLOW_DATA */`;
+        const finalJs = (baseJs + flowJs).trim();
 
-      const { error } = await supabase
-        .from("chatty_bots")
-        .update({ custom_js: finalJs })
-        .eq("id", botId);
+        const { error } = await supabase
+          .from("chatty_bots")
+          .update({ custom_js: finalJs })
+          .eq("id", botId);
 
-      if (error) throw error;
-      showToast("Flow saved! Widget will sync in real time.", "success");
-    } catch {
-      showToast("Failed to save flow.", "error");
+        if (error) throw error;
+        setSaveStatus("saved");
+        if (showNotification) {
+          showToast("Flow saved! Widget will sync in real time.", "success");
+        }
+      } catch {
+        setSaveStatus("unsaved");
+        if (showNotification) {
+          showToast("Failed to save flow.", "error");
+        }
+      }
+    },
+    [botId, nodes, edges, flowStatus]
+  );
+
+  // Debounced Auto-Save Trigger
+  useEffect(() => {
+    if (isInitialMount.current || loading || !autoSave || !botId) return;
+
+    setSaveStatus("unsaved");
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
     }
-  }, [botId, nodes, edges, flowStatus]);
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveFlowToBackend(false);
+    }, 1800);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [nodes, edges, flowStatus, autoSave, botId, saveFlowToBackend, loading]);
+
+  const onSaveManual = () => {
+    saveFlowToBackend(true);
+  };
 
   const generateFlowWithAI = async () => {
     if (!aiPrompt.trim() || !botId) return;
@@ -594,7 +642,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         </div>
 
         <button
-          onClick={onSave}
+          onClick={onSaveManual}
           className="w-full mt-4 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-white rounded-xl cursor-pointer shrink-0 shadow"
           style={{ background: color }}
         >
@@ -646,6 +694,30 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
               >
                 ● {flowStatus === "active" ? "Active" : "Paused"}
               </button>
+            </div>
+
+            {/* Auto Save Status & Toggle */}
+            <div className="flex items-center gap-2 border-r border-neutral-200 dark:border-neutral-800 pr-3">
+              <button
+                type="button"
+                onClick={() => setAutoSave(!autoSave)}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                  autoSave
+                    ? "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
+                    : "bg-neutral-100 text-neutral-400 dark:bg-neutral-800"
+                }`}
+              >
+                <CloudCheck className="size-3" />
+                Auto-save: {autoSave ? "ON" : "OFF"}
+              </button>
+              {autoSave && (
+                <span className="text-[9px] font-medium text-neutral-400 flex items-center gap-1">
+                  {saveStatus === "saving" && <Loader2 className="size-2.5 animate-spin text-blue-500" />}
+                  {saveStatus === "saving" && "Saving..."}
+                  {saveStatus === "saved" && <span className="text-emerald-500">Saved</span>}
+                  {saveStatus === "unsaved" && <span className="text-amber-500">Unsaved changes</span>}
+                </span>
+              )}
             </div>
 
             <button
