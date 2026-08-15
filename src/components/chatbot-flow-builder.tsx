@@ -147,8 +147,9 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
 
       let baseJs = botData?.custom_js || "";
       baseJs = baseJs.replace(/\/\* CHATTY_FLOW_START \*\/[\s\S]*?\/\* CHATTY_FLOW_END \*\//g, "").trim();
+      baseJs = baseJs.replace(/\/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*\//g, "").trim();
 
-      const flowJs = `\n/* CHATTY_FLOW_START */\nwindow.__chatty_flow = ${JSON.stringify(flowConfig)};\n/* CHATTY_FLOW_END */`;
+      const flowJs = `\n/* CHATTY_FLOW_DATA\n${JSON.stringify(flowConfig, null, 2)}\nCHATTY_FLOW_DATA */`;
       const finalJs = (baseJs + flowJs).trim();
 
       const { error } = await supabase
@@ -377,6 +378,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
 
                       let baseJs = botData?.custom_js || "";
                       baseJs = baseJs.replace(/\/\* CHATTY_FLOW_START \*\/[\s\S]*?\/\* CHATTY_FLOW_END \*\//g, "").trim();
+                      baseJs = baseJs.replace(/\/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*\//g, "").trim();
 
                       await supabase
                         .from("chatty_bots")

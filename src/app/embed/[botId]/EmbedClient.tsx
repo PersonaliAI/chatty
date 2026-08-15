@@ -528,11 +528,37 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // this embed iframe only — same trust model as the owner's own custom CSS.
   useEffect(() => {
     if (!customJs) return;
+
+    // 1. Safe extraction and parsing of the visual flow JSON
     try {
-      const fn = new Function(customJs);
-      fn();
+      const match = customJs.match(/\/\* CHATTY_FLOW_DATA([\s\S]*?)CHATTY_FLOW_DATA \*\//);
+      if (match && match[1]) {
+        const flow = JSON.parse(match[1].trim());
+        if (flow && flow.status === "active" && flow.nodes && flow.edges) {
+          setFlowConfig(flow);
+          const startEdge = flow.edges.find((e: any) => e.source === "start");
+          if (startEdge) {
+            const firstNode = flow.nodes.find((n: any) => n.id === startEdge.target);
+            if (firstNode) {
+              setActiveNodeId(firstNode.id);
+              setMessages([{ role: "assistant", content: cleanLabel(firstNode.data?.label) }]);
+            }
+          }
+        }
+      }
     } catch (err) {
-      console.error("Chatty custom JS error:", err);
+      console.error("Failed to parse visual flow data:", err);
+    }
+
+    // 2. Execute any standard custom JS runnable script
+    try {
+      const runnableJs = customJs.replace(/\/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*\//g, "").trim();
+      if (runnableJs) {
+        const fn = new Function(runnableJs);
+        fn();
+      }
+    } catch (err) {
+      console.error("Chatty custom JS execution error:", err);
     }
   }, [customJs]);
 
