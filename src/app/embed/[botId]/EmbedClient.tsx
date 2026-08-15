@@ -548,8 +548,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           if (startEdge) {
             const firstNode = flow.nodes.find((n: any) => n.id === startEdge.target);
             if (firstNode) {
-              setActiveNodeId(firstNode.id);
-              setMessages([{ role: "assistant", content: cleanLabel(firstNode.data?.label) }]);
+              setMessages([]);
+              executeFlowNode(firstNode, flow);
             }
           }
         }
