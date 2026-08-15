@@ -257,12 +257,20 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setActiveNodeId(node.id);
       setIsBotResponding(false);
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) }]);
+
+      const outgoing = currentConfig.edges.filter((e: any) => e.source === node.id);
+      if (outgoing.length === 1 && !outgoing[0].label) {
+        setTimeout(() => {
+          const nextNode = currentConfig.nodes.find((n: any) => n.id === outgoing[0].target);
+          if (nextNode) executeFlowNode(nextNode, currentConfig);
+        }, 1000);
+      }
     }
   };
 
   const handleFlowChoice = (edge: any) => {
     if (!flowConfig) return;
-    setMessages((prev) => [...prev, { role: "user", content: edge.label || "Selected Option" }]);
+    setMessages((prev) => [...prev, { role: "user", content: edge.label || "Continue" }]);
     const targetNode = flowConfig.nodes.find((n: any) => n.id === edge.target);
     if (targetNode) {
       executeFlowNode(targetNode, flowConfig);
@@ -1169,7 +1177,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 {flowConfig && activeNodeId && !isBotResponding && (
                   (() => {
                     const outgoingEdges = flowConfig.edges.filter((e: any) => e.source === activeNodeId);
-                    if (outgoingEdges.length === 0) return null;
+                    if (outgoingEdges.length === 0 || (outgoingEdges.length === 1 && !outgoingEdges[0].label)) return null;
                     return (
                       <div className="flex flex-col items-end gap-2 pt-1">
                         {outgoingEdges.map((edge: any, i: number) => (
