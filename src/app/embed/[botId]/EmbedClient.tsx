@@ -259,7 +259,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) }]);
 
       const outgoing = currentConfig.edges.filter((e: any) => e.source === node.id);
-      if (outgoing.length === 1 && !outgoing[0].label) {
+      if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
         setTimeout(() => {
           const nextNode = currentConfig.nodes.find((n: any) => n.id === outgoing[0].target);
           if (nextNode) executeFlowNode(nextNode, currentConfig);
@@ -268,9 +268,14 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     }
   };
 
+  // React Flow stores edge labels in edge.label (from addEdge) OR edge.data?.label
+  // depending on how they were set. Always resolve both.
+  const getEdgeLabel = (edge: any): string => edge.label || edge.data?.label || "";
+
   const handleFlowChoice = (edge: any) => {
     if (!flowConfig) return;
-    setMessages((prev) => [...prev, { role: "user", content: edge.label || "Continue" }]);
+    const label = getEdgeLabel(edge);
+    setMessages((prev) => [...prev, { role: "user", content: label || "Continue" }]);
     const targetNode = flowConfig.nodes.find((n: any) => n.id === edge.target);
     if (targetNode) {
       executeFlowNode(targetNode, flowConfig);
@@ -636,25 +641,28 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     if (flowConfig && activeNodeId) {
       const outgoingEdges = flowConfig.edges.filter((e: any) => e.source === activeNodeId);
       if (outgoingEdges.length > 0) {
-        let matchedEdge = outgoingEdges.find((e: any) => e.label?.toLowerCase() === text.toLowerCase());
-        
+        // Resolve label from either edge.label or edge.data?.label (React Flow stores both)
+        const resolved = outgoingEdges.map((e: any) => ({ ...e, _label: getEdgeLabel(e) }));
+
+        let matchedEdge = resolved.find((e: any) => e._label.toLowerCase() === text.toLowerCase());
+
         if (!matchedEdge) {
-          const isEmail = text.includes("@") && text.includes(".");
+          const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
           if (isEmail) {
-            matchedEdge = outgoingEdges.find((e: any) => 
-              e.label?.toLowerCase().includes("email") && 
-              (e.label?.toLowerCase().includes("provided") || e.label?.toLowerCase().includes("valid") || e.label?.toLowerCase().includes("yes"))
+            matchedEdge = resolved.find((e: any) =>
+              e._label.toLowerCase().includes("email") &&
+              (e._label.toLowerCase().includes("provided") || e._label.toLowerCase().includes("valid") || e._label.toLowerCase().includes("yes"))
             );
           } else {
-            matchedEdge = outgoingEdges.find((e: any) => 
-              e.label?.toLowerCase().includes("no email") || 
-              e.label?.toLowerCase().includes("invalid") ||
-              e.label?.toLowerCase().includes("no")
+            matchedEdge = resolved.find((e: any) =>
+              e._label.toLowerCase().includes("no email") ||
+              e._label.toLowerCase().includes("invalid") ||
+              e._label.toLowerCase().includes("no")
             );
           }
         }
-        
-        const selectedEdge = matchedEdge || outgoingEdges[0];
+
+        const selectedEdge = matchedEdge || resolved[0];
         const targetNode = flowConfig.nodes.find((n: any) => n.id === selectedEdge.target);
         if (targetNode) {
           executeFlowNode(targetNode, flowConfig);
@@ -1201,10 +1209,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 {flowConfig && activeNodeId && !isBotResponding && (
                   (() => {
                     const outgoingEdges = flowConfig.edges.filter((e: any) => e.source === activeNodeId);
-                    if (outgoingEdges.length === 0 || (outgoingEdges.length === 1 && !outgoingEdges[0].label)) return null;
+                    const resolvedEdges = outgoingEdges.map((e: any) => ({ ...e, _label: getEdgeLabel(e) }));
+                    // Hide buttons when single unlabeled edge (auto-advance handles it)
+                    if (resolvedEdges.length === 0 || (resolvedEdges.length === 1 && !resolvedEdges[0]._label)) return null;
                     return (
                       <div className="flex flex-col items-end gap-2 pt-1">
-                        {outgoingEdges.map((edge: any, i: number) => (
+                        {resolvedEdges.map((edge: any, i: number) => (
                           <button
                             key={i}
                             type="button"
@@ -1212,7 +1222,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                             className="px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors cursor-pointer"
                             style={{ borderColor: primaryColor, color: primaryColor }}
                           >
-                            {edge.label || "Continue"}
+                            {edge._label || "Continue"}
                           </button>
                         ))}
                       </div>
