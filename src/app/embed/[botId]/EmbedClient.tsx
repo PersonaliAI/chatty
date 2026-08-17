@@ -9,11 +9,12 @@ import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
+import VoiceCallWidget from "@/components/voice-call-widget";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
-  Link2, ThumbsUp, ThumbsDown, Mail, Bell,
+  Link2, ThumbsUp, ThumbsDown, Mail, Bell, Phone,
 } from "lucide-react";
 
 // Preset assistant avatar icons (selectable in the customizer).
@@ -196,6 +197,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceCallOpen, setVoiceCallOpen] = useState(false);
 
   const [tab, setTab] = useState<Tab>("messages");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -593,6 +596,26 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     return () => { stopped = true; ctrl.abort(); };
   }, [botId, sessionId]);
 
+  // One-shot manual refetch of any new messages since the last poll — used
+  // right after a voice call ends so the transcript (written server-side by
+  // the voice worker) shows up promptly instead of waiting for the next
+  // SSE/poll cycle.
+  const refetchNow = async () => {
+    try {
+      const url = `${BACKEND_URL}/api/widget/poll?bot_id=${botId}&session_id=${encodeURIComponent(sessionId)}&after=${encodeURIComponent(lastPollRef.current)}`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const d = await res.json();
+      setLiveAgent(!!d.ai_paused);
+      if (Array.isArray(d.messages) && d.messages.length) {
+        lastPollRef.current = d.messages[d.messages.length - 1].created_at;
+        const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content }));
+        setMessages((p) => [...p, ...newMsgs]);
+        notifyParent();
+      }
+    } catch {}
+  };
+
   const getHost = (): string => {
     try { if (typeof document !== "undefined" && document.referrer) return new URL(document.referrer).hostname; } catch {}
     return searchParams.get("host") || "";
@@ -634,6 +657,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           }
           setLogoUrl(isPreview ? (paramLogoUrl || bot.logo_url || null) : (bot.logo_url || null));
           setHideBranding(!!bot.hide_branding);
+          setVoiceEnabled(!!bot.voice_enabled);
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
           setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg }]);
@@ -1160,8 +1184,18 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-card">
-        {showCsat ? (
+      <div className="flex-1 overflow-y-auto scrollbar-thin bg-card flex flex-col">
+        {voiceCallOpen ? (
+          <VoiceCallWidget
+            botId={botId}
+            sessionId={sessionId}
+            backendUrl={BACKEND_URL}
+            originToken={originToken}
+            visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+            primaryColor={primaryColor}
+            onClose={() => { setVoiceCallOpen(false); refetchNow(); }}
+          />
+        ) : showCsat ? (
           /* CSAT Feedback Modal */
           <div className="p-5 flex flex-col justify-center h-full space-y-4">
             <div className="text-center space-y-2">
@@ -1440,7 +1474,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       </div>
 
       {/* Composer (Messages tab only) */}
-      {tab === "messages" && (
+      {tab === "messages" && !voiceCallOpen && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" multiple />
           <AnimatePresence>
@@ -1538,6 +1572,19 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className={`p-1.5 rounded-full disabled:opacity-50 ${recording ? "text-red-500" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
                   {transcribing ? <Loader2 className="size-4.5 animate-spin" /> : recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                 </button>
+                {voiceEnabled && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.85 }}
+                    transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                    onClick={() => setVoiceCallOpen(true)}
+                    className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full"
+                    aria-label="Start voice call"
+                    title="Start a voice call"
+                  >
+                    <Phone className="size-4.5" />
+                  </motion.button>
+                )}
                 {recording && (
                   <div className="flex items-center gap-[2px] h-5 px-1" aria-hidden>
                     {barLevels.map((level, i) => (
