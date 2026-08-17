@@ -13,6 +13,11 @@ import {
   Participant,
 } from "livekit-client";
 import { Mic, MicOff, PhoneOff, Loader2, AlertCircle } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
 const WAVE_BAR_COUNT = 14;
 
@@ -294,6 +299,26 @@ export default function VoiceCallWidget({
     onClose();
   };
 
+  const transcriptMdComponents = {
+    p: ({ children }: any) => <p className="mb-1 last:mb-0">{children}</p>,
+    ul: ({ children }: any) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
+    ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
+    a: ({ href, children }: any) => (
+      <a href={href} target="_blank" rel="noreferrer" className="underline break-all" style={{ color: "currentColor" }}>
+        {children}
+      </a>
+    ),
+    code: ({ className, children, ...rest }: any) => {
+      const isBlock = className?.startsWith("language-");
+      if (!isBlock) return <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
+      return (
+        <pre className="bg-black/10 dark:bg-white/10 rounded-lg p-2 my-1 overflow-x-auto text-[10px] font-mono">
+          <code {...rest}>{children}</code>
+        </pre>
+      );
+    },
+  };
+
   const fmtDuration = (s: number) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
     const sec = (s % 60).toString().padStart(2, "0");
@@ -393,7 +418,13 @@ export default function VoiceCallWidget({
                     >
                       {entry.text.trim() ? (
                         <>
-                          {entry.text}
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={transcriptMdComponents}
+                          >
+                            {entry.text}
+                          </ReactMarkdown>
                           {!entry.final && (
                             <span className="inline-block w-1 h-3 ml-0.5 -mb-0.5 bg-current opacity-60 animate-pulse" />
                           )}
