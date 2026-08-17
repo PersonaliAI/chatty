@@ -6404,7 +6404,7 @@ const { reply, session_id } = await res.json();`}</pre>
                               { value: "google", label: "Google", hint: "Included, no setup" },
                               { value: "deepgram", label: "Deepgram", hint: "Requires your own API key" },
                               { value: "assemblyai", label: "AssemblyAI", hint: "Requires your own API key" },
-                              { value: "azure", label: "Azure Speech", hint: "Requires your own API key" },
+                              { value: "soniox", label: "Soniox", hint: "Requires your own API key" },
                               { value: "openai", label: "OpenAI Whisper", hint: "Requires your own API key" },
                             ]}
                           />
@@ -6464,7 +6464,7 @@ const { reply, session_id } = await res.json();`}</pre>
                               { value: "cartesia", label: "Cartesia", hint: "Requires your own API key" },
                               { value: "elevenlabs", label: "ElevenLabs", hint: "Requires your own API key" },
                               { value: "openai", label: "OpenAI", hint: "Requires your own API key" },
-                              { value: "rime", label: "Rime", hint: "Requires your own API key" },
+                              { value: "fishaudio", label: "Fish Audio", hint: "Requires your own API key" },
                             ]}
                           />
                         </div>
