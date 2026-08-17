@@ -62,6 +62,12 @@ export default function VoiceCallWidget({
   const localLevelFrameRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  // Real mic analyser (not a fake random waveform) — lets us tell, just by
+  // watching the bars while talking, whether the browser is actually
+  // capturing audio from the mic at all, independent of whether the voice
+  // pipeline downstream (VAD/STT) picks it up.
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const analyserCtxRef = useRef<AudioContext | null>(null);
 
   // Smoothed orb scale/glow driven by the agent's remote audio level. Same
   // spring feel used for the rest of the widget's motion (bouncy overshoot).
@@ -191,6 +197,18 @@ export default function VoiceCallWidget({
         if (!cancelled && mountedRef.current) setStatus("requesting-mic");
         try {
           await room.localParticipant.setMicrophoneEnabled(true);
+          const pub = Array.from(room.localParticipant.audioTrackPublications.values())[0];
+          const mediaTrack = pub?.track?.mediaStreamTrack;
+          if (mediaTrack) {
+            const ctx = new AudioContext();
+            const source = ctx.createMediaStreamSource(new MediaStream([mediaTrack]));
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.6;
+            source.connect(analyser);
+            analyserCtxRef.current = ctx;
+            analyserRef.current = analyser;
+          }
         } catch (micErr) {
           console.error("Microphone permission failed:", micErr);
           if (!cancelled && mountedRef.current) {
@@ -228,6 +246,11 @@ export default function VoiceCallWidget({
         audioElRef.current.remove();
         audioElRef.current = null;
       }
+      analyserRef.current = null;
+      if (analyserCtxRef.current) {
+        analyserCtxRef.current.close().catch(() => {});
+        analyserCtxRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -255,23 +278,40 @@ export default function VoiceCallWidget({
     };
   }, [status]);
 
-  // Local mic level animation for the 14-bar "listening" waveform, mirroring
-  // the visual style of the record-button waveform elsewhere in the widget.
+  // Local mic level animation for the 14-bar "listening" waveform — now
+  // driven by a real AnalyserNode on the mic track (see analyserRef above)
+  // instead of a fake random animation. The "listening" transition itself
+  // comes from LiveKit's client-side local audioLevel (ActiveSpeakersChanged
+  // below), computed in-browser independent of the server VAD/STT pipeline —
+  // so whether this state is ever reached at all is itself diagnostic: if it
+  // never fires while you're actually talking, the browser isn't capturing
+  // usable mic audio in the first place.
   useEffect(() => {
     if (status !== "listening") {
       setLocalLevels(Array(WAVE_BAR_COUNT).fill(0));
       return;
     }
     let stopped = false;
+    const bins = new Uint8Array(analyserRef.current?.frequencyBinCount ?? 128);
     const tick = () => {
       if (stopped) return;
-      const room = roomRef.current;
-      const localAudioTrack = room?.localParticipant
-        ? Array.from(room.localParticipant.audioTrackPublications.values())[0]?.track
-        : undefined;
-      const base = localAudioTrack ? 0.35 : 0;
-      const levels = Array.from({ length: WAVE_BAR_COUNT }, () => Math.min(1, base + Math.random() * 0.65));
-      setLocalLevels(levels);
+      const analyser = analyserRef.current;
+      if (analyser) {
+        analyser.getByteTimeDomainData(bins);
+        // RMS of the time-domain signal around its 128 midpoint — a real
+        // amplitude reading, not a synthetic animation.
+        let sumSquares = 0;
+        for (let i = 0; i < bins.length; i++) {
+          const centered = (bins[i] - 128) / 128;
+          sumSquares += centered * centered;
+        }
+        const rms = Math.sqrt(sumSquares / bins.length);
+        const boosted = Math.min(1, rms * 6);
+        const levels = Array.from({ length: WAVE_BAR_COUNT }, () => Math.min(1, boosted * (0.7 + Math.random() * 0.3)));
+        setLocalLevels(levels);
+      } else {
+        setLocalLevels(Array(WAVE_BAR_COUNT).fill(0));
+      }
       localLevelFrameRef.current = requestAnimationFrame(tick);
     };
     tick();
