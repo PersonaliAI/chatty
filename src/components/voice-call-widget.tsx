@@ -1,13 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useSpring } from "framer-motion";
-import { Room, RoomEvent, Track, RemoteTrack, RemoteParticipant, ConnectionState } from "livekit-client";
+import { motion, AnimatePresence, useSpring } from "framer-motion";
+import {
+  Room,
+  RoomEvent,
+  Track,
+  RemoteTrack,
+  RemoteParticipant,
+  ConnectionState,
+  TranscriptionSegment,
+  Participant,
+} from "livekit-client";
 import { Mic, MicOff, PhoneOff, Loader2, AlertCircle } from "lucide-react";
 
 const WAVE_BAR_COUNT = 14;
 
 type CallStatus = "connecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
+
+interface TranscriptEntry {
+  id: string;
+  speaker: "visitor" | "agent";
+  text: string;
+  final: boolean;
+}
 
 interface VoiceCallWidgetProps {
   botId: string;
@@ -33,12 +49,14 @@ export default function VoiceCallWidget({
   const [muted, setMuted] = useState(false);
   const [duration, setDuration] = useState(0);
   const [localLevels, setLocalLevels] = useState<number[]>(() => Array(WAVE_BAR_COUNT).fill(0));
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
 
   const roomRef = useRef<Room | null>(null);
   const audioElRef = useRef<HTMLMediaElement | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const localLevelFrameRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
   // Smoothed orb scale/glow driven by the agent's remote audio level. Same
   // spring feel used for the rest of the widget's motion (bouncy overshoot).
@@ -107,6 +125,30 @@ export default function VoiceCallWidget({
         room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
           track.detach().forEach((el) => el.remove());
         });
+
+        // Live transcript — the agent worker already publishes STT/reply text
+        // over LiveKit's built-in transcription stream; each segment updates
+        // in place (by id) while interim, then locks in once `final`. Segments
+        // carry no explicit role, so attribute by participant: no `participant`
+        // (or the local one) means it's the visitor's own speech-to-text.
+        room.on(
+          RoomEvent.TranscriptionReceived,
+          (segments: TranscriptionSegment[], participant?: Participant) => {
+            if (cancelled || !mountedRef.current) return;
+            const speaker: "visitor" | "agent" =
+              !participant || participant.identity === room?.localParticipant?.identity ? "visitor" : "agent";
+            setTranscript((prev) => {
+              const next = [...prev];
+              for (const seg of segments) {
+                const idx = next.findIndex((e) => e.id === seg.id);
+                const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final };
+                if (idx >= 0) next[idx] = entry;
+                else next.push(entry);
+              }
+              return next;
+            });
+          }
+        );
 
         // Drive the orb glow from whichever remote participant (the agent) is
         // actively speaking; drive the "listening" bars from the visitor's own
@@ -184,6 +226,11 @@ export default function VoiceCallWidget({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-scroll the transcript to the newest line as it streams in.
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [transcript]);
 
   // Call duration timer, starts once connected.
   useEffect(() => {
@@ -267,7 +314,7 @@ export default function VoiceCallWidget({
   })();
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-between p-6 bg-card h-full">
+    <div className="flex-1 flex flex-col p-4 bg-card h-full min-h-0">
       {status === "error" ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-4">
           <div className="size-12 rounded-full flex items-center justify-center bg-red-50 dark:bg-red-950/40">
@@ -287,30 +334,86 @@ export default function VoiceCallWidget({
         </div>
       ) : (
         <>
-          <div className="flex-1 flex flex-col items-center justify-center gap-6 w-full">
-            <Orb status={status} level={orbLevel} primaryColor={primaryColor} />
-
-            {status === "listening" ? (
-              <div className="flex items-center gap-[3px] h-6" aria-hidden>
-                {localLevels.map((level, i) => (
-                  <span
-                    key={i}
-                    className="w-0.5 rounded-full transition-[height] duration-[50ms] ease-out"
-                    style={{ height: `${Math.max(3, level * 24)}px`, background: primaryColor }}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 tracking-wide">
-                {(status === "connecting" || status === "requesting-mic") && (
-                  <Loader2 className="inline size-3.5 animate-spin mr-1.5 -mt-0.5" />
-                )}
-                {statusLabel}
-              </p>
-            )}
+          {/* Compact status row — small orb + state text, replacing what used
+              to be a full-height centered orb, since the transcript below is
+              now the primary focus of the call view. */}
+          <div className="flex items-center gap-3 w-full pb-3 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
+            <Orb status={status} level={orbLevel} primaryColor={primaryColor} compact />
+            <div className="flex-1 min-w-0">
+              {status === "listening" ? (
+                <div className="flex items-center gap-[3px] h-4" aria-hidden>
+                  {localLevels.map((level, i) => (
+                    <span
+                      key={i}
+                      className="w-0.5 rounded-full transition-[height] duration-[50ms] ease-out"
+                      style={{ height: `${Math.max(3, level * 16)}px`, background: primaryColor }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 tracking-wide truncate">
+                  {(status === "connecting" || status === "requesting-mic") && (
+                    <Loader2 className="inline size-3.5 animate-spin mr-1.5 -mt-0.5" />
+                  )}
+                  {statusLabel}
+                </p>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-4 pb-2">
+          {/* Live transcript — auto-scrolls to the newest line; interim
+              (not-yet-final) segments render with a bouncy typing indicator
+              instead of raw text jitter, then settle into place once final. */}
+          <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-thin py-3 space-y-2.5">
+            {transcript.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center px-6">
+                  {status === "agent-speaking" || status === "listening" || status === "connected"
+                    ? "Say something — your conversation will appear here."
+                    : ""}
+                </p>
+              </div>
+            ) : (
+              <AnimatePresence initial={false}>
+                {transcript.map((entry) => (
+                  <motion.div
+                    key={entry.id}
+                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                    className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                        entry.speaker === "visitor"
+                          ? "text-white rounded-br-md"
+                          : "bg-neutral-100 dark:bg-neutral-850 text-neutral-800 dark:text-neutral-200 rounded-bl-md"
+                      }`}
+                      style={entry.speaker === "visitor" ? { background: primaryColor } : undefined}
+                    >
+                      {entry.text.trim() ? (
+                        <>
+                          {entry.text}
+                          {!entry.final && (
+                            <span className="inline-block w-1 h-3 ml-0.5 -mb-0.5 bg-current opacity-60 animate-pulse" />
+                          )}
+                        </>
+                      ) : (
+                        <span className="flex items-center gap-1 py-0.5" aria-label="typing">
+                          <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce" />
+                          <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:150ms]" />
+                          <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:300ms]" />
+                        </span>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
+            <div ref={transcriptEndRef} />
+          </div>
+
+          <div className="flex items-center gap-4 pb-2 pt-1 shrink-0">
             <motion.button
               type="button"
               whileTap={{ scale: 0.85 }}
@@ -343,10 +446,12 @@ function Orb({
   status,
   level,
   primaryColor,
+  compact = false,
 }: {
   status: CallStatus;
   level: ReturnType<typeof useSpring>;
   primaryColor: string;
+  compact?: boolean;
 }) {
   const [scale, setScale] = useState(1);
   const [glow, setGlow] = useState(0);
@@ -375,13 +480,13 @@ function Orb({
           ? { duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }
           : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
       }
-      className="size-28 rounded-full flex items-center justify-center"
+      className={`shrink-0 rounded-full flex items-center justify-center ${compact ? "size-9" : "size-28"}`}
       style={{
         background: `radial-gradient(circle at 35% 30%, ${primaryColor}dd, ${primaryColor}88)`,
-        boxShadow: `0 0 ${20 + (isActive ? glow * 60 : 10)}px ${primaryColor}${isActive ? "aa" : "55"}`,
+        boxShadow: `0 0 ${(compact ? 8 : 20) + (isActive ? glow * (compact ? 20 : 60) : compact ? 4 : 10)}px ${primaryColor}${isActive ? "aa" : "55"}`,
       }}
     >
-      <div className="size-16 rounded-full bg-white/25 backdrop-blur-sm" />
+      <div className={`rounded-full bg-white/25 backdrop-blur-sm ${compact ? "size-5" : "size-16"}`} />
     </motion.div>
   );
 }
