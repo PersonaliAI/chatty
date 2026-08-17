@@ -7,7 +7,7 @@ import { Mic, MicOff, PhoneOff, Loader2, AlertCircle } from "lucide-react";
 
 const WAVE_BAR_COUNT = 14;
 
-type CallStatus = "connecting" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
+type CallStatus = "connecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
 
 interface VoiceCallWidgetProps {
   botId: string;
@@ -125,7 +125,7 @@ export default function VoiceCallWidget({
           }
           orbLevel.set(Math.min(1, remoteLevel * 3.5));
           setStatus((prev) => {
-            if (prev === "connecting" || prev === "error" || prev === "ended") return prev;
+            if (prev === "connecting" || prev === "requesting-mic" || prev === "error" || prev === "ended") return prev;
             if (remoteLevel > 0.01) return "agent-speaking";
             if (localSpeaking) return "listening";
             return "connected";
@@ -137,7 +137,24 @@ export default function VoiceCallWidget({
           room.disconnect();
           return;
         }
-        await room.localParticipant.setMicrophoneEnabled(true);
+        // getUserMedia can sit pending for a while if the visitor hasn't
+        // noticed/responded to the browser's permission prompt yet (easy to
+        // miss inside an embedded iframe) — show an explicit state for this
+        // rather than a generic "Connecting…" that looks stuck.
+        if (!cancelled && mountedRef.current) setStatus("requesting-mic");
+        try {
+          await room.localParticipant.setMicrophoneEnabled(true);
+        } catch (micErr) {
+          console.error("Microphone permission failed:", micErr);
+          if (!cancelled && mountedRef.current) {
+            setErrorMessage(
+              "Microphone access is required for voice calls. Please allow microphone access in your browser and try again."
+            );
+            setStatus("error");
+          }
+          room.disconnect();
+          return;
+        }
         if (!cancelled && mountedRef.current) setStatus("connected");
       } catch (err) {
         console.error("Voice call failed to start:", err);
@@ -170,7 +187,7 @@ export default function VoiceCallWidget({
 
   // Call duration timer, starts once connected.
   useEffect(() => {
-    if (status === "connecting" || status === "error") return;
+    if (status === "connecting" || status === "requesting-mic" || status === "error") return;
     if (status === "ended") {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
       return;
@@ -239,6 +256,7 @@ export default function VoiceCallWidget({
   const statusLabel = (() => {
     switch (status) {
       case "connecting": return "Connecting…";
+      case "requesting-mic": return "Please allow microphone access…";
       case "connected": return fmtDuration(duration);
       case "listening": return "Listening…";
       case "agent-speaking": return "Speaking…";
@@ -284,7 +302,9 @@ export default function VoiceCallWidget({
               </div>
             ) : (
               <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 tracking-wide">
-                {status === "connecting" && <Loader2 className="inline size-3.5 animate-spin mr-1.5 -mt-0.5" />}
+                {(status === "connecting" || status === "requesting-mic") && (
+                  <Loader2 className="inline size-3.5 animate-spin mr-1.5 -mt-0.5" />
+                )}
                 {statusLabel}
               </p>
             )}
@@ -296,7 +316,7 @@ export default function VoiceCallWidget({
               whileTap={{ scale: 0.85 }}
               transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={toggleMute}
-              disabled={status === "connecting" || status === "ended"}
+              disabled={status === "connecting" || status === "requesting-mic" || status === "ended"}
               aria-label={muted ? "Unmute microphone" : "Mute microphone"}
               className="size-12 rounded-full flex items-center justify-center border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 disabled:opacity-40"
             >
@@ -346,7 +366,7 @@ function Orb({
       animate={
         isActive
           ? { scale }
-          : status === "connecting"
+          : status === "connecting" || status === "requesting-mic"
           ? { scale: [1, 1.06, 1] }
           : { scale: 1 }
       }
