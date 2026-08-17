@@ -2882,6 +2882,37 @@ export default function Dashboard() {
     }
   };
 
+  // Auto-saves voice_enabled / voice_stt_provider / voice_tts_provider /
+  // voice_tts_voice immediately on change, instead of requiring the user to
+  // notice the floating "Save Changes" banner and click it separately —
+  // these are simple non-secret fields (same direct-Supabase-write pattern
+  // handleSaveChanges uses), so there's no reason to make the user hunt for
+  // a save button just for a toggle/dropdown.
+  const [savingVoiceField, setSavingVoiceField] = useState(false);
+  const handleAutoSaveVoiceField = async (fields: {
+    voice_enabled?: boolean;
+    voice_stt_provider?: string;
+    voice_tts_provider?: string;
+    voice_tts_voice?: string | null;
+  }) => {
+    if (!botId) return;
+    setSavingVoiceField(true);
+    try {
+      const { error } = await supabase
+        .from("chatty_bots")
+        .update({ ...fields, updated_at: new Date().toISOString() })
+        .eq("id", botId);
+      if (error) throw error;
+      setUserBots((prev) => prev.map((b) => (b.id === botId ? { ...b, ...fields } : b)));
+      showToast("Voice settings saved.", "success");
+    } catch (err) {
+      console.error("Failed to save voice setting:", err);
+      showToast("Failed to save voice setting.", "error");
+    } finally {
+      setSavingVoiceField(false);
+    }
+  };
+
   const handleSaveVoiceByok = async (kind: "stt" | "tts", clear = false) => {
     if (!botId) return;
     const setSaving = kind === "stt" ? setSavingVoiceStt : setSavingVoiceTts;
@@ -6376,8 +6407,13 @@ const { reply, session_id } = await res.json();`}</pre>
                       <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Adds a microphone control so visitors can speak to your widget.</p>
                     </div>
                     <button
-                      onClick={() => handleInputChange(setVoiceEnabled, !voiceEnabled)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                      onClick={() => {
+                        const next = !voiceEnabled;
+                        setVoiceEnabled(next);
+                        handleAutoSaveVoiceField({ voice_enabled: next });
+                      }}
+                      disabled={savingVoiceField}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer disabled:opacity-60 ${
                         voiceEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                       }`}
                     >
@@ -6399,7 +6435,10 @@ const { reply, session_id } = await res.json();`}</pre>
                           <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Speech-to-Text Provider</label>
                           <ModernSelect
                             value={voiceSttProvider}
-                            onChange={(v) => handleInputChange(setVoiceSttProvider, v)}
+                            onChange={(v) => {
+                              setVoiceSttProvider(v);
+                              handleAutoSaveVoiceField({ voice_stt_provider: v });
+                            }}
                             options={[
                               { value: "google", label: "Google", hint: "Included, no setup" },
                               { value: "deepgram", label: "Deepgram", hint: "Requires your own API key" },
@@ -6458,7 +6497,10 @@ const { reply, session_id } = await res.json();`}</pre>
                           <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Text-to-Speech Provider</label>
                           <ModernSelect
                             value={voiceTtsProvider}
-                            onChange={(v) => handleInputChange(setVoiceTtsProvider, v)}
+                            onChange={(v) => {
+                              setVoiceTtsProvider(v);
+                              handleAutoSaveVoiceField({ voice_tts_provider: v });
+                            }}
                             options={[
                               { value: "google", label: "Google", hint: "Included, no setup" },
                               { value: "cartesia", label: "Cartesia", hint: "Requires your own API key" },
@@ -6475,7 +6517,8 @@ const { reply, session_id } = await res.json();`}</pre>
                             <input
                               type="text"
                               value={voiceTtsVoice}
-                              onChange={(e) => handleInputChange(setVoiceTtsVoice, e.target.value)}
+                              onChange={(e) => setVoiceTtsVoice(e.target.value)}
+                              onBlur={(e) => handleAutoSaveVoiceField({ voice_tts_voice: e.target.value || null })}
                               placeholder="en-US-Chirp3-HD-Aoede"
                               className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                             />
