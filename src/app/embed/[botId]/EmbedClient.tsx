@@ -1166,9 +1166,22 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             <h4 className="font-semibold text-sm text-white">{botName}</h4>
             <p className="text-[9px] text-white/80 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />{liveAgent ? "Live agent · we're with you" : "Online · replies instantly"}</p>
           </div>
+          {voiceEnabled && (
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.85 }}
+              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+              onClick={() => setVoiceCallOpen(true)}
+              className="ml-auto p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0 cursor-pointer"
+              aria-label="Start voice call"
+              title="Talk to the assistant"
+            >
+              <Phone className="size-4" />
+            </motion.button>
+          )}
           <button
             onClick={requestPushPermission}
-            className="ml-auto p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0 cursor-pointer"
+            className={`${voiceEnabled ? "" : "ml-auto "}p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0 cursor-pointer`}
             aria-label="Toggle push notifications"
             title={pushGranted ? "Browser notifications enabled" : "Enable browser notifications"}
           >
@@ -1572,19 +1585,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className={`p-1.5 rounded-full disabled:opacity-50 ${recording ? "text-red-500" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
                   {transcribing ? <Loader2 className="size-4.5 animate-spin" /> : recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                 </button>
-                {voiceEnabled && (
-                  <motion.button
-                    type="button"
-                    whileTap={{ scale: 0.85 }}
-                    transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                    onClick={() => setVoiceCallOpen(true)}
-                    className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full"
-                    aria-label="Start voice call"
-                    title="Start a voice call"
-                  >
-                    <Phone className="size-4.5" />
-                  </motion.button>
-                )}
                 {recording && (
                   <div className="flex items-center gap-[2px] h-5 px-1" aria-hidden>
                     {barLevels.map((level, i) => (
