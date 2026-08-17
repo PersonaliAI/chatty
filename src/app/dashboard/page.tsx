@@ -518,6 +518,18 @@ export default function Dashboard() {
   const [byokApiKeyInput, setByokApiKeyInput] = useState("");
   const [byokConfigured, setByokConfigured] = useState(false);
   const [savingByok, setSavingByok] = useState(false);
+  // Voice agent — STT/TTS provider selection + optional BYOK keys, mirrors the
+  // LLM BYOK pattern above; keys are never round-tripped, only *_configured is.
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceSttProvider, setVoiceSttProvider] = useState("google");
+  const [voiceTtsProvider, setVoiceTtsProvider] = useState("google");
+  const [voiceTtsVoice, setVoiceTtsVoice] = useState("");
+  const [voiceSttConfigured, setVoiceSttConfigured] = useState(false);
+  const [voiceTtsConfigured, setVoiceTtsConfigured] = useState(false);
+  const [voiceSttApiKeyInput, setVoiceSttApiKeyInput] = useState("");
+  const [voiceTtsApiKeyInput, setVoiceTtsApiKeyInput] = useState("");
+  const [savingVoiceStt, setSavingVoiceStt] = useState(false);
+  const [savingVoiceTts, setSavingVoiceTts] = useState(false);
   const [systemInstructions, setSystemInstructions] = useState(
     "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite."
   );
@@ -1433,6 +1445,7 @@ export default function Dashboard() {
     if (botId && activeTab === "settings") {
       loadTeam();
       loadByokStatus(botId);
+      loadVoiceSettings(botId);
     }
     if (botId && activeTab === "knowledge") {
       loadDriveSyncSchedule();
@@ -1912,6 +1925,10 @@ export default function Dashboard() {
           buffer_minutes: bufferMinutes,
           advance_notice_hours: advanceNoticeHours,
           allowed_domains: allowedDomains,
+          voice_enabled: voiceEnabled,
+          voice_stt_provider: voiceSttProvider,
+          voice_tts_provider: voiceTtsProvider,
+          voice_tts_voice: voiceTtsVoice || null,
           updated_at: new Date().toISOString()
         })
         .eq("id", botId);
@@ -1962,6 +1979,10 @@ export default function Dashboard() {
                 buffer_minutes: bufferMinutes,
                 advance_notice_hours: advanceNoticeHours,
                 allowed_domains: allowedDomains,
+                voice_enabled: voiceEnabled,
+                voice_stt_provider: voiceSttProvider,
+                voice_tts_provider: voiceTtsProvider,
+                voice_tts_voice: voiceTtsVoice || null,
               }
             : b
         )
@@ -2841,6 +2862,53 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Failed to load BYOK status:", err);
+    }
+  };
+
+  const loadVoiceSettings = async (bId: string) => {
+    try {
+      const res = await fetchWithFallback(`/api/bots/${bId}/voice-settings`);
+      if (res.ok) {
+        const d = await res.json();
+        setVoiceEnabled(!!d.voice_enabled);
+        setVoiceSttProvider(d.voice_stt_provider || "google");
+        setVoiceTtsProvider(d.voice_tts_provider || "google");
+        setVoiceTtsVoice(d.voice_tts_voice || "");
+        setVoiceSttConfigured(!!d.voice_stt_configured);
+        setVoiceTtsConfigured(!!d.voice_tts_configured);
+      }
+    } catch (err) {
+      console.error("Failed to load voice settings:", err);
+    }
+  };
+
+  const handleSaveVoiceByok = async (kind: "stt" | "tts", clear = false) => {
+    if (!botId) return;
+    const setSaving = kind === "stt" ? setSavingVoiceStt : setSavingVoiceTts;
+    const keyInput = kind === "stt" ? voiceSttApiKeyInput : voiceTtsApiKeyInput;
+    const setKeyInput = kind === "stt" ? setVoiceSttApiKeyInput : setVoiceTtsApiKeyInput;
+    setSaving(true);
+    try {
+      const body = kind === "stt"
+        ? { voice_stt_api_key: clear ? "" : keyInput }
+        : { voice_tts_api_key: clear ? "" : keyInput };
+      const res = await fetchWithFallback(`/api/bots/${botId}/voice-settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        setKeyInput("");
+        await loadVoiceSettings(botId);
+        showToast(clear ? "Voice key removed." : "Voice key saved.", "success");
+      } else {
+        showToast("Failed to save voice key.", "error");
+      }
+    } catch (err) {
+      console.error("Failed to save voice key:", err);
+      showToast("Failed to save voice key.", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -6290,6 +6358,180 @@ const { reply, session_id } = await res.json();`}</pre>
                       </button>
                     </div>
                   </div>
+                </div>
+
+                {/* SECTION 1A: VOICE AGENT */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <Mic className="size-4 text-[#f97316]" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Voice Agent</h3>
+                  </div>
+                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-2">
+                    Let visitors talk to your bot instead of typing.
+                  </p>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold">Enable voice agent</span>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Adds a microphone control so visitors can speak to your widget.</p>
+                    </div>
+                    <button
+                      onClick={() => handleInputChange(setVoiceEnabled, !voiceEnabled)}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        voiceEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                      }`}
+                    >
+                      <div className={`size-4 rounded-full bg-white transition-transform ${voiceEnabled ? "translate-x-4" : ""}`} />
+                    </button>
+                  </div>
+
+                  <AnimatePresence>
+                    {voiceEnabled && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="space-y-4 overflow-hidden"
+                      >
+                        {/* Speech-to-Text provider */}
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Speech-to-Text Provider</label>
+                          <ModernSelect
+                            value={voiceSttProvider}
+                            onChange={(v) => handleInputChange(setVoiceSttProvider, v)}
+                            options={[
+                              { value: "google", label: "Google", hint: "Included, no setup" },
+                              { value: "deepgram", label: "Deepgram", hint: "Requires your own API key" },
+                              { value: "assemblyai", label: "AssemblyAI", hint: "Requires your own API key" },
+                              { value: "azure", label: "Azure Speech", hint: "Requires your own API key" },
+                              { value: "openai", label: "OpenAI Whisper", hint: "Requires your own API key" },
+                            ]}
+                          />
+                        </div>
+
+                        {voiceSttProvider !== "google" && (
+                          <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Speech-to-Text API Key</span>
+                              {voiceSttConfigured && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+                                  <Check className="size-2.5" /> Configured
+                                </span>
+                              )}
+                              {!voiceSttConfigured && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
+                                  Not configured
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="password"
+                              value={voiceSttApiKeyInput}
+                              onChange={(e) => setVoiceSttApiKeyInput(e.target.value)}
+                              placeholder={voiceSttConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : "API key"}
+                              className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleSaveVoiceByok("stt", false)}
+                                disabled={savingVoiceStt || !voiceSttApiKeyInput.trim()}
+                                className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
+                              >
+                                {savingVoiceStt ? "Saving…" : "Save key"}
+                              </button>
+                              {voiceSttConfigured && (
+                                <button
+                                  onClick={() => handleSaveVoiceByok("stt", true)}
+                                  disabled={savingVoiceStt}
+                                  className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
+                                >
+                                  Remove key
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Text-to-Speech provider */}
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Text-to-Speech Provider</label>
+                          <ModernSelect
+                            value={voiceTtsProvider}
+                            onChange={(v) => handleInputChange(setVoiceTtsProvider, v)}
+                            options={[
+                              { value: "google", label: "Google", hint: "Included, no setup" },
+                              { value: "cartesia", label: "Cartesia", hint: "Requires your own API key" },
+                              { value: "elevenlabs", label: "ElevenLabs", hint: "Requires your own API key" },
+                              { value: "openai", label: "OpenAI", hint: "Requires your own API key" },
+                              { value: "rime", label: "Rime", hint: "Requires your own API key" },
+                            ]}
+                          />
+                        </div>
+
+                        {voiceTtsProvider === "google" && (
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Google TTS Voice (optional)</label>
+                            <input
+                              type="text"
+                              value={voiceTtsVoice}
+                              onChange={(e) => handleInputChange(setVoiceTtsVoice, e.target.value)}
+                              placeholder="en-US-Chirp3-HD-Aoede"
+                              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                            />
+                            <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Leave blank to use the default voice.</p>
+                          </div>
+                        )}
+
+                        {voiceTtsProvider !== "google" && (
+                          <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Text-to-Speech API Key</span>
+                              {voiceTtsConfigured && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+                                  <Check className="size-2.5" /> Configured
+                                </span>
+                              )}
+                              {!voiceTtsConfigured && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
+                                  Not configured
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="password"
+                              value={voiceTtsApiKeyInput}
+                              onChange={(e) => setVoiceTtsApiKeyInput(e.target.value)}
+                              placeholder={voiceTtsConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : "API key"}
+                              className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleSaveVoiceByok("tts", false)}
+                                disabled={savingVoiceTts || !voiceTtsApiKeyInput.trim()}
+                                className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
+                              >
+                                {savingVoiceTts ? "Saving…" : "Save key"}
+                              </button>
+                              {voiceTtsConfigured && (
+                                <button
+                                  onClick={() => handleSaveVoiceByok("tts", true)}
+                                  disabled={savingVoiceTts}
+                                  className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
+                                >
+                                  Remove key
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                          Voice uses the same AI Foundation Model and key configured above.
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 {/* SECTION 1B: GUARDRAILS & LANGUAGE */}
