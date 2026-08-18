@@ -8,7 +8,7 @@ import remarkGfm from "remark-gfm";
 import { Search, BookOpen, ChevronRight, FileText, Sparkles, HelpCircle, ArrowLeft } from "lucide-react";
 
 const supabase = createClient();
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://personaliai-api-376030619262.us-central1.run.app";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
 interface Source {
   id: string;

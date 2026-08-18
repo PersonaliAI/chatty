@@ -154,219 +154,217 @@ body {
   }
 }
 
-/* Assistant Design Presets */
+/* Assistant Design Presets
+ *
+ * Five presets, down from nine. Every one of the removed presets had a
+ * concrete legibility bug: Brutalism/Neumorphism/Bento/Claymorphism hardcode
+ * text color against var(--primary-color), which is chosen by the business
+ * owner and can be dark just as easily as light — hardcoded #111 or #fff
+ * text goes invisible the moment someone picks the "wrong" half of the
+ * lightness spectrum. Retro and Aurora had zero .dark overrides and no
+ * explicit foreground color on their base container, so any untagged text
+ * (timestamps, footer, placeholders) silently inherited the page's ambient
+ * --foreground — dark-on-dark or light-on-light depending on mode.
+ *
+ * Fix applied everywhere below:
+ *   1. Every preset's base container sets an explicit `color`, so nothing
+ *      falls through to an unrelated ambient value.
+ *   2. Every element painted with the owner's primaryColor (chat-header,
+ *      user-bubble) uses `var(--on-primary, #fff)` instead of a hardcoded
+ *      text color — --on-primary is computed at runtime (src/lib/
+ *      color-contrast.ts) via WCAG relative luminance against the actual
+ *      color chosen, so it's always readable regardless of what that color is.
+ *   3. Every preset has both a light and a dark variant.
+ */
 
-/* 1. Minimalist */
+/* 1. Minimalist — clean flat surface, zero decoration. */
 .style-minimalist {
   background-color: var(--card);
+  color: var(--card-foreground);
   border: 1px solid var(--border);
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
 }
 
 .dark .style-minimalist {
+  box-shadow: none;
+}
+
+.style-minimalist .chat-header {
+  color: var(--on-primary, #ffffff);
+}
+
+.style-minimalist .user-bubble {
+  color: var(--on-primary, #ffffff) !important;
+}
+
+/* 2. Elevated — soft depth, no border, premium SaaS card feel. */
+.style-elevated {
   background-color: var(--card);
-  border: 1px solid var(--border);
+  color: var(--card-foreground);
+  border: none;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.06);
 }
 
-/* 2. Glassmorphism */
-.style-glassmorphism {
-  background-color: rgba(255, 255, 255, 0.45) !important;
-  backdrop-filter: blur(16px) saturate(120%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(120%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.25) !important;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.06) !important;
+.dark .style-elevated {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
 }
 
-.dark .style-glassmorphism {
-  background-color: rgba(20, 20, 20, 0.5) !important;
-  backdrop-filter: blur(16px) saturate(120%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
+.style-elevated .chat-header {
+  color: var(--on-primary, #ffffff);
 }
 
-/* Glassmorphism Children */
-.style-glassmorphism .chat-header {
-  background-color: rgba(255, 255, 255, 0.2) !important;
-  backdrop-filter: blur(8px) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
-  color: var(--foreground) !important;
+.style-elevated .bot-bubble {
+  background-color: var(--secondary) !important;
+  color: var(--secondary-foreground) !important;
+  border: none !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  border-radius: 14px !important;
 }
 
-.dark .style-glassmorphism .chat-header {
-  background-color: rgba(0, 0, 0, 0.2) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+.style-elevated .user-bubble {
+  color: var(--on-primary, #ffffff) !important;
+  border: none !important;
+  border-radius: 14px !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color, #f97316) 35%, transparent) !important;
 }
 
-.style-glassmorphism .bot-bubble {
-  background-color: rgba(255, 255, 255, 0.35) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: var(--foreground) !important;
+.style-elevated .chat-input-bar {
+  background-color: var(--card) !important;
+  color: var(--card-foreground) !important;
+  border-top: 1px solid var(--border) !important;
 }
 
-.style-glassmorphism .user-bubble {
-  background-color: color-mix(in srgb, var(--primary-color, #f97316) 75%, transparent) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: #ffffff !important;
+/* 3. Frosted — a single, refined glass treatment (merges the old
+   Glassmorphism + Liquid Glass into one that's actually legible). */
+.style-frosted {
+  background-color: rgba(255, 255, 255, 0.55) !important;
+  color: #1f2937 !important;
+  backdrop-filter: blur(20px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08) !important;
 }
 
-.style-glassmorphism .chat-input-bar {
-  background-color: rgba(255, 255, 255, 0.35) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: var(--foreground) !important;
-}
-
-.dark .style-glassmorphism .chat-input-bar {
-  background-color: rgba(20, 20, 20, 0.4) !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-}
-
-/* 3. Liquid Glass */
-.style-liquid {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 100%) !important;
-  backdrop-filter: blur(25px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
-  box-shadow: 0 12px 40px 0 rgba(249, 115, 22, 0.06) !important;
-}
-
-.dark .style-liquid {
-  background: linear-gradient(135deg, rgba(10, 10, 10, 0.4) 0%, rgba(20, 20, 20, 0.2) 100%) !important;
+.dark .style-frosted {
+  background-color: rgba(24, 24, 24, 0.6) !important;
+  color: #f5f5f5 !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35) !important;
 }
 
-.style-liquid .chat-header {
-  background: linear-gradient(90deg, rgba(249, 115, 22, 0.15), rgba(236, 72, 153, 0.15)) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: var(--foreground) !important;
+.style-frosted .chat-header {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(8px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: var(--on-primary, #ffffff) !important;
 }
 
-.style-liquid .bot-bubble {
-  background: rgba(255, 255, 255, 0.25) !important;
+.dark .style-frosted .chat-header {
+  background-color: rgba(0, 0, 0, 0.25) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.style-frosted .bot-bubble {
+  background-color: rgba(255, 255, 255, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: #1f2937 !important;
+}
+
+.dark .style-frosted .bot-bubble {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #f5f5f5 !important;
+}
+
+.style-frosted .user-bubble {
+  background-color: color-mix(in srgb, var(--primary-color, #f97316) 85%, transparent) !important;
   border: 1px solid rgba(255, 255, 255, 0.25) !important;
-  backdrop-filter: blur(5px) !important;
-  color: var(--foreground) !important;
+  color: var(--on-primary, #ffffff) !important;
 }
 
-.style-liquid .user-bubble {
-  background: linear-gradient(135deg, var(--primary-color, #f97316), #ec4899) !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 15px rgba(249, 115, 22, 0.2) !important;
-}
-
-.style-liquid .chat-input-bar {
-  background: rgba(255, 255, 255, 0.25) !important;
-  border: 1px solid rgba(255, 255, 255, 0.25) !important;
-  color: var(--foreground) !important;
-}
-
-.dark .style-liquid .chat-input-bar {
-  background: rgba(10, 10, 10, 0.35) !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-}
-
-/* 4. Neumorphism */
-.style-neumorphism {
-  background-color: #f3f4f6 !important;
-  border: none !important;
-  box-shadow: 9px 9px 16px rgba(0,0,0,0.06), -9px -9px 16px rgba(255,255,255,0.8) !important;
-}
-
-.dark .style-neumorphism {
-  background-color: #141414 !important;
-  box-shadow: 9px 9px 16px #070707, -9px -9px 16px #1d1d1d !important;
-}
-
-.style-neumorphism .chat-header {
-  background-color: #f3f4f6 !important;
-  border-bottom: 1px solid rgba(0,0,0,0.03) !important;
+.style-frosted .chat-input-bar {
+  background-color: rgba(255, 255, 255, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
   color: #1f2937 !important;
 }
 
-.dark .style-neumorphism .chat-header {
-  background-color: #141414 !important;
-  border-bottom: 1px solid rgba(255,255,255,0.02) !important;
-  color: #f3f4f6 !important;
+.dark .style-frosted .chat-input-bar {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #f5f5f5 !important;
 }
 
-.style-neumorphism .bot-bubble {
-  background-color: #f3f4f6 !important;
+/* 4. Bold — the owner's brand color carries real visual weight (header +
+   user bubble), with guaranteed-legible text via --on-primary. Body stays
+   on clean theme surfaces so ordinary text is never at risk. */
+.style-bold {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: none;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06);
+}
+
+.style-bold .chat-header {
+  color: var(--on-primary, #ffffff) !important;
+}
+
+.style-bold .bot-bubble {
+  background-color: var(--secondary) !important;
+  color: var(--secondary-foreground) !important;
   border: none !important;
-  box-shadow: 3px 3px 6px rgba(0,0,0,0.04), -3px -3px 6px rgba(255,255,255,0.7) !important;
-  color: #1f2937 !important;
+  border-radius: 4px 14px 14px 14px !important;
 }
 
-.dark .style-neumorphism .bot-bubble {
-  background-color: #141414 !important;
-  box-shadow: 3px 3px 6px #080808, -3px -3px 6px #202020 !important;
-  color: #f3f4f6 !important;
-}
-
-.style-neumorphism .user-bubble {
-  background-color: var(--primary-color, #f97316) !important;
+.style-bold .user-bubble {
+  color: var(--on-primary, #ffffff) !important;
   border: none !important;
-  box-shadow: 3px 3px 6px rgba(249, 115, 22, 0.2), -3px -3px 6px rgba(255, 255, 255, 0.5) !important;
-  color: #ffffff !important;
+  border-radius: 14px 4px 14px 14px !important;
+  font-weight: 500;
 }
 
-.style-neumorphism .chat-input-bar {
-  background-color: #f3f4f6 !important;
+.style-bold .chat-input-bar {
+  background-color: var(--card) !important;
+  color: var(--card-foreground) !important;
+  border-top: 2px solid var(--primary-color, #f97316) !important;
+}
+
+/* 5. Contrast — a deliberately dark, premium shell (always dark, not tied
+   to light/dark mode) in the vein of modern dark-native chat UIs. Every
+   surface has an explicit light-on-dark pairing, so nothing here can ever
+   render invisible the way the old neon Retro preset could. */
+.style-contrast {
+  background-color: #161618 !important;
+  color: #e8e8ea !important;
+  border: 1px solid #2a2a2e !important;
+}
+
+.style-contrast .chat-header {
+  background-color: #1c1c1f !important;
+  border-bottom: 1px solid #2a2a2e !important;
+  color: var(--on-primary, #ffffff) !important;
+}
+
+.style-contrast .bot-bubble {
+  background-color: #232326 !important;
+  border: 1px solid #2f2f33 !important;
+  color: #e8e8ea !important;
+}
+
+.style-contrast .user-bubble {
+  color: var(--on-primary, #ffffff) !important;
   border: none !important;
-  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.06), inset -2px -2px 5px rgba(255,255,255,0.8) !important;
-  color: #1f2937 !important;
 }
 
-.dark .style-neumorphism .chat-input-bar {
-  background-color: #141414 !important;
-  box-shadow: inset 3px 3px 6px #070707, inset -3px -3px 6px #1d1d1d !important;
-  color: #f3f4f6 !important;
+.style-contrast .chat-input-bar {
+  background-color: #1c1c1f !important;
+  border-top: 1px solid #2a2a2e !important;
+  color: #e8e8ea !important;
 }
 
-/* 5. Brutalism / Neo-Brutalism */
-.style-brutalism { background-color: #fff !important; border: 3px solid #111 !important; }
-.style-brutalism .chat-header { border-bottom: 3px solid #111 !important; }
-.style-brutalism .bot-bubble { background: #fff !important; border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; color: #111 !important; }
-.style-brutalism .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #111111 !important; border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; }
-.style-brutalism .chat-input-bar { border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; }
-.dark .style-brutalism { background-color: #0a0a0a !important; border-color: #fff !important; }
-.dark .style-brutalism .chat-header { border-bottom-color: #fff !important; }
-.dark .style-brutalism .bot-bubble { background: #161616 !important; border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; color: #fff !important; }
-.dark .style-brutalism .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #111111 !important; border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; }
-.dark .style-brutalism .chat-input-bar { border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; }
-
-/* 6. Claymorphism */
-.style-claymorphism { background-color: #f1eefc !important; border: none !important; }
-.style-claymorphism .bot-bubble { background: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: 5px 5px 12px rgba(80,60,160,0.12), inset 1px 1px 2px rgba(255,255,255,0.9) !important; color: #2a2440 !important; }
-.style-claymorphism .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: 5px 5px 12px rgba(80,60,160,0.22), inset 1px 1px 2px rgba(255,255,255,0.4) !important; }
-.style-claymorphism .chat-input-bar { background: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: inset 3px 3px 7px rgba(80,60,160,0.10), inset -3px -3px 7px rgba(255,255,255,0.9) !important; }
-.dark .style-claymorphism { background-color: #1a1726 !important; }
-.dark .style-claymorphism .bot-bubble { background: #241f36 !important; box-shadow: 5px 5px 12px rgba(0,0,0,0.4) !important; color: #efeaff !important; }
-.dark .style-claymorphism .chat-input-bar { background: #241f36 !important; box-shadow: inset 3px 3px 7px rgba(0,0,0,0.35) !important; }
-
-/* 7. Bento Grid */
-.style-bento { background-color: #fafafa !important; border: 1px solid #e5e5e5 !important; }
-.style-bento .chat-header { border-bottom: 1px solid #e5e5e5 !important; }
-.style-bento .bot-bubble { background: #fff !important; border: 1px solid #ececec !important; border-radius: 12px !important; color: #1f2937 !important; }
-.style-bento .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #ffffff !important; border-radius: 12px !important; }
-.style-bento .chat-input-bar { background: #fff !important; border: 1px solid #e5e5e5 !important; border-radius: 12px !important; }
-.dark .style-bento { background-color: #0d0d0d !important; border-color: #262626 !important; }
-.dark .style-bento .bot-bubble { background: #171717 !important; border-color: #262626 !important; color: #e5e5e5 !important; }
-.dark .style-bento .chat-input-bar { background: #171717 !important; border-color: #262626 !important; }
-
-
-/* 8. Retro / Y2K / Cyber */
-.style-retro { background-color: #0b0b1a !important; border: 1px solid #00ffd5 !important; box-shadow: 0 0 24px rgba(0,255,213,0.18) !important; }
-.style-retro .chat-header { background: linear-gradient(90deg, #ff00cc, #3333ff) !important; color: #fff !important; border-bottom: 1px solid #00ffd5 !important; }
-.style-retro .bot-bubble { background: rgba(255,255,255,0.06) !important; border: 1px solid #00ffd5 !important; color: #d6fff8 !important; box-shadow: 0 0 10px rgba(0,255,213,0.18) !important; }
-.style-retro .user-bubble { background: linear-gradient(90deg, #ff00cc, #7a00ff) !important; color: #fff !important; box-shadow: 0 0 10px rgba(255,0,204,0.28) !important; }
-.style-retro .chat-input-bar { background: rgba(255,255,255,0.05) !important; border: 1px solid #00ffd5 !important; color: #d6fff8 !important; }
-
-/* 9. Aurora / Gradient Mesh */
-.style-aurora { background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 50%, #c2f0e6 100%) !important; border: 1px solid rgba(255,255,255,0.4) !important; }
-.style-aurora .chat-header { background: linear-gradient(120deg, rgba(255,255,255,0.28), rgba(255,255,255,0.04)) !important; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); color: #1a1a2e !important; border-bottom: 1px solid rgba(255,255,255,0.35) !important; }
-.style-aurora .bot-bubble { background: rgba(255,255,255,0.62) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.5) !important; color: #1a1a2e !important; border-radius: 14px !important; }
-.style-aurora .user-bubble { background: linear-gradient(120deg, #a18cd1, #7aa5fb) !important; color: #fff !important; border-radius: 14px !important; }
-.style-aurora .chat-input-bar { background: rgba(255,255,255,0.55) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.5) !important; }
+.style-contrast ::placeholder {
+  color: #8a8a8f !important;
+  opacity: 1;
+}
 
 /* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-none::-webkit-scrollbar {

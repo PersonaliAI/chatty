@@ -10,6 +10,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import VoiceCallWidget from "@/components/voice-call-widget";
+import { getOnColor } from "@/lib/color-contrast";
+import { normalizeWidgetStyle } from "@/lib/widget-style";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
@@ -25,7 +27,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
 
 const supabase = createClient();
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://chatty-api-376030619262.us-central1.run.app";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
 const RECORD_BAR_COUNT = 14;
 
@@ -194,6 +196,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [customCss, setCustomCss] = useState("");
   const [customJs, setCustomJs] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#f97316");
+  // Guaranteed-legible text color for anything painted with primaryColor —
+  // the business owner picks that color freely, so a hardcoded white/black
+  // text class goes invisible the moment they pick the "wrong" half of the
+  // lightness spectrum. Computed via WCAG contrast, not assumed.
+  const onPrimary = getOnColor(primaryColor);
   const [widgetStyle, setWidgetStyle] = useState("minimalist");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
@@ -649,7 +656,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           setPrimaryColor(isPreview ? (paramColor || bot.primary_color || "#f97316") : (bot.primary_color || paramColor || "#f97316"));
           const rawStyle = isPreview ? (paramStyle || bot.widget_style || "minimalist") : (bot.widget_style || paramStyle || "minimalist");
           const [styleName, dbLogoBg] = rawStyle.split(":");
-          setWidgetStyle(styleName || "minimalist");
+          setWidgetStyle(normalizeWidgetStyle(styleName));
           if (isPreview) {
             setLogoBgColor(paramLogoBgColor ?? dbLogoBg ?? "");
           } else {
@@ -1129,7 +1136,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   return (
-    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle}`} style={{ backgroundColor: primaryColor, ["--primary-color" as any]: primaryColor }}>
+    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle}`} style={{ backgroundColor: primaryColor, ["--primary-color" as any]: primaryColor, ["--on-primary" as any]: getOnColor(primaryColor) }}>
       <style dangerouslySetInnerHTML={{ __html: `
         html, body {
           background: transparent !important;
@@ -1139,14 +1146,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         }
         /* Strip borders and shadows inside the iframe to prevent subpixel bleeding and white spaces on zoom */
         .style-minimalist,
-        .style-glassmorphism,
-        .style-liquid,
-        .style-neumorphism,
-        .style-brutalism,
-        .style-claymorphism,
-        .style-bento,
-        .style-retro,
-        .style-aurora {
+        .style-elevated,
+        .style-frosted,
+        .style-bold,
+        .style-contrast {
           border: none !important;
           box-shadow: none !important;
           border-radius: 0px !important;
@@ -1156,15 +1159,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
-          <div 
-            className="size-11 rounded-full bg-white/25 flex items-center justify-center text-white font-bold text-base overflow-hidden shrink-0 transition-colors"
-            style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
+          <div
+            className="size-11 rounded-full flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
+            style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: `color-mix(in srgb, ${onPrimary} 25%, transparent)`, color: onPrimary }}
           >
             {headerLogoInner("size-6")}
           </div>
           <div className="leading-tight">
-            <h4 className="font-semibold text-sm text-white">{botName}</h4>
-            <p className="text-[9px] text-white/80 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />{liveAgent ? "Live agent · we're with you" : "Online · replies instantly"}</p>
+            <h4 className="font-semibold text-sm" style={{ color: onPrimary }}>{botName}</h4>
+            <p className="text-[9px] flex items-center gap-1" style={{ color: onPrimary, opacity: 0.8 }}><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />{liveAgent ? "Live agent · we're with you" : "Online · replies instantly"}</p>
           </div>
           {voiceEnabled && (
             <motion.button
@@ -1172,7 +1175,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               whileTap={{ scale: 0.85 }}
               transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={() => setVoiceCallOpen(true)}
-              className="ml-auto p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0 cursor-pointer"
+              className="ml-auto p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
+              style={{ color: onPrimary, opacity: 0.8, backgroundColor: `color-mix(in srgb, ${onPrimary} 0%, transparent)` }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `color-mix(in srgb, ${onPrimary} 15%, transparent)`)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `color-mix(in srgb, ${onPrimary} 0%, transparent)`)}
               aria-label="Start voice call"
               title="Talk to the assistant"
             >
@@ -1181,16 +1187,25 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           )}
           <button
             onClick={requestPushPermission}
-            className={`${voiceEnabled ? "" : "ml-auto "}p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0 cursor-pointer`}
+            className={`${voiceEnabled ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
+            style={{ color: onPrimary, opacity: 0.8 }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `color-mix(in srgb, ${onPrimary} 15%, transparent)`)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             aria-label="Toggle push notifications"
             title={pushGranted ? "Browser notifications enabled" : "Enable browser notifications"}
           >
             <Bell className={`size-4 ${pushGranted ? "text-amber-300 fill-amber-300" : ""}`} />
           </button>
-          <button onClick={clearChat} className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Clear conversation" title="Clear conversation">
+          <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ color: onPrimary, opacity: 0.8 }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `color-mix(in srgb, ${onPrimary} 15%, transparent)`)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+            aria-label="Clear conversation" title="Clear conversation">
             <RefreshCw className="size-4" />
           </button>
-          <button onClick={handleCloseClick} className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/15 transition-colors shrink-0" aria-label="Close chat" title="Close">
+          <button onClick={handleCloseClick} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ color: onPrimary, opacity: 0.8 }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `color-mix(in srgb, ${onPrimary} 15%, transparent)`)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+            aria-label="Close chat" title="Close">
             <X className="size-4" />
           </button>
         </div>
@@ -1251,8 +1266,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 type="button"
                 onClick={submitCsat}
                 disabled={csatRating === 0 || csatSubmitted}
-                className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg cursor-pointer disabled:opacity-40"
-                style={{ background: primaryColor }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-40"
+                style={{ background: primaryColor, color: onPrimary }}
               >
                 Submit feedback
               </button>
@@ -1306,8 +1321,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 type="button"
                 onClick={submitOfflineMessage}
                 disabled={!offlineEmail.trim() || !offlineMessage.trim() || offlineSubmitted}
-                className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg cursor-pointer disabled:opacity-40"
-                style={{ background: primaryColor }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-40"
+                style={{ background: primaryColor, color: onPrimary }}
               >
                 Send message
               </button>
@@ -1348,8 +1363,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   {messages.map((msg, i) => (
                     <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                       className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
-                      {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{avatarInner("size-3.5")}</div>}
-                      <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble text-white rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor } : {}}>
+                      {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>}
+                      <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor, color: getOnColor(primaryColor) } : {}}>
                         {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                         {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
                         {msg.role === "assistant"
@@ -1383,7 +1398,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   ))}
                   {(isBotResponding || agentTyping) && (
                     <div className="flex gap-2 mr-auto">
-                      <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden" style={{ background: primaryColor }}>{avatarInner("size-3.5")}</div>
+                      <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>
                       <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none flex items-center gap-1">
                         <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce" />
                         <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" />
@@ -1477,7 +1492,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{searchAnswer}</ReactMarkdown>
                     </div>
-                    <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: primaryColor }}>Still have questions? Message us</button>
+                    <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg" style={{ background: primaryColor, color: onPrimary }}>Still have questions? Message us</button>
                   </div>
                 )}
               </div>
@@ -1600,8 +1615,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
                 return (
-                  <button type="submit" disabled={isBotResponding || (!inputValue.trim() && pendingFiles.length === 0)} style={{ background: primaryColor }}
-                    className={`${c.shape} flex items-center justify-center text-white hover:opacity-90 disabled:opacity-40 shrink-0 relative`}>
+                  <button type="submit" disabled={isBotResponding || (!inputValue.trim() && pendingFiles.length === 0)} style={{ background: primaryColor, color: onPrimary }}
+                    className={`${c.shape} flex items-center justify-center hover:opacity-90 disabled:opacity-40 shrink-0 relative`}>
                     {c.icon}{c.label && <span className="text-xs font-semibold">{c.label}</span>}
                     {pendingFiles.length > 0 && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow">{pendingFiles.length}</span>

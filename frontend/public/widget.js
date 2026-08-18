@@ -20,7 +20,7 @@
 
   window.__chattyWidgetLoaded = true;
 
-  var BACKEND = "https://chatty-api-376030619262.us-central1.run.app";
+  var BACKEND = "https://api.chatty.personaliai.com";
 
   var script = document.currentScript;
   if (!script) {
@@ -51,6 +51,28 @@
     spinStyle.textContent = "@keyframes chatty-spin{to{transform:rotate(360deg)}}";
     document.head.appendChild(spinStyle);
   } catch (e) {}
+
+  // WCAG-based "what text/icon color goes on this background" — the business
+  // owner picks the launcher color freely, so a hardcoded white icon/stroke
+  // goes invisible the moment they pick a light color. Mirrors
+  // src/lib/color-contrast.ts's logic (kept in sync manually since this file
+  // ships standalone, unbundled, to third-party sites).
+  function getOnColor(hex) {
+    var clean = (hex || "#f97316").replace("#", "").trim();
+    var full = clean.length === 3 ? clean.replace(/(.)/g, "$1$1") : clean;
+    var num = parseInt(full, 16);
+    if (full.length !== 6 || isNaN(num)) return "#ffffff";
+    var r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+    var chan = [r, g, b].map(function (v) {
+      v = v / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    var bgLum = 0.2126 * chan[0] + 0.7152 * chan[1] + 0.0722 * chan[2];
+    var blackLum = 0.2126 * Math.pow((0x18 / 255 + 0.055) / 1.055, 2.4);
+    var whiteContrast = (1 + 0.05) / (bgLum + 0.05);
+    var blackContrast = (Math.max(bgLum, blackLum) + 0.05) / (Math.min(bgLum, blackLum) + 0.05);
+    return whiteContrast >= blackContrast ? "#ffffff" : "#111827";
+  }
 
   var embedParams = "host=" + encodeURIComponent(location.hostname);
   if (colorAttr) embedParams += "&color=" + encodeURIComponent(colorAttr);
@@ -113,12 +135,13 @@
     return "50%";
   }
   function buildChatIcon(c) {
+    var stroke = getOnColor(c);
     var svgIcons = {
-      bot: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>',
-      headset: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 1-2 2h1a2 2 0 0 1-2-2v-3a2 2 0 0 1-2-2H3z"/></svg>',
-      sparkles: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"/><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"/></svg>',
-      message: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
-      user: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+      bot: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>',
+      headset: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 1-2 2h1a2 2 0 0 1-2-2v-3a2 2 0 0 1-2-2H3z"/></svg>',
+      sparkles: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"/><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"/></svg>',
+      message: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+      user: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
     };
 
     if (svgIcons[avatarIconType]) {
@@ -155,13 +178,17 @@
     if (!open) btn.innerHTML = chatIcon;
   }
   var chatIcon = buildChatIcon(color);
-  var closeIcon =
-    '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
-  var spinnerIcon =
-    '<svg width="26" height="26" viewBox="0 0 24 24" style="animation:chatty-spin .7s linear infinite;transform-origin:center">' +
-    '<circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="3"/>' +
-    '<path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>';
-  function setBtnIcon() { btn.innerHTML = (pendingOpen || (open && !ready)) ? spinnerIcon : (open ? closeIcon : chatIcon); }
+  function closeIcon() {
+    var s = getOnColor(color);
+    return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="' + s + '" stroke-width="2.4" stroke-linecap="round"/></svg>';
+  }
+  function spinnerIcon() {
+    var s = getOnColor(color);
+    return '<svg width="26" height="26" viewBox="0 0 24 24" style="animation:chatty-spin .7s linear infinite;transform-origin:center">' +
+      '<circle cx="12" cy="12" r="9" fill="none" stroke="' + s + '" stroke-opacity=".3" stroke-width="3"/>' +
+      '<path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="' + s + '" stroke-width="3" stroke-linecap="round"/></svg>';
+  }
+  function setBtnIcon() { btn.innerHTML = (pendingOpen || (open && !ready)) ? spinnerIcon() : (open ? closeIcon() : chatIcon); }
   btn.innerHTML = chatIcon;
 
   // ---- Unread badge ----

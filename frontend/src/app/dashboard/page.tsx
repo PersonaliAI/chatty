@@ -17,6 +17,8 @@ import { ChatbotFlowBuilder } from "@/components/chatbot-flow-builder";
 import { CampaignsUI } from "@/components/campaigns-ui";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
+import { getOnColor } from "@/lib/color-contrast";
+import { normalizeWidgetStyle } from "@/lib/widget-style";
 import {
   Home,
   Sliders,
@@ -553,6 +555,7 @@ export default function Dashboard() {
   // Unsaved Changes Tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Lists (No demo data by default - queries Supabase)
   const [sources, setSources] = useState<Source[]>([]);
@@ -850,7 +853,7 @@ export default function Dashboard() {
       return await fetch(`${BACKEND_URL}${path}`, { ...options, headers });
     } catch (err) {
       console.warn(`Local backend down for ${path}, retrying with production fallback...`);
-      const fallbackUrl = "https://chatty-api-376030619262.us-central1.run.app";
+      const fallbackUrl = "https://api.chatty.personaliai.com";
       return await fetch(`${fallbackUrl}${path}`, { ...options, headers });
     }
   };
@@ -1044,7 +1047,7 @@ export default function Dashboard() {
         setPrimaryColor(activeBot.primary_color);
         const styleVal = activeBot.widget_style || "minimalist";
         const [styleName, logoBg, shapeVal] = styleVal.split(":");
-        setWidgetStyle(styleName || "minimalist");
+        setWidgetStyle(normalizeWidgetStyle(styleName));
         setLogoBgColor(logoBg || "");
         setLauncherShape(shapeVal || "circle");
         setSendButtonStyle(activeBot.send_button_style || "plane");
@@ -1157,7 +1160,7 @@ export default function Dashboard() {
       
       const styleVal = selected.widget_style || "minimalist";
       const [styleName, logoBg, shapeVal] = styleVal.split(":");
-      setWidgetStyle(styleName || "minimalist");
+      setWidgetStyle(normalizeWidgetStyle(styleName));
       setLogoBgColor(logoBg || "");
       setLauncherShape(shapeVal || "circle");
       
@@ -1938,6 +1941,7 @@ export default function Dashboard() {
 
       if (error) throw error;
       setHasUnsavedChanges(false);
+      showToast("Changes saved.", "success");
 
       // Update local userBots array so switcher dropdown has fresh names / values
       setUserBots((prev) =>
@@ -1992,15 +1996,23 @@ export default function Dashboard() {
       );
     } catch (err) {
       console.error("Error saving chatbot changes:", err);
+      showToast("Failed to save changes.", "error");
     } finally {
       setIsSaving(false);
     }
   }
 
-  // Handle Input Changes
+  // Handle Input Changes — debounced auto-save instead of a manual
+  // "unsaved changes" banner: every change re-arms a short timer, and
+  // handleSaveChanges fires once input settles, same pattern already used
+  // for voice settings (handleAutoSaveVoiceField).
   const handleInputChange = (setter: any, val: any) => {
     setter(val);
     setHasUnsavedChanges(true);
+    if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      handleSaveChanges();
+    }, 1200);
   };
 
   const generateInstructions = async () => {
@@ -2013,15 +2025,41 @@ export default function Dashboard() {
         body: JSON.stringify({
           bot_id: botId,
           session_id: `__gen_instructions_${Date.now()}`,
-          text: "Based solely on your knowledge base, write a concise system prompt for yourself (2-4 sentences). Describe: 1) what you are and what business/product you represent, 2) what topics you help with, 3) your tone and response style. Output ONLY the system prompt text, no preamble or explanation.",
+          text:
+            "Based solely on your knowledge base, generate your own configuration. " +
+            "Respond in EXACTLY this format, with no preamble or extra commentary — " +
+            "three sections, each starting on its own line with the exact header shown:\n\n" +
+            "SYSTEM_INSTRUCTIONS:\n" +
+            "A concise system prompt for yourself (2-4 sentences): 1) what you are and what business/product you represent, 2) what topics you help with, 3) your tone and response style.\n\n" +
+            "GUARDRAIL_TOPICS:\n" +
+            "A comma-separated list of topics you should always decline to discuss — infer these from what's actually OUT of scope given your knowledge base (e.g. if you're a support bot for a SaaS product, likely topics are: competitor products, medical advice, legal advice, unrelated general knowledge). Leave blank if nothing obvious applies.\n\n" +
+            "REFUSAL_MESSAGE:\n" +
+            "One short, on-brand sentence to say when declining an off-topic question — match the tone of your knowledge base.",
           visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
       if (res.ok) {
         const body = await res.json();
-        const generated = body.reply || body.message || body.response || "";
+        const generated: string = body.reply || body.message || body.response || "";
         if (generated) {
-          handleInputChange(setSystemInstructions, generated.trim());
+          const section = (name: string) => {
+            const re = new RegExp(`${name}:\\s*([\\s\\S]*?)(?=\\n[A-Z_]+:|$)`, "i");
+            const m = generated.match(re);
+            return m ? m[1].trim() : "";
+          };
+          const instructions = section("SYSTEM_INSTRUCTIONS");
+          const topics = section("GUARDRAIL_TOPICS");
+          const refusal = section("REFUSAL_MESSAGE");
+          // Fallback: if the model didn't follow the format at all, treat the
+          // whole reply as the system instructions (previous behavior) rather
+          // than silently generating nothing.
+          if (!instructions && !topics && !refusal) {
+            handleInputChange(setSystemInstructions, generated.trim());
+          } else {
+            if (instructions) handleInputChange(setSystemInstructions, instructions);
+            handleInputChange(setGuardrailTopics, /^(none|n\/a|blank|-)$/i.test(topics) ? "" : topics);
+            if (refusal) handleInputChange(setGuardrailRefusalMessage, refusal);
+          }
         }
       }
     } catch (e) {
@@ -3364,31 +3402,6 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Floating Save Changes Banner */}
-      {hasUnsavedChanges && (
-        <div className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:bottom-6 sm:right-6 z-50 bg-neutral-950 text-white dark:bg-white dark:text-black border border-neutral-800 dark:border-neutral-200 shadow-2xl rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-wrap items-center justify-between sm:justify-start gap-3 sm:gap-4 transition-all duration-300">
-          <span className="text-[11px] font-semibold flex items-center gap-1.5 whitespace-nowrap">
-            <span className="size-2 rounded-full bg-[#f97316] animate-pulse shrink-0"></span>
-            You have unsaved changes
-          </span>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={() => setHasUnsavedChanges(false)}
-              className="text-[10px] font-medium border border-neutral-800 hover:bg-neutral-900 rounded-lg px-2.5 py-1.5 cursor-pointer dark:border-neutral-200 dark:hover:bg-neutral-100"
-            >
-              Discard
-            </button>
-            <button
-              onClick={handleSaveChanges}
-              disabled={isSaving}
-              className="text-[10px] font-semibold bg-[#f97316] text-white rounded-lg px-3 py-1.5 flex items-center gap-1.5 cursor-pointer hover:bg-[#f97316]/90 disabled:opacity-50 whitespace-nowrap"
-            >
-              {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
-              Save changes
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Collapsible Mobile Sidebar Overlay */}
       {sidebarOpen && (
@@ -3762,14 +3775,10 @@ export default function Dashboard() {
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         { id: "minimalist", name: "Minimalist", desc: "Sharp borders, solid colors." },
-                        { id: "glassmorphism", name: "Glassmorphism", desc: "Frosted blur, soft shadows." },
-                        { id: "liquid", name: "Liquid Glass", desc: "Fluid saturated reflections." },
-                        { id: "neumorphism", name: "Neumorphism", desc: "Sleek dual pillowy bevels." },
-                        { id: "brutalism", name: "Brutalism", desc: "Bold blocks, thick borders." },
-                        { id: "claymorphism", name: "Claymorphism", desc: "Soft 3D puffy clay." },
-                        { id: "bento", name: "Bento Grid", desc: "Clean modular cards." },
-                        { id: "retro", name: "Retro / Y2K", desc: "Neon glow, cyber vibe." },
-                        { id: "aurora", name: "Aurora Mesh", desc: "Flowing premium gradients." }
+                        { id: "elevated", name: "Elevated", desc: "Soft depth, premium card feel." },
+                        { id: "frosted", name: "Frosted", desc: "Refined blur glass." },
+                        { id: "bold", name: "Bold", desc: "Your brand color, front and center." },
+                        { id: "contrast", name: "Contrast", desc: "Sleek dark shell, always legible." }
                       ].map((style) => (
                         <button
                           key={style.id}
@@ -3903,8 +3912,8 @@ export default function Dashboard() {
                             }`}
                           >
                             <span
-                              style={{ backgroundColor: primaryColor }}
-                              className={`${opt.shape} flex items-center justify-center text-white`}
+                              style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
+                              className={`${opt.shape} flex items-center justify-center`}
                             >
                               {opt.icon}{opt.label && <span className="text-xs font-semibold">{opt.label}</span>}
                             </span>
@@ -4064,14 +4073,14 @@ export default function Dashboard() {
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
                   <div
                     className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
-                    style={{ "--primary-color": primaryColor } as React.CSSProperties}
+                    style={{ "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}
                   >
-                                       {/* Header styled dynamically */}
+                                       {/* Header — background always the brand color, same as the real
+                          embedded widget; per-style CSS (globals.css) overrides it where a
+                          preset wants a different treatment (frosted/contrast). */}
                     <div
-                      style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
-                      className={`chat-header p-4 flex items-center gap-3 transition-all ${
-                        widgetStyle === "minimalist" ? "text-white" : ""
-                      }`}
+                      style={{ backgroundColor: primaryColor }}
+                      className="chat-header p-4 flex items-center gap-3 transition-all"
                     >
                       <div 
                         className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
@@ -4108,8 +4117,8 @@ export default function Dashboard() {
                       </div>
                       <div className="flex gap-2 ml-auto flex-row-reverse max-w-[85%]">
                         <div
-                          className="user-bubble p-3 rounded-2xl rounded-tr-none text-white leading-relaxed"
-                          style={{ backgroundColor: primaryColor }}
+                          className="user-bubble p-3 rounded-2xl rounded-tr-none leading-relaxed"
+                          style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
                         >
                           Hi there, testing theme preview!
                         </div>
@@ -4143,7 +4152,7 @@ export default function Dashboard() {
                         };
                         const c = map[sendButtonStyle] || map.plane;
                         return (
-                          <button disabled style={{ backgroundColor: primaryColor }} className={`${c.shape} text-white flex items-center justify-center shrink-0 opacity-90`}>
+                          <button disabled style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }} className={`${c.shape} flex items-center justify-center shrink-0 opacity-90`}>
                             {c.icon}{c.label && <span className="text-[11px] font-semibold">{c.label}</span>}
                           </button>
                         );
@@ -4155,15 +4164,16 @@ export default function Dashboard() {
                   <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
                     <span className="text-[10px] text-neutral-450 dark:text-neutral-500 uppercase font-bold tracking-wider">Button Preview</span>
                     <div className="relative">
-                      <div 
-                        style={{ 
+                      <div
+                        style={{
                           backgroundColor: primaryColor,
-                          borderRadius: launcherShape === "circle" ? "50%" : 
-                                        launcherShape === "square" ? "0px" : 
-                                        launcherShape === "rounded" ? "12px" : 
+                          color: getOnColor(primaryColor),
+                          borderRadius: launcherShape === "circle" ? "50%" :
+                                        launcherShape === "square" ? "0px" :
+                                        launcherShape === "rounded" ? "12px" :
                                         "24px 24px 4px 24px" // bubble (right side)
                         }}
-                        className="w-14 h-14 text-white flex items-center justify-center shadow-lg transition-all duration-300 select-none cursor-pointer"
+                        className="w-14 h-14 flex items-center justify-center shadow-lg transition-all duration-300 select-none cursor-pointer"
                       >
                         {(() => {
                           const ICONS: Record<string, any> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
@@ -4959,15 +4969,14 @@ export default function Dashboard() {
               )}
               <div
                 className={`w-full max-w-lg h-[500px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative flex flex-col style-${widgetStyle} ${playgroundView === "live" ? "hidden" : ""}`}
-                style={{ "--primary-color": primaryColor } as React.CSSProperties}
+                style={{ "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}
               >
-                
-                {/* Playground Header */}
+
+                {/* Playground Header — background always the brand color, same as
+                    the real embedded widget; per-style CSS overrides where needed. */}
                 <div
-                  style={widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}}
-                  className={`chat-header p-4 flex items-center justify-between border-b ${
-                    widgetStyle === "minimalist" ? "text-white border-transparent" : "border-neutral-200 dark:border-neutral-850"
-                  }`}
+                  style={{ backgroundColor: primaryColor }}
+                  className="chat-header p-4 flex items-center justify-between border-b border-transparent"
                 >
                   <div className="flex items-center gap-3">
                     <div 
@@ -5037,10 +5046,10 @@ export default function Dashboard() {
                         <div
                           className={`p-3 rounded-2xl leading-relaxed ${
                             msg.role === "user"
-                              ? "user-bubble text-white rounded-tr-none"
+                              ? "user-bubble rounded-tr-none"
                               : "bot-bubble bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 rounded-tl-none"
                           }`}
-                          style={msg.role === "user" ? (widgetStyle === "minimalist" ? { backgroundColor: primaryColor } : {}) : {}}
+                          style={msg.role === "user" ? { backgroundColor: primaryColor, color: getOnColor(primaryColor) } : {}}
                         >
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm, remarkMath]}
@@ -5217,8 +5226,8 @@ export default function Dashboard() {
                     };
                     const c = map[sendButtonStyle] || map.plane;
                     return (
-                      <button type="submit" style={{ backgroundColor: primaryColor }}
-                        className={`${c.shape} text-white flex items-center justify-center shrink-0 hover:opacity-90 cursor-pointer`}>
+                      <button type="submit" style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
+                        className={`${c.shape} flex items-center justify-center shrink-0 hover:opacity-90 cursor-pointer`}>
                         {c.icon}{c.label && <span className="text-xs font-semibold">{c.label}</span>}
                       </button>
                     );
@@ -6402,9 +6411,22 @@ const { reply, session_id } = await res.json();`}</pre>
 
                 {/* SECTION 1B: GUARDRAILS & LANGUAGE */}
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <ShieldAlert className="size-4 text-[#f97316]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Guardrails & Language</h3>
+                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="size-4 text-[#f97316]" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Guardrails & Language</h3>
+                    </div>
+                    <button
+                      onClick={generateInstructions}
+                      disabled={isGeneratingInstructions}
+                      className="flex items-center gap-1 text-[10px] font-semibold text-[#f97316] hover:text-[#ea6b0e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      title="Auto-generate from trained knowledge (same generator as System Instructions above)"
+                    >
+                      {isGeneratingInstructions
+                        ? <Loader2 className="size-3 animate-spin" />
+                        : <Sparkles className="size-3" />}
+                      {isGeneratingInstructions ? "Generating…" : "Auto-generate"}
+                    </button>
                   </div>
 
                   <div>
