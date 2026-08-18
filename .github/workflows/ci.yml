@@ -53,6 +53,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Verify widget design tokens haven't drifted
+        run: node scripts/verify-design-snapshot.mjs
+
       - name: Build
         run: npm run build
         env:
