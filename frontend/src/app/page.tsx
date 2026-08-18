@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
+import { getOnColor } from "@/lib/color-contrast";
 import {
   ArrowRight,
   ChevronDown,
@@ -181,6 +183,7 @@ export default function Home() {
   const [logoBgColor, setLogoBgColor] = useState("");
   const [avatarIconType, setAvatarIconType] = useState("logo");
   const [launcherShape, setLauncherShape] = useState("circle");
+  const [widgetStyle, setWidgetStyle] = useState("minimal");
   const [themeLoaded, setThemeLoaded] = useState(false);
 
   useEffect(() => {
@@ -202,6 +205,7 @@ export default function Home() {
 
           if (d.widget_style) {
             const [styleName, bg, shape] = d.widget_style.split(":");
+            setWidgetStyle(normalizeWidgetStyle(styleName));
             setLogoBgColor(bg || "");
             setLauncherShape(shape || "circle");
           }
@@ -306,6 +310,10 @@ export default function Home() {
       setProgress(0);
     }
   };
+
+  const launcherBg = LAUNCHER_STYLES[widgetStyle]?.bg || themeColor;
+  const launcherSolidBg = launcherBg.indexOf("gradient") === -1 ? launcherBg : "#a855f7";
+  const launcherIconColor = getOnColor(launcherSolidBg);
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans antialiased selection:bg-neutral-200 dark:selection:bg-neutral-800">
@@ -808,17 +816,21 @@ export default function Home() {
             strokeDashoffset={getWaitingPathAndPerimeter().perimeter - (getWaitingPathAndPerimeter().perimeter * progress) / 100}
           />
         </svg>
-        {/* Toggle Button */}
+        {/* Toggle Button — background/shadow default to the selected design's
+            own launcher look (mirrors widget.js's LAUNCHER_STYLES), same as
+            every embedded widget; shape stays a separate explicit choice. */}
         <button
           onClick={handleToggleWidget}
-          style={{ 
-            backgroundColor: themeColor,
-            borderRadius: launcherShape === "circle" ? "50%" : 
-                          launcherShape === "square" ? "0px" : 
-                          launcherShape === "rounded" ? "12px" : 
+          style={{
+            background: LAUNCHER_STYLES[widgetStyle]?.bg || themeColor,
+            boxShadow: LAUNCHER_STYLES[widgetStyle]?.shadow,
+            color: launcherIconColor,
+            borderRadius: launcherShape === "circle" ? "50%" :
+                          launcherShape === "square" ? "0px" :
+                          launcherShape === "rounded" ? "12px" :
                           "24px 24px 4px 24px" // bubble (right side)
           }}
-          className="size-14 text-white flex items-center justify-center shadow-lg hover:opacity-90 transition-all cursor-pointer z-10 focus:outline-none"
+          className="size-14 flex items-center justify-center hover:opacity-90 transition-all cursor-pointer z-10 focus:outline-none"
           title="Chat Assistant"
         >
           {isWidgetOpen || isConnecting ? (
@@ -827,7 +839,7 @@ export default function Home() {
             LAUNCHER_ICONS[avatarIconType] ? (
               (() => {
                 const IconComponent = LAUNCHER_ICONS[avatarIconType];
-                return <IconComponent className="size-7 text-white" />;
+                return <IconComponent className="size-7" />;
               })()
             ) : (
               themeIcon !== "/favicon.png" && avatarIconType === "custom" ? (
@@ -840,7 +852,7 @@ export default function Home() {
                   style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
                 />
               ) : (
-                <div 
+                <div
                   className="size-11 rounded-full flex items-center justify-center overflow-hidden transition-colors"
                   style={logoBgColor ? { backgroundColor: logoBgColor } : (themeIcon === "/favicon.png" ? {} : { backgroundColor: "rgba(255,255,255,0.2)" })}
                 >
@@ -850,7 +862,7 @@ export default function Home() {
                     width={themeIcon === "/favicon.png" ? 36 : 34}
                     height={themeIcon === "/favicon.png" ? 36 : 34}
                     className={themeIcon === "/favicon.png" ? "size-9 object-contain" : "w-[34px] h-[34px] object-contain rounded-full"}
-                    style={(themeIcon === "/favicon.png" && themeColor.toLowerCase().replace(/\s+/g, "") === "#f97316") ? { filter: "brightness(0) invert(1)" } : {}}
+                    style={(themeIcon === "/favicon.png" && launcherIconColor === "#ffffff") ? { filter: "brightness(0) invert(1)" } : {}}
                   />
                 </div>
               )
