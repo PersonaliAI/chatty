@@ -6,7 +6,7 @@
 
 **Open-source AI customer support: chat widget + real-time voice agent, grounded in your own knowledge base.**
 
-Self-host it in five minutes with Docker. No vendor lock-in, no per-seat pricing, your data stays in your own Supabase project.
+Self-host it in five minutes with Docker, or let us run it for you. No vendor lock-in either way — the hosted version and this repo are the same code.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/PersonaliAI/chatty/actions/workflows/ci.yml/badge.svg)](https://github.com/PersonaliAI/chatty/actions/workflows/ci.yml)
@@ -17,7 +17,7 @@ Self-host it in five minutes with Docker. No vendor lock-in, no per-seat pricing
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Live Demo](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Quick Start](#-quick-start-docker-compose) · [Features](#-features) · [Architecture](#-architecture) · [Contributing](#-contributing)
+[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Quick Start](#-quick-start-docker-compose) · [Features](#-features) · [Architecture](#-architecture) · [Contributing](#-contributing)
 
 </div>
 
@@ -25,15 +25,15 @@ Self-host it in five minutes with Docker. No vendor lock-in, no per-seat pricing
 
 ## Why Chatty
 
-Every hosted chatbot SaaS charges per-seat or per-message and holds your conversation data. Chatty is the alternative: the same feature set — streaming chat, a real-time voice agent, RAG over your own documents, meeting booking, lead capture, WhatsApp/Slack/Telegram channels — running entirely on infrastructure you own.
+Every hosted chatbot SaaS charges per-seat or per-message and holds your conversation data. Chatty is open-core: run it yourself for free, or use [Chatty Cloud](https://chatty.personaliai.com) — our own hosted version of this exact repo, if you'd rather skip the ops work. Either way you get the same feature set — streaming chat, a real-time voice agent, RAG over your own documents, meeting booking, lead capture, WhatsApp/Slack/Telegram channels.
 
-|  | Hosted SaaS chatbots | **Chatty (self-hosted)** |
+|  | Closed-source SaaS chatbots | **Chatty** |
 |---|---|---|
-| Your conversation data | Lives on their servers | Stays in **your** Supabase project |
-| Pricing | Per-seat / per-message | Free — pay only your own infra (a $5–10/mo VPS covers most teams) |
+| Your conversation data | Lives on their servers, always | Your Supabase project — whether you self-host or use Chatty Cloud |
+| Pricing | Per-seat / per-message, no free tier | Self-host for free, or a straightforward hosted plan on Chatty Cloud |
 | LLM | Locked to their model | **Bring your own** — Gemini by default, or BYOK OpenAI/Anthropic/OpenRouter |
 | Voice agent | Usually a separate, pricier tier | Included, same knowledge base as chat |
-| Source code | Closed | **MIT licensed** — fork it, audit it, extend it |
+| Source code | Closed | **MIT licensed** — fork it, audit it, extend it, run it anywhere |
 
 ## ✨ Features
 
