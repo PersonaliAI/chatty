@@ -4389,9 +4389,10 @@ export default function Dashboard() {
                     googleConnected ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400" : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
                   }`}
                 >
-                  {/* This button connects Drive knowledge sync, not Meet — use
-                      Drive's icon in both states instead of the unrelated Meet logo. */}
-                  <img src="/logos/google-drive.png" alt="" className="size-4 object-contain" />
+                  {/* Generic Google mark before connecting (the button is about
+                      the account, not Drive specifically yet); Drive's own icon
+                      once connected, since that's what it now represents. */}
+                  <img src={googleConnected ? "/logos/google-drive.png" : "/logos/google.png"} alt="" className="size-4 object-contain" />
                   {googleConnected ? "Google Drive" : "Connect Google"}
                   {googleConnected && <Check className="size-3" />}
                 </button>
@@ -4401,8 +4402,8 @@ export default function Dashboard() {
                     microsoftConnected ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400" : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
                   }`}
                 >
-                  {/* Same here — this button connects OneDrive, not Teams. */}
-                  <img src="/logos/onedrive.png" alt="" className="size-4 object-contain" />
+                  {/* Same here — generic Microsoft mark before connecting, OneDrive's own after. */}
+                  <img src={microsoftConnected ? "/logos/onedrive.png" : "/logos/microsoft.png"} alt="" className="size-4 object-contain" />
                   {microsoftConnected ? "OneDrive" : "Connect Microsoft"}
                   {microsoftConnected && <Check className="size-3" />}
                 </button>
