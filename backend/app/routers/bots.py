@@ -295,7 +295,7 @@ async def dashboard_delete_webhook(
 async def get_capabilities(user: dict[str, Any] = Depends(require_user)):
     """Report which optional integrations are configured on the backend so the
     UI can gate provider choices."""
-    import notifications as _notify
+    from plugins import notifications as _notify
     return {
         "onesignal_configured": _notify.onesignal_configured(),
     }
