@@ -175,7 +175,7 @@ export default function Home() {
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const botId = "8e7713d5-af4e-41d2-a1d1-191fab125d18"; // The official landing page bot ID
+  const botId = "c8fa19c8-dd25-43a3-9c55-e8099e6f532e"; // The official landing page bot ID
   const [themeColor, setThemeColor] = useState("#f97316");
   const [themeIcon, setThemeIcon] = useState("/favicon.png");
   const [logoBgColor, setLogoBgColor] = useState("");
@@ -186,7 +186,7 @@ export default function Home() {
   useEffect(() => {
     async function loadTheme() {
       try {
-        const res = await fetch(`https://personaliai-api-376030619262.us-central1.run.app/api/widget/theme?bot_id=${botId}&t=${Date.now()}`);
+        const res = await fetch(`https://api.chatty.personaliai.com/api/widget/theme?bot_id=${botId}&t=${Date.now()}`);
         if (res.ok) {
           const d = await res.json();
           if (d.primary_color) setThemeColor(d.primary_color);

@@ -385,7 +385,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
     if (!aiPrompt.trim() || !botId) return;
     setGenerating(true);
     try {
-      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://chatty-api-376030619262.us-central1.run.app";
+      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
     const res = await fetch(`${BACKEND_URL}/api/flow/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
