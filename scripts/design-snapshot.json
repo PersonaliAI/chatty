@@ -1,0 +1,92 @@
+{
+  "minimal": {
+    "containerBg": "#f3f2ee",
+    "containerRadius": "18px",
+    "headerBg": "#ffffff",
+    "botBubbleBg": "#f3f2ee",
+    "botBubbleRadius": "14px",
+    "userBubbleBg": "#1c1a15",
+    "userBubbleRadius": "14px"
+  },
+  "playful": {
+    "containerBg": "#fffaf5",
+    "containerRadius": "28px",
+    "headerBg": "#ff8a5c",
+    "botBubbleBg": "#ffe6d9",
+    "botBubbleRadius": "20px",
+    "userBubbleBg": "#ff8a5c",
+    "userBubbleRadius": "20px"
+  },
+  "corporate": {
+    "containerBg": "#eef1f6",
+    "containerRadius": "10px",
+    "headerBg": "#1c2e4a",
+    "botBubbleBg": "#eef1f6",
+    "botBubbleRadius": "8px",
+    "userBubbleBg": "#1c2e4a",
+    "userBubbleRadius": "8px"
+  },
+  "dark-sleek": {
+    "containerBg": "#111114",
+    "containerRadius": "16px",
+    "headerBg": "#14141a",
+    "botBubbleBg": "#1c1c22",
+    "botBubbleRadius": "12px",
+    "userBubbleBg": "#00e5c7",
+    "userBubbleRadius": "12px"
+  },
+  "gradient-glow": {
+    "containerBg": "#ffffff",
+    "containerRadius": "24px",
+    "headerBg": "linear-gradient(120deg, #a855f7, #ec4899)",
+    "botBubbleBg": "#f6effc",
+    "botBubbleRadius": "16px",
+    "userBubbleBg": "#a855f7",
+    "userBubbleRadius": "16px"
+  },
+  "glassmorphism": {
+    "containerBg": "linear-gradient(135deg, #5b8def, #8f6ff0 50%, #e05ac9)",
+    "containerRadius": "20px",
+    "headerBg": "rgba(255, 255, 255, 0.08)",
+    "botBubbleBg": "rgba(255, 255, 255, 0.18)",
+    "botBubbleRadius": "14px",
+    "userBubbleBg": "rgba(255, 255, 255, 0.9)",
+    "userBubbleRadius": "14px"
+  },
+  "ecommerce": {
+    "containerBg": "#fdf9f2",
+    "containerRadius": "14px",
+    "headerBg": "#0f9d8c",
+    "botBubbleBg": "#f3efe6",
+    "botBubbleRadius": "14px",
+    "userBubbleBg": "#0f9d8c",
+    "userBubbleRadius": "14px"
+  },
+  "healthcare-calm": {
+    "containerBg": "#fbfcf9",
+    "containerRadius": "18px",
+    "headerBg": "#eaf1e9",
+    "botBubbleBg": "#eaf1e9",
+    "botBubbleRadius": "14px",
+    "userBubbleBg": "#6f9c7d",
+    "userBubbleRadius": "14px"
+  },
+  "neubrutalism": {
+    "containerBg": "#ffffff",
+    "containerRadius": "4px",
+    "headerBg": "#ffde59",
+    "botBubbleBg": "#f2f2f2",
+    "botBubbleRadius": "4px",
+    "userBubbleBg": "#ff3d67",
+    "userBubbleRadius": "4px"
+  },
+  "luxury-editorial": {
+    "containerBg": "#fbf9f5",
+    "containerRadius": "6px",
+    "headerBg": "#161412",
+    "botBubbleBg": "#f1ebdf",
+    "botBubbleRadius": "2px",
+    "userBubbleBg": "#161412",
+    "userBubbleRadius": "2px"
+  }
+}

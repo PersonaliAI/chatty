@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:design-snapshot": "node scripts/verify-design-snapshot.mjs",
+    "gen:design-snapshot": "node scripts/generate-design-snapshot.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
