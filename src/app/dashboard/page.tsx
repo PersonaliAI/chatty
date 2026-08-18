@@ -553,6 +553,7 @@ export default function Dashboard() {
   // Unsaved Changes Tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Lists (No demo data by default - queries Supabase)
   const [sources, setSources] = useState<Source[]>([]);
@@ -1938,6 +1939,7 @@ export default function Dashboard() {
 
       if (error) throw error;
       setHasUnsavedChanges(false);
+      showToast("Changes saved.", "success");
 
       // Update local userBots array so switcher dropdown has fresh names / values
       setUserBots((prev) =>
@@ -1992,15 +1994,23 @@ export default function Dashboard() {
       );
     } catch (err) {
       console.error("Error saving chatbot changes:", err);
+      showToast("Failed to save changes.", "error");
     } finally {
       setIsSaving(false);
     }
   }
 
-  // Handle Input Changes
+  // Handle Input Changes — debounced auto-save instead of a manual
+  // "unsaved changes" banner: every change re-arms a short timer, and
+  // handleSaveChanges fires once input settles, same pattern already used
+  // for voice settings (handleAutoSaveVoiceField).
   const handleInputChange = (setter: any, val: any) => {
     setter(val);
     setHasUnsavedChanges(true);
+    if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      handleSaveChanges();
+    }, 1200);
   };
 
   const generateInstructions = async () => {
@@ -3364,31 +3374,6 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Floating Save Changes Banner */}
-      {hasUnsavedChanges && (
-        <div className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:bottom-6 sm:right-6 z-50 bg-neutral-950 text-white dark:bg-white dark:text-black border border-neutral-800 dark:border-neutral-200 shadow-2xl rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-wrap items-center justify-between sm:justify-start gap-3 sm:gap-4 transition-all duration-300">
-          <span className="text-[11px] font-semibold flex items-center gap-1.5 whitespace-nowrap">
-            <span className="size-2 rounded-full bg-[#f97316] animate-pulse shrink-0"></span>
-            You have unsaved changes
-          </span>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={() => setHasUnsavedChanges(false)}
-              className="text-[10px] font-medium border border-neutral-800 hover:bg-neutral-900 rounded-lg px-2.5 py-1.5 cursor-pointer dark:border-neutral-200 dark:hover:bg-neutral-100"
-            >
-              Discard
-            </button>
-            <button
-              onClick={handleSaveChanges}
-              disabled={isSaving}
-              className="text-[10px] font-semibold bg-[#f97316] text-white rounded-lg px-3 py-1.5 flex items-center gap-1.5 cursor-pointer hover:bg-[#f97316]/90 disabled:opacity-50 whitespace-nowrap"
-            >
-              {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
-              Save changes
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Collapsible Mobile Sidebar Overlay */}
       {sidebarOpen && (
