@@ -207,16 +207,21 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
                       </button>
                     ))}
                   </div>
-                  {/* Live preview */}
-                  <div className="mt-2 rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                    <div className="p-3 flex items-center gap-2" style={{ background: primaryColor }}>
+                  {/* Live preview — reflects the actual per-style CSS (globals.css
+                      .style-* rules) so switching styles here shows the same
+                      look the embedded widget will actually have. */}
+                  <div
+                    className={`mt-2 rounded-2xl overflow-hidden style-${widgetStyle}`}
+                    style={{ ["--primary-color" as string]: primaryColor }}
+                  >
+                    <div className="chat-header p-3 flex items-center gap-2" style={{ background: primaryColor }}>
                       <div className="size-7 rounded-full bg-white/25 flex items-center justify-center overflow-hidden text-white font-bold text-xs">
                         {logoUrl ? <img src={logoUrl} alt="" className="size-full object-cover" /> : (name[0]?.toUpperCase() || "C")}
                       </div>
                       <div className="text-white text-xs font-semibold">{name || "Your Assistant"}</div>
                     </div>
                     <div className="p-3 bg-white dark:bg-neutral-900">
-                      <div className="inline-block bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none px-3 py-2 text-xs">{welcomeMessage || "Hello! How can I help you today?"}</div>
+                      <div className="bot-bubble inline-block bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none px-3 py-2 text-xs">{welcomeMessage || "Hello! How can I help you today?"}</div>
                     </div>
                   </div>
                 </div>
