@@ -276,18 +276,29 @@ async def _create_outlook_event(args: dict, user: dict, supabase) -> dict:
     )
 
 
+def _dedupe_doubled(v):
+    """Occasionally the model emits a field value as itself repeated twice
+    back-to-back with no separator (e.g. "da@g.comda@g.com") — an LLM
+    generation artifact, not anything the visitor typed. Collapse it back
+    to the single value when the string is cleanly halvable that way."""
+    if not isinstance(v, str) or len(v) < 2 or len(v) % 2 != 0:
+        return v
+    half = len(v) // 2
+    return v[:half] if v[:half] == v[half:] else v
+
+
 async def _create_lead(args: dict, user: dict, supabase) -> dict:
     bot_id = args.get("bot_id")
     if not bot_id:
         return {"error": "bot_id required"}
     session_id = args.get("session_id")
-    company = args.get("company") or args.get("company_name")
+    company = _dedupe_doubled(args.get("company") or args.get("company_name"))
     fields = {
-        "name": args.get("name"),
-        "email": args.get("email"),
-        "phone": args.get("phone"),
+        "name": _dedupe_doubled(args.get("name")),
+        "email": _dedupe_doubled(args.get("email")),
+        "phone": _dedupe_doubled(args.get("phone")),
         "company": company,
-        "job_title": args.get("job_title"),
+        "job_title": _dedupe_doubled(args.get("job_title")),
         "country": args.get("country"),
         "city": args.get("city"),
         "region": args.get("region"),
