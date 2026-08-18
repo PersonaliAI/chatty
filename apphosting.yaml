@@ -13,7 +13,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_BACKEND_URL
-    value: "https://personaliai-api-376030619262.us-central1.run.app"
+    value: "https://chatty-api-649600841713.us-central1.run.app"
     availability:
       - BUILD
       - RUNTIME
