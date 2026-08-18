@@ -27,11 +27,16 @@ interface Props {
 }
 
 const STYLES = [
-  { id: "minimalist", name: "Minimalist", desc: "Sharp, solid colors" },
-  { id: "elevated", name: "Elevated", desc: "Soft depth, premium feel" },
-  { id: "frosted", name: "Frosted", desc: "Refined blur glass" },
-  { id: "bold", name: "Bold", desc: "Brand color, front and center" },
-  { id: "contrast", name: "Contrast", desc: "Sleek dark shell" },
+  { id: "minimal", name: "Minimal", desc: "Clean SaaS, off-white" },
+  { id: "playful", name: "Playful", desc: "Rounded & warm" },
+  { id: "corporate", name: "Corporate", desc: "Structured navy" },
+  { id: "dark-sleek", name: "Dark Sleek", desc: "Near-black with glow" },
+  { id: "gradient-glow", name: "Gradient Glow", desc: "Vivid gradient" },
+  { id: "glassmorphism", name: "Glassmorphism", desc: "Frosted glass" },
+  { id: "ecommerce", name: "E-commerce", desc: "Order-aware shop" },
+  { id: "healthcare-calm", name: "Healthcare Calm", desc: "Soft sage & serif" },
+  { id: "neubrutalism", name: "Neubrutalism", desc: "Bold, thick borders" },
+  { id: "luxury-editorial", name: "Luxury Editorial", desc: "Serif & gold" },
 ];
 
 export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onComplete, onClose }: Props) {

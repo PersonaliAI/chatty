@@ -156,215 +156,216 @@ body {
 
 /* Assistant Design Presets
  *
- * Five presets, down from nine. Every one of the removed presets had a
- * concrete legibility bug: Brutalism/Neumorphism/Bento/Claymorphism hardcode
- * text color against var(--primary-color), which is chosen by the business
- * owner and can be dark just as easily as light — hardcoded #111 or #fff
- * text goes invisible the moment someone picks the "wrong" half of the
- * lightness spectrum. Retro and Aurora had zero .dark overrides and no
- * explicit foreground color on their base container, so any untagged text
- * (timestamps, footer, placeholders) silently inherited the page's ambient
- * --foreground — dark-on-dark or light-on-light depending on mode.
+ * 10 fully-designed presets, each with its own fixed, deliberately-chosen
+ * color story, typeface, corner radius, and shadow language — not a single
+ * accent color reskin. Ported 1:1 from a real design gallery (colors, radii,
+ * and shadows below are exact values pulled from that source, not
+ * approximations), including each design's own default launcher-button
+ * look (see public/widget.js's LAUNCHER_STYLES for the floating button).
  *
- * Fix applied everywhere below:
- *   1. Every preset's base container sets an explicit `color`, so nothing
- *      falls through to an unrelated ambient value.
- *   2. Every element painted with the owner's primaryColor (chat-header,
- *      user-bubble) uses `var(--on-primary, #fff)` instead of a hardcoded
- *      text color — --on-primary is computed at runtime (src/lib/
- *      color-contrast.ts) via WCAG relative luminance against the actual
- *      color chosen, so it's always readable regardless of what that color is.
- *   3. Every preset has both a light and a dark variant.
+ * Every element that carries text sets both background AND color together,
+ * so nothing here can end up with unreadable contrast the way the old
+ * primaryColor-driven presets could (see git history for that bug class).
+ * The visitor's own bot name/logo still comes through via var(--on-primary)
+ * where a design intentionally keeps the header on the owner's brand color
+ * (Bold-style headers only — most of these 10 use a fixed header color).
  */
 
-/* 1. Minimalist — clean flat surface, zero decoration. */
-.style-minimalist {
-  background-color: var(--card);
-  color: var(--card-foreground);
-  border: 1px solid var(--border);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+/* 1. Minimal — clean SaaS, off-white, DM Sans. */
+.style-minimal {
+  background-color: #f3f2ee !important;
+  color: #1c1a15 !important;
+  border: 1px solid #e6e4de !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.1) !important;
+  font-family: var(--font-dm-sans), sans-serif !important;
 }
+.style-minimal .chat-header { background-color: #ffffff !important; color: #1c1a15 !important; border-bottom: 1px solid #e6e4de !important; }
+.style-minimal .bot-bubble { background-color: #f3f2ee !important; color: #1c1a15 !important; border: none !important; border-radius: 14px !important; }
+.style-minimal .user-bubble { background-color: #1c1a15 !important; color: #ffffff !important; border: none !important; border-radius: 14px !important; }
+.style-minimal .starter-chip { background-color: #ffffff !important; color: #1c1a15 !important; border-color: #e0ddd5 !important; border-radius: 20px !important; font-weight: 500; }
+.style-minimal .chat-input-bar { background-color: #ffffff !important; color: #1c1a15 !important; border-color: #e6e4de !important; border-radius: 12px !important; }
+.style-minimal .send-btn { background-color: #1c1a15 !important; color: #ffffff !important; }
+.dark .style-minimal { background-color: #171613 !important; color: #f3f2ee !important; border-color: #2a2822 !important; }
+.dark .style-minimal .chat-header { background-color: #1e1c18 !important; color: #f3f2ee !important; border-color: #2a2822 !important; }
+.dark .style-minimal .bot-bubble { background-color: #221f1a !important; color: #f3f2ee !important; }
+.dark .style-minimal .chat-input-bar { background-color: #1e1c18 !important; color: #f3f2ee !important; border-color: #2a2822 !important; }
 
-.dark .style-minimalist {
-  box-shadow: none;
-}
-
-.style-minimalist .chat-header {
-  color: var(--on-primary, #ffffff);
-}
-
-.style-minimalist .user-bubble {
-  color: var(--on-primary, #ffffff) !important;
-}
-
-/* 2. Elevated — soft depth, no border, premium SaaS card feel. */
-.style-elevated {
-  background-color: var(--card);
-  color: var(--card-foreground);
-  border: none;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.06);
-}
-
-.dark .style-elevated {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
-}
-
-.style-elevated .chat-header {
-  color: var(--on-primary, #ffffff);
-}
-
-.style-elevated .bot-bubble {
-  background-color: var(--secondary) !important;
-  color: var(--secondary-foreground) !important;
+/* 2. Playful — consumer app, rounded & warm, Quicksand. */
+.style-playful {
+  background-color: #fffaf5 !important;
+  color: #2a1a10 !important;
   border: none !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  border-radius: 28px !important;
+  box-shadow: 0 16px 36px 0 rgba(255, 138, 92, 0.28) !important;
+  font-family: var(--font-quicksand), sans-serif !important;
+}
+.style-playful .chat-header { background-color: #ff8a5c !important; color: #ffffff !important; border-bottom: none !important; }
+.style-playful .bot-bubble { background-color: #ffe6d9 !important; color: #7a3f24 !important; border: none !important; border-radius: 20px !important; }
+.style-playful .user-bubble { background-color: #ff8a5c !important; color: #ffffff !important; border: none !important; border-radius: 20px !important; }
+.style-playful .starter-chip { background-color: #ffffff !important; color: #ff8a5c !important; border-color: #ffd6c1 !important; border-radius: 24px !important; font-weight: 500; }
+.style-playful .chat-input-bar { background-color: #fffaf5 !important; color: #7a3f24 !important; border: none !important; border-radius: 20px !important; }
+.style-playful .send-btn { background-color: #ff8a5c !important; color: #ffffff !important; }
+.style-playful ::placeholder { color: #c98f6f !important; opacity: 1; }
+.dark .style-playful { background-color: #2a1c14 !important; color: #ffe6d9 !important; }
+.dark .style-playful .bot-bubble { background-color: #3a2618 !important; color: #ffe6d9 !important; }
+.dark .style-playful .chat-input-bar { background-color: #2a1c14 !important; color: #ffe6d9 !important; }
+
+/* 3. Corporate — enterprise SaaS, structured navy, Space Grotesk. */
+.style-corporate {
+  background-color: #eef1f6 !important;
+  color: #1c2e4a !important;
+  border: 1px solid #d7dce3 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 10px 26px 0 rgba(28, 46, 74, 0.14) !important;
+  font-family: var(--font-space-grotesk), sans-serif !important;
+}
+.style-corporate .chat-header { background-color: #1c2e4a !important; color: #ffffff !important; border-bottom: none !important; }
+.style-corporate .bot-bubble { background-color: #eef1f6 !important; color: #1c2e4a !important; border: 1px solid #dee3ea !important; border-radius: 8px !important; }
+.style-corporate .user-bubble { background-color: #1c2e4a !important; color: #ffffff !important; border: none !important; border-radius: 8px !important; }
+.style-corporate .starter-chip { background-color: #ffffff !important; color: #1c2e4a !important; border-color: #c7cfdb !important; border-radius: 6px !important; font-weight: 500; }
+.style-corporate .chat-input-bar { background-color: #eef1f6 !important; color: #1c2e4a !important; border-color: #dbe0e8 !important; border-radius: 6px !important; }
+.style-corporate .send-btn { background-color: #1c2e4a !important; color: #ffffff !important; border-radius: 6px !important; }
+.style-corporate ::placeholder { color: #8b95a5 !important; opacity: 1; }
+.dark .style-corporate { background-color: #10151d !important; color: #dbe2ec !important; border-color: #232c38 !important; }
+.dark .style-corporate .bot-bubble { background-color: #171e29 !important; color: #dbe2ec !important; border-color: #232c38 !important; }
+.dark .style-corporate .chat-input-bar { background-color: #10151d !important; color: #dbe2ec !important; border-color: #232c38 !important; }
+
+/* 4. Dark Sleek — dev tool, near-black with a teal glow, Space Grotesk. */
+.style-dark-sleek {
+  background-color: #111114 !important;
+  color: #e4e4e8 !important;
+  border: 1px solid rgba(0, 229, 199, 0.25) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 0 40px 0 rgba(0, 229, 199, 0.1) !important;
+  font-family: var(--font-space-grotesk), sans-serif !important;
+}
+.style-dark-sleek .chat-header { background-color: #14141a !important; color: #e4e4e8 !important; border-bottom: none !important; }
+.style-dark-sleek .bot-bubble { background-color: #1c1c22 !important; color: #e4e4e8 !important; border: 1px solid rgba(255, 255, 255, 0.05) !important; border-radius: 12px !important; }
+.style-dark-sleek .user-bubble { background-color: #00e5c7 !important; color: #05201c !important; border: none !important; border-radius: 12px !important; }
+.style-dark-sleek .starter-chip { background-color: #1c1c22 !important; color: #00e5c7 !important; border-color: rgba(0, 229, 199, 0.3) !important; border-radius: 8px !important; font-weight: 500; }
+.style-dark-sleek .chat-input-bar { background-color: #14141a !important; color: #e4e4e8 !important; border-color: rgba(255, 255, 255, 0.08) !important; border-radius: 8px !important; }
+.style-dark-sleek .send-btn { background-color: #00e5c7 !important; color: #05201c !important; border-radius: 8px !important; }
+.style-dark-sleek ::placeholder { color: #5c5c66 !important; opacity: 1; }
+
+/* 5. Gradient Glow — startup, vivid purple/pink gradient, Space Grotesk. */
+.style-gradient-glow {
+  background-color: #ffffff !important;
+  color: #2a1245 !important;
+  border: none !important;
+  border-radius: 24px !important;
+  box-shadow: 0 20px 44px 0 rgba(168, 85, 247, 0.28) !important;
+  font-family: var(--font-space-grotesk), sans-serif !important;
+}
+.style-gradient-glow .chat-header { background: linear-gradient(120deg, #a855f7, #ec4899) !important; color: #ffffff !important; border-bottom: none !important; }
+.style-gradient-glow .bot-bubble { background-color: #f6effc !important; color: #4a2467 !important; border: none !important; border-radius: 16px !important; }
+.style-gradient-glow .user-bubble { background-color: #a855f7 !important; color: #ffffff !important; border: none !important; border-radius: 16px !important; }
+.style-gradient-glow .starter-chip { background-color: #f6effc !important; color: #a855f7 !important; border-color: #e7d7f7 !important; border-radius: 20px !important; font-weight: 500; }
+.style-gradient-glow .chat-input-bar { background-color: #ffffff !important; color: #4a2467 !important; border: none !important; border-radius: 16px !important; }
+.style-gradient-glow .send-btn { background: linear-gradient(135deg, #a855f7, #ec4899) !important; color: #ffffff !important; }
+.style-gradient-glow ::placeholder { color: #b090c9 !important; opacity: 1; }
+.dark .style-gradient-glow { background-color: #1a1025 !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .bot-bubble { background-color: #261a35 !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .chat-input-bar { background-color: #1a1025 !important; color: #f0e5fa !important; }
+
+/* 6. Glassmorphism — fintech app, frosted glass over a gradient mesh, Space Grotesk. */
+.style-glassmorphism {
+  background: linear-gradient(135deg, #5b8def, #8f6ff0 50%, #e05ac9) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 20px !important;
+  box-shadow: 0 16px 40px 0 rgba(20, 20, 50, 0.25) !important;
+  font-family: var(--font-space-grotesk), sans-serif !important;
+}
+.style-glassmorphism .chat-header { background-color: rgba(255, 255, 255, 0.08) !important; color: #ffffff !important; border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important; }
+.style-glassmorphism .bot-bubble { background-color: rgba(255, 255, 255, 0.18) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.25) !important; border-radius: 14px !important; backdrop-filter: blur(18px) !important; -webkit-backdrop-filter: blur(18px) !important; }
+.style-glassmorphism .user-bubble { background-color: rgba(255, 255, 255, 0.9) !important; color: #39396b !important; border: none !important; border-radius: 14px !important; }
+.style-glassmorphism .starter-chip { background-color: rgba(255, 255, 255, 0.15) !important; color: #ffffff !important; border-color: rgba(255, 255, 255, 0.35) !important; border-radius: 20px !important; font-weight: 500; }
+.style-glassmorphism .chat-input-bar { background-color: rgba(255, 255, 255, 0.08) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; }
+.style-glassmorphism .send-btn { background-color: rgba(255, 255, 255, 0.9) !important; color: #39396b !important; }
+.style-glassmorphism ::placeholder { color: rgba(255, 255, 255, 0.75) !important; opacity: 1; }
+
+/* 7. E-commerce — online shop, teal, order-aware, DM Sans. */
+.style-ecommerce {
+  background-color: #fdf9f2 !important;
+  color: #3a3226 !important;
+  border: 1px solid #e8ddd0 !important;
   border-radius: 14px !important;
+  box-shadow: 0 14px 32px 0 rgba(15, 157, 140, 0.14) !important;
+  font-family: var(--font-dm-sans), sans-serif !important;
 }
+.style-ecommerce .chat-header { background-color: #0f9d8c !important; color: #ffffff !important; border-bottom: none !important; }
+.style-ecommerce .bot-bubble { background-color: #f3efe6 !important; color: #3a3226 !important; border: none !important; border-radius: 14px !important; }
+.style-ecommerce .user-bubble { background-color: #0f9d8c !important; color: #ffffff !important; border: none !important; border-radius: 14px !important; }
+.style-ecommerce .starter-chip { background-color: #ffffff !important; color: #0f9d8c !important; border-color: #cfe9e4 !important; border-radius: 16px !important; font-weight: 500; }
+.style-ecommerce .chat-input-bar { background-color: #fdf9f2 !important; color: #3a3226 !important; border-color: #e8ddd0 !important; border-radius: 14px !important; }
+.style-ecommerce .send-btn { background-color: #0f9d8c !important; color: #ffffff !important; }
+.style-ecommerce ::placeholder { color: #a89c85 !important; opacity: 1; }
+.dark .style-ecommerce { background-color: #1a1712 !important; color: #ede6d8 !important; border-color: #33291d !important; }
+.dark .style-ecommerce .bot-bubble { background-color: #241f17 !important; color: #ede6d8 !important; }
+.dark .style-ecommerce .chat-input-bar { background-color: #1a1712 !important; color: #ede6d8 !important; border-color: #33291d !important; }
 
-.style-elevated .user-bubble {
-  color: var(--on-primary, #ffffff) !important;
-  border: none !important;
-  border-radius: 14px !important;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color, #f97316) 35%, transparent) !important;
+/* 8. Healthcare Calm — clinic, soft sage, serif (Lora). */
+.style-healthcare-calm {
+  background-color: #fbfcf9 !important;
+  color: #2f4235 !important;
+  border: 1px solid #dde8dd !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 28px 0 rgba(111, 156, 125, 0.16) !important;
+  font-family: var(--font-lora), serif !important;
 }
+.style-healthcare-calm .chat-header { background-color: #eaf1e9 !important; color: #2f4235 !important; border-bottom: none !important; }
+.style-healthcare-calm .bot-bubble { background-color: #eaf1e9 !important; color: #2f4235 !important; border: none !important; border-radius: 14px !important; }
+.style-healthcare-calm .user-bubble { background-color: #6f9c7d !important; color: #ffffff !important; border: none !important; border-radius: 14px !important; }
+.style-healthcare-calm .starter-chip { background-color: #fbfcf9 !important; color: #4a6b52 !important; border-color: #cfe0cf !important; border-radius: 14px !important; font-weight: 500; }
+.style-healthcare-calm .chat-input-bar { background-color: #fbfcf9 !important; color: #2f4235 !important; border-color: #dde8dd !important; border-radius: 12px !important; }
+.style-healthcare-calm .send-btn { background-color: #6f9c7d !important; color: #ffffff !important; }
+.style-healthcare-calm ::placeholder { color: #8fa892 !important; opacity: 1; }
+.dark .style-healthcare-calm { background-color: #131a15 !important; color: #d9e8dc !important; border-color: #263429 !important; }
+.dark .style-healthcare-calm .chat-header { background-color: #1a2a1e !important; color: #d9e8dc !important; }
+.dark .style-healthcare-calm .bot-bubble { background-color: #1a2a1e !important; color: #d9e8dc !important; }
+.dark .style-healthcare-calm .chat-input-bar { background-color: #131a15 !important; color: #d9e8dc !important; border-color: #263429 !important; }
 
-.style-elevated .chat-input-bar {
-  background-color: var(--card) !important;
-  color: var(--card-foreground) !important;
-  border-top: 1px solid var(--border) !important;
+/* 9. Neubrutalism — bold brand, thick borders, hard offset shadows, DM Sans. */
+.style-neubrutalism {
+  background-color: #ffffff !important;
+  color: #111111 !important;
+  border: 3px solid #111111 !important;
+  border-radius: 4px !important;
+  box-shadow: 10px 10px 0 0 #111111 !important;
+  font-family: var(--font-dm-sans), sans-serif !important;
 }
+.style-neubrutalism .chat-header { background-color: #ffde59 !important; color: #111111 !important; border-bottom: 3px solid #111111 !important; }
+.style-neubrutalism .bot-bubble { background-color: #f2f2f2 !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
+.style-neubrutalism .user-bubble { background-color: #ff3d67 !important; color: #ffffff !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
+.style-neubrutalism .starter-chip { background-color: #ffffff !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; font-weight: 600; }
+.style-neubrutalism .chat-input-bar { background-color: #ffffff !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
+.style-neubrutalism .send-btn { background-color: #ff3d67 !important; color: #ffffff !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
+.style-neubrutalism ::placeholder { color: #666666 !important; opacity: 1; }
+.dark .style-neubrutalism { background-color: #1a1a1a !important; color: #f2f2f2 !important; border-color: #f2f2f2 !important; box-shadow: 10px 10px 0 0 #f2f2f2 !important; }
+.dark .style-neubrutalism .chat-header { border-bottom-color: #f2f2f2 !important; }
+.dark .style-neubrutalism .bot-bubble { background-color: #262626 !important; color: #f2f2f2 !important; border-color: #f2f2f2 !important; }
+.dark .style-neubrutalism .chat-input-bar { background-color: #1a1a1a !important; color: #f2f2f2 !important; border-color: #f2f2f2 !important; }
 
-/* 3. Frosted — a single, refined glass treatment (merges the old
-   Glassmorphism + Liquid Glass into one that's actually legible). */
-.style-frosted {
-  background-color: rgba(255, 255, 255, 0.55) !important;
-  color: #1f2937 !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08) !important;
+/* 10. Luxury Editorial — boutique, serif & gold, Playfair Display. */
+.style-luxury-editorial {
+  background-color: #fbf9f5 !important;
+  color: #2a251d !important;
+  border: 1px solid #c9a86a !important;
+  border-radius: 6px !important;
+  box-shadow: 0 18px 36px 0 rgba(0, 0, 0, 0.16) !important;
+  font-family: var(--font-playfair), serif !important;
 }
-
-.dark .style-frosted {
-  background-color: rgba(24, 24, 24, 0.6) !important;
-  color: #f5f5f5 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35) !important;
-}
-
-.style-frosted .chat-header {
-  background-color: rgba(255, 255, 255, 0.25) !important;
-  backdrop-filter: blur(8px) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
-  color: var(--on-primary, #ffffff) !important;
-}
-
-.dark .style-frosted .chat-header {
-  background-color: rgba(0, 0, 0, 0.25) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
-}
-
-.style-frosted .bot-bubble {
-  background-color: rgba(255, 255, 255, 0.55) !important;
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
-  color: #1f2937 !important;
-}
-
-.dark .style-frosted .bot-bubble {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  color: #f5f5f5 !important;
-}
-
-.style-frosted .user-bubble {
-  background-color: color-mix(in srgb, var(--primary-color, #f97316) 85%, transparent) !important;
-  border: 1px solid rgba(255, 255, 255, 0.25) !important;
-  color: var(--on-primary, #ffffff) !important;
-}
-
-.style-frosted .chat-input-bar {
-  background-color: rgba(255, 255, 255, 0.5) !important;
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
-  color: #1f2937 !important;
-}
-
-.dark .style-frosted .chat-input-bar {
-  background-color: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  color: #f5f5f5 !important;
-}
-
-/* 4. Bold — the owner's brand color carries real visual weight (header +
-   user bubble), with guaranteed-legible text via --on-primary. Body stays
-   on clean theme surfaces so ordinary text is never at risk. */
-.style-bold {
-  background-color: var(--card);
-  color: var(--card-foreground);
-  border: none;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06);
-}
-
-.style-bold .chat-header {
-  color: var(--on-primary, #ffffff) !important;
-}
-
-.style-bold .bot-bubble {
-  background-color: var(--secondary) !important;
-  color: var(--secondary-foreground) !important;
-  border: none !important;
-  border-radius: 4px 14px 14px 14px !important;
-}
-
-.style-bold .user-bubble {
-  color: var(--on-primary, #ffffff) !important;
-  border: none !important;
-  border-radius: 14px 4px 14px 14px !important;
-  font-weight: 500;
-}
-
-.style-bold .chat-input-bar {
-  background-color: var(--card) !important;
-  color: var(--card-foreground) !important;
-  border-top: 2px solid var(--primary-color, #f97316) !important;
-}
-
-/* 5. Contrast — a deliberately dark, premium shell (always dark, not tied
-   to light/dark mode) in the vein of modern dark-native chat UIs. Every
-   surface has an explicit light-on-dark pairing, so nothing here can ever
-   render invisible the way the old neon Retro preset could. */
-.style-contrast {
-  background-color: #161618 !important;
-  color: #e8e8ea !important;
-  border: 1px solid #2a2a2e !important;
-}
-
-.style-contrast .chat-header {
-  background-color: #1c1c1f !important;
-  border-bottom: 1px solid #2a2a2e !important;
-  color: var(--on-primary, #ffffff) !important;
-}
-
-.style-contrast .bot-bubble {
-  background-color: #232326 !important;
-  border: 1px solid #2f2f33 !important;
-  color: #e8e8ea !important;
-}
-
-.style-contrast .user-bubble {
-  color: var(--on-primary, #ffffff) !important;
-  border: none !important;
-}
-
-.style-contrast .chat-input-bar {
-  background-color: #1c1c1f !important;
-  border-top: 1px solid #2a2a2e !important;
-  color: #e8e8ea !important;
-}
-
-.style-contrast ::placeholder {
-  color: #8a8a8f !important;
-  opacity: 1;
-}
+.style-luxury-editorial .chat-header { background-color: #161412 !important; color: #f5efe3 !important; border-bottom: none !important; }
+.style-luxury-editorial .bot-bubble { background-color: #f1ebdf !important; color: #2a251d !important; border: none !important; border-radius: 2px !important; }
+.style-luxury-editorial .user-bubble { background-color: #161412 !important; color: #f5efe3 !important; border: none !important; border-radius: 2px !important; }
+.style-luxury-editorial .starter-chip { background-color: #fbf9f5 !important; color: #2a251d !important; border-color: #c9a86a !important; border-radius: 2px !important; font-weight: 500; }
+.style-luxury-editorial .chat-input-bar { background-color: #fbf9f5 !important; color: #2a251d !important; border-color: #ddd1b3 !important; border-radius: 2px !important; }
+.style-luxury-editorial .send-btn { background-color: #161412 !important; color: #f5efe3 !important; border-radius: 2px !important; }
+.style-luxury-editorial ::placeholder { color: #9c8e6f !important; opacity: 1; }
+.dark .style-luxury-editorial { background-color: #14120f !important; color: #efe6d3 !important; border-color: #b08a3e !important; }
+.dark .style-luxury-editorial .bot-bubble { background-color: #201c16 !important; color: #efe6d3 !important; }
+.dark .style-luxury-editorial .chat-input-bar { background-color: #14120f !important; color: #efe6d3 !important; border-color: #4a3f2a !important; }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-none::-webkit-scrollbar {

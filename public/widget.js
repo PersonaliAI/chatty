@@ -112,6 +112,38 @@
     } catch (e) {}
   }
 
+  // ---- Per-design default launcher look (see globals.css's "Assistant
+  // Design Presets" for the matching chat-panel styles — each of these 10
+  // designs bundles its own launcher button as part of its identity, not
+  // just a primaryColor-tinted circle). data-color on the script tag still
+  // wins if the embedder explicitly set one, matching every other override
+  // in this file.
+  // Mirrors src/lib/widget-style.ts's LEGACY_STYLE_MAP — old bots may still
+  // have a pre-redesign style id stored in widget_style.
+  var LEGACY_STYLE_MAP = {
+    liquid: "glassmorphism", neumorphism: "corporate", claymorphism: "playful",
+    bento: "minimal", brutalism: "neubrutalism", retro: "dark-sleek", aurora: "gradient-glow",
+    minimalist: "minimal", elevated: "corporate", frosted: "glassmorphism",
+    bold: "gradient-glow", contrast: "dark-sleek"
+  };
+  function normalizeDesign(id) {
+    if (!id) return "minimal";
+    if (LAUNCHER_STYLES[id]) return id;
+    return LEGACY_STYLE_MAP[id] || "minimal";
+  }
+  var LAUNCHER_STYLES = {
+    minimal: { bg: "#1c1a15", radius: "50%", shadow: "0 6px 16px rgba(0,0,0,.18)" },
+    playful: { bg: "#ff8a5c", radius: "50%", shadow: "0 8px 20px rgba(255,138,92,.45)" },
+    corporate: { bg: "#1c2e4a", radius: "10px", shadow: "0 6px 16px rgba(28,46,74,.3)" },
+    "dark-sleek": { bg: "#14141a", radius: "50%", shadow: "0 0 24px rgba(0,229,199,.35)" },
+    "gradient-glow": { bg: "linear-gradient(135deg,#a855f7,#ec4899)", radius: "50%", shadow: "0 10px 26px rgba(168,85,247,.4)" },
+    glassmorphism: { bg: "rgba(255,255,255,.25)", radius: "50%", shadow: "0 8px 24px rgba(0,0,0,.2)" },
+    ecommerce: { bg: "#0f9d8c", radius: "50%", shadow: "0 8px 20px rgba(15,157,140,.35)" },
+    "healthcare-calm": { bg: "#6f9c7d", radius: "50%", shadow: "0 8px 20px rgba(111,156,125,.35)" },
+    neubrutalism: { bg: "#111111", radius: "6px", shadow: "5px 5px 0 0 #111111" },
+    "luxury-editorial": { bg: "#161412", radius: "50%", shadow: "0 8px 22px rgba(0,0,0,.3)" }
+  };
+
   // ---- Launcher button ----
   var btn = document.createElement("button");
   btn.setAttribute("aria-label", "Open chat");
@@ -126,6 +158,18 @@
   var customLogoBgColor = "";
   var avatarIconType = "logo";
   var launcherShape = "circle";
+  var currentDesign = normalizeDesign(styleAttr);
+  applyLauncherDesign();
+  function applyLauncherDesign() {
+    var d = LAUNCHER_STYLES[currentDesign];
+    if (!d || colorAttr) return; // no matching design, or embedder set an explicit color override
+    btn.style.setProperty("background", d.bg, "important");
+    btn.style.setProperty("border-radius", d.radius, "important");
+    btn.style.setProperty("box-shadow", d.shadow, "important");
+    color = d.bg.indexOf("gradient") === -1 ? d.bg : "#a855f7";
+    chatIcon = buildChatIcon(color);
+    if (!open) btn.innerHTML = chatIcon;
+  }
   function getBorderRadiusStyle(shape, side) {
     if (shape === "square") return "0px";
     if (shape === "rounded") return "12px";
@@ -267,6 +311,8 @@
           }
           if (d.widget_style) {
             var parts = d.widget_style.split(":");
+            currentDesign = normalizeDesign(parts[0]);
+            applyLauncherDesign();
             if (parts.length > 1) {
               customLogoBgColor = parts[1];
             }
