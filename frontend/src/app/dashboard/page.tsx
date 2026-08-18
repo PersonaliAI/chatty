@@ -18,7 +18,7 @@ import { CampaignsUI } from "@/components/campaigns-ui";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import { getOnColor } from "@/lib/color-contrast";
-import { normalizeWidgetStyle } from "@/lib/widget-style";
+import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
 import {
   Home,
   Sliders,
@@ -4165,20 +4165,27 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Floating Launcher preview in Customizer */}
+                  {/* Floating Launcher preview in Customizer — mirrors each design's
+                      default launcher look from widget.js's LAUNCHER_STYLES, since
+                      the launcher button is styled per-design, not by primaryColor. */}
                   <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
                     <span className="text-[10px] text-neutral-450 dark:text-neutral-500 uppercase font-bold tracking-wider">Button Preview</span>
                     <div className="relative">
+                      {(() => {
+                        const design = LAUNCHER_STYLES[normalizeWidgetStyle(widgetStyle)] || LAUNCHER_STYLES.minimal;
+                        const solidBg = design.bg.indexOf("gradient") === -1 ? design.bg : "#a855f7";
+                        return (
                       <div
                         style={{
-                          backgroundColor: primaryColor,
-                          color: getOnColor(primaryColor),
+                          background: design.bg,
+                          boxShadow: design.shadow,
+                          color: getOnColor(solidBg),
                           borderRadius: launcherShape === "circle" ? "50%" :
                                         launcherShape === "square" ? "0px" :
                                         launcherShape === "rounded" ? "12px" :
                                         "24px 24px 4px 24px" // bubble (right side)
                         }}
-                        className="w-14 h-14 flex items-center justify-center shadow-lg transition-all duration-300 select-none cursor-pointer"
+                        className="w-14 h-14 flex items-center justify-center transition-all duration-300 select-none cursor-pointer"
                       >
                         {(() => {
                           const ICONS: Record<string, any> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
@@ -4192,7 +4199,7 @@ export default function Dashboard() {
                           // Default brand logo
                           if (logoUrl) {
                             return (
-                              <div 
+                              <div
                                 className="size-10 rounded-full flex items-center justify-center overflow-hidden"
                                 style={logoBgColor ? { backgroundColor: logoBgColor } : { backgroundColor: "rgba(255,255,255,0.2)" }}
                               >
@@ -4201,20 +4208,22 @@ export default function Dashboard() {
                             );
                           }
                           return (
-                            <div 
+                            <div
                               className="size-10 rounded-full flex items-center justify-center overflow-hidden"
                               style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
                             >
-                              <img 
-                                src="/favicon.png" 
-                                alt="" 
-                                className="size-8 object-contain" 
-                                style={primaryColor.toLowerCase().replace(/\s+/g, "") === "#f97316" ? { filter: "brightness(0) invert(1)" } : {}}
+                              <img
+                                src="/favicon.png"
+                                alt=""
+                                className="size-8 object-contain"
+                                style={solidBg.toLowerCase().replace(/\s+/g, "") === "#f97316" ? { filter: "brightness(0) invert(1)" } : {}}
                               />
                             </div>
                           );
                         })()}
                       </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
