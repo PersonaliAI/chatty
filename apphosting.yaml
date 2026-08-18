@@ -3,12 +3,12 @@
 
 env:
   - variable: NEXT_PUBLIC_SUPABASE_URL
-    value: "https://hdrcqnvlwzpbuagvsqwe.supabase.co"
+    value: "https://dckjbkcormifiuwfpahj.supabase.co"
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
-    value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkcmNxbnZsd3pwYnVhZ3ZzcXdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MDAyODksImV4cCI6MjA5Mzk3NjI4OX0.p2Vg32TQJbCMsEL3BLlkazi5MA8SwW_mi8Iy1Jh5QRg"
+    value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRja2pia2Nvcm1pZml1d2ZwYWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMzc2MTMsImV4cCI6MjEwMjYxMzYxM30.mPaBNSOIXSbyIjgz169ID5h5SQXlBWCCwK6nECHflHY"
     availability:
       - BUILD
       - RUNTIME
