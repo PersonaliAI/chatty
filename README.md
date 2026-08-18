@@ -17,7 +17,7 @@ Self-host it in five minutes with Docker. No vendor lock-in, no per-seat pricing
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Quick Start](#-quick-start-docker-compose) · [Features](#-features) · [Architecture](#-architecture) · [Self-Hosting](#-configuration-reference) · [Contributing](#-contributing)
+[Live Demo](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Quick Start](#-quick-start-docker-compose) · [Features](#-features) · [Architecture](#-architecture) · [Contributing](#-contributing)
 
 </div>
 
