@@ -1,0 +1,79 @@
+---
+title: Introduction
+description: Build powerful AI chat experiences with the Chatty API
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.png"
+  alt="Chatty API Hero"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.png"
+  alt="Chatty API Hero"
+/>
+
+## What is Chatty?
+
+**Chatty** is an AI chatbot platform that lets you build, train, and deploy intelligent chat assistants for your website, mobile app, or any product — without writing a single line of AI code.
+
+The **Chatty API** gives you programmatic access to your bots: send messages, read leads, manage your knowledge base, and pull analytics — all from your own backend or automation workflow.
+
+## What you can build
+
+<CardGroup cols={2}>
+  <Card title="Custom Chat Interfaces" icon="message-bot" color="#f97316">
+    Embed the bot inside your own UI — no iFrame required. Use the API to stream messages directly into your React, Vue, or native app.
+  </Card>
+  <Card title="CRM Integrations" icon="database" color="#f97316">
+    Sync captured leads to HubSpot, Salesforce, or any CRM automatically. Pull leads via API and push them wherever you need.
+  </Card>
+  <Card title="Knowledge Automation" icon="brain" color="#f97316">
+    Keep your bot's knowledge base fresh. Trigger URL crawls, add content from your CMS, and delete stale sources — all programmatically.
+  </Card>
+  <Card title="Analytics Dashboards" icon="chart-bar" color="#f97316">
+    Build internal reporting on conversation volume, lead conversion, and response quality using the analytics endpoint.
+  </Card>
+</CardGroup>
+
+## Base URL
+
+All API requests are made to:
+
+```
+https://chatty-api-376030619262.us-central1.run.app
+```
+
+## Quick example
+
+```bash
+curl -X POST https://chatty-api-376030619262.us-central1.run.app/api/v1/chat \
+  -H "Authorization: Bearer chatty_sk_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "What are your pricing plans?", "session_id": "user-abc"}'
+```
+
+```json
+{
+  "reply": "We offer three plans: Starter (free), Pro ($29/mo), and Business ($99/mo). The Pro plan includes unlimited bots and 10,000 messages per month. Would you like more details on any specific plan?",
+  "session_id": "user-abc"
+}
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get your first API response in under 5 minutes.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Learn about API keys, scopes, and IP allowlists.
+  </Card>
+  <Card title="Rate Limits" icon="gauge" href="/rate-limits">
+    Understand the limits and how to work within them.
+  </Card>
+  <Card title="Embed Widget" icon="code" href="/guides/embed-widget">
+    Add Chatty to any website with one line of HTML.
+  </Card>
+</CardGroup>

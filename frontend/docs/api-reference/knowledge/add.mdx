@@ -1,0 +1,167 @@
+---
+title: "Add Knowledge Source"
+api: "POST /api/v1/knowledge"
+description: "Add a text snippet or crawl a URL into the bot's knowledge base"
+---
+
+## Overview
+
+Add content to the bot's knowledge base. Supports two types:
+- **text** — provide content directly (FAQ entries, policies, product descriptions)
+- **url** — provide a URL that Chatty will fetch and index immediately
+
+**Required scope:** `write`
+
+## Request body
+
+<ParamField body="type" type="string" required>
+  Source type: `"text"` or `"url"`.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  A label for this source (max 255 characters). For URL sources this is also used as display name alongside the URL.
+</ParamField>
+
+<ParamField body="content" type="string">
+  Required when `type` is `"text"`. The text content to index. Max 100,000 characters (~100 KB).
+</ParamField>
+
+<ParamField body="url" type="string">
+  Required when `type` is `"url"`. The page to crawl and index. Must be a publicly accessible HTTP/HTTPS URL.
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">Always `true`.</ResponseField>
+
+<ResponseField name="chars" type="integer">
+  Number of characters indexed (URL sources only).
+</ResponseField>
+
+<ResponseField name="source" type="object">
+  The created source record.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL — Add text
+curl -X POST "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge" \
+  -H "Authorization: Bearer chatty_sk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "text",
+    "name": "Shipping Policy",
+    "content": "We offer free shipping on all orders over $50. Standard shipping takes 3-5 business days. Express shipping (1-2 days) is available for $9.99. International shipping is available to 50+ countries."
+  }'
+```
+
+```bash cURL — Crawl URL
+curl -X POST "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge" \
+  -H "Authorization: Bearer chatty_sk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "url",
+    "name": "Help Center — Getting Started",
+    "url": "https://help.example.com/getting-started"
+  }'
+```
+
+```python Python — Sync docs from CMS
+import httpx
+
+client = httpx.Client(
+    base_url="https://chatty-api-376030619262.us-central1.run.app",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+
+# Pull articles from your CMS
+articles = fetch_from_cms()  # your CMS client
+
+for article in articles:
+    res = client.post("/api/v1/knowledge", json={
+        "type": "text",
+        "name": article["title"],
+        "content": article["body"],
+    })
+    data = res.json()
+    print(f"Indexed '{article['title']}' — {data['source']['char_count']} chars")
+```
+
+```javascript Node.js — Crawl a list of URLs
+const urls = [
+  "https://example.com/pricing",
+  "https://example.com/features",
+  "https://example.com/faq",
+];
+
+for (const url of urls) {
+  const res = await fetch(
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge",
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer chatty_sk_your_key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ type: "url", name: url, url }),
+    }
+  );
+  const data = await res.json();
+  console.log(`Crawled ${url}: ${data.chars} chars`);
+}
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK — Text source
+{
+  "success": true,
+  "source": {
+    "id": "src-uuid-003",
+    "type": "text",
+    "name": "Shipping Policy",
+    "status": "trained",
+    "char_count": 231,
+    "crawl_schedule": "off",
+    "next_crawl_at": null,
+    "created_at": "2026-07-07T15:30:00Z"
+  }
+}
+```
+
+```json 200 OK — URL source
+{
+  "success": true,
+  "chars": 6203,
+  "source": {
+    "id": "src-uuid-004",
+    "type": "url",
+    "name": "Help Center — Getting Started",
+    "status": "trained",
+    "char_count": 6203,
+    "crawl_schedule": "off",
+    "next_crawl_at": null,
+    "created_at": "2026-07-07T15:30:05Z"
+  }
+}
+```
+
+```json 400 Missing content
+{
+  "detail": "content is required for type=text"
+}
+```
+
+```json 422 URL returned nothing
+{
+  "detail": "URL returned no usable content"
+}
+```
+
+</ResponseExample>
+
+<Note>
+  URL crawling uses the Jina Reader service under the hood and typically completes in 2–5 seconds. If the URL is behind a login wall or is a JavaScript SPA, it may return no content — use `type: "text"` and paste the content manually instead.
+</Note>

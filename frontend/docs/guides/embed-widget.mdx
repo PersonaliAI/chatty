@@ -1,0 +1,135 @@
+---
+title: Embed Widget
+description: Add Chatty to any website with one snippet
+---
+
+## Overview
+
+The Chatty embed widget is a fully standalone chat bubble that you add to any webpage with a single `<script>` tag. It works on HTML, WordPress, Shopify, Webflow, Wix, and any other platform that lets you add custom HTML.
+
+No API key is required — the widget authenticates by bot ID.
+
+## Installation
+
+### 1. Get your bot ID
+
+In the Dashboard, go to **Embed & Integrate → Embed Code**. Copy your bot ID — it looks like `a1b2c3d4-e5f6-7890-abcd-ef1234567890`.
+
+### 2. Add the script tag
+
+Paste this before the closing `</body>` tag of your page:
+
+```html
+<script
+  src="https://chatty.ai/widget.js"
+  data-bot-id="YOUR_BOT_ID"
+  async
+></script>
+```
+
+That's it. A chat bubble will appear in the bottom-right corner.
+
+## Platform guides
+
+<AccordionGroup>
+
+  <Accordion title="WordPress">
+    Install the **Insert Headers and Footers** plugin, then paste the script tag into the **Footer** section. It will appear on every page of your site automatically.
+
+    Alternatively, add it to your theme's `footer.php` file directly before `</body>`.
+  </Accordion>
+
+  <Accordion title="Shopify">
+    In your Shopify admin, go to **Online Store → Themes → Edit Code**. Open `theme.liquid` and paste the script just before `</body>`.
+  </Accordion>
+
+  <Accordion title="Webflow">
+    In **Project Settings → Custom Code**, paste the script into the **Footer Code** section. Publish your site to apply.
+  </Accordion>
+
+  <Accordion title="Wix">
+    In the Wix Editor, click **Settings → Custom Code**, then add the script to the **Body - end** section. Set it to load on **All Pages**.
+  </Accordion>
+
+  <Accordion title="Squarespace">
+    Go to **Settings → Advanced → Code Injection** and paste the script into the **Footer** section.
+  </Accordion>
+
+  <Accordion title="Next.js / React">
+    Add a `<Script>` tag using Next.js's built-in Script component:
+
+    ```tsx
+    import Script from "next/script";
+
+    export default function Layout({ children }) {
+      return (
+        <>
+          {children}
+          <Script
+            src="https://chatty.ai/widget.js"
+            data-bot-id="YOUR_BOT_ID"
+            strategy="afterInteractive"
+          />
+        </>
+      );
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="iFrame embed">
+    If your platform doesn't support custom scripts, use an iFrame:
+
+    ```html
+    <iframe
+      src="https://chatty.ai/embed/YOUR_BOT_ID"
+      width="400"
+      height="600"
+      style="border: none; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.12);"
+    ></iframe>
+    ```
+  </Accordion>
+
+</AccordionGroup>
+
+## Customisation
+
+All visual settings (colors, avatar, welcome message, widget style) are configured in **Dashboard → Customizer** — no code changes needed.
+
+For deeper customisation, use the **Custom CSS** panel in Dashboard → Agent Settings to inject CSS that overrides any widget style:
+
+```css
+/* Example: change the chat bubble color */
+.chatty-bubble {
+  background: #6366f1 !important;
+}
+
+/* Example: make the widget wider */
+.chatty-window {
+  width: 420px !important;
+}
+```
+
+## White labeling
+
+On paid plans, remove the "Powered by Chatty" footer in **Agent Settings → Remove Branding**.
+
+## Domain allowlist
+
+To restrict the widget to specific domains, add them in **Customizer → Allowed Domains**. Requests from unlisted domains will be silently blocked.
+
+## Events (JavaScript)
+
+The widget emits browser events you can listen to:
+
+```javascript
+// Triggered when a visitor submits a lead form
+window.addEventListener("chatty:lead", (e) => {
+  console.log("New lead:", e.detail); // { name, email, phone, ... }
+  // Push to analytics, GTM, etc.
+});
+
+// Triggered when a conversation starts
+window.addEventListener("chatty:conversation_start", (e) => {
+  console.log("Session started:", e.detail.session_id);
+});
+```

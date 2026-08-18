@@ -1,0 +1,105 @@
+---
+title: "Get Bot Details"
+api: "GET /api/v1/bot"
+description: "Return public configuration for the bot tied to your API key"
+---
+
+## Overview
+
+Returns configuration details about the bot. Useful for dynamically rendering the bot name, colors, and feature flags in your custom UI.
+
+**Required scope:** `read`
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique bot identifier (UUID).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Display name of the bot.
+</ResponseField>
+
+<ResponseField name="welcome_message" type="string">
+  The first message the bot sends when a conversation starts.
+</ResponseField>
+
+<ResponseField name="primary_color" type="string">
+  Hex color used for the bot's widget UI (e.g. `"#f97316"`).
+</ResponseField>
+
+<ResponseField name="selected_model" type="string">
+  The AI model the bot uses. One of `"gemini"`, `"openai"`, `"anthropic"`, `"openrouter"`.
+</ResponseField>
+
+<ResponseField name="lead_capture_enabled" type="boolean">
+  Whether the bot is configured to capture visitor contact details.
+</ResponseField>
+
+<ResponseField name="lead_fields" type="array">
+  List of lead fields the bot collects (e.g. `["name", "email", "phone"]`).
+</ResponseField>
+
+<ResponseField name="calendar_scheduling_enabled" type="boolean">
+  Whether the bot can book meetings via Google Calendar or Calendly.
+</ResponseField>
+
+<ResponseField name="meeting_provider" type="string">
+  The calendar provider: `"google"`, `"calendly"`, or `null`.
+</ResponseField>
+
+<ResponseField name="response_language" type="string">
+  Forced reply language code (e.g. `"fr"` for French), or empty string for automatic language mirroring.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 creation timestamp.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl https://chatty-api-376030619262.us-central1.run.app/api/v1/bot \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```python Python
+import httpx
+
+res = httpx.get(
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/bot",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+bot = res.json()
+print(bot["name"], bot["primary_color"])
+```
+
+```javascript Node.js
+const res = await fetch(
+  "https://chatty-api-376030619262.us-central1.run.app/api/v1/bot",
+  { headers: { Authorization: "Bearer chatty_sk_your_key" } }
+);
+const bot = await res.json();
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "name": "Aria — Support Assistant",
+  "welcome_message": "Hi! I'm Aria. How can I help you today?",
+  "primary_color": "#f97316",
+  "selected_model": "gemini",
+  "lead_capture_enabled": true,
+  "lead_fields": ["name", "email"],
+  "calendar_scheduling_enabled": false,
+  "meeting_provider": null,
+  "response_language": "",
+  "created_at": "2026-03-15T10:30:00Z"
+}
+```
+
+</ResponseExample>

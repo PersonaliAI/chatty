@@ -1,0 +1,77 @@
+---
+title: "Delete Knowledge Source"
+api: "DELETE /api/v1/knowledge/{source_id}"
+description: "Permanently remove a knowledge source from the bot"
+---
+
+## Overview
+
+Deletes a knowledge source. The bot will no longer use this content when answering questions.
+
+**Required scope:** `write`
+
+<Warning>
+  Deletion is permanent. The bot will stop using this knowledge immediately.
+</Warning>
+
+## Path parameters
+
+<ParamField path="source_id" type="string" required>
+  UUID of the knowledge source to delete. Get IDs from [`GET /api/v1/knowledge`](/api-reference/knowledge/list).
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">Always `true`.</ResponseField>
+<ResponseField name="deleted_id" type="string">The ID of the deleted source.</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE \
+  "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge/src-uuid-003" \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```python Python — Remove stale sources
+import httpx
+
+client = httpx.Client(
+    base_url="https://chatty-api-376030619262.us-central1.run.app",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+
+# List all sources
+sources = client.get("/api/v1/knowledge").json()["sources"]
+
+# Delete any source named "Old Pricing Page"
+for src in sources:
+    if src["name"] == "Old Pricing Page":
+        client.delete(f"/api/v1/knowledge/{src['id']}")
+        print(f"Deleted: {src['id']}")
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "success": true,
+  "deleted_id": "src-uuid-003"
+}
+```
+
+```json 403 Wrong bot
+{
+  "detail": "Source belongs to a different bot"
+}
+```
+
+```json 404 Not found
+{
+  "detail": "Source not found"
+}
+```
+
+</ResponseExample>

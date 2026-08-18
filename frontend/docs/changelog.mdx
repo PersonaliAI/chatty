@@ -1,0 +1,106 @@
+---
+title: Changelog
+description: New features, improvements, and fixes
+---
+
+## July 2026
+
+### API v1 — Security & New Endpoints
+
+**Released 2026-07-07**
+
+**Security hardening**
+- `X-Request-ID` header on every request/response for end-to-end tracing
+- Security headers on all responses: CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy
+- Per-IP rate limiting (120 req/min) independent of per-key limits
+- API key **IP allowlist**: restrict a key to specific IPs or CIDR ranges
+- API key **scopes**: `chat` / `read` / `write` / `admin` — assign minimum permissions per key
+- Audit log: every public API call recorded to `chatty_api_audit_log`
+
+**New endpoints**
+- `GET /api/v1/conversations/{session_id}` — fetch a specific conversation thread
+- `DELETE /api/v1/conversations/{session_id}` — clear a session (GDPR compliance)
+- `GET /api/v1/knowledge` — list all knowledge sources
+- `POST /api/v1/knowledge` — add text or crawl a URL programmatically
+- `DELETE /api/v1/knowledge/{id}` — remove a knowledge source
+- `GET /api/v1/analytics` — message/session/lead/KB stats with optional `since` filter
+- `PATCH /api/keys/{id}` — update scopes and IP allowlist without revoking the key
+
+**Documentation**
+- Full Mintlify documentation site at [docs.chatty.ai](https://docs.chatty.ai)
+- OpenAPI spec available at `/openapi.json` and `/docs` (Swagger UI), `/redoc` (ReDoc)
+
+---
+
+### Language Expansion
+
+**Released 2026-07-07**
+
+- Response language selector expanded from 8 to **90+ languages**
+- New additions include regional variants (Brazilian Portuguese, Mexican Spanish, Traditional Chinese), South Asian languages (Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi), Central Asian languages (Kazakh, Kyrgyz, Uzbek, Tajik, Turkmen), and African languages (Hausa, Yoruba, Igbo, Xhosa, Zulu, Swahili, Amharic, Somali)
+- Flag emoji indicators in the dashboard dropdown for quick visual scanning
+
+---
+
+## June 2026
+
+### Complete Feature Parity Release
+
+**Released 2026-06-30**
+
+**AI Models & BYOK**
+- Multi-provider AI support: OpenAI, Anthropic Claude, and OpenRouter alongside Gemini
+- Bring Your Own Key (BYOK) with Fernet encryption — keys are write-only
+- `ModernSelect` dropdown for model selection with per-model hints
+
+**White-label & Customisation**
+- "Remove Powered by Chatty" branding toggle (paid plans)
+- Custom CSS and JavaScript injection per bot
+- Per-bot forced response language
+
+**Guardrails**
+- Off-topic topic blocking with custom refusal message
+- Profanity filter toggle
+- Guardrails applied to all providers including BYOK
+
+**Knowledge Base**
+- Scheduled auto re-crawl for URL sources (daily / weekly / monthly)
+- Bulk URL import: paste up to 100 URLs at once
+- Auto re-sync scheduling for Google Drive and OneDrive
+
+**Inbox & Feedback**
+- Thumbs up / down feedback on assistant messages
+- Correction flow: submit a corrected answer that feeds back into the knowledge base
+- Outbound webhook for `new_conversation` and `new_lead` events
+
+---
+
+### Audio Fix
+
+**Released 2026-06-30**
+
+- Fixed empty audio recordings being sent silently to the AI
+- Voice messages shorter than 150ms are now rejected with a clear toast notification
+- Backend independently rejects `audio/webm` MIME type (defense-in-depth)
+
+---
+
+## May 2026
+
+### Mobile SDKs
+
+**Released 2026-05-28**
+
+- Native iOS SDK (SwiftUI, iOS 15+)
+- Native Android SDK (Jetpack Compose, API 26+)
+- React Native SDK (TypeScript)
+- GitHub Actions CI compiling all three on real toolchains
+
+---
+
+### Emoji Picker
+
+**Released 2026-05-22**
+
+- Replaced hardcoded 132-emoji array with `emoji-picker-react` library
+- Native emoji rendering, skin tone support, lazy loading, auto dark mode

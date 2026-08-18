@@ -1,0 +1,109 @@
+---
+title: "Analytics Summary"
+api: "GET /api/v1/analytics"
+description: "Aggregated usage statistics for the bot"
+---
+
+## Overview
+
+Returns lifetime (or time-filtered) usage statistics: message volume, unique sessions, lead capture count, and knowledge base size.
+
+**Required scope:** `read`
+
+## Query parameters
+
+<ParamField query="since" type="string">
+  Filter to events after this ISO 8601 datetime (e.g. `2026-07-01T00:00:00Z`). If omitted, returns lifetime totals.
+</ParamField>
+
+## Response
+
+<ResponseField name="bot_id" type="string">The bot this data belongs to.</ResponseField>
+<ResponseField name="since" type="string">The `since` filter used, or `null` for lifetime.</ResponseField>
+<ResponseField name="total_messages" type="integer">Total number of messages (all roles).</ResponseField>
+<ResponseField name="user_messages" type="integer">Messages sent by visitors.</ResponseField>
+<ResponseField name="bot_messages" type="integer">Replies sent by the AI.</ResponseField>
+<ResponseField name="unique_sessions" type="integer">Number of distinct conversation sessions.</ResponseField>
+<ResponseField name="total_leads" type="integer">Leads captured by the bot.</ResponseField>
+<ResponseField name="knowledge_sources" type="integer">Number of knowledge sources currently indexed.</ResponseField>
+<ResponseField name="knowledge_kb" type="integer">Total size of indexed content in kilobytes.</ResponseField>
+
+<RequestExample>
+
+```bash cURL — Lifetime stats
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/analytics" \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```bash cURL — Last 30 days
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/analytics?since=2026-06-07T00:00:00Z" \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```python Python — Build a weekly report
+import httpx
+from datetime import datetime, timedelta, timezone
+
+client = httpx.Client(
+    base_url="https://chatty-api-376030619262.us-central1.run.app",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+
+# Last 7 days
+since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+stats = client.get("/api/v1/analytics", params={"since": since}).json()
+
+print(f"This week:")
+print(f"  Sessions:  {stats['unique_sessions']}")
+print(f"  Messages:  {stats['user_messages']} from visitors")
+print(f"  Leads:     {stats['total_leads']}")
+```
+
+```javascript Node.js — Dashboard widget
+async function getWeeklyStats() {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const res = await fetch(
+    `https://chatty-api-376030619262.us-central1.run.app/api/v1/analytics?since=${since}`,
+    { headers: { Authorization: "Bearer chatty_sk_your_key" } }
+  );
+  return res.json();
+}
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK — Lifetime stats
+{
+  "bot_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "since": null,
+  "total_messages": 14823,
+  "user_messages": 7402,
+  "bot_messages": 7421,
+  "unique_sessions": 3210,
+  "total_leads": 247,
+  "knowledge_sources": 18,
+  "knowledge_kb": 142
+}
+```
+
+```json 200 OK — Filtered to last 30 days
+{
+  "bot_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "since": "2026-06-07T00:00:00Z",
+  "total_messages": 2104,
+  "user_messages": 1052,
+  "bot_messages": 1052,
+  "unique_sessions": 431,
+  "total_leads": 38,
+  "knowledge_sources": 18,
+  "knowledge_kb": 142
+}
+```
+
+</ResponseExample>
+
+<Tip>
+  Cache this response for at least 60 seconds in your dashboard. The underlying queries scan the full conversation table and are not pre-aggregated.
+</Tip>

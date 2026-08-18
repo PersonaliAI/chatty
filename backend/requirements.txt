@@ -1,0 +1,39 @@
+fastapi
+uvicorn
+google-genai
+supabase
+python-dotenv
+httpx
+pydantic
+psycopg2-binary
+pytz
+PyJWT[crypto]
+python-multipart
+pypdf
+python-docx
+openpyxl
+cryptography
+croniter
+PyYAML
+Pillow
+openai
+anthropic
+
+sentry-sdk[fastapi]
+
+# LiveKit voice worker (Phase B) — pinned to versions verified installed
+# and importable together in this environment.
+livekit-agents==1.6.10
+livekit-api==1.2.0
+livekit-plugins-google==1.6.10
+livekit-plugins-silero==1.6.10
+
+# LiveKit voice worker STT/TTS provider matrix (Phase C, BYOK) — pinned to
+# versions verified installed and importable together in this environment.
+livekit-plugins-deepgram==1.6.10
+livekit-plugins-assemblyai==1.6.10
+livekit-plugins-soniox==1.6.10
+livekit-plugins-openai==1.6.10
+livekit-plugins-cartesia==1.6.10
+livekit-plugins-elevenlabs==1.6.10
+livekit-plugins-fishaudio==1.6.10

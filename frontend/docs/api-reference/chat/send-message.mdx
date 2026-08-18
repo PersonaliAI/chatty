@@ -1,0 +1,173 @@
+---
+title: "Send a Message"
+api: "POST /api/v1/chat"
+description: "Send a text message to the bot and receive an AI reply"
+---
+
+## Overview
+
+Send a message to your bot and get a response based on its knowledge base, guardrails, and language settings. The bot maintains full conversation history within a `session_id`.
+
+**Required scope:** `chat`
+
+<Note>
+  Pass the same `session_id` on every request to keep the conversation in context. If you omit it, a new session is auto-generated and returned in the response.
+</Note>
+
+## Request body
+
+<ParamField body="text" type="string" required>
+  The user's message. Max 4,000 characters. Control characters are stripped automatically.
+</ParamField>
+
+<ParamField body="session_id" type="string">
+  Conversation thread identifier. Omit to start a new session — the generated ID is returned in the response. Reuse the same ID to continue an existing conversation.
+
+  We recommend using a stable identifier from your system: a user ID, visitor UUID, or database row ID.
+</ParamField>
+
+<ParamField body="visitor_timezone" type="string" default="UTC">
+  IANA timezone of the visitor (e.g. `"America/New_York"`, `"Europe/London"`). Used by the bot when answering time-sensitive questions or scheduling meetings.
+</ParamField>
+
+## Response
+
+<ResponseField name="reply" type="string">
+  The bot's text reply.
+</ResponseField>
+
+<ResponseField name="session_id" type="string">
+  The session ID for this conversation. Pass this back in your next request to continue the thread.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X POST https://chatty-api-376030619262.us-central1.run.app/api/v1/chat \
+  -H "Authorization: Bearer chatty_sk_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Do you offer a free trial?",
+    "session_id": "visitor-xyz-789",
+    "visitor_timezone": "America/Chicago"
+  }'
+```
+
+```python Python
+import httpx
+
+client = httpx.Client(
+    base_url="https://chatty-api-376030619262.us-central1.run.app",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+
+response = client.post("/api/v1/chat", json={
+    "text": "Do you offer a free trial?",
+    "session_id": "visitor-xyz-789",
+    "visitor_timezone": "America/Chicago",
+})
+data = response.json()
+print(data["reply"])
+```
+
+```javascript Node.js
+const res = await fetch(
+  "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat",
+  {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer chatty_sk_your_key",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text: "Do you offer a free trial?",
+      session_id: "visitor-xyz-789",
+      visitor_timezone: "America/Chicago",
+    }),
+  }
+);
+const { reply, session_id } = await res.json();
+```
+
+```php PHP
+$data = json_encode([
+    'text' => 'Do you offer a free trial?',
+    'session_id' => 'visitor-xyz-789',
+    'visitor_timezone' => 'America/Chicago',
+]);
+
+$ch = curl_init('https://chatty-api-376030619262.us-central1.run.app/api/v1/chat');
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer chatty_sk_your_key',
+        'Content-Type: application/json',
+    ],
+    CURLOPT_POSTFIELDS => $data,
+]);
+$response = json_decode(curl_exec($ch), true);
+echo $response['reply'];
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "reply": "Yes! We offer a 14-day free trial on all paid plans — no credit card required. You can start a trial directly from our pricing page. Would you like me to walk you through what's included?",
+  "session_id": "visitor-xyz-789"
+}
+```
+
+```json 400 Empty text
+{
+  "detail": "text is required and must not be empty"
+}
+```
+
+```json 401 Invalid key
+{
+  "detail": "Invalid API key"
+}
+```
+
+```json 403 Missing scope
+{
+  "detail": "This API key is missing the 'chat' scope. Current scopes: ['read']. Update your key's scopes in the Chatty dashboard → API Keys."
+}
+```
+
+```json 429 Rate limited
+{
+  "detail": "Rate limit exceeded (60/min per key)"
+}
+```
+
+```json 502 AI error
+{
+  "detail": "assistant error: upstream provider timeout"
+}
+```
+
+</ResponseExample>
+
+## Managing sessions
+
+Sessions are lightweight — there's no explicit "create session" call. Start a conversation by picking any unique ID:
+
+```python
+import uuid
+
+# Per-visitor session
+session_id = f"visitor-{user_id}"
+
+# Per-page-load session (fresh conversation every visit)
+session_id = f"anon-{uuid.uuid4()}"
+
+# Named demo session
+session_id = "demo-1"
+```
+
+To reset a conversation, call [`DELETE /api/v1/conversations/{session_id}`](/api-reference/conversations/delete).

@@ -1,0 +1,90 @@
+---
+title: "List Conversations"
+api: "GET /api/v1/conversations"
+description: "Return recent messages across all sessions for this bot"
+---
+
+## Overview
+
+Returns messages across all conversation sessions for the bot, sorted newest first. To fetch a specific session thread, use [`GET /api/v1/conversations/{session_id}`](/api-reference/conversations/get).
+
+**Required scope:** `read`
+
+## Query parameters
+
+<ParamField query="limit" type="integer" default="50">
+  Number of messages to return. Min `1`, max `200`.
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Zero-based offset for pagination.
+</ParamField>
+
+## Response
+
+<ResponseField name="messages" type="array">
+  Array of message objects.
+
+  <Expandable title="Message fields">
+    <ResponseField name="id" type="string">UUID of the message.</ResponseField>
+    <ResponseField name="session_id" type="string">Conversation thread this message belongs to.</ResponseField>
+    <ResponseField name="role" type="string">`"user"` or `"assistant"`.</ResponseField>
+    <ResponseField name="content" type="string">Message text.</ResponseField>
+    <ResponseField name="feedback_rating" type="string">Thumbs feedback: `"up"`, `"down"`, or `null`.</ResponseField>
+    <ResponseField name="created_at" type="string">ISO 8601 timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="limit" type="integer">Limit used in this request.</ResponseField>
+<ResponseField name="offset" type="integer">Offset used in this request.</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations?limit=50" \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```python Python
+import httpx
+
+res = httpx.get(
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+    params={"limit": 50, "offset": 0},
+)
+data = res.json()
+for msg in data["messages"]:
+    print(f"[{msg['role']}] {msg['content'][:80]}")
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "messages": [
+    {
+      "id": "msg-uuid-001",
+      "session_id": "visitor-xyz-789",
+      "role": "assistant",
+      "content": "You're welcome! Is there anything else I can help with?",
+      "feedback_rating": "up",
+      "created_at": "2026-07-06T14:25:00Z"
+    },
+    {
+      "id": "msg-uuid-002",
+      "session_id": "visitor-xyz-789",
+      "role": "user",
+      "content": "Thanks, that was helpful!",
+      "feedback_rating": null,
+      "created_at": "2026-07-06T14:24:45Z"
+    }
+  ],
+  "limit": 50,
+  "offset": 0
+}
+```
+
+</ResponseExample>

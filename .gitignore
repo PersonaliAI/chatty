@@ -1,0 +1,25 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/*.tsbuildinfo
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+backend/venv/
+
+# Supabase
+backend/supabase/.temp/
+
+# IDEs and OS
+.vscode/
+.DS_Store
+Thumbs.db

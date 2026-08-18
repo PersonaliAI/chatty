@@ -1,0 +1,109 @@
+---
+title: "Get Conversation"
+api: "GET /api/v1/conversations/{session_id}"
+description: "Return all messages in a specific conversation thread"
+---
+
+## Overview
+
+Fetch the complete ordered message history for a single conversation session.
+
+**Required scope:** `read`
+
+## Path parameters
+
+<ParamField path="session_id" type="string" required>
+  The conversation session identifier, as returned by `POST /api/v1/chat`.
+</ParamField>
+
+## Response
+
+<ResponseField name="session_id" type="string">
+  The session identifier.
+</ResponseField>
+
+<ResponseField name="messages" type="array">
+  All messages in the session, ordered oldest to newest.
+
+  <Expandable title="Message fields">
+    <ResponseField name="id" type="string">UUID of the message.</ResponseField>
+    <ResponseField name="session_id" type="string">Session ID.</ResponseField>
+    <ResponseField name="role" type="string">`"user"` or `"assistant"`.</ResponseField>
+    <ResponseField name="content" type="string">Message text.</ResponseField>
+    <ResponseField name="feedback_rating" type="string">`"up"`, `"down"`, or `null`.</ResponseField>
+    <ResponseField name="created_at" type="string">ISO 8601 timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/visitor-xyz-789" \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```python Python
+import httpx
+
+session_id = "visitor-xyz-789"
+res = httpx.get(
+    f"https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/{session_id}",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+thread = res.json()
+for msg in thread["messages"]:
+    print(f"{msg['role'].upper()}: {msg['content']}")
+```
+
+```javascript Node.js
+const sessionId = "visitor-xyz-789";
+const res = await fetch(
+  `https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/${sessionId}`,
+  { headers: { Authorization: "Bearer chatty_sk_your_key" } }
+);
+const { messages } = await res.json();
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "session_id": "visitor-xyz-789",
+  "messages": [
+    {
+      "id": "msg-uuid-010",
+      "session_id": "visitor-xyz-789",
+      "role": "user",
+      "content": "Hi, do you have an enterprise plan?",
+      "feedback_rating": null,
+      "created_at": "2026-07-06T14:20:00Z"
+    },
+    {
+      "id": "msg-uuid-011",
+      "session_id": "visitor-xyz-789",
+      "role": "assistant",
+      "content": "Yes! Our Enterprise plan includes unlimited bots, SSO, SLA support, and a dedicated account manager. Would you like me to connect you with sales?",
+      "feedback_rating": "up",
+      "created_at": "2026-07-06T14:20:03Z"
+    },
+    {
+      "id": "msg-uuid-012",
+      "session_id": "visitor-xyz-789",
+      "role": "user",
+      "content": "Yes please",
+      "feedback_rating": null,
+      "created_at": "2026-07-06T14:20:30Z"
+    }
+  ]
+}
+```
+
+```json 404 Not found
+{
+  "detail": "Session not found or belongs to a different bot"
+}
+```
+
+</ResponseExample>

@@ -1,0 +1,184 @@
+---
+title: Quickstart
+description: Make your first API call in under 5 minutes
+---
+
+## 1. Create a bot
+
+Log in to the [Chatty Dashboard](https://chatty.ai/dashboard) and create a new bot. Train it with a few URLs or text snippets so it has something to answer.
+
+## 2. Generate an API key
+
+In the dashboard, go to **API Keys** under your bot's settings and click **New Key**.
+
+<Note>
+  The API key is shown **once** — copy it and store it in your environment variables immediately. If you lose it, revoke the key and create a new one.
+</Note>
+
+Your key looks like this:
+
+```
+chatty_sk_a3f9b2c1d8e4f5g6h7i8j9k0l1m2n3o4p5q6r7s8
+```
+
+## 3. Make your first call
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://chatty-api-376030619262.us-central1.run.app/api/v1/chat \
+  -H "Authorization: Bearer chatty_sk_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello! What can you help me with?",
+    "session_id": "quickstart-session-1"
+  }'
+```
+
+```python Python
+import httpx
+
+response = httpx.post(
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat",
+    headers={"Authorization": "Bearer chatty_sk_your_key_here"},
+    json={
+        "text": "Hello! What can you help me with?",
+        "session_id": "quickstart-session-1",
+    },
+)
+data = response.json()
+print(data["reply"])
+```
+
+```javascript Node.js
+const response = await fetch(
+  "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat",
+  {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer chatty_sk_your_key_here",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text: "Hello! What can you help me with?",
+      session_id: "quickstart-session-1",
+    }),
+  }
+);
+const data = await response.json();
+console.log(data.reply);
+```
+
+```php PHP
+$ch = curl_init();
+curl_setopt_array($ch, [
+    CURLOPT_URL => "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_HTTPHEADER => [
+        "Authorization: Bearer chatty_sk_your_key_here",
+        "Content-Type: application/json",
+    ],
+    CURLOPT_POSTFIELDS => json_encode([
+        "text" => "Hello! What can you help me with?",
+        "session_id" => "quickstart-session-1",
+    ]),
+]);
+$response = json_decode(curl_exec($ch), true);
+echo $response["reply"];
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "net/http"
+)
+
+func main() {
+    body, _ := json.Marshal(map[string]string{
+        "text":       "Hello! What can you help me with?",
+        "session_id": "quickstart-session-1",
+    })
+    req, _ := http.NewRequest("POST",
+        "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat",
+        bytes.NewBuffer(body))
+    req.Header.Set("Authorization", "Bearer chatty_sk_your_key_here")
+    req.Header.Set("Content-Type", "application/json")
+
+    client := &http.Client{}
+    resp, _ := client.Do(req)
+    defer resp.Body.Close()
+
+    var result map[string]string
+    json.NewDecoder(resp.Body).Decode(&result)
+    fmt.Println(result["reply"])
+}
+```
+
+```ruby Ruby
+require "net/http"
+require "json"
+require "uri"
+
+uri = URI("https://chatty-api-376030619262.us-central1.run.app/api/v1/chat")
+http = Net::HTTP.new(uri.host, uri.port)
+http.use_ssl = true
+
+request = Net::HTTP::Post.new(uri)
+request["Authorization"] = "Bearer chatty_sk_your_key_here"
+request["Content-Type"] = "application/json"
+request.body = { text: "Hello!", session_id: "quickstart-session-1" }.to_json
+
+response = JSON.parse(http.request(request).body)
+puts response["reply"]
+```
+
+</CodeGroup>
+
+## 4. The response
+
+```json
+{
+  "reply": "Hi! I'm your AI assistant. I can help you with product questions, pricing, support issues, and more. What would you like to know?",
+  "session_id": "quickstart-session-1"
+}
+```
+
+<Tip>
+  **Save your `session_id`!** Pass the same `session_id` in every subsequent request to continue the conversation thread. The bot remembers the full conversation history within a session.
+</Tip>
+
+## 5. Continue the conversation
+
+```bash
+curl -X POST https://chatty-api-376030619262.us-central1.run.app/api/v1/chat \
+  -H "Authorization: Bearer chatty_sk_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Tell me about your Pro plan.",
+    "session_id": "quickstart-session-1"
+  }'
+```
+
+The bot will respond with context from the previous turn — it knows you already said hello.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Understand scopes and how to restrict your API keys.
+  </Card>
+  <Card title="Send a Message" icon="message" href="/api-reference/chat/send-message">
+    Full API reference for the chat endpoint.
+  </Card>
+  <Card title="Read Leads" icon="users" href="/api-reference/leads/list">
+    Pull captured leads into your CRM.
+  </Card>
+  <Card title="Manage Knowledge" icon="book" href="/api-reference/knowledge/list">
+    Add and remove knowledge sources programmatically.
+  </Card>
+</CardGroup>

@@ -1,0 +1,82 @@
+---
+title: "List Knowledge Sources"
+api: "GET /api/v1/knowledge"
+description: "Return all knowledge sources for the bot"
+---
+
+## Overview
+
+Returns all knowledge sources (text snippets, crawled URLs, and uploaded files) that the bot uses to answer questions.
+
+**Required scope:** `read`
+
+## Response
+
+<ResponseField name="sources" type="array">
+  Array of knowledge source objects.
+
+  <Expandable title="Source fields">
+    <ResponseField name="id" type="string">UUID of the source.</ResponseField>
+    <ResponseField name="type" type="string">`"text"`, `"url"`, or `"file"`.</ResponseField>
+    <ResponseField name="name" type="string">Source title or URL.</ResponseField>
+    <ResponseField name="status" type="string">`"trained"`, `"pending"`, or `"error"`.</ResponseField>
+    <ResponseField name="char_count" type="integer">Number of characters indexed.</ResponseField>
+    <ResponseField name="crawl_schedule" type="string">Auto re-crawl schedule: `"off"`, `"daily"`, `"weekly"`, or `"monthly"` (URL sources only).</ResponseField>
+    <ResponseField name="next_crawl_at" type="string">Next scheduled crawl time (ISO 8601), or `null`.</ResponseField>
+    <ResponseField name="last_crawled_at" type="string">Last time this URL was crawled (ISO 8601), or `null`.</ResponseField>
+    <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge" \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```python Python
+import httpx
+
+res = httpx.get(
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+for src in res.json()["sources"]:
+    print(f"[{src['type']}] {src['name']} — {src['char_count']} chars")
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "sources": [
+    {
+      "id": "src-uuid-001",
+      "type": "url",
+      "name": "https://example.com/pricing",
+      "status": "trained",
+      "char_count": 4821,
+      "crawl_schedule": "weekly",
+      "next_crawl_at": "2026-07-14T00:00:00Z",
+      "last_crawled_at": "2026-07-07T00:00:00Z",
+      "created_at": "2026-06-01T12:00:00Z"
+    },
+    {
+      "id": "src-uuid-002",
+      "type": "text",
+      "name": "Refund Policy",
+      "status": "trained",
+      "char_count": 892,
+      "crawl_schedule": "off",
+      "next_crawl_at": null,
+      "last_crawled_at": null,
+      "created_at": "2026-06-01T11:00:00Z"
+    }
+  ]
+}
+```
+
+</ResponseExample>

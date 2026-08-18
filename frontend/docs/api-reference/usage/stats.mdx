@@ -1,0 +1,79 @@
+---
+title: "API Key Usage"
+api: "GET /api/v1/usage"
+description: "Usage statistics and configuration for the calling API key"
+---
+
+## Overview
+
+Returns configuration and usage statistics for the API key making the request. Useful for monitoring request volumes and verifying key configuration without going to the dashboard.
+
+**Required scope:** any (no minimum scope)
+
+## Response
+
+<ResponseField name="key_prefix" type="string">
+  First 14 characters of the key (e.g. `"chatty_sk_a3f9"`). Safe to log.
+</ResponseField>
+
+<ResponseField name="scopes" type="array">
+  Scopes assigned to this key (e.g. `["chat", "read"]`).
+</ResponseField>
+
+<ResponseField name="allowed_ips" type="array">
+  IP addresses or CIDR ranges allowed to use this key. `null` means any IP.
+</ResponseField>
+
+<ResponseField name="request_count" type="integer">
+  Total number of successful requests made with this key (lifetime).
+</ResponseField>
+
+<ResponseField name="last_used_at" type="string">
+  ISO 8601 timestamp of the last request. `null` if never used.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp when the key was created.
+</ResponseField>
+
+<ResponseField name="rate_limit_per_min" type="integer">
+  Current rate limit for this key (default: 60).
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/usage" \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```python Python
+import httpx
+
+res = httpx.get(
+    "https://chatty-api-376030619262.us-central1.run.app/api/v1/usage",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+usage = res.json()
+print(f"Key: {usage['key_prefix']}...")
+print(f"Scopes: {usage['scopes']}")
+print(f"Total requests: {usage['request_count']}")
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "key_prefix": "chatty_sk_a3f9",
+  "scopes": ["chat", "read"],
+  "allowed_ips": null,
+  "request_count": 1842,
+  "last_used_at": "2026-07-07T15:28:44Z",
+  "created_at": "2026-06-01T10:00:00Z",
+  "rate_limit_per_min": 60
+}
+```
+
+</ResponseExample>

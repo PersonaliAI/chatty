@@ -1,0 +1,139 @@
+---
+title: "List Leads"
+api: "GET /api/v1/leads"
+description: "Return leads captured by the bot, most recent first"
+---
+
+## Overview
+
+Returns visitor leads captured through the bot's lead collection flow — typically name, email, phone, and any custom fields you configured.
+
+**Required scope:** `read`
+
+## Query parameters
+
+<ParamField query="limit" type="integer" default="50">
+  Number of leads to return. Min `1`, max `200`.
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Zero-based offset for pagination.
+</ParamField>
+
+## Response
+
+<ResponseField name="leads" type="array">
+  Array of lead objects.
+
+  <Expandable title="Lead object fields">
+    <ResponseField name="id" type="string">UUID of the lead.</ResponseField>
+    <ResponseField name="bot_id" type="string">Bot that captured this lead.</ResponseField>
+    <ResponseField name="session_id" type="string">Conversation session where the lead was captured.</ResponseField>
+    <ResponseField name="name" type="string">Visitor's name (if collected).</ResponseField>
+    <ResponseField name="email" type="string">Visitor's email address (if collected).</ResponseField>
+    <ResponseField name="phone" type="string">Visitor's phone number (if collected).</ResponseField>
+    <ResponseField name="extra" type="object">Any additional fields collected by the bot.</ResponseField>
+    <ResponseField name="created_at" type="string">ISO 8601 timestamp when the lead was captured.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Total number of leads for this bot (across all pages).
+</ResponseField>
+
+<ResponseField name="limit" type="integer">
+  The limit used for this request.
+</ResponseField>
+
+<ResponseField name="offset" type="integer">
+  The offset used for this request.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+# First page
+curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/leads?limit=20&offset=0" \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```python Python — paginate all leads
+import httpx
+
+client = httpx.Client(
+    base_url="https://chatty-api-376030619262.us-central1.run.app",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+
+all_leads = []
+offset = 0
+limit = 100
+
+while True:
+    res = client.get("/api/v1/leads", params={"limit": limit, "offset": offset})
+    data = res.json()
+    all_leads.extend(data["leads"])
+    if len(all_leads) >= data["total"]:
+        break
+    offset += limit
+
+print(f"Fetched {len(all_leads)} leads")
+```
+
+```javascript Node.js — sync to CRM
+async function syncLeadsToCRM() {
+  let offset = 0;
+  const limit = 100;
+
+  while (true) {
+    const res = await fetch(
+      `https://chatty-api-376030619262.us-central1.run.app/api/v1/leads?limit=${limit}&offset=${offset}`,
+      { headers: { Authorization: "Bearer chatty_sk_your_key" } }
+    );
+    const { leads, total } = await res.json();
+
+    for (const lead of leads) {
+      await pushToCRM(lead); // your CRM integration
+    }
+
+    offset += limit;
+    if (offset >= total) break;
+  }
+}
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "leads": [
+    {
+      "id": "ld_001abc",
+      "bot_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "session_id": "visitor-xyz-789",
+      "name": "Sarah Chen",
+      "email": "sarah.chen@example.com",
+      "phone": "+1-555-0123",
+      "extra": { "company": "Acme Corp", "message": "Interested in enterprise plan" },
+      "created_at": "2026-07-06T14:23:11Z"
+    },
+    {
+      "id": "ld_002def",
+      "bot_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "session_id": "visitor-abc-123",
+      "name": "Marco Rossi",
+      "email": "marco@example.it",
+      "phone": null,
+      "extra": {},
+      "created_at": "2026-07-06T09:10:55Z"
+    }
+  ],
+  "total": 247,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+</ResponseExample>

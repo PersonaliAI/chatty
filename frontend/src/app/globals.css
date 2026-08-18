@@ -1,0 +1,381 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #0a0a0a;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5;
+  --accent-foreground: #0a0a0a;
+  --destructive: #ef4444;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #0a0a0a;
+  --chart-1: #f97316;
+  --chart-2: #0a0a0a;
+  --chart-3: #737373;
+  --chart-4: #d4d4d4;
+  --chart-5: #f97316;
+  --radius: 0.625rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0a0a0a;
+  --sidebar-primary: #0a0a0a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f5f5;
+  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #0a0a0a;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #141414;
+  --card-foreground: #fafafa;
+  --popover: #141414;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #fafafa;
+  --muted: #1a1a1a;
+  --muted-foreground: #a3a3a3;
+  --accent: #1a1a1a;
+  --accent-foreground: #fafafa;
+  --destructive: #ef4444;
+  --border: #262626;
+  --input: #262626;
+  --ring: #fafafa;
+  --chart-1: #f97316;
+  --chart-2: #fafafa;
+  --chart-3: #a3a3a3;
+  --chart-4: #404040;
+  --chart-5: #f97316;
+  --sidebar: #141414;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #fafafa;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #262626;
+  --sidebar-ring: #fafafa;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans scroll-smooth;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Dot grid background */
+body {
+  background-image: radial-gradient(circle, #e5e5e5 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  animation: dotDrift 20s linear infinite;
+}
+
+.dark body {
+  background-image: radial-gradient(circle, #262626 1px, transparent 1px);
+}
+
+@keyframes dotDrift {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 24px 24px;
+  }
+}
+
+/* Assistant Design Presets */
+
+/* 1. Minimalist */
+.style-minimalist {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+.dark .style-minimalist {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+}
+
+/* 2. Glassmorphism */
+.style-glassmorphism {
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(16px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(120%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.06) !important;
+}
+
+.dark .style-glassmorphism {
+  background-color: rgba(20, 20, 20, 0.5) !important;
+  backdrop-filter: blur(16px) saturate(120%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Glassmorphism Children */
+.style-glassmorphism .chat-header {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(8px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: var(--foreground) !important;
+}
+
+.dark .style-glassmorphism .chat-header {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.style-glassmorphism .bot-bubble {
+  background-color: rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: var(--foreground) !important;
+}
+
+.style-glassmorphism .user-bubble {
+  background-color: color-mix(in srgb, var(--primary-color, #f97316) 75%, transparent) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+}
+
+.style-glassmorphism .chat-input-bar {
+  background-color: rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: var(--foreground) !important;
+}
+
+.dark .style-glassmorphism .chat-input-bar {
+  background-color: rgba(20, 20, 20, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 3. Liquid Glass */
+.style-liquid {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 100%) !important;
+  backdrop-filter: blur(25px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 12px 40px 0 rgba(249, 115, 22, 0.06) !important;
+}
+
+.dark .style-liquid {
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.4) 0%, rgba(20, 20, 20, 0.2) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.style-liquid .chat-header {
+  background: linear-gradient(90deg, rgba(249, 115, 22, 0.15), rgba(236, 72, 153, 0.15)) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: var(--foreground) !important;
+}
+
+.style-liquid .bot-bubble {
+  background: rgba(255, 255, 255, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(5px) !important;
+  color: var(--foreground) !important;
+}
+
+.style-liquid .user-bubble {
+  background: linear-gradient(135deg, var(--primary-color, #f97316), #ec4899) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 15px rgba(249, 115, 22, 0.2) !important;
+}
+
+.style-liquid .chat-input-bar {
+  background: rgba(255, 255, 255, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  color: var(--foreground) !important;
+}
+
+.dark .style-liquid .chat-input-bar {
+  background: rgba(10, 10, 10, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 4. Neumorphism */
+.style-neumorphism {
+  background-color: #f3f4f6 !important;
+  border: none !important;
+  box-shadow: 9px 9px 16px rgba(0,0,0,0.06), -9px -9px 16px rgba(255,255,255,0.8) !important;
+}
+
+.dark .style-neumorphism {
+  background-color: #141414 !important;
+  box-shadow: 9px 9px 16px #070707, -9px -9px 16px #1d1d1d !important;
+}
+
+.style-neumorphism .chat-header {
+  background-color: #f3f4f6 !important;
+  border-bottom: 1px solid rgba(0,0,0,0.03) !important;
+  color: #1f2937 !important;
+}
+
+.dark .style-neumorphism .chat-header {
+  background-color: #141414 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.02) !important;
+  color: #f3f4f6 !important;
+}
+
+.style-neumorphism .bot-bubble {
+  background-color: #f3f4f6 !important;
+  border: none !important;
+  box-shadow: 3px 3px 6px rgba(0,0,0,0.04), -3px -3px 6px rgba(255,255,255,0.7) !important;
+  color: #1f2937 !important;
+}
+
+.dark .style-neumorphism .bot-bubble {
+  background-color: #141414 !important;
+  box-shadow: 3px 3px 6px #080808, -3px -3px 6px #202020 !important;
+  color: #f3f4f6 !important;
+}
+
+.style-neumorphism .user-bubble {
+  background-color: var(--primary-color, #f97316) !important;
+  border: none !important;
+  box-shadow: 3px 3px 6px rgba(249, 115, 22, 0.2), -3px -3px 6px rgba(255, 255, 255, 0.5) !important;
+  color: #ffffff !important;
+}
+
+.style-neumorphism .chat-input-bar {
+  background-color: #f3f4f6 !important;
+  border: none !important;
+  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.06), inset -2px -2px 5px rgba(255,255,255,0.8) !important;
+  color: #1f2937 !important;
+}
+
+.dark .style-neumorphism .chat-input-bar {
+  background-color: #141414 !important;
+  box-shadow: inset 3px 3px 6px #070707, inset -3px -3px 6px #1d1d1d !important;
+  color: #f3f4f6 !important;
+}
+
+/* 5. Brutalism / Neo-Brutalism */
+.style-brutalism { background-color: #fff !important; border: 3px solid #111 !important; }
+.style-brutalism .chat-header { border-bottom: 3px solid #111 !important; }
+.style-brutalism .bot-bubble { background: #fff !important; border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; color: #111 !important; }
+.style-brutalism .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #111111 !important; border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; }
+.style-brutalism .chat-input-bar { border: 2px solid #111 !important; box-shadow: 3px 3px 0 #111 !important; border-radius: 4px !important; }
+.dark .style-brutalism { background-color: #0a0a0a !important; border-color: #fff !important; }
+.dark .style-brutalism .chat-header { border-bottom-color: #fff !important; }
+.dark .style-brutalism .bot-bubble { background: #161616 !important; border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; color: #fff !important; }
+.dark .style-brutalism .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #111111 !important; border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; }
+.dark .style-brutalism .chat-input-bar { border-color: #fff !important; box-shadow: 3px 3px 0 #fff !important; }
+
+/* 6. Claymorphism */
+.style-claymorphism { background-color: #f1eefc !important; border: none !important; }
+.style-claymorphism .bot-bubble { background: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: 5px 5px 12px rgba(80,60,160,0.12), inset 1px 1px 2px rgba(255,255,255,0.9) !important; color: #2a2440 !important; }
+.style-claymorphism .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: 5px 5px 12px rgba(80,60,160,0.22), inset 1px 1px 2px rgba(255,255,255,0.4) !important; }
+.style-claymorphism .chat-input-bar { background: #ffffff !important; border: none !important; border-radius: 18px !important; box-shadow: inset 3px 3px 7px rgba(80,60,160,0.10), inset -3px -3px 7px rgba(255,255,255,0.9) !important; }
+.dark .style-claymorphism { background-color: #1a1726 !important; }
+.dark .style-claymorphism .bot-bubble { background: #241f36 !important; box-shadow: 5px 5px 12px rgba(0,0,0,0.4) !important; color: #efeaff !important; }
+.dark .style-claymorphism .chat-input-bar { background: #241f36 !important; box-shadow: inset 3px 3px 7px rgba(0,0,0,0.35) !important; }
+
+/* 7. Bento Grid */
+.style-bento { background-color: #fafafa !important; border: 1px solid #e5e5e5 !important; }
+.style-bento .chat-header { border-bottom: 1px solid #e5e5e5 !important; }
+.style-bento .bot-bubble { background: #fff !important; border: 1px solid #ececec !important; border-radius: 12px !important; color: #1f2937 !important; }
+.style-bento .user-bubble { background-color: var(--primary-color, #f97316) !important; color: #ffffff !important; border-radius: 12px !important; }
+.style-bento .chat-input-bar { background: #fff !important; border: 1px solid #e5e5e5 !important; border-radius: 12px !important; }
+.dark .style-bento { background-color: #0d0d0d !important; border-color: #262626 !important; }
+.dark .style-bento .bot-bubble { background: #171717 !important; border-color: #262626 !important; color: #e5e5e5 !important; }
+.dark .style-bento .chat-input-bar { background: #171717 !important; border-color: #262626 !important; }
+
+
+/* 8. Retro / Y2K / Cyber */
+.style-retro { background-color: #0b0b1a !important; border: 1px solid #00ffd5 !important; box-shadow: 0 0 24px rgba(0,255,213,0.18) !important; }
+.style-retro .chat-header { background: linear-gradient(90deg, #ff00cc, #3333ff) !important; color: #fff !important; border-bottom: 1px solid #00ffd5 !important; }
+.style-retro .bot-bubble { background: rgba(255,255,255,0.06) !important; border: 1px solid #00ffd5 !important; color: #d6fff8 !important; box-shadow: 0 0 10px rgba(0,255,213,0.18) !important; }
+.style-retro .user-bubble { background: linear-gradient(90deg, #ff00cc, #7a00ff) !important; color: #fff !important; box-shadow: 0 0 10px rgba(255,0,204,0.28) !important; }
+.style-retro .chat-input-bar { background: rgba(255,255,255,0.05) !important; border: 1px solid #00ffd5 !important; color: #d6fff8 !important; }
+
+/* 9. Aurora / Gradient Mesh */
+.style-aurora { background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 50%, #c2f0e6 100%) !important; border: 1px solid rgba(255,255,255,0.4) !important; }
+.style-aurora .chat-header { background: linear-gradient(120deg, rgba(255,255,255,0.28), rgba(255,255,255,0.04)) !important; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); color: #1a1a2e !important; border-bottom: 1px solid rgba(255,255,255,0.35) !important; }
+.style-aurora .bot-bubble { background: rgba(255,255,255,0.62) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.5) !important; color: #1a1a2e !important; border-radius: 14px !important; }
+.style-aurora .user-bubble { background: linear-gradient(120deg, #a18cd1, #7aa5fb) !important; color: #fff !important; border-radius: 14px !important; }
+.style-aurora .chat-input-bar { background: rgba(255,255,255,0.55) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.5) !important; }
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+

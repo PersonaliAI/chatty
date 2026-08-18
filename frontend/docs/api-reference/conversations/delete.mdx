@@ -1,0 +1,93 @@
+---
+title: "Clear a Session"
+api: "DELETE /api/v1/conversations/{session_id}"
+description: "Delete all messages in a conversation session"
+---
+
+## Overview
+
+Permanently deletes all messages in the given session. The next message sent with the same `session_id` will start a fresh conversation with no prior context.
+
+**Required scope:** `write`
+
+<Warning>
+  This operation is **irreversible**. All messages in the session are permanently deleted.
+</Warning>
+
+## Path parameters
+
+<ParamField path="session_id" type="string" required>
+  The session to clear.
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="session_id" type="string">
+  The session that was cleared.
+</ResponseField>
+
+<ResponseField name="deleted" type="boolean">
+  Always `true`.
+</ResponseField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE \
+  "https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/visitor-xyz-789" \
+  -H "Authorization: Bearer chatty_sk_your_key"
+```
+
+```python Python
+import httpx
+
+session_id = "visitor-xyz-789"
+res = httpx.delete(
+    f"https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/{session_id}",
+    headers={"Authorization": "Bearer chatty_sk_your_key"},
+)
+print(res.json())
+```
+
+```javascript Node.js
+const sessionId = "visitor-xyz-789";
+const res = await fetch(
+  `https://chatty-api-376030619262.us-central1.run.app/api/v1/conversations/${sessionId}`,
+  {
+    method: "DELETE",
+    headers: { Authorization: "Bearer chatty_sk_your_key" },
+  }
+);
+const data = await res.json();
+console.log(data.success); // true
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200 OK
+{
+  "success": true,
+  "session_id": "visitor-xyz-789",
+  "deleted": true
+}
+```
+
+```json 403 Wrong bot
+{
+  "detail": "Session not found or belongs to a different bot"
+}
+```
+
+</ResponseExample>
+
+## Use cases
+
+- **Privacy / GDPR**: Delete conversation history for a specific user on request.
+- **Demo resets**: After a product demo, clear the session so the next visitor starts fresh.
+- **Testing**: Reset a test session between automated test runs.

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Chatty",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.ico",
+  "colors": {
+    "primary": "#f97316",
+    "light": "#fb923c",
+    "dark": "#ea6c00",
+    "anchors": {
+      "from": "#f97316",
+      "to": "#ea580c"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Dashboard",
+      "url": "https://chatty.ai/dashboard"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started Free",
+    "url": "https://chatty.ai/signup"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    },
+    {
+      "name": "Guides",
+      "url": "guides"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "API Status",
+      "icon": "signal-bars",
+      "url": "https://status.chatty.ai"
+    },
+    {
+      "name": "Community",
+      "icon": "discord",
+      "url": "https://discord.gg/chatty"
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/chatty-ai"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "authentication",
+        "rate-limits",
+        "errors"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        {
+          "group": "Chat",
+          "pages": ["api-reference/chat/send-message"]
+        },
+        {
+          "group": "Bot",
+          "pages": ["api-reference/bot/get-details"]
+        },
+        {
+          "group": "Leads",
+          "pages": ["api-reference/leads/list"]
+        },
+        {
+          "group": "Conversations",
+          "pages": [
+            "api-reference/conversations/list",
+            "api-reference/conversations/get",
+            "api-reference/conversations/delete"
+          ]
+        },
+        {
+          "group": "Knowledge",
+          "pages": [
+            "api-reference/knowledge/list",
+            "api-reference/knowledge/add",
+            "api-reference/knowledge/delete"
+          ]
+        },
+        {
+          "group": "Analytics",
+          "pages": ["api-reference/analytics/summary"]
+        },
+        {
+          "group": "Usage",
+          "pages": ["api-reference/usage/stats"]
+        }
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/embed-widget",
+        "guides/mobile-sdks",
+        "guides/webhooks",
+        "guides/byok",
+        "guides/languages"
+      ]
+    },
+    {
+      "group": "Resources",
+      "pages": ["changelog"]
+    }
+  ],
+  "footerSocials": {
+    "twitter": "https://twitter.com/chattyai",
+    "github": "https://github.com/chatty-ai",
+    "linkedin": "https://linkedin.com/company/chatty-ai"
+  },
+  "api": {
+    "baseUrl": "https://chatty-api-376030619262.us-central1.run.app",
+    "auth": {
+      "method": "bearer"
+    }
+  },
+  "openapi": "https://chatty-api-376030619262.us-central1.run.app/openapi.json"
+}

@@ -1,0 +1,171 @@
+---
+title: Mobile SDKs
+description: Native iOS, Android, and React Native SDKs for Chatty
+---
+
+## Overview
+
+Chatty provides **native** mobile SDKs — no WebView, no iFrame. The chat UI is built with platform-native components for smooth performance and full system integration.
+
+<CardGroup cols={3}>
+  <Card title="iOS (Swift)" icon="apple">
+    SwiftUI-based. Requires iOS 15+.
+  </Card>
+  <Card title="Android (Kotlin)" icon="android">
+    Jetpack Compose. Requires Android API 26+.
+  </Card>
+  <Card title="React Native" icon="react">
+    TypeScript. Works on iOS and Android.
+  </Card>
+</CardGroup>
+
+---
+
+## React Native
+
+### Installation
+
+```bash
+npm install @chatty/react-native-sdk
+# or
+yarn add @chatty/react-native-sdk
+```
+
+**Peer dependencies:**
+```bash
+npm install @react-native-async-storage/async-storage
+```
+
+### Usage
+
+```tsx
+import React from "react";
+import { ChattyWidget } from "@chatty/react-native-sdk";
+
+export default function SupportScreen() {
+  return (
+    <ChattyWidget
+      botId="YOUR_BOT_ID"
+      baseUrl="https://chatty-api-376030619262.us-central1.run.app"
+      visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+    />
+  );
+}
+```
+
+### Props
+
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `botId` | `string` | ✅ | Your bot's UUID from the dashboard |
+| `baseUrl` | `string` | ✅ | API base URL |
+| `sessionId` | `string` | | Custom session ID. Auto-generated if omitted. |
+| `visitorTimezone` | `string` | | IANA timezone (e.g. `"America/New_York"`) |
+
+---
+
+## iOS (Swift / SwiftUI)
+
+### Installation — Swift Package Manager
+
+In Xcode: **File → Add Package Dependencies** and enter:
+
+```
+https://github.com/chatty-ai/chatty-ios-sdk
+```
+
+Or add to `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/chatty-ai/chatty-ios-sdk", from: "1.0.0")
+]
+```
+
+### Usage
+
+```swift
+import SwiftUI
+import ChattySDK
+
+struct SupportView: View {
+    var body: some View {
+        ChattyView(
+            botId: "YOUR_BOT_ID",
+            baseURL: URL(string: "https://chatty-api-376030619262.us-central1.run.app")!
+        )
+        .navigationTitle("Support")
+    }
+}
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `botId` | `String` | ✅ | Bot UUID |
+| `baseURL` | `URL` | ✅ | API base URL |
+| `sessionId` | `String?` | | Custom session ID |
+| `visitorTimezone` | `String?` | | IANA timezone |
+
+---
+
+## Android (Kotlin / Jetpack Compose)
+
+### Installation
+
+Add to `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation("ai.chatty:chatty-android-sdk:1.0.0")
+}
+```
+
+### Usage
+
+```kotlin
+import ai.chatty.sdk.ChattyWidget
+
+@Composable
+fun SupportScreen() {
+    ChattyWidget(
+        botId = "YOUR_BOT_ID",
+        baseUrl = "https://chatty-api-376030619262.us-central1.run.app"
+    )
+}
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `botId` | `String` | ✅ | Bot UUID |
+| `baseUrl` | `String` | ✅ | API base URL |
+| `sessionId` | `String?` | | Custom session ID |
+| `visitorTimezone` | `String?` | | IANA timezone |
+
+---
+
+## How sessions work on mobile
+
+The SDKs auto-generate and persist a `session_id` using local storage (AsyncStorage on RN, UserDefaults on iOS, SharedPreferences on Android). The same session is restored when the app reopens, so conversation history is preserved across app launches.
+
+To start a fresh conversation, call the session reset method:
+
+<CodeGroup>
+
+```tsx React Native
+import { ChattyClient } from "@chatty/react-native-sdk";
+await ChattyClient.clearSession("YOUR_BOT_ID");
+```
+
+```swift iOS
+await ChattyClient.clearSession(botId: "YOUR_BOT_ID")
+```
+
+```kotlin Android
+ChattyClient.clearSession(botId = "YOUR_BOT_ID")
+```
+
+</CodeGroup>

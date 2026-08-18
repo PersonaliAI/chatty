@@ -1,0 +1,317 @@
+"""Dashboard inbox, human-agent takeover, GDPR export, and admin panel
+endpoints (/api/admin/*)."""
+
+from __future__ import annotations
+
+import logging
+import time
+from datetime import datetime, timezone
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+
+from app.core.clients import supabase
+from app.core.deps import require_user
+from app.schemas.admin import (
+    InboxAIToggle,
+    InboxDeleteRequest,
+    InboxReplyRequest,
+    MessageFeedbackRequest,
+)
+from plugins import notifications as notify
+
+# Bridged helpers still living in main.py (shared across many route groups).
+from main import _verify_bot_access, _verify_bot_owner
+
+logger = logging.getLogger("chatty")
+
+router = APIRouter()
+
+_MEDIA_MAX_BYTES = 20 * 1024 * 1024  # 20MB — matches app/routers/widget.py
+
+
+@router.get("/api/admin/inbox")
+async def admin_inbox(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    _verify_bot_access(bot_id, user)
+    rows = supabase.table("chatty_sessions").select("*").eq("bot_id", bot_id) \
+        .order("last_message_at", desc=True).limit(200).execute().data or []
+    # Float conversations that need a human to the top (stable: keeps recency).
+    rows.sort(key=lambda r: not r.get("needs_attention"))
+    return {"sessions": rows}
+
+
+@router.get("/api/admin/inbox/messages")
+async def admin_inbox_messages(bot_id: str, session_id: str,
+                               user: dict[str, Any] = Depends(require_user)):
+    _verify_bot_access(bot_id, user)
+    rows = supabase.table("chatty_conversations").select("id,role,content,sender,created_at,feedback_rating,correction") \
+        .eq("bot_id", bot_id).eq("session_id", session_id) \
+        .order("created_at", desc=False).limit(500).execute().data or []
+    return {"messages": rows}
+
+
+@router.patch("/api/admin/inbox/messages/{message_id}/feedback")
+async def set_message_feedback(message_id: str, req: MessageFeedbackRequest, user: dict[str, Any] = Depends(require_user)):
+    """Thumbs up/down + an optional corrected answer on an assistant message
+    ("refine answers"). A saved correction is also added as a searchable
+    knowledge source so future replies on the same topic use it."""
+    _verify_bot_access(req.bot_id, user)
+    if req.rating not in (None, "up", "down"):
+        raise HTTPException(status_code=400, detail="rating must be up, down, or null")
+
+    msg_res = supabase.table("chatty_conversations").select("id, bot_id, content, role").eq("id", message_id).execute()
+    if not msg_res.data or msg_res.data[0]["bot_id"] != req.bot_id:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message = msg_res.data[0]
+
+    supabase.table("chatty_conversations").update({
+        "feedback_rating": req.rating,
+        "correction": req.correction,
+    }).eq("id", message_id).execute()
+
+    if req.correction and req.correction.strip():
+        content = f"Original AI answer: {message.get('content', '')}\n\nCorrected answer (use this instead): {req.correction.strip()}"
+        source_name = f"Correction #{message_id[:8]}"
+        existing = supabase.table("chatty_sources").select("id").eq("bot_id", req.bot_id).eq("type", "text").eq("name", source_name).execute()
+        if existing.data:
+            supabase.table("chatty_sources").update({"content": content, "char_count": len(content)}).eq("id", existing.data[0]["id"]).execute()
+        else:
+            supabase.table("chatty_sources").insert({
+                "bot_id": req.bot_id, "type": "text", "name": source_name,
+                "content": content, "status": "trained", "char_count": len(content),
+            }).execute()
+
+    return {"success": True}
+
+
+@router.post("/api/admin/inbox/reply")
+async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depends(require_user)):
+    _verify_bot_access(req.bot_id, user)
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="text required")
+    supabase.table("chatty_conversations").insert({
+        "bot_id": req.bot_id, "session_id": req.session_id, "role": "assistant",
+        "content": req.text, "sender": "human",
+    }).execute()
+    # Taking over pauses the AI and clears the needs-attention flag.
+    supabase.table("chatty_sessions").update({
+        "ai_paused": True, "needs_attention": False, "last_message": req.text[:300],
+        "last_message_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute()
+    return {"success": True}
+
+
+@router.post("/api/admin/inbox/reply/media")
+async def admin_inbox_reply_media(
+    bot_id: str = Form(...),
+    session_id: str = Form(...),
+    text: str = Form(""),
+    file: UploadFile = File(...),
+    user: dict[str, Any] = Depends(require_user),
+):
+    _verify_bot_access(bot_id, user)
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > _MEDIA_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="File too large (max 20MB)")
+    mime = (file.content_type or "application/octet-stream").split(";")[0]
+
+    # Upload to storage (service-role bypasses RLS)
+    import uuid as _uuid
+    ext = (file.filename or "file").split(".")[-1][:8] if "." in (file.filename or "") else "bin"
+    path = f"{bot_id}/{session_id}/reply-{int(time.time())}-{_uuid.uuid4().hex[:8]}.{ext}"
+    try:
+        supabase.storage.from_("chatty-uploads").upload(
+            path, data, {"content-type": mime, "upsert": "false"}
+        )
+        file_url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+    except Exception as e:
+        logger.exception("Admin reply storage upload failed")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+    display = (text.strip() + ("\n" if text.strip() else "")) + f"[attachment: {file.filename or mime}]"
+    content = display + (f"\n{file_url}" if file_url else "")
+
+    supabase.table("chatty_conversations").insert({
+        "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+        "content": content, "sender": "human",
+    }).execute()
+
+    supabase.table("chatty_sessions").update({
+        "ai_paused": True, "needs_attention": False, "last_message": content[:300],
+        "last_message_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("bot_id", bot_id).eq("session_id", session_id).execute()
+
+    return {"success": True, "file_url": file_url, "file_type": mime}
+
+
+@router.post("/api/admin/inbox/ai")
+async def admin_inbox_ai(req: InboxAIToggle, user: dict[str, Any] = Depends(require_user)):
+    _verify_bot_access(req.bot_id, user)
+    supabase.table("chatty_sessions").update({"ai_paused": req.ai_paused}) \
+        .eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute()
+    return {"success": True}
+
+
+@router.post("/api/admin/inbox/delete")
+async def admin_inbox_delete(req: InboxDeleteRequest, user: dict[str, Any] = Depends(require_user)):
+    """Delete a conversation (its messages + session row)."""
+    _verify_bot_access(req.bot_id, user)
+    supabase.table("chatty_conversations").delete().eq(
+        "bot_id", req.bot_id).eq("session_id", req.session_id).execute()
+    supabase.table("chatty_sessions").delete().eq(
+        "bot_id", req.bot_id).eq("session_id", req.session_id).execute()
+    return {"success": True}
+
+
+@router.get("/api/admin/gdpr/export")
+async def gdpr_export(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Right to data portability: export all visitor data held for a bot
+    (conversations, sessions, leads) as JSON. Owner-authenticated."""
+    _verify_bot_owner(bot_id, user)
+    conv = supabase.table("chatty_conversations").select("*").eq("bot_id", bot_id) \
+        .order("created_at", desc=False).limit(50000).execute().data or []
+    sess = supabase.table("chatty_sessions").select("*").eq("bot_id", bot_id) \
+        .limit(50000).execute().data or []
+    leads = supabase.table("chatty_leads").select("*").eq("bot_id", bot_id) \
+        .limit(50000).execute().data or []
+    return {
+        "bot_id": bot_id,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "counts": {"conversations": len(conv), "sessions": len(sess), "leads": len(leads)},
+        "conversations": conv,
+        "sessions": sess,
+        "leads": leads,
+    }
+
+
+@router.get("/api/admin/meetings")
+async def admin_get_meetings(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    # Verify auth
+    res_bot = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute()
+    if not res_bot.data:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    try:
+        res = supabase.table("chatty_meetings").select("*").eq("bot_id", bot_id).order("start_time", desc=True).execute()
+        return {"meetings": res.data or []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/admin/notifications")
+async def admin_get_notifications(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    # Verify auth
+    res_bot = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute()
+    if not res_bot.data:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    try:
+        res = supabase.table("chatty_notifications").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute()
+        return {"notifications": res.data or []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/admin/audit-logs")
+async def admin_get_audit_logs(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    # Verify auth
+    res_bot = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute()
+    if not res_bot.data:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    try:
+        res = supabase.table("chatty_audit_logs").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute()
+        return {"audit_logs": res.data or []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/admin/training-sources")
+async def admin_get_training_sources(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    # Verify auth
+    res_bot = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute()
+    if not res_bot.data:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    try:
+        res = supabase.table("chatty_sources").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute()
+        return {"sources": res.data or []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/admin/meetings/{meeting_id}/status")
+async def admin_update_meeting_status(
+    meeting_id: str,
+    status: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    try:
+        # Get meeting details to find bot_id and verify owner
+        res_meet = supabase.table("chatty_meetings").select("*").eq("id", meeting_id).execute()
+        if not res_meet.data:
+            raise HTTPException(status_code=404, detail="Meeting not found")
+        meeting = res_meet.data[0]
+        bot_id = meeting["bot_id"]
+
+        # Verify auth
+        res_bot = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute()
+        if not res_bot.data:
+            raise HTTPException(status_code=403, detail="Unauthorized")
+
+        supabase.table("chatty_meetings").update({"status": status}).eq("id", meeting_id).execute()
+
+        # Log audit
+        supabase.table("chatty_audit_logs").insert({
+            "bot_id": bot_id,
+            "action": "meeting_status_updated",
+            "details": f"Meeting status for {meeting.get('attendee_name')} updated to {status}",
+            "performed_by": "user"
+        }).execute()
+
+        # Notify the client (and admin) when a meeting is cancelled.
+        if status.lower() in ("cancelled", "canceled") and meeting.get("attendee_email"):
+            try:
+                title = meeting.get("title") or "your meeting"
+                start = meeting.get("start_time") or ""
+                tz = meeting.get("timezone") or "UTC"
+                name = meeting.get("attendee_name") or "there"
+                cancel_html = (
+                    "<div style='font-family:sans-serif;max-width:520px;line-height:1.6'>"
+                    "<h2 style='color:#dc2626;margin:0 0 8px'>Meeting cancelled</h2>"
+                    f"<p>Hi {name},</p>"
+                    f"<p>Your meeting <b>{title}</b> scheduled for <b>{start} ({tz})</b> has been cancelled.</p>"
+                    "<p>If this was unexpected or you'd like to rebook, just start a new chat with us.</p>"
+                    "</div>"
+                )
+                await notify.deliver_email(
+                    supabase=supabase, owner_user=user, to=meeting["attendee_email"],
+                    subject=f"Meeting cancelled: {title}", html=cancel_html,
+                )
+                owner_email = user.get("email") or user.get("google_email")
+                if owner_email:
+                    await notify.deliver_email(
+                        supabase=supabase, owner_user=user, to=owner_email,
+                        subject=f"Meeting cancelled — {name}", html=cancel_html,
+                    )
+            except Exception:
+                logger.exception("cancellation email failed")
+
+        return {"success": True, "message": "Meeting status updated successfully"}
+    except Exception as e:
+        logger.exception("Failed to update meeting status")
+        raise HTTPException(status_code=500, detail=str(e))

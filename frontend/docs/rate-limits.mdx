@@ -1,0 +1,123 @@
+---
+title: Rate Limits
+description: Request limits and how to handle them
+---
+
+## Limits
+
+Chatty enforces two independent rate limits:
+
+| Limit | Scope | Window |
+|-------|-------|--------|
+| **60 requests / minute** | Per API key | 60 seconds |
+| **120 requests / minute** | Per IP address per endpoint | 60 seconds |
+
+Both limits use a **sliding window** algorithm — the window always covers the last 60 seconds, not a fixed clock minute.
+
+## Rate limit response
+
+When you exceed either limit, the API returns:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+Content-Type: application/json
+```
+
+```json
+{
+  "detail": "Rate limit exceeded (60/min per key)"
+}
+```
+
+## Handling 429s
+
+<CodeGroup>
+
+```python Python (with exponential backoff)
+import httpx
+import time
+
+def chat_with_retry(text: str, session_id: str, max_retries: int = 3):
+    url = "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat"
+    headers = {"Authorization": "Bearer chatty_sk_your_key"}
+    
+    for attempt in range(max_retries):
+        response = httpx.post(url, headers=headers, json={
+            "text": text,
+            "session_id": session_id,
+        })
+        
+        if response.status_code == 429:
+            retry_after = int(response.headers.get("retry-after", 60))
+            wait = retry_after * (2 ** attempt)  # exponential backoff
+            print(f"Rate limited. Waiting {wait}s...")
+            time.sleep(wait)
+            continue
+        
+        response.raise_for_status()
+        return response.json()
+    
+    raise Exception("Max retries exceeded")
+```
+
+```javascript Node.js (with exponential backoff)
+async function chatWithRetry(text, sessionId, maxRetries = 3) {
+  const url = "https://chatty-api-376030619262.us-central1.run.app/api/v1/chat";
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer chatty_sk_your_key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text, session_id: sessionId }),
+    });
+
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get("retry-after") || "60");
+      const wait = retryAfter * Math.pow(2, attempt);
+      console.log(`Rate limited. Waiting ${wait}s...`);
+      await new Promise((r) => setTimeout(r, wait * 1000));
+      continue;
+    }
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+  throw new Error("Max retries exceeded");
+}
+```
+
+</CodeGroup>
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Use session IDs to batch messages">
+    Don't create a new session for every message. Keep the same `session_id` for an ongoing conversation — the history is stored server-side and costs zero extra requests.
+  </Accordion>
+  <Accordion title="Cache analytics and usage responses">
+    `/api/v1/analytics` and `/api/v1/usage` are read-heavy endpoints. Cache the response for at least 60 seconds in your app instead of polling every request.
+  </Accordion>
+  <Accordion title="Separate keys per use case">
+    Use different API keys for your chat widget vs. your knowledge-base crawler. This way a burst from the crawler doesn't affect your chat key's rate limit.
+  </Accordion>
+  <Accordion title="Bulk knowledge imports">
+    When importing many URLs, the dashboard's built-in bulk import (up to 100 URLs at once) is more efficient than calling `POST /api/v1/knowledge` in a loop.
+  </Accordion>
+</AccordionGroup>
+
+## Limits on specific endpoints
+
+| Endpoint | Additional limit |
+|----------|----------------|
+| `POST /api/v1/knowledge` (type: url) | 1 URL crawl per call; the crawl itself may take 2–5s |
+| `GET /api/v1/leads` | Max 200 per page |
+| `GET /api/v1/conversations` | Max 200 per page |
+| Bot widget (`/api/widget/chat`) | 30 messages / 60s per visitor IP + bot |
+
+<Note>
+  The widget rate limit is separate from the API key rate limit and applies to your embedded chat widget, not to API key-authenticated requests.
+</Note>

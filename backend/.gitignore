@@ -1,0 +1,23 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Supabase
+supabase/.temp/
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# IDEs and scratch
+.vscode/
+scratch/
+
+# OS
+.DS_Store
+Thumbs.db
+
