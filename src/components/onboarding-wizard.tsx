@@ -101,7 +101,10 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
         name, primary_color: primaryColor, widget_style: widgetStyle,
         welcome_message: welcomeMessage, system_instructions: systemInstructions,
         logo_url: logoUrl,
-        avatar_icon: logoUrl ? "logo" : "bot",
+        // "logo" without a logoUrl falls back to the selected design's own
+        // dot mark (see widget.js's buildChatIcon) — a generic bot glyph
+        // isn't the design's actual default, so never force it here.
+        avatar_icon: "logo",
         onboarding_completed: true, onboarding_step: 9,
         updated_at: new Date().toISOString(),
       }).eq("id", botId);
