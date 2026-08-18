@@ -1388,13 +1388,16 @@ export default function Dashboard() {
         value: "google_meet",
         label: "Google Meet",
         icon: <img src="/logos/google-meet.png" alt="" className="size-4 object-contain" />,
-        disabled: !googleConnected,
+        // Not disabled: picking it while disconnected starts the Google
+        // connect flow (see handleMeetingProviderChange) instead of no-op'ing.
         hint: googleConnected ? undefined : "connect Google",
       },
       {
         value: "zoom",
         label: "Zoom",
         icon: <img src="/logos/zoom.png" alt="" className="size-4 object-contain" />,
+        // Zoom has no in-app connect flow (backend-configured credentials),
+        // so this one stays genuinely disabled until an admin sets it up.
         disabled: !zoomConfigured,
         hint: zoomConfigured ? undefined : "Zoom not configured",
       },
@@ -1402,7 +1405,6 @@ export default function Dashboard() {
         value: "teams",
         label: "Microsoft Teams",
         icon: <img src="/logos/ms-teams.png" alt="" className="size-4 object-contain" />,
-        disabled: !microsoftConnected,
         hint: microsoftConnected ? undefined : "connect Microsoft",
       },
     ],
@@ -2515,6 +2517,22 @@ export default function Dashboard() {
       console.error(`Error connecting to ${provider}:`, err);
     }
     setConnectingProvider(null);
+  };
+
+  // Picking "Google Meet"/"Teams" as the meeting provider, or "Google/Outlook
+  // Calendar" as the sync target, while that account isn't connected used to
+  // just silently no-op (the option was disabled, so clicking it did
+  // nothing — confusing, since nothing told the visitor why). Now it starts
+  // the same OAuth connect flow as the Quick Connect buttons instead.
+  const handleMeetingProviderChange = (v: string) => {
+    if (v === "google_meet" && !googleConnected) { handleConnectCloud("google"); return; }
+    if (v === "teams" && !microsoftConnected) { handleConnectCloud("microsoft"); return; }
+    handleInputChange(setMeetingProvider, v);
+  };
+  const handleCalendarSyncChange = (v: string) => {
+    if (v === "google" && !googleConnected) { handleConnectCloud("google"); return; }
+    if (v === "outlook" && !microsoftConnected) { handleConnectCloud("microsoft"); return; }
+    handleInputChange(v === "outlook" ? setSyncOutlookCalendar : setSyncGoogleCalendar, true);
   };
 
   // Handle training URL crawl
@@ -4388,17 +4406,17 @@ export default function Dashboard() {
                 </button>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] text-neutral-400">Provider</span>
-                  <div className="w-40"><ModernSelect value={meetingProvider} options={providerOptions} onChange={(v) => handleInputChange(setMeetingProvider, v)} size="sm" /></div>
+                  <div className="w-40"><ModernSelect value={meetingProvider} options={providerOptions} onChange={handleMeetingProviderChange} size="sm" /></div>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] text-neutral-400">Calendar</span>
                   <div className="w-44"><ModernSelect
                     value={meetingProvider === "teams" ? "outlook" : "google"}
                     options={[
-                      { value: "google", label: "Google Calendar", icon: <img src="/logos/google-calendar.png" alt="" className="size-4 object-contain" />, disabled: !googleConnected, hint: googleConnected ? undefined : "connect Google" },
-                      { value: "outlook", label: "Outlook Calendar", icon: <img src="/logos/outlook-calendar.png" alt="" className="size-4 object-contain" />, disabled: !microsoftConnected, hint: microsoftConnected ? undefined : "connect Microsoft" },
+                      { value: "google", label: "Google Calendar", icon: <img src="/logos/google-calendar.png" alt="" className="size-4 object-contain" />, hint: googleConnected ? undefined : "connect Google" },
+                      { value: "outlook", label: "Outlook Calendar", icon: <img src="/logos/outlook-calendar.png" alt="" className="size-4 object-contain" />, hint: microsoftConnected ? undefined : "connect Microsoft" },
                     ]}
-                    onChange={(v) => { handleInputChange(v === "outlook" ? setSyncOutlookCalendar : setSyncGoogleCalendar, true); }}
+                    onChange={handleCalendarSyncChange}
                     size="sm"
                   /></div>
                 </div>
@@ -5156,7 +5174,7 @@ export default function Dashboard() {
                         {msg.role !== "user" && msg.providerPicker && (
                           <div className="mt-1 max-w-[220px]">
                             <label className="block text-[9px] font-semibold text-neutral-400 uppercase mb-1">Meeting Provider</label>
-                            <ModernSelect value={meetingProvider} options={providerOptions} onChange={(v) => handleInputChange(setMeetingProvider, v)} size="sm" />
+                            <ModernSelect value={meetingProvider} options={providerOptions} onChange={handleMeetingProviderChange} size="sm" />
                           </div>
                         )}
 
@@ -6809,7 +6827,7 @@ const { reply, session_id } = await res.json();`}</pre>
                         <ModernSelect
                           value={meetingProvider}
                           options={providerOptions}
-                          onChange={(v) => handleInputChange(setMeetingProvider, v)}
+                          onChange={handleMeetingProviderChange}
                         />
                         <p className="text-[9px] text-neutral-400 mt-1">
                           {meetingProvider === "google_meet"
