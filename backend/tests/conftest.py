@@ -7,6 +7,7 @@ os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret")
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "123456:TEST")
+os.environ.setdefault("FUNCTION_SECRET", "test-function-secret")
 
 # Avoid constructing a real Vertex AI client (needs GCP ADC) at import time.
 from google import genai as _genai  # noqa: E402
