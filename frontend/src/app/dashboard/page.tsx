@@ -4124,97 +4124,26 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Live visual mockup preview */}
+                {/* Live visual preview — an actual iframe of the real widget page
+                    (same as the Playground's "Live Widget" tab), not a hand-built
+                    mockup. A hand-coded copy of the widget UI drifts every time the
+                    real one changes (icons, header chrome, send-button placement,
+                    etc. kept going out of sync); an iframe of the real thing can't
+                    drift because it IS the real thing. Query params carry the
+                    in-progress (unsaved) edits; anything omitted falls back to the
+                    bot's saved row. */}
                 <div className="lg:col-span-5 flex flex-col items-center">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
-                  <div
-                    className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
-                    style={{ "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}
-                  >
-                                       {/* Header — background always the brand color, same as the real
-                          embedded widget; per-style CSS (globals.css) overrides it where a
-                          preset wants a different treatment (frosted/contrast). */}
-                    <div
-                      style={{ backgroundColor: primaryColor }}
-                      className="chat-header p-4 flex items-center gap-3 transition-all"
-                    >
-                      <div 
-                        className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
-                        style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
-                      >
-                        {dashHeaderLogo("size-6")}
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
-                        <p className="text-[9px] opacity-80">Online · replies instantly</p>
-                      </div>
-                    </div>
-
-                    {/* Messages list */}
-                    <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
-                      <div className="flex gap-2 max-w-[85%]">
-                        <div className="size-6 rounded-full bg-neutral-200/50 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden">{dashAvatar("size-3.5")}</div>
-                        <div className="bot-bubble p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-800 dark:bg-neutral-850 dark:text-neutral-200 leading-relaxed">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeKatex]}
-                            components={{
-                              p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
-                              ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-                              ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-                              li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                              pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
-                              code: ({ children }) => <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono">{children}</code>
-                            }}
-                          >
-                            {welcomeMsg}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 ml-auto flex-row-reverse max-w-[85%]">
-                        <div
-                          className="user-bubble p-3 rounded-2xl rounded-tr-none leading-relaxed"
-                          style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
-                        >
-                          Hi there, testing theme preview!
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Suggested-message chips (live preview) */}
-                    {conversationStarters.filter(Boolean).length > 0 && (
-                      <div className="px-3 pb-1 flex flex-col items-end gap-1.5">
-                        {conversationStarters.filter(Boolean).slice(0, 4).map((s, i) => (
-                          <span key={i} className="px-2.5 py-1.5 rounded-2xl border text-[11px] font-medium text-right" style={{ borderColor: primaryColor, color: primaryColor }}>{s}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Footer input form */}
-                    <div className="p-3 border-t border-neutral-100 dark:border-neutral-900 flex items-center gap-2">
-                      <input
-                        disabled
-                        type="text"
-                        placeholder="Type a message..."
-                        className="chat-input-bar flex-1 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-450"
-                      />
-                      {(() => {
-                        const map: Record<string, { shape: string; icon: any; label?: string }> = {
-                          plane: { shape: "size-7 rounded-full", icon: <Send className="size-3.5" /> },
-                          arrowUp: { shape: "size-7 rounded-full", icon: <ArrowUp className="size-3.5" /> },
-                          arrowRight: { shape: "size-7 rounded-full", icon: <ArrowRight className="size-3.5" /> },
-                          square: { shape: "size-7 rounded-lg", icon: <Send className="size-3.5" /> },
-                          label: { shape: "h-7 px-2.5 rounded-full gap-1", icon: <Send className="size-3" />, label: "Send" },
-                        };
-                        const c = map[sendButtonStyle] || map.plane;
-                        return (
-                          <button disabled style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }} className={`${c.shape} flex items-center justify-center shrink-0 opacity-90`}>
-                            {c.icon}{c.label && <span className="text-[11px] font-semibold">{c.label}</span>}
-                          </button>
-                        );
-                      })()}
-                    </div>
-                  </div>
+                  {botId ? (
+                    <iframe
+                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${avatarUrl}-${logoUrl}-${logoBgColor}-${botName}-${welcomeMsg}`}
+                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}`}
+                      title="Live assistant preview"
+                      className="w-full max-w-[320px] h-[440px] rounded-2xl border-0"
+                    />
+                  ) : (
+                    <div className="w-full max-w-[320px] h-[440px] rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-xs text-neutral-400">Save your bot to preview the live widget.</div>
+                  )}
 
                   {/* Floating Launcher preview in Customizer — mirrors each design's
                       default launcher look from widget.js's LAUNCHER_STYLES, since
