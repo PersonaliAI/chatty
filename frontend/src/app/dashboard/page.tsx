@@ -4103,7 +4103,7 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
-                        <p className="text-[9px] opacity-80">Online • presets: {widgetStyle}</p>
+                        <p className="text-[9px] opacity-80">Online · replies instantly</p>
                       </div>
                     </div>
 
@@ -5001,7 +5001,7 @@ export default function Dashboard() {
                       <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
                       <p className="text-[9px] opacity-80 flex items-center gap-1">
                         <span className="size-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                        Playground • presets: {widgetStyle}
+                        Online · replies instantly
                       </p>
                     </div>
                   </div>
