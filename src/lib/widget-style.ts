@@ -47,3 +47,21 @@ export function normalizeWidgetStyle(id: string | null | undefined): string {
   if (CURRENT_STYLES.has(id)) return id;
   return LEGACY_STYLE_MAP[id] || "minimal";
 }
+
+/**
+ * Each design's default launcher-button look. Mirrors LAUNCHER_STYLES in
+ * public/widget.js exactly — kept in sync by hand since widget.js is a
+ * separate unbundled script that can't import from this file.
+ */
+export const LAUNCHER_STYLES: Record<string, { bg: string; shadow: string }> = {
+  minimal: { bg: "#1c1a15", shadow: "0 6px 16px rgba(0,0,0,.18)" },
+  playful: { bg: "#ff8a5c", shadow: "0 8px 20px rgba(255,138,92,.45)" },
+  corporate: { bg: "#1c2e4a", shadow: "0 6px 16px rgba(28,46,74,.3)" },
+  "dark-sleek": { bg: "#14141a", shadow: "0 0 24px rgba(0,229,199,.35)" },
+  "gradient-glow": { bg: "linear-gradient(135deg,#a855f7,#ec4899)", shadow: "0 10px 26px rgba(168,85,247,.4)" },
+  glassmorphism: { bg: "rgba(255,255,255,.25)", shadow: "0 8px 24px rgba(0,0,0,.2)" },
+  ecommerce: { bg: "#0f9d8c", shadow: "0 8px 20px rgba(15,157,140,.35)" },
+  "healthcare-calm": { bg: "#6f9c7d", shadow: "0 8px 20px rgba(111,156,125,.35)" },
+  neubrutalism: { bg: "#111111", shadow: "5px 5px 0 0 #111111" },
+  "luxury-editorial": { bg: "#161412", shadow: "0 8px 22px rgba(0,0,0,.3)" },
+};
