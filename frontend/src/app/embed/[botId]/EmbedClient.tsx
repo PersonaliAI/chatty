@@ -201,7 +201,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // text class goes invisible the moment they pick the "wrong" half of the
   // lightness spectrum. Computed via WCAG contrast, not assumed.
   const onPrimary = getOnColor(primaryColor);
-  const [widgetStyle, setWidgetStyle] = useState("minimalist");
+  const [widgetStyle, setWidgetStyle] = useState("minimal");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -654,7 +654,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           setAvatarIcon(isPreview ? (paramAvatarIcon || bot.avatar_icon || "logo") : (bot.avatar_icon || "logo"));
           setAvatarUrl(isPreview ? (paramAvatarUrl || bot.avatar_url || null) : (bot.avatar_url || null));
           setPrimaryColor(isPreview ? (paramColor || bot.primary_color || "#f97316") : (bot.primary_color || paramColor || "#f97316"));
-          const rawStyle = isPreview ? (paramStyle || bot.widget_style || "minimalist") : (bot.widget_style || paramStyle || "minimalist");
+          const rawStyle = isPreview ? (paramStyle || bot.widget_style || "minimal") : (bot.widget_style || paramStyle || "minimal");
           const [styleName, dbLogoBg] = rawStyle.split(":");
           setWidgetStyle(normalizeWidgetStyle(styleName));
           if (isPreview) {
@@ -1145,11 +1145,16 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           overflow: hidden !important;
         }
         /* Strip borders and shadows inside the iframe to prevent subpixel bleeding and white spaces on zoom */
-        .style-minimalist,
-        .style-elevated,
-        .style-frosted,
-        .style-bold,
-        .style-contrast {
+        .style-minimal,
+        .style-playful,
+        .style-corporate,
+        .style-dark-sleek,
+        .style-gradient-glow,
+        .style-glassmorphism,
+        .style-ecommerce,
+        .style-healthcare-calm,
+        .style-neubrutalism,
+        .style-luxury-editorial {
           border: none !important;
           box-shadow: none !important;
           border-radius: 0px !important;
@@ -1411,7 +1416,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   <div className="flex flex-col items-end gap-2 pt-1">
                     {starters.slice(0, 4).map((s, i) => (
                       <button key={i} onClick={() => sendText(s)}
-                        className="px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                        className="starter-chip px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
                         style={{ borderColor: primaryColor, color: primaryColor }}>
                         {s}
                       </button>
@@ -1616,7 +1621,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
                 return (
                   <button type="submit" disabled={isBotResponding || (!inputValue.trim() && pendingFiles.length === 0)} style={{ background: primaryColor, color: onPrimary }}
-                    className={`${c.shape} flex items-center justify-center hover:opacity-90 disabled:opacity-40 shrink-0 relative`}>
+                    className={`send-btn ${c.shape} flex items-center justify-center hover:opacity-90 disabled:opacity-40 shrink-0 relative`}>
                     {c.icon}{c.label && <span className="text-xs font-semibold">{c.label}</span>}
                     {pendingFiles.length > 0 && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow">{pendingFiles.length}</span>

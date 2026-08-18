@@ -484,7 +484,7 @@ export default function Dashboard() {
   const [conversationStarters, setConversationStarters] = useState<string[]>([]);
   const [teaserMessage, setTeaserMessage] = useState("👋 Need help? Chat with us.");
   const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
-  const [widgetStyle, setWidgetStyle] = useState<string>("minimalist");
+  const [widgetStyle, setWidgetStyle] = useState<string>("minimal");
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
   const [avatarIcon, setAvatarIcon] = useState("logo");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -1023,7 +1023,7 @@ export default function Dashboard() {
             name: "Chatty Assistant",
             welcome_message: "Hello! How can I help you today?",
             primary_color: "#f97316",
-            widget_style: "minimalist",
+            widget_style: "minimal",
             send_button_style: "plane",
             selected_model: "gemini",
             system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
@@ -1045,7 +1045,7 @@ export default function Dashboard() {
         setConversationStarters(Array.isArray(activeBot.conversation_starters) ? activeBot.conversation_starters : []);
         setTeaserMessage(activeBot.teaser_message || "👋 Need help? Chat with us.");
         setPrimaryColor(activeBot.primary_color);
-        const styleVal = activeBot.widget_style || "minimalist";
+        const styleVal = activeBot.widget_style || "minimal";
         const [styleName, logoBg, shapeVal] = styleVal.split(":");
         setWidgetStyle(normalizeWidgetStyle(styleName));
         setLogoBgColor(logoBg || "");
@@ -1158,7 +1158,7 @@ export default function Dashboard() {
       setTeaserMessage(selected.teaser_message || "👋 Need help? Chat with us.");
       setPrimaryColor(selected.primary_color);
       
-      const styleVal = selected.widget_style || "minimalist";
+      const styleVal = selected.widget_style || "minimal";
       const [styleName, logoBg, shapeVal] = styleVal.split(":");
       setWidgetStyle(normalizeWidgetStyle(styleName));
       setLogoBgColor(logoBg || "");
@@ -1270,7 +1270,7 @@ export default function Dashboard() {
           name: name.trim(),
           welcome_message: "Hello! How can I help you today?",
           primary_color: "#f97316",
-          widget_style: "minimalist",
+          widget_style: "minimal",
           send_button_style: "plane",
           selected_model: "gemini",
           system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
@@ -3774,11 +3774,16 @@ export default function Dashboard() {
                     {/* Design Presets cards */}
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { id: "minimalist", name: "Minimalist", desc: "Sharp borders, solid colors." },
-                        { id: "elevated", name: "Elevated", desc: "Soft depth, premium card feel." },
-                        { id: "frosted", name: "Frosted", desc: "Refined blur glass." },
-                        { id: "bold", name: "Bold", desc: "Your brand color, front and center." },
-                        { id: "contrast", name: "Contrast", desc: "Sleek dark shell, always legible." }
+                        { id: "minimal", name: "Minimal", desc: "Clean SaaS · off-white" },
+                        { id: "playful", name: "Playful", desc: "Consumer app · rounded & warm" },
+                        { id: "corporate", name: "Corporate", desc: "Enterprise SaaS · structured navy" },
+                        { id: "dark-sleek", name: "Dark Sleek", desc: "Dev tool · near-black with glow" },
+                        { id: "gradient-glow", name: "Gradient Glow", desc: "Startup · vivid gradient" },
+                        { id: "glassmorphism", name: "Glassmorphism", desc: "Fintech app · frosted glass" },
+                        { id: "ecommerce", name: "E-commerce", desc: "Online shop · order-aware" },
+                        { id: "healthcare-calm", name: "Healthcare Calm", desc: "Clinic · soft sage & serif" },
+                        { id: "neubrutalism", name: "Neubrutalism", desc: "Bold brand · thick borders" },
+                        { id: "luxury-editorial", name: "Luxury Editorial", desc: "Boutique · serif & gold" },
                       ].map((style) => (
                         <button
                           key={style.id}
