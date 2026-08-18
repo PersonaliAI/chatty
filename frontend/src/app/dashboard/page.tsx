@@ -4153,10 +4153,10 @@ export default function Dashboard() {
                         <h4 className="font-semibold text-sm leading-tight truncate">{botName}</h4>
                         <p className="text-[9px] opacity-80">Online · replies instantly</p>
                       </div>
-                      <div className="flex items-center gap-0.5 shrink-0 opacity-80">
-                        <Bell className="size-3.5" />
-                        <RefreshCw className="size-3.5" />
-                        <X className="size-3.5" />
+                      <div className="flex items-center shrink-0 opacity-80">
+                        <span className="p-1.5"><Bell className="size-3.5" /></span>
+                        <span className="p-1.5"><RefreshCw className="size-3.5" /></span>
+                        <span className="p-1.5"><X className="size-3.5" /></span>
                       </div>
                     </div>
 
