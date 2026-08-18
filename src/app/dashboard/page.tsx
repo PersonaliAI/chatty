@@ -1411,6 +1411,15 @@ export default function Dashboard() {
     ],
     [googleConnected, microsoftConnected, zoomConfigured]
   );
+  const syncScheduleOptions: ModernSelectOption[] = useMemo(
+    () => [
+      { value: "off", label: "No auto re-sync" },
+      { value: "daily", label: "Re-sync daily" },
+      { value: "weekly", label: "Re-sync weekly" },
+      { value: "monthly", label: "Re-sync monthly" },
+    ],
+    []
+  );
   const languageOptions: ModernSelectOption[] = useMemo(
     () => [
       { value: "EN", label: "English", icon: <span>🇬🇧</span> },
@@ -4723,18 +4732,14 @@ export default function Dashboard() {
                       {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
                       {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
                       <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw className="size-3 text-neutral-400" />
-                          <select
+                        <div className="flex items-center gap-2 w-40">
+                          <RefreshCw className="size-3 text-neutral-400 shrink-0" />
+                          <ModernSelect
                             value={driveSyncSchedule}
-                            onChange={(e) => handleSetDriveSyncSchedule("gdrive", e.target.value as "off" | "daily" | "weekly" | "monthly")}
-                            className="text-[10px] font-medium bg-transparent border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 cursor-pointer focus:outline-none"
-                          >
-                            <option value="off">No auto re-sync</option>
-                            <option value="daily">Re-sync daily</option>
-                            <option value="weekly">Re-sync weekly</option>
-                            <option value="monthly">Re-sync monthly</option>
-                          </select>
+                            options={syncScheduleOptions}
+                            onChange={(v) => handleSetDriveSyncSchedule("gdrive", v as "off" | "daily" | "weekly" | "monthly")}
+                            size="sm"
+                          />
                         </div>
                         <button
                           type="submit"
@@ -4782,18 +4787,14 @@ export default function Dashboard() {
                       {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
                       {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
                       <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw className="size-3 text-neutral-400" />
-                          <select
+                        <div className="flex items-center gap-2 w-40">
+                          <RefreshCw className="size-3 text-neutral-400 shrink-0" />
+                          <ModernSelect
                             value={onedriveSyncSchedule}
-                            onChange={(e) => handleSetDriveSyncSchedule("onedrive", e.target.value as "off" | "daily" | "weekly" | "monthly")}
-                            className="text-[10px] font-medium bg-transparent border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 cursor-pointer focus:outline-none"
-                          >
-                            <option value="off">No auto re-sync</option>
-                            <option value="daily">Re-sync daily</option>
-                            <option value="weekly">Re-sync weekly</option>
-                            <option value="monthly">Re-sync monthly</option>
-                          </select>
+                            options={syncScheduleOptions}
+                            onChange={(v) => handleSetDriveSyncSchedule("onedrive", v as "off" | "daily" | "weekly" | "monthly")}
+                            size="sm"
+                          />
                         </div>
                         <button
                           type="submit"
@@ -6304,11 +6305,13 @@ const { reply, session_id } = await res.json();`}</pre>
                       placeholder="teammate@company.com"
                       className="flex-1 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                     />
-                    <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "agent" | "admin")}
-                      className="text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-2 focus:outline-none">
-                      <option value="agent">Agent</option>
-                      <option value="admin">Admin</option>
-                    </select>
+                    <div className="w-28 shrink-0">
+                      <ModernSelect
+                        value={inviteRole}
+                        options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
+                        onChange={(v) => setInviteRole(v as "agent" | "admin")}
+                      />
+                    </div>
                     <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@")}
                       className="px-3.5 py-2 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap">
                       {invitingTeam ? "Inviting…" : "Invite"}
