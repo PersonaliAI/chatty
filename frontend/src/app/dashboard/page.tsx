@@ -729,6 +729,31 @@ export default function Dashboard() {
     );
   });
 
+  const [refreshingLeads, setRefreshingLeads] = useState(false);
+  const refreshLeads = async () => {
+    if (!botId || refreshingLeads) return;
+    setRefreshingLeads(true);
+    try {
+      const { data: leadList } = await supabase
+        .from("chatty_leads")
+        .select("*")
+        .eq("bot_id", botId)
+        .order("created_at", { ascending: false });
+      if (leadList) {
+        setLeads(leadList.map((l) => ({
+          ...l,
+          id: l.id,
+          name: l.name || "Anonymous",
+          email: l.email || "N/A",
+          phone: l.phone || "N/A",
+          created_at: new Date(l.created_at).toISOString().slice(0, 16).replace("T", " "),
+        })));
+      }
+    } finally {
+      setRefreshingLeads(false);
+    }
+  };
+
   const exportLeadsCSV = () => {
     const headers = [...leadFields, "captured_at"];
     const csvRows = [];
@@ -5266,6 +5291,15 @@ export default function Dashboard() {
                     onChange={(e) => setLeadsSearch(e.target.value)}
                     className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 w-48"
                   />
+                  <button
+                    onClick={refreshLeads}
+                    disabled={refreshingLeads}
+                    title="Refresh leads"
+                    aria-label="Refresh leads"
+                    className="p-2 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:border-neutral-350 dark:hover:border-neutral-700 cursor-pointer disabled:opacity-50 transition-colors"
+                  >
+                    <RefreshCw className={`size-3.5 ${refreshingLeads ? "animate-spin" : ""}`} />
+                  </button>
                   <button
                     onClick={exportLeadsCSV}
                     disabled={leads.length === 0}
