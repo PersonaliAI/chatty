@@ -47,7 +47,13 @@ MAX_TOOL_ROUNDS = 6
 GEMINI_FALLBACK_MODELS: list[str] = [
     m.strip() for m in os.environ.get(
         "KIN_FALLBACK_MODELS",
-        "gemini-2.5-flash,gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-3-flash",
+        # gemini-3-flash doesn't exist as a callable model (404 NOT_FOUND on
+        # generateContent) and was a dead last resort. The two flash-lite 3.x
+        # models carry a 500 RPD quota vs. 20 RPD on both 2.5 models, so they
+        # sit right after the thought-signature-safe 2.5-flash instead of
+        # last, and 2.5-flash-lite (a distinct quota bucket from 2.5-flash)
+        # replaces the broken entry as the final fallback.
+        "gemini-2.5-flash,gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-2.5-flash-lite",
     ).split(",") if m.strip()
 ]
 # Back-compat: some call sites/log messages still refer to a single fallback name.
@@ -530,9 +536,9 @@ async def run_widget_assistant(
         lead_capture_block = (
             "LEAD CAPTURE (be proactive):\n"
             "- Whenever you answer a question about features, pricing, capabilities, or 'how it works' AND you have not yet collected the visitor's contact details in this conversation, warmly offer to have the team follow up and ASK for their name and email. Don't wait for them to ask.\n"
-            f"- REQUIRED fields to collect: {required_fields_str}. Also ASK once for these optional fields (don't require them, but do ask): {optional_fields_str}. Ask one at a time, conversationally — never interrogate.\n"
-            "- As SOON as you have at least a name or an email, call the `create_lead` tool to save them (no meeting needed). You can call it again later to add more details.\n"
-            "- If the visitor declines to share details, respect it and don't ask again.\n"
+            f"- REQUIRED fields to collect: {required_fields_str}. Also ASK once for each of these optional fields (don't require them, but do ask): {optional_fields_str}. Ask one field at a time, conversationally — never interrogate.\n"
+            "- As SOON as you have at least a name or an email, call the `create_lead` tool to save what you have (no meeting needed) — but saving early does NOT mean the conversation is done: you still owe the visitor one question per remaining optional field above before treating contact info as fully collected. After they answer, call `create_lead` again to add it — it updates the same lead, it doesn't duplicate.\n"
+            "- If the visitor declines to share a detail, respect it, move on, and don't ask again.\n"
             + (f"- The visitor's country is auto-detected as '{visitor_country}'. Do NOT ask for their country.\n" if visitor_country else "")
             + "\n"
         )
