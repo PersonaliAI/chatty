@@ -47,7 +47,8 @@ DOCS_BASE = "https://docs.googleapis.com/v1"
 SHEETS_BASE = "https://sheets.googleapis.com/v4"
 SLIDES_BASE = "https://slides.googleapis.com/v1"
 
-# Scopes: read + modify across all surfaces.
+# Scopes: read + modify across all surfaces. Used by Kin, which actually
+# uses Gmail/Tasks/Contacts/Docs/Sheets/Slides.
 SCOPES = [
     "openid",
     "email",
@@ -64,6 +65,20 @@ SCOPES = [
     "https://www.googleapis.com/auth/presentations",
 ]
 
+# Chatty only ever calls the Calendar API (availability checks, event/Meet-
+# link creation) and, if a bot has Drive-sync enabled, the Drive API for
+# reading knowledge-base files — it never touches Gmail, Tasks, Contacts,
+# Docs, Sheets, or Slides. Requesting the full Kin bundle put those
+# unrelated permissions on Chatty customers' consent screens for no reason.
+CHATTY_SCOPES = [
+    "openid",
+    "email",
+    "profile",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/drive",
+]
+
 DRIVE_UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3/files"
 
 
@@ -72,12 +87,12 @@ DRIVE_UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3/files"
 # ---------------------------------------------------------------------------
 
 
-def auth_url(state: str) -> str:
+def auth_url(state: str, scopes: Optional[list[str]] = None) -> str:
     params = {
         "client_id": os.environ["GOOGLE_CLIENT_ID"],
         "redirect_uri": os.environ["GOOGLE_REDIRECT_URI"],
         "response_type": "code",
-        "scope": " ".join(SCOPES),
+        "scope": " ".join(scopes or SCOPES),
         "access_type": "offline",
         "prompt": "consent",
         "include_granted_scopes": "true",

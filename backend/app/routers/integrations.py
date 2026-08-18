@@ -108,13 +108,18 @@ async def google_start(
                 detail=f"You've reached the limit of {cap} extra connected account(s) on your plan.",
             )
     origin = request.headers.get("origin", "")
+    is_chatty = "chatty" in origin or "localhost:3001" in origin
     if not redirect_path:
-        redirect_path = "/dashboard" if "chatty" in origin or "localhost:3001" in origin else "/dashboard/integrations"
+        redirect_path = "/dashboard" if is_chatty else "/dashboard/integrations"
     state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=redirect_path, mode=mode)
     # g.auth_url already sets prompt=consent, so Google always reissues a
     # refresh token here — needed so "add another account" doesn't end up
     # depending on a token minted for a different connection.
-    return {"url": g.auth_url(state)}
+    # Chatty only uses Calendar/Meet/Drive — asking for Kin's full bundle
+    # (Gmail, Tasks, Contacts, Docs, Sheets, Slides) put unrelated
+    # permissions on Chatty customers' consent screens for no reason.
+    scopes = g.CHATTY_SCOPES if is_chatty else None
+    return {"url": g.auth_url(state, scopes=scopes)}
 
 
 @router.get("/auth/google/callback")
