@@ -131,17 +131,21 @@
     if (LAUNCHER_STYLES[id]) return id;
     return LEGACY_STYLE_MAP[id] || "minimal";
   }
+  // dot: the default launcher glyph color, ported 1:1 from the design
+  // gallery's own launcher previews (each design shows a plain centered
+  // dot as its default mark, not a bot icon — real customer logos still
+  // override this once uploaded).
   var LAUNCHER_STYLES = {
-    minimal: { bg: "#1c1a15", radius: "50%", shadow: "0 6px 16px rgba(0,0,0,.18)" },
-    playful: { bg: "#ff8a5c", radius: "50%", shadow: "0 8px 20px rgba(255,138,92,.45)" },
-    corporate: { bg: "#1c2e4a", radius: "10px", shadow: "0 6px 16px rgba(28,46,74,.3)" },
-    "dark-sleek": { bg: "#14141a", radius: "50%", shadow: "0 0 24px rgba(0,229,199,.35)" },
-    "gradient-glow": { bg: "linear-gradient(135deg,#a855f7,#ec4899)", radius: "50%", shadow: "0 10px 26px rgba(168,85,247,.4)" },
-    glassmorphism: { bg: "rgba(255,255,255,.25)", radius: "50%", shadow: "0 8px 24px rgba(0,0,0,.2)" },
-    ecommerce: { bg: "#0f9d8c", radius: "50%", shadow: "0 8px 20px rgba(15,157,140,.35)" },
-    "healthcare-calm": { bg: "#6f9c7d", radius: "50%", shadow: "0 8px 20px rgba(111,156,125,.35)" },
-    neubrutalism: { bg: "#111111", radius: "6px", shadow: "5px 5px 0 0 #111111" },
-    "luxury-editorial": { bg: "#161412", radius: "50%", shadow: "0 8px 22px rgba(0,0,0,.3)" }
+    minimal: { bg: "#1c1a15", radius: "50%", shadow: "0 6px 16px rgba(0,0,0,.18)", dot: "#f3f2ee" },
+    playful: { bg: "#ff8a5c", radius: "50%", shadow: "0 8px 20px rgba(255,138,92,.45)", dot: "#ffffff" },
+    corporate: { bg: "#1c2e4a", radius: "10px", shadow: "0 6px 16px rgba(28,46,74,.3)", dot: "#8fb0dc" },
+    "dark-sleek": { bg: "#14141a", radius: "50%", shadow: "0 0 24px rgba(0,229,199,.35)", dot: "#00e5c7" },
+    "gradient-glow": { bg: "linear-gradient(135deg,#a855f7,#ec4899)", radius: "50%", shadow: "0 10px 26px rgba(168,85,247,.4)", dot: "#ffffff" },
+    glassmorphism: { bg: "rgba(255,255,255,.25)", radius: "50%", shadow: "0 8px 24px rgba(0,0,0,.2)", dot: "#ffffff" },
+    ecommerce: { bg: "#0f9d8c", radius: "50%", shadow: "0 8px 20px rgba(15,157,140,.35)", dot: "#ffffff" },
+    "healthcare-calm": { bg: "#6f9c7d", radius: "50%", shadow: "0 8px 20px rgba(111,156,125,.35)", dot: "#f4f7f3" },
+    neubrutalism: { bg: "#111111", radius: "6px", shadow: "5px 5px 0 0 #111111", dot: "#ffde59" },
+    "luxury-editorial": { bg: "#161412", radius: "50%", shadow: "0 8px 22px rgba(0,0,0,.3)", dot: "#b08a3e" }
   };
 
   // ---- Launcher button ----
@@ -194,12 +198,19 @@
              '</div>';
     }
 
+    // True default (no custom logo uploaded, no icon preset chosen): show
+    // the selected design's own dot mark instead of the generic favicon.
+    if (avatarIconType === "logo" && !customIconUrl) {
+      var dotColor = (LAUNCHER_STYLES[currentDesign] || {}).dot || "#ffffff";
+      return '<div style="width:17px !important;height:17px !important;border-radius:50% !important;background:' + dotColor + ' !important;opacity:.9 !important;"></div>';
+    }
+
     var iconSrc = customIconUrl || (origin + "/favicon.png");
     var isOrange = false;
     if (c && !customIconUrl) {
       var lower = c.toLowerCase().replace(/\s+/g, "");
       isOrange = (
-        lower === "#f97316" || 
+        lower === "#f97316" ||
         lower.indexOf("f97316") !== -1 ||
         lower.indexOf("249,115,22") !== -1
       );

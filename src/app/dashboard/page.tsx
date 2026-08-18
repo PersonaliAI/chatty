@@ -556,6 +556,13 @@ export default function Dashboard() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // handleSaveChanges is redefined every render, closing over that render's
+  // state. The debounce timer below is scheduled once and fires 1200ms
+  // later — without this ref it would call whatever (now-stale) version of
+  // handleSaveChanges existed at the moment the timer was armed, silently
+  // persisting the state from BEFORE the very change that armed it. Always
+  // dereferencing through the ref at fire time guarantees the latest state.
+  const handleSaveChangesRef = useRef<() => Promise<void>>(async () => {});
 
   // Lists (No demo data by default - queries Supabase)
   const [sources, setSources] = useState<Source[]>([]);
@@ -2001,6 +2008,7 @@ export default function Dashboard() {
       setIsSaving(false);
     }
   }
+  handleSaveChangesRef.current = handleSaveChanges;
 
   // Handle Input Changes — debounced auto-save instead of a manual
   // "unsaved changes" banner: every change re-arms a short timer, and
@@ -2011,7 +2019,7 @@ export default function Dashboard() {
     setHasUnsavedChanges(true);
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     autoSaveTimeoutRef.current = setTimeout(() => {
-      handleSaveChanges();
+      handleSaveChangesRef.current();
     }, 1200);
   };
 
@@ -4207,19 +4215,9 @@ export default function Dashboard() {
                               </div>
                             );
                           }
-                          return (
-                            <div
-                              className="size-10 rounded-full flex items-center justify-center overflow-hidden"
-                              style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
-                            >
-                              <img
-                                src="/favicon.png"
-                                alt=""
-                                className="size-8 object-contain"
-                                style={solidBg.toLowerCase().replace(/\s+/g, "") === "#f97316" ? { filter: "brightness(0) invert(1)" } : {}}
-                              />
-                            </div>
-                          );
+                          // True default (no logo uploaded yet) — the selected
+                          // design's own dot mark, matching the gallery exactly.
+                          return <div className="size-[17px] rounded-full opacity-90" style={{ background: design.dot }} />;
                         })()}
                       </div>
                         );

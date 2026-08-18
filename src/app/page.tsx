@@ -841,6 +841,10 @@ export default function Home() {
                 const IconComponent = LAUNCHER_ICONS[avatarIconType];
                 return <IconComponent className="size-7" />;
               })()
+            ) : avatarIconType === "logo" && themeIcon === "/favicon.png" ? (
+              // True default (no logo uploaded yet) — the selected design's
+              // own dot mark, matching the gallery exactly.
+              <div className="size-[17px] rounded-full opacity-90" style={{ background: LAUNCHER_STYLES[widgetStyle]?.dot || "#ffffff" }} />
             ) : (
               themeIcon !== "/favicon.png" && avatarIconType === "custom" ? (
                 <Image
