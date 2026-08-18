@@ -1153,7 +1153,16 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           animation: none !important;
           overflow: hidden !important;
         }
-        /* Strip borders and shadows inside the iframe to prevent subpixel bleeding and white spaces on zoom */
+        /* Strip only box-shadow inside the iframe: the container fills the iframe
+           edge-to-edge with zero margin, so any shadow has no room to render and
+           gets hard-clipped by the iframe's own overflow:hidden (ugly). Each
+           design's border and border-radius are safe to keep — a border draws
+           flush at the box edge with zero bleed, and the outer panel's fixed
+           16px radius (widget.js) always dominates the visible corner shape
+           regardless of what a smaller/larger inner radius asks for, so there's
+           no double-corner artifact. This keeps each design's signature frame
+           (e.g. Luxury Editorial's gold border, Neubrutalism's thick black
+           border) visible on the live widget instead of only in previews. */
         .style-minimal,
         .style-playful,
         .style-corporate,
@@ -1164,9 +1173,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         .style-healthcare-calm,
         .style-neubrutalism,
         .style-luxury-editorial {
-          border: none !important;
           box-shadow: none !important;
-          border-radius: 0px !important;
         }
       ` }} />
       {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
