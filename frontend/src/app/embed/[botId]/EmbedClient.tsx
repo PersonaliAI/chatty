@@ -1066,12 +1066,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         }
 
         setTranscribing(true);
+        // A cold backend instance can take 20-30s+ to spin up — without a
+        // client-side cap, a stalled request left "Transcribing…" spinning
+        // indefinitely with no feedback, indistinguishable from a hang.
+        const timeoutController = new AbortController();
+        const timeoutId = setTimeout(() => timeoutController.abort(), 30000);
         try {
           const fd = new FormData();
           fd.append("bot_id", String(botId));
           fd.append("file", wav, "voice-message.wav");
           const res = await fetch(`${BACKEND_URL}/api/widget/transcribe`, {
-            method: "POST", headers: widgetTokenHeader, body: fd,
+            method: "POST", headers: widgetTokenHeader, body: fd, signal: timeoutController.signal,
           });
           const body = await res.json().catch(() => ({}));
           const text = (body.text || "").trim();
@@ -1084,9 +1089,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             // sending the raw audio so the message isn't just lost.
             sendMedia(wav, "voice-message.wav");
           }
-        } catch {
+        } catch (err) {
+          if ((err as Error)?.name === "AbortError") {
+            showToast("Transcription is taking longer than usual — sending your voice message instead.", "error");
+          }
           sendMedia(wav, "voice-message.wav");
         } finally {
+          clearTimeout(timeoutId);
           setTranscribing(false);
         }
       };
