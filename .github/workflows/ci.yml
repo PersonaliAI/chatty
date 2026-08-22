@@ -33,6 +33,15 @@ jobs:
       - name: Run smoke + unit tests
         run: python -m pytest tests/ -q
 
+      # Non-blocking: surfaces known CVEs in dependencies without failing the
+      # build outright — a build shouldn't go red over an advisory in a
+      # transitive dep with no available fix yet.
+      - name: Dependency vulnerability audit (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+        continue-on-error: true
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

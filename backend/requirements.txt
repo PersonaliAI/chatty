@@ -1,26 +1,26 @@
-fastapi
-uvicorn
-google-genai
-supabase
-python-dotenv
-httpx
-pydantic
-psycopg2-binary
-pytz
-PyJWT[crypto]
-python-multipart
-pypdf
-python-docx
-openpyxl
-markitdown[pptx]
-cryptography
-croniter
-PyYAML
-Pillow
-openai
-anthropic
+fastapi==0.136.1
+uvicorn==0.46.0
+google-genai==2.18.0
+supabase==2.30.0
+python-dotenv==1.2.2
+httpx==0.28.1
+pydantic==2.12.5
+psycopg2-binary==2.9.12
+pytz==2025.2
+PyJWT[crypto]==2.13.0
+python-multipart==0.0.31
+pypdf==6.15.0
+python-docx==1.2.0
+openpyxl==3.1.5
+markitdown[pptx]==0.1.7
+cryptography==50.0.0
+croniter==6.2.2
+PyYAML==6.0.3
+Pillow==12.3.0
+openai==2.54.0
+anthropic==0.76.0
 
-sentry-sdk[fastapi]
+sentry-sdk[fastapi]==2.59.0
 
 # LiveKit voice worker (Phase B) — pinned to versions verified installed
 # and importable together in this environment.
