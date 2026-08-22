@@ -1,7 +1,10 @@
 """Real delivery of meeting notifications: beautiful HTML email + push.
 
-Channels, in priority order:
-  1. OneSignal Email API  (if ONESIGNAL_APP_ID + ONESIGNAL_REST_API_KEY set)
+Email channels, in priority order (EMAIL_PROVIDER_PREFERRED env var swaps which of
+the first two goes first — default is "onesignal", set to "resend" to prefer that
+instead; whichever isn't preferred still runs as a fallback, neither is ever removed):
+  1. OneSignal Email API (if ONESIGNAL_APP_ID + ONESIGNAL_REST_API_KEY set)
+  1. Resend (if RESEND_API_KEY set)
   2. Owner's connected Gmail (if the bot owner has Google linked) — html=True
   3. Logged only (no credentials / not connected) -> status "logged"
 
@@ -38,6 +41,21 @@ _ONESIGNAL_URL = "https://api.onesignal.com/notifications"
 
 def onesignal_configured() -> bool:
     return bool(ONESIGNAL_APP_ID and ONESIGNAL_REST_API_KEY)
+
+
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
+RESEND_EMAIL_FROM = os.environ.get("RESEND_EMAIL_FROM", "Chatty Team <chatty@personaliai.com>").strip()
+# Which email channel to try first when both OneSignal and Resend are configured.
+# Neither is ever skipped entirely — whichever isn't preferred still runs as the
+# fallback before Gmail. Defaults to "onesignal" to keep existing behavior unchanged
+# for anyone who hasn't set this.
+EMAIL_PROVIDER_PREFERRED = os.environ.get("EMAIL_PROVIDER_PREFERRED", "onesignal").strip().lower()
+
+_RESEND_URL = "https://api.resend.com/emails"
+
+
+def resend_configured() -> bool:
+    return bool(RESEND_API_KEY)
 
 
 # ---------------------------------------------------------------------------
@@ -194,23 +212,57 @@ async def _send_onesignal_email(*, to: str, subject: str, html: str) -> bool:
         return False
 
 
+async def _send_resend_email(*, to: str, subject: str, html: str) -> bool:
+    if not resend_configured():
+        return False
+    payload = {
+        "from": RESEND_EMAIL_FROM,
+        "to": [to],
+        "subject": subject,
+        "html": html,
+    }
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(_RESEND_URL, json=payload, headers=headers)
+        if r.status_code < 300:
+            return True
+        logger.warning("Resend email failed (%s): %s", r.status_code, r.text[:300])
+        return False
+    except Exception:
+        logger.exception("Resend email request errored")
+        return False
+
+
+# Ordered (label, sender) pairs — EMAIL_PROVIDER_PREFERRED controls which goes first,
+# but both always run; the non-preferred one is the fallback, never removed.
+def _email_channels() -> list[tuple[str, Any]]:
+    channels = [("sent", _send_onesignal_email), ("sent_resend", _send_resend_email)]
+    if EMAIL_PROVIDER_PREFERRED == "resend":
+        channels.reverse()
+    return channels
+
+
 ADMIN_ALERT_EMAIL = os.environ.get("ADMIN_ALERT_EMAIL", "").strip()
 
 
 async def send_admin_alert_email(*, subject: str, html: str) -> bool:
     """System-level alert, not tied to any particular Kin user — for things
-    like critical system failures, where there's no
-    per-user context to hang the notification off of. Sent via OneSignal
-    to ADMIN_ALERT_EMAIL; falls back to a log line (visible in Cloud
-    Logging) if OneSignal or the recipient address isn't configured, so the
-    alert is never just silently dropped."""
+    like critical system failures, where there's no per-user context to hang
+    the notification off of. Tries every configured email channel (OneSignal,
+    Resend) before falling back to a log line (visible in Cloud Logging), so
+    the alert is never just silently dropped."""
     if not ADMIN_ALERT_EMAIL:
         logger.warning("ADMIN_ALERT_EMAIL not set; alert not sent: %s", subject)
         return False
-    ok = await _send_onesignal_email(to=ADMIN_ALERT_EMAIL, subject=subject, html=html)
-    if not ok:
-        logger.warning("admin alert email failed to send: %s", subject)
-    return ok
+    for _, sender in _email_channels():
+        if await sender(to=ADMIN_ALERT_EMAIL, subject=subject, html=html):
+            return True
+    logger.warning("admin alert email failed to send: %s", subject)
+    return False
 
 
 async def _send_gmail_html(*, supabase, owner_user: dict, to: str,
@@ -226,10 +278,14 @@ async def _send_gmail_html(*, supabase, owner_user: dict, to: str,
 
 async def deliver_email(*, supabase, owner_user: dict, to: str, subject: str,
                         html: str) -> str:
-    """Best-effort email delivery. Returns the resulting status string:
-    'sent' (OneSignal), 'sent_gmail', or 'logged'."""
-    if await _send_onesignal_email(to=to, subject=subject, html=html):
-        return "sent"
+    """Best-effort email delivery. Tries OneSignal and Resend in whichever order
+    EMAIL_PROVIDER_PREFERRED specifies (both run regardless — the non-preferred
+    one is the fallback), then the owner's connected Gmail, before giving up.
+    Returns the resulting status string: 'sent' (OneSignal), 'sent_resend',
+    'sent_gmail', or 'logged'."""
+    for status, sender in _email_channels():
+        if await sender(to=to, subject=subject, html=html):
+            return status
     # Fall back to owner's Gmail if they have Google connected
     if owner_user and owner_user.get("google_access_token"):
         if await _send_gmail_html(supabase=supabase, owner_user=owner_user, to=to,
