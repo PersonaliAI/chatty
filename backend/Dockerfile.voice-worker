@@ -5,7 +5,7 @@
 # them at cold start — that weight has no reason to bloat the API image.
 
 # --- Builder stage: compiles native extensions, downloads model weights ---
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -33,7 +33,7 @@ COPY . /app/
 RUN PATH="/install/bin:$PATH" python -m livekit.agents download-files
 
 # --- Runtime stage: no compiler toolchain, runs as a non-root user ---
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
