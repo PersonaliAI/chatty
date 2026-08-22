@@ -12,6 +12,7 @@ python-multipart
 pypdf
 python-docx
 openpyxl
+markitdown[pptx]
 cryptography
 croniter
 PyYAML

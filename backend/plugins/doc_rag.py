@@ -5,8 +5,12 @@ Pipeline:
        Google Doc      → export text/plain
        Google Sheet    → export text/csv (or sheets API)
        Google Slides   → export text/plain
-       PDF             → download bytes + pypdf
+       PDF             → download bytes + pypdf (OCR fallback via Gemini vision for scanned PDFs)
        DOCX            → download bytes + python-docx
+       XLSX            → download bytes + openpyxl
+       PPTX            → download bytes + MarkItDown (only format we don't have a
+                          direct extractor for — everything else stays on its existing,
+                          more specialized path rather than routing through MarkItDown)
        text/markdown   → download as-is
   2. chunk_text(text) — recursive split on paragraphs/sentences/words
        Target ~2000 chars per chunk, 200 char overlap.
@@ -245,6 +249,34 @@ def _extract_xlsx_text(data: bytes) -> str:
         return ""
 
 
+_PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+
+def _extract_pptx_text(data: bytes) -> str:
+    """Pull slide text (+ speaker notes) from an uploaded .pptx via MarkItDown.
+
+    Uses convert_stream (not convert()/convert_local()) per MarkItDown's own security
+    guidance — it's the narrowest API for converting in-memory bytes we already
+    downloaded, with no local-path or URL handling to worry about. Plugins stay off;
+    we don't want 3rd-party converters running against untrusted uploads.
+    """
+    try:
+        from markitdown import MarkItDown, StreamInfo
+    except ImportError:
+        logger.warning("markitdown not installed; PPTX extraction unavailable")
+        return ""
+    try:
+        md = MarkItDown(enable_plugins=False)
+        result = md.convert_stream(
+            io.BytesIO(data),
+            stream_info=StreamInfo(mimetype=_PPTX_MIME, extension=".pptx"),
+        )
+        return result.markdown
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("PPTX parse failed: %s", exc)
+        return ""
+
+
 async def extract_text_onedrive(
     supabase,
     user: dict[str, Any],
@@ -273,6 +305,8 @@ async def extract_text_onedrive(
         "application/vnd.ms-excel",
     ):
         return _extract_xlsx_text(data)[:MAX_CHARS_PER_DOC]
+    if mime_type == _PPTX_MIME:
+        return _extract_pptx_text(data)[:MAX_CHARS_PER_DOC]
     if mime_type and mime_type.startswith("text/"):
         try:
             return data.decode("utf-8", errors="replace")[:MAX_CHARS_PER_DOC]
@@ -325,6 +359,8 @@ async def extract_text(
             "application/vnd.ms-excel",
         ):
             return _extract_xlsx_text(data)[:MAX_CHARS_PER_DOC]
+        if mime_type == _PPTX_MIME:
+            return _extract_pptx_text(data)[:MAX_CHARS_PER_DOC]
         # plain text / csv / md
         try:
             return data.decode("utf-8", errors="replace")[:MAX_CHARS_PER_DOC]
@@ -577,6 +613,16 @@ async def _extract_text_from_blob(
         or name_lower.endswith((".docx", ".doc"))
     ):
         return _extract_docx_text(data)[:MAX_CHARS_PER_DOC]
+    if (
+        m in (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
+        )
+        or name_lower.endswith((".xlsx", ".xls"))
+    ):
+        return _extract_xlsx_text(data)[:MAX_CHARS_PER_DOC]
+    if m == _PPTX_MIME or name_lower.endswith(".pptx"):
+        return _extract_pptx_text(data)[:MAX_CHARS_PER_DOC]
     # Plain text family: txt/md/csv/json/etc.
     if m.startswith("text/") or name_lower.endswith(
         (".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".log")
