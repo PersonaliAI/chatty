@@ -4,6 +4,7 @@ feature group."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 import time
@@ -14,6 +15,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.core import security as _sec
 from app.core.clients import supabase
+from app.core.db import run_db
 from app.core.deps import require_user
 from app.schemas.public_api import (
     ApiKeyCreateRequest,
@@ -84,8 +86,8 @@ async def create_api_key(
     req: ApiKeyCreateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    res = supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
@@ -98,7 +100,7 @@ async def create_api_key(
     raw = _API_KEY_PREFIX + secrets.token_hex(24)
     prefix = raw[: len(_API_KEY_PREFIX) + 6]
     try:
-        row = supabase.table("chatty_api_keys").insert({
+        row = await run_db(lambda: supabase.table("chatty_api_keys").insert({
             "bot_id": req.bot_id,
             "user_id": user["auth_user_id"],
             "name": req.name or "API Key",
@@ -106,7 +108,7 @@ async def create_api_key(
             "key_hash": _hash_api_key(raw),
             "scopes": requested_scopes,
             "allowed_ips": req.allowed_ips or None,
-        }).execute()
+        }).execute())
         created = row.data[0] if row.data else {}
         return {
             "id": created.get("id"),
@@ -132,14 +134,14 @@ async def list_api_keys(
     bot_id: str,
     user: dict[str, Any] = Depends(require_user),
 ):
-    res = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
     try:
-        keys = supabase.table("chatty_api_keys").select(
+        keys = await run_db(lambda: supabase.table("chatty_api_keys").select(
             "id, name, key_prefix, scopes, allowed_ips, last_used_at, request_count, revoked, created_at"
-        ).eq("bot_id", bot_id).order("created_at", desc=True).execute()
+        ).eq("bot_id", bot_id).order("created_at", desc=True).execute())
         return {"keys": keys.data or []}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -156,8 +158,8 @@ async def update_api_key(
     req: ApiKeyUpdateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    res = supabase.table("chatty_api_keys").select("*").eq("id", key_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+    res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq("id", key_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Key not found")
     updates: dict[str, Any] = {}
@@ -173,7 +175,7 @@ async def update_api_key(
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
     try:
-        supabase.table("chatty_api_keys").update(updates).eq("id", key_id).execute()
+        await run_db(lambda: supabase.table("chatty_api_keys").update(updates).eq("id", key_id).execute())
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -189,12 +191,12 @@ async def revoke_api_key(
     key_id: str,
     user: dict[str, Any] = Depends(require_user),
 ):
-    res = supabase.table("chatty_api_keys").select("*").eq("id", key_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+    res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq("id", key_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Key not found")
     try:
-        supabase.table("chatty_api_keys").update({"revoked": True}).eq("id", key_id).execute()
+        await run_db(lambda: supabase.table("chatty_api_keys").update({"revoked": True}).eq("id", key_id).execute())
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -236,7 +238,7 @@ async def public_api_chat(
     authorization: Optional[str] = Header(None),
 ):
     t0 = time.monotonic()
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "chat")
 
     text = _sec.sanitize_text(body.text.strip())
@@ -244,12 +246,12 @@ async def public_api_chat(
         raise HTTPException(status_code=400, detail="text is required and must not be empty")
 
     bot_id = key_row["bot_id"]
-    res = supabase.table("chatty_bots").select("*").eq("id", bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
 
-    res_user = supabase.table("users").select("*").eq("auth_user_id", bot["user_id"]).execute()
+    res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot["user_id"]).execute())
     if not res_user.data:
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = res_user.data[0]
@@ -268,7 +270,7 @@ async def public_api_chat(
         logger.exception("Public API assistant run failed")
         raise HTTPException(status_code=502, detail=f"assistant error: {exc}")
 
-    _update_key_usage(key_row)
+    await run_db(lambda: _update_key_usage(key_row))
     _sec.log_api_access(
         supabase,
         key_id=key_row["id"],
@@ -298,16 +300,16 @@ async def public_api_chat(
     },
 )
 async def public_api_bot(request: Request, authorization: Optional[str] = Header(None)):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "read")
-    res = supabase.table("chatty_bots").select(
+    res = await run_db(lambda: supabase.table("chatty_bots").select(
         "id, name, welcome_message, primary_color, selected_model, "
         "lead_capture_enabled, lead_fields, calendar_scheduling_enabled, meeting_provider, "
         "response_language, created_at"
-    ).eq("id", key_row["bot_id"]).execute()
+    ).eq("id", key_row["bot_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
-    _update_key_usage(key_row)
+    await run_db(lambda: _update_key_usage(key_row))
     return res.data[0]
 
 
@@ -332,16 +334,16 @@ async def public_api_leads(
     limit: int = 50,
     offset: int = 0,
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "read")
     limit = min(max(limit, 1), 200)
     offset = max(offset, 0)
-    res = supabase.table("chatty_leads").select("*").eq(
+    res = await run_db(lambda: supabase.table("chatty_leads").select("*").eq(
         "bot_id", key_row["bot_id"]).order(
-        "created_at", desc=True).range(offset, offset + limit - 1).execute()
-    total_res = supabase.table("chatty_leads").select(
-        "id", count="exact").eq("bot_id", key_row["bot_id"]).execute()
-    _update_key_usage(key_row)
+        "created_at", desc=True).range(offset, offset + limit - 1).execute())
+    total_res = await run_db(lambda: supabase.table("chatty_leads").select(
+        "id", count="exact").eq("bot_id", key_row["bot_id"]).execute())
+    await run_db(lambda: _update_key_usage(key_row))
     return {
         "leads": res.data or [],
         "limit": limit,
@@ -371,15 +373,15 @@ async def public_api_conversations(
     limit: int = 50,
     offset: int = 0,
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "read")
     limit = min(max(limit, 1), 200)
     offset = max(offset, 0)
-    res = supabase.table("chatty_conversations").select(
+    res = await run_db(lambda: supabase.table("chatty_conversations").select(
         "id, session_id, role, content, created_at, feedback_rating").eq(
         "bot_id", key_row["bot_id"]).order(
-        "created_at", desc=True).range(offset, offset + limit - 1).execute()
-    _update_key_usage(key_row)
+        "created_at", desc=True).range(offset, offset + limit - 1).execute())
+    await run_db(lambda: _update_key_usage(key_row))
     return {"messages": res.data or [], "limit": limit, "offset": offset}
 
 
@@ -403,14 +405,14 @@ async def public_api_conversation_get(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "read")
-    res = supabase.table("chatty_conversations").select(
+    res = await run_db(lambda: supabase.table("chatty_conversations").select(
         "id, session_id, role, content, created_at, feedback_rating"
-    ).eq("bot_id", key_row["bot_id"]).eq("session_id", session_id).order("created_at").execute()
+    ).eq("bot_id", key_row["bot_id"]).eq("session_id", session_id).order("created_at").execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Session not found or belongs to a different bot")
-    _update_key_usage(key_row)
+    await run_db(lambda: _update_key_usage(key_row))
     return {"session_id": session_id, "messages": res.data}
 
 
@@ -436,16 +438,16 @@ async def public_api_conversation_delete(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "write")
     # Verify the session belongs to this bot before deleting
-    check = supabase.table("chatty_conversations").select("id").eq(
-        "bot_id", key_row["bot_id"]).eq("session_id", session_id).limit(1).execute()
+    check = await run_db(lambda: supabase.table("chatty_conversations").select("id").eq(
+        "bot_id", key_row["bot_id"]).eq("session_id", session_id).limit(1).execute())
     if not check.data:
         raise HTTPException(status_code=404, detail="Session not found or belongs to a different bot")
-    supabase.table("chatty_conversations").delete().eq(
-        "bot_id", key_row["bot_id"]).eq("session_id", session_id).execute()
-    _update_key_usage(key_row)
+    await run_db(lambda: supabase.table("chatty_conversations").delete().eq(
+        "bot_id", key_row["bot_id"]).eq("session_id", session_id).execute())
+    await run_db(lambda: _update_key_usage(key_row))
     return {"success": True, "session_id": session_id, "deleted": True}
 
 
@@ -467,12 +469,12 @@ async def public_api_knowledge_list(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "read")
-    res = supabase.table("chatty_sources").select(
+    res = await run_db(lambda: supabase.table("chatty_sources").select(
         "id, type, name, status, char_count, crawl_schedule, next_crawl_at, last_crawled_at, created_at"
-    ).eq("bot_id", key_row["bot_id"]).order("created_at", desc=True).execute()
-    _update_key_usage(key_row)
+    ).eq("bot_id", key_row["bot_id"]).order("created_at", desc=True).execute())
+    await run_db(lambda: _update_key_usage(key_row))
     return {"sources": res.data or []}
 
 
@@ -499,7 +501,7 @@ async def public_api_knowledge_create(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "write")
     bot_id = key_row["bot_id"]
 
@@ -514,15 +516,15 @@ async def public_api_knowledge_create(
             raise HTTPException(status_code=400, detail="content is required for type=text")
         if len(content) > 100_000:
             raise HTTPException(status_code=400, detail="content exceeds 100 KB limit")
-        row = supabase.table("chatty_sources").insert({
+        row = await run_db(lambda: supabase.table("chatty_sources").insert({
             "bot_id": bot_id,
             "type": "text",
             "name": body.name.strip()[:255],
             "content": content,
             "status": "trained",
             "char_count": len(content),
-        }).execute()
-        _update_key_usage(key_row)
+        }).execute())
+        await run_db(lambda: _update_key_usage(key_row))
         return {"success": True, "source": row.data[0] if row.data else {}}
 
     # type == "url"
@@ -535,15 +537,15 @@ async def public_api_knowledge_create(
         raise HTTPException(status_code=502, detail=f"Failed to fetch URL: {exc}")
     if not content.strip():
         raise HTTPException(status_code=422, detail="URL returned no usable content")
-    row = supabase.table("chatty_sources").insert({
+    row = await run_db(lambda: supabase.table("chatty_sources").insert({
         "bot_id": bot_id,
         "type": "url",
         "name": url,
         "content": content,
         "status": "trained",
         "char_count": len(content),
-    }).execute()
-    _update_key_usage(key_row)
+    }).execute())
+    await run_db(lambda: _update_key_usage(key_row))
     return {"success": True, "chars": len(content), "source": row.data[0] if row.data else {}}
 
 
@@ -567,15 +569,15 @@ async def public_api_knowledge_delete(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "write")
-    res = supabase.table("chatty_sources").select("id, bot_id").eq("id", source_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_sources").select("id, bot_id").eq("id", source_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Source not found")
     if res.data[0]["bot_id"] != key_row["bot_id"]:
         raise HTTPException(status_code=403, detail="Source belongs to a different bot")
-    supabase.table("chatty_sources").delete().eq("id", source_id).execute()
-    _update_key_usage(key_row)
+    await run_db(lambda: supabase.table("chatty_sources").delete().eq("id", source_id).execute())
+    await run_db(lambda: _update_key_usage(key_row))
     return {"success": True, "deleted_id": source_id}
 
 
@@ -600,7 +602,7 @@ async def public_api_analytics(
     authorization: Optional[str] = Header(None),
     since: Optional[str] = None,
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "read")
     bot_id = key_row["bot_id"]
 
@@ -612,9 +614,9 @@ async def public_api_analytics(
         q_conv = q_conv.gte("created_at", since)
         q_lead = q_lead.gte("created_at", since)
 
-    r_conv = q_conv.execute()
-    r_lead = q_lead.execute()
-    r_src  = q_src.execute()
+    r_conv, r_lead, r_src = await asyncio.gather(
+        run_db(q_conv.execute), run_db(q_lead.execute), run_db(q_src.execute)
+    )
 
     messages = r_conv.data or []
     total_messages   = r_conv.count or 0
@@ -625,7 +627,7 @@ async def public_api_analytics(
     total_sources    = r_src.count or 0
     total_kb         = sum((s.get("char_count") or 0) for s in (r_src.data or [])) // 1024
 
-    _update_key_usage(key_row)
+    await run_db(lambda: _update_key_usage(key_row))
     return {
         "bot_id": bot_id,
         "since": since,
@@ -653,7 +655,7 @@ async def public_api_analytics(
     },
 )
 async def public_api_usage(request: Request, authorization: Optional[str] = Header(None)):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     return {
         "key_prefix": key_row.get("key_prefix"),
         "scopes": key_row.get("scopes") or ["chat", "read"],
@@ -688,7 +690,7 @@ async def public_api_webhook_create(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "write")
 
     url = (body.url or "").strip()
@@ -702,14 +704,14 @@ async def public_api_webhook_create(
         )
 
     secret = f"whsec_{secrets.token_hex(24)}"
-    row = supabase.table("chatty_webhooks").insert({
+    row = await run_db(lambda: supabase.table("chatty_webhooks").insert({
         "bot_id": key_row["bot_id"],
         "url": url,
         "events": events,
         "secret": secret,
         "active": True,
-    }).execute()
-    _update_key_usage(key_row)
+    }).execute())
+    await run_db(lambda: _update_key_usage(key_row))
     return row.data[0] if row.data else {"url": url, "events": events, "secret": secret}
 
 
@@ -725,12 +727,12 @@ async def public_api_webhook_create(
     },
 )
 async def public_api_webhook_list(request: Request, authorization: Optional[str] = Header(None)):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "read")
-    res = supabase.table("chatty_webhooks").select(
+    res = await run_db(lambda: supabase.table("chatty_webhooks").select(
         "id, url, events, active, created_at"
-    ).eq("bot_id", key_row["bot_id"]).order("created_at", desc=True).execute()
-    _update_key_usage(key_row)
+    ).eq("bot_id", key_row["bot_id"]).order("created_at", desc=True).execute())
+    await run_db(lambda: _update_key_usage(key_row))
     return {"webhooks": res.data or []}
 
 
@@ -751,13 +753,13 @@ async def public_api_webhook_delete(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = _resolve_api_key(authorization, request)
+    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
     _sec.check_scope(key_row, "write")
-    res = supabase.table("chatty_webhooks").select("id, bot_id").eq("id", webhook_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_webhooks").select("id, bot_id").eq("id", webhook_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Webhook not found")
     if res.data[0]["bot_id"] != key_row["bot_id"]:
         raise HTTPException(status_code=403, detail="Webhook belongs to a different bot")
-    supabase.table("chatty_webhooks").delete().eq("id", webhook_id).execute()
-    _update_key_usage(key_row)
+    await run_db(lambda: supabase.table("chatty_webhooks").delete().eq("id", webhook_id).execute())
+    await run_db(lambda: _update_key_usage(key_row))
     return {"success": True, "deleted_id": webhook_id}
