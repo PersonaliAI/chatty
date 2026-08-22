@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, DM_Sans, Quicksand, Space_Grotesk, Lora, Playfair_Display } from "next/font/google";
+import { FirebaseAnalytics } from "@/components/firebase-analytics";
 import "./globals.css";
 
 const inter = Inter({
@@ -61,7 +62,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${dmSans.variable} ${quicksand.variable} ${spaceGrotesk.variable} ${lora.variable} ${playfair.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <FirebaseAnalytics />
+      </body>
     </html>
   );
 }
