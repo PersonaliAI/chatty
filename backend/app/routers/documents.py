@@ -7,11 +7,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, HTTPException, UploadFile
 
 from app.core.clients import genai_client, supabase
 from app.core.config import FUNCTION_SECRET
 from app.core.deps import require_user
+from app.core.security import verify_function_secret
 from app.schemas.documents import DriveScheduleUpdate, IndexFilesBody, IndexFolderBody
 from plugins import doc_rag
 from plugins import google_integrations as g
@@ -128,10 +129,9 @@ async def update_drive_sync_schedule(req: DriveScheduleUpdate, user: dict[str, A
 
 
 @router.post("/cron/execute-scheduled-drive-syncs")
-async def execute_scheduled_drive_syncs(secret: Optional[str] = None):
+async def execute_scheduled_drive_syncs(x_function_secret: Optional[str] = Header(default=None)):
     """Re-index any user's Drive/OneDrive folder whose next_sync_at has passed."""
-    if FUNCTION_SECRET and secret != FUNCTION_SECRET:
-        raise HTTPException(status_code=403, detail="invalid secret")
+    verify_function_secret(x_function_secret, FUNCTION_SECRET)
 
     now = datetime.now(timezone.utc)
     results = []

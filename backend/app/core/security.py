@@ -11,6 +11,7 @@ Provides:
 """
 from __future__ import annotations
 
+import hmac
 import ipaddress
 import logging
 import time
@@ -21,6 +22,27 @@ from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger("chatty.security")
+
+
+# ---------------------------------------------------------------------------
+# Internal function-secret enforcement (Cloud Scheduler-triggered /cron/* and
+# similar internal-only endpoints)
+# ---------------------------------------------------------------------------
+
+
+def verify_function_secret(secret: Optional[str], configured_secret: str) -> None:
+    """Raise 403 unless `secret` matches `configured_secret`.
+
+    Fails CLOSED: if configured_secret isn't set, every request is rejected —
+    the previous `if configured_secret and secret != configured_secret` check
+    did the opposite (skipped the check entirely when unconfigured), which
+    left these internal endpoints — including one that deletes data —
+    completely open to anyone who found the URL in any environment where the
+    env var wasn't set. Uses hmac.compare_digest instead of `!=` so a valid
+    secret can't be brute-forced via response-timing differences.
+    """
+    if not configured_secret or not secret or not hmac.compare_digest(secret, configured_secret):
+        raise HTTPException(status_code=403, detail="invalid or missing function secret")
 
 # ---------------------------------------------------------------------------
 # Request-ID middleware

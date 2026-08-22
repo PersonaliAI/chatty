@@ -53,6 +53,15 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # Non-blocking for now: the existing codebase has ~900 pre-existing lint
+      # errors (13k+ incl. warnings) that predate this check being wired in —
+      # making it a hard gate today would turn every future push red on day
+      # one. Surfacing it in CI output without blocking merges until that
+      # backlog gets a dedicated cleanup pass.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
       - name: Verify widget design tokens haven't drifted
         run: node scripts/verify-design-snapshot.mjs
 

@@ -9,11 +9,12 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.core.clients import supabase
 from app.core.config import FUNCTION_SECRET
 from app.core.deps import require_user
+from app.core.security import verify_function_secret
 from app.schemas.crawl import CrawlDiscoverRequest, CrawlPagesRequest, SourceScheduleUpdate
 
 # Bridged helpers still living in main.py (shared with app/routers/documents.py
@@ -164,12 +165,11 @@ async def update_source_schedule(
 
 
 @router.post("/cron/execute-scheduled-crawls")
-async def execute_scheduled_crawls(secret: Optional[str] = None):
+async def execute_scheduled_crawls(x_function_secret: Optional[str] = Header(default=None)):
     """Re-crawl any URL source whose next_crawl_at has passed. Triggered by an
     external scheduler (e.g. Cloud Scheduler) hitting this endpoint periodically,
     same pattern as /cron/execute-scheduled-tasks."""
-    if FUNCTION_SECRET and secret != FUNCTION_SECRET:
-        raise HTTPException(status_code=403, detail="invalid secret")
+    verify_function_secret(x_function_secret, FUNCTION_SECRET)
 
     now = datetime.now(timezone.utc)
     res = supabase.table("chatty_sources").select("id, bot_id, name, crawl_schedule, next_crawl_at") \
