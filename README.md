@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="frontend/public/readme-icon.png" alt="Chatty" width="88" /> <img src="frontend/public/chatty-icon.png" alt="Chatty" width="88" />
+<img src="frontend/public/chatty-icon.png" alt="Chatty" width="88" /> <img src="frontend/public/readme-icon.png" alt="Chatty" width="88" />
 
 # Chatty by PersonaliAI
 
