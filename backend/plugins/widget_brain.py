@@ -34,6 +34,26 @@ logger = logging.getLogger("chatty")
 
 
 MAX_TOOL_ROUNDS = 6
+
+# Guards against the model confidently telling a visitor their meeting is
+# booked when it never actually called the booking tool this turn (observed
+# live: model checks availability, then fabricates a confirmation instead of
+# calling create_calendar_event/create_outlook_event). Deliberately narrow —
+# matches past-tense/confirmation phrasing, not the earlier "would you like
+# to schedule" offer language.
+_BOOKING_CLAIM_RE = re.compile(
+    r"\b(i've|i have|we've|we have)\s+(booked|scheduled|confirmed)\b"
+    r"|\bmeeting\s+(is|has been)\s+(booked|scheduled|confirmed)\b"
+    r"|\byour\s+(meeting|booking)\s+(is|has been)\s+(all\s+set|booked|scheduled|confirmed)\b"
+    r"|\bbooking\s+is\s+confirmed\b",
+    re.IGNORECASE,
+)
+
+
+def _claims_booking_success(text: str) -> bool:
+    return bool(text) and bool(_BOOKING_CLAIM_RE.search(text))
+
+
 # Ordered fallback chain tried in sequence whenever a model call fails
 # (quota/429, transient 5xx, or any other error) — the free-tier AI Studio
 # key's daily quota varies wildly per model (e.g. 20 RPD on gemini-2.5-flash
@@ -795,6 +815,8 @@ async def run_widget_assistant(
     )
 
     thinking_parts: list[str] = []
+    booking_tool_succeeded = False
+    booking_correction_attempted = False
 
     # Model to try first — GEMINI_VOICE_MODEL for voice-mode requests, MODEL_NAME
     # (today's default) otherwise — falling through to the same fallback chain
@@ -807,9 +829,20 @@ async def run_widget_assistant(
     # rounds normally emit no visible text so nothing is streamed prematurely.
     # With on_token=None the same code just aggregates — identical output to the
     # old non-streaming loop, so the SDK/embed non-stream path is unchanged.
+    #
+    # Exception: when this bot can book meetings, we can't stream the final
+    # round live — a round can turn out to be a fabricated booking claim (model
+    # checks availability, then confidently lies that it booked the slot
+    # without ever calling create_calendar_event/create_outlook_event; observed
+    # live, not hypothetical). Once tokens hit on_token they're already on the
+    # visitor's screen, so validation has to happen before anything is sent,
+    # not after. For scheduling bots we buffer each round's text internally and
+    # only forward it to the real on_token once it's cleared the booking-claim
+    # check below.
+    stream_live = on_token if not scheduling_enabled else None
     for round_idx in range(MAX_TOOL_ROUNDS):
         gen = await _gemini_stream(
-            model=primary_model, contents=contents, config=config, on_token=on_token
+            model=primary_model, contents=contents, config=config, on_token=stream_live
         )
 
         if gen["thinking"]:
@@ -821,6 +854,34 @@ async def run_widget_assistant(
                 gen["text"]
                 or "I'm sorry, I wasn't able to process that. Could you try rephrasing your request?"
             )
+            if not booking_tool_succeeded and _claims_booking_success(reply):
+                if not booking_correction_attempted:
+                    # First offense: give the model one chance to actually book it.
+                    # Nothing has been streamed for this round (stream_live is
+                    # None whenever this check can fire), so the fabricated
+                    # claim never reached the visitor.
+                    booking_correction_attempted = True
+                    if gen["model_content"] is not None:
+                        contents.append(gen["model_content"])
+                    contents.append(genai_types.Content(role="user", parts=[genai_types.Part.from_text(
+                        text=(
+                            "SYSTEM CHECK: You just told the visitor their meeting was booked, "
+                            "but you have not actually called the booking tool this conversation. "
+                            "If the requested slot is still available, call the booking tool now "
+                            "before saying anything else to the visitor. If it can't be booked, "
+                            "tell them honestly that it didn't go through and why — do not repeat "
+                            "the claim that it's booked."
+                        )
+                    )]))
+                    continue
+                # Second offense in the same turn — stop trusting the model's claim.
+                reply = (
+                    "Sorry — I wasn't actually able to complete that booking due to a technical "
+                    "issue on my end. Could you confirm the date and time again so I can try booking it properly?"
+                )
+            if on_token and not stream_live:
+                # Held back for validation above — release it now as one chunk.
+                await on_token(reply)
             return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": source_refs}
 
         if gen["model_content"] is not None:
@@ -862,6 +923,8 @@ async def run_widget_assistant(
                 genai_client=genai_client,
                 context={"source": "widget", "session_id": session_id, "bot_id": bot_id},
             )
+            if fc.name in ("create_calendar_event", "create_outlook_event") and isinstance(result, dict) and "error" not in result:
+                booking_tool_succeeded = True
             tool_response_parts.append(
                 genai_types.Part.from_function_response(
                     name=fc.name, response={"result": result}
@@ -877,9 +940,16 @@ async def run_widget_assistant(
         + "\n\nYou've already gathered enough data. Reply to the user now with a final answer; do not call any more tools.",
     )
     final = await _gemini_stream(
-        model=primary_model, contents=contents, config=config_final, on_token=on_token
+        model=primary_model, contents=contents, config=config_final, on_token=stream_live
     )
     reply = final["text"] or "I'm sorry, I wasn't able to complete that request."
+    if not booking_tool_succeeded and _claims_booking_success(reply):
+        reply = (
+            "Sorry — I wasn't actually able to complete that booking due to a technical "
+            "issue on my end. Could you confirm the date and time again so I can try booking it properly?"
+        )
+    if on_token and not stream_live:
+        await on_token(reply)
     return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": source_refs}
 
 
