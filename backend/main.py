@@ -54,6 +54,7 @@ from plugins.widget_brain import run_widget_assistant, GEMINI_FALLBACK_MODELS, M
 from app.core import security as _sec
 from app.core.app_factory import create_app
 from app.core.clients import genai_client, supabase
+from app.core.db import run_db
 from app.core.config import (
     ALLOWED_ORIGINS,
     FRONTEND_URL,
@@ -247,21 +248,21 @@ async def _upsert_session(bot_id: str, session_id: str, last_message: str,
                           visitor_name: Optional[str] = None) -> tuple[dict, bool]:
     """Create or update a conversation session. Returns (row, is_new)."""
     try:
-        existing = supabase.table("chatty_sessions").select("*").eq(
-            "bot_id", bot_id).eq("session_id", session_id).execute()
+        existing = await run_db(lambda: supabase.table("chatty_sessions").select("*").eq(
+            "bot_id", bot_id).eq("session_id", session_id).execute())
         if existing.data:
             row = existing.data[0]
             upd = {"last_message": last_message[:300],
                    "last_message_at": datetime.now(timezone.utc).isoformat()}
             if visitor_name and not row.get("visitor_name"):
                 upd["visitor_name"] = visitor_name
-            supabase.table("chatty_sessions").update(upd).eq("id", row["id"]).execute()
+            await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("id", row["id"]).execute())
             return row, False
-        ins = supabase.table("chatty_sessions").insert({
+        ins = await run_db(lambda: supabase.table("chatty_sessions").insert({
             "bot_id": bot_id, "session_id": session_id, "status": "open",
             "ai_paused": False, "visitor_name": visitor_name,
             "last_message": last_message[:300],
-        }).execute()
+        }).execute())
         return (ins.data[0] if ins.data else {}), True
     except Exception:
         logger.exception("session upsert failed")

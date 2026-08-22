@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from google.genai import types as genai_types
 
 from app.core.clients import genai_client, supabase
+from app.core.db import run_db
 from app.schemas.widget import (
     WidgetChatRequest,
     WidgetChatResponse,
@@ -64,7 +65,7 @@ async def widget_verify_origin(body: WidgetVerifyOriginRequest):
     every chat/media call. Never hard-fails — always returns a token, even
     when unverified, so a missing Referer just falls into the stricter rate
     tier rather than breaking the widget outright."""
-    res = supabase.table("chatty_bots").select("allowed_domains").eq("id", body.bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("allowed_domains").eq("id", body.bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
@@ -94,7 +95,7 @@ async def widget_chat(
         raise HTTPException(status_code=400, detail=f"Message too long (max {WIDGET_MAX_CHARS} characters)")
 
     # 1. Fetch bot
-    res = supabase.table("chatty_bots").select("*").eq("id", bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
@@ -106,7 +107,7 @@ async def widget_chat(
 
     # 2. Fetch owner
     owner_id = bot["user_id"]
-    res_user = supabase.table("users").select("*").eq("auth_user_id", owner_id).execute()
+    res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
     if not res_user.data:
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = res_user.data[0]
@@ -123,17 +124,17 @@ async def widget_chat(
     # Flag conversations where the visitor asks for a human.
     if _needs_human(text):
         try:
-            supabase.table("chatty_sessions").update({"needs_attention": True}) \
-                .eq("bot_id", bot_id).eq("session_id", session_id).execute()
+            await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
+                .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
 
     # 3. Save user message
     try:
-        supabase.table("chatty_conversations").insert({
+        await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "user",
             "content": text, "sender": "visitor",
-        }).execute()
+        }).execute())
     except Exception:
         logger.exception("Failed to save user conversation message")
     background_tasks.add_task(
@@ -148,15 +149,15 @@ async def widget_chat(
     # 3b. Quota gate — never spend model tokens once the owner is out of quota.
     if chatty_quota_exceeded(owner_user, owner_id):
         try:
-            supabase.table("chatty_sessions").update({"needs_attention": True}) \
-                .eq("bot_id", bot_id).eq("session_id", session_id).execute()
+            await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
+                .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
         try:
-            supabase.table("chatty_conversations").insert({
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
                 "bot_id": bot_id, "session_id": session_id, "role": "assistant",
                 "content": WIDGET_QUOTA_REPLY, "sender": "ai",
-            }).execute()
+            }).execute())
         except Exception:
             logger.exception("Failed to save quota-exceeded reply")
         return WidgetChatResponse(reply=WIDGET_QUOTA_REPLY, session_id=session_id)
@@ -176,10 +177,10 @@ async def widget_chat(
 
     # 5. Save assistant reply
     try:
-        supabase.table("chatty_conversations").insert({
+        await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "assistant",
             "content": reply, "sender": "ai",
-        }).execute()
+        }).execute())
     except Exception:
         logger.exception("Failed to save assistant conversation message")
     background_tasks.add_task(
@@ -187,7 +188,7 @@ async def widget_chat(
         session_id=session_id, data={"content": reply},
     )
 
-    _log_unanswered_if_needed(bot_id, session_id, text, reply)
+    background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
 
     return WidgetChatResponse(reply=reply, session_id=session_id, sources=result.get("sources") or None)
 
@@ -212,7 +213,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     if len(text) > WIDGET_MAX_CHARS:
         raise HTTPException(status_code=400, detail=f"Message too long (max {WIDGET_MAX_CHARS} characters)")
 
-    res = supabase.table("chatty_bots").select("*").eq("id", bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
@@ -221,7 +222,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     await _widget_rate_limit_or_429(bot, bot_id, ip, request.headers.get("x-widget-token"))
 
     owner_id = bot["user_id"]
-    res_user = supabase.table("users").select("*").eq("auth_user_id", owner_id).execute()
+    res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
     if not res_user.data:
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = res_user.data[0]
@@ -236,16 +237,16 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
 
     if _needs_human(text):
         try:
-            supabase.table("chatty_sessions").update({"needs_attention": True}) \
-                .eq("bot_id", bot_id).eq("session_id", session_id).execute()
+            await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
+                .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
 
     try:
-        supabase.table("chatty_conversations").insert({
+        await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "user",
             "content": text, "sender": "visitor",
-        }).execute()
+        }).execute())
     except Exception:
         logger.exception("Failed to save user conversation message")
     background_tasks.add_task(
@@ -265,15 +266,15 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     # Quota gate — save the graceful reply and stream it as a single message.
     if chatty_quota_exceeded(owner_user, owner_id):
         try:
-            supabase.table("chatty_sessions").update({"needs_attention": True}) \
-                .eq("bot_id", bot_id).eq("session_id", session_id).execute()
+            await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
+                .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
         try:
-            supabase.table("chatty_conversations").insert({
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
                 "bot_id": bot_id, "session_id": session_id, "role": "assistant",
                 "content": WIDGET_QUOTA_REPLY, "sender": "ai",
-            }).execute()
+            }).execute())
         except Exception:
             logger.exception("Failed to save quota-exceeded reply")
 
@@ -298,17 +299,17 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             )
             reply = result["reply"]
             try:
-                supabase.table("chatty_conversations").insert({
+                await run_db(lambda: supabase.table("chatty_conversations").insert({
                     "bot_id": bot_id, "session_id": session_id, "role": "assistant",
                     "content": reply, "sender": "ai",
-                }).execute()
+                }).execute())
             except Exception:
                 logger.exception("Failed to save assistant conversation message")
             await notify.enqueue_webhook_event(
                 supabase, bot_id=bot_id, event="message.assistant",
                 session_id=session_id, data={"content": reply},
             )
-            _log_unanswered_if_needed(bot_id, session_id, text, reply)
+            background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
             await queue.put(_sse({"type": "done", "reply": reply, "sources": result.get("sources") or []}))
         except Exception as exc:  # noqa: BLE001
             logger.exception("Widget stream assistant failed")
@@ -357,7 +358,7 @@ async def widget_transcribe(
     if mime in ("audio/webm", "audio/x-matroska"):
         raise HTTPException(status_code=400, detail=f"Unsupported audio format: {mime}. Convert to wav, mp3, ogg, aac, aiff, or flac first.")
 
-    res = supabase.table("chatty_bots").select("allowed_domains").eq("id", bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("allowed_domains").eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
@@ -430,7 +431,7 @@ async def widget_chat_media(
     if mime in ("audio/webm", "audio/x-matroska"):
         raise HTTPException(status_code=400, detail=f"Unsupported audio format: {mime}. Convert to wav, mp3, ogg, aac, aiff, or flac first.")
 
-    res = supabase.table("chatty_bots").select("*").eq("id", bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
@@ -438,7 +439,7 @@ async def widget_chat_media(
     ip = _client_ip(request)
     await _widget_rate_limit_or_429(bot, bot_id, ip, request.headers.get("x-widget-token"))
 
-    res_user = supabase.table("users").select("*").eq("auth_user_id", bot["user_id"]).execute()
+    res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot["user_id"]).execute())
     if not res_user.data:
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = res_user.data[0]
@@ -448,15 +449,15 @@ async def widget_chat_media(
     # even look at.
     if chatty_quota_exceeded(owner_user, bot["user_id"]):
         try:
-            supabase.table("chatty_sessions").update({"needs_attention": True}) \
-                .eq("bot_id", bot_id).eq("session_id", session_id).execute()
+            await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
+                .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
         try:
-            supabase.table("chatty_conversations").insert({
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
                 "bot_id": bot_id, "session_id": session_id, "role": "assistant",
                 "content": WIDGET_QUOTA_REPLY,
-            }).execute()
+            }).execute())
         except Exception:
             logger.exception("Failed to save quota-exceeded reply")
         return WidgetMediaResponse(reply=WIDGET_QUOTA_REPLY, session_id=session_id)
@@ -467,20 +468,20 @@ async def widget_chat_media(
     path = f"{bot_id}/{session_id}/{int(time.time())}-{_uuid.uuid4().hex[:8]}.{ext}"
     file_url = None
     try:
-        supabase.storage.from_("chatty-uploads").upload(
+        await run_db(lambda: supabase.storage.from_("chatty-uploads").upload(
             path, data, {"content-type": mime, "upsert": "false"}
-        )
-        file_url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+        ))
+        file_url = await run_db(lambda: supabase.storage.from_("chatty-uploads").get_public_url(path))
     except Exception:
         logger.exception("Storage upload failed")
 
     # Record the visitor's message (with file reference) in history
     display = (text.strip() + ("\n" if text.strip() else "")) + f"[attachment: {file.filename or mime}]"
     try:
-        supabase.table("chatty_conversations").insert({
+        await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "user",
             "content": display + (f"\n{file_url}" if file_url else ""),
-        }).execute()
+        }).execute())
     except Exception:
         logger.exception("Failed to save media message")
     background_tasks.add_task(
@@ -501,9 +502,9 @@ async def widget_chat_media(
 
     reply = result["reply"]
     try:
-        supabase.table("chatty_conversations").insert({
+        await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "assistant", "content": reply,
-        }).execute()
+        }).execute())
     except Exception:
         logger.exception("Failed to save assistant reply")
     background_tasks.add_task(
@@ -511,7 +512,7 @@ async def widget_chat_media(
         session_id=session_id, data={"content": reply},
     )
 
-    _log_unanswered_if_needed(bot_id, session_id, text, reply)
+    background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
 
     return WidgetMediaResponse(reply=reply, session_id=session_id, file_url=file_url, file_type=mime)
 
@@ -523,12 +524,12 @@ async def widget_feedback(body: WidgetFeedbackRequest, request: Request):
     if not rating:
         raise HTTPException(status_code=400, detail="rating must be 'up' or 'down'")
     try:
-        latest = supabase.table("chatty_conversations").select("id") \
-            .eq("bot_id", body.bot_id).eq("session_id", body.session_id) \
-            .eq("role", "assistant").order("created_at", desc=True).limit(1).execute()
+        latest = await run_db(lambda: supabase.table("chatty_conversations").select("id")
+            .eq("bot_id", body.bot_id).eq("session_id", body.session_id)
+            .eq("role", "assistant").order("created_at", desc=True).limit(1).execute())
         if latest.data:
-            supabase.table("chatty_conversations").update({"feedback_rating": rating}) \
-                .eq("id", latest.data[0]["id"]).execute()
+            await run_db(lambda: supabase.table("chatty_conversations").update({"feedback_rating": rating})
+                .eq("id", latest.data[0]["id"]).execute())
     except Exception:
         logger.exception("widget feedback failed")
     return {"ok": True}
@@ -544,9 +545,10 @@ async def widget_poll(bot_id: str, session_id: str, after: str = ""):
             .order("created_at", desc=False)
         if after:
             q = q.gt("created_at", after)
-        msgs = q.execute().data or []
-        sess = supabase.table("chatty_sessions").select("ai_paused").eq(
-            "bot_id", bot_id).eq("session_id", session_id).execute()
+        res = await run_db(q.execute)
+        msgs = res.data or []
+        sess = await run_db(lambda: supabase.table("chatty_sessions").select("ai_paused").eq(
+            "bot_id", bot_id).eq("session_id", session_id).execute())
         ai_paused = bool(sess.data[0]["ai_paused"]) if sess.data else False
         return {"messages": msgs, "ai_paused": ai_paused}
     except Exception:
@@ -575,11 +577,12 @@ async def widget_live(bot_id: str, session_id: str, after: str = ""):
                     .order("created_at", desc=False)
                 if cursor:
                     q = q.gt("created_at", cursor)
-                for m in (q.execute().data or []):
+                res = await run_db(q.execute)
+                for m in (res.data or []):
                     cursor = m["created_at"]
                     yield _sse({"type": "message", "content": m["content"], "created_at": m["created_at"]})
-                sess = supabase.table("chatty_sessions").select("ai_paused").eq(
-                    "bot_id", bot_id).eq("session_id", session_id).execute()
+                sess = await run_db(lambda: supabase.table("chatty_sessions").select("ai_paused").eq(
+                    "bot_id", bot_id).eq("session_id", session_id).execute())
                 paused = bool(sess.data[0]["ai_paused"]) if sess.data else False
                 if paused != last_paused:
                     last_paused = paused
@@ -601,10 +604,10 @@ async def widget_theme(bot_id: str):
     Served from the backend (service role) so it works inside third-party
     iframes where the browser Supabase client is blocked by storage
     partitioning."""
-    res = supabase.table("chatty_bots").select(
+    res = await run_db(lambda: supabase.table("chatty_bots").select(
         "user_id, name, primary_color, widget_style, logo_url, welcome_message, "
         "send_button_style, conversation_starters, teaser_message, avatar_icon, avatar_url, "
-        "hide_branding, custom_css, custom_js, voice_enabled").eq("id", bot_id).execute()
+        "hide_branding, custom_css, custom_js, voice_enabled").eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     b = res.data[0]
@@ -613,8 +616,8 @@ async def widget_theme(bot_id: str):
     hide_branding = bool(b.get("hide_branding"))
     if hide_branding:
         try:
-            owner = supabase.table("users").select("plan").eq(
-                "auth_user_id", b.get("user_id")).limit(1).execute()
+            owner = await run_db(lambda: supabase.table("users").select("plan").eq(
+                "auth_user_id", b.get("user_id")).limit(1).execute())
             plan = ((owner.data[0].get("plan") if owner.data else None) or "free").lower()
             if plan not in WHITELABEL_PLANS:
                 hide_branding = False
