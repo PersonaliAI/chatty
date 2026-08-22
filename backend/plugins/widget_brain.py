@@ -502,7 +502,15 @@ async def run_widget_assistant(
     provider_label = {"google_meet": "Google Meet", "zoom": "Zoom",
                       "teams": "Microsoft Teams"}.get(provider, "Google Meet")
     # Teams bookings run through Outlook/Graph; everything else uses Google Calendar.
-    use_ms_calendar = provider == "teams" and bool(bot.get("sync_outlook_calendar"))
+    # meeting_provider alone decides this — NOT also requiring sync_outlook_calendar,
+    # which is a separate DB flag the dashboard's "Calendar" dropdown writes but whose
+    # displayed value is entirely derived from meeting_provider (shows "Outlook"
+    # whenever provider is "teams", "Google" otherwise) rather than from its own
+    # state. A dashboard user has no way to notice these can disagree, so requiring
+    # both silently kept bookings on Google Calendar for anyone who picked "Teams" as
+    # their meeting platform without separately re-touching a dropdown that already
+    # displayed "Outlook".
+    use_ms_calendar = provider == "teams"
     if use_ms_calendar:
         avail_instruction = "- Once you have this info, check the owner's availability with `list_outlook_events` for the requested day.\n"
         book_instruction = (
