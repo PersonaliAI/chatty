@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="frontend/public/readme-icon.png" alt="Chatty" width="88" />
+<img src="frontend/public/readme-icon.png" alt="Chatty" width="88" /> <img src="frontend/public/chatty-icon.png" alt="Chatty" width="88" />
 
-# Chatty
+# Chatty by PersonaliAI
 
 **Open-source AI customer support: chat widget + real-time voice agent, grounded in your own knowledge base.**
 
