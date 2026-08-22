@@ -10,6 +10,7 @@ from google.genai import types as genai_types
 
 from app.core.clients import supabase
 from app.core.config import MODEL_NAME
+from app.core.db import run_db
 from app.schemas.flow import FlowGenerateRequest
 from plugins.widget_brain import _gemini_generate
 
@@ -23,7 +24,7 @@ async def generate_flow_with_ai(body: FlowGenerateRequest):
     bot_name = "Chatty Assistant"
     welcome_message = "Hi! How can I help you today?"
     try:
-        res = supabase.table("chatty_bots").select("name, welcome_message").eq("id", body.bot_id).maybe_single().execute()
+        res = await run_db(lambda: supabase.table("chatty_bots").select("name, welcome_message").eq("id", body.bot_id).maybe_single().execute())
         if res.data:
             bot_name = res.data.get("name") or bot_name
             welcome_message = res.data.get("welcome_message") or welcome_message

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.clients import supabase
 from app.core.config import SUPABASE_URL
+from app.core.db import run_db
 from app.core.deps import require_user
 from app.schemas.onboarding import OnboardingUpdateRequest
 
@@ -66,7 +67,7 @@ async def onboarding_update(
     user: dict[str, Any] = Depends(require_user),
 ):
     # Verify bot belongs to user
-    res = supabase.table("chatty_bots").select("*").eq("id", req.bot_id).eq("user_id", user["auth_user_id"]).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", req.bot_id).eq("user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found or unauthorized")
 
@@ -83,7 +84,7 @@ async def onboarding_update(
         std_cols = ["name", "email", "phone", "company", "job_title", "country", "industry", "budget"]
         for field in req.lead_fields:
             if field.lower() not in std_cols:
-                add_lead_column(field)
+                await run_db(lambda field=field: add_lead_column(field))
     if req.lead_capture_enabled is not None:
         update_data["lead_capture_enabled"] = req.lead_capture_enabled
     if req.lead_required_fields is not None:
@@ -107,19 +108,19 @@ async def onboarding_update(
         update_data["calendar_scheduling_enabled"] = req.calendar_scheduling_enabled
 
     try:
-        supabase.table("chatty_bots").update(update_data).eq("id", req.bot_id).execute()
+        await run_db(lambda: supabase.table("chatty_bots").update(update_data).eq("id", req.bot_id).execute())
 
         # Insert audit log
         action_name = f"onboarding_step_{req.step}"
         if req.completed:
             action_name = "onboarding_completed"
 
-        supabase.table("chatty_audit_logs").insert({
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
             "bot_id": req.bot_id,
             "action": action_name,
             "details": f"Completed setup step {req.step} (onboarding_completed: {req.completed})",
             "performed_by": "user"
-        }).execute()
+        }).execute())
 
         return {"success": True, "message": "Onboarding state updated successfully"}
     except Exception as e:

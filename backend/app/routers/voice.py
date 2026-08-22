@@ -18,6 +18,7 @@ from livekit import api
 
 from app.core.clients import supabase
 from app.core.config import LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
+from app.core.db import run_db
 from app.schemas.voice import VoiceTokenRequest, VoiceTokenResponse
 
 # Bridged helpers still living in main.py — same pattern as app/routers/widget.py.
@@ -33,7 +34,7 @@ async def widget_voice_token(body: VoiceTokenRequest, request: Request):
     bot_id = body.bot_id
 
     # 1. Fetch bot (mirrors widget_chat's auth chain).
-    res = supabase.table("chatty_bots").select("*").eq("id", bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
@@ -44,7 +45,7 @@ async def widget_voice_token(body: VoiceTokenRequest, request: Request):
 
     # 3. Resolve owner + quota gate.
     owner_id = bot["user_id"]
-    res_user = supabase.table("users").select("*").eq("auth_user_id", owner_id).execute()
+    res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
     if not res_user.data:
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = res_user.data[0]

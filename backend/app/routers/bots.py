@@ -13,6 +13,7 @@ from google.genai import types as genai_types
 
 from app.core.clients import supabase
 from app.core.config import MODEL_NAME
+from app.core.db import run_db
 from app.core.deps import require_user
 from app.schemas.bots import (
     BYOKUpdate,
@@ -41,14 +42,14 @@ async def list_shared_bots(user: dict[str, Any] = Depends(require_user)):
     email = (user.get("email") or "").strip().lower()
     if not email:
         return {"bots": []}
-    memberships = supabase.table("chatty_team_members").select(
-        "bot_id, role").eq("email", email).execute().data or []
+    memberships = (await run_db(lambda: supabase.table("chatty_team_members").select(
+        "bot_id, role").eq("email", email).execute())).data or []
     if not memberships:
         return {"bots": []}
     role_by_bot = {m["bot_id"]: m["role"] for m in memberships}
-    bots = supabase.table("chatty_bots").select(
+    bots = (await run_db(lambda: supabase.table("chatty_bots").select(
         "id, name, primary_color, widget_style, welcome_message, avatar_icon, avatar_url"
-    ).in_("id", list(role_by_bot.keys())).execute().data or []
+    ).in_("id", list(role_by_bot.keys())).execute())).data or []
     for b in bots:
         b["_role"] = role_by_bot.get(b["id"], "agent")
     return {"bots": bots}
@@ -60,8 +61,8 @@ async def upload_bot_logo(
     file: UploadFile = File(...),
     user: dict[str, Any] = Depends(require_user),
 ):
-    res = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
     data = await file.read()
@@ -74,9 +75,12 @@ async def upload_bot_logo(
     ext = (file.filename or "logo.png").split(".")[-1][:8]
     path = f"logos/{bot_id}/{_uuid.uuid4().hex[:8]}.{ext}"
     try:
-        supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
-        url = supabase.storage.from_("chatty-uploads").get_public_url(path)
-        supabase.table("chatty_bots").update({"logo_url": url}).eq("id", bot_id).execute()
+        def _upload():
+            supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+            url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+            supabase.table("chatty_bots").update({"logo_url": url}).eq("id", bot_id).execute()
+            return url
+        url = await run_db(_upload)
         return {"logo_url": url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -89,8 +93,8 @@ async def upload_bot_avatar(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Upload a custom assistant avatar image (separate from the header logo)."""
-    res = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
     data = await file.read()
@@ -103,9 +107,12 @@ async def upload_bot_avatar(
     ext = (file.filename or "avatar.png").split(".")[-1][:8]
     path = f"avatars/{bot_id}/{_uuid.uuid4().hex[:8]}.{ext}"
     try:
-        supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
-        url = supabase.storage.from_("chatty-uploads").get_public_url(path)
-        supabase.table("chatty_bots").update({"avatar_url": url, "avatar_icon": "custom"}).eq("id", bot_id).execute()
+        def _upload():
+            supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+            url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+            supabase.table("chatty_bots").update({"avatar_url": url, "avatar_icon": "custom"}).eq("id", bot_id).execute()
+            return url
+        url = await run_db(_upload)
         return {"avatar_url": url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -118,8 +125,8 @@ async def generate_business(
 ):
     """AI-generate a business description, support persona instructions, and a
     welcome message from a short hint (business name / URL / one-liner)."""
-    res = supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
@@ -156,8 +163,8 @@ async def generate_business(
 @router.get("/api/bots/{bot_id}/byok")
 async def get_byok_status(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Never returns the decrypted key — only whether one is configured."""
-    res = supabase.table("chatty_bots").select("byok_provider, byok_model, byok_api_key_encrypted, user_id") \
-        .eq("id", bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("byok_provider, byok_model, byok_api_key_encrypted, user_id") \
+        .eq("id", bot_id).execute())
     if not res.data or res.data[0]["user_id"] != user["auth_user_id"]:
         raise HTTPException(status_code=403, detail="Unauthorized")
     row = res.data[0]
@@ -170,7 +177,7 @@ async def get_byok_status(bot_id: str, user: dict[str, Any] = Depends(require_us
 
 @router.post("/api/bots/{bot_id}/byok")
 async def set_byok(bot_id: str, req: BYOKUpdate, user: dict[str, Any] = Depends(require_user)):
-    res = supabase.table("chatty_bots").select("id, user_id").eq("id", bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id").eq("id", bot_id).execute())
     if not res.data or res.data[0]["user_id"] != user["auth_user_id"]:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
@@ -183,18 +190,18 @@ async def set_byok(bot_id: str, req: BYOKUpdate, user: dict[str, Any] = Depends(
     elif not req.provider:
         update["byok_api_key_encrypted"] = None  # clearing BYOK entirely
 
-    supabase.table("chatty_bots").update(update).eq("id", bot_id).execute()
+    await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
     return {"success": True}
 
 
 @router.get("/api/bots/{bot_id}/voice-settings")
 async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Never returns decrypted BYOK keys — only whether one is configured."""
-    res = supabase.table("chatty_bots").select(
+    res = await run_db(lambda: supabase.table("chatty_bots").select(
         "voice_enabled, voice_stt_provider, voice_stt_byok_key_encrypted, "
         "voice_tts_provider, voice_tts_byok_key_encrypted, voice_tts_voice, "
         "voice_agent_role, voice_max_duration_minutes, user_id"
-    ).eq("id", bot_id).execute()
+    ).eq("id", bot_id).execute())
     if not res.data or res.data[0]["user_id"] != user["auth_user_id"]:
         raise HTTPException(status_code=403, detail="Unauthorized")
     row = res.data[0]
@@ -214,7 +221,7 @@ async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require
 async def set_voice_settings(
     bot_id: str, req: VoiceSettingsUpdate, user: dict[str, Any] = Depends(require_user)
 ):
-    res = supabase.table("chatty_bots").select("id, user_id").eq("id", bot_id).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id").eq("id", bot_id).execute())
     if not res.data or res.data[0]["user_id"] != user["auth_user_id"]:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
@@ -245,16 +252,16 @@ async def set_voice_settings(
         update["voice_max_duration_minutes"] = max(1, min(60, req.voice_max_duration_minutes))
 
     if update:
-        supabase.table("chatty_bots").update(update).eq("id", bot_id).execute()
+        await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
     return {"success": True}
 
 
 @router.get("/api/bots/{bot_id}/webhooks")
 async def dashboard_list_webhooks(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    _verify_bot_owner(bot_id, user)
-    res = supabase.table("chatty_webhooks").select(
+    await _verify_bot_owner(bot_id, user)
+    res = await run_db(lambda: supabase.table("chatty_webhooks").select(
         "id, url, events, active, created_at"
-    ).eq("bot_id", bot_id).order("created_at", desc=True).execute()
+    ).eq("bot_id", bot_id).order("created_at", desc=True).execute())
     return {"webhooks": res.data or []}
 
 
@@ -262,7 +269,7 @@ async def dashboard_list_webhooks(bot_id: str, user: dict[str, Any] = Depends(re
 async def dashboard_create_webhook(
     bot_id: str, req: DashboardWebhookCreateRequest, user: dict[str, Any] = Depends(require_user)
 ):
-    _verify_bot_owner(bot_id, user)
+    await _verify_bot_owner(bot_id, user)
     url = (req.url or "").strip()
     if not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="url must be a valid http(s) URL")
@@ -273,9 +280,9 @@ async def dashboard_create_webhook(
             detail=f"events must include at least one of: {', '.join(notify.WEBHOOK_EVENTS)}",
         )
     secret = f"whsec_{secrets.token_hex(24)}"
-    row = supabase.table("chatty_webhooks").insert({
+    row = await run_db(lambda: supabase.table("chatty_webhooks").insert({
         "bot_id": bot_id, "url": url, "events": events, "secret": secret, "active": True,
-    }).execute()
+    }).execute())
     return row.data[0] if row.data else {"url": url, "events": events, "secret": secret}
 
 
@@ -283,11 +290,11 @@ async def dashboard_create_webhook(
 async def dashboard_delete_webhook(
     bot_id: str, webhook_id: str, user: dict[str, Any] = Depends(require_user)
 ):
-    _verify_bot_owner(bot_id, user)
-    res = supabase.table("chatty_webhooks").select("id").eq("id", webhook_id).eq("bot_id", bot_id).execute()
+    await _verify_bot_owner(bot_id, user)
+    res = await run_db(lambda: supabase.table("chatty_webhooks").select("id").eq("id", webhook_id).eq("bot_id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Webhook not found")
-    supabase.table("chatty_webhooks").delete().eq("id", webhook_id).execute()
+    await run_db(lambda: supabase.table("chatty_webhooks").delete().eq("id", webhook_id).execute())
     return {"success": True, "deleted_id": webhook_id}
 
 

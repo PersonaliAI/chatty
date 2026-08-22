@@ -333,25 +333,25 @@ async def geoip_lookup(ip: str) -> dict[str, Any]:
     return info
 
 
-def _verify_bot_owner(bot_id: str, user: dict):
-    res = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+async def _verify_bot_owner(bot_id: str, user: dict):
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
 
-def _verify_bot_access(bot_id: str, user: dict) -> str:
+async def _verify_bot_access(bot_id: str, user: dict) -> str:
     """Return the caller's role for a bot ('owner' | 'admin' | 'agent'), or
     raise 403. Used by collaborative endpoints so invited teammates can work a
     shared bot; owner-only actions keep using _verify_bot_owner."""
-    owned = supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+    owned = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if owned.data:
         return "owner"
     email = (user.get("email") or "").strip().lower()
     if email:
-        m = supabase.table("chatty_team_members").select("role").eq(
-            "bot_id", bot_id).eq("email", email).limit(1).execute()
+        m = await run_db(lambda: supabase.table("chatty_team_members").select("role").eq(
+            "bot_id", bot_id).eq("email", email).limit(1).execute())
         if m.data:
             return m.data[0].get("role") or "agent"
     raise HTTPException(status_code=403, detail="Unauthorized")

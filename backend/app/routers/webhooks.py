@@ -16,6 +16,7 @@ from fastapi.responses import PlainTextResponse
 
 from app.core.clients import supabase
 from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET
+from app.core.db import run_db
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
@@ -59,13 +60,13 @@ async def _send_whatsapp(phone_number_id: str, to: str, text: str) -> None:
 async def _handle_whatsapp_message(phone_number_id: str, frm: str, text: str) -> None:
     if not (phone_number_id and frm and text and text.strip()):
         return
-    res = supabase.table("chatty_bots").select("*").eq(
-        "whatsapp_phone_number_id", phone_number_id).limit(1).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq(
+        "whatsapp_phone_number_id", phone_number_id).limit(1).execute())
     if not res.data:
         return
     bot = res.data[0]
-    owner = supabase.table("users").select("*").eq(
-        "auth_user_id", bot["user_id"]).limit(1).execute()
+    owner = await run_db(lambda: supabase.table("users").select("*").eq(
+        "auth_user_id", bot["user_id"]).limit(1).execute())
     if not owner.data:
         return
     owner_user = owner.data[0]
@@ -74,9 +75,9 @@ async def _handle_whatsapp_message(phone_number_id: str, frm: str, text: str) ->
         await _send_whatsapp(phone_number_id, frm, WIDGET_QUOTA_REPLY)
         return
     try:
-        supabase.table("chatty_conversations").insert({
+        await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot["id"], "session_id": session_id, "role": "user",
-            "content": text, "sender": "visitor"}).execute()
+            "content": text, "sender": "visitor"}).execute())
     except Exception:
         logger.exception("wa save inbound failed")
     try:
@@ -88,9 +89,9 @@ async def _handle_whatsapp_message(phone_number_id: str, frm: str, text: str) ->
         logger.exception("wa assistant failed")
         return
     try:
-        supabase.table("chatty_conversations").insert({
+        await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot["id"], "session_id": session_id, "role": "assistant",
-            "content": reply, "sender": "ai"}).execute()
+            "content": reply, "sender": "ai"}).execute())
     except Exception:
         logger.exception("wa save reply failed")
     await _send_whatsapp(phone_number_id, frm, reply)
@@ -139,12 +140,12 @@ def _verify_slack_signature(timestamp: str, sig: str, raw_body: str) -> bool:
 
 async def _slack_answer_and_post(team_id: str, text: str, response_url: str) -> None:
     answer = "This Slack workspace isn't linked to a Chatty bot yet."
-    res = supabase.table("chatty_bots").select("*").eq(
-        "slack_team_id", team_id).limit(1).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq(
+        "slack_team_id", team_id).limit(1).execute())
     if res.data:
         bot = res.data[0]
-        owner = supabase.table("users").select("*").eq(
-            "auth_user_id", bot["user_id"]).limit(1).execute()
+        owner = await run_db(lambda: supabase.table("users").select("*").eq(
+            "auth_user_id", bot["user_id"]).limit(1).execute())
         if not owner.data:
             answer = "Bot owner not found."
         elif chatty_quota_exceeded(owner.data[0], bot["user_id"]):
@@ -210,12 +211,12 @@ async def webhook_lemonsqueezy(request: Request):
     logger.info("Lemon Squeezy webhook event %s for user %s, variant %s -> plan %s", event_name, user_id, variant_id, plan_name)
     if user_id and event_name in ("order_created", "subscription_created", "subscription_updated"):
         try:
-            supabase.table("user_subscriptions").upsert({
+            await run_db(lambda: supabase.table("user_subscriptions").upsert({
                 "user_id": user_id,
                 "plan": plan_name,
                 "variant_id": variant_id,
                 "updated_at": datetime.now(timezone.utc).isoformat()
-            }).execute()
+            }).execute())
         except Exception as e:
             logger.exception("Failed to record subscription update: %s", e)
 

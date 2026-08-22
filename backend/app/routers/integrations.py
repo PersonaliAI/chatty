@@ -16,6 +16,7 @@ from fastapi.responses import RedirectResponse
 
 from app.core.clients import supabase
 from app.core.config import ALLOWED_ORIGINS, FRONTEND_URL, FUNCTION_SECRET
+from app.core.db import run_db
 from app.core.deps import require_user
 from plugins import google_integrations as g
 from plugins import microsoft_integrations as ms
@@ -96,12 +97,12 @@ async def google_start(
                 status_code=403,
                 detail="Connecting extra Google accounts is a Pro+ feature. Upgrade at /dashboard/billing.",
             )
-        existing = (
+        existing = await run_db(lambda: (
             supabase.table("kin_connected_accounts")
             .select("id", count="exact", head=True)
             .eq("user_id", user["id"])
             .execute()
-        )
+        ))
         if (existing.count or 0) >= cap:
             raise HTTPException(
                 status_code=400,
@@ -151,20 +152,20 @@ async def google_callback(code: str, state: str):
             # prompt=consent param above should prevent this, but bail
             # cleanly rather than store an unrefreshable extra account.
             return RedirectResponse(f"{frontend}{redirect_path}?google=error")
-        user_res = supabase.table("users").select("id, plan").eq("auth_user_id", auth_user_id).execute()
+        user_res = await run_db(lambda: supabase.table("users").select("id, plan").eq("auth_user_id", auth_user_id).execute())
         if not user_res.data:
             return RedirectResponse(f"{frontend}{redirect_path}?google=error")
         owner = user_res.data[0]
         cap = MAX_EXTRA_GOOGLE_ACCOUNTS.get(plan_for(owner), 0)
-        existing = (
+        existing = await run_db(lambda: (
             supabase.table("kin_connected_accounts")
             .select("id", count="exact", head=True)
             .eq("user_id", owner["id"])
             .execute()
-        )
+        ))
         if cap <= 0 or (existing.count or 0) >= cap:
             return RedirectResponse(f"{frontend}{redirect_path}?google=error")
-        supabase.table("kin_connected_accounts").insert({
+        await run_db(lambda: supabase.table("kin_connected_accounts").insert({
             "user_id": owner["id"],
             "google_access_token": access,
             "google_refresh_token": refresh,
@@ -173,7 +174,7 @@ async def google_callback(code: str, state: str):
             ).isoformat(),
             "google_scopes": scope,
             "google_email": profile.get("email"),
-        }).execute()
+        }).execute())
         return RedirectResponse(f"{frontend}{redirect_path}?google=added")
 
     update: dict[str, Any] = {
@@ -187,13 +188,13 @@ async def google_callback(code: str, state: str):
     if refresh:
         update["google_refresh_token"] = refresh
 
-    supabase.table("users").update(update).eq("auth_user_id", auth_user_id).execute()
+    await run_db(lambda: supabase.table("users").update(update).eq("auth_user_id", auth_user_id).execute())
     return RedirectResponse(f"{frontend}{redirect_path}?google=ok")
 
 
 @router.post("/api/integrations/google/disconnect")
 async def google_disconnect(user: dict[str, Any] = Depends(require_user)):
-    supabase.table("users").update(
+    await run_db(lambda: supabase.table("users").update(
         {
             "google_access_token": None,
             "google_refresh_token": None,
@@ -201,29 +202,29 @@ async def google_disconnect(user: dict[str, Any] = Depends(require_user)):
             "google_email": None,
             "google_scopes": None,
         }
-    ).eq("id", user["id"]).execute()
+    ).eq("id", user["id"]).execute())
     return {"status": "disconnected"}
 
 
 @router.get("/api/integrations/google/accounts")
 async def list_extra_google_accounts(user: dict[str, Any] = Depends(require_user)):
     cap = MAX_EXTRA_GOOGLE_ACCOUNTS.get(plan_for(user), 0)
-    res = (
+    res = await run_db(lambda: (
         supabase.table("kin_connected_accounts")
         .select("id, label, google_email, created_at")
         .eq("user_id", user["id"])
         .order("created_at")
         .execute()
-    )
+    ))
     accounts = res.data or []
     return {"accounts": accounts, "max": cap, "used": len(accounts)}
 
 
 @router.delete("/api/integrations/google/accounts/{account_id}")
 async def disconnect_extra_google_account(account_id: str, user: dict[str, Any] = Depends(require_user)):
-    supabase.table("kin_connected_accounts").delete().eq("id", account_id).eq(
+    await run_db(lambda: supabase.table("kin_connected_accounts").delete().eq("id", account_id).eq(
         "user_id", user["id"]
-    ).execute()
+    ).execute())
     return {"status": "disconnected"}
 
 
@@ -319,13 +320,13 @@ async def microsoft_callback(code: str, state: str):
     }
     if refresh:
         update["microsoft_refresh_token"] = refresh
-    supabase.table("users").update(update).eq("auth_user_id", auth_user_id).execute()
+    await run_db(lambda: supabase.table("users").update(update).eq("auth_user_id", auth_user_id).execute())
     return RedirectResponse(f"{frontend}{redirect_path}?microsoft=ok")
 
 
 @router.post("/api/integrations/microsoft/disconnect")
 async def microsoft_disconnect(user: dict[str, Any] = Depends(require_user)):
-    supabase.table("users").update(
+    await run_db(lambda: supabase.table("users").update(
         {
             "microsoft_access_token": None,
             "microsoft_refresh_token": None,
@@ -333,5 +334,5 @@ async def microsoft_disconnect(user: dict[str, Any] = Depends(require_user)):
             "microsoft_email": None,
             "microsoft_scopes": None,
         }
-    ).eq("id", user["id"]).execute()
+    ).eq("id", user["id"]).execute())
     return {"status": "disconnected"}
