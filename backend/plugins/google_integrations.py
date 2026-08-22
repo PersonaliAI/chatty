@@ -28,6 +28,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from app.core.db import run_db
+
 logger = logging.getLogger("kin.google")
 
 # OAuth ---------------------------------------------------------------------
@@ -175,12 +177,12 @@ async def _valid_access_token(
     # Refresh the in-memory user dict so subsequent calls don't re-refresh.
     user["google_access_token"] = new_token
     user["google_token_expiry"] = new_exp.isoformat()
-    supabase.table(table).update(
+    await run_db(lambda: supabase.table(table).update(
         {
             "google_access_token": new_token,
             "google_token_expiry": new_exp.isoformat(),
         }
-    ).eq("id", user["id"]).execute()
+    ).eq("id", user["id"]).execute())
     return new_token
 
 

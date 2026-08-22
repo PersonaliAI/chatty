@@ -27,6 +27,7 @@ from typing import Any, Optional
 
 import httpx
 
+from app.core.db import run_db
 from plugins import google_integrations as g
 
 logger = logging.getLogger("kin.notifications")
@@ -399,13 +400,13 @@ async def enqueue_webhook_event(
     raises — a broken/slow customer endpoint must never affect the chat flow
     that triggered the event."""
     try:
-        res = (
+        res = await run_db(lambda: (
             supabase.table("chatty_webhooks")
             .select("id, url, secret, events")
             .eq("bot_id", bot_id)
             .eq("active", True)
             .execute()
-        )
+        ))
         webhooks = res.data or []
     except Exception:
         logger.exception("webhook subscription lookup failed for bot %s", bot_id)
@@ -428,7 +429,7 @@ async def enqueue_webhook_event(
         if ok:
             continue
         try:
-            supabase.table("chatty_webhook_deliveries").insert({
+            await run_db(lambda: supabase.table("chatty_webhook_deliveries").insert({
                 "webhook_id": wh["id"],
                 "event": event,
                 "payload": payload,
@@ -438,7 +439,7 @@ async def enqueue_webhook_event(
                     datetime.now(timezone.utc) + timedelta(seconds=WEBHOOK_BACKOFF_SCHEDULE[0])
                 ).isoformat(),
                 "last_error": err,
-            }).execute()
+            }).execute())
         except Exception:
             logger.exception("failed to enqueue webhook retry for %s", wh.get("url"))
 
@@ -449,7 +450,7 @@ async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
     'failed' (dropped) once WEBHOOK_MAX_ATTEMPTS is reached."""
     now_iso = datetime.now(timezone.utc).isoformat()
     try:
-        res = (
+        res = await run_db(lambda: (
             supabase.table("chatty_webhook_deliveries")
             .select("*")
             .eq("status", "pending")
@@ -457,7 +458,7 @@ async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
             .order("next_attempt_at")
             .limit(limit)
             .execute()
-        )
+        ))
         due = res.data or []
     except Exception:
         logger.exception("webhook retry lookup failed")
@@ -467,21 +468,21 @@ async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
     dropped = 0
     for delivery in due:
         try:
-            wh_res = (
+            wh_res = await run_db(lambda: (
                 supabase.table("chatty_webhooks")
                 .select("id, url, secret, active")
                 .eq("id", delivery["webhook_id"])
                 .limit(1)
                 .execute()
-            )
+            ))
             wh = wh_res.data[0] if wh_res.data else None
         except Exception:
             wh = None
 
         if not wh or not wh.get("active"):
-            supabase.table("chatty_webhook_deliveries").update(
+            await run_db(lambda: supabase.table("chatty_webhook_deliveries").update(
                 {"status": "failed", "last_error": "webhook removed or deactivated"}
-            ).eq("id", delivery["id"]).execute()
+            ).eq("id", delivery["id"]).execute())
             dropped += 1
             continue
 
@@ -489,26 +490,26 @@ async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
         attempt = int(delivery.get("attempt_count") or 0) + 1
 
         if ok:
-            supabase.table("chatty_webhook_deliveries").update({
+            await run_db(lambda: supabase.table("chatty_webhook_deliveries").update({
                 "status": "delivered",
                 "attempt_count": attempt,
                 "delivered_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", delivery["id"]).execute()
+            }).eq("id", delivery["id"]).execute())
             delivered += 1
             continue
 
         if attempt >= WEBHOOK_MAX_ATTEMPTS:
-            supabase.table("chatty_webhook_deliveries").update({
+            await run_db(lambda: supabase.table("chatty_webhook_deliveries").update({
                 "status": "failed", "attempt_count": attempt, "last_error": err,
-            }).eq("id", delivery["id"]).execute()
+            }).eq("id", delivery["id"]).execute())
             dropped += 1
         else:
             backoff = WEBHOOK_BACKOFF_SCHEDULE[min(attempt - 1, len(WEBHOOK_BACKOFF_SCHEDULE) - 1)]
-            supabase.table("chatty_webhook_deliveries").update({
+            await run_db(lambda: supabase.table("chatty_webhook_deliveries").update({
                 "attempt_count": attempt,
                 "last_error": err,
                 "next_attempt_at": (datetime.now(timezone.utc) + timedelta(seconds=backoff)).isoformat(),
-            }).eq("id", delivery["id"]).execute()
+            }).eq("id", delivery["id"]).execute())
 
     return {"processed": len(due), "delivered": delivered, "dropped": dropped}
 
@@ -520,14 +521,14 @@ async def detect_and_fire_ended_sessions(supabase, *, idle_minutes: int = 30, li
     per session."""
     cutoff = (datetime.now(timezone.utc) - timedelta(minutes=idle_minutes)).isoformat()
     try:
-        res = (
+        res = await run_db(lambda: (
             supabase.table("chatty_sessions")
             .select("id, bot_id, session_id, last_message_at")
             .eq("ended_webhook_fired", False)
             .lt("last_message_at", cutoff)
             .limit(limit)
             .execute()
-        )
+        ))
         sessions = res.data or []
     except Exception:
         logger.exception("idle-session scan failed")
@@ -543,9 +544,9 @@ async def detect_and_fire_ended_sessions(supabase, *, idle_minutes: int = 30, li
             data={"idle_minutes": idle_minutes, "last_message_at": s.get("last_message_at")},
         )
         try:
-            supabase.table("chatty_sessions").update(
+            await run_db(lambda: supabase.table("chatty_sessions").update(
                 {"ended_webhook_fired": True}
-            ).eq("id", s["id"]).execute()
+            ).eq("id", s["id"]).execute())
         except Exception:
             logger.exception("failed to mark session %s as ended-fired", s["id"])
         fired += 1

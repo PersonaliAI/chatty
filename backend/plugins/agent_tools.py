@@ -24,6 +24,8 @@ from plugins import google_integrations as g
 from plugins import microsoft_integrations as ms
 from plugins import notifications as notify
 
+from app.core.db import run_db
+
 logger = logging.getLogger("chatty.tools")
 
 
@@ -321,8 +323,8 @@ async def _create_lead(args: dict, user: dict, supabase) -> dict:
     existing = None
     if session_id:
         try:
-            r = supabase.table("chatty_leads").select("*").eq("bot_id", bot_id).eq(
-                "session_id", session_id).order("created_at", desc=True).limit(1).execute()
+            r = await run_db(lambda: supabase.table("chatty_leads").select("*").eq("bot_id", bot_id).eq(
+                "session_id", session_id).order("created_at", desc=True).limit(1).execute())
             if r.data:
                 existing = r.data[0]
         except Exception:
@@ -334,24 +336,24 @@ async def _create_lead(args: dict, user: dict, supabase) -> dict:
             if custom_fields:
                 update["custom_fields"] = {**(existing.get("custom_fields") or {}), **custom_fields}
             if update:
-                supabase.table("chatty_leads").update(update).eq("id", existing["id"]).execute()
+                await run_db(lambda: supabase.table("chatty_leads").update(update).eq("id", existing["id"]).execute())
             return {"success": True, "lead_id": existing["id"], "message": "Lead updated"}
 
         insert_data = {"bot_id": bot_id, "session_id": session_id, **fields, "custom_fields": custom_fields}
-        res = supabase.table("chatty_leads").insert(insert_data).execute()
+        res = await run_db(lambda: supabase.table("chatty_leads").insert(insert_data).execute())
         if res.data:
             lead = res.data[0]
             try:
-                supabase.table("chatty_audit_logs").insert({
+                await run_db(lambda: supabase.table("chatty_audit_logs").insert({
                     "bot_id": bot_id,
                     "action": "lead_created",
                     "details": f"Captured lead: {fields.get('name')} ({fields.get('email')})",
                     "performed_by": "assistant",
-                }).execute()
+                }).execute())
             except Exception:
                 pass
             try:
-                bot_res = supabase.table("chatty_bots").select("webhook_url").eq("id", bot_id).execute()
+                bot_res = await run_db(lambda: supabase.table("chatty_bots").select("webhook_url").eq("id", bot_id).execute())
                 webhook_url = (bot_res.data or [{}])[0].get("webhook_url")
                 if webhook_url:
                     await notify.deliver_webhook(
@@ -379,16 +381,16 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
     if not bot_id:
         return
 
-    def _insert_notification(row: dict):
+    async def _insert_notification(row: dict):
         """Insert a notification row; retry without html_content if that
         column doesn't exist yet, so a pending migration never drops sends."""
         try:
-            supabase.table("chatty_notifications").insert(row).execute()
+            await run_db(lambda: supabase.table("chatty_notifications").insert(row).execute())
         except Exception:
             if "html_content" in row:
                 fallback = {k: v for k, v in row.items() if k != "html_content"}
                 try:
-                    supabase.table("chatty_notifications").insert(fallback).execute()
+                    await run_db(lambda: supabase.table("chatty_notifications").insert(fallback).execute())
                     return
                 except Exception:
                     logger.exception("Notification insert failed (fallback)")
@@ -397,7 +399,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
 
     try:
         # 1. Get bot info
-        res_bot = supabase.table("chatty_bots").select("*").eq("id", bot_id).execute()
+        res_bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
         if not res_bot.data:
             return
         bot = res_bot.data[0]
@@ -411,18 +413,18 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         visitor_name = summary.replace("Demo Meeting with ", "").replace("Demo Meeting", "").strip() or "Guest"
 
         # 3. Find or create lead
-        res_lead = supabase.table("chatty_leads").select("*").eq("bot_id", bot_id).eq("email", visitor_email).execute()
+        res_lead = await run_db(lambda: supabase.table("chatty_leads").select("*").eq("bot_id", bot_id).eq("email", visitor_email).execute())
         lead_id = None
         if res_lead.data:
             lead_id = res_lead.data[0]["id"]
         else:
             # Create a lead
-            lead_res = supabase.table("chatty_leads").insert({
+            lead_res = await run_db(lambda: supabase.table("chatty_leads").insert({
                 "bot_id": bot_id,
                 "name": visitor_name,
                 "email": visitor_email,
                 "phone": ""
-            }).execute()
+            }).execute())
             if lead_res.data:
                 lead_id = lead_res.data[0]["id"]
                 try:
@@ -464,7 +466,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             )
 
         # 5. Insert meeting record
-        meet_res = supabase.table("chatty_meetings").insert({
+        meet_res = await run_db(lambda: supabase.table("chatty_meetings").insert({
             "bot_id": bot_id,
             "lead_id": lead_id,
             "title": summary,
@@ -477,7 +479,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             "status": "scheduled",
             "attendee_email": visitor_email,
             "attendee_name": visitor_name
-        }).execute()
+        }).execute())
 
         meeting_id = meet_res.data[0]["id"] if meet_res.data else None
 
@@ -495,7 +497,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             supabase=supabase, owner_user=user, to=visitor_email,
             subject=client_subject, html=client_html,
         )
-        _insert_notification({
+        await _insert_notification({
             "bot_id": bot_id,
             "meeting_id": meeting_id,
             "recipient": visitor_email,
@@ -518,7 +520,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             supabase=supabase, owner_user=user, to=owner_email,
             subject=admin_subject, html=admin_html,
         )
-        _insert_notification({
+        await _insert_notification({
             "bot_id": bot_id,
             "meeting_id": meeting_id,
             "recipient": owner_email,
@@ -536,7 +538,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             contents=f"Your meeting is set for {start_label}.",
             external_id=visitor_email,
         )
-        _insert_notification({
+        await _insert_notification({
             "bot_id": bot_id,
             "meeting_id": meeting_id,
             "recipient": visitor_email,
@@ -552,7 +554,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             contents=f"New meeting scheduled by {visitor_name}.",
             external_id=owner_id if (owner_id := user.get("auth_user_id")) else None,
         )
-        _insert_notification({
+        await _insert_notification({
             "bot_id": bot_id,
             "meeting_id": meeting_id,
             "recipient": owner_email,
@@ -564,12 +566,12 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         })
 
         # 7. Write audit log
-        supabase.table("chatty_audit_logs").insert({
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
             "bot_id": bot_id,
             "action": "meeting_booked",
             "details": f"Meeting scheduled with {visitor_name} ({visitor_email}) at {args.get('start')}. Provider: {provider}.",
             "performed_by": "assistant"
-        }).execute()
+        }).execute())
 
     except Exception:
         logger.exception("Failed to process widget booking side effects")

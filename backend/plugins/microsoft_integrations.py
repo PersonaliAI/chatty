@@ -19,6 +19,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from app.core.db import run_db
+
 logger = logging.getLogger("kin.microsoft")
 
 AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
@@ -143,13 +145,13 @@ async def _valid_access_token(
     user["microsoft_access_token"] = new_token
     user["microsoft_refresh_token"] = new_refresh
     user["microsoft_token_expiry"] = new_exp.isoformat()
-    supabase.table("users").update(
+    await run_db(lambda: supabase.table("users").update(
         {
             "microsoft_access_token": new_token,
             "microsoft_refresh_token": new_refresh,
             "microsoft_token_expiry": new_exp.isoformat(),
         }
-    ).eq("id", user["id"]).execute()
+    ).eq("id", user["id"]).execute())
     return new_token
 
 
