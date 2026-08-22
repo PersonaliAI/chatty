@@ -890,12 +890,22 @@ async def modify_gmail_thread_labels(
 def _format_event_row(ev: dict[str, Any]) -> dict[str, Any]:
     start = ev.get("start", {})
     end = ev.get("end", {})
+    hangout_link = ev.get("hangoutLink")
+    if not hangout_link:
+        for ep in (ev.get("conferenceData", {}).get("entryPoints") or []):
+            if ep.get("entryPointType") == "video" and ep.get("uri"):
+                hangout_link = ep["uri"]
+                break
     return {
         "id": ev.get("id"),
         "summary": ev.get("summary") or "(no title)",
         "description": ev.get("description") or "",
         "location": ev.get("location"),
         "html_link": ev.get("htmlLink"),
+        # The actual Meet join link — present when the event was created with a conference
+        # request. This is what a visitor needs to click to join; html_link is just the
+        # calendar entry page.
+        "hangout_link": hangout_link,
         "start": start.get("dateTime") or start.get("date"),
         "end": end.get("dateTime") or end.get("date"),
         "all_day": "date" in start and "dateTime" not in start,
@@ -1032,11 +1042,23 @@ async def create_calendar_event(
         all_day=all_day,
         timezone_str=tz_str,
     )
+    # Request the Meet conference at creation time so the join link comes back in this same
+    # response. Previously this was only attached by a separate follow-up call
+    # (add_meet_to_event) made after the tool-calling loop had already returned control to the
+    # model — the model itself never saw a join link to relay to the visitor, only the
+    # calendar-entry html_link, so booking confirmations could never include a real invite link.
+    body["conferenceData"] = {
+        "createRequest": {
+            "requestId": uuid.uuid4().hex,
+            "conferenceSolutionKey": {"type": "hangoutsMeet"},
+        }
+    }
     res = await _api(
         supabase,
         user,
         "POST",
         f"{CALENDAR_BASE}/calendars/{calendar_id}/events",
+        params={"conferenceDataVersion": "1"},
         json_body=body,
     )
     return _format_event_row(res)

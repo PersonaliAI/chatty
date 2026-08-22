@@ -534,7 +534,7 @@ async def run_widget_assistant(
             f"{buffer_line}"
             f"{advance_line}"
             f"- If the visitor wants to schedule a meeting/demo, check if the business offers meetings or demos using the knowledge base.\n"
-            f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking — tell the visitor which platform it will be on.\n"
+            f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking.\n"
             f"- The visitor's timezone has ALREADY been auto-detected as {visitor_timezone or 'UTC'} (from their browser/device) — do NOT ask them for it. Only raise it if the value is exactly 'UTC' (detection failed) or the visitor says they're somewhere else (e.g. traveling), in which case ask which timezone to use instead.\n"
             f"- Before booking any slot, you MUST collect these REQUIRED details (do not book until each is provided): {required_fields_str} and preferred date/time. Also ASK for these optional details once each — they are optional, so don't block the booking if the visitor skips them: {optional_fields_str}. Ask for any missing field one at a time.\n"
             f"- Always interpret and confirm the visitor's requested time in THEIR timezone ({visitor_timezone or 'UTC'}), then convert to the owner's timezone for the calendar event.\n"
@@ -542,8 +542,10 @@ async def run_widget_assistant(
             f"- Only schedule the event if it's free. If busy, suggest alternative slots.\n"
             f"{book_instruction}"
             f"- CRITICAL: Confirming availability is NOT the same as booking. Never tell the visitor a meeting is booked, scheduled, or confirmed until you have actually called the booking tool in this same turn and it returned successfully. If you checked availability but have not yet called the booking tool, call it now before replying — do not stop after the availability check and describe the booking as done.\n"
-            f"- The booking tool's result includes a real 'html_link' (or the meeting link) — if you mention a calendar/meeting "
-            f"link to the visitor, use ONLY that exact value. Never invent or reconstruct a calendar link yourself.\n"
+            f"- The booking tool's result includes a real 'hangout_link'/'online_meeting_url' (join link) and 'html_link' "
+            f"(calendar entry). ALWAYS put the join link directly in your confirmation message to the visitor, in this same "
+            f"reply — do not only say a confirmation email is on its way, since email delivery to the visitor isn't "
+            f"guaranteed. Use ONLY the exact value the tool returned; never invent or reconstruct a link yourself.\n"
             f"- After booking, always call `create_lead` to save ALL collected visitor details (bot_id='{bot_id}') as a lead, including every field you gathered ({lead_fields_str}).\n\n"
         )
     else:
