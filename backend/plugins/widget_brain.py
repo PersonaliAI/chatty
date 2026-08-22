@@ -521,6 +521,7 @@ async def run_widget_assistant(
             f"{avail_instruction}"
             f"- Only schedule the event if it's free. If busy, suggest alternative slots.\n"
             f"{book_instruction}"
+            f"- CRITICAL: Confirming availability is NOT the same as booking. Never tell the visitor a meeting is booked, scheduled, or confirmed until you have actually called the booking tool in this same turn and it returned successfully. If you checked availability but have not yet called the booking tool, call it now before replying — do not stop after the availability check and describe the booking as done.\n"
             f"- The booking tool's result includes a real 'html_link' (or the meeting link) — if you mention a calendar/meeting "
             f"link to the visitor, use ONLY that exact value. Never invent or reconstruct a calendar link yourself.\n"
             f"- After booking, always call `create_lead` to save ALL collected visitor details (bot_id='{bot_id}') as a lead, including every field you gathered ({lead_fields_str}).\n\n"
