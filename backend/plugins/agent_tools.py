@@ -214,6 +214,7 @@ async def _create_calendar_event(args: dict, user: dict, supabase) -> dict:
         location=args.get("location"),
         attendees=list(args.get("attendees") or []) or None,
         all_day=bool(args.get("all_day")),
+        timezone_override=args.get("_owner_timezone"),
     )
 
 
@@ -273,6 +274,7 @@ async def _create_outlook_event(args: dict, user: dict, supabase) -> dict:
         is_all_day=bool(args.get("is_all_day")),
         calendar_id=args.get("calendar_id"),
         online_meeting=bool(args.get("online_meeting")),
+        timezone_override=args.get("_owner_timezone"),
     )
 
 

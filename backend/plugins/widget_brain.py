@@ -914,6 +914,13 @@ async def run_widget_assistant(
                     args["lat"] = geo["lat"]
                 if args.get("lon") is None and geo.get("lon") is not None:
                     args["lon"] = geo["lon"]
+            # Force the actual timezone the event gets tagged with — never
+            # trust the model to have supplied or converted this itself (the
+            # owner's user-profile timezone field defaults to "UTC" and is
+            # frequently stale, which silently mistagged bookings by whatever
+            # offset the real bot_timezone differs from it).
+            if fc.name in ("create_calendar_event", "create_outlook_event"):
+                args["_owner_timezone"] = owner_tz_str
 
             result = await agent_tools.execute(
                 fc.name,

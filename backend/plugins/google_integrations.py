@@ -1015,8 +1015,13 @@ async def create_calendar_event(
     attendees: Optional[list[str]] = None,
     all_day: bool = False,
     calendar_id: str = "primary",
+    timezone_override: Optional[str] = None,
 ) -> dict[str, Any]:
-    tz_str = user.get("timezone") or "UTC"
+    # timezone_override (the bot's configured bot_timezone) takes priority over
+    # the owner's user-profile timezone field, which is frequently left at its
+    # "UTC" default and never actually reflects where the business is — using
+    # it here silently mistagged every booked event with the wrong offset.
+    tz_str = timezone_override or user.get("timezone") or "UTC"
     body = _event_payload(
         summary=summary,
         start=start,
