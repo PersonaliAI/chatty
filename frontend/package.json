@@ -24,7 +24,7 @@
     "livekit-client": "^2.22.0",
     "lucide-react": "^1.14.0",
     "next": "16.3.2",
-    "react": "19.2.4",
+    "react": "19.2.8",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "rehype-katex": "^7.0.1",
