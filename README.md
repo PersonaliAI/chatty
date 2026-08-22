@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="frontend/public/logo.png" alt="Chatty" width="88" />
+<img src="frontend/public/readme-icon.png" alt="Chatty" width="88" />
 
 # Chatty
 
@@ -39,7 +39,7 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 
 - 💬 **Embeddable chat widget** — one `<script>` tag, streaming replies, works on any website
 - 🎙️ **Real-time voice agent** — phone-call-style conversations via LiveKit, same brain as the chat widget
-- 📚 **RAG over your own knowledge base** — upload PDFs/DOCX, crawl URLs, auto-chunked and embedded
+- 📚 **RAG over your own knowledge base** — upload PDF/DOCX/PPTX/XLSX, crawl URLs, auto-chunked and embedded
 - 🛠️ **Tool-calling** — books real meetings (Zoom/Google Meet links), captures leads, checks a calendar
 - 🔌 **Omnichannel** — WhatsApp, Slack, and Telegram, in addition to the web widget
 - 🔑 **BYOK** — default is Gemini (generous free tier); swap in your own OpenAI/Anthropic/OpenRouter key per bot
