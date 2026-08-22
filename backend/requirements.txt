@@ -20,7 +20,7 @@ Pillow==12.3.0
 openai==2.54.0
 anthropic==0.76.0
 
-sentry-sdk[fastapi]==2.59.0
+sentry-sdk[fastapi]==2.68.0
 
 # LiveKit voice worker (Phase B) — pinned to versions verified installed
 # and importable together in this environment.
