@@ -6,13 +6,13 @@ import json
 import logging
 
 from fastapi import APIRouter, HTTPException
-from google.genai import types as genai_types
 
 from app.core.clients import supabase
 from app.core.config import MODEL_NAME
 from app.core.db import run_db
 from app.schemas.flow import FlowGenerateRequest
-from plugins.widget_brain import _gemini_generate
+from plugins import ai_client
+from plugins.widget_brain import GEMINI_FALLBACK_MODELS
 
 logger = logging.getLogger("chatty")
 
@@ -49,15 +49,16 @@ async def generate_flow_with_ai(body: FlowGenerateRequest):
     )
 
     try:
-        resp = await _gemini_generate(
-            model=MODEL_NAME,
-            contents=[genai_types.Content(role="user", parts=[genai_types.Part.from_text(text=prompt)])],
-            config=genai_types.GenerateContentConfig(
-                temperature=0.3,
-                response_mime_type="application/json"
-            )
+        resp = await ai_client.chat(
+            model=ai_client.resolve_gemini_model(MODEL_NAME),
+            messages=[{"role": "user", "content": prompt}],
+            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+            temperature=0.3,
+            response_format={"type": "json_object"},
+            bot_id=body.bot_id,
+            call_type="flow_generate",
         )
-        text = (resp.text or "").strip()
+        text = (resp.choices[0].message.content or "").strip()
         schema = json.loads(text)
         return schema
     except Exception as e:

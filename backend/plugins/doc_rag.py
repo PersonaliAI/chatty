@@ -14,7 +14,7 @@ Pipeline:
        text/markdown   → download as-is
   2. chunk_text(text) — recursive split on paragraphs/sentences/words
        Target ~2000 chars per chunk, 200 char overlap.
-  3. embed each chunk (text-embedding-004, 768-d)
+  3. embed each chunk (gemini-embedding-001, 768-d)
   4. UPSERT into drive_documents + document_chunks
 """
 
@@ -26,9 +26,12 @@ import os
 import re
 from typing import Any, Optional
 
-from google import genai
-from google.genai import types as genai_types
+import base64
 
+from google import genai
+
+from app.core.config import GEMINI_FALLBACK_MODELS
+from plugins import ai_client
 from plugins import google_integrations as g
 from plugins import memory as mem
 from plugins import microsoft_integrations as ms
@@ -127,25 +130,23 @@ async def _ocr_pdf_with_gemini(
     extracted: list[str] = []
     for i, piece in enumerate(pieces):
         try:
-            resp = await client.aio.models.generate_content(
-                model=OCR_MODEL,
-                contents=[
-                    genai_types.Content(
-                        role="user",
-                        parts=[
-                            genai_types.Part.from_bytes(
-                                data=piece, mime_type="application/pdf"
-                            ),
-                            genai_types.Part.from_text(text=OCR_PROMPT),
-                        ],
-                    )
-                ],
-                config=genai_types.GenerateContentConfig(
-                    temperature=0,
-                    max_output_tokens=8192,
-                ),
+            resp = await ai_client.chat(
+                model=ai_client.resolve_gemini_model(OCR_MODEL),
+                fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": OCR_PROMPT},
+                        {"type": "image_url", "image_url": {
+                            "url": f"data:application/pdf;base64,{base64.b64encode(piece).decode()}"
+                        }},
+                    ],
+                }],
+                temperature=0,
+                max_tokens=8192,
+                call_type="ocr_pdf",
             )
-            text = (resp.text or "").strip()
+            text = (resp.choices[0].message.content or "").strip()
             if text:
                 extracted.append(text)
                 logger.info(
@@ -172,20 +173,23 @@ async def ocr_image(client: genai.Client, data: bytes, *, mime_type: str, label:
         "nothing."
     )
     try:
-        resp = await client.aio.models.generate_content(
-            model=OCR_MODEL,
-            contents=[
-                genai_types.Content(
-                    role="user",
-                    parts=[
-                        genai_types.Part.from_bytes(data=data, mime_type=mime_type or "image/jpeg"),
-                        genai_types.Part.from_text(text=OCR_PROMPT),
-                    ],
-                )
-            ],
-            config=genai_types.GenerateContentConfig(temperature=0, max_output_tokens=8192),
+        resp = await ai_client.chat(
+            model=ai_client.resolve_gemini_model(OCR_MODEL),
+            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": OCR_PROMPT},
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:{mime_type or 'image/jpeg'};base64,{base64.b64encode(data).decode()}"
+                    }},
+                ],
+            }],
+            temperature=0,
+            max_tokens=8192,
+            call_type="ocr_image",
         )
-        text = (resp.text or "").strip()
+        text = (resp.choices[0].message.content or "").strip()
         logger.info("image OCR of %s: %d chars", label, len(text))
         return text
     except Exception as exc:  # noqa: BLE001

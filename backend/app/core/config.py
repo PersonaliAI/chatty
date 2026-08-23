@@ -88,6 +88,32 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
 GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 
+# Ordered fallback chain tried in sequence whenever a Gemini call fails
+# (quota/429, transient 5xx, or any other error) — the free-tier AI Studio
+# key's daily quota varies wildly per model (e.g. 20 RPD on gemini-2.5-flash
+# vs 500 RPD on gemini-3.1-flash-lite), so a single fallback isn't enough to
+# ride out a busy day. Gemini 3.x models require a thought_signature on
+# every function-call part in a multi-turn conversation, which the manual
+# tool-calling loop in plugins/widget_brain.py doesn't propagate — if a
+# later round in an ongoing conversation breaks on one of those for that
+# reason, it's just another failure this same chain retries past, landing
+# back on a 2.5 model (no signature requirement) for that round instead of
+# hard-failing.
+GEMINI_FALLBACK_MODELS: list[str] = [
+    m.strip() for m in os.environ.get(
+        "KIN_FALLBACK_MODELS",
+        # gemini-3-flash doesn't exist as a callable model (404 NOT_FOUND on
+        # generateContent) and was a dead last resort. The two flash-lite 3.x
+        # models carry a 500 RPD quota vs. 20 RPD on both 2.5 models, so they
+        # sit right after the thought-signature-safe 2.5-flash instead of
+        # last, and 2.5-flash-lite (a distinct quota bucket from 2.5-flash)
+        # replaces the broken entry as the final fallback.
+        "gemini-2.5-flash,gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-2.5-flash-lite",
+    ).split(",") if m.strip()
+]
+# Back-compat: some call sites/log messages still refer to a single fallback name.
+GEMINI_FALLBACK_MODEL = GEMINI_FALLBACK_MODELS[0] if GEMINI_FALLBACK_MODELS else "gemini-2.5-flash"
+
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 SENTRY_ENV = os.environ.get("SENTRY_ENV", "production")
 SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.05"))

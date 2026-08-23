@@ -46,7 +46,6 @@ from plugins import agent_tools
 from plugins import doc_rag
 from plugins import google_integrations as g
 from plugins import llm_providers
-from plugins import memory as mem
 from plugins import microsoft_integrations as ms
 from plugins import notifications as notify
 from plugins.widget_brain import run_widget_assistant, GEMINI_FALLBACK_MODELS, MAX_TOOL_ROUNDS  # noqa: F401 — back-compat re-export

@@ -9,7 +9,6 @@ import secrets
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from google.genai import types as genai_types
 
 from app.core.clients import supabase
 from app.core.config import MODEL_NAME
@@ -21,9 +20,10 @@ from app.schemas.bots import (
     GenerateBusinessRequest,
     VoiceSettingsUpdate,
 )
+from plugins import ai_client
 from plugins import llm_providers
 from plugins import notifications as notify
-from plugins.widget_brain import _gemini_generate
+from plugins.widget_brain import GEMINI_FALLBACK_MODELS
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
@@ -140,12 +140,16 @@ async def generate_business(
         f"Hint: {req.hint or 'A small business that wants a helpful website support assistant.'}"
     )
     try:
-        response = await _gemini_generate(
-            model=MODEL_NAME,
-            contents=[genai_types.Content(role="user", parts=[genai_types.Part.from_text(text=prompt)])],
-            config=genai_types.GenerateContentConfig(temperature=0.6, max_output_tokens=1024),
+        response = await ai_client.chat(
+            model=ai_client.resolve_gemini_model(MODEL_NAME),
+            messages=[{"role": "user", "content": prompt}],
+            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+            temperature=0.6,
+            max_tokens=1024,
+            bot_id=req.bot_id,
+            call_type="generate_business",
         )
-        raw = (response.text or "").strip()
+        raw = (response.choices[0].message.content or "").strip()
         if raw.startswith("```"):
             raw = raw.split("```", 2)[1] if "```" in raw else raw
             raw = raw.replace("json", "", 1).strip() if raw.lower().startswith("json") else raw

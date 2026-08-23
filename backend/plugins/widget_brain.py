@@ -55,30 +55,10 @@ def _claims_booking_success(text: str) -> bool:
     return bool(text) and bool(_BOOKING_CLAIM_RE.search(text))
 
 
-# Ordered fallback chain tried in sequence whenever a model call fails
-# (quota/429, transient 5xx, or any other error) — the free-tier AI Studio
-# key's daily quota varies wildly per model (e.g. 20 RPD on gemini-2.5-flash
-# vs 500 RPD on gemini-3.1-flash-lite), so a single fallback isn't enough to
-# ride out a busy day. Gemini 3.x models require a thought_signature on
-# every function-call part in a multi-turn conversation, which our manual
-# tool-calling loop doesn't propagate — if a later round in an ongoing
-# conversation breaks on one of those for that reason, it's just another
-# failure this same chain retries past, landing back on a 2.5 model (no
-# signature requirement) for that round instead of hard-failing.
-GEMINI_FALLBACK_MODELS: list[str] = [
-    m.strip() for m in os.environ.get(
-        "KIN_FALLBACK_MODELS",
-        # gemini-3-flash doesn't exist as a callable model (404 NOT_FOUND on
-        # generateContent) and was a dead last resort. The two flash-lite 3.x
-        # models carry a 500 RPD quota vs. 20 RPD on both 2.5 models, so they
-        # sit right after the thought-signature-safe 2.5-flash instead of
-        # last, and 2.5-flash-lite (a distinct quota bucket from 2.5-flash)
-        # replaces the broken entry as the final fallback.
-        "gemini-2.5-flash,gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-2.5-flash-lite",
-    ).split(",") if m.strip()
-]
-# Back-compat: some call sites/log messages still refer to a single fallback name.
-GEMINI_FALLBACK_MODEL = GEMINI_FALLBACK_MODELS[0] if GEMINI_FALLBACK_MODELS else "gemini-2.5-flash"
+# Moved to app/core/config.py so modules that don't otherwise depend on
+# widget_brain.py (e.g. doc_rag.py, to avoid a circular import) can use the
+# same fallback chain — re-exported here for existing call sites/imports.
+from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS  # noqa: E402
 
 # Model tried first for voice-mode requests (run_widget_assistant(voice_mode=True))
 # before falling through to the same GEMINI_FALLBACK_MODELS chain used by text.

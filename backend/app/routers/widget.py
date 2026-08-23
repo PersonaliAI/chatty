@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import time
@@ -10,10 +11,11 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
-from google.genai import types as genai_types
 
-from app.core.clients import genai_client, supabase
+from app.core.clients import supabase
+from app.core.config import GEMINI_FALLBACK_MODELS
 from app.core.db import run_db
+from plugins import ai_client
 from app.schemas.widget import (
     WidgetChatRequest,
     WidgetChatResponse,
@@ -367,32 +369,34 @@ async def widget_transcribe(
     await _widget_rate_limit_or_429(bot, bot_id, ip, request.headers.get("x-widget-token"))
 
     try:
-        resp = await genai_client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                genai_types.Content(
-                    role="user",
-                    parts=[
-                        genai_types.Part.from_bytes(data=data, mime_type=mime),
-                        genai_types.Part.from_text(text=_TRANSCRIBE_PROMPT),
-                    ],
-                )
-            ],
-            config=genai_types.GenerateContentConfig(temperature=0, max_output_tokens=1024),
+        resp = await ai_client.chat(
+            model=ai_client.resolve_gemini_model("gemini-2.5-flash"),
+            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": _TRANSCRIBE_PROMPT},
+                    {"type": "input_audio", "input_audio": {
+                        "data": base64.b64encode(data).decode(),
+                        "format": mime.split("/", 1)[1],
+                    }},
+                ],
+            }],
+            temperature=0,
+            max_tokens=1024,
+            bot_id=bot_id,
+            call_type="widget_transcribe",
         )
-        text = (resp.text or "").strip()
+        text = (resp.choices[0].message.content or "").strip()
         if not text:
             # Diagnose why — a mimetype/codec Gemini silently can't parse,
             # or a safety block, look identical from the client (empty
             # string) without this.
             try:
-                cand = (resp.candidates or [None])[0]
+                finish_reason = resp.choices[0].finish_reason
                 logger.warning(
-                    "Widget transcription returned empty text (bot=%s, bytes=%d, mime=%s, "
-                    "finish_reason=%s, safety_ratings=%s)",
-                    bot_id, len(data), mime,
-                    getattr(cand, "finish_reason", None),
-                    getattr(cand, "safety_ratings", None),
+                    "Widget transcription returned empty text (bot=%s, bytes=%d, mime=%s, finish_reason=%s)",
+                    bot_id, len(data), mime, finish_reason,
                 )
             except Exception:  # noqa: BLE001
                 logger.warning("Widget transcription returned empty text (bot=%s, bytes=%d, mime=%s)", bot_id, len(data), mime)
