@@ -19,7 +19,7 @@ PyYAML==6.0.3
 Pillow==12.3.0
 litellm==1.98.0
 
-sentry-sdk[fastapi]==2.59.0
+sentry-sdk[fastapi]==2.68.0
 
 # LiveKit voice worker (Phase B) — pinned to versions verified installed
 # and importable together in this environment.
