@@ -50,7 +50,7 @@
     var spinStyle = document.createElement("style");
     spinStyle.textContent = "@keyframes chatty-spin{to{transform:rotate(360deg)}}";
     document.head.appendChild(spinStyle);
-  } catch (e) {}
+  } catch {}
 
   // WCAG-based "what text/icon color goes on this background" — the business
   // owner picks the launcher color freely, so a hardcoded white icon/stroke
@@ -74,6 +74,18 @@
     return whiteContrast >= blackContrast ? "#ffffff" : "#111827";
   }
 
+  // Soft colored glow behind the launcher button, matching whatever color
+  // it's actually painted (the bot's primary color, not a fixed per-design
+  // tint) — same idea as globals.css's per-preset launcher shadows.
+  function softShadow(hex, alpha) {
+    var clean = (hex || "#f97316").replace("#", "").trim();
+    var full = clean.length === 3 ? clean.replace(/(.)/g, "$1$1") : clean;
+    var num = parseInt(full, 16);
+    if (full.length !== 6 || isNaN(num)) return "0 8px 20px rgba(249,115,22," + alpha + ")";
+    var r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+    return "0 8px 20px rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
+
   var embedParams = "host=" + encodeURIComponent(location.hostname);
   if (colorAttr) embedParams += "&color=" + encodeURIComponent(colorAttr);
   if (styleAttr) embedParams += "&style=" + encodeURIComponent(styleAttr);
@@ -87,8 +99,8 @@
   var teaserText = "";
   var FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
 
-  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
   // Subtle two-tone notification chime (Web Audio — no asset needed). Browsers
   // only allow this after the visitor has interacted with the page.
@@ -109,7 +121,7 @@
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
         o.start(t); o.stop(t + 0.2);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // ---- Per-design default launcher look (see globals.css's "Assistant
@@ -167,10 +179,13 @@
   function applyLauncherDesign() {
     var d = LAUNCHER_STYLES[currentDesign];
     if (!d || colorAttr) return; // no matching design, or embedder set an explicit color override
-    btn.style.setProperty("background", d.bg, "important");
+    // Background/shadow follow the bot's own primary color (same treatment
+    // as .send-btn in globals.css) rather than each design's fixed tint —
+    // radius still comes from the design as an initial default (overridden
+    // by the real launcherShape once the theme fetch resolves).
+    btn.style.setProperty("background", color, "important");
     btn.style.setProperty("border-radius", d.radius, "important");
-    btn.style.setProperty("box-shadow", d.shadow, "important");
-    color = d.bg.indexOf("gradient") === -1 ? d.bg : "#a855f7";
+    btn.style.setProperty("box-shadow", softShadow(color, 0.4), "important");
     chatIcon = buildChatIcon(color);
     if (!open) btn.innerHTML = chatIcon;
   }
@@ -198,10 +213,11 @@
              '</div>';
     }
 
-    // True default (no custom logo uploaded, no icon preset chosen): show
-    // the selected design's own dot mark instead of the generic favicon.
+    // True default (no custom logo uploaded, no icon preset chosen): a plain
+    // dot in whatever color contrasts with the launcher's own primary-color
+    // background, instead of a fixed per-design tint that might now clash.
     if (avatarIconType === "logo" && !customIconUrl) {
-      var dotColor = (LAUNCHER_STYLES[currentDesign] || {}).dot || "#ffffff";
+      var dotColor = getOnColor(c);
       return '<div style="width:17px !important;height:17px !important;border-radius:50% !important;background:' + dotColor + ' !important;opacity:.9 !important;"></div>';
     }
 
@@ -288,7 +304,7 @@
   try {
     var rawRules = script.getAttribute("data-rules");
     if (rawRules) triggerRules = JSON.parse(rawRules);
-  } catch (e) {}
+  } catch {}
 
   // ---- Theme + teaser text from dashboard ----
   // Always apply the database color — even when data-color is set on the script
@@ -318,7 +334,7 @@
             try {
               var loadedRules = typeof d.trigger_rules === "string" ? JSON.parse(d.trigger_rules) : d.trigger_rules;
               if (Array.isArray(loadedRules)) triggerRules = triggerRules.concat(loadedRules);
-            } catch (ex) {}
+            } catch {}
           }
           if (d.widget_style) {
             var parts = d.widget_style.split(":");
@@ -351,7 +367,7 @@
         revealBtn();
         tryInitTriggers();
       });
-  } catch (e) {
+  } catch {
     revealBtn();
     tryInitTriggers();
   }
@@ -383,7 +399,7 @@
                 body: "Notifications enabled! You'll be alerted when support or AI replies.",
                 icon: e.data.avatarUrl || undefined
               });
-            } catch (err) {}
+            } catch {}
           }
           if (iframe && iframe.contentWindow) {
             iframe.contentWindow.postMessage({ type: "chatty-notification-status", granted: isGranted }, "*");
@@ -399,7 +415,7 @@
             body: e.data.bodyText || "New message received",
             icon: e.data.avatarUrl || undefined
           });
-        } catch (err) {}
+        } catch {}
       }
     }
   });
@@ -507,7 +523,7 @@
           if (rx.test(location.href)) {
             setTimeout(function () { triggerRule(rule); }, 1000);
           }
-        } catch (e) {}
+        } catch {}
       }
     });
 

@@ -45,7 +45,7 @@ export function AuthShell({
         )}
 
         <p className="mt-8 text-center text-xs text-muted-foreground leading-relaxed">
-          By continuing, you agree to PersonaliAI's <br />
+          By continuing, you agree to PersonaliAI&apos;s <br />
           <Link href="/terms" className="underline underline-offset-4 hover:text-foreground">
             Terms of Service
           </Link>{" "}

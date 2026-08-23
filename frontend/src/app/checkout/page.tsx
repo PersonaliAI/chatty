@@ -19,13 +19,11 @@ function CheckoutPageInner() {
   const searchParams = useSearchParams();
   const plan = (searchParams.get("plan") || "").toLowerCase();
   const interval = searchParams.get("interval") === "yearly" ? "yearly" : "monthly";
+  const planIsValid = VALID_PLANS.has(plan);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!VALID_PLANS.has(plan)) {
-      setError("Unknown plan.");
-      return;
-    }
+    if (!planIsValid) return;
 
     let cancelled = false;
 
@@ -64,14 +62,16 @@ function CheckoutPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [plan, interval]);
+  }, [planIsValid, plan, interval]);
+
+  const displayError = !planIsValid ? "Unknown plan." : error;
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-      {error ? (
+      {displayError ? (
         <div className="max-w-sm space-y-3">
           <AlertCircle className="size-8 mx-auto text-destructive" />
-          <p className="text-sm text-muted-foreground">{error}</p>
+          <p className="text-sm text-muted-foreground">{displayError}</p>
           <a
             href="/dashboard"
             className="inline-block text-sm font-medium underline underline-offset-4"

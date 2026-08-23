@@ -12,7 +12,7 @@ export default function SuccessPage() {
           <CheckCircle2 className="size-6" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold">You're all set</h1>
+          <h1 className="text-lg font-semibold">You&apos;re all set</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Your subscription is active. Head back to your dashboard to keep going.
           </p>

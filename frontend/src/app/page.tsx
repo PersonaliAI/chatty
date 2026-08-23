@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,7 @@ import { getOnColor } from "@/lib/color-contrast";
 import {
   ArrowRight,
   ChevronDown,
-  Check,
   Sparkles,
-  HelpCircle,
   MessageSquare,
   Database,
   Sliders,
@@ -29,15 +27,14 @@ import {
   UserCheck,
   FolderOpen,
   Mail,
-  Send,
   User,
-  CheckCircle2,
-  X
+  X,
+  type LucideIcon
 } from "lucide-react";
 
 // Feature structure
 interface Feature {
-  icon: any;
+  icon: LucideIcon;
   title: string;
   desc: string;
 }
@@ -158,7 +155,7 @@ const faqs = [
   },
 ];
 
-const LAUNCHER_ICONS: Record<string, any> = {
+const LAUNCHER_ICONS: Record<string, LucideIcon> = {
   bot: Bot,
   headset: Headphones,
   sparkles: Sparkles,
@@ -633,7 +630,7 @@ export default function Home() {
                   <h2 className="text-3xl font-bold tracking-tight uppercase">Core Features</h2>
                 </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-sans max-w-sm">
-                  A granular index of Chatty's feature set. Click on any block to see detailed configuration parameters and dashboard instructions.
+                  A granular index of Chatty&apos;s feature set. Click on any block to see detailed configuration parameters and dashboard instructions.
                 </p>
               </div>
 
@@ -680,7 +677,7 @@ export default function Home() {
                   <h2 className="text-3xl font-bold tracking-tight uppercase">Questions</h2>
                 </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-sans max-w-sm">
-                  Everything you need to know about Chatty's training mechanics, costs, safety layers, and white-label setups.
+                  Everything you need to know about Chatty&apos;s training mechanics, costs, safety layers, and white-label setups.
                 </p>
               </div>
 

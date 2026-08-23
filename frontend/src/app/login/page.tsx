@@ -80,7 +80,7 @@ function LoginPageInner() {
       subtitle="Sign in to manage your Chatty assistant"
       footer={
         <>
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link href="/signup" className="font-medium text-foreground hover:underline">
             Create one
           </Link>

@@ -74,6 +74,11 @@ export function ModernSelect({
   useEffect(() => {
     if (open && searchable) setTimeout(() => searchRef.current?.focus(), 30);
     if (!open) {
+      // Resets search/highlight state whenever the dropdown closes. `open`
+      // is toggled from several places (outside-click, Escape, the trigger
+      // button) — consolidating this into each of those call sites would be
+      // a larger refactor than this warning justifies.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("");
       setActive(0);
     }
