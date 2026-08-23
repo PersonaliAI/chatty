@@ -17,8 +17,8 @@ import { ChatbotFlowBuilder } from "@/components/chatbot-flow-builder";
 import { CampaignsUI } from "@/components/campaigns-ui";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
-import { getOnColor } from "@/lib/color-contrast";
-import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
+import { getOnColor, hexToRgb } from "@/lib/color-contrast";
+import { normalizeWidgetStyle } from "@/lib/widget-style";
 import {
   Home,
   Sliders,
@@ -4250,21 +4250,21 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Floating Launcher preview in Customizer — mirrors each design's
-                      default launcher look from widget.js's LAUNCHER_STYLES, since
-                      the launcher button is styled per-design, not by primaryColor. */}
+                  {/* Floating Launcher preview in Customizer — uses the bot's own
+                      Primary Hex Color (same as .send-btn in globals.css), not each
+                      design's fixed launcher look, so the color picker has a second
+                      visible, always-contrast-safe place to show through. */}
                   <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
                     <span className="text-[10px] text-neutral-450 dark:text-neutral-500 uppercase font-bold tracking-wider">Button Preview</span>
                     <div className="relative">
                       {(() => {
-                        const design = LAUNCHER_STYLES[normalizeWidgetStyle(widgetStyle)] || LAUNCHER_STYLES.minimal;
-                        const solidBg = design.bg.indexOf("gradient") === -1 ? design.bg : "#a855f7";
+                        const [r, g, b] = hexToRgb(primaryColor);
                         return (
                       <div
                         style={{
-                          background: design.bg,
-                          boxShadow: design.shadow,
-                          color: getOnColor(solidBg),
+                          background: primaryColor,
+                          boxShadow: `0 8px 20px rgba(${r}, ${g}, ${b}, 0.4)`,
+                          color: getOnColor(primaryColor),
                           borderRadius: launcherShape === "circle" ? "50%" :
                                         launcherShape === "square" ? "0px" :
                                         launcherShape === "rounded" ? "12px" :
@@ -4292,9 +4292,11 @@ export default function Dashboard() {
                               </div>
                             );
                           }
-                          // True default (no logo uploaded yet) — the selected
-                          // design's own dot mark, matching the gallery exactly.
-                          return <div className="size-[17px] rounded-full opacity-90" style={{ background: design.dot }} />;
+                          // True default (no logo uploaded yet) — a plain dot in
+                          // whatever color contrasts with the launcher's own
+                          // primary-color background (mirrors buildChatIcon's
+                          // stroke color in widget.js).
+                          return <div className="size-[17px] rounded-full opacity-90" style={{ background: getOnColor(primaryColor) }} />;
                         })()}
                       </div>
                         );
