@@ -1,6 +1,5 @@
-const { createClient } = require('@supabase/supabase-js');
-const dotenv = require('dotenv');
-const fs = require('fs');
+import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
 
 const envFile = '.env.local';
 const envContent = fs.readFileSync(envFile, 'utf-8');
@@ -31,14 +30,14 @@ async function check() {
     console.log("No bots found");
     return;
   }
-  
+
   const bot = bots[0];
   console.log("Bot ID:", bot.id);
   console.log("Bot user_id:", bot.user_id);
-  
+
   const { data: userById, error: err1 } = await supabase.from('users').select('*').eq('id', bot.user_id);
   console.log("User by id:", userById, err1);
-  
+
   const { data: userByAuthId, error: err2 } = await supabase.from('users').select('*').eq('auth_user_id', bot.user_id);
   console.log("User by auth_user_id:", userByAuthId, err2);
 }

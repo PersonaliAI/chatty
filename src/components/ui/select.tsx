@@ -63,9 +63,13 @@ export function SearchSelect({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  // Focus search on open + scroll highlighted into view
+  // Focus search on open + scroll highlighted into view. `open` is toggled
+  // from several places (outside-click, the trigger button) — consolidating
+  // this reset into each of those call sites would be a larger refactor
+  // than this warning justifies.
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQ("");
       setHighlight(0);
       requestAnimationFrame(() => inputRef.current?.focus());

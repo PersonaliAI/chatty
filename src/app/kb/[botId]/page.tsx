@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Search, BookOpen, ChevronRight, FileText, Sparkles, HelpCircle, ArrowLeft } from "lucide-react";
+import { Search, BookOpen, ChevronRight, FileText, HelpCircle, ArrowLeft } from "lucide-react";
 
 const supabase = createClient();
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";

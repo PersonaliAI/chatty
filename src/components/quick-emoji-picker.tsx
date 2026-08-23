@@ -89,8 +89,12 @@ export function QuickEmojiPicker({ onSelect, accentColor = "#f97316" }: QuickEmo
   const [frequent, setFrequent] = useState<string[]>([]);
 
   useEffect(() => {
+    // localStorage is only available client-side; reading it during render
+    // (e.g. via a useState lazy initializer) would break SSR, so this has
+    // to stay a mount-only effect rather than a render-time computation.
     const freq = loadFrequency();
     const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).map(([e]) => e);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFrequent(sorted.slice(0, MAX_FREQUENT));
   }, []);
 
