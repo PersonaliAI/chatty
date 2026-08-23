@@ -4,6 +4,7 @@ endpoints (/api/admin/*)."""
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import time
 from datetime import datetime, timezone
@@ -296,10 +297,12 @@ async def admin_update_meeting_status(
         # Notify the client (and admin) when a meeting is cancelled.
         if status.lower() in ("cancelled", "canceled") and meeting.get("attendee_email"):
             try:
-                title = meeting.get("title") or "your meeting"
-                start = meeting.get("start_time") or ""
-                tz = meeting.get("timezone") or "UTC"
-                name = meeting.get("attendee_name") or "there"
+                # Meeting fields are ultimately visitor-supplied (via the chat
+                # booking flow) — escape before embedding in HTML sent by email.
+                title = html.escape(meeting.get("title") or "your meeting")
+                start = html.escape(meeting.get("start_time") or "")
+                tz = html.escape(meeting.get("timezone") or "UTC")
+                name = html.escape(meeting.get("attendee_name") or "there")
                 cancel_html = (
                     "<div style='font-family:sans-serif;max-width:520px;line-height:1.6'>"
                     "<h2 style='color:#dc2626;margin:0 0 8px'>Meeting cancelled</h2>"

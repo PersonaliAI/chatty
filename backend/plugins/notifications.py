@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html as _html
 import json
 import logging
 import os
@@ -127,13 +128,19 @@ def build_client_email_html(*, visitor_name: str, summary: str, start: str,
                             provider: str) -> str:
     provider_label = {"google_meet": "Google Meet", "zoom": "Zoom",
                       "teams": "Microsoft Teams"}.get(provider, provider)
+    # visitor_name/summary/start/timezone_label are visitor- or LLM-supplied
+    # (chat booking flow) — escape before embedding in HTML sent by email.
+    visitor_name_e = _html.escape(visitor_name)
+    summary_e = _html.escape(summary)
+    start_e = _html.escape(start)
+    timezone_label_e = _html.escape(timezone_label)
     return _email_shell(
-        title=f"You're booked, {visitor_name}! 🎉",
-        intro=f"Your meeting <strong>“{summary}”</strong> is confirmed. "
+        title=f"You're booked, {visitor_name_e}! 🎉",
+        intro=f"Your meeting <strong>“{summary_e}”</strong> is confirmed. "
               "We've added the details below — see you there!",
         rows=[
-            ("Date &amp; Time", start),
-            ("Timezone", timezone_label),
+            ("Date &amp; Time", start_e),
+            ("Timezone", timezone_label_e),
             ("Platform", provider_label),
         ],
         cta_label="Join the meeting",
@@ -147,15 +154,21 @@ def build_admin_email_html(*, visitor_name: str, visitor_email: str, summary: st
                            provider: str) -> str:
     provider_label = {"google_meet": "Google Meet", "zoom": "Zoom",
                       "teams": "Microsoft Teams"}.get(provider, provider)
+    # Same untrusted-input note as build_client_email_html.
+    visitor_name_e = _html.escape(visitor_name)
+    visitor_email_e = _html.escape(visitor_email)
+    summary_e = _html.escape(summary)
+    start_e = _html.escape(start)
+    timezone_label_e = _html.escape(timezone_label)
     return _email_shell(
         title="New meeting booked 📅",
         intro="Your AI assistant just scheduled a meeting with a new lead.",
         rows=[
-            ("Lead", visitor_name),
-            ("Email", f'<a href="mailto:{visitor_email}" style="color:{_BRAND};">{visitor_email}</a>'),
-            ("Title", summary),
-            ("Date &amp; Time", start),
-            ("Timezone", timezone_label),
+            ("Lead", visitor_name_e),
+            ("Email", f'<a href="mailto:{visitor_email_e}" style="color:{_BRAND};">{visitor_email_e}</a>'),
+            ("Title", summary_e),
+            ("Date &amp; Time", start_e),
+            ("Timezone", timezone_label_e),
             ("Platform", provider_label),
         ],
         cta_label="Open meeting link",
@@ -165,13 +178,17 @@ def build_admin_email_html(*, visitor_name: str, visitor_email: str, summary: st
 
 
 def build_team_invite_email_html(*, bot_name: str, inviter_email: str, role: str) -> str:
+    # bot_name is dashboard-user-controlled (bot settings); escape before
+    # embedding in HTML sent by email, same as the booking email builders.
+    bot_name_e = _html.escape(bot_name)
+    inviter_email_e = _html.escape(inviter_email)
     return _email_shell(
-        title=f"You've been added to {bot_name} 👋",
-        intro=f"<strong>{inviter_email}</strong> gave you {('admin' if role == 'admin' else 'agent')} "
-              f"access to the <strong>{bot_name}</strong> chatbot on Chatty.",
+        title=f"You've been added to {bot_name_e} 👋",
+        intro=f"<strong>{inviter_email_e}</strong> gave you {('admin' if role == 'admin' else 'agent')} "
+              f"access to the <strong>{bot_name_e}</strong> chatbot on Chatty.",
         rows=[
-            ("Chatbot", bot_name),
-            ("Invited by", inviter_email),
+            ("Chatbot", bot_name_e),
+            ("Invited by", inviter_email_e),
             ("Role", role.capitalize()),
         ],
         cta_label="Sign in to Chatty",
