@@ -19,6 +19,7 @@ PyYAML==6.0.3
 Pillow==12.3.0
 openai==2.54.0
 anthropic==0.76.0
+litellm==1.98.0
 
 sentry-sdk[fastapi]==2.59.0
 

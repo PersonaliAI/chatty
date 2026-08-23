@@ -25,7 +25,11 @@ from google.genai import types as genai_types
 
 logger = logging.getLogger("kin.memory")
 
-EMBED_MODEL = os.environ.get("KIN_EMBED_MODEL", "text-embedding-004")
+# text-embedding-004 was retired from the Gemini API (404s on embedContent as
+# of this fix) — gemini-embedding-001 is the current stable replacement, and
+# with output_dimensionality=768 (below) it's a drop-in match for the
+# existing 768-d pgvector column, so no data migration is needed.
+EMBED_MODEL = os.environ.get("KIN_EMBED_MODEL", "gemini-embedding-001")
 EMBED_DIMENSIONS = int(os.environ.get("KIN_EMBED_DIMENSIONS", "768"))
 # gemini-embedding-2 uses prompt prefixes for task; older models use task_type param.
 IS_EMBED_V2 = "gemini-embedding-2" in EMBED_MODEL

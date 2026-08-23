@@ -33,7 +33,7 @@ def add_lead_column(column_name: str):
     sql = f"ALTER TABLE chatty_leads ADD COLUMN IF NOT EXISTS {clean_name} TEXT;"
     # Direct-connection credentials read from environment (no hardcoded secrets).
     project_ref = (SUPABASE_URL or "").split("//")[-1].split(".")[0]
-    host = os.environ.get("SUPABASE_DB_HOST", "aws-1-ap-northeast-1.pooler.supabase.com")
+    host = os.environ.get("SUPABASE_DB_HOST", "aws-0-ap-southeast-2.pooler.supabase.com")
     user = os.environ.get("SUPABASE_DB_USER", f"postgres.{project_ref}")
     password = os.environ.get("SUPABASE_DB_PASSWORD", "")
     dbname = os.environ.get("SUPABASE_DB_NAME", "postgres")
