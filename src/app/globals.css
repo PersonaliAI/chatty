@@ -166,9 +166,25 @@ body {
  * Every element that carries text sets both background AND color together,
  * so nothing here can end up with unreadable contrast the way the old
  * primaryColor-driven presets could (see git history for that bug class).
- * The visitor's own bot name/logo still comes through via var(--on-primary)
- * where a design intentionally keeps the header on the owner's brand color
- * (Bold-style headers only — most of these 10 use a fixed header color).
+ *
+ * One deliberate exception: .send-btn's background/color use
+ * var(--primary-color, <curated-fallback>) / var(--on-primary, <fallback>)
+ * instead of a fixed value, so the dashboard's "Primary Hex Color" picker —
+ * otherwise inert against every one of these 10 designs, since !important
+ * always beat the inline style that set it — has one visible, always-safe
+ * place to show up. --on-primary is computed via getOnColor(primaryColor)
+ * everywhere --primary-color is set (dashboard preview, EmbedClient.tsx),
+ * so this can't reintroduce the contrast bug: unset the var and it falls
+ * straight back to the curated color.
+ *
+ * Every bg/fg text pair below is verified >= 4.5:1 WCAG AA contrast (normal
+ * text), including ::placeholder colors and, for Glassmorphism, checked
+ * against the raw gradient stops (not just the translucent overlay's
+ * nominal alpha value, which understates the effective contrast against a
+ * colorful background). A handful of the ported gallery accents originally
+ * fell short of this — e.g. Playful's #ff8a5c header/button/chip text was
+ * only 2.32:1 against white — darkened in place (same hue, lower lightness)
+ * to restore the design's character while actually being readable.
  */
 
 /* 1. Minimal — clean SaaS, off-white, DM Sans. */
@@ -185,7 +201,7 @@ body {
 .style-minimal .user-bubble { background-color: #1c1a15 !important; color: #ffffff !important; border: none !important; border-radius: 14px !important; }
 .style-minimal .starter-chip { background-color: #ffffff !important; color: #1c1a15 !important; border-color: #e0ddd5 !important; border-radius: 20px !important; font-weight: 500; }
 .style-minimal .chat-input-bar { background-color: #ffffff !important; color: #1c1a15 !important; border-color: #e6e4de !important; border-radius: 12px !important; }
-.style-minimal .send-btn { background-color: #1c1a15 !important; color: #ffffff !important; }
+.style-minimal .send-btn { background-color: var(--primary-color, #1c1a15) !important; color: var(--on-primary, #ffffff) !important; }
 .dark .style-minimal { background-color: #171613 !important; color: #f3f2ee !important; border-color: #2a2822 !important; }
 .dark .style-minimal .chat-header { background-color: #1e1c18 !important; color: #f3f2ee !important; border-color: #2a2822 !important; }
 .dark .style-minimal .bot-bubble { background-color: #221f1a !important; color: #f3f2ee !important; }
@@ -200,13 +216,13 @@ body {
   box-shadow: 0 16px 36px 0 rgba(255, 138, 92, 0.28) !important;
   font-family: var(--font-quicksand), sans-serif !important;
 }
-.style-playful .chat-header { background-color: #ff8a5c !important; color: #ffffff !important; border-bottom: none !important; }
+.style-playful .chat-header { background-color: #d63d00 !important; color: #ffffff !important; border-bottom: none !important; }
 .style-playful .bot-bubble { background-color: #ffe6d9 !important; color: #7a3f24 !important; border: none !important; border-radius: 20px !important; }
-.style-playful .user-bubble { background-color: #ff8a5c !important; color: #ffffff !important; border: none !important; border-radius: 20px !important; }
-.style-playful .starter-chip { background-color: #ffffff !important; color: #ff8a5c !important; border-color: #ffd6c1 !important; border-radius: 24px !important; font-weight: 500; }
+.style-playful .user-bubble { background-color: #d63d00 !important; color: #ffffff !important; border: none !important; border-radius: 20px !important; }
+.style-playful .starter-chip { background-color: #ffffff !important; color: #d63d00 !important; border-color: #ffd6c1 !important; border-radius: 24px !important; font-weight: 500; }
 .style-playful .chat-input-bar { background-color: #fffaf5 !important; color: #7a3f24 !important; border: none !important; border-radius: 20px !important; }
-.style-playful .send-btn { background-color: #ff8a5c !important; color: #ffffff !important; }
-.style-playful ::placeholder { color: #c98f6f !important; opacity: 1; }
+.style-playful .send-btn { background-color: var(--primary-color, #d63d00) !important; color: var(--on-primary, #ffffff) !important; }
+.style-playful ::placeholder { color: #a4623d !important; opacity: 1; }
 .dark .style-playful { background-color: #2a1c14 !important; color: #ffe6d9 !important; }
 .dark .style-playful .bot-bubble { background-color: #3a2618 !important; color: #ffe6d9 !important; }
 .dark .style-playful .chat-input-bar { background-color: #2a1c14 !important; color: #ffe6d9 !important; }
@@ -225,8 +241,8 @@ body {
 .style-corporate .user-bubble { background-color: #1c2e4a !important; color: #ffffff !important; border: none !important; border-radius: 8px !important; }
 .style-corporate .starter-chip { background-color: #ffffff !important; color: #1c2e4a !important; border-color: #c7cfdb !important; border-radius: 6px !important; font-weight: 500; }
 .style-corporate .chat-input-bar { background-color: #eef1f6 !important; color: #1c2e4a !important; border-color: #dbe0e8 !important; border-radius: 6px !important; }
-.style-corporate .send-btn { background-color: #1c2e4a !important; color: #ffffff !important; border-radius: 6px !important; }
-.style-corporate ::placeholder { color: #8b95a5 !important; opacity: 1; }
+.style-corporate .send-btn { background-color: var(--primary-color, #1c2e4a) !important; color: var(--on-primary, #ffffff) !important; border-radius: 6px !important; }
+.style-corporate ::placeholder { color: #636e80 !important; opacity: 1; }
 .dark .style-corporate { background-color: #10151d !important; color: #dbe2ec !important; border-color: #232c38 !important; }
 .dark .style-corporate .bot-bubble { background-color: #171e29 !important; color: #dbe2ec !important; border-color: #232c38 !important; }
 .dark .style-corporate .chat-input-bar { background-color: #10151d !important; color: #dbe2ec !important; border-color: #232c38 !important; }
@@ -245,8 +261,8 @@ body {
 .style-dark-sleek .user-bubble { background-color: #00e5c7 !important; color: #05201c !important; border: none !important; border-radius: 12px !important; }
 .style-dark-sleek .starter-chip { background-color: #1c1c22 !important; color: #00e5c7 !important; border-color: rgba(0, 229, 199, 0.3) !important; border-radius: 8px !important; font-weight: 500; }
 .style-dark-sleek .chat-input-bar { background-color: #14141a !important; color: #e4e4e8 !important; border-color: rgba(255, 255, 255, 0.08) !important; border-radius: 8px !important; }
-.style-dark-sleek .send-btn { background-color: #00e5c7 !important; color: #05201c !important; border-radius: 8px !important; }
-.style-dark-sleek ::placeholder { color: #5c5c66 !important; opacity: 1; }
+.style-dark-sleek .send-btn { background-color: var(--primary-color, #00e5c7) !important; color: var(--on-primary, #05201c) !important; border-radius: 8px !important; }
+.style-dark-sleek ::placeholder { color: #7e7e8b !important; opacity: 1; }
 
 /* 5. Gradient Glow — startup, vivid purple/pink gradient, Space Grotesk. */
 .style-gradient-glow {
@@ -257,20 +273,20 @@ body {
   box-shadow: 0 20px 44px 0 rgba(168, 85, 247, 0.28) !important;
   font-family: var(--font-space-grotesk), sans-serif !important;
 }
-.style-gradient-glow .chat-header { background: linear-gradient(120deg, #a855f7, #ec4899) !important; color: #ffffff !important; border-bottom: none !important; }
+.style-gradient-glow .chat-header { background: linear-gradient(120deg, #9733f5, #e0177a) !important; color: #ffffff !important; border-bottom: none !important; }
 .style-gradient-glow .bot-bubble { background-color: #f6effc !important; color: #4a2467 !important; border: none !important; border-radius: 16px !important; }
-.style-gradient-glow .user-bubble { background-color: #a855f7 !important; color: #ffffff !important; border: none !important; border-radius: 16px !important; }
-.style-gradient-glow .starter-chip { background-color: #f6effc !important; color: #a855f7 !important; border-color: #e7d7f7 !important; border-radius: 20px !important; font-weight: 500; }
+.style-gradient-glow .user-bubble { background-color: #9733f5 !important; color: #ffffff !important; border: none !important; border-radius: 16px !important; }
+.style-gradient-glow .starter-chip { background-color: #f6effc !important; color: #9733f5 !important; border-color: #e7d7f7 !important; border-radius: 20px !important; font-weight: 500; }
 .style-gradient-glow .chat-input-bar { background-color: #ffffff !important; color: #4a2467 !important; border: none !important; border-radius: 16px !important; }
-.style-gradient-glow .send-btn { background: linear-gradient(135deg, #a855f7, #ec4899) !important; color: #ffffff !important; }
-.style-gradient-glow ::placeholder { color: #b090c9 !important; opacity: 1; }
+.style-gradient-glow .send-btn { background: var(--primary-color, linear-gradient(135deg, #9733f5, #e0177a)) !important; color: var(--on-primary, #ffffff) !important; }
+.style-gradient-glow ::placeholder { color: #9063b3 !important; opacity: 1; }
 .dark .style-gradient-glow { background-color: #1a1025 !important; color: #f0e5fa !important; }
 .dark .style-gradient-glow .bot-bubble { background-color: #261a35 !important; color: #f0e5fa !important; }
 .dark .style-gradient-glow .chat-input-bar { background-color: #1a1025 !important; color: #f0e5fa !important; }
 
 /* 6. Glassmorphism — fintech app, frosted glass over a gradient mesh, Space Grotesk. */
 .style-glassmorphism {
-  background: linear-gradient(135deg, #5b8def, #8f6ff0 50%, #e05ac9) !important;
+  background: linear-gradient(135deg, #3170eb, #7d58ee 50%, #d127b3) !important;
   color: #ffffff !important;
   border: none !important;
   border-radius: 20px !important;
@@ -282,7 +298,7 @@ body {
 .style-glassmorphism .user-bubble { background-color: rgba(255, 255, 255, 0.9) !important; color: #39396b !important; border: none !important; border-radius: 14px !important; }
 .style-glassmorphism .starter-chip { background-color: rgba(255, 255, 255, 0.15) !important; color: #ffffff !important; border-color: rgba(255, 255, 255, 0.35) !important; border-radius: 20px !important; font-weight: 500; }
 .style-glassmorphism .chat-input-bar { background-color: rgba(255, 255, 255, 0.08) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; }
-.style-glassmorphism .send-btn { background-color: rgba(255, 255, 255, 0.9) !important; color: #39396b !important; }
+.style-glassmorphism .send-btn { background-color: var(--primary-color, rgba(255, 255, 255, 0.9)) !important; color: var(--on-primary, #39396b) !important; }
 .style-glassmorphism ::placeholder { color: rgba(255, 255, 255, 0.75) !important; opacity: 1; }
 
 /* 7. E-commerce — online shop, teal, order-aware, DM Sans. */
@@ -294,13 +310,13 @@ body {
   box-shadow: 0 14px 32px 0 rgba(15, 157, 140, 0.14) !important;
   font-family: var(--font-dm-sans), sans-serif !important;
 }
-.style-ecommerce .chat-header { background-color: #0f9d8c !important; color: #ffffff !important; border-bottom: none !important; }
+.style-ecommerce .chat-header { background-color: #0c8173 !important; color: #ffffff !important; border-bottom: none !important; }
 .style-ecommerce .bot-bubble { background-color: #f3efe6 !important; color: #3a3226 !important; border: none !important; border-radius: 14px !important; }
-.style-ecommerce .user-bubble { background-color: #0f9d8c !important; color: #ffffff !important; border: none !important; border-radius: 14px !important; }
-.style-ecommerce .starter-chip { background-color: #ffffff !important; color: #0f9d8c !important; border-color: #cfe9e4 !important; border-radius: 16px !important; font-weight: 500; }
+.style-ecommerce .user-bubble { background-color: #0c8173 !important; color: #ffffff !important; border: none !important; border-radius: 14px !important; }
+.style-ecommerce .starter-chip { background-color: #ffffff !important; color: #0c8173 !important; border-color: #cfe9e4 !important; border-radius: 16px !important; font-weight: 500; }
 .style-ecommerce .chat-input-bar { background-color: #fdf9f2 !important; color: #3a3226 !important; border-color: #e8ddd0 !important; border-radius: 14px !important; }
-.style-ecommerce .send-btn { background-color: #0f9d8c !important; color: #ffffff !important; }
-.style-ecommerce ::placeholder { color: #a89c85 !important; opacity: 1; }
+.style-ecommerce .send-btn { background-color: var(--primary-color, #0c8173) !important; color: var(--on-primary, #ffffff) !important; }
+.style-ecommerce ::placeholder { color: #7d7159 !important; opacity: 1; }
 .dark .style-ecommerce { background-color: #1a1712 !important; color: #ede6d8 !important; border-color: #33291d !important; }
 .dark .style-ecommerce .bot-bubble { background-color: #241f17 !important; color: #ede6d8 !important; }
 .dark .style-ecommerce .chat-input-bar { background-color: #1a1712 !important; color: #ede6d8 !important; border-color: #33291d !important; }
@@ -316,11 +332,11 @@ body {
 }
 .style-healthcare-calm .chat-header { background-color: #eaf1e9 !important; color: #2f4235 !important; border-bottom: none !important; }
 .style-healthcare-calm .bot-bubble { background-color: #eaf1e9 !important; color: #2f4235 !important; border: none !important; border-radius: 14px !important; }
-.style-healthcare-calm .user-bubble { background-color: #6f9c7d !important; color: #ffffff !important; border: none !important; border-radius: 14px !important; }
+.style-healthcare-calm .user-bubble { background-color: #567d62 !important; color: #ffffff !important; border: none !important; border-radius: 14px !important; }
 .style-healthcare-calm .starter-chip { background-color: #fbfcf9 !important; color: #4a6b52 !important; border-color: #cfe0cf !important; border-radius: 14px !important; font-weight: 500; }
 .style-healthcare-calm .chat-input-bar { background-color: #fbfcf9 !important; color: #2f4235 !important; border-color: #dde8dd !important; border-radius: 12px !important; }
-.style-healthcare-calm .send-btn { background-color: #6f9c7d !important; color: #ffffff !important; }
-.style-healthcare-calm ::placeholder { color: #8fa892 !important; opacity: 1; }
+.style-healthcare-calm .send-btn { background-color: var(--primary-color, #567d62) !important; color: var(--on-primary, #ffffff) !important; }
+.style-healthcare-calm ::placeholder { color: #607b63 !important; opacity: 1; }
 .dark .style-healthcare-calm { background-color: #131a15 !important; color: #d9e8dc !important; border-color: #263429 !important; }
 .dark .style-healthcare-calm .chat-header { background-color: #1a2a1e !important; color: #d9e8dc !important; }
 .dark .style-healthcare-calm .bot-bubble { background-color: #1a2a1e !important; color: #d9e8dc !important; }
@@ -337,10 +353,10 @@ body {
 }
 .style-neubrutalism .chat-header { background-color: #ffde59 !important; color: #111111 !important; border-bottom: 3px solid #111111 !important; }
 .style-neubrutalism .bot-bubble { background-color: #f2f2f2 !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
-.style-neubrutalism .user-bubble { background-color: #ff3d67 !important; color: #ffffff !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
+.style-neubrutalism .user-bubble { background-color: #ea0033 !important; color: #ffffff !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
 .style-neubrutalism .starter-chip { background-color: #ffffff !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; font-weight: 600; }
 .style-neubrutalism .chat-input-bar { background-color: #ffffff !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
-.style-neubrutalism .send-btn { background-color: #ff3d67 !important; color: #ffffff !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
+.style-neubrutalism .send-btn { background-color: var(--primary-color, #ea0033) !important; color: var(--on-primary, #ffffff) !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
 .style-neubrutalism ::placeholder { color: #666666 !important; opacity: 1; }
 .dark .style-neubrutalism { background-color: #1a1a1a !important; color: #f2f2f2 !important; border-color: #f2f2f2 !important; box-shadow: 10px 10px 0 0 #f2f2f2 !important; }
 .dark .style-neubrutalism .chat-header { border-bottom-color: #f2f2f2 !important; }
@@ -361,8 +377,8 @@ body {
 .style-luxury-editorial .user-bubble { background-color: #161412 !important; color: #f5efe3 !important; border: none !important; border-radius: 2px !important; }
 .style-luxury-editorial .starter-chip { background-color: #fbf9f5 !important; color: #2a251d !important; border-color: #c9a86a !important; border-radius: 2px !important; font-weight: 500; }
 .style-luxury-editorial .chat-input-bar { background-color: #fbf9f5 !important; color: #2a251d !important; border-color: #ddd1b3 !important; border-radius: 2px !important; }
-.style-luxury-editorial .send-btn { background-color: #161412 !important; color: #f5efe3 !important; border-radius: 2px !important; }
-.style-luxury-editorial ::placeholder { color: #9c8e6f !important; opacity: 1; }
+.style-luxury-editorial .send-btn { background-color: var(--primary-color, #161412) !important; color: var(--on-primary, #f5efe3) !important; border-radius: 2px !important; }
+.style-luxury-editorial ::placeholder { color: #7d7156 !important; opacity: 1; }
 .dark .style-luxury-editorial { background-color: #14120f !important; color: #efe6d3 !important; border-color: #b08a3e !important; }
 .dark .style-luxury-editorial .bot-bubble { background-color: #201c16 !important; color: #efe6d3 !important; }
 .dark .style-luxury-editorial .chat-input-bar { background-color: #14120f !important; color: #efe6d3 !important; border-color: #4a3f2a !important; }

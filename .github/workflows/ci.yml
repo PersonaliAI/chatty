@@ -35,6 +35,9 @@ jobs:
       - name: Verify widget design tokens haven't drifted
         run: node scripts/verify-design-snapshot.mjs
 
+      - name: Verify widget preset text/background contrast (WCAG AA)
+        run: node scripts/verify-contrast.mjs
+
       - name: Build
         run: npm run build
         env:

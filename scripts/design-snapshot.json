@@ -11,10 +11,10 @@
   "playful": {
     "containerBg": "#fffaf5",
     "containerRadius": "28px",
-    "headerBg": "#ff8a5c",
+    "headerBg": "#d63d00",
     "botBubbleBg": "#ffe6d9",
     "botBubbleRadius": "20px",
-    "userBubbleBg": "#ff8a5c",
+    "userBubbleBg": "#d63d00",
     "userBubbleRadius": "20px"
   },
   "corporate": {
@@ -38,14 +38,14 @@
   "gradient-glow": {
     "containerBg": "#ffffff",
     "containerRadius": "24px",
-    "headerBg": "linear-gradient(120deg, #a855f7, #ec4899)",
+    "headerBg": "linear-gradient(120deg, #9733f5, #e0177a)",
     "botBubbleBg": "#f6effc",
     "botBubbleRadius": "16px",
-    "userBubbleBg": "#a855f7",
+    "userBubbleBg": "#9733f5",
     "userBubbleRadius": "16px"
   },
   "glassmorphism": {
-    "containerBg": "linear-gradient(135deg, #5b8def, #8f6ff0 50%, #e05ac9)",
+    "containerBg": "linear-gradient(135deg, #3170eb, #7d58ee 50%, #d127b3)",
     "containerRadius": "20px",
     "headerBg": "rgba(255, 255, 255, 0.08)",
     "botBubbleBg": "rgba(255, 255, 255, 0.18)",
@@ -56,10 +56,10 @@
   "ecommerce": {
     "containerBg": "#fdf9f2",
     "containerRadius": "14px",
-    "headerBg": "#0f9d8c",
+    "headerBg": "#0c8173",
     "botBubbleBg": "#f3efe6",
     "botBubbleRadius": "14px",
-    "userBubbleBg": "#0f9d8c",
+    "userBubbleBg": "#0c8173",
     "userBubbleRadius": "14px"
   },
   "healthcare-calm": {
@@ -68,7 +68,7 @@
     "headerBg": "#eaf1e9",
     "botBubbleBg": "#eaf1e9",
     "botBubbleRadius": "14px",
-    "userBubbleBg": "#6f9c7d",
+    "userBubbleBg": "#567d62",
     "userBubbleRadius": "14px"
   },
   "neubrutalism": {
@@ -77,7 +77,7 @@
     "headerBg": "#ffde59",
     "botBubbleBg": "#f2f2f2",
     "botBubbleRadius": "4px",
-    "userBubbleBg": "#ff3d67",
+    "userBubbleBg": "#ea0033",
     "userBubbleRadius": "4px"
   },
   "luxury-editorial": {
