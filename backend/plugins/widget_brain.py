@@ -790,6 +790,8 @@ async def run_widget_assistant(
                 system_prompt=system_instruction,
                 history=[{"role": h.get("role"), "content": h.get("content", "")} for h in history],
                 user_text=text,
+                bot_id=bot_id,
+                session_id=session_id,
             )
             if byok_reply:
                 return {"reply": byok_reply, "thinking": "", "sources": source_refs}

@@ -5,11 +5,19 @@ Gemini-only — these providers' tool/function-call schemas differ enough that
 wiring them in is a separate, larger effort. BYOK replies here are still
 knowledge-base-grounded: the caller passes the same RAG-augmented system
 prompt used for Gemini, just without function declarations.
+
+Routes through plugins/ai_client.py (LiteLLM) rather than each provider's
+own SDK — LiteLLM already normalizes the system-prompt-as-a-message vs.
+system-prompt-as-a-separate-param difference between OpenAI/OpenRouter and
+Anthropic, so this no longer needs a per-provider branch the way the old
+direct-SDK version did.
 """
 import os
 from typing import Any, Optional
 
 from cryptography.fernet import Fernet, InvalidToken
+
+from plugins import ai_client
 
 DEFAULT_MODELS = {
     "openai": "gpt-4o",
@@ -44,36 +52,38 @@ async def generate_simple_reply(
     system_prompt: str,
     history: list[dict[str, Any]],
     user_text: str,
+    bot_id: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> str:
     """Plain text-completion reply (no function calling) via a customer-supplied key."""
     model = model or DEFAULT_MODELS.get(provider, "")
     if not model:
         raise ValueError(f"Unknown BYOK provider: {provider}")
+    if provider not in ("openai", "anthropic", "openrouter"):
+        raise ValueError(f"Unknown BYOK provider: {provider}")
 
-    if provider == "anthropic":
-        import anthropic
+    litellm_model = ai_client.resolve_byok_model(provider, model)
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+    messages += [
+        {"role": "user" if h.get("role") == "user" else "assistant", "content": h["content"]}
+        for h in history if (h.get("content") or "").strip()
+    ]
+    messages.append({"role": "user", "content": user_text})
 
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-        msgs = [
-            {"role": "user" if h.get("role") == "user" else "assistant", "content": h["content"]}
-            for h in history if (h.get("content") or "").strip()
-        ]
-        msgs.append({"role": "user", "content": user_text})
-        resp = await client.messages.create(model=model, system=system_prompt, max_tokens=2048, messages=msgs)
-        return "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
+    extra: dict[str, Any] = {"max_tokens": 2048}
+    if provider == "openrouter":
+        extra["base_url"] = "https://openrouter.ai/api/v1"
+    if provider != "anthropic":
+        extra["temperature"] = 0.2
 
-    if provider in ("openai", "openrouter"):
-        import openai
-
-        base_url = "https://openrouter.ai/api/v1" if provider == "openrouter" else None
-        client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
-        msgs: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
-        msgs += [
-            {"role": "user" if h.get("role") == "user" else "assistant", "content": h["content"]}
-            for h in history if (h.get("content") or "").strip()
-        ]
-        msgs.append({"role": "user", "content": user_text})
-        resp = await client.chat.completions.create(model=model, messages=msgs, max_tokens=2048, temperature=0.2)
-        return (resp.choices[0].message.content or "").strip()
-
-    raise ValueError(f"Unknown BYOK provider: {provider}")
+    resp = await ai_client.chat(
+        model=litellm_model,
+        messages=messages,
+        api_key=api_key,
+        bot_id=bot_id,
+        session_id=session_id,
+        is_byok=True,
+        call_type="byok_chat",
+        **extra,
+    )
+    return (resp.choices[0].message.content or "").strip()
