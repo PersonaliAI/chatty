@@ -238,7 +238,7 @@ async def public_api_chat(
     authorization: Optional[str] = Header(None),
 ):
     t0 = time.monotonic()
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "chat")
 
     text = _sec.sanitize_text(body.text.strip())
@@ -300,7 +300,7 @@ async def public_api_chat(
     },
 )
 async def public_api_bot(request: Request, authorization: Optional[str] = Header(None)):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "read")
     res = await run_db(lambda: supabase.table("chatty_bots").select(
         "id, name, welcome_message, primary_color, selected_model, "
@@ -334,7 +334,7 @@ async def public_api_leads(
     limit: int = 50,
     offset: int = 0,
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "read")
     limit = min(max(limit, 1), 200)
     offset = max(offset, 0)
@@ -373,7 +373,7 @@ async def public_api_conversations(
     limit: int = 50,
     offset: int = 0,
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "read")
     limit = min(max(limit, 1), 200)
     offset = max(offset, 0)
@@ -405,7 +405,7 @@ async def public_api_conversation_get(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "read")
     res = await run_db(lambda: supabase.table("chatty_conversations").select(
         "id, session_id, role, content, created_at, feedback_rating"
@@ -438,7 +438,7 @@ async def public_api_conversation_delete(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "write")
     # Verify the session belongs to this bot before deleting
     check = await run_db(lambda: supabase.table("chatty_conversations").select("id").eq(
@@ -469,7 +469,7 @@ async def public_api_knowledge_list(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "read")
     res = await run_db(lambda: supabase.table("chatty_sources").select(
         "id, type, name, status, char_count, crawl_schedule, next_crawl_at, last_crawled_at, created_at"
@@ -501,7 +501,7 @@ async def public_api_knowledge_create(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "write")
     bot_id = key_row["bot_id"]
 
@@ -569,7 +569,7 @@ async def public_api_knowledge_delete(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "write")
     res = await run_db(lambda: supabase.table("chatty_sources").select("id, bot_id").eq("id", source_id).execute())
     if not res.data:
@@ -602,7 +602,7 @@ async def public_api_analytics(
     authorization: Optional[str] = Header(None),
     since: Optional[str] = None,
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "read")
     bot_id = key_row["bot_id"]
 
@@ -655,7 +655,7 @@ async def public_api_analytics(
     },
 )
 async def public_api_usage(request: Request, authorization: Optional[str] = Header(None)):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     return {
         "key_prefix": key_row.get("key_prefix"),
         "scopes": key_row.get("scopes") or ["chat", "read"],
@@ -690,7 +690,7 @@ async def public_api_webhook_create(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "write")
 
     url = (body.url or "").strip()
@@ -727,7 +727,7 @@ async def public_api_webhook_create(
     },
 )
 async def public_api_webhook_list(request: Request, authorization: Optional[str] = Header(None)):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "read")
     res = await run_db(lambda: supabase.table("chatty_webhooks").select(
         "id, url, events, active, created_at"
@@ -753,7 +753,7 @@ async def public_api_webhook_delete(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    key_row = await run_db(lambda: _resolve_api_key(authorization, request))
+    key_row = await _resolve_api_key(authorization, request)
     _sec.check_scope(key_row, "write")
     res = await run_db(lambda: supabase.table("chatty_webhooks").select("id, bot_id").eq("id", webhook_id).execute())
     if not res.data:

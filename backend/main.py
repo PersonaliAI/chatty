@@ -422,7 +422,7 @@ def _hash_api_key(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _resolve_api_key(
+async def _resolve_api_key(
     authorization: Optional[str],
     request: Optional["Request"] = None,
 ) -> dict[str, Any]:
@@ -430,8 +430,8 @@ def _resolve_api_key(
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing Bearer API key")
     raw = authorization.split(" ", 1)[1].strip()
-    key_res = supabase.table("chatty_api_keys").select("*").eq(
-        "key_hash", _hash_api_key(raw)).execute()
+    key_res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq(
+        "key_hash", _hash_api_key(raw)).execute())
     if not key_res.data:
         raise HTTPException(status_code=401, detail="Invalid API key")
     key_row = key_res.data[0]
@@ -441,7 +441,10 @@ def _resolve_api_key(
     if request is not None:
         _sec.check_ip_allowlist(key_row, request)
         _sec.check_ip_rate(request)
-    if _rate_limited(key_row["id"]):
+    # Shared, cross-instance limiter (Upstash-backed, falls back to
+    # in-memory) — same mechanism the widget path uses, so a key's 60/min
+    # budget is enforced across all Cloud Run instances, not per-instance.
+    if await _rate_limited_async(key_row["id"]):
         raise HTTPException(
             status_code=429,
             detail="Rate limit exceeded (60/min per key)",
