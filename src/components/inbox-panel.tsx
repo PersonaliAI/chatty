@@ -25,6 +25,28 @@ function saveCannedResponses(items: CannedResponse[]) {
 function applyCannedVars(text: string, visitorName: string): string {
   return text.replace(/\{\{visitor_name\}\}/gi, visitorName || "Visitor");
 }
+
+/* ── Attachment URL trust check ───────────────────────────────────
+ * Message content is free text a visitor fully controls, so only render a
+ * URL as an img/audio src or link if it genuinely points at our own upload
+ * bucket (or a same-session blob: URL from the composer preview, which a
+ * remote visitor can't forge) — not any arbitrary http(s) URL a visitor
+ * could type to get rendered as a trusted-looking attachment. */
+function isTrustedAttachmentUrl(url: string): boolean {
+  if (url.startsWith("blob:")) return true;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return false;
+  try {
+    const parsed = new URL(url);
+    const base = new URL(supabaseUrl);
+    return (
+      parsed.origin === base.origin &&
+      parsed.pathname.startsWith("/storage/v1/object/public/chatty-uploads/")
+    );
+  } catch {
+    return false;
+  }
+}
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -730,7 +752,15 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     const isVisitor = m.role === "user";
                     const isHuman = m.sender === "human";
 
-                    // Parse attachment if exists in m.content
+                    // Parse attachment if exists in m.content. `m.content` is
+                    // free-text a visitor fully controls, so a malicious
+                    // visitor could forge the exact "[attachment: x]\n<url>"
+                    // shape with an arbitrary external URL to get it rendered
+                    // as a trusted-looking attachment (img/audio src, or a
+                    // clickable link) in the admin's inbox — only trust it
+                    // when the URL actually points at our own upload bucket,
+                    // or a same-session blob: URL (composer preview, never
+                    // attacker-forgeable since it's scoped to this browser).
                     let cleanContent = m.content;
                     let attachmentUrl: string | null = null;
                     let attachmentName = "";
@@ -739,7 +769,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     if (lines.length >= 2) {
                       const lastLine = lines[lines.length - 1].trim();
                       const prevLine = lines[lines.length - 2].trim();
-                      if (lastLine.startsWith("http://") || lastLine.startsWith("https://") || lastLine.startsWith("blob:")) {
+                      if (isTrustedAttachmentUrl(lastLine)) {
                         if (prevLine.includes("[attachment:")) {
                           attachmentUrl = lastLine;
                           const match = prevLine.match(/\[attachment:\s*(.*?)\]/);
