@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 import psycopg2
+from psycopg2 import sql as pg_sql
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.clients import supabase
@@ -30,7 +31,15 @@ def add_lead_column(column_name: str):
     if clean_name in ["id", "bot_id", "name", "email", "phone", "created_at", "company", "job_title", "country", "industry", "budget", "custom_fields"]:
         return
 
-    sql = f"ALTER TABLE chatty_leads ADD COLUMN IF NOT EXISTS {clean_name} TEXT;"
+    # clean_name is already regex-restricted to [a-zA-Z0-9_] above, so f-string
+    # interpolation here couldn't actually be broken out of by any payload —
+    # but psycopg2.sql.Identifier() makes that provably true instead of just
+    # argued, and correctly quotes reserved-word-shaped names PostgreSQL
+    # would otherwise reject with a syntax error (e.g. a column literally
+    # named "select").
+    sql = pg_sql.SQL("ALTER TABLE chatty_leads ADD COLUMN IF NOT EXISTS {} TEXT;").format(
+        pg_sql.Identifier(clean_name)
+    )
     # Direct-connection credentials read from environment (no hardcoded secrets).
     project_ref = (SUPABASE_URL or "").split("//")[-1].split(".")[0]
     host = os.environ.get("SUPABASE_DB_HOST", "aws-0-ap-southeast-2.pooler.supabase.com")
