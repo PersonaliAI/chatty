@@ -607,6 +607,7 @@ async def run_widget_assistant(
     byok_provider = bot.get("byok_provider")
     byok_key_enc = bot.get("byok_api_key_encrypted")
     if selected_model != "gemini" and byok_provider and byok_key_enc:
+        api_key: Optional[str] = None
         try:
             api_key = llm_providers.decrypt_api_key(byok_key_enc)
             byok_reply = await llm_providers.generate_simple_reply(
@@ -622,8 +623,18 @@ async def run_widget_assistant(
             if byok_reply:
                 return {"reply": byok_reply, "thinking": "", "sources": source_refs}
             logger.warning("BYOK provider %s returned an empty reply for bot %s — falling back to Gemini", byok_provider, bot_id)
-        except Exception:
-            logger.exception("BYOK generation failed for bot %s — falling back to Gemini", bot_id)
+        except Exception as exc:
+            # api_key is a customer's own third-party LLM credential — some
+            # provider SDKs (including litellm, depending on version/error
+            # type) echo request details, including auth headers, into their
+            # exception message on an auth failure. logger.exception() logs
+            # the full exception text, so scrub the key out of it first
+            # rather than trusting the SDK never reflects it back.
+            safe_msg = str(exc).replace(api_key, "[REDACTED]") if api_key else str(exc)
+            logger.error(
+                "BYOK generation failed for bot %s — falling back to Gemini: %s",
+                bot_id, safe_msg, exc_info=False,
+            )
 
     # 5. Build Tools list
     allowed_tool_names = []
