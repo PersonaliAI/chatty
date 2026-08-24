@@ -1675,7 +1675,11 @@ def _walk_slide_text(elements: list[dict[str, Any]]) -> str:
         if table:
             for row in table.get("tableRows", []) or []:
                 for cell in row.get("tableCells", []) or []:
-                    out.append(_walk_slide_text(cell.get("text", {}).get("textElements", []) or []))
+                    cell_text = cell.get("text", {}) or {}
+                    for te in cell_text.get("textElements", []) or []:
+                        tr = (te.get("textRun") or {}).get("content")
+                        if tr:
+                            out.append(tr)
                     out.append("\t")
                 out.append("\n")
     return "".join(out)
