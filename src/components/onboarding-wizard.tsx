@@ -157,7 +157,12 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
                     <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 mb-1.5">Agent logo</label>
                     <div className="flex items-center gap-4">
                       <div className="size-16 rounded-2xl border-2 border-dashed border-neutral-200 dark:border-neutral-800 flex items-center justify-center overflow-hidden bg-neutral-50 dark:bg-neutral-950">
-                        {logoUrl ? <img src={logoUrl} alt="logo" className="size-full object-cover" /> : <Upload className="size-5 text-neutral-400" />}
+                        {logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist
+                          <img src={logoUrl} alt="logo" className="size-full object-cover" />
+                        ) : (
+                          <Upload className="size-5 text-neutral-400" />
+                        )}
                       </div>
                       <div>
                         <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); }} />
@@ -229,7 +234,12 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
                         className="size-7 rounded-full flex items-center justify-center overflow-hidden font-bold text-xs"
                         style={{ backgroundColor: `color-mix(in srgb, ${getOnColor(primaryColor)} 25%, transparent)`, color: getOnColor(primaryColor) }}
                       >
-                        {logoUrl ? <img src={logoUrl} alt="" className="size-full object-cover" /> : (name[0]?.toUpperCase() || "C")}
+                        {logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist
+                          <img src={logoUrl} alt="" className="size-full object-cover" />
+                        ) : (
+                          name[0]?.toUpperCase() || "C"
+                        )}
                       </div>
                       <div className="text-xs font-semibold" style={{ color: getOnColor(primaryColor) }}>{name || "Your Assistant"}</div>
                     </div>

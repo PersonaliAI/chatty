@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent } from "react";
 import {
   ReactFlow,
   MiniMap,
@@ -33,7 +33,6 @@ import {
   Maximize2,
   Tag,
   Zap,
-  RefreshCw,
   CloudCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,9 +43,18 @@ interface Props {
   color?: string;
 }
 
+interface FlowNodeData {
+  label?: string;
+}
+
+interface FlowNodeProps {
+  data: FlowNodeData;
+  selected?: boolean;
+}
+
 // ── Custom Industrial Node Components ──
 
-function StartNode({ data, selected }: any) {
+function StartNode({ data, selected }: FlowNodeProps) {
   return (
     <div
       className={`min-w-[200px] bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl shadow-lg border-2 transition-all ${
@@ -76,7 +84,7 @@ function StartNode({ data, selected }: any) {
   );
 }
 
-function MessageNode({ data, selected }: any) {
+function MessageNode({ data, selected }: FlowNodeProps) {
   return (
     <div
       className={`min-w-[220px] max-w-[280px] bg-white dark:bg-neutral-900 text-neutral-800 dark:text-white rounded-xl shadow-md border-2 transition-all ${
@@ -109,7 +117,7 @@ function MessageNode({ data, selected }: any) {
   );
 }
 
-function QuestionNode({ data, selected }: any) {
+function QuestionNode({ data, selected }: FlowNodeProps) {
   return (
     <div
       className={`min-w-[220px] max-w-[280px] bg-white dark:bg-neutral-900 text-neutral-800 dark:text-white rounded-xl shadow-md border-2 transition-all ${
@@ -142,7 +150,7 @@ function QuestionNode({ data, selected }: any) {
   );
 }
 
-function TagNode({ data, selected }: any) {
+function TagNode({ data, selected }: FlowNodeProps) {
   return (
     <div
       className={`min-w-[200px] bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 rounded-xl shadow-sm border-2 transition-all ${
@@ -170,7 +178,7 @@ function TagNode({ data, selected }: any) {
   );
 }
 
-function EscalateNode({ data, selected }: any) {
+function EscalateNode({ selected }: FlowNodeProps) {
   return (
     <div
       className={`min-w-[210px] bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-100 rounded-xl shadow-sm border-2 transition-all ${
@@ -209,7 +217,12 @@ const initialNodes: Node[] = [
 ];
 const initialEdges: Edge[] = [];
 
-function extractFlowFromJs(customJs: string): { nodes: Node[]; edges: Edge[]; status: "active" | "paused" } | null {
+interface FlowSchema {
+  nodes: Node[];
+  edges: Edge[];
+}
+
+function extractFlowFromJs(customJs: string): (FlowSchema & { status: "active" | "paused" }) | null {
   if (!customJs) return null;
   try {
     const match = customJs.match(/\/\* CHATTY_FLOW_DATA([\s\S]*?)CHATTY_FLOW_DATA \*\//);
@@ -228,7 +241,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
   const [nodeLabel, setNodeLabel] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !!botId);
   const [flowStatus, setFlowStatus] = useState<"active" | "paused">("paused");
 
   // Auto-Save state
@@ -266,10 +279,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
 
   // Load saved flow from Supabase on mount
   useEffect(() => {
-    if (!botId) {
-      setLoading(false);
-      return;
-    }
+    if (!botId) return;
     (async () => {
       try {
         const supabase = createClient();
@@ -281,9 +291,9 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         if (data?.custom_js) {
           const flow = extractFlowFromJs(data.custom_js);
           if (flow) {
-            const formattedNodes = flow.nodes.map((n: any) => {
+            const formattedNodes = flow.nodes.map((n) => {
               let type = n.type || "message";
-              const label = n.data?.label || "";
+              const label = (n.data as FlowNodeData)?.label || "";
               if (n.id === "start" || label.includes("Start")) type = "start";
               else if (label.startsWith("❓") || n.id.startsWith("q-")) type = "question";
               else if (label.startsWith("🏷️") || n.id.startsWith("tag-")) type = "setTag";
@@ -392,11 +402,11 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         body: JSON.stringify({ bot_id: botId, description: aiPrompt }),
       });
       if (res.ok) {
-        const schema = await res.json();
+        const schema: FlowSchema = await res.json();
         if (schema.nodes && schema.edges) {
-          const formattedNodes = schema.nodes.map((n: any) => {
+          const formattedNodes = schema.nodes.map((n) => {
             let type = n.type || "message";
-            const label = n.data?.label || "";
+            const label = (n.data as FlowNodeData)?.label || "";
             if (n.id === "start" || label.includes("Start")) type = "start";
             else if (label.startsWith("❓") || n.id.startsWith("q-")) type = "question";
             else if (label.startsWith("🏷️") || n.id.startsWith("tag-")) type = "setTag";
@@ -480,7 +490,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
     ]);
   };
 
-  const onNodeClick = (_: any, node: Node) => {
+  const onNodeClick = (_: MouseEvent, node: Node) => {
     setSelectedNode(node);
     setNodeLabel((node.data.label as string) || "");
   };
@@ -578,7 +588,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
                 className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-2.5 py-1.5 text-xs font-medium focus:outline-none"
               />
               <p className="text-[9px] text-neutral-400">
-                💡 Tip: Click on a connecting edge line on the canvas to set branch labels (e.g. "Valid Email" / "Invalid Email").
+                💡 Tip: Click on a connecting edge line on the canvas to set branch labels (e.g. &quot;Valid Email&quot; / &quot;Invalid Email&quot;).
               </p>
               <div className="flex gap-2 justify-end">
                 <button

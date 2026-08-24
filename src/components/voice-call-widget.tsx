@@ -13,7 +13,7 @@ import {
   Participant,
 } from "livekit-client";
 import { Mic, MicOff, PhoneOff, Loader2, AlertCircle } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -288,6 +288,7 @@ export default function VoiceCallWidget({
   // usable mic audio in the first place.
   useEffect(() => {
     if (status !== "listening") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalLevels(Array(WAVE_BAR_COUNT).fill(0));
       return;
     }
@@ -339,16 +340,16 @@ export default function VoiceCallWidget({
     onClose();
   };
 
-  const transcriptMdComponents = {
-    p: ({ children }: any) => <p className="mb-1 last:mb-0">{children}</p>,
-    ul: ({ children }: any) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
-    ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
-    a: ({ href, children }: any) => (
+  const transcriptMdComponents: Components = {
+    p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+    ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
+    a: ({ href, children }) => (
       <a href={href} target="_blank" rel="noreferrer" className="underline break-all" style={{ color: "currentColor" }}>
         {children}
       </a>
     ),
-    code: ({ className, children, ...rest }: any) => {
+    code: ({ className, children, ...rest }) => {
       const isBlock = className?.startsWith("language-");
       if (!isBlock) return <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
       return (

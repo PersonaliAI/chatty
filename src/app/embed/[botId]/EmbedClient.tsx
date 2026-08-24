@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
@@ -17,22 +17,21 @@ import {
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, Phone,
+  type LucideIcon,
 } from "lucide-react";
 
 // Preset assistant avatar icons (selectable in the customizer).
-const AVATAR_ICONS: Record<string, any> = {
+const AVATAR_ICONS: Record<string, LucideIcon> = {
   bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User,
 };
-import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
 
-const supabase = createClient();
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
 const RECORD_BAR_COUNT = 14;
 
 // Send-button variants (icon + shape). Keyed by chatty_bots.send_button_style.
-const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: any; label?: string }> = {
+const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: React.ReactNode; label?: string }> = {
   plane:      { shape: "size-8 rounded-full",        icon: <Send className="size-4" /> },
   arrowUp:    { shape: "size-8 rounded-full",        icon: <ArrowUp className="size-4" /> },
   arrowRight: { shape: "size-8 rounded-full",        icon: <ArrowRight className="size-4" /> },
@@ -43,7 +42,7 @@ const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: any; label?: str
 // Browsers record audio as webm/opus, which Gemini does NOT accept. Decode and
 // re-encode to 16-bit mono WAV (a Gemini-supported format) client-side.
 async function audioBlobToWav(blob: Blob): Promise<Blob> {
-  const AC: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+  const AC: typeof AudioContext = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
   const ctx = new AC();
   const audioBuf = await ctx.decodeAudioData(await blob.arrayBuffer());
   ctx.close();
@@ -82,6 +81,25 @@ interface Message {
   feedback?: "up" | "down";
 }
 interface Source { id: string; name: string; content: string; }
+
+// Visual-flow config parsed out of the bot's custom JS (built by the flow
+// builder in the dashboard). Nodes/edges follow React Flow's shape.
+interface FlowNode {
+  id: string;
+  type?: string;
+  data?: { label?: string };
+}
+interface FlowEdge {
+  source: string;
+  target: string;
+  label?: string;
+  data?: { label?: string };
+}
+interface FlowConfig {
+  status?: string;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
 
 type Tab = "home" | "messages" | "articles" | "search";
 
@@ -148,17 +166,19 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   const avatarInner = (iconCls: string) => {
-    if (avatarIcon === "custom" && avatarUrl) return <img src={avatarUrl} alt="" className="size-full object-cover" />;
+    // avatarUrl/logoUrl are bot-owner-uploaded URLs (or arbitrary external URLs
+    // via query params in preview mode) not in next/image's domain allowlist.
+    if (avatarIcon === "custom" && avatarUrl) return <img src={avatarUrl} alt="" className="size-full object-cover" />; // eslint-disable-line @next/next/no-img-element
     if (avatarIcon && avatarIcon !== "logo" && AVATAR_ICONS[avatarIcon]) {
       const Icon = AVATAR_ICONS[avatarIcon];
       return <Icon className={iconCls} />;
     }
-    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />;
+    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />; // eslint-disable-line @next/next/no-img-element
     return botName[0]?.toUpperCase();
   };
 
   const headerLogoInner = (iconCls: string) => {
-    if (logoUrl) return <img src={logoUrl} alt="" className="w-[34px] h-[34px] object-contain rounded-full" />;
+    if (logoUrl) return <img src={logoUrl} alt="" className="w-[34px] h-[34px] object-contain rounded-full" />; // eslint-disable-line @next/next/no-img-element
     return avatarInner(iconCls);
   };
 
@@ -172,9 +192,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     lastPollRef.current = new Date().toISOString();
 
     if (flowConfig) {
-      const startEdge = flowConfig.edges?.find((e: any) => e.source === "start");
+      const startEdge = flowConfig.edges?.find((e) => e.source === "start");
       if (startEdge) {
-        const firstNode = flowConfig.nodes?.find((n: any) => n.id === startEdge.target);
+        const firstNode = flowConfig.nodes?.find((n) => n.id === startEdge.target);
         if (firstNode) {
           setMessages([]);
           executeFlowNode(firstNode, flowConfig);
@@ -214,6 +234,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
 
+  // setSources is currently unused: the Articles tab renders from this list but
+  // nothing yet populates it from the backend (help-articles feed isn't wired up).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [sources, setSources] = useState<Source[]>([]);
   const [openArticle, setOpenArticle] = useState<Source | null>(null);
 
@@ -235,21 +258,22 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [agentTyping, setAgentTyping] = useState(false);
 
   // Browser Push Notifications (OneSignal / Native Web Push)
-  const [pushGranted, setPushGranted] = useState(false);
+  // Initial value read lazily (not via an effect + setState) so the browser's
+  // existing Notification permission is reflected on the very first render.
+  const [pushGranted, setPushGranted] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return "Notification" in window && Notification.permission === "granted";
+  });
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      if ("Notification" in window && Notification.permission === "granted") {
-        setPushGranted(true);
+    if (typeof window === "undefined") return;
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === "chatty-notification-status") {
+        setPushGranted(!!e.data.granted);
       }
-      const handleMessage = (e: MessageEvent) => {
-        if (e.data && e.data.type === "chatty-notification-status") {
-          setPushGranted(!!e.data.granted);
-        }
-      };
-      window.addEventListener("message", handleMessage);
-      return () => window.removeEventListener("message", handleMessage);
-    }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
   }, []);
 
   const requestPushPermission = async () => {
@@ -288,6 +312,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     }
   };
 
+  const triggerPushRef = useRef<(bodyText: string) => void>(() => {});
   const triggerPush = (bodyText: string) => {
     if (typeof window === "undefined") return;
     try {
@@ -310,9 +335,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       } catch {}
     }
   };
+  triggerPushRef.current = triggerPush;
 
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
-  const [flowConfig, setFlowConfig] = useState<any | null>(null);
+  const [flowConfig, setFlowConfig] = useState<FlowConfig | null>(null);
   // Track whether the active node is a question node waiting for user typed input
   const [flowAwaitingInput, setFlowAwaitingInput] = useState(false);
 
@@ -324,12 +350,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       .replace(/^🔔\s*(Escalate to Live Agent\s*)?/, "");
   };
 
-  const isQuestionNode = (node: any) => {
+  const isQuestionNode = (node: FlowNode | null | undefined) => {
     const label = node?.data?.label || "";
     return label.startsWith("❓") || node?.type === "question" || node?.id?.startsWith("q-");
   };
 
-  const executeFlowNode = (node: any, currentConfig: any) => {
+  const executeFlowNode = (node: FlowNode | null | undefined, currentConfig: FlowConfig | null | undefined) => {
     if (!node || !currentConfig) return;
     const label = node.data?.label || "";
 
@@ -341,9 +367,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: `[Flow tag: ${tagValue}]`, is_private_note: true })
       }).catch(() => {});
-      const nextEdge = currentConfig.edges.find((e: any) => e.source === node.id);
+      const nextEdge = currentConfig.edges.find((e) => e.source === node.id);
       if (nextEdge) {
-        const nextNode = currentConfig.nodes.find((n: any) => n.id === nextEdge.target);
+        const nextNode = currentConfig.nodes.find((n) => n.id === nextEdge.target);
         if (nextNode) executeFlowNode(nextNode, currentConfig);
       }
     }
@@ -372,11 +398,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setFlowAwaitingInput(false);
       setIsBotResponding(false);
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) }]);
-      const outgoing = currentConfig.edges.filter((e: any) => e.source === node.id);
+      const outgoing = currentConfig.edges.filter((e) => e.source === node.id);
       if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
         // Linear — auto-advance after short delay
         setTimeout(() => {
-          const nextNode = currentConfig.nodes.find((n: any) => n.id === outgoing[0].target);
+          const nextNode = currentConfig.nodes.find((n) => n.id === outgoing[0].target);
           if (nextNode) executeFlowNode(nextNode, currentConfig);
         }, 900);
       }
@@ -385,13 +411,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   // React Flow stores edge labels in edge.label OR edge.data?.label — resolve both.
-  const getEdgeLabel = (edge: any): string => edge.label || edge.data?.label || "";
+  const getEdgeLabel = (edge: FlowEdge): string => edge.label || edge.data?.label || "";
 
-  const handleFlowChoice = (edge: any) => {
+  const handleFlowChoice = (edge: FlowEdge) => {
     if (!flowConfig) return;
     const label = getEdgeLabel(edge);
     setMessages((prev) => [...prev, { role: "user", content: label || "Continue" }]);
-    const targetNode = flowConfig.nodes.find((n: any) => n.id === edge.target);
+    const targetNode = flowConfig.nodes.find((n) => n.id === edge.target);
     if (targetNode) {
       executeFlowNode(targetNode, flowConfig);
     } else {
@@ -487,9 +513,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // Cleanup blob URLs for pending file previews on unmount
   useEffect(() => {
     return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       pendingFiles.forEach(pf => { if (pf.preview) URL.revokeObjectURL(pf.preview); });
     };
+    // Intentionally runs only on true unmount — revokes whatever files are
+    // pending at that point via closure, not meant to re-run per pendingFiles change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persistent per-visitor session id (survives reloads, unique per visitor)
@@ -542,7 +570,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         setMessages((p) => [...p, { role: "assistant" as const, content: textContent }]);
         setIsBotResponding(false);
         setAgentTyping(false);
-        triggerPush(textContent);
+        triggerPushRef.current(textContent);
         notifyParent();
       } else if (payload.type === "ai_paused") {
         setLiveAgent(!!payload.value);
@@ -564,7 +592,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           setMessages((p) => [...p, ...newMsgs]);
           setIsBotResponding(false);
           setAgentTyping(false);
-          if (newMsgs[0]?.content) triggerPush(newMsgs[0].content);
+          if (newMsgs[0]?.content) triggerPushRef.current(newMsgs[0].content);
           notifyParent();
         }
       } catch {}
@@ -688,12 +716,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     try {
       const match = customJs.match(/\/\* CHATTY_FLOW_DATA([\s\S]*?)CHATTY_FLOW_DATA \*\//);
       if (match && match[1]) {
-        const flow = JSON.parse(match[1].trim());
+        const flow = JSON.parse(match[1].trim()) as FlowConfig;
         if (flow && flow.status === "active" && flow.nodes && flow.edges) {
+          // Deriving flowConfig from customJs (an external string, not React
+          // state) once per load — not a cascading-render risk.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setFlowConfig(flow);
-          const startEdge = flow.edges.find((e: any) => e.source === "start");
+          const startEdge = flow.edges.find((e) => e.source === "start");
           if (startEdge) {
-            const firstNode = flow.nodes.find((n: any) => n.id === startEdge.target);
+            const firstNode = flow.nodes.find((n) => n.id === startEdge.target);
             if (firstNode) {
               setMessages((prev) => {
                 // If visitor already has chat history in this session, preserve it!
@@ -725,6 +756,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     } catch (err) {
       console.error("Chatty custom JS execution error:", err);
     }
+    // Deliberately scoped to customJs only — flowConfig/messages state derived
+    // from this external string, and executeFlowNode is a stable closure over
+    // the fresh `flow` parsed above, not the outer flowConfig state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customJs]);
 
   // Real-time flow sync: re-fetch bot config every 30s so that flow builder
@@ -787,23 +822,23 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     setEmojiOpen(false);
 
     if (flowConfig && activeNodeId) {
-      const activeNode = flowConfig.nodes.find((n: any) => n.id === activeNodeId);
-      const outgoingEdges = flowConfig.edges.filter((e: any) => e.source === activeNodeId);
+      const activeNode = flowConfig.nodes.find((n) => n.id === activeNodeId);
+      const outgoingEdges = flowConfig.edges.filter((e) => e.source === activeNodeId);
 
       if (flowAwaitingInput && isQuestionNode(activeNode)) {
         // Question node: user typed a real answer. Route flow AND pass to real AI.
-        const resolved = outgoingEdges.map((e: any) => ({ ...e, _label: getEdgeLabel(e) }));
+        const resolved = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
         const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
 
-        let matchedEdge = resolved.find((e: any) => e._label.toLowerCase() === text.toLowerCase());
+        let matchedEdge = resolved.find((e) => e._label.toLowerCase() === text.toLowerCase());
         if (!matchedEdge) {
           if (isEmail) {
-            matchedEdge = resolved.find((e: any) =>
+            matchedEdge = resolved.find((e) =>
               e._label.toLowerCase().includes("email") &&
               (e._label.toLowerCase().includes("provided") || e._label.toLowerCase().includes("valid") || e._label.toLowerCase().includes("yes"))
-            ) || resolved.find((e: any) => !e._label.toLowerCase().includes("invalid") && !e._label.toLowerCase().includes("no"));
+            ) || resolved.find((e) => !e._label.toLowerCase().includes("invalid") && !e._label.toLowerCase().includes("no"));
           } else {
-            matchedEdge = resolved.find((e: any) =>
+            matchedEdge = resolved.find((e) =>
               e._label.toLowerCase().includes("invalid") || e._label.toLowerCase().includes("no")
             );
           }
@@ -811,7 +846,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
         const selectedEdge = matchedEdge || resolved[0];
         if (selectedEdge) {
-          const targetNode = flowConfig.nodes.find((n: any) => n.id === selectedEdge.target);
+          const targetNode = flowConfig.nodes.find((n) => n.id === selectedEdge.target);
           if (targetNode) {
             // Silently persist user's answer in background so it's logged in the inbox database
             fetch(`${BACKEND_URL}/api/widget/chat`, {
@@ -831,9 +866,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
       } else if (!flowAwaitingInput && outgoingEdges.length > 1) {
         // Message node with labeled choice buttons — don't send to AI, just route
-        const resolved = outgoingEdges.map((e: any) => ({ ...e, _label: getEdgeLabel(e) }));
-        const matchedEdge = resolved.find((e: any) => e._label.toLowerCase() === text.toLowerCase()) || resolved[0];
-        const targetNode = flowConfig.nodes.find((n: any) => n.id === matchedEdge.target);
+        const resolved = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
+        const matchedEdge = resolved.find((e) => e._label.toLowerCase() === text.toLowerCase()) || resolved[0];
+        const targetNode = flowConfig.nodes.find((n) => n.id === matchedEdge.target);
         if (targetNode) {
           executeFlowNode(targetNode, flowConfig);
         } else {
@@ -1021,7 +1056,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       // distinct slice of the real-time frequency spectrum (not one
       // averaged number replayed across fixed per-bar multipliers), so
       // they genuinely fluctuate independently with the actual audio.
-      const AC: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+      const AC: typeof AudioContext = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
       const audioCtx = new AC();
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
@@ -1130,12 +1165,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     return <div className="flex h-screen items-center justify-center bg-transparent"><Loader2 className="size-6 animate-spin text-neutral-400" /></div>;
   }
 
-  const mdComponents = {
-    p: ({ children }: any) => <p className="mb-1 last:mb-0">{children}</p>,
-    ul: ({ children }: any) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-    ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-    a: ({ href, children }: any) => <a href={href} target="_blank" rel="noreferrer" className="underline break-all" style={{ color: primaryColor }}>{children}</a>,
-    code: ({ className, children, ...rest }: any) => {
+  const mdComponents: Components = {
+    p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+    ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+    a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="underline break-all" style={{ color: primaryColor }}>{children}</a>,
+    code: ({ className, children, ...rest }) => {
       const isBlock = className?.startsWith("language-");
       if (!isBlock) return <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
       const lang = (className ?? "").replace("language-", "") || "code";
@@ -1145,7 +1180,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   return (
-    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle}`} style={{ backgroundColor: primaryColor, ["--primary-color" as any]: primaryColor, ["--on-primary" as any]: getOnColor(primaryColor) }}>
+    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle}`} style={{ backgroundColor: primaryColor, "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}>
       <style dangerouslySetInnerHTML={{ __html: `
         html, body {
           background: transparent !important;
@@ -1304,7 +1339,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 </button>
                 <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Leave a Message</h3>
               </div>
-              <p className="text-[11px] text-neutral-500 leading-relaxed dark:text-neutral-400">No support agents are currently available to chat. Leave your contact email and description below, and we'll get back to you soon.</p>
+              <p className="text-[11px] text-neutral-500 leading-relaxed dark:text-neutral-400">No support agents are currently available to chat. Leave your contact email and description below, and we&apos;ll get back to you soon.</p>
               
               <div className="space-y-3">
                 <div className="space-y-1">
@@ -1386,6 +1421,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                       className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
                       {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>}
                       <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`} style={msg.role === "user" ? { background: primaryColor, color: getOnColor(primaryColor) } : {}}>
+                        {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL — neither works with next/image's optimizer */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                         {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
                         {msg.role === "assistant"
@@ -1441,17 +1478,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 )}
                 {flowConfig && activeNodeId && !isBotResponding && !flowAwaitingInput && (
                   (() => {
-                    const activeNode = flowConfig.nodes.find((n: any) => n.id === activeNodeId);
+                    const activeNode = flowConfig.nodes.find((n) => n.id === activeNodeId);
                     // Never show buttons on question nodes — user must type their answer
                     if (isQuestionNode(activeNode)) return null;
-                    const outgoingEdges = flowConfig.edges.filter((e: any) => e.source === activeNodeId);
-                    const resolvedEdges = outgoingEdges.map((e: any) => ({ ...e, _label: getEdgeLabel(e) }));
+                    const outgoingEdges = flowConfig.edges.filter((e) => e.source === activeNodeId);
+                    const resolvedEdges = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
                     // Only show buttons if there are multiple labeled outgoing edges (menu-style)
-                    const labeled = resolvedEdges.filter((e: any) => e._label);
+                    const labeled = resolvedEdges.filter((e) => e._label);
                     if (labeled.length < 2) return null;
                     return (
                       <div className="flex flex-col items-end gap-2 pt-1">
-                        {labeled.map((edge: any, i: number) => (
+                        {labeled.map((edge, i) => (
                           <button
                             key={i}
                             type="button"
@@ -1591,6 +1628,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 {pendingFiles.map((pf, idx) => (
                   <div key={idx} className="relative group">
                     {pf.file.type.startsWith("image/") ? (
+                      // pf.preview is a local blob: URL (URL.createObjectURL) — next/image can't optimize it
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img src={pf.preview} alt="preview" className="h-14 w-14 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700" />
                     ) : (
                       <div className="h-14 w-14 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center bg-neutral-50 dark:bg-neutral-800">

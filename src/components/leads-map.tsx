@@ -6,9 +6,30 @@ import { COUNTRY_CENTROIDS, COUNTRIES, resolveCountryCode } from "@/lib/locale-d
 const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
 
-function loadLeaflet(): Promise<any> {
+type LeafletTarget = LeafletMap | LeafletLayer;
+
+interface LeafletLayer {
+  addTo(target: LeafletTarget): LeafletLayer;
+  remove(): void;
+}
+interface LeafletMap extends LeafletLayer {
+  invalidateSize(): void;
+}
+interface LeafletMarker extends LeafletLayer {
+  addTo(target: LeafletTarget): LeafletMarker;
+  bindPopup(html: string): LeafletMarker;
+  bindTooltip(text: string, opts?: { direction?: string }): LeafletMarker;
+}
+interface LeafletStatic {
+  map(el: HTMLElement, options: Record<string, unknown>): LeafletMap;
+  tileLayer(urlTemplate: string, options: Record<string, unknown>): LeafletLayer;
+  layerGroup(): LeafletLayer;
+  circleMarker(latlng: [number, number], options: Record<string, unknown>): LeafletMarker;
+}
+
+function loadLeaflet(): Promise<LeafletStatic> {
   return new Promise((resolve, reject) => {
-    const w = window as any;
+    const w = window as Window & { L?: LeafletStatic };
     if (w.L) return resolve(w.L);
     if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) {
       const link = document.createElement("link");
@@ -18,14 +39,14 @@ function loadLeaflet(): Promise<any> {
     }
     let s = document.querySelector(`script[src="${LEAFLET_JS}"]`) as HTMLScriptElement | null;
     if (s) {
-      s.addEventListener("load", () => resolve((window as any).L));
+      s.addEventListener("load", () => resolve((window as Window & { L?: LeafletStatic }).L!));
       s.addEventListener("error", reject);
       return;
     }
     s = document.createElement("script");
     s.src = LEAFLET_JS;
     s.async = true;
-    s.onload = () => resolve((window as any).L);
+    s.onload = () => resolve((window as Window & { L?: LeafletStatic }).L!);
     s.onerror = reject;
     document.head.appendChild(s);
   });
@@ -38,17 +59,21 @@ interface Lead {
   region?: string;
   lat?: number;
   lon?: number;
-  custom_fields?: Record<string, any>;
-  [key: string]: any;
+  custom_fields?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export function LeadsMap({ leads, color = "#f97316" }: { leads: Lead[]; color?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const layerRef = useRef<any>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const layerRef = useRef<LeafletLayer | null>(null);
 
-  const getCountry = (l: Lead): string => l.country || l.custom_fields?.country || "";
-  const hasCoords = (l: Lead) => typeof l.lat === "number" && typeof l.lon === "number";
+  const getCountry = (l: Lead): string => {
+    const cf = l.custom_fields?.country;
+    return l.country || (typeof cf === "string" ? cf : "") || "";
+  };
+  const hasCoords = (l: Lead): l is Lead & { lat: number; lon: number } =>
+    typeof l.lat === "number" && typeof l.lon === "number";
 
   // Precise city points (leads with lat/lon) vs. country-level fallback.
   const precise = leads.filter(hasCoords);

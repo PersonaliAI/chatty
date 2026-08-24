@@ -32,7 +32,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 
 async function audioBlobToWav(blob: Blob): Promise<Blob> {
-  const AC: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+  const AC: typeof AudioContext = (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)!;
   const ctx = new AC();
   const audioBuf = await ctx.decodeAudioData(await blob.arrayBuffer());
   ctx.close();
@@ -116,8 +116,12 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [cannedDraftShortcut, setCannedDraftShortcut] = useState("");
   const [cannedDraftText, setCannedDraftText] = useState("");
 
-  // Load canned responses on mount
-  useEffect(() => { setCannedResponses(loadCannedResponses()); }, []);
+  // Load canned responses on mount — reads localStorage, which isn't
+  // available during SSR/render, so this has to happen in an effect.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCannedResponses(loadCannedResponses());
+  }, []);
 
   const saveCanned = (items: CannedResponse[]) => {
     setCannedResponses(items);
@@ -182,10 +186,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all");
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount / whenever the bot changes — reads
+  // localStorage, which isn't available during SSR/render, so this has to
+  // happen in an effect.
   useEffect(() => {
     try {
       const storedTags = localStorage.getItem(`chatty_session_tags_${botId}`);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (storedTags) setTags(JSON.parse(storedTags));
     } catch {}
     try {
@@ -292,8 +299,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     } catch {}
   }, [botId, fetchBackend]);
 
-  useEffect(() => { loadSessions(); }, [loadSessions]);
-  useEffect(() => { if (selected) loadMessages(selected); }, [selected, loadMessages]);
+  // Data-fetching effects: loadSessions/loadMessages hit the backend and
+  // update state with the response — the standard "synchronize with an
+  // external system" effect pattern, not a render-time computation.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadSessions();
+  }, [loadSessions]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (selected) loadMessages(selected);
+  }, [selected, loadMessages]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   // Live polling
@@ -763,6 +779,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                         <span className={`text-[9px] font-semibold text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5 ${isVisitor ? "text-left" : "text-right"}`}>{senderName}</span>
                         <div className={`p-2.5 rounded-2xl ${isVisitor ? "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none" : isHuman ? "bg-purple-500 text-white rounded-tr-none" : "text-white rounded-tr-none"}`} style={!isVisitor && !isHuman ? { background: color } : {}}>
                           {attachmentUrl && isImage && (
+                            // eslint-disable-next-line @next/next/no-img-element -- uploaded-file/blob URL, not in next/image's domain allowlist
                             <img src={attachmentUrl} alt="attachment" className="rounded-lg mb-1.5 max-h-40 object-cover" />
                           )}
                           {attachmentUrl && isAudio && (
@@ -982,7 +999,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               <h4 className="text-sm font-bold flex items-center gap-2"><Zap className="size-4" style={{ color }} />Quick Responses</h4>
               <button onClick={() => { setCannedManageOpen(false); setEditingCanned(null); setCannedDraftShortcut(""); setCannedDraftText(""); }} className="text-neutral-400 hover:text-neutral-600 cursor-pointer"><X className="size-4" /></button>
             </div>
-            <p className="text-[10px] text-neutral-400 mb-3">Type <kbd className="px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 font-mono text-[9px]">/shortcut</kbd> in the reply box to quickly insert a saved response. Use <kbd className="px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 font-mono text-[9px]">{"{{visitor_name}}"}</kbd> for the visitor's name.</p>
+            <p className="text-[10px] text-neutral-400 mb-3">Type <kbd className="px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 font-mono text-[9px]">/shortcut</kbd> in the reply box to quickly insert a saved response. Use <kbd className="px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 font-mono text-[9px]">{"{{visitor_name}}"}</kbd> for the visitor&apos;s name.</p>
 
             {/* Existing responses */}
             <div className="space-y-1.5 max-h-40 overflow-y-auto mb-3">

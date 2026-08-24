@@ -8,7 +8,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import Image from "next/image";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import { LeadsMap } from "@/components/leads-map";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
@@ -17,6 +17,7 @@ import { ChatbotFlowBuilder } from "@/components/chatbot-flow-builder";
 import { CampaignsUI } from "@/components/campaigns-ui";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { getOnColor, hexToRgb } from "@/lib/color-contrast";
 import { normalizeWidgetStyle } from "@/lib/widget-style";
 import {
@@ -47,21 +48,17 @@ import {
   Star,
   Users,
   MessageCircle,
-  HelpCircle,
   LogOut,
   RefreshCw,
   Globe,
-  Save,
   Menu,
   X,
   FileText,
   Calendar,
   Mail,
   FolderOpen,
-  CheckSquare,
   HardDrive,
   FileSpreadsheet,
-  Presentation,
   ExternalLink,
   AlertCircle,
   Paperclip,
@@ -71,10 +68,6 @@ import {
   ChevronDown,
   Layers,
   ArrowUp,
-  Palette,
-  Laptop,
-  MoreHorizontal,
-  Monitor,
   Mic,
   Puzzle,
   Search,
@@ -86,7 +79,8 @@ import {
   CreditCard,
   GitBranch,
   Megaphone,
-  Phone
+  Phone,
+  type LucideIcon
 } from "lucide-react";
 
 // Types
@@ -101,8 +95,108 @@ interface Lead {
   country?: string;
   industry?: string;
   budget?: string;
-  custom_fields?: Record<string, any>;
-  [key: string]: any;
+  custom_fields?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+// Fields the dashboard actually reads/writes off a chatty_bots row (see
+// switchActiveBot below, which is the exhaustive source for this list) —
+// the index signature covers everything else the table has that this file
+// doesn't touch by name.
+interface Bot {
+  id: string;
+  name: string;
+  welcome_message?: string;
+  conversation_starters?: string[];
+  teaser_message?: string;
+  primary_color?: string;
+  widget_style?: string;
+  send_button_style?: string;
+  avatar_icon?: string;
+  avatar_url?: string | null;
+  logo_url?: string | null;
+  selected_model?: string;
+  system_instructions?: string;
+  strict_mode?: boolean;
+  answer_mode?: "strict" | "hybrid" | "web";
+  email_notify?: boolean;
+  hide_branding?: boolean;
+  webhook_url?: string;
+  custom_css?: string;
+  custom_js?: string;
+  response_language?: string;
+  guardrail_topics?: string;
+  guardrail_block_profanity?: boolean;
+  guardrail_refusal_message?: string;
+  sync_google_drive?: boolean;
+  sync_google_calendar?: boolean;
+  calendar_scheduling_enabled?: boolean;
+  scheduling_duration_minutes?: number;
+  bot_timezone?: string;
+  business_hours_start?: number;
+  business_hours_end?: number;
+  working_days?: string[];
+  buffer_minutes?: number;
+  advance_notice_hours?: number;
+  allowed_domains?: string[];
+  onboarding_step?: number;
+  onboarding_completed?: boolean;
+  lead_fields?: string[];
+  lead_capture_enabled?: boolean;
+  lead_required_fields?: string[];
+  bot_country?: string;
+  sync_outlook_calendar?: boolean;
+  sync_office365_calendar?: boolean;
+  meeting_provider?: string;
+  [key: string]: unknown;
+}
+
+interface AdminMeeting {
+  id: string;
+  title?: string;
+  attendee_name?: string;
+  attendee_email?: string;
+  start_time: string;
+  status: string;
+  provider?: string;
+  meeting_link?: string;
+}
+
+interface AdminNotification {
+  id: string;
+  type?: string;
+  channel?: string;
+  recipient?: string;
+  subject?: string;
+  content?: string;
+  html_content?: string;
+  status?: string;
+  error_message?: string;
+  created_at?: string;
+}
+
+interface AdminAuditLog {
+  id: string;
+  action?: string;
+  details?: string;
+  performed_by?: string;
+  created_at?: string;
+}
+
+interface ApiKey {
+  id: string;
+  key_prefix: string;
+  revoked?: boolean;
+  request_count?: number;
+  last_used_at?: string | null;
+  created_at?: string;
+}
+
+interface Webhook {
+  id: string;
+  url: string;
+  events?: string[];
+  created_at?: string;
 }
 
 interface Source {
@@ -378,7 +472,7 @@ const LOCALE_TEXTS: Record<string, Record<string, string>> = {
 async function extractColorsFromUrl(url: string): Promise<string[]> {
   return new Promise((resolve) => {
     if (!url) return resolve([]);
-    const img = new Image();
+    const img = new window.Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
       try {
@@ -467,7 +561,7 @@ export default function Dashboard() {
   const supabase = createClient();
 
   // User State
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [botId, setBotId] = useState<string | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
 
@@ -493,7 +587,7 @@ export default function Dashboard() {
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
   const [launcherShape, setLauncherShape] = useState("circle");
-  const [userBots, setUserBots] = useState<any[]>([]);
+  const [userBots, setUserBots] = useState<Bot[]>([]);
   const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; role: string }[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
@@ -503,13 +597,17 @@ export default function Dashboard() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoFileRef = useRef<HTMLInputElement>(null);
 
-  // Extract colors when logoUrl changes
+  // Extract colors when logoUrl changes. Resets suggestedColors whenever
+  // logoUrl is cleared — logoUrl is set from several places (upload,
+  // fetched bot settings, reset), so consolidating this reset into each of
+  // those call sites would be a larger refactor than this warning justifies.
   useEffect(() => {
     if (logoUrl) {
       extractColorsFromUrl(logoUrl).then((colors) => {
         setSuggestedColors(colors);
       });
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSuggestedColors([]);
     }
   }, [logoUrl]);
@@ -553,8 +651,12 @@ export default function Dashboard() {
   const [guardrailBlockProfanity, setGuardrailBlockProfanity] = useState(false);
   const [guardrailRefusalMessage, setGuardrailRefusalMessage] = useState("");
 
-  // Unsaved Changes Tracking
+  // Unsaved Changes Tracking — setters are wired into the save flow below;
+  // no UI currently reads these values (no "unsaved changes"/"saving..."
+  // indicator is rendered), so both are write-only for now.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isSaving, setIsSaving] = useState(false);
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // handleSaveChanges is redefined every render, closing over that render's
@@ -583,8 +685,11 @@ export default function Dashboard() {
   // RAG / Cloud Connectors State
   const [googleConnected, setGoogleConnected] = useState(false);
   const [microsoftConnected, setMicrosoftConnected] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- set for future display, not currently rendered
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- set for future display, not currently rendered
   const [microsoftEmail, setMicrosoftEmail] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- set for future display, not currently rendered
   const [telegramId, setTelegramId] = useState<number | null>(null);
   const [telegramLinkOpen, setTelegramLinkOpen] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<"google" | "microsoft" | null>(null);
@@ -592,12 +697,6 @@ export default function Dashboard() {
   // Sync controls (each separate card)
   const [syncGoogleDrive, setSyncGoogleDrive] = useState(false);
   const [syncGoogleCalendar, setSyncGoogleCalendar] = useState(false);
-  const [syncGmail, setSyncGmail] = useState(false);
-  const [syncGoogleTasks, setSyncGoogleTasks] = useState(false);
-  const [syncGoogleContacts, setSyncGoogleContacts] = useState(false);
-  const [syncGoogleDocs, setSyncGoogleDocs] = useState(false);
-  const [syncGoogleSheets, setSyncGoogleSheets] = useState(false);
-  const [syncGoogleSlides, setSyncGoogleSlides] = useState(false);
 
   // Scheduling settings
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
@@ -612,7 +711,8 @@ export default function Dashboard() {
   const [advanceNoticeHours, setAdvanceNoticeHours] = useState(0);
 
   // Developer / API keys
-  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- set for future loading-state UI, not currently rendered
   const [loadingApiKeys, setLoadingApiKeys] = useState(false);
   const [creatingApiKey, setCreatingApiKey] = useState(false);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
@@ -620,7 +720,7 @@ export default function Dashboard() {
 
   // Developer / Webhooks
   const WEBHOOK_EVENT_OPTIONS = ["lead.created", "message.user", "message.assistant", "session.started", "session.ended"] as const;
-  const [webhooks, setWebhooks] = useState<any[]>([]);
+  const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [loadingWebhooks, setLoadingWebhooks] = useState(false);
   const [creatingWebhook, setCreatingWebhook] = useState(false);
   const [newWebhookUrl, setNewWebhookUrl] = useState("");
@@ -630,6 +730,7 @@ export default function Dashboard() {
 
   // Backend capabilities (which optional integrations have keys configured)
   const [zoomConfigured, setZoomConfigured] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- set for future gating UI, not currently read
   const [onesignalConfigured, setOnesignalConfigured] = useState(false);
 
   // Security: allowed domains for the embed widget
@@ -650,12 +751,9 @@ export default function Dashboard() {
   const [driveSyncSchedule, setDriveSyncSchedule] = useState<"off" | "daily" | "weekly" | "monthly">("off");
   const [onedriveSyncSchedule, setOnedriveSyncSchedule] = useState<"off" | "daily" | "weekly" | "monthly">("off");
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- setSyncOneDrive is never called; syncOneDrive itself is read below
   const [syncOneDrive, setSyncOneDrive] = useState(false);
-  const [syncMicrosoftToDo, setSyncMicrosoftToDo] = useState(false);
-  const [syncOutlook, setSyncOutlook] = useState(false);
   const [syncOutlookCalendar, setSyncOutlookCalendar] = useState(false);
-  const [syncOutlookContacts, setSyncOutlookContacts] = useState(false);
-  const [syncTelegram, setSyncTelegram] = useState(false);
 
   // Analytics State
   const [totalQueries, setTotalQueries] = useState(0);
@@ -678,10 +776,6 @@ export default function Dashboard() {
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [collectedInPlayground, setCollectedInPlayground] = useState(false);
   
-  // Lead collection flow inside playground chat
-  const [leadStep, setLeadStep] = useState<"none" | "ask_name" | "ask_email" | "ask_phone">("none");
-  const [tempLead, setTempLead] = useState({ name: "", email: "", phone: "" });
-
   const playgroundEndRef = useRef<HTMLDivElement>(null);
 
   // Localization State
@@ -696,6 +790,7 @@ export default function Dashboard() {
   const [newLeadField, setNewLeadField] = useState("");
   const [savingLeadCapture, setSavingLeadCapture] = useState(false);
   const [botCountry, setBotCountry] = useState<string>("");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- loaded from the bot record but not yet surfaced in any UI control
   const [syncOffice365Calendar, setSyncOffice365Calendar] = useState<boolean>(false);
   const [meetingProvider, setMeetingProvider] = useState<string>("google_meet");
   // agenticSetupStep: which conversational setup step the chat assistant is at
@@ -704,15 +799,15 @@ export default function Dashboard() {
   const [pendingLeadFields, setPendingLeadFields] = useState<string[]>(["name", "email", "phone"]);
 
   // Admin Panel Data
-  const [adminMeetings, setAdminMeetings] = useState<any[]>([]);
-  const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
-  const [adminAuditLogs, setAdminAuditLogs] = useState<any[]>([]);
+  const [adminMeetings, setAdminMeetings] = useState<AdminMeeting[]>([]);
+  const [adminNotifications, setAdminNotifications] = useState<AdminNotification[]>([]);
+  const [adminAuditLogs, setAdminAuditLogs] = useState<AdminAuditLog[]>([]);
   const [loadingAdminData, setLoadingAdminData] = useState<boolean>(false);
 
   // Leads and Meetings States & Helpers
   const [leadsSearch, setLeadsSearch] = useState<string>("");
 
-  const getLeadFieldValue = (lead: any, field: string) => {
+  const getLeadFieldValue = (lead: Lead, field: string) => {
     if (lead[field] !== undefined && lead[field] !== null) {
       return String(lead[field]);
     }
@@ -799,16 +894,9 @@ export default function Dashboard() {
 
   // Knowledge Base Chat States
   const [playgroundMessages, setPlaygroundMessages] = useState<KnowledgeMessage[]>([]);
-  const [knowledgeInput, setKnowledgeInput] = useState("");
   const [isKnowledgeLoading, setIsKnowledgeLoading] = useState(false);
   const [uploadingFile, setUploadingFile] = useState<string | null>(null);
-  const [paperclipOpen, setPaperclipOpen] = useState(false);
   const [driveModalOpen, setDriveModalOpen] = useState(false);
-  const [activeSubmenu, setActiveSubmenu] = useState<"none" | "recent_files" | "skills" | "more">("none");
-  const [connectorsDropdownOpen, setConnectorsDropdownOpen] = useState(false);
-  const [syncInstagram, setSyncInstagram] = useState(true);
-  const [syncBrowser, setSyncBrowser] = useState(false);
-  const [showSourcesSidebar, setShowSourcesSidebar] = useState(false);
   const knowledgeEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -832,6 +920,7 @@ export default function Dashboard() {
 
   // Copy code animation state
   const [copiedScript, setCopiedScript] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- set for a "Copied!" indicator that isn't rendered yet
   const [copiedIframe, setCopiedIframe] = useState(false);
 
   // Backend Integration URL
@@ -876,6 +965,11 @@ export default function Dashboard() {
       }
     }
     checkSession();
+    // Deliberately run-once-on-mount: checkCloudConnections/loadBotSettings/
+    // fetchWithFallback are stable for the component's lifetime and this
+    // effect must only fire once, not on every re-render one of them is
+    // re-created — adding them to the deps array would do exactly that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helper for resilient fetch calls with fallback to production backend
@@ -888,7 +982,7 @@ export default function Dashboard() {
     };
     try {
       return await fetch(`${BACKEND_URL}${path}`, { ...options, headers });
-    } catch (err) {
+    } catch {
       console.warn(`Local backend down for ${path}, retrying with production fallback...`);
       const fallbackUrl = "https://api.chatty.personaliai.com";
       return await fetch(`${fallbackUrl}${path}`, { ...options, headers });
@@ -1224,26 +1318,26 @@ export default function Dashboard() {
     try {
       setBotId(selected.id);
       setBotName(selected.name);
-      setWelcomeMsg(selected.welcome_message);
+      setWelcomeMsg(selected.welcome_message || "Hello! How can I help you today?");
       setConversationStarters(Array.isArray(selected.conversation_starters) ? selected.conversation_starters : []);
       setTeaserMessage(selected.teaser_message || "👋 Need help? Chat with us.");
-      setPrimaryColor(selected.primary_color);
-      
+      setPrimaryColor(selected.primary_color || "#f97316");
+
       const styleVal = selected.widget_style || "minimal";
       const [styleName, logoBg, shapeVal] = styleVal.split(":");
       setWidgetStyle(normalizeWidgetStyle(styleName));
       setLogoBgColor(logoBg || "");
       setLauncherShape(shapeVal || "circle");
-      
+
       setSendButtonStyle(selected.send_button_style || "plane");
       setAvatarIcon(selected.avatar_icon || "logo");
       setAvatarUrl(selected.avatar_url || null);
       setLogoUrl(selected.logo_url || null);
-      setSelectedModel(selected.selected_model);
-      setSystemInstructions(selected.system_instructions);
-      setStrictMode(selected.strict_mode);
+      setSelectedModel(selected.selected_model || "gemini");
+      setSystemInstructions(selected.system_instructions || "");
+      setStrictMode(selected.strict_mode ?? true);
       setAnswerMode(selected.answer_mode || "strict");
-      setEmailNotify(selected.email_notify);
+      setEmailNotify(selected.email_notify ?? true);
       setHideBranding(selected.hide_branding || false);
       setWebhookUrl(selected.webhook_url || "");
       setCustomCss(selected.custom_css || "");
@@ -1360,9 +1454,9 @@ export default function Dashboard() {
         switchActiveBot(newBot.id);
         showToast(`Chatbot "${name}" created successfully!`, "success");
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error creating bot:", err);
-      showToast(`Failed to create chatbot: ${err.message}`, "error");
+      showToast(`Failed to create chatbot: ${err instanceof Error ? err.message : String(err)}`, "error");
     } finally {
       setLoadingLists(false);
     }
@@ -1395,9 +1489,9 @@ export default function Dashboard() {
         }
       }
       showToast(`Chatbot "${targetBot.name}" deleted successfully.`, "success");
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error deleting bot:", err);
-      showToast(`Failed to delete chatbot: ${err.message}`, "error");
+      showToast(`Failed to delete chatbot: ${err instanceof Error ? err.message : String(err)}`, "error");
     } finally {
       setLoadingLists(false);
     }
@@ -1426,7 +1520,7 @@ export default function Dashboard() {
       {
         value: "google_meet",
         label: "Google Meet",
-        icon: <img src="/logos/google-meet.png" alt="" className="size-4 object-contain" />,
+        icon: <Image src="/logos/google-meet.png" alt="" width={16} height={16} className="size-4 object-contain" />,
         // Not disabled: picking it while disconnected starts the Google
         // connect flow (see handleMeetingProviderChange) instead of no-op'ing.
         hint: googleConnected ? undefined : "connect Google",
@@ -1434,7 +1528,7 @@ export default function Dashboard() {
       {
         value: "zoom",
         label: "Zoom",
-        icon: <img src="/logos/zoom.png" alt="" className="size-4 object-contain" />,
+        icon: <Image src="/logos/zoom.png" alt="" width={16} height={16} className="size-4 object-contain" />,
         // Zoom has no in-app connect flow (backend-configured credentials),
         // so this one stays genuinely disabled until an admin sets it up.
         disabled: !zoomConfigured,
@@ -1443,7 +1537,7 @@ export default function Dashboard() {
       {
         value: "teams",
         label: "Microsoft Teams",
-        icon: <img src="/logos/ms-teams.png" alt="" className="size-4 object-contain" />,
+        icon: <Image src="/logos/ms-teams.png" alt="" width={16} height={16} className="size-4 object-contain" />,
         hint: microsoftConnected ? undefined : "connect Microsoft",
       },
     ],
@@ -1469,9 +1563,13 @@ export default function Dashboard() {
     []
   );
 
-  // Auto-detect timezone + country once the session is ready, if not already set.
+  // Auto-detect timezone + country once the session is ready, if not already
+  // set — a one-time default-hydration effect, not something computable at
+  // render time (detectTimezone/detectCountryCode read the browser's Intl/
+  // geo APIs, which can't run during SSR or the render pass itself).
   useEffect(() => {
     if (loadingSession) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!botTimezone || botTimezone === "UTC") setBotTimezone(detectTimezone());
     if (!botCountry) setBotCountry(detectCountryCode());
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1539,6 +1637,10 @@ export default function Dashboard() {
       loadDriveSyncSchedule();
       loadUnanswered();
     }
+    // The load* functions are plain closures re-created every render, not
+    // memoized — adding them here would refetch on every render instead of
+    // only on an actual tab/bot change, which is what this effect is for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, botId]);
 
   // Team members (seats) for the active bot.
@@ -1627,7 +1729,7 @@ export default function Dashboard() {
   }
 
   // Save Onboarding step progress
-  async function saveOnboardingStep(step: number, completed: boolean, extraData: any = {}) {
+  async function saveOnboardingStep(step: number, completed: boolean, extraData: Record<string, unknown> = {}) {
     if (!botId) return;
     
     // Optimistically update local states
@@ -1754,10 +1856,14 @@ export default function Dashboard() {
     }
   }
 
-  // Initialize the agentic setup chat when the step changes
+  // Initialize the agentic setup chat when the step changes. agenticSetupStep
+  // advances from several places across the onboarding flow — consolidating
+  // this reaction into each of those call sites would be a larger refactor
+  // than this warning justifies.
   useEffect(() => {
     if (agenticSetupStep > 0 && !onboardingCompleted) {
       const msg = getAgenticStepMessage(agenticSetupStep);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlaygroundMessages(prev => {
         // Avoid duplicating if the last message is identical
         if (prev.length > 0 && prev[prev.length - 1].content === msg.content) return prev;
@@ -1941,32 +2047,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleUnlinkTelegram = async () => {
-    showConfirm(
-      "Unlink Telegram",
-      "Are you sure you want to unlink this Telegram chat?",
-      async () => {
-        try {
-          const { data } = await supabase.auth.getSession();
-          if (!data.session?.access_token) return;
-
-          const res = await fetchWithFallback(`/api/integrations/telegram/unlink`, {
-            method: "POST"
-          });
-          if (res.ok) {
-            setTelegramId(null);
-            showToast("Telegram chat unlinked successfully.", "success");
-          } else {
-            showToast("Failed to unlink Telegram chat.", "error");
-          }
-        } catch (err) {
-          console.error("Error unlinking Telegram:", err);
-          showToast("Error unlinking Telegram chat.", "error");
-        }
-      }
-    );
-  };
-
   // Persist chatbot appearance/settings to Supabase
   async function handleSaveChanges() {
     if (!user || !botId) return;
@@ -2089,7 +2169,7 @@ export default function Dashboard() {
   // "unsaved changes" banner: every change re-arms a short timer, and
   // handleSaveChanges fires once input settles, same pattern already used
   // for voice settings (handleAutoSaveVoiceField).
-  const handleInputChange = (setter: any, val: any) => {
+  const handleInputChange = <T,>(setter: (val: T) => void, val: T) => {
     setter(val);
     setHasUnsavedChanges(true);
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
@@ -2152,7 +2232,10 @@ export default function Dashboard() {
     }
   };
 
+  // Resets the playground chat to a fresh welcome message whenever the bot's
+  // welcome message or the active tab changes.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlaygroundMessages([
       { role: "assistant", content: welcomeMsg }
     ]);
@@ -2240,7 +2323,7 @@ export default function Dashboard() {
           )
         );
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("File upload error:", err);
       setPlaygroundMessages((prev) =>
         prev.map((msg) =>
@@ -2257,287 +2340,6 @@ export default function Dashboard() {
       setIsKnowledgeLoading(false);
       setUploadingFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  // Handle Knowledge Base Chat Submission
-  const handleKnowledgeSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!knowledgeInput.trim() || !botId) return;
-
-    const userInput = knowledgeInput.trim();
-    setKnowledgeInput("");
-    setIsKnowledgeLoading(true);
-
-    // 1. Add User Message
-    setPlaygroundMessages((prev) => [...prev, { role: "user", content: userInput }]);
-
-    // ── AGENTIC SETUP INTERCEPTION ──────────────────────────────────────────
-    // If we're in the agentic setup flow, handle the user's typed response
-    if (agenticSetupStep > 0 && !onboardingCompleted) {
-      setIsKnowledgeLoading(false);
-      if (agenticSetupStep === 3) {
-        // User is typing custom instructions
-        setSystemInstructions(userInput);
-        await saveOnboardingStep(3, false, { custom_instructions: userInput });
-        setPlaygroundMessages(prev => [...prev, {
-          role: "assistant",
-          content: `✅ **Instructions saved!** Your assistant will follow these rules:\n\n> *${userInput}*`,
-          status: "success"
-        }]);
-        setTimeout(() => setAgenticSetupStep(4), 800);
-        return;
-      }
-      if (agenticSetupStep === 5) {
-        // User might type custom field names
-        const customFields = userInput.split(",").map(f => f.trim().toLowerCase().replace(/\s+/g, "_")).filter(Boolean);
-        const combined = [...new Set(["name", "email", ...customFields])];
-        setPendingLeadFields(combined);
-        setLeadFields(combined);
-        await saveOnboardingStep(4, false, { lead_fields: combined });
-        setPlaygroundMessages(prev => [...prev, {
-          role: "assistant",
-          content: `✅ **Lead fields confirmed:** ${combined.join(", ")}`,
-          status: "success"
-        }]);
-        setTimeout(() => setAgenticSetupStep(6), 800);
-        return;
-      }
-      // For other setup steps, just add a regular reply and stay in the step
-      setPlaygroundMessages(prev => [...prev, {
-        role: "assistant",
-        content: "Got it! Please use the action buttons above to continue the setup. 👆"
-      }]);
-      setIsKnowledgeLoading(false);
-      return;
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-
-    // Check if it is a URL or a crawl command
-    const crawlMatch = userInput.match(/^(?:crawl\s+)?(https?:\/\/[^\s]+)$/i);
-
-    if (crawlMatch) {
-      const urlToCrawl = crawlMatch[1];
-      
-      // Add thinking/progress bubble
-      setPlaygroundMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Crawl command detected for **${urlToCrawl}**. Sending request to crawler and indexing content...`,
-          status: "pending",
-          filename: urlToCrawl
-        }
-      ]);
-
-      try {
-        let crawledContent = `This source represents the crawled contents of ${urlToCrawl}.`;
-        try {
-          const jinaUrl = `https://r.jina.ai/${urlToCrawl}`;
-          const response = await fetch(jinaUrl);
-          if (response.ok) {
-            const text = await response.text();
-            if (text && text.trim().length > 100) {
-              crawledContent = text;
-            }
-          }
-        } catch (crawlErr) {
-          console.warn("Real-time client-side crawl failed:", crawlErr);
-        }
-
-        if (user && botId) {
-          const { data: dbSrc, error } = await supabase
-            .from("chatty_sources")
-            .insert({
-              bot_id: botId,
-              type: "url",
-              name: urlToCrawl,
-              content: crawledContent,
-              status: "training",
-              char_count: crawledContent.length
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
-
-          // Simulate processing time
-          setTimeout(async () => {
-            await supabase
-              .from("chatty_sources")
-              .update({ status: "trained" })
-              .eq("id", dbSrc.id);
-
-            // Update chat log bubble to success
-            setPlaygroundMessages((prev) =>
-              prev.map((msg) =>
-                msg.filename === urlToCrawl && msg.status === "pending"
-                  ? {
-                      role: "assistant",
-                      content: `Successfully crawled and trained on **${urlToCrawl}**! Added character count: ${crawledContent.length}.`,
-                      status: "success"
-                    }
-                  : msg
-              )
-            );
-
-            // Refresh settings
-            await loadBotSettings(user.id);
-          }, 1500);
-        }
-      } catch (err: any) {
-        console.error("Crawl error:", err);
-        setPlaygroundMessages((prev) =>
-          prev.map((msg) =>
-            msg.filename === urlToCrawl && msg.status === "pending"
-              ? {
-                  role: "assistant",
-                  content: `Failed to crawl website. Error: ${(err as any).message || "Unknown error"}`,
-                  status: "error"
-                }
-              : msg
-          )
-        );
-      } finally {
-        setIsKnowledgeLoading(false);
-      }
-      return;
-    }
-
-    // 2. Check if it's a paragraph of facts to train
-    const isQuestion = userInput.endsWith("?") || /^(what|how|why|who|where|when|can|is|are|does|do|should|would|will)\b/i.test(userInput);
-    const isTrainCommand = userInput.toLowerCase().startsWith("train:") || userInput.toLowerCase().startsWith("fact:") || (!isQuestion && userInput.length > 40);
-
-    if (isTrainCommand) {
-      let docContent = userInput;
-      let docTitle = `Text Ingest - ${new Date().toLocaleDateString()}`;
-
-      // Clean prefix if any
-      if (userInput.toLowerCase().startsWith("train:")) {
-        docContent = userInput.substring(6).trim();
-        docTitle = docContent.split(/[.\n]/)[0].slice(0, 30) || docTitle;
-      } else if (userInput.toLowerCase().startsWith("fact:")) {
-        docContent = userInput.substring(5).trim();
-        docTitle = docContent.split(/[.\n]/)[0].slice(0, 30) || docTitle;
-      } else {
-        docTitle = docContent.split(/[.\n]/)[0].slice(0, 30) || docTitle;
-      }
-
-      setPlaygroundMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Analyzing text input and preparing to index facts under **"${docTitle}"**...`,
-          status: "pending",
-          filename: docTitle
-        }
-      ]);
-
-      try {
-        if (user && botId) {
-          const { data: dbSrc, error } = await supabase
-            .from("chatty_sources")
-            .insert({
-              bot_id: botId,
-              type: "text",
-              name: docTitle,
-              content: docContent,
-              status: "training",
-              char_count: docContent.length
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
-
-          // Simulate processing time
-          setTimeout(async () => {
-            await supabase
-              .from("chatty_sources")
-              .update({ status: "trained" })
-              .eq("id", dbSrc.id);
-
-            setPlaygroundMessages((prev) =>
-              prev.map((msg) =>
-                msg.filename === docTitle && msg.status === "pending"
-                  ? {
-                      role: "assistant",
-                      content: `Fact training complete! Added text source **"${docTitle}"** (${docContent.length} chars) to RAG memory.`,
-                      status: "success"
-                    }
-                  : msg
-              )
-            );
-
-            await loadBotSettings(user.id);
-          }, 1500);
-        }
-      } catch (err: any) {
-        console.error("Text ingest error:", err);
-        setPlaygroundMessages((prev) =>
-          prev.map((msg) =>
-            msg.filename === docTitle && msg.status === "pending"
-              ? {
-                  role: "assistant",
-                  content: `Failed to index facts. Error: ${err.message || "Unknown error"}`,
-                  status: "error"
-                }
-              : msg
-          )
-        );
-      } finally {
-        setIsKnowledgeLoading(false);
-      }
-      return;
-    }
-
-    // 3. Question/RAG Testing Handler
-    try {
-      const res = await fetchWithFallback("/api/widget/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          bot_id: botId,
-          session_id: "knowledge_test_session",
-          text: userInput,
-          visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-        })
-      });
-
-      if (res.ok) {
-        const body = await res.json();
-        setPlaygroundMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: body.reply
-          }
-        ]);
-      } else {
-        const body = await res.json();
-        setPlaygroundMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `I queried your RAG memory, but encountered an error: ${body.detail || "RAG engine failed"}`,
-            status: "error"
-          }
-        ]);
-      }
-    } catch (err: any) {
-      console.error("RAG query error:", err);
-      setPlaygroundMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Could not query the RAG backend. Make sure the server is online.`,
-          status: "error"
-        }
-      ]);
-    } finally {
-      setIsKnowledgeLoading(false);
     }
   };
 
@@ -3344,17 +3146,22 @@ export default function Dashboard() {
   };
 
   const dashAvatar = (iconCls: string) => {
-    const ICONS: Record<string, any> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
+    const ICONS: Record<string, LucideIcon> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
+    // avatarUrl/logoUrl are uploaded-file URLs (arbitrary storage domain, not
+    // in next.config's image allowlist) — next/image would refuse to load them.
+    // eslint-disable-next-line @next/next/no-img-element
     if (avatarIcon === "custom" && avatarUrl) return <img src={avatarUrl} alt="" className="size-full object-cover" />;
     if (avatarIcon && avatarIcon !== "logo" && ICONS[avatarIcon]) {
       const Ic = ICONS[avatarIcon];
       return <Ic className={iconCls} />;
     }
+    // eslint-disable-next-line @next/next/no-img-element
     if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />;
     return (botName?.[0] || "C").toUpperCase();
   };
 
   const dashHeaderLogo = (iconCls: string) => {
+    // eslint-disable-next-line @next/next/no-img-element
     if (logoUrl) return <img src={logoUrl} alt="" className="w-[34px] h-[34px] object-contain rounded-full" />;
     return dashAvatar(iconCls);
   };
@@ -3364,111 +3171,6 @@ export default function Dashboard() {
   const embedIframeCode = `<iframe\n  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}"\n  width="100%"\n  height="600"\n  frameborder="0"\n></iframe>`;
 
   // Reusable Chatty composer (input card)
-  const renderComposer = () => {
-    return (
-      <form
-        onSubmit={handleKnowledgeSend}
-        className="flex flex-col gap-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-3.5 shadow-md focus-within:border-neutral-350 dark:focus-within:border-neutral-700 transition-colors relative w-full"
-      >
-        {/* Hidden File Input */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleKnowledgeUpload}
-          accept=".pdf,.docx,.txt,.md"
-          className="hidden"
-        />
-
-        {/* Text Input on Top */}
-        <div className="flex-1 px-1">
-          <input
-            type="text"
-            placeholder="Assign a task or ask anything"
-            value={knowledgeInput}
-            onChange={(e) => setKnowledgeInput(e.target.value)}
-            onFocus={() => { setPaperclipOpen(false); setConnectorsDropdownOpen(false); }}
-            disabled={isKnowledgeLoading}
-            className="w-full bg-transparent border-none outline-none text-sm text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-450 py-1 disabled:opacity-60 font-sans"
-          />
-        </div>
-
-        {/* Toolbar on Bottom */}
-        <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-850">
-          
-          {/* Left: Plus & Quick Connectors */}
-          <div className="flex items-center gap-2">
-            {/* Plus button */}
-            <button
-              type="button"
-              onClick={() => { setPaperclipOpen(!paperclipOpen); setConnectorsDropdownOpen(false); setActiveSubmenu("none"); }}
-              disabled={isKnowledgeLoading}
-              className={`p-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300 transition-all cursor-pointer disabled:opacity-40 size-8 flex items-center justify-center`}
-            >
-              <motion.div animate={{ rotate: paperclipOpen ? 45 : 0 }} transition={{ duration: 0.2 }}>
-                <Plus className="size-4.5" />
-              </motion.div>
-            </button>
-
-            {/* Quick Connector Toggles Area (Drive, Calendar, Microsoft Drive, Microsoft Calendar) */}
-            <div
-              className="flex items-center gap-2.5 bg-neutral-50/80 dark:bg-neutral-850/80 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full px-3 py-1.5 border border-neutral-200/40 dark:border-neutral-750/60 transition-colors cursor-pointer"
-              onClick={() => { setConnectorsDropdownOpen(!connectorsDropdownOpen); setPaperclipOpen(false); }}
-            >
-              {/* Google Drive Status */}
-              <div className={`transition-opacity ${syncGoogleDrive && googleConnected ? "opacity-100" : "opacity-45"}`}>
-                <svg className="size-4" viewBox="0 0 24 24" fill="none">
-                  <path d="M15.43 14.5H23L15.43 1.5H7.86L15.43 14.5Z" fill="#0066DA" />
-                  <path d="M15.43 14.5H7.86L0.29 1.5H7.86L15.43 14.5Z" fill="#00A1F1" />
-                  <path d="M15.43 14.5L7.86 21.5H23L15.43 14.5Z" fill="#F2B200" />
-                </svg>
-              </div>
-
-              {/* Google Calendar Status */}
-              <div className={`transition-opacity ${syncGoogleCalendar && googleConnected ? "opacity-100" : "opacity-45"}`}>
-                <svg className="size-4" viewBox="0 0 24 24" fill="none">
-                  <rect width="24" height="24" rx="4.5" fill="#4285F4" />
-                  <text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="sans-serif">31</text>
-                </svg>
-              </div>
-
-              {/* Microsoft OneDrive Status */}
-              <div className={`transition-opacity ${syncOneDrive && microsoftConnected ? "opacity-100" : "opacity-45"}`}>
-                <svg className="size-4" viewBox="0 0 24 24" fill="none">
-                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z" fill="#0078D4"/>
-                </svg>
-              </div>
-
-              {/* Microsoft Outlook Calendar Status */}
-              <div className={`transition-opacity ${syncOutlookCalendar && microsoftConnected ? "opacity-100" : "opacity-45"}`}>
-                <svg className="size-4" viewBox="0 0 24 24" fill="none">
-                  <rect width="24" height="24" rx="4.5" fill="#0078D4" />
-                  <path d="M6 18H18V10H6V18ZM18 6H16V5c0-.55-.45-1-1-1s-1 .45-1 1v1H10V5c0-.55-.45-1-1-1s-1 .45-1 1v1H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" fill="white"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Send */}
-          <div className="flex items-center gap-1">
-            {/* Send button (circle up arrow) */}
-            <button
-              type="submit"
-              disabled={isKnowledgeLoading || !knowledgeInput.trim()}
-              className={`size-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                knowledgeInput.trim()
-                  ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 shadow-sm"
-                  : "bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-600 cursor-not-allowed"
-              }`}
-            >
-              <ArrowUp className="size-4" />
-            </button>
-          </div>
-
-        </div>
-      </form>
-    );
-  };
-
   // Render loading state if session loading
   if (loadingSession) {
     return (
@@ -3521,7 +3223,7 @@ export default function Dashboard() {
           <div className="h-16 px-6 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
               <span className="font-semibold text-base tracking-tight flex items-center gap-1.5">
-                <img src="/favicon.png" alt="Chatty Logo" className="size-7 object-contain" />
+                <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-7 object-contain" />
                 Chatty
               </span>
             </Link>
@@ -3662,9 +3364,9 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 mb-4">
             <div className="size-8 rounded-full bg-[#f97316]/10 flex items-center justify-center text-[#f97316] font-bold text-xs">P</div>
             <div className="overflow-hidden">
-              <p className="text-[11px] font-semibold truncate">{user ? user.email.split("@")[0] : "Guest"}</p>
+              <p className="text-[11px] font-semibold truncate">{user?.email ? user.email.split("@")[0] : "Guest"}</p>
               <p className="text-[9px] text-neutral-400 dark:text-neutral-500 truncate">
-                {user ? user.email : "Sign in to sync"}
+                {user?.email || "Sign in to sync"}
               </p>
             </div>
           </div>
@@ -4030,6 +3732,7 @@ export default function Dashboard() {
                       <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Assistant Icon</label>
                       <div className="flex flex-wrap gap-2">
                         {[
+                          // eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist
                           { key: "logo", node: logoUrl ? <img src={logoUrl} alt="" className="size-5 rounded-full object-cover" /> : <span className="text-xs font-bold">{(botName?.[0] || "C").toUpperCase()}</span> },
                           { key: "bot", node: <Bot className="size-4" /> },
                           { key: "headset", node: <Headphones className="size-4" /> },
@@ -4045,6 +3748,7 @@ export default function Dashboard() {
                         <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
                         <button type="button" onClick={() => avatarFileRef.current?.click()} title="Upload custom image"
                           className={`size-9 rounded-xl border flex items-center justify-center cursor-pointer transition-colors overflow-hidden ${avatarIcon === "custom" ? "border-[#f97316] ring-2 ring-[#f97316]/20" : "border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-[#f97316]/50"}`}>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist */}
                           {uploadingAvatar ? <Loader2 className="size-4 animate-spin" /> : (avatarIcon === "custom" && avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <Plus className="size-4" />)}
                         </button>
                       </div>
@@ -4059,6 +3763,7 @@ export default function Dashboard() {
                           className="size-12 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-neutral-50 dark:bg-neutral-950 overflow-hidden shrink-0 transition-colors"
                           style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist */}
                           {logoUrl ? <img src={logoUrl} alt="Logo" className="size-full object-cover" /> : <span className="text-sm font-bold text-neutral-400">{(botName?.[0] || "C").toUpperCase()}</span>}
                         </div>
                         <div>
@@ -4264,7 +3969,7 @@ export default function Dashboard() {
                             <span className="p-1.5 text-neutral-500"><Mic className="size-4.5" /></span>
                           </div>
                           {(() => {
-                            const map: Record<string, { shape: string; icon: any; label?: string }> = {
+                            const map: Record<string, { shape: string; icon: React.ReactNode; label?: string }> = {
                               plane: { shape: "size-7 rounded-full", icon: <Send className="size-3.5" /> },
                               arrowUp: { shape: "size-7 rounded-full", icon: <ArrowUp className="size-3.5" /> },
                               arrowRight: { shape: "size-7 rounded-full", icon: <ArrowRight className="size-3.5" /> },
@@ -4311,8 +4016,9 @@ export default function Dashboard() {
                         className="w-14 h-14 flex items-center justify-center transition-all duration-300 select-none cursor-pointer"
                       >
                         {(() => {
-                          const ICONS: Record<string, any> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
+                          const ICONS: Record<string, LucideIcon> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
                           if (avatarIcon === "custom" && avatarUrl) {
+                            // eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist
                             return <img src={avatarUrl} alt="" className="size-10 rounded-full object-cover" />;
                           }
                           if (avatarIcon && avatarIcon !== "logo" && ICONS[avatarIcon]) {
@@ -4326,6 +4032,7 @@ export default function Dashboard() {
                                 className="size-10 rounded-full flex items-center justify-center overflow-hidden"
                                 style={logoBgColor ? { backgroundColor: logoBgColor } : { backgroundColor: "rgba(255,255,255,0.2)" }}
                               >
+                                {/* eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist */}
                                 <img src={logoUrl} alt="" className="w-8 h-8 object-contain rounded-full" />
                               </div>
                             );
@@ -4441,7 +4148,7 @@ export default function Dashboard() {
                   {/* Generic Google mark before connecting (the button is about
                       the account, not Drive specifically yet); Drive's own icon
                       once connected, since that's what it now represents. */}
-                  <img src={googleConnected ? "/logos/google-drive.png" : "/logos/google.png"} alt="" className="size-4 object-contain" />
+                  <Image src={googleConnected ? "/logos/google-drive.png" : "/logos/google.png"} alt="" width={16} height={16} className="size-4 object-contain" />
                   {googleConnected ? "Google Drive" : "Connect Google"}
                   {googleConnected && <Check className="size-3" />}
                 </button>
@@ -4452,7 +4159,7 @@ export default function Dashboard() {
                   }`}
                 >
                   {/* Same here — generic Microsoft mark before connecting, OneDrive's own after. */}
-                  <img src={microsoftConnected ? "/logos/onedrive.png" : "/logos/microsoft.png"} alt="" className="size-4 object-contain" />
+                  <Image src={microsoftConnected ? "/logos/onedrive.png" : "/logos/microsoft.png"} alt="" width={16} height={16} className="size-4 object-contain" />
                   {microsoftConnected ? "OneDrive" : "Connect Microsoft"}
                   {microsoftConnected && <Check className="size-3" />}
                 </button>
@@ -4491,8 +4198,8 @@ export default function Dashboard() {
                   <div className="w-44"><ModernSelect
                     value={meetingProvider === "teams" ? "outlook" : "google"}
                     options={[
-                      { value: "google", label: "Google Calendar", icon: <img src="/logos/google-calendar.png" alt="" className="size-4 object-contain" />, hint: googleConnected ? undefined : "connect Google" },
-                      { value: "outlook", label: "Outlook Calendar", icon: <img src="/logos/outlook-calendar.png" alt="" className="size-4 object-contain" />, hint: microsoftConnected ? undefined : "connect Microsoft" },
+                      { value: "google", label: "Google Calendar", icon: <Image src="/logos/google-calendar.png" alt="" width={16} height={16} className="size-4 object-contain" />, hint: googleConnected ? undefined : "connect Google" },
+                      { value: "outlook", label: "Outlook Calendar", icon: <Image src="/logos/outlook-calendar.png" alt="" width={16} height={16} className="size-4 object-contain" />, hint: microsoftConnected ? undefined : "connect Microsoft" },
                     ]}
                     onChange={handleCalendarSyncChange}
                     size="sm"
@@ -5342,7 +5049,7 @@ export default function Dashboard() {
                     className="chat-input-bar flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
                   />
                   {(() => {
-                    const map: Record<string, { shape: string; icon: any; label?: string }> = {
+                    const map: Record<string, { shape: string; icon: React.ReactNode; label?: string }> = {
                       plane: { shape: "size-9 rounded-full", icon: <Send className="size-4" /> },
                       arrowUp: { shape: "size-9 rounded-full", icon: <ArrowUp className="size-4" /> },
                       arrowRight: { shape: "size-9 rounded-full", icon: <ArrowRight className="size-4" /> },
@@ -5604,6 +5311,7 @@ export default function Dashboard() {
                   const logoUrl = (domain: string) =>
                     `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
                   const PlatformIcon = ({ domain, label }: { domain: string; label: string }) => (
+                    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
                     <img
                       src={logoUrl(domain)}
                       alt={label}
@@ -5771,6 +5479,7 @@ export default function Dashboard() {
                   const mobileLogoUrl = (domain: string) =>
                     `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
                   const MobilePlatformIcon = ({ domain, label }: { domain: string; label: string }) => (
+                    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
                     <img
                       src={mobileLogoUrl(domain)}
                       alt={label}
@@ -5958,15 +5667,15 @@ export default function Dashboard() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
                   <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Total Requests</p>
-                  <p className="text-2xl font-bold mt-1 text-neutral-900 dark:text-white">{apiKeys.reduce((s: number, k: any) => s + (k.request_count || 0), 0).toLocaleString()}</p>
+                  <p className="text-2xl font-bold mt-1 text-neutral-900 dark:text-white">{apiKeys.reduce((s, k) => s + (k.request_count || 0), 0).toLocaleString()}</p>
                 </div>
                 <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
                   <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Active Keys</p>
-                  <p className="text-2xl font-bold mt-1 text-neutral-900 dark:text-white">{apiKeys.filter((k: any) => !k.revoked).length}</p>
+                  <p className="text-2xl font-bold mt-1 text-neutral-900 dark:text-white">{apiKeys.filter((k) => !k.revoked).length}</p>
                 </div>
                 <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
                   <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Last Activity</p>
-                  <p className="text-sm font-semibold mt-2 text-neutral-700 dark:text-neutral-300">{(() => { const t = apiKeys.map((k: any) => k.last_used_at).filter(Boolean).sort(); return t.length ? formatDateTime(t[t.length - 1]) : "—"; })()}</p>
+                  <p className="text-sm font-semibold mt-2 text-neutral-700 dark:text-neutral-300">{(() => { const t = apiKeys.map((k) => k.last_used_at).filter((v): v is string => Boolean(v)).sort(); return t.length ? formatDateTime(t[t.length - 1]) : "—"; })()}</p>
                 </div>
               </div>
 
@@ -5974,7 +5683,7 @@ export default function Dashboard() {
               {newApiKey && (
                 <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-2xl">
                   <p className="text-[11px] font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                    <Check className="size-3.5" /> New key created — copy it now, it won't be shown again.
+                    <Check className="size-3.5" /> New key created — copy it now, it won&apos;t be shown again.
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <code className="flex-1 text-[11px] font-mono bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 truncate">{newApiKey}</code>
@@ -6006,7 +5715,7 @@ export default function Dashboard() {
                   {apiKeys.length === 0 ? (
                     <div className="p-8 text-center text-xs text-neutral-400">No API keys yet. Generate one to start using the API.</div>
                   ) : (
-                    apiKeys.map((k: any) => (
+                    apiKeys.map((k) => (
                       <div key={k.id} className="p-4 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
@@ -6083,7 +5792,7 @@ const { reply, session_id } = await res.json();`}</pre>
               {newWebhookSecret && (
                 <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-2xl">
                   <p className="text-[11px] font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                    <Check className="size-3.5" /> Webhook registered — copy the signing secret now, it won't be shown again.
+                    <Check className="size-3.5" /> Webhook registered — copy the signing secret now, it won&apos;t be shown again.
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <code className="flex-1 text-[11px] font-mono bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 truncate">{newWebhookSecret}</code>
@@ -6142,7 +5851,7 @@ const { reply, session_id } = await res.json();`}</pre>
                       {loadingWebhooks ? "Loading…" : "No webhooks yet. Add one above to get real-time events."}
                     </div>
                   ) : (
-                    webhooks.map((w: any) => (
+                    webhooks.map((w) => (
                       <div key={w.id} className="p-4 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <code className="text-xs font-mono font-semibold text-neutral-800 dark:text-neutral-200 truncate block">{w.url}</code>
@@ -6435,7 +6144,7 @@ const { reply, session_id } = await res.json();`}</pre>
                     <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Knowledge Source</label>
                     <ModernSelect
                       value={answerMode}
-                      onChange={(v) => handleInputChange(setAnswerMode, v)}
+                      onChange={(v) => handleInputChange(setAnswerMode, v as "strict" | "hybrid" | "web")}
                       options={[
                         { value: "strict", label: "Knowledge base only", hint: "Safest — answers strictly from your trained sources" },
                         { value: "hybrid", label: "Knowledge base + AI knowledge", hint: "Falls back to the model's general knowledge" },
@@ -7485,9 +7194,9 @@ const { reply, session_id } = await res.json();`}</pre>
           {/* TAB: MAILBOX */}
           {activeTab === "mailbox" && (() => {
             const emails = adminNotifications
-              .filter((n: any) => n.channel === "email")
-              .filter((n: any) => mailboxFilter === "all" || n.type === mailboxFilter);
-            const selected = emails.find((m: any) => m.id === selectedMailId) || emails[0] || null;
+              .filter((n) => n.channel === "email")
+              .filter((n) => mailboxFilter === "all" || n.type === mailboxFilter);
+            const selected = emails.find((m) => m.id === selectedMailId) || emails[0] || null;
             const statusBadge = (s: string) => {
               const map: Record<string, string> = {
                 sent: "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400",
@@ -7541,7 +7250,7 @@ const { reply, session_id } = await res.json();`}</pre>
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                     {/* Email list */}
                     <div className="lg:col-span-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-850 max-h-[600px] overflow-y-auto">
-                      {emails.map((m: any) => {
+                      {emails.map((m) => {
                         const isSel = selected && m.id === selected.id;
                         return (
                           <button
@@ -7555,7 +7264,7 @@ const { reply, session_id } = await res.json();`}</pre>
                               <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${m.type === "admin" ? "bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400" : "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"}`}>
                                 {m.type}
                               </span>
-                              {statusBadge(m.status)}
+                              {statusBadge(m.status || "")}
                             </div>
                             <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mt-1.5 truncate">{m.subject}</p>
                             <p className="text-[10px] text-neutral-400 truncate mt-0.5">To: {m.recipient}</p>
@@ -7572,7 +7281,7 @@ const { reply, session_id } = await res.json();`}</pre>
                           <div className="p-4 border-b border-neutral-100 dark:border-neutral-850">
                             <div className="flex items-center justify-between gap-2">
                               <h5 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">{selected.subject}</h5>
-                              {statusBadge(selected.status)}
+                              {statusBadge(selected.status || "")}
                             </div>
                             <div className="flex items-center gap-3 mt-1.5 text-[10px] text-neutral-400">
                               <span>To: <span className="text-neutral-600 dark:text-neutral-300 font-medium">{selected.recipient}</span></span>
@@ -7704,7 +7413,7 @@ const { reply, session_id } = await res.json();`}</pre>
                             )}
                           </td>
                           <td className="px-6 py-4 text-neutral-400 dark:text-neutral-500 font-mono">
-                            {formatDateTime(n.created_at)}
+                            {n.created_at ? formatDateTime(n.created_at) : ""}
                           </td>
                         </tr>
                       ))}
@@ -7764,7 +7473,7 @@ const { reply, session_id } = await res.json();`}</pre>
                         <tr key={a.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10">
                           <td className="px-6 py-4">
                             <span className="font-bold text-neutral-900 dark:text-white capitalize">
-                              {a.action.replace(/_/g, " ")}
+                              {(a.action || "").replace(/_/g, " ")}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-neutral-600 dark:text-neutral-300 leading-normal max-w-sm">
@@ -7774,7 +7483,7 @@ const { reply, session_id } = await res.json();`}</pre>
                             {a.performed_by}
                           </td>
                           <td className="px-6 py-4 text-neutral-400 dark:text-neutral-500 font-mono">
-                            {formatDateTime(a.created_at)}
+                            {a.created_at ? formatDateTime(a.created_at) : ""}
                           </td>
                         </tr>
                       ))}
@@ -7829,7 +7538,7 @@ const { reply, session_id } = await res.json();`}</pre>
             <ol className="text-[10px] text-neutral-550 dark:text-neutral-400 space-y-1.5 list-decimal pl-4 leading-relaxed">
               <li>Open <a href="https://t.me/KinByPersonaliAI_bot" target="_blank" rel="noreferrer" className="text-[#f97316] underline">@KinByPersonaliAI_bot</a> on Telegram and tap <b>Start</b>.</li>
               <li>The bot will reply with your numeric chat ID.</li>
-              <li>Paste that ID below — we'll send a confirmation message to verify.</li>
+              <li>Paste that ID below — we&apos;ll send a confirmation message to verify.</li>
             </ol>
             <form
               onSubmit={async (e) => {
@@ -7891,7 +7600,7 @@ const { reply, session_id } = await res.json();`}</pre>
               </button>
             </div>
             <p className="text-[11px] text-neutral-450 dark:text-neutral-400 leading-relaxed">
-              Enter a Google Drive folder URL or ID. We will crawl the folder and index the files (PDF, DOCX, Sheets, Docs, TXT, MD) into your bot's RAG memory.
+              Enter a Google Drive folder URL or ID. We will crawl the folder and index the files (PDF, DOCX, Sheets, Docs, TXT, MD) into your bot&apos;s RAG memory.
             </p>
             <form onSubmit={async (e) => {
               e.preventDefault();
@@ -7928,7 +7637,7 @@ const { reply, session_id } = await res.json();`}</pre>
                   const body = await res.json();
                   setDriveIndexError(body.detail || "Failed to start folder indexing.");
                 }
-              } catch (err) {
+              } catch {
                 setDriveIndexError("Failed to connect to the server.");
               } finally {
                 setIsIndexingDrive(false);
