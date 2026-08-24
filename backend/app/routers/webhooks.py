@@ -71,7 +71,7 @@ async def _handle_whatsapp_message(phone_number_id: str, frm: str, text: str) ->
         return
     owner_user = owner.data[0]
     session_id = f"wa:{frm}"
-    if chatty_quota_exceeded(owner_user, bot["user_id"]):
+    if await chatty_quota_exceeded(owner_user, bot["user_id"]):
         await _send_whatsapp(phone_number_id, frm, WIDGET_QUOTA_REPLY)
         return
     try:
@@ -148,7 +148,7 @@ async def _slack_answer_and_post(team_id: str, text: str, response_url: str) -> 
             "auth_user_id", bot["user_id"]).limit(1).execute())
         if not owner.data:
             answer = "Bot owner not found."
-        elif chatty_quota_exceeded(owner.data[0], bot["user_id"]):
+        elif await chatty_quota_exceeded(owner.data[0], bot["user_id"]):
             answer = WIDGET_QUOTA_REPLY
         else:
             try:

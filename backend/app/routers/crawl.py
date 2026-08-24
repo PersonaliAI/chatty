@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.core.clients import supabase
 from app.core.config import FUNCTION_SECRET
+from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.security import verify_function_secret
 from app.schemas.crawl import CrawlDiscoverRequest, CrawlPagesRequest, SourceScheduleUpdate
@@ -97,8 +98,8 @@ async def crawl_pages(
     req: CrawlPagesRequest, user: dict[str, Any] = Depends(require_user)
 ):
     """Crawl the admin-selected URLs and index each as a knowledge source."""
-    res = supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(
-        "user_id", user["auth_user_id"]).execute()
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
@@ -116,18 +117,19 @@ async def crawl_pages(
                     return {"url": u, "ok": False, "error": "no content or rate limited"}
 
                 # Check for duplicates to update instead of insert
-                existing = supabase.table("chatty_sources").select("id").eq("bot_id", req.bot_id).eq("type", "url").eq("name", u).execute()
+                existing = await run_db(lambda: supabase.table("chatty_sources").select("id").eq("bot_id", req.bot_id).eq("type", "url").eq("name", u).execute())
                 if existing.data:
                     # Update existing record
-                    supabase.table("chatty_sources").update({
+                    existing_id = existing.data[0]["id"]
+                    await run_db(lambda: supabase.table("chatty_sources").update({
                         "content": content, "status": "trained", "char_count": len(content),
-                    }).eq("id", existing.data[0]["id"]).execute()
+                    }).eq("id", existing_id).execute())
                 else:
                     # Insert new record
-                    supabase.table("chatty_sources").insert({
+                    await run_db(lambda: supabase.table("chatty_sources").insert({
                         "bot_id": req.bot_id, "type": "url", "name": u,
                         "content": content, "status": "trained", "char_count": len(content),
-                    }).execute()
+                    }).execute())
                 return {"url": u, "ok": True, "chars": len(content)}
             except Exception as exc:
                 logger.exception("crawl page failed: %s", u)
@@ -145,22 +147,22 @@ async def update_source_schedule(
     if req.schedule not in ("off", "daily", "weekly", "monthly"):
         raise HTTPException(status_code=400, detail="schedule must be off, daily, weekly, or monthly")
 
-    src_res = supabase.table("chatty_sources").select("id, bot_id, type").eq("id", source_id).execute()
+    src_res = await run_db(lambda: supabase.table("chatty_sources").select("id, bot_id, type").eq("id", source_id).execute())
     if not src_res.data:
         raise HTTPException(status_code=404, detail="Source not found")
     source = src_res.data[0]
     if source["type"] != "url":
         raise HTTPException(status_code=400, detail="Scheduling is only available for URL sources")
 
-    bot_res = supabase.table("chatty_bots").select("id").eq("id", source["bot_id"]).eq(
-        "user_id", user["auth_user_id"]).execute()
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", source["bot_id"]).eq(
+        "user_id", user["auth_user_id"]).execute())
     if not bot_res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
-    supabase.table("chatty_sources").update({
+    await run_db(lambda: supabase.table("chatty_sources").update({
         "crawl_schedule": req.schedule,
         "next_crawl_at": _next_crawl_at(req.schedule),
-    }).eq("id", source_id).execute()
+    }).eq("id", source_id).execute())
     return {"success": True, "schedule": req.schedule, "next_crawl_at": _next_crawl_at(req.schedule)}
 
 
@@ -172,8 +174,8 @@ async def execute_scheduled_crawls(x_function_secret: Optional[str] = Header(def
     verify_function_secret(x_function_secret, FUNCTION_SECRET)
 
     now = datetime.now(timezone.utc)
-    res = supabase.table("chatty_sources").select("id, bot_id, name, crawl_schedule, next_crawl_at") \
-        .eq("type", "url").neq("crawl_schedule", "off").lte("next_crawl_at", now.isoformat()).execute()
+    res = await run_db(lambda: supabase.table("chatty_sources").select("id, bot_id, name, crawl_schedule, next_crawl_at")
+        .eq("type", "url").neq("crawl_schedule", "off").lte("next_crawl_at", now.isoformat()).execute())
     due = res.data or []
 
     sem = asyncio.Semaphore(5)
@@ -185,13 +187,13 @@ async def execute_scheduled_crawls(x_function_secret: Optional[str] = Header(def
                 if not content.strip():
                     # Don't clear the schedule on a transient fetch failure — try again next cycle.
                     return {"id": src["id"], "ok": False, "error": "no content or rate limited"}
-                supabase.table("chatty_sources").update({
+                await run_db(lambda: supabase.table("chatty_sources").update({
                     "content": content,
                     "status": "trained",
                     "char_count": len(content),
                     "last_crawled_at": now.isoformat(),
                     "next_crawl_at": _next_crawl_at(src["crawl_schedule"], now),
-                }).eq("id", src["id"]).execute()
+                }).eq("id", src["id"]).execute())
                 return {"id": src["id"], "ok": True, "chars": len(content)}
             except Exception as exc:
                 logger.exception("scheduled re-crawl failed for source %s", src["id"])

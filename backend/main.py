@@ -139,19 +139,19 @@ def _month_start_iso() -> str:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
 
 
-def get_monthly_usage(user_id: str) -> int:
+async def get_monthly_usage(user_id: str) -> int:
     """Count user-role messages persisted since the first of the current
     month. No longer used for Kin's own quota gate (see quota_state) —
     kept for chatty_quota_exceeded()'s combined Kin+Chatty message count."""
     try:
-        res = (
+        res = await run_db(lambda: (
             supabase.table("messages")
             .select("id", count="exact", head=True)
             .eq("user_id", user_id)
             .eq("role", "user")
             .gte("created_at", _month_start_iso())
             .execute()
-        )
+        ))
         return res.count or 0
     except Exception:  # noqa: BLE001
         logger.exception("usage count failed")
@@ -182,36 +182,36 @@ def quota_state(user: dict[str, Any]) -> tuple[int, int]:
     return get_monthly_token_usage(user["id"])["total_tokens"], limit
 
 
-def get_chatty_monthly_usage(owner_auth_id: str) -> int:
+async def get_chatty_monthly_usage(owner_auth_id: str) -> int:
     """Count visitor (user-role) messages across ALL of an owner's Chatty bots
     since the first of the current month. Widget LLM calls are billed to the
     bot owner, so they must count against the same monthly plan quota."""
     try:
-        bots = supabase.table("chatty_bots").select("id").eq("user_id", owner_auth_id).execute()
+        bots = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("user_id", owner_auth_id).execute())
         bot_ids = [b["id"] for b in (bots.data or [])]
         if not bot_ids:
             return 0
-        res = (
+        res = await run_db(lambda: (
             supabase.table("chatty_conversations")
             .select("id", count="exact", head=True)
             .in_("bot_id", bot_ids)
             .eq("role", "user")
             .gte("created_at", _month_start_iso())
             .execute()
-        )
+        ))
         return res.count or 0
     except Exception:  # noqa: BLE001
         logger.exception("chatty usage count failed")
         return 0
 
 
-def chatty_quota_exceeded(owner_user: dict[str, Any], owner_auth_id: str) -> bool:
+async def chatty_quota_exceeded(owner_user: dict[str, Any], owner_auth_id: str) -> bool:
     """True when the bot owner has used up their monthly message allowance
     (Kin web messages + Chatty widget messages combined)."""
     limit = PLAN_QUOTAS[plan_for(owner_user)]
     if limit <= 0:  # 0 == unlimited
         return False
-    used = get_monthly_usage(owner_user["id"]) + get_chatty_monthly_usage(owner_auth_id)
+    used = (await get_monthly_usage(owner_user["id"])) + (await get_chatty_monthly_usage(owner_auth_id))
     return used >= limit
 
 
@@ -439,7 +439,7 @@ async def _resolve_api_key(
     # IP allowlist (optional — only enforced when the key has entries)
     if request is not None:
         _sec.check_ip_allowlist(key_row, request)
-        _sec.check_ip_rate(request)
+        await _sec.check_ip_rate(request)
     # Shared, cross-instance limiter (Upstash-backed, falls back to
     # in-memory) — same mechanism the widget path uses, so a key's 60/min
     # budget is enforced across all Cloud Run instances, not per-instance.

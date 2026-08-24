@@ -18,6 +18,7 @@ from fastapi import APIRouter, Header
 
 from app.core.clients import supabase
 from app.core.config import FUNCTION_SECRET
+from app.core.db import run_db
 from app.core.security import verify_function_secret
 from plugins import notifications as notify
 
@@ -37,9 +38,9 @@ async def purge_old_conversations(x_function_secret: Optional[str] = Header(defa
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     n = 0
     try:
-        res = supabase.table("chatty_conversations").delete().lt("created_at", cutoff).execute()
+        res = await run_db(lambda: supabase.table("chatty_conversations").delete().lt("created_at", cutoff).execute())
         n = len(res.data or [])
-        supabase.table("chatty_sessions").delete().lt("last_message_at", cutoff).execute()
+        await run_db(lambda: supabase.table("chatty_sessions").delete().lt("last_message_at", cutoff).execute())
     except Exception:
         logger.exception("retention purge failed")
     return {"purged": n, "older_than_days": days}

@@ -149,7 +149,7 @@ async def widget_chat(
         return WidgetChatResponse(reply="", session_id=session_id, ai_paused=True)
 
     # 3b. Quota gate — never spend model tokens once the owner is out of quota.
-    if chatty_quota_exceeded(owner_user, owner_id):
+    if await chatty_quota_exceeded(owner_user, owner_id):
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
@@ -266,7 +266,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         return StreamingResponse(_paused_gen(), media_type="text/event-stream", background=background_tasks)
 
     # Quota gate — save the graceful reply and stream it as a single message.
-    if chatty_quota_exceeded(owner_user, owner_id):
+    if await chatty_quota_exceeded(owner_user, owner_id):
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
@@ -451,7 +451,7 @@ async def widget_chat_media(
     # Quota gate BEFORE the storage write — an owner who's already out of
     # quota shouldn't also pay for storage on an upload the model will never
     # even look at.
-    if chatty_quota_exceeded(owner_user, bot["user_id"]):
+    if await chatty_quota_exceeded(owner_user, bot["user_id"]):
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())

@@ -50,7 +50,7 @@ async def widget_voice_token(body: VoiceTokenRequest, request: Request):
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = res_user.data[0]
 
-    if chatty_quota_exceeded(owner_user, owner_id):
+    if await chatty_quota_exceeded(owner_user, owner_id):
         raise HTTPException(status_code=402, detail="Usage quota exceeded")
 
     # 4. Voice must be explicitly enabled for this bot.

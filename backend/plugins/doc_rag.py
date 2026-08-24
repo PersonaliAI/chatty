@@ -467,30 +467,30 @@ async def index_file(
         "status": "pending",
         "error": None,
     }
-    row_res = (
+    row_res = await run_db(lambda: (
         supabase.table("drive_documents")
         .upsert(upsert_payload, on_conflict="user_id,drive_file_id")
         .execute()
-    )
+    ))
     doc_row = row_res.data[0] if row_res.data else None
     if not doc_row:
         # Race — fetch it
-        existing = (
+        existing = await run_db(lambda: (
             supabase.table("drive_documents")
             .select("*")
             .eq("user_id", user_id)
             .eq("drive_file_id", file_id)
             .single()
             .execute()
-        )
+        ))
         doc_row = existing.data
 
     document_id = doc_row["id"]
 
     # Wipe any prior chunks for this document — we reindex from scratch.
-    supabase.table("document_chunks").delete().eq(
+    await run_db(lambda: supabase.table("document_chunks").delete().eq(
         "document_id", document_id
-    ).execute()
+    ).execute())
 
     try:
         if source == "onedrive":
@@ -511,13 +511,13 @@ async def index_file(
                 if (mime or "").lower() == "application/pdf"
                 else "no extractable text from this file type."
             )
-            supabase.table("drive_documents").update(
+            await run_db(lambda: supabase.table("drive_documents").update(
                 {
                     "status": "failed",
                     "error": err,
                     "chunk_count": 0,
                 }
-            ).eq("id", document_id).execute()
+            ).eq("id", document_id).execute())
             return {**doc_row, "status": "failed", "error": err}
 
         chunks = chunk_text(text)
@@ -561,9 +561,8 @@ async def index_file(
         if rows:
             # Batch insert (Postgrest can handle a few hundred rows per call)
             for batch_start in range(0, len(rows), 50):
-                supabase.table("document_chunks").insert(
-                    rows[batch_start : batch_start + 50]
-                ).execute()
+                batch = rows[batch_start : batch_start + 50]
+                await run_db(lambda batch=batch: supabase.table("document_chunks").insert(batch).execute())
             final_status = "indexed"
             err_msg = None
         else:
@@ -572,21 +571,21 @@ async def index_file(
             final_status = "failed"
             err_msg = "embeddings failed for all chunks (check model availability)"
 
-        supabase.table("drive_documents").update(
+        await run_db(lambda: supabase.table("drive_documents").update(
             {
                 "status": final_status,
                 "error": err_msg,
                 "chunk_count": len(rows),
                 "indexed_at": "now()",
             }
-        ).eq("id", document_id).execute()
+        ).eq("id", document_id).execute())
         return {**doc_row, "status": final_status, "chunk_count": len(rows)}
 
     except Exception as exc:  # noqa: BLE001
         logger.exception("indexing failed for %s", file_id)
-        supabase.table("drive_documents").update(
+        await run_db(lambda: supabase.table("drive_documents").update(
             {"status": "failed", "error": str(exc)[:500]}
-        ).eq("id", document_id).execute()
+        ).eq("id", document_id).execute())
         return {**doc_row, "status": "failed", "error": str(exc)}
 
 
@@ -674,14 +673,14 @@ async def get_document_bytes(supabase, user: dict[str, Any], file_name: str) -> 
     extracted text) by filename, for attaching to an outgoing email.
     Drive/OneDrive-sourced files are re-downloaded live via drive_file_id;
     direct uploads come from the kin-documents storage bucket."""
-    res = (
+    res = await run_db(lambda: (
         supabase.table("drive_documents")
         .select("id, file_name, mime_type, source, drive_file_id, storage_path")
         .eq("user_id", user["id"])
         .ilike("file_name", f"%{file_name}%")
         .order("indexed_at", desc=True)
         .execute()
-    )
+    ))
     matches = res.data or []
     if not matches:
         return {"error": f"No indexed document matches '{file_name}'."}
@@ -689,7 +688,7 @@ async def get_document_bytes(supabase, user: dict[str, Any], file_name: str) -> 
 
     if doc.get("storage_path"):
         try:
-            data = supabase.storage.from_(_DOCS_BUCKET).download(doc["storage_path"])
+            data = await run_db(lambda: supabase.storage.from_(_DOCS_BUCKET).download(doc["storage_path"]))
         except Exception as exc:  # noqa: BLE001
             return {"error": f"Could not retrieve the stored file: {exc}"}
         return {"file_name": doc["file_name"], "mime_type": doc.get("mime_type"), "data": data}
@@ -749,38 +748,38 @@ async def index_blob(
         "status": "pending",
         "error": None,
     }
-    row_res = (
+    row_res = await run_db(lambda: (
         supabase.table("drive_documents")
         .upsert(upsert_payload, on_conflict="user_id,drive_file_id")
         .execute()
-    )
+    ))
     doc_row = row_res.data[0] if row_res.data else None
     if not doc_row:
-        existing = (
+        existing = await run_db(lambda: (
             supabase.table("drive_documents")
             .select("*")
             .eq("user_id", user_id)
             .eq("drive_file_id", ref)
             .single()
             .execute()
-        )
+        ))
         doc_row = existing.data
     document_id = doc_row["id"]
 
     # Wipe any previous chunks for this doc — full reindex.
-    supabase.table("document_chunks").delete().eq(
+    await run_db(lambda: supabase.table("document_chunks").delete().eq(
         "document_id", document_id
-    ).execute()
+    ).execute())
 
     # Keep the original bytes so this file can later be attached to an email
     # (see send_followup helpers in agent_tools.py) — Telegram file URLs
     # expire and web uploads have no other persistent copy, unlike Drive/
     # OneDrive files which get re-downloaded live via drive_file_id instead.
-    storage_path = _store_original_bytes(supabase, user_id=user_id, document_id=document_id, data=data)
+    storage_path = await run_db(lambda: _store_original_bytes(supabase, user_id=user_id, document_id=document_id, data=data))
     if storage_path:
-        supabase.table("drive_documents").update({"storage_path": storage_path}).eq(
+        await run_db(lambda: supabase.table("drive_documents").update({"storage_path": storage_path}).eq(
             "id", document_id
-        ).execute()
+        ).execute())
 
     try:
         text = await _extract_text_from_blob(
@@ -807,13 +806,13 @@ async def index_blob(
                 )
             else:
                 err = "no extractable text from this file type."
-            supabase.table("drive_documents").update(
+            await run_db(lambda: supabase.table("drive_documents").update(
                 {
                     "status": "failed",
                     "error": err,
                     "chunk_count": 0,
                 }
-            ).eq("id", document_id).execute()
+            ).eq("id", document_id).execute())
             return {**doc_row, "status": "failed", "error": err}
 
         chunks = chunk_text(text)
@@ -847,30 +846,29 @@ async def index_blob(
                 })
         if rows:
             for batch_start in range(0, len(rows), 50):
-                supabase.table("document_chunks").insert(
-                    rows[batch_start : batch_start + 50]
-                ).execute()
+                batch = rows[batch_start : batch_start + 50]
+                await run_db(lambda batch=batch: supabase.table("document_chunks").insert(batch).execute())
             final_status = "indexed"
             err_msg = None
         else:
             final_status = "failed"
             err_msg = "embeddings failed for all chunks"
 
-        supabase.table("drive_documents").update(
+        await run_db(lambda: supabase.table("drive_documents").update(
             {
                 "status": final_status,
                 "error": err_msg,
                 "chunk_count": len(rows),
                 "indexed_at": "now()",
             }
-        ).eq("id", document_id).execute()
+        ).eq("id", document_id).execute())
         return {**doc_row, "status": final_status, "chunk_count": len(rows)}
 
     except Exception as exc:  # noqa: BLE001
         logger.exception("index_blob failed for %s", name)
-        supabase.table("drive_documents").update(
+        await run_db(lambda: supabase.table("drive_documents").update(
             {"status": "failed", "error": str(exc)[:500]}
-        ).eq("id", document_id).execute()
+        ).eq("id", document_id).execute())
         return {**doc_row, "status": "failed", "error": str(exc)}
 
 

@@ -14,10 +14,12 @@ from __future__ import annotations
 import hmac
 import ipaddress
 import logging
+import os
 import time
 import uuid
 from typing import Any, Optional
 
+import httpx
 from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -93,12 +95,23 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 # ---------------------------------------------------------------------------
 # IP-based rate limiter
+#
+# Shared, cross-instance limiter backed by Upstash Redis (REST API) — same
+# fixed-window-counter mechanism main.py's per-API-key and widget-message
+# limiters use, so a multi-instance Cloud Run deploy enforces the advertised
+# limit across all instances instead of N times over (once per instance).
+# Falls back to a per-process in-memory sliding window on any Redis error or
+# when Upstash isn't configured, so an outage degrades gracefully rather than
+# blocking (or crashing) requests.
 # ---------------------------------------------------------------------------
 
 _ip_state: dict[str, list[float]] = {}
 
+UPSTASH_REDIS_REST_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
+UPSTASH_REDIS_REST_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 
-def ip_rate_limited(bucket: str, limit: int, window: int) -> bool:
+
+def _ip_rate_limited_in_memory(bucket: str, limit: int, window: int) -> bool:
     """Sliding-window check. Returns True when the bucket has hit the limit."""
     now = time.time()
     hits = [t for t in _ip_state.get(bucket, []) if now - t < window]
@@ -110,11 +123,33 @@ def ip_rate_limited(bucket: str, limit: int, window: int) -> bool:
     return False
 
 
-def check_ip_rate(request: Request, limit: int = 120, window: int = 60) -> None:
+async def ip_rate_limited(bucket: str, limit: int, window: int) -> bool:
+    """Returns True when the bucket has hit the limit, checked against the
+    shared Upstash-backed fixed-window counter (or the in-memory fallback)."""
+    if not (UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN):
+        return _ip_rate_limited_in_memory(bucket, limit, window)
+    window_bucket = int(time.time()) // window
+    rkey = f"rl:{bucket}:{window_bucket}"
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.post(
+                f"{UPSTASH_REDIS_REST_URL}/pipeline",
+                headers={"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"},
+                json=[["INCR", rkey], ["EXPIRE", rkey, str(window)]],
+            )
+        resp.raise_for_status()
+        count = int(resp.json()[0]["result"])
+        return count > limit
+    except Exception:  # noqa: BLE001 — never let the limiter take down a request
+        logger.warning("Upstash rate limiter unavailable; using in-memory fallback", exc_info=True)
+        return _ip_rate_limited_in_memory(bucket, limit, window)
+
+
+async def check_ip_rate(request: Request, limit: int = 120, window: int = 60) -> None:
     """Raise 429 when the request IP exceeds the given rate on this path."""
     ip = _client_ip(request)
     bucket = f"ip:{ip}:{request.url.path}"
-    if ip_rate_limited(bucket, limit=limit, window=window):
+    if await ip_rate_limited(bucket, limit=limit, window=window):
         raise HTTPException(
             status_code=429,
             detail="Too many requests from this IP address. Please slow down.",

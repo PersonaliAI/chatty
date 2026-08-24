@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, HTTPExcep
 
 from app.core.clients import genai_client, supabase
 from app.core.config import FUNCTION_SECRET
+from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.security import verify_function_secret
 from app.schemas.documents import DriveScheduleUpdate, IndexFilesBody, IndexFolderBody
@@ -37,7 +38,7 @@ def _drive_folder_id_from(s: str) -> str:
 
 @router.get("/api/documents")
 async def documents_list(user: dict[str, Any] = Depends(require_user)):
-    res = (
+    res = await run_db(lambda: (
         supabase.table("drive_documents")
         .select(
             "id, drive_file_id, file_name, mime_type, web_view_link, parent_folder_id, "
@@ -47,7 +48,7 @@ async def documents_list(user: dict[str, Any] = Depends(require_user)):
         .order("indexed_at", desc=True)
         .limit(500)
         .execute()
-    )
+    ))
     return {"documents": res.data or []}
 
 
@@ -74,10 +75,10 @@ async def documents_index_folder(
     # Remember the last-indexed folder so a recurring schedule (if turned on
     # later) knows what to re-index, without resetting an existing schedule.
     field_prefix = "onedrive" if source == "onedrive" else "drive"
-    supabase.table("users").update({
+    await run_db(lambda: supabase.table("users").update({
         f"{field_prefix}_folder_id": folder_id,
         f"{field_prefix}_max_files": max_files,
-    }).eq("id", user["id"]).execute()
+    }).eq("id", user["id"]).execute())
 
     background_tasks.add_task(
         _index_folder_task,
@@ -91,10 +92,10 @@ async def documents_index_folder(
 
 @router.get("/api/documents/sync-schedule")
 async def get_drive_sync_schedule(user: dict[str, Any] = Depends(require_user)):
-    res = supabase.table("users").select(
+    res = await run_db(lambda: supabase.table("users").select(
         "drive_folder_id, drive_sync_schedule, drive_next_sync_at, "
         "onedrive_folder_id, onedrive_sync_schedule, onedrive_next_sync_at"
-    ).eq("id", user["id"]).execute()
+    ).eq("id", user["id"]).execute())
     row = (res.data or [{}])[0]
     return {
         "gdrive": {
@@ -117,14 +118,14 @@ async def update_drive_sync_schedule(req: DriveScheduleUpdate, user: dict[str, A
         raise HTTPException(status_code=400, detail="schedule must be off, daily, weekly, or monthly")
     field_prefix = "onedrive" if req.source == "onedrive" else "drive"
     folder_field = f"{field_prefix}_folder_id"
-    existing = supabase.table("users").select(folder_field).eq("id", user["id"]).execute()
+    existing = await run_db(lambda: supabase.table("users").select(folder_field).eq("id", user["id"]).execute())
     if req.schedule != "off" and not (existing.data and existing.data[0].get(folder_field)):
         raise HTTPException(status_code=400, detail="Index a folder at least once before scheduling auto re-sync")
 
-    supabase.table("users").update({
+    await run_db(lambda: supabase.table("users").update({
         f"{field_prefix}_sync_schedule": req.schedule,
         f"{field_prefix}_next_sync_at": _next_crawl_at(req.schedule),
-    }).eq("id", user["id"]).execute()
+    }).eq("id", user["id"]).execute())
     return {"success": True, "schedule": req.schedule, "next_sync_at": _next_crawl_at(req.schedule)}
 
 
@@ -136,8 +137,8 @@ async def execute_scheduled_drive_syncs(x_function_secret: Optional[str] = Heade
     now = datetime.now(timezone.utc)
     results = []
     for prefix, source in (("drive", "gdrive"), ("onedrive", "onedrive")):
-        res = supabase.table("users").select("*") \
-            .neq(f"{prefix}_sync_schedule", "off").lte(f"{prefix}_next_sync_at", now.isoformat()).execute()
+        res = await run_db(lambda prefix=prefix: supabase.table("users").select("*")
+            .neq(f"{prefix}_sync_schedule", "off").lte(f"{prefix}_next_sync_at", now.isoformat()).execute())
         for u in (res.data or []):
             folder_id = u.get(f"{prefix}_folder_id")
             if not folder_id:
@@ -147,9 +148,10 @@ async def execute_scheduled_drive_syncs(x_function_secret: Optional[str] = Heade
                     supabase, genai_client, user=u, folder_id=folder_id,
                     max_files=u.get(f"{prefix}_max_files") or 50, source=source,
                 )
-                supabase.table("users").update({
-                    f"{prefix}_next_sync_at": _next_crawl_at(u.get(f"{prefix}_sync_schedule"), now),
-                }).eq("id", u["id"]).execute()
+                next_sync_at = _next_crawl_at(u.get(f"{prefix}_sync_schedule"), now)
+                await run_db(lambda prefix=prefix, u=u, next_sync_at=next_sync_at: supabase.table("users").update({
+                    f"{prefix}_next_sync_at": next_sync_at,
+                }).eq("id", u["id"]).execute())
                 results.append({"user_id": u["id"], "source": source, "ok": True})
             except Exception:
                 logger.exception("scheduled %s re-sync failed for user %s", source, u["id"])
@@ -218,9 +220,9 @@ async def documents_delete(
     document_id: str, user: dict[str, Any] = Depends(require_user)
 ):
     # Chunks cascade via FK ON DELETE CASCADE.
-    supabase.table("drive_documents").delete().eq("id", document_id).eq(
+    await run_db(lambda: supabase.table("drive_documents").delete().eq("id", document_id).eq(
         "user_id", user["id"]
-    ).execute()
+    ).execute())
     return {"status": "deleted"}
 
 
@@ -235,7 +237,7 @@ async def documents_wipe(
         if status not in ("indexed", "failed", "pending"):
             raise HTTPException(status_code=400, detail="invalid status")
         q = q.eq("status", status)
-    q.execute()
+    await run_db(q.execute)
     return {"status": "deleted", "filter": status or "all"}
 
 
