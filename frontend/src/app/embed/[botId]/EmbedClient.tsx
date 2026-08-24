@@ -183,7 +183,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   const clearChat = () => {
-    const fresh = `v-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+    const fresh = `v-${crypto.randomUUID()}`;
     try {
       localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, fresh);
       localStorage.removeItem(`chatty_msgs_${botId}_${hostKey}`);
@@ -525,7 +525,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     if (typeof window === "undefined") return `widget-session-${botId}`;
     const k = `chatty_sid_${botId}_${hostKey}`;
     let s = localStorage.getItem(k);
-    if (!s) { s = `v-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`; localStorage.setItem(k, s); }
+    if (!s) { s = `v-${crypto.randomUUID()}`; localStorage.setItem(k, s); }
     return s;
   });
 
