@@ -598,7 +598,6 @@ async def execute(
     *,
     user: dict,
     supabase,
-    genai_client=None,
     context: Optional[dict] = None,
 ) -> dict:
     """Dispatch a function call to its handler."""

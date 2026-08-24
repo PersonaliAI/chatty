@@ -31,6 +31,7 @@ import base64
 from google import genai
 
 from app.core.config import GEMINI_FALLBACK_MODELS
+from app.core.db import run_db
 from plugins import ai_client
 from plugins import google_integrations as g
 from plugins import memory as mem
@@ -525,8 +526,8 @@ async def index_file(
             # Filename becomes the "title" prefix for v2 — improves retrieval.
             titles = [name] * len(chunks)
             try:
-                vectors = mem.embed_documents_batch(
-                    genai_client, chunks, titles=titles, batch_size=50
+                vectors = await mem.embed_documents_batch(
+                    chunks, titles=titles, batch_size=50
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
@@ -536,7 +537,7 @@ async def index_file(
                 for idx, c in enumerate(chunks):
                     try:
                         vectors.append(
-                            mem.embed_document(genai_client, c, title=name)
+                            await mem.embed_document(c, title=name)
                         )
                     except Exception as e2:  # noqa: BLE001
                         logger.warning("embed failed (chunk %d of %s): %s", idx, name, e2)
@@ -820,15 +821,15 @@ async def index_blob(
         if chunks:
             titles = [name] * len(chunks)
             try:
-                vectors = mem.embed_documents_batch(
-                    genai_client, chunks, titles=titles, batch_size=50
+                vectors = await mem.embed_documents_batch(
+                    chunks, titles=titles, batch_size=50
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("blob batch embed failed for %s: %s", name, exc)
                 vectors = []
                 for c in chunks:
                     try:
-                        vectors.append(mem.embed_document(genai_client, c, title=name))
+                        vectors.append(await mem.embed_document(c, title=name))
                     except Exception:  # noqa: BLE001
                         vectors.append(None)
             for idx, (c, vec) in enumerate(zip(chunks, vectors)):
@@ -926,9 +927,8 @@ async def index_folder(
 # ---------------------------------------------------------------------------
 
 
-def search(
+async def search(
     supabase,
-    genai_client: genai.Client,
     *,
     user_id: str,
     query: str,
@@ -936,12 +936,12 @@ def search(
     threshold: float = 0.40,
 ) -> list[dict[str, Any]]:
     try:
-        vec = mem.embed_query(genai_client, query)
+        vec = await mem.embed_query(query)
     except Exception:  # noqa: BLE001
         logger.exception("embed_query failed")
         return []
     try:
-        res = supabase.rpc(
+        res = await run_db(lambda: supabase.rpc(
             "match_document_chunks",
             {
                 "query_embedding": vec,
@@ -949,7 +949,7 @@ def search(
                 "match_threshold": threshold,
                 "match_count": count,
             },
-        ).execute()
+        ).execute())
         return res.data or []
     except Exception:  # noqa: BLE001
         logger.exception("match_document_chunks rpc failed")

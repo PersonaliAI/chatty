@@ -26,7 +26,7 @@ from plugins import ai_client
 from plugins import doc_rag
 from plugins import llm_providers
 
-from app.core.clients import genai_client, supabase
+from app.core.clients import supabase
 from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS, MODEL_NAME
 from app.core.db import run_db
 
@@ -252,12 +252,9 @@ async def run_widget_assistant(
     english_query = await _translate_to_english_for_rag(text)
     if bot.get("sync_google_drive"):
         try:
-            # doc_rag.search is synchronous end-to-end (a Gemini embedding call
-            # plus a Supabase RPC) — run it off the event loop like any other
-            # blocking call in this hot path.
-            chunks = await run_db(lambda: doc_rag.search(
-                supabase, genai_client, user_id=owner_user["id"], query=english_query, count=5
-            ))
+            chunks = await doc_rag.search(
+                supabase, user_id=owner_user["id"], query=english_query, count=5
+            )
             if chunks:
                 knowledge_context = doc_rag.format_for_prompt(chunks)
         except Exception:
@@ -776,7 +773,6 @@ async def run_widget_assistant(
                 args,
                 user=owner_user,
                 supabase=supabase,
-                genai_client=genai_client,
                 context={"source": "widget", "session_id": session_id, "bot_id": bot_id},
             )
             if fn_name in ("create_calendar_event", "create_outlook_event") and isinstance(result, dict) and "error" not in result:
