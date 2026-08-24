@@ -217,17 +217,27 @@ async def chat_stream(
 
     async def _run(m: str) -> dict:
         start = time.monotonic()
-        stream = await litellm.acompletion(model=m, messages=messages, stream=True, **kwargs)
+        # stream_options={"include_usage": True} is required for Gemini (and
+        # most providers) to report token usage on a streamed response at
+        # all — without it every chunk's .usage is None, confirmed empirically
+        # (chatty_ai_usage rows were logging total_tokens=0/cost=None for
+        # every streamed call before this was added). Raw chunks are kept so
+        # litellm.stream_chunk_builder can reconstruct a usage-bearing
+        # response afterward — the provider only attaches real usage to a
+        # rebuilt/final response, not to any individual streamed chunk.
+        stream = await litellm.acompletion(
+            model=m, messages=messages, stream=True,
+            stream_options={"include_usage": True}, **kwargs,
+        )
+        raw_chunks: list = []
         text_parts: list[str] = []
         tool_calls: dict[int, dict] = {}
-        usage = None
         async for chunk in stream:
+            raw_chunks.append(chunk)
             choice = chunk.choices[0] if chunk.choices else None
             if choice is None:
                 continue
             delta = choice.delta
-            if getattr(chunk, "usage", None):
-                usage = chunk.usage
             if delta and delta.content:
                 text_parts.append(delta.content)
                 if on_token:
@@ -249,14 +259,16 @@ async def chat_stream(
         message = {"role": "assistant", "content": text or None}
         if ordered_tool_calls:
             message["tool_calls"] = ordered_tool_calls
-        # Streaming responses don't always report usage in the final chunk
-        # depending on provider — best-effort logging, never fatal.
-        class _FakeResp:
-            pass
-        fake = _FakeResp()
-        fake.usage = usage
+
+        usage = None
+        rebuilt = None
+        try:
+            rebuilt = litellm.stream_chunk_builder(raw_chunks, messages=messages)
+            usage = getattr(rebuilt, "usage", None)
+        except Exception:  # noqa: BLE001 — usage/cost logging must never break the actual reply
+            logger.warning("stream_chunk_builder failed for %s", m, exc_info=True)
         await _log_usage(
-            response=fake if usage else None, litellm_model=m, call_type=call_type,
+            response=rebuilt, litellm_model=m, call_type=call_type,
             bot_id=bot_id, session_id=session_id,
             latency_ms=int((time.monotonic() - start) * 1000),
         )

@@ -11,24 +11,23 @@ from main.py.
 
 from __future__ import annotations
 
-import asyncio
+import base64
+import json
 import logging
 import os
-import random
 import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
-from google.genai import errors as genai_errors
-from google.genai import types as genai_types
 
 from plugins import agent_tools
+from plugins import ai_client
 from plugins import doc_rag
 from plugins import llm_providers
 
 from app.core.clients import genai_client, supabase
-from app.core.config import MODEL_NAME
+from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS, MODEL_NAME
 from app.core.db import run_db
 
 logger = logging.getLogger("chatty")
@@ -123,93 +122,6 @@ SENSITIVE_WRITE_TOOLS = frozenset({
 })
 
 
-def _sanitize_contents(raw_contents: list) -> list:
-    cleaned = []
-    for item in (raw_contents or []):
-        if not item:
-            continue
-        parts = getattr(item, "parts", None)
-        if parts is not None:
-            valid_parts = []
-            for p in parts:
-                if not p:
-                    continue
-                has_content = (
-                    bool(getattr(p, "text", None))
-                    or bool(getattr(p, "function_call", None))
-                    or bool(getattr(p, "function_response", None))
-                    or bool(getattr(p, "inline_data", None))
-                    or bool(getattr(p, "file_data", None))
-                    or bool(getattr(p, "thought", None))
-                )
-                if has_content:
-                    valid_parts.append(p)
-            if valid_parts:
-                item.parts = valid_parts
-                cleaned.append(item)
-        else:
-            cleaned.append(item)
-    return cleaned or raw_contents
-
-
-async def _gemini_generate(
-    *, model: str, contents: list, config: genai_types.GenerateContentConfig, max_attempts: int = 4
-):
-    contents = _sanitize_contents(contents)
-    transient = (429, 502, 503, 504)
-    last_err: Optional[Exception] = None
-    for attempt in range(max_attempts):
-        try:
-            resp = await genai_client.aio.models.generate_content(
-                model=model, contents=contents, config=config
-            )
-            logger.info("Gemini raw response (%s): %s", model, resp)
-            return resp
-        except genai_errors.ServerError as exc:
-            last_err = exc
-            code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
-            if code not in transient or attempt == max_attempts - 1:
-                break
-            backoff = (2 ** attempt) * (1 + random.uniform(-0.2, 0.2))
-            logger.warning(
-                "gemini %s transient %s — retry %d/%d in %.1fs",
-                model, code, attempt + 1, max_attempts, backoff,
-            )
-            await asyncio.sleep(backoff)
-        except Exception as exc:  # noqa: BLE001
-            last_err = exc
-            break
-
-    # Fallback chain — different models/shards, often available when the
-    # primary is exhausted. Tried in order until one works.
-    for fallback_model in GEMINI_FALLBACK_MODELS:
-        if fallback_model == model:
-            continue
-        logger.warning("falling back from %s to %s", model, fallback_model)
-        try:
-            return await genai_client.aio.models.generate_content(
-                model=fallback_model, contents=contents, config=config
-            )
-        except Exception as exc:  # noqa: BLE001
-            last_err = exc
-
-    assert last_err is not None
-    raise last_err
-
-
-def _extract_thinking(response) -> str:
-    """Extract thinking/reasoning text from a Gemini response."""
-    parts = []
-    try:
-        for candidate in (response.candidates or []):
-            for part in (candidate.content.parts or []):
-                if getattr(part, "thought", False) and part.text:
-                    parts.append(part.text.strip())
-    except Exception:  # noqa: BLE001
-        pass
-    return "\n\n".join(parts)
-
-
 async def _web_search(query: str) -> str:
     """Live web search via Jina's search endpoint (s.jina.ai). Returns a trimmed
     text summary of the top results, or a short note on failure."""
@@ -233,95 +145,26 @@ async def _web_search(query: str) -> str:
     return "Web search is unavailable right now; answer from what you already know."
 
 
-async def _gemini_stream(
-    *,
-    model: str,
-    contents: list,
-    config: genai_types.GenerateContentConfig,
-    on_token=None,
-):
-    """Streaming counterpart to _gemini_generate.
-
-    Iterates streamed chunks, invoking ``await on_token(delta)`` for each visible
-    text delta (skip when None to just aggregate). Returns a normalized dict:
-    ``{text, function_calls, model_content, thinking}`` so the tool-calling loop
-    can treat it exactly like a finished response. Falls back to the fallback
-    model, then to the non-streaming path, on any streaming error — so streaming
-    never makes a request fail that would otherwise have succeeded.
-    """
-
-    async def _run(m: str) -> dict:
-        stream = await genai_client.aio.models.generate_content_stream(
-            model=m, contents=contents, config=config
-        )
-        text_parts: list[str] = []
-        fcs: list = []
-        model_parts: list = []
-        thinking: list[str] = []
-        async for chunk in stream:
-            for cand in (chunk.candidates or []):
-                if not cand.content:
-                    continue
-                for part in (cand.content.parts or []):
-                    fc = getattr(part, "function_call", None)
-                    if fc:
-                        fcs.append(fc)
-                        model_parts.append(part)
-                    elif getattr(part, "thought", False) and getattr(part, "text", None):
-                        thinking.append(part.text)
-                    elif getattr(part, "text", None):
-                        text_parts.append(part.text)
-                        model_parts.append(part)
-                        if on_token:
-                            await on_token(part.text)
-        return {
-            "text": "".join(text_parts).strip(),
-            "function_calls": fcs,
-            "model_content": genai_types.Content(role="model", parts=model_parts) if model_parts else None,
-            "thinking": "\n\n".join(thinking),
-        }
-
-    try:
-        return await _run(model)
-    except Exception:  # noqa: BLE001
-        logger.exception("gemini stream failed on %s", model)
-        for fallback_model in GEMINI_FALLBACK_MODELS:
-            if fallback_model == model:
-                continue
-            try:
-                return await _run(fallback_model)
-            except Exception:  # noqa: BLE001
-                logger.exception("gemini stream fallback failed on %s", fallback_model)
-        # Last resort: non-streaming call (has its own retry + full chain fallback).
-        resp = await _gemini_generate(model=model, contents=contents, config=config)
-        cand = (resp.candidates or [None])[0]
-        parts = (cand.content.parts if cand and cand.content else []) or []
-        fcs = [p.function_call for p in parts if getattr(p, "function_call", None)]
-        text = (resp.text or "").strip()
-        if on_token and text and not fcs:
-            await on_token(text)
-        return {
-            "text": text,
-            "function_calls": fcs,
-            "model_content": (cand.content if cand and cand.content else None),
-            "thinking": _extract_thinking(resp),
-        }
-
-
-async def _translate_to_english_for_rag(text: str, genai_client) -> str:
+async def _translate_to_english_for_rag(text: str) -> str:
     text = (text or "").strip()
     if not text or len(text) < 4:
         return text
     try:
-        response = await genai_client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=f"Translate this query to English for a search engine. Return ONLY the translated text, nothing else. If it is already in English, return it exactly as is:\n\n{text}",
-            config=genai_types.GenerateContentConfig(
-                temperature=0.0,
-                max_output_tokens=100,
-            )
+        response = await ai_client.chat(
+            model=ai_client.resolve_gemini_model("gemini-2.5-flash"),
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Translate this query to English for a search engine. Return ONLY the "
+                    f"translated text, nothing else. If it is already in English, return it "
+                    f"exactly as is:\n\n{text}"
+                ),
+            }],
+            temperature=0.0,
+            max_tokens=100,
+            call_type="rag_translate",
         )
-        translated = (response.text or "").strip()
+        translated = (response.choices[0].message.content or "").strip()
         if translated:
             return translated
     except Exception:
@@ -353,23 +196,21 @@ async def run_widget_assistant(
         .execute())
     history = res_history.data or []
 
-    contents: list[genai_types.Content] = []
+    messages: list[dict] = []
     last_role: Optional[str] = None
     for row in history:
         raw = (row.get("content") or "").strip()
         if not raw:
             continue
-        role = "user" if row["role"] == "user" else "model"
-        if role == last_role:
-            contents[-1].parts.append(genai_types.Part.from_text(text=raw))
+        role = "user" if row["role"] == "user" else "assistant"
+        if role == last_role and messages and isinstance(messages[-1]["content"], str):
+            messages[-1]["content"] += "\n" + raw
             continue
-        contents.append(
-            genai_types.Content(role=role, parts=[genai_types.Part.from_text(text=raw)])
-        )
+        messages.append({"role": role, "content": raw})
         last_role = role
 
-    while contents and contents[0].role != "user":
-        contents.pop(0)
+    while messages and messages[0]["role"] != "user":
+        messages.pop(0)
 
     if media_bytes and media_mime:
         if media_mime.startswith("audio/"):
@@ -389,18 +230,26 @@ async def run_widget_assistant(
                 "The visitor attached a FILE below. Read its content and respond helpfully."
             )
         prompt_text = (text.strip() + "\n\n" + media_instruction) if text.strip() else media_instruction
-        user_parts = [genai_types.Part.from_text(text=prompt_text)]
+        content_blocks: list[dict] = [{"type": "text", "text": prompt_text}]
         try:
-            user_parts.append(genai_types.Part.from_bytes(data=media_bytes, mime_type=media_mime))
+            if media_mime.startswith("audio/"):
+                content_blocks.append({"type": "input_audio", "input_audio": {
+                    "data": base64.b64encode(media_bytes).decode(),
+                    "format": media_mime.split("/", 1)[1],
+                }})
+            else:
+                content_blocks.append({"type": "image_url", "image_url": {
+                    "url": f"data:{media_mime};base64,{base64.b64encode(media_bytes).decode()}"
+                }})
         except Exception:
             logger.exception("Failed to attach media part to widget message")
+        messages.append({"role": "user", "content": content_blocks})
     else:
-        user_parts = [genai_types.Part.from_text(text=text or "(the visitor sent an attachment)")]
-    contents.append(genai_types.Content(role="user", parts=user_parts))
+        messages.append({"role": "user", "content": text or "(the visitor sent an attachment)"})
 
     # 2. RAG Context
     knowledge_context = ""
-    english_query = await _translate_to_english_for_rag(text, genai_client)
+    english_query = await _translate_to_english_for_rag(text)
     if bot.get("sync_google_drive"):
         try:
             # doc_rag.search is synchronous end-to-end (a Gemini embedding call
@@ -788,27 +637,24 @@ async def run_widget_assistant(
             allowed_tool_names.extend(["check_calendar_availability", "create_calendar_event"])
     allowed_tool_names.append("create_lead")
 
-    widget_decls = [d for d in agent_tools.DECLARATIONS if d.name in allowed_tool_names]
+    widget_decls = [d for d in agent_tools.DECLARATIONS if d["function"]["name"] in allowed_tool_names]
     if answer_mode == "web":
-        widget_decls = list(widget_decls) + [genai_types.FunctionDeclaration(
-            name="web_search",
-            description=(
-                "Search the public web for current, factual information when the business "
-                "knowledge base doesn't cover the question. Returns a text summary of top results."
-            ),
-            parameters=genai_types.Schema(
-                type=genai_types.Type.OBJECT,
-                properties={"query": genai_types.Schema(
-                    type=genai_types.Type.STRING, description="The web search query")},
-                required=["query"],
-            ),
-        )]
-    config = genai_types.GenerateContentConfig(
-        system_instruction=system_instruction,
-        tools=[genai_types.Tool(function_declarations=widget_decls)] if widget_decls else None,
-        max_output_tokens=4096,
-        temperature=0.2,
-    )
+        widget_decls = list(widget_decls) + [{
+            "type": "function",
+            "function": {
+                "name": "web_search",
+                "description": (
+                    "Search the public web for current, factual information when the business "
+                    "knowledge base doesn't cover the question. Returns a text summary of top results."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string", "description": "The web search query"}},
+                    "required": ["query"],
+                },
+            },
+        }]
+    tools = widget_decls or None
 
     thinking_parts: list[str] = []
     booking_tool_succeeded = False
@@ -817,14 +663,15 @@ async def run_widget_assistant(
     # Model to try first — GEMINI_VOICE_MODEL for voice-mode requests, MODEL_NAME
     # (today's default) otherwise — falling through to the same fallback chain
     # unchanged either way. voice_mode=False is byte-for-byte identical to before.
-    primary_model = GEMINI_VOICE_MODEL if voice_mode else MODEL_NAME
+    primary_model = ai_client.resolve_gemini_model(GEMINI_VOICE_MODEL if voice_mode else MODEL_NAME)
+    fallback_models = [ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS]
 
     # 6. Tool-calling Loop.
-    # Every model call goes through _gemini_stream. When on_token is provided
-    # (streaming endpoint) the FINAL text answer is emitted token-by-token; tool
-    # rounds normally emit no visible text so nothing is streamed prematurely.
-    # With on_token=None the same code just aggregates — identical output to the
-    # old non-streaming loop, so the SDK/embed non-stream path is unchanged.
+    # Every model call goes through ai_client.chat_stream. When on_token is
+    # provided (streaming endpoint) the FINAL text answer is emitted
+    # token-by-token; tool rounds normally emit no visible text so nothing is
+    # streamed prematurely. With on_token=None the same code just aggregates —
+    # identical output to the old non-streaming loop.
     #
     # Exception: when this bot can book meetings, we can't stream the final
     # round live — a round can turn out to be a fabricated booking claim (model
@@ -837,15 +684,21 @@ async def run_widget_assistant(
     # check below.
     stream_live = on_token if not scheduling_enabled else None
     for round_idx in range(MAX_TOOL_ROUNDS):
-        gen = await _gemini_stream(
-            model=primary_model, contents=contents, config=config, on_token=stream_live
+        gen = await ai_client.chat_stream(
+            model=primary_model,
+            messages=[{"role": "system", "content": system_instruction}] + messages,
+            fallback_models=fallback_models,
+            tools=tools,
+            max_tokens=4096,
+            temperature=0.2,
+            on_token=stream_live,
+            bot_id=bot_id,
+            session_id=session_id,
+            call_type="widget_chat",
         )
 
-        if gen["thinking"]:
-            thinking_parts.append(gen["thinking"])
-
-        fcs = gen["function_calls"]
-        if not fcs:
+        tool_calls = gen["tool_calls"]
+        if not tool_calls:
             reply = (
                 gen["text"]
                 or "I'm sorry, I wasn't able to process that. Could you try rephrasing your request?"
@@ -857,18 +710,18 @@ async def run_widget_assistant(
                     # None whenever this check can fire), so the fabricated
                     # claim never reached the visitor.
                     booking_correction_attempted = True
-                    if gen["model_content"] is not None:
-                        contents.append(gen["model_content"])
-                    contents.append(genai_types.Content(role="user", parts=[genai_types.Part.from_text(
-                        text=(
+                    messages.append(gen["message"])
+                    messages.append({
+                        "role": "user",
+                        "content": (
                             "SYSTEM CHECK: You just told the visitor their meeting was booked, "
                             "but you have not actually called the booking tool this conversation. "
                             "If the requested slot is still available, call the booking tool now "
                             "before saying anything else to the visitor. If it can't be booked, "
                             "tell them honestly that it didn't go through and why — do not repeat "
                             "the claim that it's booked."
-                        )
-                    )]))
+                        ),
+                    })
                     continue
                 # Second offense in the same turn — stop trusting the model's claim.
                 reply = (
@@ -880,22 +733,22 @@ async def run_widget_assistant(
                 await on_token(reply)
             return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": source_refs}
 
-        if gen["model_content"] is not None:
-            contents.append(gen["model_content"])
+        messages.append(gen["message"])
 
-        tool_response_parts: list[genai_types.Part] = []
-        for fc in fcs:
-            args = dict(fc.args) if fc.args else {}
-            logger.info("widget tool call: %s(%s)", fc.name, args)
+        for tc in tool_calls:
+            fn_name = tc["function"]["name"]
+            try:
+                args = json.loads(tc["function"]["arguments"] or "{}")
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+            logger.info("widget tool call: %s(%s)", fn_name, args)
             # web_search is handled inline (not an agent_tools declaration).
-            if fc.name == "web_search":
+            if fn_name == "web_search":
                 result = await _web_search(args.get("query", ""))
-                tool_response_parts.append(
-                    genai_types.Part.from_function_response(
-                        name=fc.name, response={"result": result}))
+                messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps({"result": result})})
                 continue
             # Inject bot_id, session, and auto-detected geo into create_lead args
-            if fc.name == "create_lead":
+            if fn_name == "create_lead":
                 if "bot_id" not in args:
                     args["bot_id"] = bot_id
                 args["session_id"] = session_id
@@ -915,35 +768,34 @@ async def run_widget_assistant(
             # owner's user-profile timezone field defaults to "UTC" and is
             # frequently stale, which silently mistagged bookings by whatever
             # offset the real bot_timezone differs from it).
-            if fc.name in ("create_calendar_event", "create_outlook_event"):
+            if fn_name in ("create_calendar_event", "create_outlook_event"):
                 args["_owner_timezone"] = owner_tz_str
 
             result = await agent_tools.execute(
-                fc.name,
+                fn_name,
                 args,
                 user=owner_user,
                 supabase=supabase,
                 genai_client=genai_client,
                 context={"source": "widget", "session_id": session_id, "bot_id": bot_id},
             )
-            if fc.name in ("create_calendar_event", "create_outlook_event") and isinstance(result, dict) and "error" not in result:
+            if fn_name in ("create_calendar_event", "create_outlook_event") and isinstance(result, dict) and "error" not in result:
                 booking_tool_succeeded = True
-            tool_response_parts.append(
-                genai_types.Part.from_function_response(
-                    name=fc.name, response={"result": result}
-                )
-            )
-
-        if tool_response_parts:
-            contents.append(genai_types.Content(role="user", parts=tool_response_parts))
+            messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps({"result": result})})
 
     # Exceeded tool rounds — force a final, tool-free answer (streamed too).
-    config_final = genai_types.GenerateContentConfig(
-        system_instruction=system_instruction
-        + "\n\nYou've already gathered enough data. Reply to the user now with a final answer; do not call any more tools.",
+    final_system_instruction = (
+        system_instruction
+        + "\n\nYou've already gathered enough data. Reply to the user now with a final answer; do not call any more tools."
     )
-    final = await _gemini_stream(
-        model=primary_model, contents=contents, config=config_final, on_token=stream_live
+    final = await ai_client.chat_stream(
+        model=primary_model,
+        messages=[{"role": "system", "content": final_system_instruction}] + messages,
+        fallback_models=fallback_models,
+        on_token=stream_live,
+        bot_id=bot_id,
+        session_id=session_id,
+        call_type="widget_chat_final",
     )
     reply = final["text"] or "I'm sorry, I wasn't able to complete that request."
     if not booking_tool_succeeded and _claims_booking_success(reply):

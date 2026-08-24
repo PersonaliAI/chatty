@@ -18,7 +18,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import httpx
-from google.genai import types as genai_types
 
 from plugins import google_integrations as g
 from plugins import microsoft_integrations as ms
@@ -30,113 +29,96 @@ logger = logging.getLogger("chatty.tools")
 
 
 # ---------------------------------------------------------------------------
-# Function declarations
+# Function declarations — plain OpenAI tool-schema dicts (LiteLLM translates
+# these into each provider's own native function-calling format, including
+# Gemini's), not google-genai's Schema/FunctionDeclaration types.
 # ---------------------------------------------------------------------------
 
 
-def _schema(t: genai_types.Type, description: str = "") -> genai_types.Schema:
-    return genai_types.Schema(type=t, description=description)
+def _tool(name: str, description: str, properties: dict, required: list[str]) -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+            },
+        },
+    }
 
 
-def _string_array(description: str) -> genai_types.Schema:
-    return genai_types.Schema(
-        type=genai_types.Type.ARRAY,
-        description=description,
-        items=genai_types.Schema(type=genai_types.Type.STRING),
-    )
-
-
-DECLARATIONS: list[genai_types.FunctionDeclaration] = [
-    genai_types.FunctionDeclaration(
-        name="create_calendar_event",
-        description=(
-            "Create a new Google Calendar event. Times should be ISO 8601 in the "
-            "user's local timezone (e.g. '2026-05-12T15:00:00')."
-        ),
-        parameters=genai_types.Schema(
-            type=genai_types.Type.OBJECT,
-            properties={
-                "summary": _schema(genai_types.Type.STRING, "Event title."),
-                "start": _schema(genai_types.Type.STRING, "ISO 8601 start datetime."),
-                "end": _schema(genai_types.Type.STRING, "ISO 8601 end datetime."),
-                "description": _schema(genai_types.Type.STRING, "Optional event description."),
-                "location": _schema(genai_types.Type.STRING, "Optional physical/virtual location."),
-                "attendees": _string_array("Optional list of attendee email addresses."),
-                "all_day": _schema(genai_types.Type.BOOLEAN, "True for all-day events; start/end then become dates."),
-            },
-            required=["summary", "start", "end"],
-        ),
+DECLARATIONS: list[dict] = [
+    _tool(
+        "create_calendar_event",
+        "Create a new Google Calendar event. Times should be ISO 8601 in the "
+        "user's local timezone (e.g. '2026-05-12T15:00:00').",
+        {
+            "summary": {"type": "string", "description": "Event title."},
+            "start": {"type": "string", "description": "ISO 8601 start datetime."},
+            "end": {"type": "string", "description": "ISO 8601 end datetime."},
+            "description": {"type": "string", "description": "Optional event description."},
+            "location": {"type": "string", "description": "Optional physical/virtual location."},
+            "attendees": {"type": "array", "items": {"type": "string"}, "description": "Optional list of attendee email addresses."},
+            "all_day": {"type": "boolean", "description": "True for all-day events; start/end then become dates."},
+        },
+        ["summary", "start", "end"],
     ),
-    genai_types.FunctionDeclaration(
-        name="check_calendar_availability",
-        description=(
-            "Free/busy query — returns intervals when the user is busy in a "
-            "given window. Useful for 'am I free Tuesday at 3pm?'."
-        ),
-        parameters=genai_types.Schema(
-            type=genai_types.Type.OBJECT,
-            properties={
-                "start": _schema(genai_types.Type.STRING, "ISO 8601 start of the window."),
-                "end": _schema(genai_types.Type.STRING, "ISO 8601 end of the window."),
-            },
-            required=["start", "end"],
-        ),
+    _tool(
+        "check_calendar_availability",
+        "Free/busy query — returns intervals when the user is busy in a "
+        "given window. Useful for 'am I free Tuesday at 3pm?'.",
+        {
+            "start": {"type": "string", "description": "ISO 8601 start of the window."},
+            "end": {"type": "string", "description": "ISO 8601 end of the window."},
+        },
+        ["start", "end"],
     ),
-    genai_types.FunctionDeclaration(
-        name="list_outlook_events",
-        description=(
-            "List Outlook calendar events. Optional days_ahead window similar to "
-            "the Google Calendar tool."
-        ),
-        parameters=genai_types.Schema(
-            type=genai_types.Type.OBJECT,
-            properties={
-                "calendar_id": _schema(genai_types.Type.STRING, "Optional calendar ID (default: primary)."),
-                "days_ahead": _schema(genai_types.Type.INTEGER, "Lookahead window (default 7)."),
-                "limit": _schema(genai_types.Type.INTEGER, "Max events (default 25)."),
-            },
-        ),
+    _tool(
+        "list_outlook_events",
+        "List Outlook calendar events. Optional days_ahead window similar to "
+        "the Google Calendar tool.",
+        {
+            "calendar_id": {"type": "string", "description": "Optional calendar ID (default: primary)."},
+            "days_ahead": {"type": "integer", "description": "Lookahead window (default 7)."},
+            "limit": {"type": "integer", "description": "Max events (default 25)."},
+        },
+        [],
     ),
-    genai_types.FunctionDeclaration(
-        name="create_outlook_event",
-        description="Create an Outlook calendar event. Times in ISO 8601 in user's local timezone.",
-        parameters=genai_types.Schema(
-            type=genai_types.Type.OBJECT,
-            properties={
-                "subject": _schema(genai_types.Type.STRING, "Event title."),
-                "start": _schema(genai_types.Type.STRING, "ISO 8601 start datetime."),
-                "end": _schema(genai_types.Type.STRING, "ISO 8601 end datetime."),
-                "body": _schema(genai_types.Type.STRING, "Optional description."),
-                "location": _schema(genai_types.Type.STRING, "Optional location."),
-                "attendees": _string_array("Optional attendee emails."),
-                "is_all_day": _schema(genai_types.Type.BOOLEAN, "All-day event."),
-                "calendar_id": _schema(genai_types.Type.STRING, "Optional non-default calendar."),
-                "online_meeting": _schema(genai_types.Type.BOOLEAN, "Set true to create a Microsoft Teams online meeting and generate a join link."),
-            },
-            required=["subject", "start", "end"],
-        ),
+    _tool(
+        "create_outlook_event",
+        "Create an Outlook calendar event. Times in ISO 8601 in user's local timezone.",
+        {
+            "subject": {"type": "string", "description": "Event title."},
+            "start": {"type": "string", "description": "ISO 8601 start datetime."},
+            "end": {"type": "string", "description": "ISO 8601 end datetime."},
+            "body": {"type": "string", "description": "Optional description."},
+            "location": {"type": "string", "description": "Optional location."},
+            "attendees": {"type": "array", "items": {"type": "string"}, "description": "Optional attendee emails."},
+            "is_all_day": {"type": "boolean", "description": "All-day event."},
+            "calendar_id": {"type": "string", "description": "Optional non-default calendar."},
+            "online_meeting": {"type": "boolean", "description": "Set true to create a Microsoft Teams online meeting and generate a join link."},
+        },
+        ["subject", "start", "end"],
     ),
-    genai_types.FunctionDeclaration(
-        name="create_lead",
-        description=(
-            "Record visitor details (name, email, phone, company, job_title, country, industry, budget, etc.) as a business lead. "
-            "Call this when the visitor shares their contact info, or after booking a meeting."
-        ),
-        parameters=genai_types.Schema(
-            type=genai_types.Type.OBJECT,
-            properties={
-                "bot_id": _schema(genai_types.Type.STRING, "UUID of the chatbot widget."),
-                "name": _schema(genai_types.Type.STRING, "Visitor's full name."),
-                "email": _schema(genai_types.Type.STRING, "Visitor's email address."),
-                "phone": _schema(genai_types.Type.STRING, "Visitor's phone number."),
-                "company": _schema(genai_types.Type.STRING, "Visitor's company name."),
-                "job_title": _schema(genai_types.Type.STRING, "Visitor's job title."),
-                "country": _schema(genai_types.Type.STRING, "Visitor's country."),
-                "industry": _schema(genai_types.Type.STRING, "Visitor's industry."),
-                "budget": _schema(genai_types.Type.STRING, "Visitor's budget."),
-            },
-            required=["bot_id", "name", "email"],
-        ),
+    _tool(
+        "create_lead",
+        "Record visitor details (name, email, phone, company, job_title, country, industry, budget, etc.) as a business lead. "
+        "Call this when the visitor shares their contact info, or after booking a meeting.",
+        {
+            "bot_id": {"type": "string", "description": "UUID of the chatbot widget."},
+            "name": {"type": "string", "description": "Visitor's full name."},
+            "email": {"type": "string", "description": "Visitor's email address."},
+            "phone": {"type": "string", "description": "Visitor's phone number."},
+            "company": {"type": "string", "description": "Visitor's company name."},
+            "job_title": {"type": "string", "description": "Visitor's job title."},
+            "country": {"type": "string", "description": "Visitor's country."},
+            "industry": {"type": "string", "description": "Visitor's industry."},
+            "budget": {"type": "string", "description": "Visitor's budget."},
+        },
+        ["bot_id", "name", "email"],
     ),
 ]
 

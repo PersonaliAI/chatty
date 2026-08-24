@@ -666,6 +666,10 @@ export default function Dashboard() {
   const [busiestHour, setBusiestHour] = useState("—");
   const [analyticsChartData, setAnalyticsChartData] = useState<Array<{ day: string; count: number; height: string }>>([]);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [aiUsageTotalCost, setAiUsageTotalCost] = useState(0);
+  const [aiUsageTotalTokens, setAiUsageTotalTokens] = useState(0);
+  const [aiUsageTotalCalls, setAiUsageTotalCalls] = useState(0);
+  const [aiUsageByModel, setAiUsageByModel] = useState<Array<{ model: string; calls: number; tokens: number; cost: number }>>([]);
 
 
   const [liveThinkingSteps, setLiveThinkingSteps] = useState<string[]>([]);
@@ -1023,6 +1027,40 @@ export default function Dashboard() {
         setBusiestHour(`${h12} ${ampm}`);
       } else {
         setBusiestHour("—");
+      }
+
+      // 8. AI usage & cost (last 30 days) — every LiteLLM call this bot made,
+      // logged by the backend's plugins/ai_client.py to chatty_ai_usage.
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const { data: usageRows } = await supabase
+        .from("chatty_ai_usage")
+        .select("model, total_tokens, cost_usd, success")
+        .eq("bot_id", activeBotId)
+        .gte("created_at", thirtyDaysAgo.toISOString());
+      if (usageRows && usageRows.length) {
+        const successful = usageRows.filter(r => r.success);
+        setAiUsageTotalCalls(successful.length);
+        setAiUsageTotalTokens(successful.reduce((sum, r) => sum + (r.total_tokens || 0), 0));
+        setAiUsageTotalCost(successful.reduce((sum, r) => sum + (Number(r.cost_usd) || 0), 0));
+        const byModel = new Map<string, { calls: number; tokens: number; cost: number }>();
+        for (const r of successful) {
+          const entry = byModel.get(r.model) || { calls: 0, tokens: 0, cost: 0 };
+          entry.calls += 1;
+          entry.tokens += r.total_tokens || 0;
+          entry.cost += Number(r.cost_usd) || 0;
+          byModel.set(r.model, entry);
+        }
+        setAiUsageByModel(
+          Array.from(byModel.entries())
+            .map(([model, v]) => ({ model, ...v }))
+            .sort((a, b) => b.cost - a.cost)
+        );
+      } else {
+        setAiUsageTotalCalls(0);
+        setAiUsageTotalTokens(0);
+        setAiUsageTotalCost(0);
+        setAiUsageByModel([]);
       }
     } catch (err) {
       console.error("Error loading analytics data:", err);
@@ -5510,6 +5548,41 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">AI Usage & Cost (Last 30 Days)</h4>
+                      <span className="text-[9px] text-neutral-400 font-medium">Every model call, tracked by provider</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                      <div>
+                        <span className="text-[10px] text-neutral-400 uppercase font-semibold">Estimated Cost</span>
+                        <h4 className="text-2xl font-bold mt-1 font-mono tabular-nums">${aiUsageTotalCost.toFixed(4)}</h4>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-neutral-400 uppercase font-semibold">Total Tokens</span>
+                        <h4 className="text-2xl font-bold mt-1 font-mono tabular-nums">{aiUsageTotalTokens.toLocaleString()}</h4>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-neutral-400 uppercase font-semibold">Model Calls</span>
+                        <h4 className="text-2xl font-bold mt-1 font-mono tabular-nums">{aiUsageTotalCalls.toLocaleString()}</h4>
+                      </div>
+                    </div>
+                    {aiUsageByModel.length > 0 ? (
+                      <div className="space-y-2">
+                        {aiUsageByModel.map((row) => (
+                          <div key={row.model} className="flex items-center justify-between text-xs py-2 border-t border-neutral-100 dark:border-neutral-850">
+                            <span className="font-mono text-neutral-600 dark:text-neutral-300">{row.model}</span>
+                            <span className="text-neutral-400">{row.calls.toLocaleString()} calls</span>
+                            <span className="text-neutral-400">{row.tokens.toLocaleString()} tokens</span>
+                            <span className="font-mono font-semibold tabular-nums">${row.cost.toFixed(4)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-neutral-400">No AI usage recorded yet in this window.</p>
+                    )}
                   </div>
                 </>
               )}
