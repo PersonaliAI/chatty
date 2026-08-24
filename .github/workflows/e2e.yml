@@ -11,6 +11,11 @@ on:
   schedule:
     - cron: "0 6 * * 1" # Mondays 06:00 UTC
 
+# Checkout + test run + artifact upload only — none of it needs write access
+# to the repo (upload-artifact uses its own storage, not the GITHUB_TOKEN).
+permissions:
+  contents: read
+
 jobs:
   e2e:
     runs-on: ubuntu-latest

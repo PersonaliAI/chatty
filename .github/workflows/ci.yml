@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Checkout + test/build only — doesn't need write access to the repo.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
