@@ -81,7 +81,7 @@ const checked = [];
 for (const id of DESIGN_IDS) {
   for (const suffix of TEXT_ELEMENTS) {
     const selector = `.style-${id}${suffix}`;
-    const label = suffix ? `${id}${suffix.replace(" .", " .")}` : `${id} (container)`;
+    const label = suffix ? `${id}${suffix}` : `${id} (container)`;
     if (SKIP_TRANSLUCENT.has(`${id}${suffix}`)) continue;
 
     const block = extractBlock(css, selector);

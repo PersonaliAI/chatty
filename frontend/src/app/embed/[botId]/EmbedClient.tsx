@@ -659,7 +659,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const isOfficialWebsite = (() => {
     if (typeof window === "undefined") return true;
     const host = getHost().toLowerCase();
-    return host.includes("chatty.personaliai.com");
+    return host === "chatty.personaliai.com" || host.endsWith(".chatty.personaliai.com");
   })();
 
   useEffect(() => {
