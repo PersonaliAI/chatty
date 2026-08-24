@@ -37,6 +37,13 @@ if [[ "$CURRENT_BRANCH" != "backend-service" ]]; then
   exit 1
 fi
 
+# Captured now, while still on backend-service — resolving this after the
+# `git checkout personaliai-main` below would resolve "HEAD" (or any other
+# backend-service-relative ref in $RANGE) against personaliai-main instead,
+# silently reusing whatever commit message personaliai-main's HEAD already
+# had (i.e. the previous mirror commit's message).
+COMMIT_MSG="$(git log --format=%B -1 "${RANGE#*..}" 2>/dev/null || echo "Mirror from backend-service")"
+
 echo "==> Diffing $RANGE (excluding files that don't mirror: .github/, README.md, AGENTS.md, CLAUDE.md, LICENSE, CONTRIBUTING.md, check_user_ids.*)"
 git diff "$RANGE" -- \
   ':!.github' ':!README.md' ':!AGENTS.md' ':!CLAUDE.md' ':!LICENSE' ':!CONTRIBUTING.md' ':!check_user_ids.*' \
@@ -115,7 +122,6 @@ python -m compileall -q backend/main.py backend/app backend/plugins
 (cd backend && python -m pytest tests/ -q)
 
 echo "==> Committing"
-COMMIT_MSG="$(git -C . log --format=%B -1 "$(git rev-parse "${RANGE#*..}")" 2>/dev/null || echo "Mirror from backend-service")"
 git add -A -- backend/
 git commit -m "$COMMIT_MSG"
 
