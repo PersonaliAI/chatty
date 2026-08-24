@@ -241,6 +241,10 @@ export default function Home() {
   useEffect(() => {
     if (!isConnecting) {
       if (!isWidgetOpen) {
+        // Resetting derived progress when the connecting/open state settles
+        // back to idle — not a cascading update loop, this only fires on
+        // isConnecting/isWidgetOpen transitions.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setProgress(0);
       }
       return;

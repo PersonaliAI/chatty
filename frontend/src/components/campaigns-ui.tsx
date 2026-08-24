@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Save, Sparkles, Megaphone, HelpCircle } from "lucide-react";
+import { Plus, Trash2, Megaphone } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 
 interface TriggerRule {
@@ -29,11 +29,15 @@ export function CampaignsUI({ botId, color = "#f97316" }: Props) {
     { value: "url", label: "URL Match (Path/Regexp)" },
   ];
 
+  // Hydrate rules from localStorage once botId is known — a one-time
+  // default-hydration effect reading from a browser-only API, not
+  // something computable at render time.
   useEffect(() => {
     if (!botId) return;
     try {
       const saved = localStorage.getItem(`chatty_campaigns_${botId}`);
       if (saved) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRules(JSON.parse(saved));
       } else {
         // Default onboarding rule
@@ -102,7 +106,7 @@ export function CampaignsUI({ botId, color = "#f97316" }: Props) {
               <ModernSelect
                 value={type}
                 options={typeOptions}
-                onChange={(val) => setType(val as any)}
+                onChange={(val) => setType(val as "time" | "scroll" | "exit" | "url")}
               />
             </div>
 

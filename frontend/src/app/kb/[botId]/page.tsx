@@ -87,6 +87,7 @@ export default function KnowledgeBasePortal() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- uploaded logo URL, not in next/image's domain allowlist
               <img src={logoUrl} alt="logo" className="size-7 rounded-lg object-contain" />
             ) : (
               <BookOpen className="size-6" style={{ color: primaryColor }} />
