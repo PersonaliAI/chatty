@@ -23,6 +23,7 @@ from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
+from html.parser import HTMLParser
 from typing import Any, Optional
 from urllib.parse import urlencode
 
@@ -310,12 +311,42 @@ def _b64url_decode(s: str) -> str:
         return ""
 
 
+class _TextExtractingHTMLParser(HTMLParser):
+    """Extracts visible text from an HTML email body, dropping <script>/<style>
+    contents entirely. A real tokenizer (stdlib html.parser) instead of the
+    regex-based tag-stripping this replaced — regexes can't correctly handle
+    malformed/nested tags or attributes containing '>', so a crafted email
+    could leave partial <script> content in the "stripped" output."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self._skip_depth = 0
+        self._chunks: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag in ("script", "style"):
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in ("script", "style") and self._skip_depth > 0:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth == 0:
+            self._chunks.append(data)
+
+    def get_text(self) -> str:
+        return "".join(self._chunks)
+
+
 def _strip_html(html: str) -> str:
-    import re
-    text = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text)
+    parser = _TextExtractingHTMLParser()
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception:  # noqa: BLE001 — malformed HTML must not crash extraction
+        pass
+    text = re.sub(r"\s+", " ", parser.get_text())
     return text.strip()
 
 

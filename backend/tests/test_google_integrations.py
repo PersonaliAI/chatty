@@ -381,6 +381,29 @@ def test_strip_html_collapses_whitespace_after_tag_removal():
     assert g._strip_html(html) == "Line one Line two"
 
 
+def test_strip_html_drops_script_content_even_with_attribute_containing_gt():
+    # A regex-based `<script[^>]*>...</script>` stripper's opening-tag match
+    # breaks on a '>' inside an attribute value, leaving the script body in
+    # the "stripped" output — a real HTML parser handles this correctly.
+    html = '<script data-x="a>b">alert(1)</script><p>Real text</p>'
+    result = g._strip_html(html)
+    assert "alert" not in result
+    assert result == "Real text"
+
+
+def test_strip_html_drops_nested_or_malformed_script_tags():
+    html = "<script><script>alert(1)</script></script><p>Safe</p>"
+    result = g._strip_html(html)
+    assert "alert" not in result
+
+
+def test_strip_html_handles_malformed_markup_without_crashing():
+    # Unclosed tags, stray '<', etc. must degrade gracefully, not raise.
+    html = "<div>Unclosed <span>text < 5 and stuff"
+    result = g._strip_html(html)
+    assert "text" in result
+
+
 # ---------------------------------------------------------------------------
 # _build_mime
 # ---------------------------------------------------------------------------
