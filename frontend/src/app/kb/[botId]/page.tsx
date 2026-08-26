@@ -2,12 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Search, BookOpen, ChevronRight, FileText, HelpCircle, ArrowLeft } from "lucide-react";
 
-const supabase = createClient();
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
 interface Source {
@@ -41,14 +39,15 @@ export default function KnowledgeBasePortal() {
           setLogoUrl(bot.logo_url || null);
         }
 
-        // Fetch public sources directly from Supabase
-        const { data: dbSources } = await supabase
-          .from("chatty_sources")
-          .select("*")
-          .eq("bot_id", botId);
-
-        if (dbSources) {
-          setSources(dbSources.map(s => ({
+        // Fetch public sources from the backend (service role) — not a
+        // direct anon Supabase read, since chatty_sources' RLS is scoped to
+        // authenticated bot owners only, and a bare public-read policy
+        // can't be scoped to "only when filtered by bot_id" (RLS can't tell
+        // an unfiltered query from a filtered one).
+        const sourcesRes = await fetch(`${BACKEND_URL}/api/widget/kb-sources?bot_id=${encodeURIComponent(String(botId))}`);
+        if (sourcesRes.ok) {
+          const { sources: dbSources } = await sourcesRes.json();
+          setSources((dbSources || []).map((s: Source) => ({
             id: s.id,
             name: s.name,
             content: s.content || "",
