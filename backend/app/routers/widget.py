@@ -643,3 +643,16 @@ async def widget_theme(bot_id: str):
         "custom_js": b.get("custom_js") or "",
         "voice_enabled": bool(b.get("voice_enabled")),
     }
+
+
+@router.get("/api/widget/kb-sources")
+async def widget_kb_sources(bot_id: str):
+    """Public, unauthenticated knowledge-base articles for the /kb/[botId]
+    help-center portal. Same pattern as widget_theme above — served via the
+    backend (service role) rather than a direct anon Supabase read, so this
+    always requires an explicit bot_id and never risks an unfiltered query
+    returning every bot's sources (which a bare RLS policy on chatty_sources
+    can't distinguish from a filtered one)."""
+    res = await run_db(lambda: supabase.table("chatty_sources").select(
+        "id, name, content, type").eq("bot_id", bot_id).execute())
+    return {"sources": res.data or []}
