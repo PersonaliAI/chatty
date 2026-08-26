@@ -16,6 +16,7 @@ from app.core.config import FUNCTION_SECRET
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.security import verify_function_secret
+from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.schemas.crawl import CrawlDiscoverRequest, CrawlPagesRequest, SourceScheduleUpdate
 
 # Bridged helpers still living in main.py (shared with app/routers/documents.py
@@ -47,14 +48,35 @@ async def crawl_discover(
     parsed = urlparse(base)
     if not parsed.netloc:
         raise HTTPException(status_code=400, detail="Invalid URL")
+    try:
+        await assert_safe_url_async(base)
+    except UnsafeURLError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid URL: {exc}") from exc
     origin = f"{parsed.scheme}://{parsed.netloc}"
     urls: set[str] = set()
     candidates = [urljoin(origin, "/sitemap.xml"), urljoin(origin, "/sitemap_index.xml")]
 
-    async with httpx.AsyncClient(timeout=12, follow_redirects=True,
+    # Manual redirect handling (not httpx's follow_redirects) so every hop —
+    # not just the URL the caller supplied — gets SSRF-checked. A redirect
+    # to an internal address would otherwise bypass the check on the
+    # original URL entirely.
+    async def safe_get(client: httpx.AsyncClient, url: str, *, max_redirects: int = 5):
+        for _ in range(max_redirects + 1):
+            await assert_safe_url_async(url)
+            r = await client.get(url)
+            if r.is_redirect:
+                location = r.headers.get("location")
+                if not location:
+                    return r
+                url = str(httpx.URL(url).join(location))
+                continue
+            return r
+        raise UnsafeURLError("too many redirects")
+
+    async with httpx.AsyncClient(timeout=12, follow_redirects=False,
                                  headers={"User-Agent": "ChattyCrawler/1.0"}) as client:
         try:
-            rob = await client.get(urljoin(origin, "/robots.txt"))
+            rob = await safe_get(client, urljoin(origin, "/robots.txt"))
             if rob.status_code < 300:
                 for line in rob.text.splitlines():
                     if line.lower().startswith("sitemap:"):
@@ -69,7 +91,7 @@ async def crawl_discover(
                 return
             seen_sitemaps.add(sm_url)
             try:
-                r = await client.get(sm_url)
+                r = await safe_get(client, sm_url)
             except Exception:
                 return
             if r.status_code >= 300:
