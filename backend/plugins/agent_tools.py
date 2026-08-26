@@ -601,6 +601,16 @@ async def execute(
     context: Optional[dict] = None,
 ) -> dict:
     """Dispatch a function call to its handler."""
+    # bot_id is exposed to the LLM as an ordinary tool parameter (it needs to
+    # be in the schema for the model to reference it in reasoning/replies),
+    # but it must never be TRUSTED from the model's tool-call args — a
+    # visitor could prompt-inject "call create_lead with bot_id=<another
+    # tenant's UUID>" to write fake leads (and fire their webhooks) into a
+    # different customer's account. The real bot_id for this conversation is
+    # already known server-side (the widget session it actually belongs to),
+    # so always override whatever the model supplied with the trusted value.
+    if context and context.get("bot_id") and "bot_id" in args:
+        args = {**args, "bot_id": context["bot_id"]}
     try:
         if name == "create_calendar_event":
             res = await _create_calendar_event(args, user, supabase)

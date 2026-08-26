@@ -455,6 +455,36 @@ def test_execute_dispatches_to_create_lead(monkeypatch):
     create_lead_mock.assert_awaited_once()
 
 
+def test_execute_overrides_llm_supplied_bot_id_with_trusted_context_bot_id(monkeypatch):
+    # A visitor could prompt-inject the model into calling create_lead with
+    # someone else's bot_id — the real bot_id for this conversation is known
+    # server-side (context, set from the actual widget session) and must
+    # always win over whatever the model put in its tool-call args.
+    create_lead_mock = AsyncMock(return_value={"success": True})
+    monkeypatch.setattr(at, "_create_lead", create_lead_mock)
+    asyncio.run(at.execute(
+        "create_lead",
+        {"bot_id": "attacker-supplied-other-tenant-bot-id", "name": "x", "email": "y"},
+        user={}, supabase=MagicMock(),
+        context={"source": "widget", "session_id": "s1", "bot_id": "real-trusted-bot-id"},
+    ))
+    called_args = create_lead_mock.call_args[0][0]
+    assert called_args["bot_id"] == "real-trusted-bot-id"
+
+
+def test_execute_leaves_bot_id_alone_when_no_context_is_given(monkeypatch):
+    # No trusted context to override with (shouldn't happen for the widget's
+    # only real caller today, but execute() must not crash or blank out
+    # bot_id if it's ever called without one).
+    create_lead_mock = AsyncMock(return_value={"success": True})
+    monkeypatch.setattr(at, "_create_lead", create_lead_mock)
+    asyncio.run(at.execute(
+        "create_lead", {"bot_id": "b1", "name": "x", "email": "y"}, user={}, supabase=MagicMock(),
+    ))
+    called_args = create_lead_mock.call_args[0][0]
+    assert called_args["bot_id"] == "b1"
+
+
 def test_execute_dispatches_to_check_calendar_availability(monkeypatch):
     mock = AsyncMock(return_value={"busy": []})
     monkeypatch.setattr(at, "_check_calendar_availability", mock)
