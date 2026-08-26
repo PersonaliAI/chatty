@@ -5,6 +5,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
+import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
@@ -268,6 +269,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleMessage = (e: MessageEvent) => {
+      // The embed can be hosted on any customer domain, so the parent's
+      // origin isn't known ahead of time — restrict to messages that
+      // actually came from our own parent frame instead.
+      if (e.source !== window.parent) return;
       if (e.data && e.data.type === "chatty-notification-status") {
         setPushGranted(!!e.data.granted);
       }
@@ -1169,7 +1174,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
     ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-    a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="underline break-all" style={{ color: primaryColor }}>{children}</a>,
+    a: ({ href, children }) => (
+      <SafeMarkdownLink href={href} className="underline break-all" style={{ color: primaryColor }}>
+        {children}
+      </SafeMarkdownLink>
+    ),
     code: ({ className, children, ...rest }) => {
       const isBlock = className?.startsWith("language-");
       if (!isBlock) return <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;

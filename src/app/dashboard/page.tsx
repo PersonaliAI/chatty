@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -3925,6 +3926,7 @@ export default function Dashboard() {
                               ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
                               ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
                               li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                              a: ({ href, children }) => <SafeMarkdownLink href={href} className="underline break-all">{children}</SafeMarkdownLink>,
                               pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
                               code: ({ children }) => <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono">{children}</code>
                             }}
@@ -4891,6 +4893,7 @@ export default function Dashboard() {
                               ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
                               ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
                               li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                              a: ({ href, children }) => <SafeMarkdownLink href={href} className="underline break-all">{children}</SafeMarkdownLink>,
                               pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
                               code: ({ children }) => (
                                 <code className={msg.role === "user" ? "bg-white/20 text-white px-1 py-0.5 rounded text-[10px] font-mono" : "bg-neutral-200 dark:bg-neutral-850 px-1 py-0.5 rounded text-[10px] font-mono"}>

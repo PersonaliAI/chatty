@@ -18,6 +18,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
+import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 
 const WAVE_BAR_COUNT = 14;
 
@@ -345,9 +346,9 @@ export default function VoiceCallWidget({
     ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
     a: ({ href, children }) => (
-      <a href={href} target="_blank" rel="noreferrer" className="underline break-all" style={{ color: "currentColor" }}>
+      <SafeMarkdownLink href={href} className="underline break-all" style={{ color: "currentColor" }}>
         {children}
-      </a>
+      </SafeMarkdownLink>
     ),
     code: ({ className, children, ...rest }) => {
       const isBlock = className?.startsWith("language-");

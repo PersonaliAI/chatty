@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Search, BookOpen, ChevronRight, FileText, HelpCircle, ArrowLeft } from "lucide-react";
+import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
@@ -173,7 +174,7 @@ export default function KnowledgeBasePortal() {
 
               {/* Rich Markdown Reader */}
               <article className="prose dark:prose-invert prose-xs text-neutral-700 dark:text-neutral-300 max-w-none leading-relaxed space-y-4">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: SafeMarkdownLink }}>
                   {selectedArticle.content}
                 </ReactMarkdown>
               </article>
