@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from app.core.clients import supabase
 from app.core.config import GEMINI_FALLBACK_MODELS
 from app.core.db import run_db
+from app.core.uploads import read_upload_capped
 from plugins import ai_client
 from app.schemas.widget import (
     WidgetChatRequest,
@@ -171,9 +172,9 @@ async def widget_chat(
             session_id=session_id, text=text, visitor_timezone=visitor_timezone,
             visitor_geo=await geoip_lookup(ip),
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Widget assistant run failed")
-        raise HTTPException(status_code=502, detail=f"widget assistant failed: {exc}")
+        raise HTTPException(status_code=502, detail="widget assistant failed")
 
     reply = result["reply"]
 
@@ -349,11 +350,11 @@ async def widget_transcribe(
     Web Speech API is unreliable inside cross-origin iframes (the widget
     always runs in one) even with mic permission granted, so transcription
     happens server-side via Gemini instead — works in every browser."""
-    data = await file.read()
+    data = await read_upload_capped(
+        file, _TRANSCRIBE_MAX_BYTES, detail="Recording too large (max 10MB)"
+    )
     if not data:
         raise HTTPException(status_code=400, detail="Empty file")
-    if len(data) > _TRANSCRIBE_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="Recording too large (max 10MB)")
     mime = (file.content_type or "audio/wav").split(";")[0]
     if not mime.startswith("audio/"):
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {mime}")
@@ -400,9 +401,9 @@ async def widget_transcribe(
                 )
             except Exception:  # noqa: BLE001
                 logger.warning("Widget transcription returned empty text (bot=%s, bytes=%d, mime=%s)", bot_id, len(data), mime)
-    except Exception as exc:
+    except Exception:
         logger.exception("Widget transcription failed")
-        raise HTTPException(status_code=502, detail=f"transcription failed: {exc}")
+        raise HTTPException(status_code=502, detail="transcription failed")
 
     return {"text": text}
 
@@ -420,11 +421,11 @@ async def widget_chat_media(
 ):
     """Multimodal widget message: upload an image/audio/file, store it, and let
     the assistant (Gemini) actually see/hear it."""
-    data = await file.read()
+    data = await read_upload_capped(
+        file, _MEDIA_MAX_BYTES, detail="File too large (max 20MB)"
+    )
     if not data:
         raise HTTPException(status_code=400, detail="Empty file")
-    if len(data) > _MEDIA_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="File too large (max 20MB)")
     mime = (file.content_type or "application/octet-stream").split(";")[0]
     if not mime.startswith(_ALLOWED_MEDIA_PREFIXES):
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {mime}")
@@ -500,9 +501,9 @@ async def widget_chat_media(
             media_bytes=data, media_mime=mime,
             visitor_geo=await geoip_lookup(ip),
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Widget media assistant run failed")
-        raise HTTPException(status_code=502, detail=f"assistant failed: {exc}")
+        raise HTTPException(status_code=502, detail="assistant failed")
 
     reply = result["reply"]
     try:

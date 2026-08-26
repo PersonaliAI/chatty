@@ -267,9 +267,9 @@ async def public_api_chat(
             text=text,
             visitor_timezone=body.visitor_timezone,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Public API assistant run failed")
-        raise HTTPException(status_code=502, detail=f"assistant error: {exc}")
+        raise HTTPException(status_code=502, detail="assistant error")
 
     await run_db(lambda: _update_key_usage(key_row))
     _sec.log_api_access(
@@ -535,7 +535,8 @@ async def public_api_knowledge_create(
     try:
         content = await _fetch_url_content(url)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch URL: {exc}")
+        logger.exception("Failed to fetch URL for source ingestion")
+        raise HTTPException(status_code=502, detail="Failed to fetch URL") from exc
     if not content.strip():
         raise HTTPException(status_code=422, detail="URL returned no usable content")
     row = await run_db(lambda: supabase.table("chatty_sources").insert({

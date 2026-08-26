@@ -289,7 +289,12 @@ def log_api_access(
 def _client_ip(request: Request) -> str:
     fwd = request.headers.get("x-forwarded-for", "")
     if fwd:
-        return fwd.split(",")[0].strip()
+        # Cloud Run appends the real connecting client's IP as the LAST hop;
+        # the first entry is attacker-controlled if the client sets this
+        # header itself (this list is also used to enforce API-key IP
+        # allowlists, so trusting the wrong end lets an allowlist be
+        # bypassed by spoofing the header).
+        return fwd.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 

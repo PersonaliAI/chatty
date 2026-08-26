@@ -14,6 +14,7 @@ from app.core.config import FUNCTION_SECRET
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.security import verify_function_secret
+from app.core.uploads import read_upload_capped
 from app.schemas.documents import DriveScheduleUpdate, IndexFilesBody, IndexFolderBody
 from plugins import doc_rag
 from plugins import google_integrations as g
@@ -205,7 +206,7 @@ async def documents_upload(
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("upload indexing failed")
-        raise HTTPException(status_code=500, detail=f"indexing failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail="indexing failed") from exc
     return {
         "status": result.get("status"),
         "file_name": result.get("file_name"),
