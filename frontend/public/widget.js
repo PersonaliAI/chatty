@@ -388,6 +388,7 @@
   panel.appendChild(iframe);
 
   window.addEventListener("message", function (e) {
+    if (e.origin !== origin) return;
     if (!e.data || typeof e.data !== "object") return;
     if (e.data.type === "chatty-request-notification") {
       if ("Notification" in window) {
@@ -402,7 +403,7 @@
             } catch {}
           }
           if (iframe && iframe.contentWindow) {
-            iframe.contentWindow.postMessage({ type: "chatty-notification-status", granted: isGranted }, "*");
+            iframe.contentWindow.postMessage({ type: "chatty-notification-status", granted: isGranted }, origin);
           }
         }).catch(function () {});
       } else {
