@@ -12,17 +12,20 @@ from dotenv import load_dotenv
 # call it first) guarantees correct env state regardless of import order.
 load_dotenv()
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_SERVICE_ROLE_KEY = os.environ.get(
-    "SUPABASE_SERVICE_ROLE_KEY", os.environ.get("SUPABASE_ANON_KEY", "")
-)
-SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
+def _require_env(name: str) -> str:
+    """Fail loudly at startup rather than silently falling back to an
+    unset/wrong value — a service-role key falling back to the anon key
+    would silently downgrade to RLS-filtered access instead of erroring,
+    producing confusing partial failures rather than a clear error."""
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"{name} environment variable is required but not set")
+    return value
 
-if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-    raise RuntimeError(
-        "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY) must be "
-        "set — copy .env.example to .env and fill in your Supabase project's values."
-    )
+
+SUPABASE_URL = _require_env("SUPABASE_URL")
+SUPABASE_SERVICE_ROLE_KEY = _require_env("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
 
 # Primary model. Override with KIN_MODEL or (legacy) GEMMA_MODEL env vars.
 #
