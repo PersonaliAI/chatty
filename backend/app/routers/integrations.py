@@ -16,6 +16,7 @@ from fastapi.responses import RedirectResponse
 
 from app.core.clients import supabase
 from app.core.config import ALLOWED_ORIGINS, FRONTEND_URL, FUNCTION_SECRET
+from app.core.crypto import encrypt_secret
 from app.core.db import run_db
 from app.core.deps import require_user
 from plugins import google_integrations as g
@@ -167,8 +168,8 @@ async def google_callback(code: str, state: str):
             return RedirectResponse(f"{frontend}{redirect_path}?google=error")
         await run_db(lambda: supabase.table("kin_connected_accounts").insert({
             "user_id": owner["id"],
-            "google_access_token": access,
-            "google_refresh_token": refresh,
+            "google_access_token": encrypt_secret(access),
+            "google_refresh_token": encrypt_secret(refresh),
             "google_token_expiry": (
                 datetime.now(tz=timezone.utc) + timedelta(seconds=expires_in)
             ).isoformat(),
@@ -178,7 +179,7 @@ async def google_callback(code: str, state: str):
         return RedirectResponse(f"{frontend}{redirect_path}?google=added")
 
     update: dict[str, Any] = {
-        "google_access_token": access,
+        "google_access_token": encrypt_secret(access),
         "google_token_expiry": (
             datetime.now(tz=timezone.utc) + timedelta(seconds=expires_in)
         ).isoformat(),
@@ -186,7 +187,7 @@ async def google_callback(code: str, state: str):
         "google_email": profile.get("email"),
     }
     if refresh:
-        update["google_refresh_token"] = refresh
+        update["google_refresh_token"] = encrypt_secret(refresh)
 
     await run_db(lambda: supabase.table("users").update(update).eq("auth_user_id", auth_user_id).execute())
     return RedirectResponse(f"{frontend}{redirect_path}?google=ok")
@@ -311,7 +312,7 @@ async def microsoft_callback(code: str, state: str):
         pass
 
     update: dict[str, Any] = {
-        "microsoft_access_token": access,
+        "microsoft_access_token": encrypt_secret(access),
         "microsoft_token_expiry": (
             datetime.now(tz=timezone.utc) + timedelta(seconds=expires_in)
         ).isoformat(),
@@ -319,7 +320,7 @@ async def microsoft_callback(code: str, state: str):
         "microsoft_email": profile.get("mail") or profile.get("userPrincipalName"),
     }
     if refresh:
-        update["microsoft_refresh_token"] = refresh
+        update["microsoft_refresh_token"] = encrypt_secret(refresh)
     await run_db(lambda: supabase.table("users").update(update).eq("auth_user_id", auth_user_id).execute())
     return RedirectResponse(f"{frontend}{redirect_path}?microsoft=ok")
 

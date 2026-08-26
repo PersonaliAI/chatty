@@ -19,6 +19,7 @@ from urllib.parse import urlencode
 
 import httpx
 
+from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import run_db
 
 logger = logging.getLogger("kin.microsoft")
@@ -121,11 +122,13 @@ async def me(access_token: str) -> dict[str, Any]:
 async def _valid_access_token(
     supabase, user: dict[str, Any]
 ) -> Optional[str]:
-    token = user.get("microsoft_access_token")
-    refresh = user.get("microsoft_refresh_token")
+    token_enc = user.get("microsoft_access_token")
+    refresh_enc = user.get("microsoft_refresh_token")
     expiry = user.get("microsoft_token_expiry")
-    if not token or not refresh:
+    if not token_enc or not refresh_enc:
         return None
+    token = decrypt_secret(token_enc)
+    refresh = decrypt_secret(refresh_enc)
 
     now = datetime.now(tz=timezone.utc)
     if expiry:
@@ -147,8 +150,8 @@ async def _valid_access_token(
     user["microsoft_token_expiry"] = new_exp.isoformat()
     await run_db(lambda: supabase.table("users").update(
         {
-            "microsoft_access_token": new_token,
-            "microsoft_refresh_token": new_refresh,
+            "microsoft_access_token": encrypt_secret(new_token),
+            "microsoft_refresh_token": encrypt_secret(new_refresh),
             "microsoft_token_expiry": new_exp.isoformat(),
         }
     ).eq("id", user["id"]).execute())

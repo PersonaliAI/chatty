@@ -171,10 +171,13 @@ def test_valid_access_token_refreshes_when_expired_and_persists_new_token(monkey
     # In-memory user dict updated so a subsequent call in the same request
     # doesn't re-refresh.
     assert user["google_access_token"] == "fresh"
-    # Persisted back to the DB.
+    # Persisted back to the DB, encrypted at rest.
     supabase.table.assert_any_call("users")
     update_call = supabase.table.return_value.update.call_args
-    assert update_call[0][0]["google_access_token"] == "fresh"
+    stored = update_call[0][0]["google_access_token"]
+    assert stored != "fresh"
+    from app.core.crypto import decrypt_secret
+    assert decrypt_secret(stored) == "fresh"
 
 
 def test_valid_access_token_returns_none_when_never_connected():

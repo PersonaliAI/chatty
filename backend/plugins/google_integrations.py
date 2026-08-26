@@ -29,6 +29,7 @@ from urllib.parse import urlencode
 
 import httpx
 
+from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import run_db
 
 logger = logging.getLogger("kin.google")
@@ -155,11 +156,13 @@ async def _valid_access_token(
     (see agent_tools._read_gmail/_read_calendar) — same column names on
     both tables, so this needs no other change to work against either.
     """
-    token = user.get("google_access_token")
-    refresh = user.get("google_refresh_token")
+    token_enc = user.get("google_access_token")
+    refresh_enc = user.get("google_refresh_token")
     expiry = user.get("google_token_expiry")
-    if not token or not refresh:
+    if not token_enc or not refresh_enc:
         return None
+    token = decrypt_secret(token_enc)
+    refresh = decrypt_secret(refresh_enc)
 
     now = datetime.now(tz=timezone.utc)
     if expiry:
@@ -180,7 +183,7 @@ async def _valid_access_token(
     user["google_token_expiry"] = new_exp.isoformat()
     await run_db(lambda: supabase.table(table).update(
         {
-            "google_access_token": new_token,
+            "google_access_token": encrypt_secret(new_token),
             "google_token_expiry": new_exp.isoformat(),
         }
     ).eq("id", user["id"]).execute())
