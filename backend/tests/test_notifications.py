@@ -2,8 +2,11 @@
 schedule, config-driven channel selection, and HTML-escaping in the email
 templates (visitor-supplied fields flow unescaped into HTML sent by email if
 this regresses — see the fix that added the escaping)."""
+import asyncio
 import hashlib
 import hmac
+import socket
+from unittest.mock import patch
 
 from plugins import notifications as notify
 
@@ -51,6 +54,34 @@ def test_webhook_max_attempts_is_backoff_schedule_length_plus_initial_send():
 def test_webhook_events_are_all_dot_namespaced():
     for event in notify.WEBHOOK_EVENTS:
         assert "." in event, f"{event!r} doesn't follow the '<noun>.<verb>' convention"
+
+
+# ---------------------------------------------------------------------------
+# SSRF guard applied at delivery time (not just registration) — deliveries
+# can happen up to WEBHOOK_BACKOFF_SCHEDULE's full 8h window after a URL was
+# last validated, long enough for DNS to point somewhere else by then.
+# ---------------------------------------------------------------------------
+
+
+def _addrinfo_for(*ips: str):
+    return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0)) for ip in ips]
+
+
+def test_deliver_webhook_blocks_url_resolving_to_private_ip():
+    with patch.object(socket, "getaddrinfo", return_value=_addrinfo_for("10.0.0.5")):
+        result = asyncio.run(notify.deliver_webhook(
+            url="http://internal.example/hook", event="new_conversation", bot_id="b1", data={},
+        ))
+    assert result is False
+
+
+def test_post_signed_webhook_blocks_url_resolving_to_link_local_metadata_address():
+    with patch.object(socket, "getaddrinfo", return_value=_addrinfo_for("169.254.169.254")):
+        ok, error = asyncio.run(notify._post_signed_webhook(
+            "http://metadata.example/hook", "whsec_test", {"event": "lead.created"},
+        ))
+    assert ok is False
+    assert "unsafe" in (error or "").lower()
 
 
 # ---------------------------------------------------------------------------

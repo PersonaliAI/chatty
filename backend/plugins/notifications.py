@@ -29,6 +29,7 @@ from typing import Any, Optional
 import httpx
 
 from app.core.db import run_db
+from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from plugins import google_integrations as g
 
 logger = logging.getLogger("kin.notifications")
@@ -345,6 +346,15 @@ async def deliver_webhook(*, url: str, event: str, bot_id: str, data: dict) -> b
     break the conversation/lead flow that triggered it."""
     if not url:
         return False
+    # Re-checked here, not just at registration (this field has no registration
+    # endpoint of its own in this codebase, but even where a URL IS validated at
+    # registration, deliveries can happen well after — DNS could point somewhere
+    # else by then).
+    try:
+        await assert_safe_url_async(url)
+    except UnsafeURLError:
+        logger.warning("Webhook delivery blocked for %s (event=%s): unsafe URL", url, event)
+        return False
     payload = {
         "event": event,
         "bot_id": bot_id,
@@ -392,6 +402,13 @@ def sign_webhook_body(secret: str, body: bytes) -> str:
 
 async def _post_signed_webhook(url: str, secret: str, payload: dict) -> tuple[bool, Optional[str]]:
     """Returns (success, error_message)."""
+    # Re-checked here, not just at registration — retries can happen up to
+    # WEBHOOK_BACKOFF_SCHEDULE's full 8h window after the URL was validated,
+    # long enough for DNS to point somewhere else by delivery time.
+    try:
+        await assert_safe_url_async(url)
+    except UnsafeURLError as exc:
+        return False, f"unsafe URL: {exc}"
     body = json.dumps(payload, default=str).encode()
     signature = sign_webhook_body(secret, body)
     try:

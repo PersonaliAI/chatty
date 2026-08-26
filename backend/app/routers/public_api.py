@@ -17,6 +17,7 @@ from app.core import security as _sec
 from app.core.clients import supabase
 from app.core.db import run_db
 from app.core.deps import require_user
+from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.schemas.public_api import (
     ApiKeyCreateRequest,
     ApiKeyUpdateRequest,
@@ -696,6 +697,10 @@ async def public_api_webhook_create(
     url = (body.url or "").strip()
     if not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="url must be a valid http(s) URL")
+    try:
+        await assert_safe_url_async(url)
+    except UnsafeURLError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid url: {exc}") from exc
     events = [e for e in (body.events or []) if e in notify.WEBHOOK_EVENTS]
     if not events:
         raise HTTPException(
