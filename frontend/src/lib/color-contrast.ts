@@ -27,11 +27,20 @@ function contrastRatio(l1: number, l2: number): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-/** Returns the higher-contrast of white / near-black text for a given background hex. */
+/**
+ * Returns white / near-black text for a given background hex.
+ *
+ * Deliberately NOT "whichever of white/black has the higher literal WCAG
+ * ratio" — that maximization picks black for nearly every saturated brand
+ * color (orange #f97316, green #10b981/#22c55e, blue #3b82f6, red #ef4444
+ * all land here: mid-lightness luminance means black's ratio against it
+ * edges out white's, even though white is the near-universal design-system
+ * choice for buttons/badges in these colors). Instead, favor white unless
+ * the background is light enough that white would actually wash out
+ * (pastels, near-white) — matching how colored UI chrome reads in practice.
+ */
 export function getOnColor(backgroundHex: string): "#ffffff" | "#111827" {
   const [r, g, b] = hexToRgb(backgroundHex);
   const bgLum = relativeLuminance(r, g, b);
-  const whiteContrast = contrastRatio(bgLum, 1);
-  const blackContrast = contrastRatio(bgLum, relativeLuminance(0x11, 0x18, 0x27));
-  return whiteContrast >= blackContrast ? "#ffffff" : "#111827";
+  return bgLum > 0.55 ? "#111827" : "#ffffff";
 }
