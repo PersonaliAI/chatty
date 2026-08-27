@@ -125,6 +125,7 @@ interface Bot {
   email_notify?: boolean;
   hide_branding?: boolean;
   show_sender_tag?: boolean;
+  csat_enabled?: boolean;
   webhook_url?: string;
   custom_css?: string;
   custom_js?: string;
@@ -655,6 +656,7 @@ export default function Dashboard() {
   const [emailNotify, setEmailNotify] = useState(true);
   const [hideBranding, setHideBranding] = useState(false);
   const [showSenderTag, setShowSenderTag] = useState(false);
+  const [csatEnabled, setCsatEnabled] = useState(true);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [notificationEmails, setNotificationEmails] = useState("");
   const [customCss, setCustomCss] = useState("");
@@ -1239,6 +1241,7 @@ export default function Dashboard() {
         setEmailNotify(activeBot.email_notify);
         setHideBranding(activeBot.hide_branding || false);
         setShowSenderTag(activeBot.show_sender_tag || false);
+        setCsatEnabled(activeBot.csat_enabled !== false);
         setWebhookUrl(activeBot.webhook_url || "");
         setNotificationEmails(activeBot.notification_emails || "");
         setCustomCss(activeBot.custom_css || "");
@@ -1354,6 +1357,7 @@ export default function Dashboard() {
       setEmailNotify(selected.email_notify ?? true);
       setHideBranding(selected.hide_branding || false);
       setShowSenderTag(selected.show_sender_tag || false);
+      setCsatEnabled(selected.csat_enabled !== false);
       setWebhookUrl(selected.webhook_url || "");
       setCustomCss(selected.custom_css || "");
       setCustomJs(selected.custom_js || "");
@@ -2087,6 +2091,7 @@ export default function Dashboard() {
           email_notify: emailNotify,
           hide_branding: hideBranding,
           show_sender_tag: showSenderTag,
+          csat_enabled: csatEnabled,
           webhook_url: webhookUrl,
           notification_emails: notificationEmails,
           custom_css: customCss,
@@ -2144,6 +2149,7 @@ export default function Dashboard() {
                 email_notify: emailNotify,
                 hide_branding: hideBranding,
                 show_sender_tag: showSenderTag,
+                csat_enabled: csatEnabled,
                 webhook_url: webhookUrl,
                 custom_css: customCss,
                 custom_js: customJs,
@@ -4815,8 +4821,8 @@ export default function Dashboard() {
                 botId ? (
                   <>
                     <iframe
-                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}`}
-                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}`}
+                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}`}
+                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}`}
                       title="Live widget preview"
                       className="w-full max-w-lg h-[500px] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
                     />
@@ -5525,7 +5531,7 @@ export default function Dashboard() {
                     ios: {
                       title: "iOS SDK (Swift Package, SwiftUI)",
                       steps: [
-                        { label: "In Xcode: File → Add Package Dependencies, paste the URL below and select version 1.0.0:", code: `https://github.com/Damayantha/chatty-ios-sdk` },
+                        { label: "In Xcode: File → Add Package Dependencies, paste the URL below and select version 1.0.8:", code: `https://github.com/PersonaliAI/chatty-ios-sdk` },
                         { label: "Add a floating launcher anywhere in your view hierarchy:", code: `import ChattySDK\n\nstruct RootView: View {\n    var body: some View {\n        ContentView()\n            .overlay(ChattyLauncher(botId: "${botId || "YOUR_BOT_ID"}"))\n    }\n}` },
                         { label: "Or embed a full-screen chat screen directly:", code: `ChattyChatView(botId: "${botId || "YOUR_BOT_ID"}")` },
                         { label: "Renders a fully native SwiftUI chat UI — no WebView.", note: "Requires iOS 15+." },
@@ -5534,7 +5540,7 @@ export default function Dashboard() {
                     android: {
                       title: "Android SDK (Kotlin, Jetpack Compose)",
                       steps: [
-                        { label: "Add the dependency to your app module (published on Maven Central — no extra repository needed):", code: `// app/build.gradle.kts\ndependencies {\n    implementation("com.personaliai:chatty-android-sdk:1.0.0")\n}` },
+                        { label: "Add JitPack as a repository, then the dependency (Maven Central also has it, but lags behind at 1.0.0):", code: `// settings.gradle.kts\ndependencyResolutionManagement {\n    repositories {\n        maven { url = uri("https://jitpack.io") }\n    }\n}\n\n// app/build.gradle.kts\ndependencies {\n    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.8")\n}` },
                         { label: "Add a floating launcher to your root composable:", code: `@Composable\nfun AppRoot() {\n    Box(Modifier.fillMaxSize()) {\n        // your app content\n        ChattyLauncher(botId = "${botId || "YOUR_BOT_ID"}")\n    }\n}` },
                         { label: "Or embed a full-screen chat composable directly:", code: `ChattyChatScreen(botId = "${botId || "YOUR_BOT_ID"}", modifier = Modifier.fillMaxSize())` },
                         { label: "Renders a fully native Jetpack Compose chat UI — no WebView.", note: "Requires minSdk 24+." },
@@ -6327,6 +6333,21 @@ const { reply, session_id } = await res.json();`}</pre>
                         }`}
                       >
                         <div className={`size-4 rounded-full bg-white transition-transform ${showSenderTag ? "translate-x-4" : ""}`} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-semibold">Post-Chat Rating Prompt</span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Ask visitors to rate the conversation when they close the widget.</p>
+                      </div>
+                      <button
+                        onClick={() => handleInputChange(setCsatEnabled, !csatEnabled)}
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                          csatEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                        }`}
+                      >
+                        <div className={`size-4 rounded-full bg-white transition-transform ${csatEnabled ? "translate-x-4" : ""}`} />
                       </button>
                     </div>
                   </div>

@@ -155,6 +155,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const paramLogoUrl = searchParams.get("logo_url");
   const paramLogoBgColor = searchParams.get("logo_bg_color");
   const paramShowSenderTag = searchParams.get("show_sender_tag");
+  const paramCsatEnabled = searchParams.get("csat_enabled");
 
   // Scope stored session + history per embedding site, so different host sites
   // (and the dashboard playground) don't share one conversation.
@@ -222,6 +223,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [hideBranding, setHideBranding] = useState(false);
   const [showSenderTag, setShowSenderTag] = useState(false);
+  const [csatEnabled, setCsatEnabled] = useState(true);
   const [customCss, setCustomCss] = useState("");
   const [customJs, setCustomJs] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#f97316");
@@ -499,7 +501,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   const handleCloseClick = () => {
-    if (messages.length > 2 && !csatSubmitted) {
+    if (csatEnabled && messages.length > 2 && !csatSubmitted) {
       setShowCsat(true);
     } else {
       try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {}
@@ -718,6 +720,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           setLogoUrl(isPreview ? (paramLogoUrl || bot.logo_url || null) : (bot.logo_url || null));
           setHideBranding(!!bot.hide_branding);
           setShowSenderTag(isPreview && paramShowSenderTag !== null ? paramShowSenderTag === "true" : !!bot.show_sender_tag);
+          setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
           setVoiceEnabled(!!bot.voice_enabled);
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
@@ -731,7 +734,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       }
     }
     loadBot();
-  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag]);
+  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag, paramCsatEnabled]);
 
   // Run the bot owner's custom JS once, after the widget config has loaded. Scoped to
   // this embed iframe only — same trust model as the owner's own custom CSS.
