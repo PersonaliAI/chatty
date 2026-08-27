@@ -302,12 +302,23 @@ export default function Home() {
   };
 
   // Some launcher designs (currently only Neubrutalism) draw a hard,
-  // unblurred, offset box-shadow as a deliberate "layered" look — the
-  // shadow visibly sticks out past the button's own edge. A ring meant to
-  // trace the button's full silhouette needs to grow enough to enclose that
-  // too, or it reads as disconnected from part of what's actually rendered.
-  // Grown symmetrically (not just toward the shadow's corner) so translating
-  // the path is a plain uniform coordinate shift, not per-arc geometry.
+  // unblurred, offset box-shadow as a deliberate "layered" look. That
+  // shadow is only ever visible along the bottom and right — it's hidden
+  // behind the button everywhere else — so the button+shadow's true
+  // silhouette is NOT a bigger version of the plain shape: it's the plain
+  // shape with two straight "step" notches cut into the bottom-right,
+  // where the shadow pokes out past the button's own edge. A ring meant
+  // to trace that full silhouette has to follow the same steps, not just
+  // grow uniformly outward (a uniform grow leaves gaps at the two notches
+  // where the true edge doesn't reach the ring's corner). Square/rounded/
+  // bubble below each keep 3 of their normal corners as-is and swap only
+  // the bottom-right corner for the shadow-offset one, with a short
+  // straight jog (sized to the offset) splicing the two together on the
+  // right edge and the bottom edge. Circle has no straight edges to splice
+  // a jog into — true circle+circle-union geometry needs an actual
+  // intersection computation — so it keeps a uniform grow as a reasonable
+  // approximation; a soft round ring reads far more forgiving of a few px
+  // of mismatch than a sharp corner does.
   const hasHardOffsetShadow = /^\d+px \d+px 0 0 /.test(LAUNCHER_STYLES[widgetStyle]?.shadow || "");
   const waitingWheelShift = hasHardOffsetShadow ? 6 : 0;
 
@@ -317,28 +328,35 @@ export default function Home() {
     switch (launcherShape) {
       case "square":
         return {
-          d: s ? "M 42 10 L 74 10 L 74 74 L 10 74 L 10 10 Z" : "M 36 4 L 68 4 L 68 68 L 4 68 L 4 4 Z",
-          perimeter: 256
+          d: s
+            ? "M 36 4 L 68 4 L 68 10 L 74 10 L 74 74 L 10 74 L 10 68 L 4 68 L 4 4 Z"
+            : "M 36 4 L 68 4 L 68 68 L 4 68 L 4 4 Z",
+          perimeter: s ? 280 : 256
         };
       case "rounded":
         return {
           d: s
-            ? "M 42 10 L 59 10 A 15 15 0 0 1 74 25 L 74 59 A 15 15 0 0 1 59 74 L 25 74 A 15 15 0 0 1 10 59 L 10 25 A 15 15 0 0 1 25 10 Z"
+            ? "M 36 4 L 53 4 A 15 15 0 0 1 68 19 L 68 25 L 74 25 L 74 59 A 15 15 0 0 1 59 74 L 25 74 L 25 68 L 19 68 A 15 15 0 0 1 4 53 L 4 19 A 15 15 0 0 1 19 4 Z"
             : "M 36 4 L 53 4 A 15 15 0 0 1 68 19 L 68 53 A 15 15 0 0 1 53 68 L 19 68 A 15 15 0 0 1 4 53 L 4 19 A 15 15 0 0 1 19 4 Z",
-          perimeter: 230.2
+          perimeter: s ? 254.2 : 230.2
         };
       case "bubble":
         return {
           d: s
-            ? "M 42 10 L 47 10 A 27 27 0 0 1 74 37 L 74 67 A 7 7 0 0 1 67 74 L 37 74 A 27 27 0 0 1 10 47 L 10 37 A 27 27 0 0 1 37 10 Z"
+            ? "M 36 4 L 41 4 A 27 27 0 0 1 68 31 L 68 37 L 74 37 L 74 67 A 7 7 0 0 1 67 74 L 37 74 L 37 68 L 31 68 A 27 27 0 0 1 4 41 L 4 31 A 27 27 0 0 1 31 4 Z"
             : "M 36 4 L 41 4 A 27 27 0 0 1 68 31 L 68 61 A 7 7 0 0 1 61 68 L 31 68 A 27 27 0 0 1 4 41 L 4 31 A 27 27 0 0 1 31 4 Z",
-          perimeter: 218.2
+          perimeter: s ? 242.2 : 218.2
         };
       case "circle":
       default:
+        // No straight edge to splice a jog into, and true circle-union
+        // geometry needs an actual intersection computation — a slightly
+        // larger same-center circle is used instead as a reasonable
+        // approximation (a soft round ring reads far more forgiving of a
+        // few px of mismatch than a sharp corner does).
         return {
-          d: s ? "M 42 10 A 32 32 0 1 1 41.99 10 Z" : "M 36 4 A 32 32 0 1 1 35.99 4 Z",
-          perimeter: 201.1
+          d: s ? "M 36 1 A 35 35 0 1 1 35.99 1 Z" : "M 36 4 A 32 32 0 1 1 35.99 4 Z",
+          perimeter: s ? 219.9 : 201.1
         };
     }
   };
@@ -850,8 +868,14 @@ export default function Home() {
           themeLoaded ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-90 pointer-events-none"
         }`}
       >
-        {/* Progress waiting indicator (matches shape of the floating button) */}
-        <svg className={`absolute ${waitingWheelShift ? "w-[84px] h-[84px]" : "w-[72px] h-[72px]"} transition-opacity duration-300 ${isConnecting ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+        {/* Progress waiting indicator (matches shape of the floating button).
+            Always the same 72x72 box — growing it to fit a hard-shadow path
+            would get symmetrically re-centered by the flex layout above,
+            shifting the whole coordinate frame and throwing off every other
+            path's alignment with the actual button edges. overflow-visible
+            instead lets the handful of hard-shadow path points that go
+            slightly past 72 (up to 74) render without resizing the box. */}
+        <svg className={`absolute overflow-visible w-[72px] h-[72px] transition-opacity duration-300 ${isConnecting ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
           {/* Background track path */}
           <path
             d={getWaitingPathAndPerimeter().d}
