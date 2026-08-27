@@ -170,7 +170,7 @@
   btn.setAttribute("aria-label", "Open chat");
   btn.style.cssText =
     "position:fixed;bottom:20px;" + side + ":20px;width:60px;height:60px;border:none;" +
-    "border-radius:50%;background:" + color + ";cursor:pointer;z-index:2147483646;" +
+    "border-radius:50%;background:" + color + ";cursor:pointer;z-index:2147483646;touch-action:manipulation;" +
     "box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;" +
     "transition:opacity .25s ease,transform .2s ease !important;padding:0;opacity:0 !important;pointer-events:none !important;";
   btn.onmouseenter = function () { btn.style.setProperty("transform", "scale(1.06)", "important"); };
@@ -435,10 +435,19 @@
     // at true 100% browser zoom. translateY + opacity alone reads as
     // basically the same "rise and fade in" motion without that tradeoff.
     "box-shadow:0 12px 48px rgba(0,0,0,.28);opacity:0;transform:translateY(12px);" +
+    // touch-action:manipulation disables pinch-zoom and double-tap-zoom on
+    // this element specifically (keeping normal one-finger scroll/pan) —
+    // a trackpad/touchscreen pinch gesture triggers Chrome's "visual
+    // viewport" zoom, which scales the already-rendered pixels like
+    // zooming into a photo instead of re-rendering crisp text, so it
+    // reads as blurry by design while the gesture is active. This is the
+    // same technique other chat widgets (e.g. Crisp) use to keep a small
+    // fixed-size panel from ever entering that state at all.
+    "touch-action:manipulation;" +
     "pointer-events:none;transition:opacity .2s ease,transform .2s ease;background:transparent !important;";
 
   var iframe = document.createElement("iframe");
-  iframe.style.cssText = "width:100% !important;height:100% !important;border:0 !important;display:block !important;border-radius:16px !important;overflow:hidden !important;background:transparent !important;";
+  iframe.style.cssText = "width:100% !important;height:100% !important;border:0 !important;display:block !important;border-radius:16px !important;overflow:hidden !important;background:transparent !important;touch-action:manipulation;";
   iframe.setAttribute("title", "Chat assistant");
   iframe.setAttribute("allow", "clipboard-write; microphone; notifications");
   var iframeLoaded = false;

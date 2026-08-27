@@ -908,7 +908,7 @@ export default function Home() {
                           launcherShape === "rounded" ? "12px" :
                           "24px 24px 4px 24px" // bubble (right side)
           }}
-          className="size-14 flex items-center justify-center hover:opacity-90 transition-all cursor-pointer z-10 focus:outline-none"
+          className="size-14 flex items-center justify-center hover:opacity-90 transition-all cursor-pointer z-10 focus:outline-none touch-manipulation"
           title="Chat Assistant"
         >
           {isWidgetOpen || isConnecting ? (
@@ -967,7 +967,12 @@ export default function Home() {
           exactly removes the mismatch instead of just tolerating it. */}
       {(isWidgetOpen || isConnecting) && (
         <div
-          className={`fixed z-50 flex flex-col overflow-hidden transition-all duration-350 ease-out bg-transparent border-0
+          // touch-manipulation (touch-action: manipulation) disables pinch/
+          // double-tap zoom on the panel specifically, keeping normal
+          // scroll — a pinch gesture over it otherwise triggers Chrome's
+          // "visual viewport" zoom, a compositor-only pixel scale (like
+          // zooming a photo) that reads as blurry by design while active.
+          className={`fixed z-50 flex flex-col overflow-hidden transition-all duration-350 ease-out bg-transparent border-0 touch-manipulation
           w-full h-full bottom-0 right-0 rounded-none
           sm:w-[380px] sm:h-[540px] sm:bottom-24 sm:right-6 sm:rounded-[var(--panel-radius)]
           ${
@@ -987,7 +992,7 @@ export default function Home() {
           <iframe
             ref={iframeRef}
             src={`https://chatty.personaliai.com/embed/${botId}`}
-            className="flex-1 w-full border-0 rounded-none sm:rounded-[var(--panel-radius)]"
+            className="flex-1 w-full border-0 rounded-none sm:rounded-[var(--panel-radius)] touch-manipulation"
             allow="microphone"
             onLoad={handleIframeLoad}
           />

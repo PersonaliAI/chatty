@@ -1237,9 +1237,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const colorSchemeCss = buildColorSchemeCss(colorScheme, "#chatty-root");
 
   return (
-    <div id="chatty-root" className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
+    <div id="chatty-root" className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, touchAction: "manipulation", ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
       <style dangerouslySetInnerHTML={{ __html: `
         html, body {
+          touch-action: manipulation;
           background: transparent !important;
           background-image: none !important;
           animation: none !important;
