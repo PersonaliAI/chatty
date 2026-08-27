@@ -122,6 +122,7 @@ interface Bot {
   answer_mode?: "strict" | "hybrid" | "web";
   email_notify?: boolean;
   hide_branding?: boolean;
+  show_sender_tag?: boolean;
   webhook_url?: string;
   custom_css?: string;
   custom_js?: string;
@@ -643,6 +644,7 @@ export default function Dashboard() {
   const [answerMode, setAnswerMode] = useState<"strict" | "hybrid" | "web">("strict");
   const [emailNotify, setEmailNotify] = useState(true);
   const [hideBranding, setHideBranding] = useState(false);
+  const [showSenderTag, setShowSenderTag] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [notificationEmails, setNotificationEmails] = useState("");
   const [customCss, setCustomCss] = useState("");
@@ -1226,6 +1228,7 @@ export default function Dashboard() {
         setAnswerMode(activeBot.answer_mode || "strict");
         setEmailNotify(activeBot.email_notify);
         setHideBranding(activeBot.hide_branding || false);
+        setShowSenderTag(activeBot.show_sender_tag || false);
         setWebhookUrl(activeBot.webhook_url || "");
         setNotificationEmails(activeBot.notification_emails || "");
         setCustomCss(activeBot.custom_css || "");
@@ -1340,6 +1343,7 @@ export default function Dashboard() {
       setAnswerMode(selected.answer_mode || "strict");
       setEmailNotify(selected.email_notify ?? true);
       setHideBranding(selected.hide_branding || false);
+      setShowSenderTag(selected.show_sender_tag || false);
       setWebhookUrl(selected.webhook_url || "");
       setCustomCss(selected.custom_css || "");
       setCustomJs(selected.custom_js || "");
@@ -2072,6 +2076,7 @@ export default function Dashboard() {
           answer_mode: answerMode,
           email_notify: emailNotify,
           hide_branding: hideBranding,
+          show_sender_tag: showSenderTag,
           webhook_url: webhookUrl,
           notification_emails: notificationEmails,
           custom_css: customCss,
@@ -2128,6 +2133,7 @@ export default function Dashboard() {
           answer_mode: answerMode,
                 email_notify: emailNotify,
                 hide_branding: hideBranding,
+                show_sender_tag: showSenderTag,
                 webhook_url: webhookUrl,
                 custom_css: customCss,
                 custom_js: customJs,
@@ -4790,8 +4796,8 @@ export default function Dashboard() {
                 botId ? (
                   <>
                     <iframe
-                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}`}
-                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}`}
+                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}`}
+                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}`}
                       title="Live widget preview"
                       className="w-full max-w-lg h-[500px] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
                     />
@@ -6287,6 +6293,21 @@ const { reply, session_id } = await res.json();`}</pre>
                         }`}
                       >
                         <div className={`size-4 rounded-full bg-white transition-transform ${hideBranding ? "translate-x-4" : ""}`} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-semibold">Show AI / Human Tag</span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Label each reply in the widget as &quot;AI&quot; or &quot;Human agent&quot;.</p>
+                      </div>
+                      <button
+                        onClick={() => handleInputChange(setShowSenderTag, !showSenderTag)}
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                          showSenderTag ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                        }`}
+                      >
+                        <div className={`size-4 rounded-full bg-white transition-transform ${showSenderTag ? "translate-x-4" : ""}`} />
                       </button>
                     </div>
                   </div>
