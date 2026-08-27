@@ -777,6 +777,7 @@ export default function Dashboard() {
   const [conversionRate, setConversionRate] = useState("0.0");
   const [resolutionRate, setResolutionRate] = useState("—");
   const [csatScore, setCsatScore] = useState("—");
+  const [csatFeedback, setCsatFeedback] = useState<Array<{ id: string; rating: number; comment: string | null; created_at: string }>>([]);
   const [busiestHour, setBusiestHour] = useState("—");
   const [analyticsChartData, setAnalyticsChartData] = useState<Array<{ day: string; count: number; height: string }>>([]);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
@@ -1196,6 +1197,15 @@ export default function Dashboard() {
       } else {
         setCsatScore("—");
       }
+
+      // 6b. Post-chat star ratings + comments (the CSAT popup), most recent first.
+      const { data: csatRows } = await supabase
+        .from("chatty_csat_feedback")
+        .select("id, rating, comment, created_at")
+        .eq("bot_id", activeBotId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setCsatFeedback(csatRows || []);
 
       // 7. Busiest hour of day (from the last-7-days user queries).
       if (queryData && queryData.length) {
@@ -3658,6 +3668,38 @@ export default function Dashboard() {
                     <Clock className="size-5" />
                   </div>
                 </div>
+              </div>
+
+              {/* Recent Feedback — the post-chat star rating + comment popup
+                  (EmbedClient.tsx's CSAT modal). Kept separate from the CSAT
+                  % tile above, which is the per-message thumbs up/down ratio. */}
+              <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-4">Recent Feedback</h3>
+                {csatFeedback.length === 0 ? (
+                  <p className="text-xs text-neutral-400 dark:text-neutral-500">No star ratings yet. Visitors see this prompt when they close the chat after a couple of messages.</p>
+                ) : (
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    {csatFeedback.map((f) => (
+                      <div key={f.id} className="flex items-start gap-3 pb-3 border-b border-neutral-100 dark:border-neutral-850 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star key={n} className={`size-3.5 ${n <= f.rating ? "fill-amber-400 text-amber-400" : "text-neutral-300 dark:text-neutral-700"}`} />
+                          ))}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          {f.comment ? (
+                            <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">{f.comment}</p>
+                          ) : (
+                            <p className="text-xs text-neutral-400 dark:text-neutral-500 italic">No comment left</p>
+                          )}
+                          <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 block">
+                            {new Date(f.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
