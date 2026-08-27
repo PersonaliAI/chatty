@@ -265,6 +265,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [offlineSubmitted, setOfflineSubmitted] = useState(false);
 
   const [agentTyping, setAgentTyping] = useState(false);
+  // Told by widget.js (postMessage) whenever it switches the panel between
+  // the fixed-size desktop popup and mobile-fullscreen — see the message
+  // listener below. Defaults to false (rounded), which is also correct for
+  // the dashboard's own preview iframe, which never goes through widget.js
+  // and so never sends this message.
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Browser Push Notifications (OneSignal / Native Web Push)
   // Initial value read lazily (not via an effect + setState) so the browser's
@@ -283,6 +289,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       if (e.source !== window.parent) return;
       if (e.data && e.data.type === "chatty-notification-status") {
         setPushGranted(!!e.data.granted);
+      }
+      if (e.data && e.data.type === "chatty-fullscreen") {
+        setIsFullscreen(!!e.data.value);
       }
     };
     window.addEventListener("message", handleMessage);
@@ -1203,7 +1212,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   return (
-    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle}`} style={{ backgroundColor: primaryColor, "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}>
+    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}>
       <style dangerouslySetInnerHTML={{ __html: `
         html, body {
           background: transparent !important;

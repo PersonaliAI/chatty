@@ -422,7 +422,14 @@
   });
 
   function applyMobile() {
-    if (mobileFull && window.innerWidth <= 480) {
+    var isFullscreen = mobileFull && window.innerWidth <= 480;
+    // Told to the iframe's own document so it can round its own root
+    // container to match — the outer iframe/panel's border-radius+overflow
+    // clip is not reliably honored by every browser for content painted
+    // inside an iframe, which was leaving the header's corners visibly
+    // square despite the panel itself being rounded.
+    try { if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: "chatty-fullscreen", value: isFullscreen }, origin); } catch {}
+    if (isFullscreen) {
       panel.style.setProperty("width", "100vw", "important");
       // 100vh is taller than the visible area on mobile browsers with a
       // collapsible address bar, pushing the panel (anchored at bottom:0)
@@ -493,7 +500,14 @@
     var d = ev.data;
     if (!d || typeof d !== "object") return;
     if (d.type === "chatty:close") { setOpen(false); return; }
-    if (d.type === "chatty:ready") { ready = true; if (pendingOpen) { pendingOpen = false; setOpen(true); } else setBtnIcon(); }
+    if (d.type === "chatty:ready") {
+      ready = true;
+      if (pendingOpen) { pendingOpen = false; setOpen(true); } else setBtnIcon();
+      // applyMobile() may have posted the fullscreen state before this
+      // document existed to receive it (message sent right after setting
+      // iframe.src, before load) — resend now that it's actually listening.
+      try { if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: "chatty-fullscreen", value: mobileFull && window.innerWidth <= 480 }, origin); } catch {}
+    }
     if (d.type === "chatty:message" && d.role === "assistant" && !open) {
       unread++; renderBadge(); playPing();
     }

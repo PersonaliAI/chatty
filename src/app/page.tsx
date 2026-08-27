@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -181,6 +181,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const botId = "c8fa19c8-dd25-43a3-9c55-e8099e6f532e"; // The official landing page bot ID
   const [themeColor, setThemeColor] = useState("#f97316");
@@ -270,7 +271,27 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [isConnecting, isWidgetOpen]);
 
+  // Told to the iframe's own document so it can round its own root container
+  // to match — the outer div/iframe's border-radius+overflow-hidden clip
+  // (rounded-none below 640px, rounded-2xl at/above it) is not reliably
+  // honored by every browser for content painted inside an iframe, which
+  // was leaving the header's corners visibly square regardless of viewport.
+  const notifyIframeFullscreen = () => {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "chatty-fullscreen", value: window.innerWidth < 640 },
+      window.location.origin
+    );
+  };
+
+  useEffect(() => {
+    if (!isWidgetOpen && !isConnecting) return;
+    notifyIframeFullscreen();
+    window.addEventListener("resize", notifyIframeFullscreen);
+    return () => window.removeEventListener("resize", notifyIframeFullscreen);
+  }, [isWidgetOpen, isConnecting]);
+
   const handleIframeLoad = () => {
+    notifyIframeFullscreen();
     if (isConnecting) {
       setProgress(100);
       setTimeout(() => {
@@ -906,6 +927,7 @@ export default function Home() {
         >
           {/* Iframe */}
           <iframe
+            ref={iframeRef}
             src={`https://chatty.personaliai.com/embed/${botId}`}
             className="flex-1 w-full border-0 rounded-none sm:rounded-2xl"
             allow="microphone"
