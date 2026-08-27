@@ -20,7 +20,7 @@ import { CampaignsUI } from "@/components/campaigns-ui";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { getOnColor, primaryColorCssVars } from "@/lib/color-contrast";
+import { getOnColor, primaryColorCssVars, generateColorScheme, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
 import {
   Home,
@@ -236,6 +236,10 @@ interface KnowledgeMessage {
   isSetup?: boolean;
   thinkingSteps?: string[];
 }
+
+// Section Colors rows whose "text" property is really an icon/dot color
+// (no separate typed text on a button or a launcher circle).
+const ICON_ONLY_SECTIONS = new Set(["sendBtn", "launcher"]);
 
 // Lazy-loaded: pulls in lucide-react/dynamic's full icon-name list, which
 // shouldn't sit in the main dashboard bundle for something opened rarely.
@@ -592,6 +596,16 @@ export default function Dashboard() {
   const [conversationStarters, setConversationStarters] = useState<string[]>([]);
   const [teaserMessage, setTeaserMessage] = useState("👋 Need help? Chat with us.");
   const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
+  // Per-section colors (header/bot-bubble/user-bubble/input-bar/send-btn/
+  // launcher) — null until the owner saves at least one, at which point it
+  // takes over from primaryColor-driven presets entirely (see globals.css's
+  // .has-color-scheme override block). "Auto-generate" fills this from
+  // primaryColor via generateColorScheme(); each section stays individually
+  // editable after that.
+  const [colorScheme, setColorScheme] = useState<WidgetColorScheme | null>(null);
+  // Which property (bg/text/icon) each Section Colors row's dropdown is
+  // currently showing — transient UI state, not saved with the bot.
+  const [sectionColorProp, setSectionColorProp] = useState<Record<string, "bg" | "text" | "icon">>({});
   const [widgetStyle, setWidgetStyle] = useState<string>("minimal");
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
   const [avatarIcon, setAvatarIcon] = useState("logo");
@@ -1312,6 +1326,7 @@ export default function Dashboard() {
         setConversationStarters(Array.isArray(activeBot.conversation_starters) ? activeBot.conversation_starters : []);
         setTeaserMessage(activeBot.teaser_message || "👋 Need help? Chat with us.");
         setPrimaryColor(activeBot.primary_color);
+        setColorScheme(activeBot.color_scheme || null);
         const styleVal = activeBot.widget_style || "minimal";
         const [styleName, logoBg, shapeVal] = styleVal.split(":");
         setWidgetStyle(normalizeWidgetStyle(styleName));
@@ -1427,6 +1442,7 @@ export default function Dashboard() {
       setConversationStarters(Array.isArray(selected.conversation_starters) ? selected.conversation_starters : []);
       setTeaserMessage(selected.teaser_message || "👋 Need help? Chat with us.");
       setPrimaryColor(selected.primary_color || "#f97316");
+      setColorScheme((selected.color_scheme as WidgetColorScheme) || null);
 
       const styleVal = selected.widget_style || "minimal";
       const [styleName, logoBg, shapeVal] = styleVal.split(":");
@@ -2169,6 +2185,7 @@ export default function Dashboard() {
           teaser_message: teaserMessage,
           primary_color: primaryColor,
           widget_style: `${widgetStyle}:${logoBgColor || ""}:${launcherShape}`,
+          color_scheme: colorScheme,
           send_button_style: sendButtonStyle,
           avatar_icon: avatarIcon,
           avatar_url: avatarUrl,
@@ -2227,6 +2244,7 @@ export default function Dashboard() {
                 teaser_message: teaserMessage,
                 primary_color: primaryColor,
                 widget_style: `${widgetStyle}:${logoBgColor || ""}:${launcherShape}`,
+                color_scheme: colorScheme,
                 send_button_style: sendButtonStyle,
                 avatar_icon: avatarIcon,
                 avatar_url: avatarUrl,
@@ -3841,7 +3859,7 @@ export default function Dashboard() {
                           className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
                         />
                       </div>
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2">
                         {["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#111827"].map((color) => (
                           <button
                             key={color}
@@ -3852,7 +3870,74 @@ export default function Dashboard() {
                             }`}
                           />
                         ))}
+                        <button
+                          type="button"
+                          onClick={() => handleInputChange(setColorScheme, generateColorScheme(primaryColor))}
+                          className="ml-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-[#f97316]/50 hover:text-[#f97316] cursor-pointer transition-colors flex items-center gap-1"
+                          title="Fill every section below from this color using color theory"
+                        >
+                          <Sparkles className="size-3" /> Auto-generate palette
+                        </button>
                       </div>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Quick-sets every section below at once. Each stays individually editable after.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Section Colors</label>
+                      <div className="space-y-1.5">
+                        {(
+                          [
+                            { key: "header", label: "Header", props: ["bg", "text"] as const },
+                            { key: "botBubble", label: "Bot Bubble", props: ["bg", "text"] as const },
+                            { key: "userBubble", label: "User Bubble", props: ["bg", "text"] as const },
+                            { key: "inputBar", label: "Input Bar", props: ["bg", "text", "icon"] as const },
+                            { key: "sendBtn", label: "Send Button", props: ["bg", "text"] as const },
+                            { key: "launcher", label: "Launcher Button", props: ["bg", "text"] as const },
+                          ] as const
+                        ).map((section) => {
+                          // "text" doubles as the icon color on sendBtn/launcher
+                          // (a button/dot has no separate typed text), and as
+                          // real text color everywhere else.
+                          const textPropLabel = ICON_ONLY_SECTIONS.has(section.key) ? "Icon Color" : "Text Color";
+                          const scheme = colorScheme || generateColorScheme(primaryColor);
+                          const selectedProp = sectionColorProp[section.key] || "bg";
+                          const propLabel = selectedProp === "bg" ? "Background" : selectedProp === "icon" ? "Icon Color" : textPropLabel;
+                          const currentValue = (scheme[section.key] as unknown as Record<string, string>)[selectedProp] || "#000000";
+                          return (
+                            <div key={section.key} className="flex items-center gap-2">
+                              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 w-24 shrink-0 truncate">{section.label}</span>
+                              <select
+                                value={selectedProp}
+                                onChange={(e) => setSectionColorProp((prev) => ({ ...prev, [section.key]: e.target.value as "bg" | "text" | "icon" }))}
+                                className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-[11px] focus:outline-none cursor-pointer"
+                              >
+                                {section.props.map((p) => (
+                                  <option key={p} value={p}>{p === "bg" ? "Background" : p === "icon" ? "Icon Color" : textPropLabel}</option>
+                                ))}
+                              </select>
+                              <input
+                                type="color"
+                                value={currentValue}
+                                title={`${section.label} — ${propLabel}`}
+                                onChange={(e) => {
+                                  const next = { ...scheme, [section.key]: { ...scheme[section.key], [selectedProp]: e.target.value } };
+                                  handleInputChange(setColorScheme, next);
+                                }}
+                                className="size-7 shrink-0 rounded-full border border-neutral-200 dark:border-neutral-800 bg-transparent p-0 cursor-pointer"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {colorScheme && (
+                        <button
+                          type="button"
+                          onClick={() => handleInputChange(setColorScheme, null)}
+                          className="mt-2 text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer underline"
+                        >
+                          Reset to design defaults
+                        </button>
+                      )}
                     </div>
 
                     <div>
@@ -4056,7 +4141,7 @@ export default function Dashboard() {
                       margin and clips any shadow off. An id selector is used (not a
                       Tailwind class) so it reliably beats globals.css's !important
                       .style-* rule regardless of stylesheet order. */}
-                  <style>{`#customizer-live-preview { box-shadow: none !important; }`}</style>
+                  <style>{`#customizer-live-preview { box-shadow: none !important; }\n${buildColorSchemeCss(colorScheme, "#customizer-live-preview")}`}</style>
                   <div
                     id="customizer-live-preview"
                     className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
@@ -4139,9 +4224,9 @@ export default function Dashboard() {
                         />
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-0.5">
-                            <span className="p-1.5 text-neutral-500"><Smile className="size-4.5" /></span>
-                            <span className="p-1.5 text-neutral-500"><Paperclip className="size-4.5" /></span>
-                            <span className="p-1.5 text-neutral-500"><Mic className="size-4.5" /></span>
+                            <span className="chat-input-bar-icon p-1.5 text-neutral-500"><Smile className="size-4.5" /></span>
+                            <span className="chat-input-bar-icon p-1.5 text-neutral-500"><Paperclip className="size-4.5" /></span>
+                            <span className="chat-input-bar-icon p-1.5 text-neutral-500"><Mic className="size-4.5" /></span>
                           </div>
                           {(() => {
                             const map: Record<string, { shape: string; icon: React.ReactNode; label?: string }> = {
@@ -4177,14 +4262,16 @@ export default function Dashboard() {
                     <span className="text-[10px] text-neutral-450 dark:text-neutral-500 uppercase font-bold tracking-wider">Button Preview</span>
                     <div className="relative">
                       {(() => {
-                        const launcherBg = LAUNCHER_STYLES[widgetStyle]?.bg || primaryColor;
+                        const schemeLauncherBg = colorScheme?.launcher?.bg;
+                        const launcherBg = schemeLauncherBg || LAUNCHER_STYLES[widgetStyle]?.bg || primaryColor;
                         const launcherSolidBg = launcherBg.indexOf("gradient") === -1 ? launcherBg : "#a855f7";
+                        const launcherIconColor = colorScheme?.launcher?.text || getOnColor(launcherSolidBg);
                         return (
                       <div
                         style={{
                           background: launcherBg,
-                          boxShadow: LAUNCHER_STYLES[widgetStyle]?.shadow,
-                          color: getOnColor(launcherSolidBg),
+                          boxShadow: schemeLauncherBg ? undefined : LAUNCHER_STYLES[widgetStyle]?.shadow,
+                          color: launcherIconColor,
                           borderRadius: launcherShape === "circle" ? "50%" :
                                         launcherShape === "square" ? "0px" :
                                         launcherShape === "rounded" ? "12px" :
@@ -4215,9 +4302,10 @@ export default function Dashboard() {
                             );
                           }
                           // True default (no logo uploaded yet) — the selected
-                          // design's own dot mark, matching the real launcher
-                          // (page.tsx/widget.js) exactly.
-                          return <div className="size-[17px] rounded-full opacity-90" style={{ background: LAUNCHER_STYLES[widgetStyle]?.dot || "#ffffff" }} />;
+                          // design's own dot mark (or the Section Colors
+                          // launcher icon color, if set), matching the real
+                          // launcher (page.tsx/widget.js) exactly.
+                          return <div className="size-[17px] rounded-full opacity-90" style={{ background: colorScheme?.launcher?.text || LAUNCHER_STYLES[widgetStyle]?.dot || "#ffffff" }} />;
                         })()}
                       </div>
                         );
@@ -4964,8 +5052,8 @@ export default function Dashboard() {
                 botId ? (
                   <>
                     <iframe
-                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}`}
-                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}`}
+                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}-${JSON.stringify(colorScheme)}`}
+                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}&color_scheme=${encodeURIComponent(colorScheme ? JSON.stringify(colorScheme) : "")}`}
                       title="Live widget preview"
                       // Deliberately no border/radius/shadow/background of its
                       // own — every design preset already draws a complete
@@ -4984,7 +5072,9 @@ export default function Dashboard() {
                   <div className="w-full max-w-lg h-[500px] rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-xs text-neutral-400">Save your bot to preview the live widget.</div>
                 )
               )}
+              <style>{buildColorSchemeCss(colorScheme, "#playground-mock-preview")}</style>
               <div
+                id="playground-mock-preview"
                 className={`w-full max-w-lg h-[500px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative flex flex-col style-${widgetStyle} ${playgroundView === "live" ? "hidden" : ""}`}
                 style={primaryColorCssVars(primaryColor) as React.CSSProperties}
               >
