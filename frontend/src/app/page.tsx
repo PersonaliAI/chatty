@@ -301,28 +301,43 @@ export default function Home() {
     }
   };
 
+  // Some launcher designs (currently only Neubrutalism) draw a hard,
+  // unblurred, offset box-shadow as a deliberate "layered" look — the
+  // shadow visibly sticks out past the button's own edge. A ring meant to
+  // trace the button's full silhouette needs to grow enough to enclose that
+  // too, or it reads as disconnected from part of what's actually rendered.
+  // Grown symmetrically (not just toward the shadow's corner) so translating
+  // the path is a plain uniform coordinate shift, not per-arc geometry.
+  const hasHardOffsetShadow = /^\d+px \d+px 0 0 /.test(LAUNCHER_STYLES[widgetStyle]?.shadow || "");
+  const waitingWheelShift = hasHardOffsetShadow ? 6 : 0;
+
   // Helper to get waiting wheel path and perimeter based on button shape
   const getWaitingPathAndPerimeter = () => {
+    const s = waitingWheelShift;
     switch (launcherShape) {
       case "square":
         return {
-          d: "M 36 4 L 68 4 L 68 68 L 4 68 L 4 4 Z",
+          d: s ? "M 42 10 L 74 10 L 74 74 L 10 74 L 10 10 Z" : "M 36 4 L 68 4 L 68 68 L 4 68 L 4 4 Z",
           perimeter: 256
         };
       case "rounded":
         return {
-          d: "M 36 4 L 53 4 A 15 15 0 0 1 68 19 L 68 53 A 15 15 0 0 1 53 68 L 19 68 A 15 15 0 0 1 4 53 L 4 19 A 15 15 0 0 1 19 4 Z",
+          d: s
+            ? "M 42 10 L 59 10 A 15 15 0 0 1 74 25 L 74 59 A 15 15 0 0 1 59 74 L 25 74 A 15 15 0 0 1 10 59 L 10 25 A 15 15 0 0 1 25 10 Z"
+            : "M 36 4 L 53 4 A 15 15 0 0 1 68 19 L 68 53 A 15 15 0 0 1 53 68 L 19 68 A 15 15 0 0 1 4 53 L 4 19 A 15 15 0 0 1 19 4 Z",
           perimeter: 230.2
         };
       case "bubble":
         return {
-          d: "M 36 4 L 41 4 A 27 27 0 0 1 68 31 L 68 61 A 7 7 0 0 1 61 68 L 31 68 A 27 27 0 0 1 4 41 L 4 31 A 27 27 0 0 1 31 4 Z",
+          d: s
+            ? "M 42 10 L 47 10 A 27 27 0 0 1 74 37 L 74 67 A 7 7 0 0 1 67 74 L 37 74 A 27 27 0 0 1 10 47 L 10 37 A 27 27 0 0 1 37 10 Z"
+            : "M 36 4 L 41 4 A 27 27 0 0 1 68 31 L 68 61 A 7 7 0 0 1 61 68 L 31 68 A 27 27 0 0 1 4 41 L 4 31 A 27 27 0 0 1 31 4 Z",
           perimeter: 218.2
         };
       case "circle":
       default:
         return {
-          d: "M 36 4 A 32 32 0 1 1 35.99 4 Z",
+          d: s ? "M 42 10 A 32 32 0 1 1 41.99 10 Z" : "M 36 4 A 32 32 0 1 1 35.99 4 Z",
           perimeter: 201.1
         };
     }
@@ -836,7 +851,7 @@ export default function Home() {
         }`}
       >
         {/* Progress waiting indicator (matches shape of the floating button) */}
-        <svg className={`absolute w-[72px] h-[72px] transition-opacity duration-300 ${isConnecting ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+        <svg className={`absolute ${waitingWheelShift ? "w-[84px] h-[84px]" : "w-[72px] h-[72px]"} transition-opacity duration-300 ${isConnecting ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
           {/* Background track path */}
           <path
             d={getWaitingPathAndPerimeter().d}
