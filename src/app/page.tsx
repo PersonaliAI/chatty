@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { normalizeWidgetStyle, LAUNCHER_STYLES, PANEL_RADIUS } from "@/lib/widget-style";
-import { getOnColor } from "@/lib/color-contrast";
+
+declare global {
+  interface Window {
+    Chatty?: { open: () => void; close: () => void; toggle: () => void; destroy: () => void };
+  }
+}
 import {
   ArrowRight,
   ChevronDown,
@@ -15,7 +19,6 @@ import {
   Sliders,
   BarChart3,
   Bot,
-  Headphones,
   Layers,
   Inbox,
   Cpu,
@@ -27,7 +30,6 @@ import {
   UserCheck,
   FolderOpen,
   Mail,
-  User,
   X,
   type LucideIcon
 } from "lucide-react";
@@ -163,66 +165,34 @@ const faqs = [
   },
 ];
 
-const LAUNCHER_ICONS: Record<string, LucideIcon> = {
-  bot: Bot,
-  headset: Headphones,
-  sparkles: Sparkles,
-  message: MessageSquare,
-  user: User,
-};
-
 export default function Home() {
   const [isYearly, setIsYearly] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
 
-  // Live Widget States
-  const [progress, setProgress] = useState(0);
-  const [isWidgetOpen, setIsWidgetOpen] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  const botId = "c8fa19c8-dd25-43a3-9c55-e8099e6f532e"; // The official landing page bot ID
-  const [themeColor, setThemeColor] = useState("#f97316");
-  const [themeIcon, setThemeIcon] = useState("/favicon.png");
-  const [logoBgColor, setLogoBgColor] = useState("");
-  const [avatarIconType, setAvatarIconType] = useState("logo");
-  const [launcherShape, setLauncherShape] = useState("circle");
-  const [widgetStyle, setWidgetStyle] = useState("minimal");
-  const [themeLoaded, setThemeLoaded] = useState(false);
-
+  // The chat widget is now loaded the same way any third-party site embeds
+  // it — via widget.js — instead of a hand-built launcher+iframe unique to
+  // this page. See the effect below. Unifies onto the same Shadow DOM
+  // mount as every other embed (Stage 6 of the cross-origin iframe rewrite,
+  // C:\Users\HP\.claude\plans\gleaming-watching-sunrise.md), eliminating
+  // the class of bugs this file used to cause by hand-duplicating
+  // LAUNCHER_STYLES/PANEL_RADIUS from widget.js instead of importing them.
   useEffect(() => {
-    async function loadTheme() {
-      try {
-        const res = await fetch(`https://api.chatty.personaliai.com/api/widget/theme?bot_id=${botId}&t=${Date.now()}`);
-        if (res.ok) {
-          const d = await res.json();
-          if (d.primary_color) setThemeColor(d.primary_color);
-          if (d.avatar_icon) setAvatarIconType(d.avatar_icon);
-          
-          let logoToUse = "/favicon.png";
-          if (d.avatar_icon === "custom" && d.avatar_url) {
-            logoToUse = d.avatar_url;
-          } else if (d.logo_url) {
-            logoToUse = d.logo_url;
-          }
-          setThemeIcon(logoToUse);
-
-          if (d.widget_style) {
-            const [styleName, bg, shape] = d.widget_style.split(":");
-            setWidgetStyle(normalizeWidgetStyle(styleName));
-            setLogoBgColor(bg || "");
-            setLauncherShape(shape || "circle");
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load landing page widget theme:", err);
-      } finally {
-        setThemeLoaded(true);
-      }
-    }
-    loadTheme();
+    const scriptEl = document.createElement("script");
+    scriptEl.src = "/widget.js";
+    scriptEl.setAttribute("data-id", "c8fa19c8-dd25-43a3-9c55-e8099e6f532e"); // official landing page bot
+    scriptEl.defer = true;
+    document.body.appendChild(scriptEl);
+    return () => {
+      // Client-side navigation to another route (e.g. /dashboard) unmounts
+      // this component without a full page reload — without an explicit
+      // teardown, widget.js's floating button/panel (appended straight to
+      // document.body, outside this component's own DOM subtree) would
+      // otherwise keep showing on every other page.
+      try { window.Chatty?.destroy(); } catch {}
+      scriptEl.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -230,153 +200,6 @@ export default function Home() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  // Listen for close/ready messages from the embedded iframe chatbot
-  useEffect(() => {
-    const handleMessage = (ev: MessageEvent) => {
-      if (ev.data && typeof ev.data === "object") {
-        if (ev.data.type === "chatty:close") {
-          setIsWidgetOpen(false);
-          setIsConnecting(false);
-          setProgress(0);
-        }
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, []);
-
-  // Waiting wheel circulation progress when connecting
-  useEffect(() => {
-    if (!isConnecting) {
-      if (!isWidgetOpen) {
-        // Resetting derived progress when the connecting/open state settles
-        // back to idle — not a cascading update loop, this only fires on
-        // isConnecting/isWidgetOpen transitions.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setProgress(0);
-      }
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 90) {
-          return 90; // Wait at 90% until iframe load triggers 100%
-        }
-        return prev + 5; // Climb to 90% smoothly
-      });
-    }, 50);
-
-    return () => clearInterval(interval);
-  }, [isConnecting, isWidgetOpen]);
-
-  // Told to the iframe's own document so it can round its own root container
-  // to match — the outer div/iframe's border-radius+overflow-hidden clip
-  // (rounded-none below 640px, rounded-2xl at/above it) is not reliably
-  // honored by every browser for content painted inside an iframe, which
-  // was leaving the header's corners visibly square regardless of viewport.
-  const notifyIframeFullscreen = () => {
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "chatty-fullscreen", value: window.innerWidth < 640 },
-      window.location.origin
-    );
-  };
-
-  useEffect(() => {
-    if (!isWidgetOpen && !isConnecting) return;
-    notifyIframeFullscreen();
-    window.addEventListener("resize", notifyIframeFullscreen);
-    return () => window.removeEventListener("resize", notifyIframeFullscreen);
-  }, [isWidgetOpen, isConnecting]);
-
-  const handleIframeLoad = () => {
-    notifyIframeFullscreen();
-    if (isConnecting) {
-      setProgress(100);
-      setTimeout(() => {
-        setIsConnecting(false);
-        setIsWidgetOpen(true);
-      }, 150); // short delay to show 100% progress
-    }
-  };
-
-  // Some launcher designs (currently only Neubrutalism) draw a hard,
-  // unblurred, offset box-shadow as a deliberate "layered" look. That
-  // shadow is only ever visible along the bottom and right — it's hidden
-  // behind the button everywhere else — so the button+shadow's true
-  // silhouette is NOT a bigger version of the plain shape: it's the plain
-  // shape with two straight "step" notches cut into the bottom-right,
-  // where the shadow pokes out past the button's own edge. A ring meant
-  // to trace that full silhouette has to follow the same steps, not just
-  // grow uniformly outward (a uniform grow leaves gaps at the two notches
-  // where the true edge doesn't reach the ring's corner). Square/rounded/
-  // bubble below each keep 3 of their normal corners as-is and swap only
-  // the bottom-right corner for the shadow-offset one, with a short
-  // straight jog (sized to the offset) splicing the two together on the
-  // right edge and the bottom edge. Circle has no straight edges to splice
-  // a jog into — true circle+circle-union geometry needs an actual
-  // intersection computation — so it keeps a uniform grow as a reasonable
-  // approximation; a soft round ring reads far more forgiving of a few px
-  // of mismatch than a sharp corner does.
-  const hasHardOffsetShadow = /^\d+px \d+px 0 0 /.test(LAUNCHER_STYLES[widgetStyle]?.shadow || "");
-  const waitingWheelShift = hasHardOffsetShadow ? 6 : 0;
-
-  // Helper to get waiting wheel path and perimeter based on button shape
-  const getWaitingPathAndPerimeter = () => {
-    const s = waitingWheelShift;
-    switch (launcherShape) {
-      case "square":
-        return {
-          d: s
-            ? "M 36 4 L 68 4 L 68 10 L 74 10 L 74 74 L 10 74 L 10 68 L 4 68 L 4 4 Z"
-            : "M 36 4 L 68 4 L 68 68 L 4 68 L 4 4 Z",
-          perimeter: s ? 280 : 256
-        };
-      case "rounded":
-        return {
-          d: s
-            ? "M 36 4 L 53 4 A 15 15 0 0 1 68 19 L 68 25 L 74 25 L 74 59 A 15 15 0 0 1 59 74 L 25 74 L 25 68 L 19 68 A 15 15 0 0 1 4 53 L 4 19 A 15 15 0 0 1 19 4 Z"
-            : "M 36 4 L 53 4 A 15 15 0 0 1 68 19 L 68 53 A 15 15 0 0 1 53 68 L 19 68 A 15 15 0 0 1 4 53 L 4 19 A 15 15 0 0 1 19 4 Z",
-          perimeter: s ? 254.2 : 230.2
-        };
-      case "bubble":
-        return {
-          d: s
-            ? "M 36 4 L 41 4 A 27 27 0 0 1 68 31 L 68 37 L 74 37 L 74 67 A 7 7 0 0 1 67 74 L 37 74 L 37 68 L 31 68 A 27 27 0 0 1 4 41 L 4 31 A 27 27 0 0 1 31 4 Z"
-            : "M 36 4 L 41 4 A 27 27 0 0 1 68 31 L 68 61 A 7 7 0 0 1 61 68 L 31 68 A 27 27 0 0 1 4 41 L 4 31 A 27 27 0 0 1 31 4 Z",
-          perimeter: s ? 242.2 : 218.2
-        };
-      case "circle":
-      default:
-        // No straight edge to splice a jog into, and true circle-union
-        // geometry needs an actual intersection computation — a slightly
-        // larger same-center circle is used instead as a reasonable
-        // approximation (a soft round ring reads far more forgiving of a
-        // few px of mismatch than a sharp corner does).
-        return {
-          d: s ? "M 36 1 A 35 35 0 1 1 35.99 1 Z" : "M 36 4 A 32 32 0 1 1 35.99 4 Z",
-          perimeter: s ? 219.9 : 201.1
-        };
-    }
-  };
-
-  const handleToggleWidget = () => {
-    if (isWidgetOpen) {
-      setIsWidgetOpen(false);
-      setProgress(0);
-    } else if (isConnecting) {
-      setIsConnecting(false);
-      setProgress(0);
-    } else {
-      setIsConnecting(true);
-      setProgress(0);
-    }
-  };
-
-  const launcherBg = LAUNCHER_STYLES[widgetStyle]?.bg || themeColor;
-  const launcherSolidBg = launcherBg.indexOf("gradient") === -1 ? launcherBg : "#a855f7";
-  const launcherIconColor = getOnColor(launcherSolidBg);
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans antialiased selection:bg-neutral-200 dark:selection:bg-neutral-800">
@@ -862,142 +685,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Floating Chat Button & Waiting Circle */}
-      <div 
-        className={`fixed bottom-6 right-6 z-50 flex items-center justify-center select-none transition-all duration-350 ease-out ${
-          themeLoaded ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-90 pointer-events-none"
-        }`}
-      >
-        {/* Progress waiting indicator (matches shape of the floating button).
-            Always the same 72x72 box — growing it to fit a hard-shadow path
-            would get symmetrically re-centered by the flex layout above,
-            shifting the whole coordinate frame and throwing off every other
-            path's alignment with the actual button edges. overflow-visible
-            instead lets the handful of hard-shadow path points that go
-            slightly past 72 (up to 74) render without resizing the box. */}
-        <svg className={`absolute overflow-visible w-[72px] h-[72px] transition-opacity duration-300 ${isConnecting ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-          {/* Background track path */}
-          <path
-            d={getWaitingPathAndPerimeter().d}
-            className="stroke-neutral-200 dark:stroke-neutral-800"
-            strokeWidth="2.5"
-            fill="transparent"
-          />
-          {/* Active progress path */}
-          <path
-            d={getWaitingPathAndPerimeter().d}
-            style={{ stroke: themeColor }}
-            className="transition-all duration-75"
-            strokeWidth="2.5"
-            fill="transparent"
-            strokeDasharray={getWaitingPathAndPerimeter().perimeter}
-            strokeDashoffset={getWaitingPathAndPerimeter().perimeter - (getWaitingPathAndPerimeter().perimeter * progress) / 100}
-          />
-        </svg>
-        {/* Toggle Button — background/shadow default to the selected design's
-            own launcher look (mirrors widget.js's LAUNCHER_STYLES), same as
-            every embedded widget; shape stays a separate explicit choice. */}
-        <button
-          onClick={handleToggleWidget}
-          style={{
-            background: LAUNCHER_STYLES[widgetStyle]?.bg || themeColor,
-            boxShadow: LAUNCHER_STYLES[widgetStyle]?.shadow,
-            color: launcherIconColor,
-            borderRadius: launcherShape === "circle" ? "50%" :
-                          launcherShape === "square" ? "0px" :
-                          launcherShape === "rounded" ? "12px" :
-                          "24px 24px 4px 24px" // bubble (right side)
-          }}
-          className="size-14 flex items-center justify-center hover:opacity-90 transition-all cursor-pointer z-10 focus:outline-none touch-manipulation"
-          title="Chat Assistant"
-        >
-          {isWidgetOpen || isConnecting ? (
-            <X className="size-6" />
-          ) : (
-            LAUNCHER_ICONS[avatarIconType] ? (
-              (() => {
-                const IconComponent = LAUNCHER_ICONS[avatarIconType];
-                return <IconComponent className="size-7" />;
-              })()
-            ) : avatarIconType === "logo" && themeIcon === "/favicon.png" ? (
-              // True default (no logo uploaded yet) — the selected design's
-              // own dot mark, matching the gallery exactly.
-              <div className="size-[17px] rounded-full opacity-90" style={{ background: LAUNCHER_STYLES[widgetStyle]?.dot || "#ffffff" }} />
-            ) : (
-              themeIcon !== "/favicon.png" && avatarIconType === "custom" ? (
-                <Image
-                  src={themeIcon}
-                  alt="Chat"
-                  width={44}
-                  height={44}
-                  className="size-11 object-cover rounded-full"
-                  style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
-                />
-              ) : (
-                <div
-                  className="size-11 rounded-full flex items-center justify-center overflow-hidden transition-colors"
-                  style={logoBgColor ? { backgroundColor: logoBgColor } : (themeIcon === "/favicon.png" ? {} : { backgroundColor: "rgba(255,255,255,0.2)" })}
-                >
-                  <Image
-                    src={themeIcon}
-                    alt="Chat"
-                    width={themeIcon === "/favicon.png" ? 36 : 34}
-                    height={themeIcon === "/favicon.png" ? 36 : 34}
-                    className={themeIcon === "/favicon.png" ? "size-9 object-contain" : "w-[34px] h-[34px] object-contain rounded-full"}
-                    style={(themeIcon === "/favicon.png" && launcherIconColor === "#ffffff") ? { filter: "brightness(0) invert(1)" } : {}}
-                  />
-                </div>
-              )
-            )
-          )}
-        </button>
-      </div>
-
-      {/* Live Chatbot Widget Overlay — deliberately no border/shadow of its
-          own: every design preset already draws a complete background+
-          border+radius+shadow on its own root container inside the iframe
-          (see globals.css's .style-* rules, all !important), so decorating
-          this outer box too just doubled up on borders. Radius DOES match
-          the active design's own PANEL_RADIUS exactly (desktop only — full-
-          screen mobile stays square) rather than a flat 0px: a mismatched
-          radius here is always on the *safe* side (a square clip can't
-          notch into a rounded shape strictly inside it), but can still
-          leave a hairline seam at the corner from anti-aliasing differences
-          between a square outer edge and a rounded inner one. Matching
-          exactly removes the mismatch instead of just tolerating it. */}
-      {(isWidgetOpen || isConnecting) && (
-        <div
-          // touch-manipulation (touch-action: manipulation) disables pinch/
-          // double-tap zoom on the panel specifically, keeping normal
-          // scroll — a pinch gesture over it otherwise triggers Chrome's
-          // "visual viewport" zoom, a compositor-only pixel scale (like
-          // zooming a photo) that reads as blurry by design while active.
-          className={`fixed z-50 flex flex-col overflow-hidden transition-all duration-350 ease-out bg-transparent border-0 touch-manipulation
-          w-full h-full bottom-0 right-0 rounded-none
-          sm:w-[380px] sm:h-[540px] sm:bottom-24 sm:right-6 sm:rounded-[var(--panel-radius)]
-          ${
-            /* No scale-95 in the closed state — Chromium promotes a scaled
-               element to its own GPU-composited layer for the animation,
-               and that layer can stay rasterized slightly soft even after
-               the transform settles back to none, leaving the panel's text
-               blurry even at true 100% browser zoom. translate-y alone
-               reads as basically the same "rise and fade in" motion. */
-            isWidgetOpen
-              ? "opacity-100 transform-none pointer-events-auto"
-              : "opacity-0 translate-y-4 pointer-events-none"
-          }`}
-          style={{ "--panel-radius": PANEL_RADIUS[widgetStyle] || "0px" } as React.CSSProperties}
-        >
-          {/* Iframe */}
-          <iframe
-            ref={iframeRef}
-            src={`https://chatty.personaliai.com/embed/${botId}`}
-            className="flex-1 w-full border-0 rounded-none sm:rounded-[var(--panel-radius)] touch-manipulation"
-            allow="microphone"
-            onLoad={handleIframeLoad}
-          />
-        </div>
-      )}
     </div>
   );
 }

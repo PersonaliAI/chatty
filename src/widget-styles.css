@@ -1,0 +1,39 @@
+/* CSS entry for the standalone public widget bundle (widget-entry.tsx ->
+ * public/widget-app.css via `npm run build:widget`). Deliberately NOT the
+ * app's src/app/globals.css: that file scans (and ships CSS for) the whole
+ * dashboard/marketing app — shadcn components, sidebar, charts, etc. — none
+ * of which the public widget needs. `source(none)` below turns off
+ * Tailwind v4's automatic whole-project content scanning for this file, and
+ * the @source lines list only the widget's own component tree, so the
+ * generated utility CSS stays scoped to what ChatWidgetCore and its
+ * dependencies actually use.
+ *
+ * The hand-written design-preset rules (.style-minimal, .chat-header, etc.)
+ * aren't Tailwind-generated utilities, so they aren't affected by scanning —
+ * they're @imported from the same partial globals.css also uses, so the two
+ * builds can't drift out of sync (see src/styles/widget-presets.css).
+ */
+@import "tailwindcss" source(none);
+@import "./styles/widget-presets.css";
+
+@source "./app/embed/**/*.{ts,tsx}";
+@source "./widget-entry.tsx";
+@source "./components/quick-emoji-picker.tsx";
+@source "./components/attach-menu.tsx";
+@source "./components/voice-call-widget.tsx";
+@source "./lib/safe-markdown-link.tsx";
+
+@theme inline {
+  --color-card: var(--card);
+}
+
+/* Only the theme token(s) actually referenced by widget classNames (bg-card)
+ * — see the audit in the Shadow DOM rewrite plan. Everything else the
+ * widget uses is plain Tailwind palette (neutral-*, red-*, etc.), which
+ * needs no custom @theme mapping. */
+:root {
+  --card: #ffffff;
+}
+.dark {
+  --card: #141414;
+}
