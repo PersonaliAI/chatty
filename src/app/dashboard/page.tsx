@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 import remarkGfm from "remark-gfm";
@@ -81,6 +82,7 @@ import {
   GitBranch,
   Megaphone,
   Phone,
+  LayoutGrid,
   type LucideIcon
 } from "lucide-react";
 
@@ -232,6 +234,13 @@ interface KnowledgeMessage {
   isSetup?: boolean;
   thinkingSteps?: string[];
 }
+
+// Lazy-loaded: pulls in lucide-react/dynamic's full icon-name list, which
+// shouldn't sit in the main dashboard bundle for something opened rarely.
+const IconLibraryPicker = dynamic(
+  () => import("@/components/icon-library-picker").then((m) => m.IconLibraryPicker),
+  { ssr: false }
+);
 
 const LOCALE_TEXTS: Record<string, Record<string, string>> = {
   EN: {
@@ -584,6 +593,7 @@ export default function Dashboard() {
   const [widgetStyle, setWidgetStyle] = useState<string>("minimal");
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
   const [avatarIcon, setAvatarIcon] = useState("logo");
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarFileRef = useRef<HTMLInputElement>(null);
@@ -3115,9 +3125,8 @@ export default function Dashboard() {
   };
 
   // Assistant avatar for the dashboard previews (preset icon / logo / initial).
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !botId) return;
+  const uploadAvatarFile = async (file: File) => {
+    if (!botId) return;
     setUploadingAvatar(true);
     try {
       const fd = new FormData();
@@ -3127,8 +3136,14 @@ export default function Dashboard() {
       if (res.ok) { const d = await res.json(); setAvatarUrl(d.avatar_url); setAvatarIcon("custom"); setHasUnsavedChanges(false); }
     } catch {} finally {
       setUploadingAvatar(false);
-      if (avatarFileRef.current) avatarFileRef.current.value = "";
     }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadAvatarFile(file);
+    if (avatarFileRef.current) avatarFileRef.current.value = "";
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3757,6 +3772,10 @@ export default function Dashboard() {
                           className={`size-9 rounded-xl border flex items-center justify-center cursor-pointer transition-colors overflow-hidden ${avatarIcon === "custom" ? "border-[#f97316] ring-2 ring-[#f97316]/20" : "border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-[#f97316]/50"}`}>
                           {/* eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist */}
                           {uploadingAvatar ? <Loader2 className="size-4 animate-spin" /> : (avatarIcon === "custom" && avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <Plus className="size-4" />)}
+                        </button>
+                        <button type="button" onClick={() => setIconPickerOpen(true)} title="Browse icon library"
+                          className="size-9 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-[#f97316]/50 flex items-center justify-center cursor-pointer transition-colors">
+                          <LayoutGrid className="size-4" />
                         </button>
                       </div>
                       <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">&quot;Logo&quot; uses your uploaded logo (or the initial). Pick a preset, or upload a custom avatar image (+).</p>
@@ -7826,6 +7845,13 @@ const { reply, session_id } = await res.json();`}</pre>
             </form>
           </div>
         </div>
+      )}
+
+      {iconPickerOpen && (
+        <IconLibraryPicker
+          onClose={() => setIconPickerOpen(false)}
+          onSelect={(file) => { uploadAvatarFile(file); setIconPickerOpen(false); }}
+        />
       )}
 
     </div>
