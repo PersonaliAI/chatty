@@ -454,7 +454,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const submitCsat = async () => {
     if (csatRating === 0) return;
     try {
-      await fetch(`${BACKEND_URL}/api/widget/feedback`, {
+      const res = await fetch(`${BACKEND_URL}/api/widget/csat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...widgetTokenHeader },
         body: JSON.stringify({
@@ -464,6 +464,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           comment: csatComment,
         }),
       });
+      if (!res.ok) throw new Error("csat submit failed");
       setCsatSubmitted(true);
       showToast("Thank you for your feedback!", "success");
       setTimeout(() => { setShowCsat(false); try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }, 1500);
