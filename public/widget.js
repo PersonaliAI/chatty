@@ -162,6 +162,11 @@
   var customLogoBgColor = "";
   var avatarIconType = "logo";
   var launcherShape = "circle";
+  // Explicit icon/dot color from the Customizer's Section Colors (launcher
+  // .text) — when set, wins over the auto-computed getOnColor(bg) contrast
+  // pick everywhere the launcher's icon is drawn (buildChatIcon/closeIcon/
+  // spinnerIcon), since the business owner chose it deliberately.
+  var launcherIconOverride = null;
   var currentDesign = normalizeDesign(styleAttr);
   // The button's actual current background — the design's own bg by
   // default (mirrors page.tsx's launcher and the dashboard Customizer's
@@ -198,7 +203,7 @@
     return "50%";
   }
   function buildChatIcon(c) {
-    var stroke = getOnColor(c);
+    var stroke = launcherIconOverride || getOnColor(c);
     var svgIcons = {
       bot: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>',
       headset: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 1-2 2h1a2 2 0 0 1-2-2v-3a2 2 0 0 1-2-2H3z"/></svg>',
@@ -219,7 +224,7 @@
     // when there's no design driving the launcher at all (colorAttr override).
     if (avatarIconType === "logo" && !customIconUrl) {
       var designDot = (!colorAttr && LAUNCHER_STYLES[currentDesign]) ? LAUNCHER_STYLES[currentDesign].dot : null;
-      var dotColor = designDot || getOnColor(c);
+      var dotColor = launcherIconOverride || designDot || getOnColor(c);
       return '<div style="width:17px !important;height:17px !important;border-radius:50% !important;background:' + dotColor + ' !important;opacity:.9 !important;"></div>';
     }
 
@@ -252,11 +257,11 @@
   }
   var chatIcon = buildChatIcon(safeBg(launcherBg));
   function closeIcon() {
-    var s = getOnColor(safeBg(launcherBg));
+    var s = launcherIconOverride || getOnColor(safeBg(launcherBg));
     return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="' + s + '" stroke-width="2.4" stroke-linecap="round"/></svg>';
   }
   function spinnerIcon() {
-    var s = getOnColor(safeBg(launcherBg));
+    var s = launcherIconOverride || getOnColor(safeBg(launcherBg));
     return '<svg width="26" height="26" viewBox="0 0 24 24" style="animation:chatty-spin .7s linear infinite;transform-origin:center">' +
       '<circle cx="12" cy="12" r="9" fill="none" stroke="' + s + '" stroke-opacity=".3" stroke-width="3"/>' +
       '<path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="' + s + '" stroke-width="3" stroke-linecap="round"/></svg>';
@@ -356,6 +361,20 @@
             if (parts.length > 2) {
               launcherShape = parts[2] || "circle";
             }
+          }
+          // Per-section colors from the Customizer's "Section Colors" —
+          // when the launcher section is set, it's the final word on the
+          // launcher's look, overriding both the design default and
+          // primaryColor (same precedence data-color already has over
+          // everything). "text" here is the launcher's icon/dot color —
+          // a button has no separate typed text to color.
+          if (d.color_scheme && d.color_scheme.launcher && !colorAttr) {
+            var lc = d.color_scheme.launcher;
+            if (lc.bg) {
+              launcherBg = lc.bg;
+              btn.style.setProperty("background", lc.bg, "important");
+            }
+            if (lc.text) launcherIconOverride = lc.text;
           }
           if (d.avatar_icon) {
             avatarIconType = d.avatar_icon;

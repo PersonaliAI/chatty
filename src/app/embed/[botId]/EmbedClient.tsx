@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import VoiceCallWidget from "@/components/voice-call-widget";
-import { getOnColor, primaryColorCssVars } from "@/lib/color-contrast";
+import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle } from "@/lib/widget-style";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
@@ -156,6 +156,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const paramLogoBgColor = searchParams.get("logo_bg_color");
   const paramShowSenderTag = searchParams.get("show_sender_tag");
   const paramCsatEnabled = searchParams.get("csat_enabled");
+  const paramColorScheme = searchParams.get("color_scheme");
 
   // Scope stored session + history per embedding site, so different host sites
   // (and the dashboard playground) don't share one conversation.
@@ -233,6 +234,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // lightness spectrum. Computed via WCAG contrast, not assumed.
   const onPrimary = getOnColor(primaryColor);
   const [widgetStyle, setWidgetStyle] = useState("minimal");
+  // Per-section colors (header/bot-bubble/user-bubble/input-bar/send-btn) —
+  // null until the owner sets at least one in the Customizer, at which
+  // point it takes over from the preset's own primaryColor-driven CSS
+  // entirely (applied via an injected !important stylesheet below, the
+  // only thing that reliably beats globals.css's .style-* !important rules).
+  const [colorScheme, setColorScheme] = useState<WidgetColorScheme | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -723,6 +730,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           setShowSenderTag(isPreview && paramShowSenderTag !== null ? paramShowSenderTag === "true" : !!bot.show_sender_tag);
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
           setVoiceEnabled(!!bot.voice_enabled);
+          try {
+            const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
+            setColorScheme(rawScheme ? JSON.parse(rawScheme) : null);
+          } catch { setColorScheme(null); }
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
           setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg, sender: "ai" }]);
@@ -1215,8 +1226,18 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     },
   };
 
+  // Per-section overrides need real !important CSS (a plain inline style
+  // can never beat globals.css's .style-* !important rules), so they're
+  // injected the same way the box-shadow strip above already is. #chatty-root
+  // gives them ID-level specificity so they win regardless of which design
+  // preset is active. buildColorSchemeCss validates hex values before
+  // interpolating them — not a security boundary (custom_css already lets
+  // the bot owner inject arbitrary CSS here), just guarding against a
+  // malformed stored value breaking the whole stylesheet.
+  const colorSchemeCss = buildColorSchemeCss(colorScheme, "#chatty-root");
+
   return (
-    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
+    <div id="chatty-root" className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
       <style dangerouslySetInnerHTML={{ __html: `
         html, body {
           background: transparent !important;
@@ -1249,6 +1270,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         .style-luxury-editorial {
           box-shadow: none !important;
         }
+        ${colorSchemeCss}
       ` }} />
       {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
       {/* Header */}
@@ -1711,9 +1733,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
-                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></motion.button>
-                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></motion.button>
-                <button type="button" onClick={toggleRecord} disabled={transcribing} className={`p-1.5 rounded-full disabled:opacity-50 ${recording ? "text-red-500" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
+                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></motion.button>
+                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></motion.button>
+                <button type="button" onClick={toggleRecord} disabled={transcribing} className={`p-1.5 rounded-full disabled:opacity-50 ${recording ? "text-red-500" : "chat-input-bar-icon text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
                   {transcribing ? <Loader2 className="size-4.5 animate-spin" /> : recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                 </button>
                 {recording && (
