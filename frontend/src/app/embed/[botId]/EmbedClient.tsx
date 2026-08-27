@@ -1225,14 +1225,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         }
         /* Strip only box-shadow inside the iframe: the container fills the iframe
            edge-to-edge with zero margin, so any shadow has no room to render and
-           gets hard-clipped by the iframe's own overflow:hidden (ugly). Each
-           design's border and border-radius are safe to keep — a border draws
-           flush at the box edge with zero bleed, and the outer panel's fixed
-           16px radius (widget.js) always dominates the visible corner shape
-           regardless of what a smaller/larger inner radius asks for, so there's
-           no double-corner artifact. This keeps each design's signature frame
-           (e.g. Luxury Editorial's gold border, Neubrutalism's thick black
-           border) visible on the live widget instead of only in previews. */
+           gets hard-clipped by the iframe's own overflow:hidden (ugly) — this is
+           an iframe limitation, not a CSS bug, since content can never bleed past
+           an iframe's own rectangle. Each design's border and border-radius are
+           safe to keep — a border draws flush at the box edge with zero bleed, and
+           the outer host (widget.js, page.tsx) now applies no radius/border/shadow
+           of its own, so there's no double-corner artifact either. This keeps each
+           design's signature frame (e.g. Luxury Editorial's gold border,
+           Neubrutalism's thick black border) visible on the live widget instead of
+           only in previews. Restoring the shadow too would require insetting this
+           panel inside a larger host box to give it room — deliberately not done,
+           to keep the full iframe as usable chat area. */
         .style-minimal,
         .style-playful,
         .style-corporate,
