@@ -241,6 +241,51 @@ interface KnowledgeMessage {
 // (no separate typed text on a button or a launcher circle).
 const ICON_ONLY_SECTIONS = new Set(["sendBtn", "launcher"]);
 
+/** A styled dropdown for Section Colors' property picker — a native
+ * <select>'s CLOSED box can be restyled with appearance:none, but its
+ * OPENED option list is OS/browser chrome in every browser with no CSS
+ * hook at all, so a real custom listbox is the only way to actually look
+ * "modern" when opened, not just when closed. */
+function SectionPropertyDropdown({ value, options, onChange }: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+  const current = options.find((o) => o.value === value) || options[0];
+  return (
+    <div ref={ref} className="relative flex-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg pl-2.5 pr-2 py-1.5 text-[11px] font-medium text-left cursor-pointer transition-colors hover:border-neutral-300 dark:hover:border-neutral-700"
+      >
+        <span className="truncate">{current?.label}</span>
+        <ChevronDown className={`size-3 text-neutral-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg overflow-hidden py-1">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`w-full text-left px-2.5 py-1.5 text-[11px] cursor-pointer transition-colors ${
+                o.value === current?.value ? "bg-[#f97316]/10 text-[#f97316] font-semibold" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Lazy-loaded: pulls in lucide-react/dynamic's full icon-name list, which
 // shouldn't sit in the main dashboard bundle for something opened rarely.
 const IconLibraryPicker = dynamic(
@@ -3925,18 +3970,11 @@ export default function Dashboard() {
                           return (
                             <div key={section.key} className="flex items-center gap-2">
                               <span className="text-[10px] text-neutral-500 dark:text-neutral-400 w-24 shrink-0 truncate">{section.label}</span>
-                              <div className="relative flex-1">
-                                <select
-                                  value={selectedProp}
-                                  onChange={(e) => setSectionColorProp((prev) => ({ ...prev, [section.key]: e.target.value as "bg" | "text" | "icon" }))}
-                                  className="w-full appearance-none bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg pl-2.5 pr-7 py-1.5 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f97316]/30 focus:border-[#f97316]/50 cursor-pointer transition-colors"
-                                >
-                                  {section.props.map((p) => (
-                                    <option key={p} value={p}>{p === "bg" ? "Background" : p === "icon" ? "Icon Color" : textPropLabel}</option>
-                                  ))}
-                                </select>
-                                <ChevronDown className="size-3 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                              </div>
+                              <SectionPropertyDropdown
+                                value={selectedProp}
+                                options={section.props.map((p) => ({ value: p, label: p === "bg" ? "Background" : p === "icon" ? "Icon Color" : textPropLabel }))}
+                                onChange={(v) => setSectionColorProp((prev) => ({ ...prev, [section.key]: v as "bg" | "text" | "icon" }))}
+                              />
                               <input
                                 type="color"
                                 value={currentValue}
