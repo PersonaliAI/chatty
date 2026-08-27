@@ -596,6 +596,12 @@ export default function Dashboard() {
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
   const [avatarIcon, setAvatarIcon] = useState("logo");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  // Set only when the current avatarUrl came from the icon library (not a
+  // real uploaded file) — lets clicking the avatar slot reopen the picker
+  // pre-filled on the same icon/color instead of a native file dialog, and
+  // lets "change its color after picking" actually mean something (the
+  // baked SVG file itself has no color memory once uploaded).
+  const [avatarIconLibrarySelection, setAvatarIconLibrarySelection] = useState<{ name: string; color: string } | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarFileRef = useRef<HTMLInputElement>(null);
@@ -1314,6 +1320,7 @@ export default function Dashboard() {
         setSendButtonStyle(activeBot.send_button_style || "plane");
         setAvatarIcon(activeBot.avatar_icon || "logo");
         setAvatarUrl(activeBot.avatar_url || null);
+        setAvatarIconLibrarySelection(null); // not persisted — a freshly-loaded bot has no known icon/color to resume editing
         setLogoUrl(activeBot.logo_url || null);
         setSelectedModel(activeBot.selected_model);
         setSystemInstructions(activeBot.system_instructions);
@@ -1430,6 +1437,7 @@ export default function Dashboard() {
       setSendButtonStyle(selected.send_button_style || "plane");
       setAvatarIcon(selected.avatar_icon || "logo");
       setAvatarUrl(selected.avatar_url || null);
+      setAvatarIconLibrarySelection(null); // not persisted — a freshly-loaded bot has no known icon/color to resume editing
       setLogoUrl(selected.logo_url || null);
       setSelectedModel(selected.selected_model || "gemini");
       setSystemInstructions(selected.system_instructions || "");
@@ -3212,7 +3220,10 @@ export default function Dashboard() {
   };
 
   // Assistant avatar for the dashboard previews (preset icon / logo / initial).
-  const uploadAvatarFile = async (file: File) => {
+  // fromLibrary is set when the file came from IconLibraryPicker (a baked
+  // SVG, not a real upload) so the avatar slot knows to reopen the picker
+  // instead of a file dialog next time, and can pre-fill the same icon/color.
+  const uploadAvatarFile = async (file: File, fromLibrary?: { name: string; color: string }) => {
     if (!botId) return;
     setUploadingAvatar(true);
     try {
@@ -3220,7 +3231,13 @@ export default function Dashboard() {
       fd.append("bot_id", botId);
       fd.append("file", file);
       const res = await fetchWithFallback("/api/bot/avatar", { method: "POST", body: fd });
-      if (res.ok) { const d = await res.json(); setAvatarUrl(d.avatar_url); setAvatarIcon("custom"); setHasUnsavedChanges(false); }
+      if (res.ok) {
+        const d = await res.json();
+        setAvatarUrl(d.avatar_url);
+        setAvatarIcon("custom");
+        setAvatarIconLibrarySelection(fromLibrary || null);
+        setHasUnsavedChanges(false);
+      }
     } catch {} finally {
       setUploadingAvatar(false);
     }
@@ -3229,7 +3246,7 @@ export default function Dashboard() {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    await uploadAvatarFile(file);
+    await uploadAvatarFile(file); // real upload from disk — clears any icon-library link
     if (avatarFileRef.current) avatarFileRef.current.value = "";
   };
 
@@ -3246,6 +3263,7 @@ export default function Dashboard() {
         const d = await res.json();
         setLogoUrl(d.logo_url);
         setAvatarIcon("logo");
+        setAvatarIconLibrarySelection(null);
         setHasUnsavedChanges(true);
       }
     } catch {} finally {
@@ -3887,7 +3905,11 @@ export default function Dashboard() {
                           </button>
                         ))}
                         <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-                        <button type="button" onClick={() => avatarFileRef.current?.click()} title="Upload custom image"
+                        {/* When the current avatar came from the icon library, clicking it
+                            reopens that picker (pre-filled on the same icon/color) instead
+                            of a native file dialog — a file dialog can't "replace" a library
+                            icon the way clicking an icon-shaped thumbnail suggests it should. */}
+                        <button type="button" onClick={() => avatarIconLibrarySelection ? setIconPickerOpen(true) : avatarFileRef.current?.click()} title={avatarIconLibrarySelection ? "Edit this icon" : "Upload custom image"}
                           className={`size-9 rounded-xl border flex items-center justify-center cursor-pointer transition-colors overflow-hidden ${avatarIcon === "custom" ? "border-[#f97316] ring-2 ring-[#f97316]/20" : "border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-[#f97316]/50"}`}>
                           {/* eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist */}
                           {uploadingAvatar ? <Loader2 className="size-4 animate-spin" /> : (avatarIcon === "custom" && avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <Plus className="size-4" />)}
@@ -8063,7 +8085,9 @@ const { reply, session_id } = await res.json();`}</pre>
       {iconPickerOpen && (
         <IconLibraryPicker
           onClose={() => setIconPickerOpen(false)}
-          onSelect={(file) => { uploadAvatarFile(file); setIconPickerOpen(false); }}
+          onSelect={(file, name, color) => { uploadAvatarFile(file, { name, color }); setIconPickerOpen(false); }}
+          initialSelection={avatarIconLibrarySelection}
+          backgroundHex={logoBgColor || "#ffffff"}
         />
       )}
 
