@@ -20,7 +20,7 @@ import { CampaignsUI } from "@/components/campaigns-ui";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { getOnColor } from "@/lib/color-contrast";
+import { getOnColor, primaryColorCssVars } from "@/lib/color-contrast";
 import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
 import {
   Home,
@@ -4038,7 +4038,7 @@ export default function Dashboard() {
                   <div
                     id="customizer-live-preview"
                     className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
-                    style={{ "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}
+                    style={primaryColorCssVars(primaryColor) as React.CSSProperties}
                   >
                     {/* Header — background always the brand color, same as the real
                         embedded widget; per-style CSS (globals.css) overrides it where a
@@ -4964,7 +4964,7 @@ export default function Dashboard() {
               )}
               <div
                 className={`w-full max-w-lg h-[500px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative flex flex-col style-${widgetStyle} ${playgroundView === "live" ? "hidden" : ""}`}
-                style={{ "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}
+                style={primaryColorCssVars(primaryColor) as React.CSSProperties}
               >
 
                 {/* Playground Header — background always the brand color, same as

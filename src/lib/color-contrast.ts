@@ -44,3 +44,26 @@ export function getOnColor(backgroundHex: string): "#ffffff" | "#111827" {
   const bgLum = relativeLuminance(r, g, b);
   return bgLum > 0.55 ? "#111827" : "#ffffff";
 }
+
+/**
+ * --primary-color / --on-primary, the pair every widget preset
+ * (globals.css's .style-*) reads for its primaryColor-driven surfaces —
+ * one computation shared by every place that renders a preset (the real
+ * embedded widget, and the Customizer/Playground's non-iframe mock
+ * previews), so it can't drift between them.
+ *
+ * Surfaces that can't take the full saturated color without hurting
+ * legibility (a bot reply bubble, an input field) don't get a separate
+ * JS-precomputed tint — globals.css blends var(--primary-color) toward
+ * that surface's own curated color with CSS color-mix() instead, at a
+ * partial ratio. That keeps each preset's own light/dark character (a
+ * dark preset's bot-bubble tints toward primaryColor while staying dark;
+ * a light preset's stays light) without a fixed "tint toward white"
+ * assumption breaking already-dark designs like Dark Sleek.
+ */
+export function primaryColorCssVars(primaryColor: string): Record<string, string> {
+  return {
+    "--primary-color": primaryColor,
+    "--on-primary": getOnColor(primaryColor),
+  };
+}
