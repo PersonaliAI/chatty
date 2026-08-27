@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
+import { normalizeWidgetStyle, LAUNCHER_STYLES, PANEL_RADIUS } from "@/lib/widget-style";
 import { getOnColor } from "@/lib/color-contrast";
 import {
   ArrowRight,
@@ -953,33 +953,35 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Live Chatbot Widget Overlay — deliberately no border/radius/shadow
-          of its own: every design preset already draws a complete
-          background+border+radius+shadow on its own root container inside
-          the iframe (see globals.css's .style-* rules, all !important), so
-          decorating this outer box too just doubled up on borders and, worse,
-          clipped at a fixed 16-18px radius that didn't match a preset's own
-          (often smaller) radius — slicing a flat notch into what should've
-          been a smoothly rounded corner. Square + transparent + overflow-
-          hidden here is purely a same-origin safety net for browsers that
-          don't reliably honor border-radius on content painted inside an
-          <iframe>; it can never visibly clip a rounded shape strictly
-          inside it. */}
+      {/* Live Chatbot Widget Overlay — deliberately no border/shadow of its
+          own: every design preset already draws a complete background+
+          border+radius+shadow on its own root container inside the iframe
+          (see globals.css's .style-* rules, all !important), so decorating
+          this outer box too just doubled up on borders. Radius DOES match
+          the active design's own PANEL_RADIUS exactly (desktop only — full-
+          screen mobile stays square) rather than a flat 0px: a mismatched
+          radius here is always on the *safe* side (a square clip can't
+          notch into a rounded shape strictly inside it), but can still
+          leave a hairline seam at the corner from anti-aliasing differences
+          between a square outer edge and a rounded inner one. Matching
+          exactly removes the mismatch instead of just tolerating it. */}
       {(isWidgetOpen || isConnecting) && (
-        <div className={`fixed z-50 flex flex-col overflow-hidden transition-all duration-350 ease-out bg-transparent border-0
-          w-full h-full bottom-0 right-0
-          sm:w-[380px] sm:h-[540px] sm:bottom-24 sm:right-6
+        <div
+          className={`fixed z-50 flex flex-col overflow-hidden transition-all duration-350 ease-out bg-transparent border-0
+          w-full h-full bottom-0 right-0 rounded-none
+          sm:w-[380px] sm:h-[540px] sm:bottom-24 sm:right-6 sm:rounded-[var(--panel-radius)]
           ${
             isWidgetOpen
               ? "opacity-100 transform-none pointer-events-auto"
               : "opacity-0 translate-y-4 scale-95 pointer-events-none"
           }`}
+          style={{ "--panel-radius": PANEL_RADIUS[widgetStyle] || "0px" } as React.CSSProperties}
         >
           {/* Iframe */}
           <iframe
             ref={iframeRef}
             src={`https://chatty.personaliai.com/embed/${botId}`}
-            className="flex-1 w-full border-0"
+            className="flex-1 w-full border-0 rounded-none sm:rounded-[var(--panel-radius)]"
             allow="microphone"
             onLoad={handleIframeLoad}
           />

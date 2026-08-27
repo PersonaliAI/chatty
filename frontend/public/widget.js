@@ -148,6 +148,23 @@
     "luxury-editorial": { bg: "#161412", radius: "50%", shadow: "0 8px 22px rgba(0,0,0,.3)", dot: "#b08a3e" }
   };
 
+  // Each design's own chat-PANEL corner radius (its .style-X { border-radius }
+  // in globals.css — not LAUNCHER_STYLES.radius above, which is the separate
+  // floating button's own radius). The outer host div/iframe (panel below)
+  // used to always clip to a plain square (0px) as a safety net — reliably
+  // safe against a square notch cutting into a round corner, but at some
+  // zoom levels/device-pixel-ratios a 0-vs-Npx radius MISMATCH between the
+  // square outer clip and the rounded inner content can leave a hairline
+  // seam at the corner where the outer box's own edge anti-aliases
+  // differently from the inner curve. Matching the outer radius to the
+  // exact same value removes the mismatch entirely instead of just keeping
+  // it on the "safe" side of it.
+  var PANEL_RADIUS = {
+    minimal: "18px", playful: "28px", corporate: "10px", "dark-sleek": "16px",
+    "gradient-glow": "24px", glassmorphism: "20px", ecommerce: "14px",
+    "healthcare-calm": "18px", neubrutalism: "4px", "luxury-editorial": "6px"
+  };
+
   // ---- Launcher button ----
   var btn = document.createElement("button");
   btn.setAttribute("aria-label", "Open chat");
@@ -361,6 +378,11 @@
             if (parts.length > 2) {
               launcherShape = parts[2] || "circle";
             }
+            // Panel radius depends on currentDesign (PANEL_RADIUS) — refresh
+            // it now in case the panel was already opened before this fetch
+            // resolved, so it doesn't sit on the wrong design's radius until
+            // the next open/resize.
+            applyMobile();
           }
           // Per-section colors from the Customizer's "Section Colors" —
           // when the launcher section is set, it's the final word on the
@@ -479,20 +501,16 @@
       panel.style.setProperty("max-height", "calc(100vh - 120px)", "important");
       panel.style.setProperty("bottom", "92px", "important");
       panel.style.setProperty(side, "20px", "important");
-      // No radius here (was a hardcoded 16px) — each design preset defines
-      // its own container radius on the iframe's inner root (4-8px range,
-      // e.g. Neubrutalism's 4px), and it's always smaller than 16px. That
-      // mismatch meant this outer clip started curving away from the
-      // corner well before the inner border's own tighter curve did,
-      // slicing a flat square notch into what should've been a smoothly
-      // rounded corner. A square outer clip can never cut into a rounded
-      // shape strictly inside it, so it's safe here regardless of which
-      // preset's radius the inner content ends up using — this is purely
-      // a same-origin safety net for browsers that don't reliably honor
-      // border-radius on content painted inside an <iframe>, panel/iframe
-      // themselves stay fully transparent so a square boundary is invisible.
-      panel.style.setProperty("border-radius", "0px", "important");
-      iframe.style.setProperty("border-radius", "0px", "important");
+      // Matches the active design's own panel radius exactly (see
+      // PANEL_RADIUS above) rather than a flat 0px — a 0px-vs-Npx mismatch
+      // between this outer clip and the inner content's own rounded corner
+      // is always on the *safe* side (a square can't notch into a rounded
+      // shape strictly inside it), but can still leave a hairline seam at
+      // the corner from anti-aliasing differences between the two edges.
+      // Matching exactly removes the mismatch instead of just tolerating it.
+      var panelRadius = (colorAttr ? null : PANEL_RADIUS[currentDesign]) || "0px";
+      panel.style.setProperty("border-radius", panelRadius, "important");
+      iframe.style.setProperty("border-radius", panelRadius, "important");
     }
   }
 
