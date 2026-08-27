@@ -1244,6 +1244,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           background-image: none !important;
           animation: none !important;
           overflow: hidden !important;
+          /* The root layout's "antialiased" Tailwind class (-webkit-font-smoothing:
+             antialiased) applies globally, including here — it's a Mac-oriented
+             hint that thins glyphs toward macOS's grayscale AA look. On Windows
+             Chrome it overrides the OS's own ClearType subpixel rendering, which
+             is tuned for Windows displays, making small chat text read noticeably
+             softer than the rest of the page. Reverting to "auto" here restores
+             each platform's own native (sharper on Windows) text rendering,
+             scoped to just the widget so it doesn't change how the dashboard or
+             marketing pages render text. */
+          -webkit-font-smoothing: auto !important;
+          -moz-osx-font-smoothing: auto !important;
         }
         /* Strip only box-shadow inside the iframe: the container fills the iframe
            edge-to-edge with zero margin, so any shadow has no room to render and
