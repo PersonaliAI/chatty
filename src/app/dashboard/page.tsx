@@ -2176,9 +2176,7 @@ export default function Dashboard() {
     if (!user || !botId) return;
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from("chatty_bots")
-        .update({
+      const payload: Record<string, unknown> = {
           name: botName,
           welcome_message: welcomeMsg,
           conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
@@ -2225,12 +2223,33 @@ export default function Dashboard() {
           voice_tts_provider: voiceTtsProvider,
           voice_tts_voice: voiceTtsVoice || null,
           updated_at: new Date().toISOString()
-        })
-        .eq("id", botId);
+      };
+
+      let { error } = await supabase.from("chatty_bots").update(payload).eq("id", botId);
+      let missingColWarning: string | null = null;
+      // A column this build knows about (e.g. color_scheme) can lag behind
+      // its migration being applied — PostgREST rejects the WHOLE update
+      // with a 400 in that case, silently breaking every other field too.
+      // Retry once without the field PostgREST names, so a pending
+      // migration degrades to "that one setting didn't save" instead of
+      // "nothing saved and no error shown".
+      if (error && /schema cache/i.test(error.message || "")) {
+        const missingCol = error.message.match(/'([a-z_]+)' column/)?.[1];
+        if (missingCol && missingCol in payload) {
+          const { [missingCol]: _omit, ...retryPayload } = payload;
+          void _omit;
+          const retry = await supabase.from("chatty_bots").update(retryPayload).eq("id", botId);
+          error = retry.error;
+          if (!error) missingColWarning = missingCol;
+        }
+      }
 
       if (error) throw error;
       setHasUnsavedChanges(false);
-      showToast("Changes saved.", "success");
+      showToast(
+        missingColWarning ? `Saved, but "${missingColWarning}" needs a pending database update first.` : "Changes saved.",
+        missingColWarning ? "error" : "success"
+      );
 
       // Update local userBots array so switcher dropdown has fresh names / values
       setUserBots((prev) =>
@@ -3906,15 +3925,18 @@ export default function Dashboard() {
                           return (
                             <div key={section.key} className="flex items-center gap-2">
                               <span className="text-[10px] text-neutral-500 dark:text-neutral-400 w-24 shrink-0 truncate">{section.label}</span>
-                              <select
-                                value={selectedProp}
-                                onChange={(e) => setSectionColorProp((prev) => ({ ...prev, [section.key]: e.target.value as "bg" | "text" | "icon" }))}
-                                className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-[11px] focus:outline-none cursor-pointer"
-                              >
-                                {section.props.map((p) => (
-                                  <option key={p} value={p}>{p === "bg" ? "Background" : p === "icon" ? "Icon Color" : textPropLabel}</option>
-                                ))}
-                              </select>
+                              <div className="relative flex-1">
+                                <select
+                                  value={selectedProp}
+                                  onChange={(e) => setSectionColorProp((prev) => ({ ...prev, [section.key]: e.target.value as "bg" | "text" | "icon" }))}
+                                  className="w-full appearance-none bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg pl-2.5 pr-7 py-1.5 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f97316]/30 focus:border-[#f97316]/50 cursor-pointer transition-colors"
+                                >
+                                  {section.props.map((p) => (
+                                    <option key={p} value={p}>{p === "bg" ? "Background" : p === "icon" ? "Icon Color" : textPropLabel}</option>
+                                  ))}
+                                </select>
+                                <ChevronDown className="size-3 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                              </div>
                               <input
                                 type="color"
                                 value={currentValue}
@@ -3923,7 +3945,7 @@ export default function Dashboard() {
                                   const next = { ...scheme, [section.key]: { ...scheme[section.key], [selectedProp]: e.target.value } };
                                   handleInputChange(setColorScheme, next);
                                 }}
-                                className="size-7 shrink-0 rounded-full border border-neutral-200 dark:border-neutral-800 bg-transparent p-0 cursor-pointer"
+                                className="color-swatch-circle size-7 shrink-0 cursor-pointer"
                               />
                             </div>
                           );
