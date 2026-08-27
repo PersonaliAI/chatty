@@ -65,3 +65,24 @@ export const LAUNCHER_STYLES: Record<string, { bg: string; shadow: string; dot: 
   neubrutalism: { bg: "#111111", shadow: "5px 5px 0 0 #111111", dot: "#ffde59" },
   "luxury-editorial": { bg: "#161412", shadow: "0 8px 22px rgba(0,0,0,.3)", dot: "#b08a3e" },
 };
+
+/**
+ * Each design's own chat-panel corner radius (its .style-X { border-radius }
+ * in globals.css). Mirrors PANEL_RADIUS in public/widget.js exactly — kept
+ * in sync by hand for the same reason LAUNCHER_STYLES above is. The outer
+ * host div/iframe around the embedded panel matches this exactly (instead
+ * of a flat 0px "always smaller" safety net) so there's no radius mismatch
+ * at the corner for anti-aliasing to expose as a hairline seam.
+ */
+export const PANEL_RADIUS: Record<string, string> = {
+  minimal: "18px",
+  playful: "28px",
+  corporate: "10px",
+  "dark-sleek": "16px",
+  "gradient-glow": "24px",
+  glassmorphism: "20px",
+  ecommerce: "14px",
+  "healthcare-calm": "18px",
+  neubrutalism: "4px",
+  "luxury-editorial": "6px",
+};
