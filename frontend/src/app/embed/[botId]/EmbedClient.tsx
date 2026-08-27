@@ -80,6 +80,12 @@ interface Message {
   fileType?: string;
   sources?: Citation[];
   feedback?: "up" | "down";
+  // Only set on assistant messages, and only meaningful when the customizer's
+  // "show AI / Human tag" setting is on. /api/widget/poll and /api/widget/live
+  // only ever return human-agent replies (server-side filtered), so any
+  // message arriving through those two paths is unambiguously "human" —
+  // everything else assistant-role is a direct AI reply.
+  sender?: "ai" | "human";
 }
 interface Source { id: string; name: string; content: string; }
 
@@ -148,6 +154,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const paramAvatarUrl = searchParams.get("avatar_url");
   const paramLogoUrl = searchParams.get("logo_url");
   const paramLogoBgColor = searchParams.get("logo_bg_color");
+  const paramShowSenderTag = searchParams.get("show_sender_tag");
 
   // Scope stored session + history per embedding site, so different host sites
   // (and the dashboard playground) don't share one conversation.
@@ -203,7 +210,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         }
       }
     }
-    setMessages([{ role: "assistant", content: welcomeMsg }]);
+    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai" }]);
   };
 
   const [loading, setLoading] = useState(true);
@@ -214,6 +221,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [avatarIcon, setAvatarIcon] = useState("logo");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [hideBranding, setHideBranding] = useState(false);
+  const [showSenderTag, setShowSenderTag] = useState(false);
   const [customCss, setCustomCss] = useState("");
   const [customJs, setCustomJs] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#f97316");
@@ -395,14 +403,14 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
     }
     // Message node — display, then auto-advance if single unlabeled edge, or show choice buttons
     else {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(false);
       setIsBotResponding(false);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
       const outgoing = currentConfig.edges.filter((e) => e.source === node.id);
       if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
         // Linear — auto-advance after short delay
@@ -572,7 +580,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       if (payload.type === "message") {
         if (payload.created_at) lastPollRef.current = payload.created_at;
         const textContent = payload.content || "";
-        setMessages((p) => [...p, { role: "assistant" as const, content: textContent }]);
+        setMessages((p) => [...p, { role: "assistant" as const, content: textContent, sender: "ai" }]);
         setIsBotResponding(false);
         setAgentTyping(false);
         triggerPushRef.current(textContent);
@@ -593,7 +601,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         setLiveAgent(!!d.ai_paused);
         if (Array.isArray(d.messages) && d.messages.length) {
           lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-          const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content }));
+          // /api/widget/poll only ever returns human-agent replies (server-side
+          // filtered by sender="human"), so every message here is human.
+          const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content, sender: "human" as const }));
           setMessages((p) => [...p, ...newMsgs]);
           setIsBotResponding(false);
           setAgentTyping(false);
@@ -649,7 +659,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setLiveAgent(!!d.ai_paused);
       if (Array.isArray(d.messages) && d.messages.length) {
         lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-        const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content }));
+        // Same endpoint as pollOnce above — human-agent replies only.
+        const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content, sender: "human" as const }));
         setMessages((p) => [...p, ...newMsgs]);
         notifyParent();
       }
@@ -697,10 +708,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           }
           setLogoUrl(isPreview ? (paramLogoUrl || bot.logo_url || null) : (bot.logo_url || null));
           setHideBranding(!!bot.hide_branding);
+          setShowSenderTag(isPreview && paramShowSenderTag !== null ? paramShowSenderTag === "true" : !!bot.show_sender_tag);
           setVoiceEnabled(!!bot.voice_enabled);
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
-          setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg }]);
+          setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg, sender: "ai" }]);
         }
       } catch (err) {
         console.error("Failed to load bot:", err);
@@ -710,7 +722,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       }
     }
     loadBot();
-  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor]);
+  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag]);
 
   // Run the bot owner's custom JS once, after the widget config has loaded. Scoped to
   // this embed iframe only — same trust model as the owner's own custom CSS.
@@ -898,7 +910,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       if (!created) {
         created = true;
         setIsBotResponding(false);
-        setMessages((p) => [...p, { role: "assistant" as const, content }]);
+        setMessages((p) => [...p, { role: "assistant" as const, content, sender: "ai" }]);
       } else {
         setStreamingAssistant(content);
       }
@@ -983,7 +995,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       fd.append("file", file, filename);
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/media`, { method: "POST", headers: widgetTokenHeader, body: fd });
       const body = await res.json();
-      setMessages((p) => [...p, { role: "assistant", content: res.ok ? body.reply : `⚠️ ${body.detail || "Couldn't process that file."}` }]);
+      setMessages((p) => [...p, res.ok
+        ? { role: "assistant", content: body.reply, sender: "ai" }
+        : { role: "assistant", content: `⚠️ ${body.detail || "Couldn't process that file."}` }]);
       notifyParent();
     } catch {
       setMessages((p) => [...p, { role: "assistant", content: "Sorry, I couldn't upload that." }]);
@@ -1259,7 +1273,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             aria-label="Toggle push notifications"
             title={pushGranted ? "Browser notifications enabled" : "Enable browser notifications"}
           >
-            <Bell className={`size-4 ${pushGranted ? "text-amber-300 fill-amber-300" : ""}`} />
+            {/* "Granted" state shown via a solid fill, not a fixed color — a
+                hardcoded amber here was nearly invisible against presets
+                with a yellow header (e.g. Neubrutalism's #ffde59). Filling
+                with currentColor keeps it legible against every preset. */}
+            <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
           </button>
           <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
@@ -1429,6 +1447,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                       className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
                       {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>}
+                      <div className="flex flex-col min-w-0">
+                      {msg.role === "assistant" && showSenderTag && msg.sender && (
+                        <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5">
+                          {msg.sender === "human" ? "Human agent" : "AI"}
+                        </span>
+                      )}
                       {/* .user-bubble's background/color come entirely from the
                           design preset's own CSS (globals.css, !important) — an
                           inline style here computed from primaryColor would be
@@ -1466,6 +1490,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                             })}
                           </div>
                         )}
+                      </div>
                       </div>
                     </motion.div>
                   ))}
