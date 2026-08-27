@@ -66,6 +66,7 @@ MIRRORED_PREFIXES = (
     "main.py", "app/", "plugins/", "tests/", "sql/", "scripts/",
     "requirements.txt", "Dockerfile", "Dockerfile.voice-worker",
     "voice_worker.py", "env.yaml", "env.voice-worker.yaml",
+    "supabase/migrations/",
 )
 
 def rewrite_path(p):
