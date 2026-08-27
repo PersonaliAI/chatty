@@ -83,6 +83,7 @@ import {
   Megaphone,
   Phone,
   LayoutGrid,
+  Pencil,
   type LucideIcon
 } from "lucide-react";
 
@@ -821,6 +822,9 @@ export default function Dashboard() {
 
   // Leads and Meetings States & Helpers
   const [leadsSearch, setLeadsSearch] = useState<string>("");
+  const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
+  const [editLeadDraft, setEditLeadDraft] = useState<Record<string, string>>({});
+  const [savingLeadEdit, setSavingLeadEdit] = useState(false);
 
   const getLeadFieldValue = (lead: Lead, field: string) => {
     if (lead[field] !== undefined && lead[field] !== null) {
@@ -830,6 +834,73 @@ export default function Dashboard() {
       return String(lead.custom_fields[field]);
     }
     return "N/A";
+  };
+
+  const getLeadFieldRawValue = (lead: Lead, field: string): string => {
+    if (lead[field] !== undefined && lead[field] !== null) return String(lead[field]);
+    if (lead.custom_fields && lead.custom_fields[field] !== undefined && lead.custom_fields[field] !== null) {
+      return String(lead.custom_fields[field]);
+    }
+    return "";
+  };
+
+  const startEditLead = (lead: Lead) => {
+    const draft: Record<string, string> = {};
+    for (const field of leadFields) draft[field] = getLeadFieldRawValue(lead, field);
+    setEditingLeadId(lead.id);
+    setEditLeadDraft(draft);
+  };
+
+  const cancelEditLead = () => {
+    setEditingLeadId(null);
+    setEditLeadDraft({});
+  };
+
+  const saveEditLead = async () => {
+    if (!editingLeadId) return;
+    const lead = leads.find((l) => l.id === editingLeadId);
+    if (!lead) return;
+    setSavingLeadEdit(true);
+    try {
+      // Known top-level columns get updated directly; anything else lives
+      // in custom_fields (dynamic fields added via onboarding/Flow Builder
+      // aren't necessarily real chatty_leads columns).
+      const KNOWN_COLUMNS = new Set(["name", "email", "phone", "company", "job_title", "country", "industry", "budget"]);
+      const topLevelUpdate: Record<string, string> = {};
+      const customFieldsUpdate: Record<string, string> = { ...(lead.custom_fields as Record<string, string> | undefined || {}) };
+      for (const field of leadFields) {
+        const value = editLeadDraft[field] ?? "";
+        if (KNOWN_COLUMNS.has(field) || lead[field] !== undefined) {
+          topLevelUpdate[field] = value;
+        } else {
+          customFieldsUpdate[field] = value;
+        }
+      }
+      const { error } = await supabase
+        .from("chatty_leads")
+        .update({ ...topLevelUpdate, custom_fields: customFieldsUpdate })
+        .eq("id", editingLeadId);
+      if (error) throw error;
+      setLeads((prev) => prev.map((l) => (l.id === editingLeadId ? { ...l, ...topLevelUpdate, custom_fields: customFieldsUpdate } : l)));
+      showToast("Lead updated.", "success");
+      cancelEditLead();
+    } catch {
+      showToast("Failed to update lead.", "error");
+    } finally {
+      setSavingLeadEdit(false);
+    }
+  };
+
+  const deleteLead = (lead: Lead) => {
+    showConfirm("Delete lead?", `Remove ${lead.name || "this lead"}'s captured contact details. This can't be undone.`, async () => {
+      const { error } = await supabase.from("chatty_leads").delete().eq("id", lead.id);
+      if (error) {
+        showToast("Failed to delete lead.", "error");
+        return;
+      }
+      setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+      showToast("Lead deleted.", "success");
+    });
   };
 
   const filteredLeads = leads.filter(l => {
@@ -5155,12 +5226,28 @@ export default function Dashboard() {
                           </th>
                         ))}
                         <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Captured At</th>
+                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 font-medium text-neutral-800 dark:text-neutral-200">
-                      {filteredLeads.map((l) => (
+                      {filteredLeads.map((l) => {
+                        const isEditing = editingLeadId === l.id;
+                        return (
                         <tr key={l.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10">
                           {leadFields.map((field) => {
+                            if (isEditing) {
+                              return (
+                                <td key={field} className="px-6 py-3">
+                                  <input
+                                    type="text"
+                                    value={editLeadDraft[field] ?? ""}
+                                    onChange={(e) => setEditLeadDraft((prev) => ({ ...prev, [field]: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === "Enter") saveEditLead(); if (e.key === "Escape") cancelEditLead(); }}
+                                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:border-[#f97316]"
+                                  />
+                                </td>
+                              );
+                            }
                             const val = getLeadFieldValue(l, field);
                             if (field === "name") {
                               return (
@@ -5181,13 +5268,59 @@ export default function Dashboard() {
                           <td className="px-6 py-4 text-neutral-400 dark:text-neutral-500 font-mono">
                             {l.created_at}
                           </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-1">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    onClick={saveEditLead}
+                                    disabled={savingLeadEdit}
+                                    title="Save"
+                                    aria-label="Save lead"
+                                    className="p-1.5 rounded-md text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30 cursor-pointer disabled:opacity-50"
+                                  >
+                                    {savingLeadEdit ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                                  </button>
+                                  <button
+                                    onClick={cancelEditLead}
+                                    disabled={savingLeadEdit}
+                                    title="Cancel"
+                                    aria-label="Cancel edit"
+                                    className="p-1.5 rounded-md text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer disabled:opacity-50"
+                                  >
+                                    <X className="size-3.5" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => startEditLead(l)}
+                                    title="Edit lead"
+                                    aria-label="Edit lead"
+                                    className="p-1.5 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
+                                  >
+                                    <Pencil className="size-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteLead(l)}
+                                    title="Delete lead"
+                                    aria-label="Delete lead"
+                                    className="p-1.5 rounded-md text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
                         </tr>
-                      ))}
-                      
+                        );
+                      })}
+
                       {/* Empty State */}
                       {filteredLeads.length === 0 && (
                         <tr>
-                          <td colSpan={leadFields.length + 1} className="px-6 py-12 text-center space-y-2">
+                          <td colSpan={leadFields.length + 2} className="px-6 py-12 text-center space-y-2">
                             <Users className="size-8 mx-auto text-neutral-300" />
                             <h5 className="text-xs font-bold text-neutral-700 dark:text-neutral-300">No matching leads found</h5>
                             <p className="text-[10px] text-neutral-400 max-w-xs mx-auto leading-normal">
