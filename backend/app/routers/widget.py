@@ -612,7 +612,7 @@ async def widget_theme(bot_id: str):
     res = await run_db(lambda: supabase.table("chatty_bots").select(
         "user_id, name, primary_color, widget_style, logo_url, welcome_message, "
         "send_button_style, conversation_starters, teaser_message, avatar_icon, avatar_url, "
-        "hide_branding, custom_css, custom_js, voice_enabled, show_sender_tag").eq("id", bot_id).execute())
+        "hide_branding, custom_css, custom_js, voice_enabled, show_sender_tag, csat_enabled").eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     b = res.data[0]
@@ -644,6 +644,7 @@ async def widget_theme(bot_id: str):
         "custom_js": b.get("custom_js") or "",
         "voice_enabled": bool(b.get("voice_enabled")),
         "show_sender_tag": bool(b.get("show_sender_tag")),
+        "csat_enabled": bool(b.get("csat_enabled", True)),
     }
 
 
