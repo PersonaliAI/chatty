@@ -20,8 +20,8 @@ import { CampaignsUI } from "@/components/campaigns-ui";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { getOnColor, hexToRgb } from "@/lib/color-contrast";
-import { normalizeWidgetStyle } from "@/lib/widget-style";
+import { getOnColor } from "@/lib/color-contrast";
+import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
 import {
   Home,
   Sliders,
@@ -3987,7 +3987,14 @@ export default function Dashboard() {
                     can't visually drift from the real widget. */}
                 <div className="lg:col-span-5 flex flex-col items-center">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
+                  {/* box-shadow stripped to match the real embedded widget exactly —
+                      EmbedClient.tsx strips it too, since the iframe there has zero
+                      margin and clips any shadow off. An id selector is used (not a
+                      Tailwind class) so it reliably beats globals.css's !important
+                      .style-* rule regardless of stylesheet order. */}
+                  <style>{`#customizer-live-preview { box-shadow: none !important; }`}</style>
                   <div
+                    id="customizer-live-preview"
                     className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
                     style={{ "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}
                   >
@@ -4097,21 +4104,23 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Floating Launcher preview in Customizer — uses the bot's own
-                      Primary Hex Color (same as .send-btn in globals.css), not each
-                      design's fixed launcher look, so the color picker has a second
-                      visible, always-contrast-safe place to show through. */}
+                  {/* Floating Launcher preview in Customizer — mirrors the real
+                      launcher (page.tsx/widget.js) exactly: background and shadow
+                      come from the selected design's own LAUNCHER_STYLES, not the
+                      bot's Primary Hex Color, so this preview can't visually drift
+                      from what actually ships on the live widget. */}
                   <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
                     <span className="text-[10px] text-neutral-450 dark:text-neutral-500 uppercase font-bold tracking-wider">Button Preview</span>
                     <div className="relative">
                       {(() => {
-                        const [r, g, b] = hexToRgb(primaryColor);
+                        const launcherBg = LAUNCHER_STYLES[widgetStyle]?.bg || primaryColor;
+                        const launcherSolidBg = launcherBg.indexOf("gradient") === -1 ? launcherBg : "#a855f7";
                         return (
                       <div
                         style={{
-                          background: primaryColor,
-                          boxShadow: `0 8px 20px rgba(${r}, ${g}, ${b}, 0.4)`,
-                          color: getOnColor(primaryColor),
+                          background: launcherBg,
+                          boxShadow: LAUNCHER_STYLES[widgetStyle]?.shadow,
+                          color: getOnColor(launcherSolidBg),
                           borderRadius: launcherShape === "circle" ? "50%" :
                                         launcherShape === "square" ? "0px" :
                                         launcherShape === "rounded" ? "12px" :
@@ -4127,7 +4136,7 @@ export default function Dashboard() {
                           }
                           if (avatarIcon && avatarIcon !== "logo" && ICONS[avatarIcon]) {
                             const IconComponent = ICONS[avatarIcon];
-                            return <IconComponent className="size-6 text-white" />;
+                            return <IconComponent className="size-6" />;
                           }
                           // Default brand logo
                           if (logoUrl) {
@@ -4141,11 +4150,10 @@ export default function Dashboard() {
                               </div>
                             );
                           }
-                          // True default (no logo uploaded yet) — a plain dot in
-                          // whatever color contrasts with the launcher's own
-                          // primary-color background (mirrors buildChatIcon's
-                          // stroke color in widget.js).
-                          return <div className="size-[17px] rounded-full opacity-90" style={{ background: getOnColor(primaryColor) }} />;
+                          // True default (no logo uploaded yet) — the selected
+                          // design's own dot mark, matching the real launcher
+                          // (page.tsx/widget.js) exactly.
+                          return <div className="size-[17px] rounded-full opacity-90" style={{ background: LAUNCHER_STYLES[widgetStyle]?.dot || "#ffffff" }} />;
                         })()}
                       </div>
                         );
