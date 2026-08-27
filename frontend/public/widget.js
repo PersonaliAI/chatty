@@ -428,7 +428,13 @@
   panel.style.cssText =
     "position:fixed;bottom:92px;" + side + ":20px;width:380px;height:560px;max-width:calc(100vw - 40px);" +
     "max-height:calc(100vh - 120px);border-radius:16px;overflow:hidden;z-index:2147483646;" +
-    "box-shadow:0 12px 48px rgba(0,0,0,.28);opacity:0;transform:translateY(12px) scale(.98);" +
+    // No scale() in the open/close transform — Chromium promotes a scaled
+    // element to its own GPU-composited layer for the animation, and that
+    // layer can stay rasterized slightly soft even after the transform
+    // settles back to none, leaving the panel's text looking blurry even
+    // at true 100% browser zoom. translateY + opacity alone reads as
+    // basically the same "rise and fade in" motion without that tradeoff.
+    "box-shadow:0 12px 48px rgba(0,0,0,.28);opacity:0;transform:translateY(12px);" +
     "pointer-events:none;transition:opacity .2s ease,transform .2s ease;background:transparent !important;";
 
   var iframe = document.createElement("iframe");
@@ -525,7 +531,7 @@
     renderBadge();
     applyMobile();
     panel.style.setProperty("opacity", open ? "1" : "0", "important");
-    panel.style.setProperty("transform", open ? "none" : "translateY(12px) scale(.98)", "important");
+    panel.style.setProperty("transform", open ? "none" : "translateY(12px)", "important");
     panel.style.setProperty("pointer-events", open ? "auto" : "none", "important");
     setBtnIcon();
     btn.setAttribute("aria-label", open ? "Close chat" : "Open chat");
