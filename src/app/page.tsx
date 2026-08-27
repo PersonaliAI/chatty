@@ -971,9 +971,15 @@ export default function Home() {
           w-full h-full bottom-0 right-0 rounded-none
           sm:w-[380px] sm:h-[540px] sm:bottom-24 sm:right-6 sm:rounded-[var(--panel-radius)]
           ${
+            /* No scale-95 in the closed state — Chromium promotes a scaled
+               element to its own GPU-composited layer for the animation,
+               and that layer can stay rasterized slightly soft even after
+               the transform settles back to none, leaving the panel's text
+               blurry even at true 100% browser zoom. translate-y alone
+               reads as basically the same "rise and fade in" motion. */
             isWidgetOpen
               ? "opacity-100 transform-none pointer-events-auto"
-              : "opacity-0 translate-y-4 scale-95 pointer-events-none"
+              : "opacity-0 translate-y-4 pointer-events-none"
           }`}
           style={{ "--panel-radius": PANEL_RADIUS[widgetStyle] || "0px" } as React.CSSProperties}
         >
