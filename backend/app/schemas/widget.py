@@ -36,3 +36,10 @@ class WidgetFeedbackRequest(BaseModel):
     bot_id: str
     session_id: str
     rating: str  # "up" | "down"
+
+
+class WidgetCsatRequest(BaseModel):
+    bot_id: str
+    session_id: str
+    rating: int  # 1-5 stars
+    comment: Optional[str] = None

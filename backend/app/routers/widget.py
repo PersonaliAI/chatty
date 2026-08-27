@@ -20,6 +20,7 @@ from plugins import ai_client
 from app.schemas.widget import (
     WidgetChatRequest,
     WidgetChatResponse,
+    WidgetCsatRequest,
     WidgetFeedbackRequest,
     WidgetMediaResponse,
     WidgetVerifyOriginRequest,
@@ -537,6 +538,30 @@ async def widget_feedback(body: WidgetFeedbackRequest, request: Request):
                 .eq("id", latest.data[0]["id"]).execute())
     except Exception:
         logger.exception("widget feedback failed")
+    return {"ok": True}
+
+
+@router.post("/api/widget/csat")
+async def widget_csat(body: WidgetCsatRequest, request: Request):
+    """Visitor submits the post-chat 1-5 star rating + optional comment.
+
+    Kept separate from /api/widget/feedback (per-message thumbs up/down,
+    stored on chatty_conversations.feedback_rating for the Inbox tab's
+    "Refine answers" review) — reusing that field for this would collide
+    two different features on the same column and the same value range.
+    """
+    if not 1 <= body.rating <= 5:
+        raise HTTPException(status_code=400, detail="rating must be between 1 and 5")
+    try:
+        await run_db(lambda: supabase.table("chatty_csat_feedback").insert({
+            "bot_id": body.bot_id,
+            "session_id": body.session_id,
+            "rating": body.rating,
+            "comment": (body.comment or "").strip() or None,
+        }).execute())
+    except Exception:
+        logger.exception("widget csat failed")
+        raise HTTPException(status_code=502, detail="failed to save feedback")
     return {"ok": True}
 
 
