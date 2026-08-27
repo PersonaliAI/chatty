@@ -424,10 +424,7 @@
   function applyMobile() {
     var isFullscreen = mobileFull && window.innerWidth <= 480;
     // Told to the iframe's own document so it can round its own root
-    // container to match — the outer iframe/panel's border-radius+overflow
-    // clip is not reliably honored by every browser for content painted
-    // inside an iframe, which was leaving the header's corners visibly
-    // square despite the panel itself being rounded.
+    // container to match.
     try { if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: "chatty-fullscreen", value: isFullscreen }, origin); } catch {}
     if (isFullscreen) {
       panel.style.setProperty("width", "100vw", "important");
@@ -453,8 +450,20 @@
       panel.style.setProperty("max-height", "calc(100vh - 120px)", "important");
       panel.style.setProperty("bottom", "92px", "important");
       panel.style.setProperty(side, "20px", "important");
-      panel.style.setProperty("border-radius", "16px", "important");
-      iframe.style.setProperty("border-radius", "16px", "important");
+      // No radius here (was a hardcoded 16px) — each design preset defines
+      // its own container radius on the iframe's inner root (4-8px range,
+      // e.g. Neubrutalism's 4px), and it's always smaller than 16px. That
+      // mismatch meant this outer clip started curving away from the
+      // corner well before the inner border's own tighter curve did,
+      // slicing a flat square notch into what should've been a smoothly
+      // rounded corner. A square outer clip can never cut into a rounded
+      // shape strictly inside it, so it's safe here regardless of which
+      // preset's radius the inner content ends up using — this is purely
+      // a same-origin safety net for browsers that don't reliably honor
+      // border-radius on content painted inside an <iframe>, panel/iframe
+      // themselves stay fully transparent so a square boundary is invisible.
+      panel.style.setProperty("border-radius", "0px", "important");
+      iframe.style.setProperty("border-radius", "0px", "important");
     }
   }
 

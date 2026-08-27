@@ -914,14 +914,25 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Live Chatbot Widget Overlay */}
+      {/* Live Chatbot Widget Overlay — deliberately no border/radius/shadow
+          of its own: every design preset already draws a complete
+          background+border+radius+shadow on its own root container inside
+          the iframe (see globals.css's .style-* rules, all !important), so
+          decorating this outer box too just doubled up on borders and, worse,
+          clipped at a fixed 16-18px radius that didn't match a preset's own
+          (often smaller) radius — slicing a flat notch into what should've
+          been a smoothly rounded corner. Square + transparent + overflow-
+          hidden here is purely a same-origin safety net for browsers that
+          don't reliably honor border-radius on content painted inside an
+          <iframe>; it can never visibly clip a rounded shape strictly
+          inside it. */}
       {(isWidgetOpen || isConnecting) && (
-        <div className={`fixed z-50 flex flex-col overflow-hidden transition-all duration-350 ease-out bg-transparent
-          w-full h-full bottom-0 right-0 rounded-none border-0
-          sm:w-[380px] sm:h-[540px] sm:bottom-24 sm:right-6 sm:rounded-2xl sm:border sm:border-neutral-200 sm:dark:border-neutral-900 sm:shadow-2xl
+        <div className={`fixed z-50 flex flex-col overflow-hidden transition-all duration-350 ease-out bg-transparent border-0
+          w-full h-full bottom-0 right-0
+          sm:w-[380px] sm:h-[540px] sm:bottom-24 sm:right-6
           ${
-            isWidgetOpen 
-              ? "opacity-100 transform-none pointer-events-auto" 
+            isWidgetOpen
+              ? "opacity-100 transform-none pointer-events-auto"
               : "opacity-0 translate-y-4 scale-95 pointer-events-none"
           }`}
         >
@@ -929,7 +940,7 @@ export default function Home() {
           <iframe
             ref={iframeRef}
             src={`https://chatty.personaliai.com/embed/${botId}`}
-            className="flex-1 w-full border-0 rounded-none sm:rounded-2xl"
+            className="flex-1 w-full border-0"
             allow="microphone"
             onLoad={handleIframeLoad}
           />
