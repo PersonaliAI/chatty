@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import VoiceCallWidget from "@/components/voice-call-widget";
-import { getOnColor } from "@/lib/color-contrast";
+import { getOnColor, primaryColorCssVars } from "@/lib/color-contrast";
 import { normalizeWidgetStyle } from "@/lib/widget-style";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
@@ -1216,7 +1216,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   return (
-    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, "--primary-color": primaryColor, "--on-primary": getOnColor(primaryColor) } as React.CSSProperties}>
+    <div className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
       <style dangerouslySetInnerHTML={{ __html: `
         html, body {
           background: transparent !important;
