@@ -134,4 +134,4 @@ async def onboarding_update(
         return {"success": True, "message": "Onboarding state updated successfully"}
     except Exception as e:
         logger.exception("Failed to update onboarding state")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update onboarding state") from e

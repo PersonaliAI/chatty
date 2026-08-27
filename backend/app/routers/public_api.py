@@ -122,7 +122,8 @@ async def create_api_key(
             "warning": "Save this key now — it will not be shown again.",
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to create API key")
+        raise HTTPException(status_code=500, detail="Failed to create API key") from e
 
 
 @router.get(
@@ -145,7 +146,8 @@ async def list_api_keys(
         ).eq("bot_id", bot_id).order("created_at", desc=True).execute())
         return {"keys": keys.data or []}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to list API keys")
+        raise HTTPException(status_code=500, detail="Failed to list API keys") from e
 
 
 @router.patch(
@@ -179,7 +181,8 @@ async def update_api_key(
         await run_db(lambda: supabase.table("chatty_api_keys").update(updates).eq("id", key_id).execute())
         return {"success": True}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to update API key")
+        raise HTTPException(status_code=500, detail="Failed to update API key") from e
 
 
 @router.delete(
@@ -200,7 +203,8 @@ async def revoke_api_key(
         await run_db(lambda: supabase.table("chatty_api_keys").update({"revoked": True}).eq("id", key_id).execute())
         return {"success": True}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to revoke API key")
+        raise HTTPException(status_code=500, detail="Failed to revoke API key") from e
 
 
 # ---------------------------------------------------------------------------

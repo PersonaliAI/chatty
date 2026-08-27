@@ -63,4 +63,4 @@ async def generate_flow_with_ai(body: FlowGenerateRequest):
         return schema
     except Exception as e:
         logger.exception("Failed to generate flow with AI")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to generate flow") from e

@@ -84,7 +84,8 @@ async def upload_bot_logo(
         url = await run_db(_upload)
         return {"logo_url": url}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Logo upload failed")
+        raise HTTPException(status_code=500, detail="Logo upload failed") from e
 
 
 @router.post("/api/bot/avatar")
@@ -116,7 +117,8 @@ async def upload_bot_avatar(
         url = await run_db(_upload)
         return {"avatar_url": url}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Avatar upload failed")
+        raise HTTPException(status_code=500, detail="Avatar upload failed") from e
 
 
 @router.post("/api/generate-business")

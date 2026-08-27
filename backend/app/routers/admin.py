@@ -211,7 +211,8 @@ async def admin_get_meetings(
         res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq("bot_id", bot_id).order("start_time", desc=True).execute())
         return {"meetings": res.data or []}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to fetch meetings")
+        raise HTTPException(status_code=500, detail="Failed to fetch meetings") from e
 
 
 @router.get("/api/admin/notifications")
@@ -228,7 +229,8 @@ async def admin_get_notifications(
         res = await run_db(lambda: supabase.table("chatty_notifications").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute())
         return {"notifications": res.data or []}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to fetch notifications")
+        raise HTTPException(status_code=500, detail="Failed to fetch notifications") from e
 
 
 @router.get("/api/admin/audit-logs")
@@ -245,7 +247,8 @@ async def admin_get_audit_logs(
         res = await run_db(lambda: supabase.table("chatty_audit_logs").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute())
         return {"audit_logs": res.data or []}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to fetch audit logs")
+        raise HTTPException(status_code=500, detail="Failed to fetch audit logs") from e
 
 
 @router.get("/api/admin/training-sources")
@@ -262,7 +265,8 @@ async def admin_get_training_sources(
         res = await run_db(lambda: supabase.table("chatty_sources").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute())
         return {"sources": res.data or []}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to fetch sources")
+        raise HTTPException(status_code=500, detail="Failed to fetch sources") from e
 
 
 @router.post("/api/admin/meetings/{meeting_id}/status")
@@ -327,4 +331,4 @@ async def admin_update_meeting_status(
         return {"success": True, "message": "Meeting status updated successfully"}
     except Exception as e:
         logger.exception("Failed to update meeting status")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update meeting status") from e
