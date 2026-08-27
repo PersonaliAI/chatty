@@ -4895,7 +4895,16 @@ export default function Dashboard() {
                       key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}`}
                       src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}`}
                       title="Live widget preview"
-                      className="w-full max-w-lg h-[500px] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
+                      // Deliberately no border/radius/shadow/background of its
+                      // own — every design preset already draws a complete
+                      // background+border+radius+shadow inside the iframe
+                      // (globals.css's .style-* rules), so decorating the
+                      // iframe element too doubled up on borders and clipped
+                      // away presets with a hard offset shadow (Neubrutalism)
+                      // entirely, since overflow-hidden here cut it off at a
+                      // boundary that didn't account for it. See the same fix
+                      // already applied to widget.js and the marketing page.
+                      className="w-full max-w-lg h-[500px] border-0"
                     />
                     <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Live preview — reflects your <span className="font-semibold">current</span> customizer settings in real time.</p>
                   </>
