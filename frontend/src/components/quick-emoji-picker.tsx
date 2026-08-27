@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 // value from "emoji-picker-react" here, or its whole (large) module gets
 // pulled into the eagerly-loaded parts of the bundle, defeating the point
 // of dynamically importing the actual <EmojiPicker> component below.
-import type { EmojiClickData, Theme, SuggestionMode } from "emoji-picker-react";
+import type { EmojiClickData, Theme, SuggestionMode, EmojiStyle } from "emoji-picker-react";
 
 // Code-split: emoji-picker-react's full Unicode dataset has no business
 // being in the main bundle for a component that opens on a click. Its own
@@ -15,6 +15,14 @@ import type { EmojiClickData, Theme, SuggestionMode } from "emoji-picker-react";
 // into view — this is what "efficient, fast opening" actually looks like
 // for a *complete* emoji set (as opposed to the old hand-picked ~100-emoji
 // list this file used to ship, which only felt fast because it was tiny).
+//
+// emojiStyle below is set to native rather than the library's APPLE
+// default: the image styles (apple/twitter/facebook/google) render every
+// emoji as its own separate PNG fetched from a jsdelivr CDN — dozens of
+// individual network requests just to fill one category's visible grid,
+// which is what actually showed up as a slow, empty-looking picker.
+// Native emoji use the browser/OS's own emoji font: zero network requests,
+// so the grid paints as fast as any other text on the page.
 const EmojiPicker = dynamic(() => import("emoji-picker-react"), {
   ssr: false,
   loading: () => (
@@ -47,6 +55,7 @@ export function QuickEmojiPicker({ onSelect, accentColor = "#f97316" }: QuickEmo
       <EmojiPicker
         onEmojiClick={(data: EmojiClickData) => onSelect(data.emoji)}
         theme={(isDark ? "dark" : "light") as Theme}
+        emojiStyle={"native" as EmojiStyle}
         lazyLoadEmojis
         autoFocusSearch
         suggestedEmojisMode={"frequent" as SuggestionMode}
