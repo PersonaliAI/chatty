@@ -506,38 +506,21 @@
     widgetBundleCallbacks.push(cb);
     if (widgetBundleLoading) return;
     widgetBundleLoading = true;
-    // Both the CSS and the JS have to be in before the widget mounts — the
-    // widget-app.css file is large (KaTeX's math fonts alone are ~1MB
-    // base64-embedded), and a <link rel="stylesheet"> load doesn't block
-    // script execution. Gating only on the script's own onload let React
-    // mount and paint a fully unstyled (blank white) panel for however long
-    // the CSS was still in flight — invisible on a fast connection, a real,
-    // sometimes multi-second flash on a slow one.
-    var cssDone = false;
-    var jsDone = false;
-    function maybeFinish() {
-      if (!cssDone || !jsDone) return;
+    try {
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = origin + "/widget-app.css";
+      shadowRoot.appendChild(link);
+    } catch {}
+    var s = document.createElement("script");
+    s.src = origin + "/widget-app.js";
+    s.onload = function () {
       widgetBundleLoaded = true;
       widgetBundleLoading = false;
       var cbs = widgetBundleCallbacks;
       widgetBundleCallbacks = [];
       cbs.forEach(function (fn) { fn(); });
-    }
-    try {
-      var link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = origin + "/widget-app.css";
-      link.onload = function () { cssDone = true; maybeFinish(); };
-      // A stylesheet that fails to load shouldn't wedge the widget open
-      // forever — proceed unstyled rather than never at all.
-      link.onerror = function () { cssDone = true; maybeFinish(); };
-      shadowRoot.appendChild(link);
-    } catch {
-      cssDone = true;
-    }
-    var s = document.createElement("script");
-    s.src = origin + "/widget-app.js";
-    s.onload = function () { jsDone = true; maybeFinish(); };
+    };
     s.onerror = function () {
       widgetBundleLoading = false;
       // Leave the panel in its "spinner" state — setOpen's own 6s fail-safe
