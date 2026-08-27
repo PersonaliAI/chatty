@@ -74,18 +74,6 @@
     return whiteContrast >= blackContrast ? "#ffffff" : "#111827";
   }
 
-  // Soft colored glow behind the launcher button, matching whatever color
-  // it's actually painted (the bot's primary color, not a fixed per-design
-  // tint) — same idea as globals.css's per-preset launcher shadows.
-  function softShadow(hex, alpha) {
-    var clean = (hex || "#f97316").replace("#", "").trim();
-    var full = clean.length === 3 ? clean.replace(/(.)/g, "$1$1") : clean;
-    var num = parseInt(full, 16);
-    if (full.length !== 6 || isNaN(num)) return "0 8px 20px rgba(249,115,22," + alpha + ")";
-    var r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
-    return "0 8px 20px rgba(" + r + "," + g + "," + b + "," + alpha + ")";
-  }
-
   var embedParams = "host=" + encodeURIComponent(location.hostname);
   if (colorAttr) embedParams += "&color=" + encodeURIComponent(colorAttr);
   if (styleAttr) embedParams += "&style=" + encodeURIComponent(styleAttr);
@@ -175,18 +163,30 @@
   var avatarIconType = "logo";
   var launcherShape = "circle";
   var currentDesign = normalizeDesign(styleAttr);
+  // The button's actual current background — the design's own bg by
+  // default (mirrors page.tsx's launcher and the dashboard Customizer's
+  // Button Preview, both of which already read LAUNCHER_STYLES.bg), or
+  // the bot's primary color when an explicit data-color override or an
+  // unrecognized design forces a plain color fill instead. Every place
+  // that needs to compute icon/text contrast for the launcher (buildChatIcon,
+  // closeIcon, spinnerIcon) reads THIS, not the raw primaryColor — using
+  // primaryColor there was the actual bug: it computed contrast for a
+  // color that wasn't what the button was ever painted with.
+  var launcherBg = color;
+  function safeBg(bg) { return bg.indexOf("gradient") === -1 ? bg : "#a855f7"; }
   applyLauncherDesign();
   function applyLauncherDesign() {
     var d = LAUNCHER_STYLES[currentDesign];
     if (!d || colorAttr) return; // no matching design, or embedder set an explicit color override
-    // Background/shadow follow the bot's own primary color (same treatment
-    // as .send-btn in globals.css) rather than each design's fixed tint —
-    // radius still comes from the design as an initial default (overridden
-    // by the real launcherShape once the theme fetch resolves).
-    btn.style.setProperty("background", color, "important");
+    // Background/shadow/radius all come from the design itself — each of
+    // the 10 designs bundles its own launcher look as part of its
+    // identity (see the LAUNCHER_STYLES comment above), the same way
+    // globals.css's chat panel presets do, not a plain primaryColor fill.
+    launcherBg = d.bg;
+    btn.style.setProperty("background", d.bg, "important");
     btn.style.setProperty("border-radius", d.radius, "important");
-    btn.style.setProperty("box-shadow", softShadow(color, 0.4), "important");
-    chatIcon = buildChatIcon(color);
+    btn.style.setProperty("box-shadow", d.shadow, "important");
+    chatIcon = buildChatIcon(safeBg(launcherBg));
     if (!open) btn.innerHTML = chatIcon;
   }
   function getBorderRadiusStyle(shape, side) {
@@ -213,11 +213,13 @@
              '</div>';
     }
 
-    // True default (no custom logo uploaded, no icon preset chosen): a plain
-    // dot in whatever color contrasts with the launcher's own primary-color
-    // background, instead of a fixed per-design tint that might now clash.
+    // True default (no custom logo uploaded, no icon preset chosen): the
+    // selected design's own dot mark (matches the gallery exactly, same as
+    // page.tsx's launcher) — falls back to a contrast-computed dot only
+    // when there's no design driving the launcher at all (colorAttr override).
     if (avatarIconType === "logo" && !customIconUrl) {
-      var dotColor = getOnColor(c);
+      var designDot = (!colorAttr && LAUNCHER_STYLES[currentDesign]) ? LAUNCHER_STYLES[currentDesign].dot : null;
+      var dotColor = designDot || getOnColor(c);
       return '<div style="width:17px !important;height:17px !important;border-radius:50% !important;background:' + dotColor + ' !important;opacity:.9 !important;"></div>';
     }
 
@@ -245,16 +247,16 @@
     }
   }
   function updateLauncherIcon() {
-    chatIcon = buildChatIcon(color);
+    chatIcon = buildChatIcon(safeBg(launcherBg));
     if (!open) btn.innerHTML = chatIcon;
   }
-  var chatIcon = buildChatIcon(color);
+  var chatIcon = buildChatIcon(safeBg(launcherBg));
   function closeIcon() {
-    var s = getOnColor(color);
+    var s = getOnColor(safeBg(launcherBg));
     return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="' + s + '" stroke-width="2.4" stroke-linecap="round"/></svg>';
   }
   function spinnerIcon() {
-    var s = getOnColor(color);
+    var s = getOnColor(safeBg(launcherBg));
     return '<svg width="26" height="26" viewBox="0 0 24 24" style="animation:chatty-spin .7s linear infinite;transform-origin:center">' +
       '<circle cx="12" cy="12" r="9" fill="none" stroke="' + s + '" stroke-opacity=".3" stroke-width="3"/>' +
       '<path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="' + s + '" stroke-width="3" stroke-linecap="round"/></svg>';
@@ -309,9 +311,17 @@
   // ---- Theme + teaser text from dashboard ----
   // Always apply the database color — even when data-color is set on the script
   // tag — so that dashboard customization changes propagate automatically.
+  // Exception: when the selected design is recognized (and no data-color
+  // override), the design owns the launcher's background/shadow entirely
+  // (see applyLauncherDesign) — a primaryColor change from the dashboard
+  // shouldn't silently paint over the design's own launcher look.
   function applyTheme(c) {
     if (!c) return;
-    color = c; btn.style.background = c; chatIcon = buildChatIcon(c);
+    color = c;
+    if (LAUNCHER_STYLES[currentDesign] && !colorAttr) return;
+    launcherBg = c;
+    btn.style.setProperty("background", c, "important");
+    chatIcon = buildChatIcon(safeBg(c));
     if (!open) btn.innerHTML = chatIcon;
   }
   var btnRevealed = false;

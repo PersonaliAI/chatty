@@ -6,6 +6,7 @@ import { flushSync } from "react-dom";
 import { createElement } from "react";
 import { Search, X, Loader2 } from "lucide-react";
 import { DynamicIcon, dynamicIconImports, iconNames } from "lucide-react/dynamic";
+import { getOnColor } from "@/lib/color-contrast";
 
 const COLOR_SWATCHES = [
   "#111111", "#ffffff", "#f97316", "#ef4444", "#22c55e",
@@ -36,13 +37,24 @@ async function iconToFile(name: string, color: string): Promise<File> {
 
 interface IconLibraryPickerProps {
   onClose: () => void;
-  onSelect: (file: File) => void;
+  onSelect: (file: File, name: string, color: string) => void;
+  /** Re-opening on an existing selection (see avatarIconLibrarySelection in
+   * dashboard/page.tsx) pre-fills the same icon/color instead of resetting
+   * to defaults — this is what makes "change the color" actually work,
+   * since the uploaded SVG file itself has no memory of its own color. */
+  initialSelection?: { name: string; color: string } | null;
+  /** Where the icon will actually be displayed (the avatar circle's
+   * background) — used to default the color swatch to something that's
+   * guaranteed visible there, instead of an arbitrary black that can go
+   * invisible against a dark background the business owner already chose. */
+  backgroundHex?: string;
 }
 
-export function IconLibraryPicker({ onClose, onSelect }: IconLibraryPickerProps) {
+export function IconLibraryPicker({ onClose, onSelect, initialSelection, backgroundHex }: IconLibraryPickerProps) {
   const [query, setQuery] = useState("");
-  const [color, setColor] = useState("#111111");
+  const [color, setColor] = useState(initialSelection?.color || getOnColor(backgroundHex || "#ffffff"));
   const [applying, setApplying] = useState<string | null>(null);
+  const [selectedName, setSelectedName] = useState<string | null>(initialSelection?.name || null);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -50,15 +62,26 @@ export function IconLibraryPicker({ onClose, onSelect }: IconLibraryPickerProps)
     return all.slice(0, MAX_RESULTS);
   }, [query]);
 
-  const pick = async (name: string) => {
+  const pickWithColor = async (name: string, c: string) => {
     if (applying) return;
     setApplying(name);
+    setSelectedName(name);
     try {
-      const file = await iconToFile(name, color);
-      onSelect(file);
+      const file = await iconToFile(name, c);
+      onSelect(file, name, c);
     } finally {
       setApplying(null);
     }
+  };
+  const pick = (name: string) => pickWithColor(name, color);
+
+  // Changing the color swatch re-bakes and re-uploads the CURRENTLY
+  // selected icon at the new color immediately — this is what makes
+  // "change its color after picking" actually possible, since the
+  // uploaded SVG file has no live color to just tweak otherwise.
+  const changeColor = (c: string) => {
+    setColor(c);
+    if (selectedName) pickWithColor(selectedName, c);
   };
 
   return (
@@ -66,11 +89,21 @@ export function IconLibraryPicker({ onClose, onSelect }: IconLibraryPickerProps)
       <div onClick={onClose} className="absolute inset-0" />
       <div className="relative w-full max-w-lg bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-2xl z-10 flex flex-col max-h-[80vh]">
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-neutral-100 dark:border-neutral-850">
-          <h3 className="text-sm font-semibold">Choose an icon</h3>
+          <div>
+            <h3 className="text-sm font-semibold">Choose an icon</h3>
+            {selectedName && (
+              <p className="text-[10px] text-neutral-400 mt-0.5">Editing <span className="font-medium text-neutral-500 dark:text-neutral-400">{selectedName}</span> — pick a color to update it, or click another icon.</p>
+            )}
+          </div>
           <button onClick={onClose} aria-label="Close" className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer">
             <X className="size-4" />
           </button>
         </div>
+        {backgroundHex && color.toLowerCase() === backgroundHex.toLowerCase() && (
+          <p className="px-4 pt-2 text-[10px] text-amber-600 dark:text-amber-500 font-medium">
+            This color matches the avatar background exactly — the icon will be invisible. Pick a different color.
+          </p>
+        )}
 
         <div className="px-4 pt-3 pb-2 space-y-3 shrink-0">
           <div className="relative">
@@ -90,7 +123,7 @@ export function IconLibraryPicker({ onClose, onSelect }: IconLibraryPickerProps)
                 <button
                   key={c}
                   type="button"
-                  onClick={() => setColor(c)}
+                  onClick={() => changeColor(c)}
                   aria-label={`Use ${c}`}
                   className={`size-5 rounded-full border cursor-pointer transition-transform ${color === c ? "scale-110 ring-2 ring-offset-1 ring-[#f97316]" : "border-neutral-200 dark:border-neutral-700"}`}
                   style={{ background: c }}
@@ -100,7 +133,7 @@ export function IconLibraryPicker({ onClose, onSelect }: IconLibraryPickerProps)
                 <input
                   type="color"
                   value={color}
-                  onChange={(e) => setColor(e.target.value)}
+                  onChange={(e) => changeColor(e.target.value)}
                   className="absolute inset-0 opacity-0 cursor-pointer"
                   aria-label="Custom color"
                 />
@@ -122,7 +155,11 @@ export function IconLibraryPicker({ onClose, onSelect }: IconLibraryPickerProps)
                   onClick={() => pick(name)}
                   disabled={!!applying}
                   title={name}
-                  className="aspect-square rounded-lg flex items-center justify-center border border-transparent hover:border-neutral-200 dark:hover:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors cursor-pointer disabled:cursor-wait"
+                  className={`aspect-square rounded-lg flex items-center justify-center border transition-colors cursor-pointer disabled:cursor-wait ${
+                    selectedName === name
+                      ? "border-[#f97316] bg-[#f97316]/5"
+                      : "border-transparent hover:border-neutral-200 dark:hover:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                  }`}
                 >
                   {applying === name ? (
                     <Loader2 className="size-4 animate-spin text-neutral-400" />
