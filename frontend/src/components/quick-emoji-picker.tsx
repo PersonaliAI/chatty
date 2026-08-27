@@ -1,7 +1,6 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 // Types/enums only (erased at compile time) — must NOT import any runtime
 // value from "emoji-picker-react" here, or its whole (large) module gets
@@ -23,14 +22,18 @@ import type { EmojiClickData, Theme, SuggestionMode, EmojiStyle } from "emoji-pi
 // which is what actually showed up as a slow, empty-looking picker.
 // Native emoji use the browser/OS's own emoji font: zero network requests,
 // so the grid paints as fast as any other text on the page.
-const EmojiPicker = dynamic(() => import("emoji-picker-react"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-full">
-      <Loader2 className="size-5 animate-spin text-neutral-300" />
-    </div>
-  ),
-});
+//
+// Plain React.lazy (not next/dynamic): this component is also bundled
+// standalone via Vite for the public widget (see widget-entry.tsx), which
+// has no next/dynamic. next/dynamic's ssr:false behavior isn't needed here
+// either way — the picker only ever mounts after emojiOpen flips true from
+// a click, well after hydration, so there's nothing for SSR to render.
+const EmojiPicker = lazy(() => import("emoji-picker-react"));
+const EmojiPickerFallback = () => (
+  <div className="flex items-center justify-center h-full">
+    <Loader2 className="size-5 animate-spin text-neutral-300" />
+  </div>
+);
 
 interface QuickEmojiPickerProps {
   onSelect: (emoji: string) => void;
@@ -52,6 +55,7 @@ export function QuickEmojiPicker({ onSelect, accentColor = "#f97316" }: QuickEmo
 
   return (
     <div className="flex flex-col h-full [&_.epr-main]:border-0 [&_.epr-main]:!h-full" style={{ ["--epr-highlight-color" as string]: accentColor }}>
+      <Suspense fallback={<EmojiPickerFallback />}>
       <EmojiPicker
         onEmojiClick={(data: EmojiClickData) => onSelect(data.emoji)}
         theme={(isDark ? "dark" : "light") as Theme}
@@ -65,6 +69,7 @@ export function QuickEmojiPicker({ onSelect, accentColor = "#f97316" }: QuickEmo
         height="100%"
         searchPlaceHolder="Search emoji…"
       />
+      </Suspense>
     </div>
   );
 }

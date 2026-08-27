@@ -2,7 +2,9 @@
  * Usage:
  *   <script src="https://chatty.personaliai.com/widget.js"
  *           data-id="YOUR_BOT_UUID" data-color="#f97316" data-style="minimalist" defer></script>
- * Injects a floating button that opens the assistant in an iframe.
+ * Injects a floating button that opens the assistant, mounted directly into
+ * this page's own DOM inside a Shadow Root (not a cross-origin iframe — see
+ * the comment above the panel/Shadow DOM section below for why).
  *
  * JS API (after load): window.Chatty.open() / .close() / .toggle()
  * Data attributes: data-color, data-style, data-position(left|right),
@@ -74,15 +76,10 @@
     return whiteContrast >= blackContrast ? "#ffffff" : "#111827";
   }
 
-  var embedParams = "host=" + encodeURIComponent(location.hostname);
-  if (colorAttr) embedParams += "&color=" + encodeURIComponent(colorAttr);
-  if (styleAttr) embedParams += "&style=" + encodeURIComponent(styleAttr);
-  var embedUrl = origin + "/embed/" + encodeURIComponent(botId) + "?" + embedParams;
-
   var side = position === "left" ? "left" : "right";
   var open = false;
-  var ready = false; // embed iframe finished loading bot config
-  var pendingOpen = false; // clicked to open, waiting for the iframe to be ready
+  var ready = false; // widget bundle finished loading bot config
+  var pendingOpen = false; // clicked to open, waiting for the widget to be ready
   var unread = 0;
   var teaserText = "";
   var FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
@@ -112,12 +109,12 @@
     } catch {}
   }
 
-  // ---- Per-design default launcher look (see globals.css's "Assistant
-  // Design Presets" for the matching chat-panel styles — each of these 10
-  // designs bundles its own launcher button as part of its identity, not
-  // just a primaryColor-tinted circle). data-color on the script tag still
-  // wins if the embedder explicitly set one, matching every other override
-  // in this file.
+  // ---- Per-design default launcher look (see src/styles/widget-presets.css's
+  // "Assistant Design Presets" for the matching chat-panel styles — each of
+  // these 10 designs bundles its own launcher button as part of its
+  // identity, not just a primaryColor-tinted circle). data-color on the
+  // script tag still wins if the embedder explicitly set one, matching
+  // every other override in this file.
   // Mirrors src/lib/widget-style.ts's LEGACY_STYLE_MAP — old bots may still
   // have a pre-redesign style id stored in widget_style.
   var LEGACY_STYLE_MAP = {
@@ -149,13 +146,13 @@
   };
 
   // Each design's own chat-PANEL corner radius (its .style-X { border-radius }
-  // in globals.css — not LAUNCHER_STYLES.radius above, which is the separate
-  // floating button's own radius). The outer host div/iframe (panel below)
-  // used to always clip to a plain square (0px) as a safety net — reliably
-  // safe against a square notch cutting into a round corner, but at some
-  // zoom levels/device-pixel-ratios a 0-vs-Npx radius MISMATCH between the
-  // square outer clip and the rounded inner content can leave a hairline
-  // seam at the corner where the outer box's own edge anti-aliases
+  // in src/styles/widget-presets.css — not LAUNCHER_STYLES.radius above,
+  // which is the separate floating button's own radius). The outer host div
+  // (panel below) used to always clip to a plain square (0px) as a safety
+  // net — reliably safe against a square notch cutting into a round corner,
+  // but at some zoom levels/device-pixel-ratios a 0-vs-Npx radius MISMATCH
+  // between the square outer clip and the rounded inner content can leave a
+  // hairline seam at the corner where the outer box's own edge anti-aliases
   // differently from the inner curve. Matching the outer radius to the
   // exact same value removes the mismatch entirely instead of just keeping
   // it on the "safe" side of it.
@@ -203,7 +200,7 @@
     // Background/shadow/radius all come from the design itself — each of
     // the 10 designs bundles its own launcher look as part of its
     // identity (see the LAUNCHER_STYLES comment above), the same way
-    // globals.css's chat panel presets do, not a plain primaryColor fill.
+    // the chat panel presets do, not a plain primaryColor fill.
     launcherBg = d.bg;
     btn.style.setProperty("background", d.bg, "important");
     btn.style.setProperty("border-radius", d.radius, "important");
@@ -423,7 +420,61 @@
     tryInitTriggers();
   }
 
-  // ---- Chat panel (iframe container) ----
+  // ---- Domain-verification handshake ----
+  // A tiny, permanently invisible iframe whose only job is letting the
+  // browser attach a real Referer header to /embed/[botId]/verify's own
+  // request — the exchange behind that route mints a short-lived token
+  // this widget attaches to chat calls for the better (verified) rate-limit
+  // tier. Never a hard access gate either way (see main.py's rate-limit
+  // tiers) — a token that never arrives just means the stricter unverified
+  // tier applies, same graceful-degradation pattern as the theme fetch
+  // above. Started immediately (not gated on the panel opening) so the
+  // token is normally already available by the time the visitor opens
+  // chat, unlike the old full-iframe's page load which only began on
+  // first open.
+  var originToken = null;
+  var originTokenReady = false;
+  var originTokenCallbacks = [];
+  function onOriginTokenReady(cb) {
+    if (originTokenReady) { cb(); return; }
+    originTokenCallbacks.push(cb);
+  }
+  function resolveOriginToken(token) {
+    if (originTokenReady) return;
+    originToken = token || null;
+    originTokenReady = true;
+    var cbs = originTokenCallbacks;
+    originTokenCallbacks = [];
+    cbs.forEach(function (fn) { fn(); });
+  }
+  window.addEventListener("message", function (e) {
+    if (e.origin !== origin) return;
+    if (e.data && e.data.type === "chatty-origin-token") {
+      resolveOriginToken(e.data.token || null);
+    }
+  });
+  setTimeout(function () { resolveOriginToken(null); }, 4000);
+
+  var verifyFrame = document.createElement("iframe");
+  verifyFrame.style.cssText = "display:none !important;width:0;height:0;border:0;position:absolute;";
+  verifyFrame.setAttribute("aria-hidden", "true");
+  verifyFrame.setAttribute("tabindex", "-1");
+  verifyFrame.src = origin + "/embed/" + encodeURIComponent(botId) + "/verify";
+
+  // ---- Chat panel: Shadow DOM host (not a cross-origin iframe) ----
+  // Chrome's Site Isolation gives a cross-origin iframe its own separate
+  // compositor surface — this is the root cause of the widget's text
+  // rendering measurably softer than the host page during/after browser
+  // zoom (confirmed via devicePixelRatio + same-origin-access checks).
+  // Mounting the real React chat UI straight into this page's own DOM
+  // (inside a Shadow Root purely for CSS isolation, not a real browsing
+  // context) removes that separate-surface penalty entirely — the same
+  // technique Crisp's widget uses. The Shadow Root's own stylesheet
+  // (widget-app.css) and script (widget-app.js, built via `npm run
+  // build:widget` from src/widget-entry.tsx) are the standalone Vite
+  // bundle of the exact same ChatWidgetCore React component the iframe
+  // route (/embed/[botId]) also renders — see the plan referenced at the
+  // top of this file for the full architecture.
   var panel = document.createElement("div");
   panel.style.cssText =
     "position:fixed;bottom:92px;" + side + ":20px;width:380px;height:560px;max-width:calc(100vw - 40px);" +
@@ -435,64 +486,100 @@
     // at true 100% browser zoom. translateY + opacity alone reads as
     // basically the same "rise and fade in" motion without that tradeoff.
     "box-shadow:0 12px 48px rgba(0,0,0,.28);opacity:0;transform:translateY(12px);" +
-    // touch-action:manipulation disables pinch-zoom and double-tap-zoom on
-    // this element specifically (keeping normal one-finger scroll/pan) —
-    // a trackpad/touchscreen pinch gesture triggers Chrome's "visual
-    // viewport" zoom, which scales the already-rendered pixels like
-    // zooming into a photo instead of re-rendering crisp text, so it
-    // reads as blurry by design while the gesture is active. This is the
-    // same technique other chat widgets (e.g. Crisp) use to keep a small
-    // fixed-size panel from ever entering that state at all.
     "touch-action:manipulation;" +
     "pointer-events:none;transition:opacity .2s ease,transform .2s ease;background:transparent !important;";
 
-  var iframe = document.createElement("iframe");
-  iframe.style.cssText = "width:100% !important;height:100% !important;border:0 !important;display:block !important;border-radius:16px !important;overflow:hidden !important;background:transparent !important;touch-action:manipulation;";
-  iframe.setAttribute("title", "Chat assistant");
-  iframe.setAttribute("allow", "clipboard-write; microphone; notifications");
-  var iframeLoaded = false;
-  panel.appendChild(iframe);
+  var shadowHost = document.createElement("div");
+  shadowHost.style.cssText = "width:100% !important;height:100% !important;display:block !important;";
+  panel.appendChild(shadowHost);
+  var shadowRoot = shadowHost.attachShadow({ mode: "open" });
 
-  window.addEventListener("message", function (e) {
-    if (e.origin !== origin) return;
-    if (!e.data || typeof e.data !== "object") return;
-    if (e.data.type === "chatty-request-notification") {
-      if ("Notification" in window) {
-        Notification.requestPermission().then(function (perm) {
-          var isGranted = (perm === "granted");
-          if (isGranted) {
-            try {
-              new Notification(e.data.botName || "Chatty Support", {
-                body: "Notifications enabled! You'll be alerted when support or AI replies.",
-                icon: e.data.avatarUrl || undefined
-              });
-            } catch {}
-          }
-          if (iframe && iframe.contentWindow) {
-            iframe.contentWindow.postMessage({ type: "chatty-notification-status", granted: isGranted }, origin);
-          }
-        }).catch(function () {});
-      } else {
-        alert("Browser push notifications are not supported on this browser.");
-      }
-    } else if (e.data.type === "chatty-trigger-notification") {
-      if ("Notification" in window && Notification.permission === "granted") {
-        try {
-          new Notification(e.data.botName || "Chatty Support", {
-            body: e.data.bodyText || "New message received",
-            icon: e.data.avatarUrl || undefined
-          });
-        } catch {}
-      }
+  // ---- Widget bundle: loaded once, lazily, on first actual open ----
+  // Mirrors the old iframe's own lazy-load gate (iframe.src only ever set
+  // once, on first open) — most visitors never open the widget at all, so
+  // there's no reason to pay for React + the chat UI's CSS/JS until they do.
+  var widgetBundleLoaded = false;
+  var widgetBundleLoading = false;
+  var widgetBundleCallbacks = [];
+  function loadWidgetBundle(cb) {
+    if (widgetBundleLoaded) { cb(); return; }
+    widgetBundleCallbacks.push(cb);
+    if (widgetBundleLoading) return;
+    widgetBundleLoading = true;
+    // Both the CSS and the JS have to be in before the widget mounts — the
+    // widget-app.css file is large (KaTeX's math fonts alone are ~1MB
+    // base64-embedded), and a <link rel="stylesheet"> load doesn't block
+    // script execution. Gating only on the script's own onload let React
+    // mount and paint a fully unstyled (blank white) panel for however long
+    // the CSS was still in flight — invisible on a fast connection, a real,
+    // sometimes multi-second flash on a slow one.
+    var cssDone = false;
+    var jsDone = false;
+    function maybeFinish() {
+      if (!cssDone || !jsDone) return;
+      widgetBundleLoaded = true;
+      widgetBundleLoading = false;
+      var cbs = widgetBundleCallbacks;
+      widgetBundleCallbacks = [];
+      cbs.forEach(function (fn) { fn(); });
     }
-  });
+    try {
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = origin + "/widget-app.css";
+      link.onload = function () { cssDone = true; maybeFinish(); };
+      // A stylesheet that fails to load shouldn't wedge the widget open
+      // forever — proceed unstyled rather than never at all.
+      link.onerror = function () { cssDone = true; maybeFinish(); };
+      shadowRoot.appendChild(link);
+    } catch {
+      cssDone = true;
+    }
+    var s = document.createElement("script");
+    s.src = origin + "/widget-app.js";
+    s.onload = function () { jsDone = true; maybeFinish(); };
+    s.onerror = function () {
+      widgetBundleLoading = false;
+      // Leave the panel in its "spinner" state — setOpen's own 6s fail-safe
+      // below flips it back to a plain open state either way.
+    };
+    document.head.appendChild(s);
+  }
+
+  var widgetMounted = false;
+  var currentFullscreen = false;
+  function currentMountProps() {
+    return {
+      botId: botId,
+      originToken: originToken,
+      color: colorAttr,
+      style: styleAttr,
+      isFullscreen: currentFullscreen,
+      onReady: function () {
+        ready = true;
+        if (pendingOpen) { pendingOpen = false; setOpen(true); } else setBtnIcon();
+      },
+      onClose: function () { setOpen(false); },
+      onAssistantMessage: function () {
+        if (!open) { unread++; renderBadge(); playPing(); }
+      }
+    };
+  }
+  function mountOrUpdateWidget() {
+    if (!window.__chattyMountWidget) return;
+    widgetMounted = true;
+    window.__chattyMountWidget(shadowRoot, currentMountProps());
+  }
+  // Once the origin token resolves (usually before the visitor ever opens
+  // chat — see the handshake section above), push it into an already-
+  // mounted widget so subsequent chat calls pick up the better rate-limit
+  // tier without waiting for the visitor to reopen the panel.
+  onOriginTokenReady(function () { if (widgetMounted) mountOrUpdateWidget(); });
 
   function applyMobile() {
-    var isFullscreen = mobileFull && window.innerWidth <= 480;
-    // Told to the iframe's own document so it can round its own root
-    // container to match.
-    try { if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: "chatty-fullscreen", value: isFullscreen }, origin); } catch {}
-    if (isFullscreen) {
+    currentFullscreen = mobileFull && window.innerWidth <= 480;
+    if (widgetMounted) mountOrUpdateWidget();
+    if (currentFullscreen) {
       panel.style.setProperty("width", "100vw", "important");
       // 100vh is taller than the visible area on mobile browsers with a
       // collapsible address bar, pushing the panel (anchored at bottom:0)
@@ -508,7 +595,6 @@
       panel.style.setProperty("bottom", "0px", "important");
       panel.style.setProperty(side, "0px", "important");
       panel.style.setProperty("border-radius", "0px", "important");
-      iframe.style.setProperty("border-radius", "0px", "important");
     } else {
       panel.style.setProperty("width", "380px", "important");
       panel.style.setProperty("height", "560px", "important");
@@ -525,7 +611,6 @@
       // Matching exactly removes the mismatch instead of just tolerating it.
       var panelRadius = (colorAttr ? null : PANEL_RADIUS[currentDesign]) || "0px";
       panel.style.setProperty("border-radius", panelRadius, "important");
-      iframe.style.setProperty("border-radius", panelRadius, "important");
     }
   }
 
@@ -533,7 +618,7 @@
     open = v;
     if (open) {
       unread = 0; hideTeaser();
-      if (!iframeLoaded) { iframe.src = embedUrl; iframeLoaded = true; }
+      if (!widgetMounted) { loadWidgetBundle(mountOrUpdateWidget); }
       // Fail-safe: never spin forever if the ready signal doesn't arrive.
       if (!ready) setTimeout(function () { if (!ready) { ready = true; setBtnIcon(); } }, 6000);
     }
@@ -556,32 +641,12 @@
     if (pendingOpen) return;
     if (!ready) {
       // Load first, spin, and reveal the panel only once the chat is ready.
-      if (!iframeLoaded) { iframe.src = embedUrl; iframeLoaded = true; }
+      if (!widgetMounted) { loadWidgetBundle(mountOrUpdateWidget); }
       pendingOpen = true; hideTeaser(); setBtnIcon();
       setTimeout(function () { if (pendingOpen) { ready = true; pendingOpen = false; setOpen(true); } }, 8000);
       return;
     }
     setOpen(true);
-  });
-  window.addEventListener("resize", function () { if (open) { applyMobile(); setOpen(true); } });
-
-  // ---- Messages from the embed iframe (unread badge) ----
-  window.addEventListener("message", function (ev) {
-    if (ev.origin !== origin) return;
-    var d = ev.data;
-    if (!d || typeof d !== "object") return;
-    if (d.type === "chatty:close") { setOpen(false); return; }
-    if (d.type === "chatty:ready") {
-      ready = true;
-      if (pendingOpen) { pendingOpen = false; setOpen(true); } else setBtnIcon();
-      // applyMobile() may have posted the fullscreen state before this
-      // document existed to receive it (message sent right after setting
-      // iframe.src, before load) — resend now that it's actually listening.
-      try { if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: "chatty-fullscreen", value: mobileFull && window.innerWidth <= 480 }, origin); } catch {}
-    }
-    if (d.type === "chatty:message" && d.role === "assistant" && !open) {
-      unread++; renderBadge(); playPing();
-    }
   });
 
   var triggered = {};
@@ -658,10 +723,31 @@
   window.Chatty = {
     open: function () { setOpen(true); },
     close: function () { setOpen(false); },
-    toggle: function () { setOpen(!open); }
+    toggle: function () { setOpen(!open); },
+    // Full teardown — removes every element this script appended and lets a
+    // fresh <script src="/widget.js"> tag re-run from scratch. Needed by
+    // any single-page app that embeds Chatty and navigates client-side
+    // (no full page reload) to a route that shouldn't show the widget —
+    // page.tsx uses this on unmount instead of leaving the floating button
+    // stuck on every other route.
+    destroy: function () {
+      if (widgetMounted && window.__chattyUnmountWidget) {
+        try { window.__chattyUnmountWidget(shadowRoot); } catch {}
+      }
+      [verifyFrame, panel, teaser, btn, badge].forEach(function (el) {
+        try { el.remove(); } catch {}
+      });
+      window.removeEventListener("resize", handleResize);
+      delete window.Chatty;
+      window.__chattyWidgetLoaded = false;
+    }
   };
 
+  function handleResize() { if (open) { applyMobile(); setOpen(true); } }
+  window.addEventListener("resize", handleResize);
+
   function mount() {
+    document.body.appendChild(verifyFrame);
     document.body.appendChild(panel);
     document.body.appendChild(teaser);
     document.body.appendChild(btn);
