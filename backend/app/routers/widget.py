@@ -634,11 +634,23 @@ async def widget_theme(bot_id: str):
     Served from the backend (service role) so it works inside third-party
     iframes where the browser Supabase client is blocked by storage
     partitioning."""
-    res = await run_db(lambda: supabase.table("chatty_bots").select(
+    base_columns = (
         "user_id, name, primary_color, widget_style, logo_url, welcome_message, "
         "send_button_style, conversation_starters, teaser_message, avatar_icon, avatar_url, "
         "hide_branding, custom_css, custom_js, voice_enabled, show_sender_tag, csat_enabled, "
-        "color_scheme").eq("id", bot_id).execute())
+        "color_scheme"
+    )
+    try:
+        res = await run_db(lambda: supabase.table("chatty_bots").select(
+            f"{base_columns}, font_family, font_size_percent").eq("id", bot_id).execute())
+    except Exception:
+        # font_family/font_size_percent's migration (20260829010000) may not
+        # be applied to this environment yet — PostgREST 400s the whole
+        # select on an unknown column, which would otherwise break every
+        # bot's widget theme, not just skip the two new fields. Falls back
+        # to the columns that are guaranteed to exist.
+        res = await run_db(lambda: supabase.table("chatty_bots").select(
+            base_columns).eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     b = res.data[0]
@@ -672,6 +684,8 @@ async def widget_theme(bot_id: str):
         "show_sender_tag": bool(b.get("show_sender_tag")),
         "csat_enabled": bool(b.get("csat_enabled", True)),
         "color_scheme": b.get("color_scheme"),
+        "font_family": b.get("font_family"),
+        "font_size_percent": b.get("font_size_percent") or 100,
     }
 
 

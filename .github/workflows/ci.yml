@@ -37,6 +37,15 @@ jobs:
 
       - name: Run smoke + unit tests
         run: python -m pytest tests/ -q
+        env:
+          # Test-only dummy key (not a real secret) — app/core/crypto.py's
+          # _fernet() raises RuntimeError without one, which was failing
+          # every BYOK/OAuth-token encryption test (test_crypto.py,
+          # test_google_integrations.py, test_microsoft_integrations.py -
+          # 11 tests) on every single CI run, unrelated to whatever the
+          # push actually changed. Any valid Fernet.generate_key() output
+          # works here; this one is fixed only so CI is reproducible.
+          BYOK_ENCRYPTION_KEY: kLaaohqu72wbf-6sqsj4_yNq2MYBEREBnQ42qEtwRIk=
 
       # Non-blocking: surfaces known CVEs in dependencies without failing the
       # build outright — a build shouldn't go red over an advisory in a
