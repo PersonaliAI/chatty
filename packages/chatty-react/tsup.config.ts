@@ -34,8 +34,16 @@ export default defineConfig([
     entry: {
       "chatty-app": "src/standalone.tsx",
     },
+    // No `globalName` here: esbuild's IIFE globalName wrapper assigns the
+    // module's *entire export namespace* (ChattyStandaloneApp, mountChatty,
+    // mountChattyPanel — the raw, unaliased names) to `window.ChattyDOM` as
+    // the very last thing the bundle does, which silently overwrote the
+    // real `window.ChattyDOM = { mount, mountPanel }` assignment standalone.tsx
+    // makes itself lower in the same file (evaluation order: esbuild's own
+    // assignment is the IIFE's completion value, so it always runs last and
+    // wins). widget.js calls `window.ChattyDOM.mount(...)`, which the
+    // clobbered shape doesn't have — the widget silently never mounted.
     format: ["iife"],
-    globalName: "ChattyDOM",
     sourcemap: false,
     minify: true,
     platform: "browser",
