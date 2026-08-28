@@ -670,6 +670,7 @@ export default function ChatWidgetCore({
   const [liveAgent, setLiveAgent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const [pendingFiles, setPendingFiles] = useState<{file: File; preview: string}[]>([]);
   const lastPollRef = useRef<string>(new Date().toISOString());
 
@@ -1027,6 +1028,18 @@ export default function ChatWidgetCore({
   }, [ownsDocument]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotResponding, tab]);
+
+  // Grow the composer with its content (up to max-h-[108px] on the textarea
+  // itself, ~4 lines, after which it scrolls). Keyed on inputValue rather
+  // than done only in the textarea's own onChange so it also re-measures
+  // after non-typing changes to the value — an emoji insert, or the field
+  // clearing itself back to one line after a message sends.
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [inputValue]);
 
   // ---- Text message (streamed via SSE) ----
   // Update the most recent assistant bubble's content in place as tokens arrive.
@@ -1863,7 +1876,18 @@ export default function ChatWidgetCore({
                 animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
                 exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
                 transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                className="emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(64vh,440px)] min-h-[280px] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
+                // Height was `min(64vh, 440px)` — sized against the *browser
+                // viewport*, not this panel. Fine for a real iframe/full-page
+                // embed (roughly viewport-sized already), but the standalone
+                // floating widget's panel is a fixed ~560px regardless of how
+                // tall the host page's viewport is, so on any normal-height
+                // page 440px left only ~30-40px above it for the header —
+                // just enough to graze/tuck behind it (reported bug). Caps
+                // tightened to fit that fixed panel with real margin to
+                // spare; isFullscreen (mobile/iframe, panel ≈ viewport-sized)
+                // keeps the old, roomier vh-based sizing since there the
+                // original math was never wrong.
+                className={`emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm ${isFullscreen ? "h-[min(64vh,440px)] min-h-[280px]" : "h-[min(48vh,340px)] min-h-[220px]"}`}
               >
                 <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
                   <span className="text-[11px] font-bold tracking-wide text-neutral-500 dark:text-neutral-400 uppercase">Pick an emoji</span>
@@ -1943,9 +1967,28 @@ export default function ChatWidgetCore({
                 ))}
               </div>
             )}
-            <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }} onPaste={onPaste}
+            <textarea
+              ref={composerRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }}
+              onPaste={onPaste}
+              onKeyDown={(e) => {
+                // Enter sends (matching the old <input>'s default form-submit
+                // behavior); Shift+Enter inserts a real newline instead, which
+                // a plain <input> can never do — this is the whole reason for
+                // switching to a <textarea>. requestSubmit() (not a manual
+                // sendText() call here) so this stays wired to the exact same
+                // submit handler as clicking the send button, pendingFiles
+                // included.
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
               placeholder={recording ? "Recording… tap ◼ to stop" : transcribing ? "Transcribing…" : "Compose your message…"} disabled={isBotResponding || recording || transcribing}
-              className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />
+              rows={1}
+              className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5 resize-none max-h-[108px] overflow-y-auto leading-relaxed" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></motion.button>
