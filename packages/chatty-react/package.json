@@ -1,10 +1,17 @@
 {
-  "name": "@chatty/react-widget",
+  "name": "@personaliai/react-widget",
   "version": "0.1.0",
   "description": "Embed the Chatty chat assistant directly in a React app — no iframe, calls the Chatty API directly. Same UI and behavior as the hosted embed.",
-  "license": "UNLICENSED",
-  "private": true,
+  "license": "MIT",
   "type": "module",
+  "keywords": ["chatty", "chatbot", "chat-widget", "react", "ai", "customer-support"],
+  "homepage": "https://chatty.personaliai.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PersonaliAI/chatty.git",
+    "directory": "packages/chatty-react"
+  },
+  "bugs": "https://github.com/PersonaliAI/chatty/issues",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,7 +24,8 @@
     "./styles.css": "./dist/styles.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "scripts": {
     "build": "tsup",
