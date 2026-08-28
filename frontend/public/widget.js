@@ -78,6 +78,17 @@
   var soundEnabled = ((script && (script.getAttribute("data-sound") || (script.dataset && script.dataset.sound))) || "true") !== "false";
   var origin = (script && script.src) ? new URL(script.src, location.href).origin : "https://chatty.personaliai.com";
 
+  // Cache-buster for chatty-app.js/.css: they're served from a fixed,
+  // unversioned URL, and browsers cache script/link responses even under
+  // Cache-Control: max-age=0 (a conditional revalidation can still resolve
+  // to a stale disk-cache entry). Whenever chatty-app.js's exported API
+  // shape changes (e.g. window.ChattyDOM's methods), a visitor with an old
+  // cached copy silently gets an app that doesn't match what this file
+  // expects — doMount()'s `window.ChattyDOM.mount` check just no-ops with
+  // no error, so the widget never appears. Bump this on every release that
+  // changes chatty-app.js/css in a way that matters (not just cosmetic).
+  var ASSET_VERSION = "2026-08-29.1";
+
   // Preconnect to origin for fast asset loading
   try {
     var pc = document.createElement("link");
@@ -98,7 +109,7 @@
     // Inject encapsulated widget stylesheet into Shadow DOM
     var link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = origin + "/chatty-app.css";
+    link.href = origin + "/chatty-app.css?v=" + ASSET_VERSION;
     shadow.appendChild(link);
 
     // Dedicated mounting node so React createRoot doesn't interfere with the link tag
@@ -125,7 +136,7 @@
       doMount();
     } else {
       var appScript = document.createElement("script");
-      appScript.src = origin + "/chatty-app.js";
+      appScript.src = origin + "/chatty-app.js?v=" + ASSET_VERSION;
       appScript.async = true;
       appScript.onload = doMount;
       document.head.appendChild(appScript);
