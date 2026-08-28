@@ -107,6 +107,15 @@ export function ChattyStandaloneApp({
   const [customIconUrl, setCustomIconUrl] = useState<string | null>(null);
   const [customLogoBgColor, setCustomLogoBgColor] = useState("");
 
+  // Launcher stays invisible (but already mounted, so no layout jump once it
+  // fades in) until the theme fetch below settles, one way or another — the
+  // button's own initial state defaults to LAUNCHER_STYLES.minimal / the
+  // "#f97316" fallback, and rendering that opaque immediately produced a
+  // visible flash of the wrong color/icon that then swapped to the bot's
+  // real theme moments later. The timeout is a floor, not the trigger: it
+  // only reveals early if the fetch is slow/down, so a real visitor is never
+  // stuck staring at nothing because of a network hiccup.
+  const [revealed, setRevealed] = useState(false);
   const [teaserVisible, setTeaserVisible] = useState(false);
   const [teaserText, setTeaserText] = useState("👋 Need help? Chat with us.");
   const triggerRulesRef = useRef<TriggerRule[]>([]);
@@ -153,6 +162,7 @@ export function ChattyStandaloneApp({
 
   useEffect(() => {
     let cancelled = false;
+    const revealTimer = setTimeout(() => setRevealed(true), 2500);
     fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(botId)}&t=${Date.now()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -201,10 +211,14 @@ export function ChattyStandaloneApp({
           }, 6000);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setRevealed(true);
+      });
 
     return () => {
       cancelled = true;
+      clearTimeout(revealTimer);
     };
   }, [botId, colorAttr, styleAttr, teaserEnabled, open]);
 
@@ -405,7 +419,8 @@ export function ChattyStandaloneApp({
             padding: 0,
             transition: "transform 0.2s ease, opacity 0.25s ease",
             touchAction: "manipulation",
-            pointerEvents: "auto",
+            opacity: revealed ? 1 : 0,
+            pointerEvents: revealed ? "auto" : "none",
           }}
         >
           {renderIcon()}
