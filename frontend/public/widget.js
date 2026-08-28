@@ -29,15 +29,24 @@
       }
     }
   }
-  var botId = script && script.getAttribute("data-id");
+
+  var botId = script && (
+    script.getAttribute("data-id") ||
+    script.getAttribute("data-bot-id") ||
+    (script.dataset && (script.dataset.id || script.dataset.botId))
+  );
+
+  if (!botId && window.CHATTY_BOT_ID) {
+    botId = window.CHATTY_BOT_ID;
+  }
+
   if (!botId) {
     console.error("[Chatty] Missing data-id on widget script tag.");
     return;
   }
 
   // window.Chatty.open()/.close()/.toggle() — queued until the widget has
-  // actually mounted and reported its API back via onApiReady below, so a
-  // call made right after the script tag (a common pattern) isn't dropped.
+  // actually mounted and reported its API back via onApiReady below
   var chattyApi = null;
   var pendingCalls = [];
   function queueOrCall(name) {
@@ -57,13 +66,13 @@
     pendingCalls = [];
   }
 
-  var colorAttr = script.getAttribute("data-color");
-  var styleAttr = script.getAttribute("data-style");
-  var position = script.getAttribute("data-position") || "right"; // right | left
-  var mobileFull = (script.getAttribute("data-mobile-fullscreen") || "true") !== "false";
-  var teaserEnabled = (script.getAttribute("data-teaser") || "true") !== "false";
-  var soundEnabled = (script.getAttribute("data-sound") || "true") !== "false";
-  var origin = new URL(script.src, location.href).origin;
+  var colorAttr = script && (script.getAttribute("data-color") || (script.dataset && script.dataset.color));
+  var styleAttr = script && (script.getAttribute("data-style") || (script.dataset && script.dataset.style));
+  var position = (script && (script.getAttribute("data-position") || (script.dataset && script.dataset.position))) || "right"; // right | left
+  var mobileFull = ((script && (script.getAttribute("data-mobile-fullscreen") || (script.dataset && script.dataset.mobileFullscreen))) || "true") !== "false";
+  var teaserEnabled = ((script && (script.getAttribute("data-teaser") || (script.dataset && script.dataset.teaser))) || "true") !== "false";
+  var soundEnabled = ((script && (script.getAttribute("data-sound") || (script.dataset && script.dataset.sound))) || "true") !== "false";
+  var origin = (script && script.src) ? new URL(script.src, location.href).origin : "https://chatty.personaliai.com";
 
   // Preconnect to origin for fast asset loading
   try {
@@ -80,17 +89,22 @@
     host.style.cssText = "position:fixed;bottom:0;right:0;width:auto;height:auto;z-index:2147483646;pointer-events:none;";
     document.body.appendChild(host);
 
-    var container = (typeof host.attachShadow === "function") ? host.attachShadow({ mode: "open" }) : host;
+    var shadow = (typeof host.attachShadow === "function") ? host.attachShadow({ mode: "open" }) : host;
 
     // Inject encapsulated widget stylesheet into Shadow DOM
     var link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = origin + "/chatty-app.css";
-    container.appendChild(link);
+    shadow.appendChild(link);
+
+    // Dedicated mounting node so React createRoot doesn't interfere with the link tag
+    var mountNode = document.createElement("div");
+    mountNode.id = "chatty-app-root";
+    shadow.appendChild(mountNode);
 
     function doMount() {
       if (window.ChattyDOM && window.ChattyDOM.mount) {
-        window.ChattyDOM.mount(container, {
+        window.ChattyDOM.mount(mountNode, {
           botId: botId,
           color: colorAttr,
           style: styleAttr,
