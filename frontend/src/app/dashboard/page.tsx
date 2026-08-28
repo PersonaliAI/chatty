@@ -5804,6 +5804,7 @@ export default function Dashboard() {
                   );
                   const platforms = [
                     { id: "html", label: "HTML", icon: <PlatformIcon domain="w3.org" label="HTML" /> },
+                    { id: "react", label: "React / Next.js", icon: <PlatformIcon domain="react.dev" label="React" /> },
                     { id: "wordpress", label: "WordPress", icon: <PlatformIcon domain="wordpress.org" label="WordPress" /> },
                     { id: "shopify", label: "Shopify", icon: <PlatformIcon domain="shopify.com" label="Shopify" /> },
                     { id: "prestashop", label: "Prestashop", icon: <PlatformIcon domain="prestashop.com" label="Prestashop" /> },
@@ -5812,7 +5813,7 @@ export default function Dashboard() {
                     { id: "adobe", label: "Adobe Commerce", icon: <PlatformIcon domain="business.adobe.com" label="Adobe Commerce" /> },
                     {
                       id: "iframe",
-                      label: "iFrame",
+                      label: "Inline Embed",
                       icon: (
                         <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#6B7280"/><rect x="4" y="6" width="16" height="12" rx="1.5" stroke="white" strokeWidth="1.5"/><path d="M9 10l-2 2 2 2M15 10l2 2-2 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                       ),
@@ -5823,7 +5824,15 @@ export default function Dashboard() {
                     html: {
                       title: "Add to any HTML page",
                       steps: [
-                        { label: "Paste this snippet just before the closing </body> tag of your page:", code: embedScriptCode },
+                        { label: "Paste this snippet just before the closing </body> tag of your page (mounts as native vector elements via Shadow DOM):", code: embedScriptCode },
+                      ],
+                    },
+                    react: {
+                      title: "Add to React / Next.js (Component or Script)",
+                      steps: [
+                        { label: "Option A: Install the first-party component package:", code: "npm install @personaliai/react-widget" },
+                        { label: "Render ChattyWidget directly in your component tree:", code: `import { ChattyWidget } from "@personaliai/react-widget";\nimport "@personaliai/react-widget/styles.css";\n\nexport default function ChatPage() {\n  return (\n    <div style={{ width: 380, height: 600 }}>\n      <ChattyWidget botId="${botId || "YOUR_BOT_ID"}" />\n    </div>\n  );\n}` },
+                        { label: "Option B: Use the 1-line script tag with Next.js Script component in your layout:", code: `<Script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  strategy="afterInteractive"\n/>` },
                       ],
                     },
                     wordpress: {
@@ -5873,10 +5882,10 @@ export default function Dashboard() {
                       ],
                     },
                     iframe: {
-                      title: "Embed as a standalone iFrame",
+                      title: "Inline In-Page Embed",
                       steps: [
-                        { label: "Paste this iframe wherever you want a full embedded chat window:", code: embedIframeCode },
-                        { label: "Adjust width and height attributes to fit your layout.", note: "The iframe embed does not show the floating launcher button." },
+                        { label: "Paste this embed code wherever you want a full in-page chat window:", code: embedIframeCode },
+                        { label: "Adjust width and height attributes to fit your layout.", note: "The inline embed renders directly in-page without the floating launcher button." },
                       ],
                     },
                   };

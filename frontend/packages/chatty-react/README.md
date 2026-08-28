@@ -2,24 +2,23 @@
 
 Embed the Chatty chat assistant directly inside a React app — calls the
 Chatty API directly, no iframe involved. Same UI and behavior as the
-hosted `/embed/[botId]` widget (this package's `ChattyWidget` component
-*is* that same component, extracted).
+hosted `/embed/[botId]` widget.
 
 ## Why this exists
 
-The default embed (`<script src="https://chatty.personaliai.com/widget.js">`)
-loads the chat panel in an iframe. For a customer site on its own domain,
-that's a **cross-origin** iframe, which Chrome's Site Isolation gives its
-own separate rendering surface — this measurably softens text rendering
-during/after browser zoom. For a React app that already has its own build
-step, that iframe boundary is unnecessary: this package lets the same chat
-UI run directly in the host page's own DOM instead, avoiding the cross-origin
-surface entirely.
+For teams building their own React / Next.js app, `@personaliai/react-widget`
+lets the chat UI run directly inside your app's own DOM component tree.
 
-This does **not** replace `widget.js` for non-React sites (WordPress,
-static HTML, Squarespace, etc.) — those still need a `<script>` tag, and
-that's still iframe-based. This package is for teams building their own
-React app who can `npm install` a component instead.
+- **100% Vector Sharpness**: Zero bitmap scaling or blur on trackpad pinch-zoom or high-DPI retina displays (same rendering model as Crisp).
+- **Direct State Integration**: Access callbacks for notifications, unread messages, and custom launcher controls.
+- **Zero Iframe Overhead**: Instant mounting with no cross-origin iframe boundaries.
+
+For non-React websites (WordPress, Shopify, Webflow, HTML, etc.), Chatty also provides the universal `<script>` tag:
+
+```html
+<script src="https://chatty.personaliai.com/widget.js" data-id="YOUR_BOT_UUID" defer></script>
+```
+The script embed mounts directly into an isolated **Shadow DOM** container (`attachShadow({ mode: 'open' })`), guaranteeing CSS isolation from host styles while preserving full native vector DOM rendering.
 
 ## Install
 
@@ -36,8 +35,7 @@ is bundled in.
 ```tsx
 import { ChattyWidget } from "@personaliai/react-widget";
 import "@personaliai/react-widget/styles.css";
-// Only needed if you use bot replies with math notation — same as the
-// hosted embed, this isn't bundled in since it's ~1MB of embedded fonts.
+// Only needed if you use bot replies with math notation
 import "katex/dist/katex.min.css";
 
 function App() {
@@ -55,12 +53,8 @@ explicitly only if you deliberately want the unverified tier (e.g. a preview
 sandbox).
 
 `ChattyWidget` renders the full panel (header, messages, composer) filling
-its container — it doesn't manage a floating launcher button, open/close
-state, unread badge, or teaser message the way `widget.js` does. Wire your
-own launcher button around it (show/hide the container, track unread via
-the `onAssistantMessage` prop) the way this repo's own `EmbedClient.tsx`
-wires it for the iframe route, or the way `widget.js` wires it for the
-Shadow DOM mount in that (currently reverted) architecture.
+its container. Wire your own launcher button around it (show/hide the container, track unread via
+the `onAssistantMessage` prop) the way you need.
 
 ## Props
 
@@ -81,54 +75,12 @@ saved dashboard settings, fetched live from the Chatty API on mount.
 
 `originToken` is optional. Omit it (recommended) and this component
 verifies its own origin on mount by exchanging `window.location.href` with
-the backend's `/api/widget/verify-origin` endpoint — the same mechanism
-`EmbedClient.tsx`'s iframe route uses, just driven by the page's own URL
-instead of a server-captured Referer, since a same-realm mount has no
-iframe navigation for a parent page to capture one on its behalf. This
-gets you the verified rate-limit tier automatically as long as the bot's
-`allowed_domains` includes your site.
+the backend's `/api/widget/verify-origin` endpoint. This gets you the verified rate-limit tier automatically as long as the bot's `allowed_domains` includes your site.
 
 Pass `originToken={null}` explicitly to force the unverified tier (e.g. a
 preview/playground sandbox that shouldn't count against a real domain's
-quota), or pass an already-minted token string if your app calls
-`/api/widget/verify-origin` itself for some other reason.
+quota).
 
-## Avoiding duplicate theme fetches
+## Standalone Browser Bundle
 
-If your host app renders its own chrome around this widget (a custom
-launcher button, a header showing the bot's name/avatar), don't fetch
-`/api/widget/theme` yourself — pass `onThemeLoaded` and reuse the same
-data this component already fetches on mount and on its periodic refresh:
-
-```tsx
-<ChattyWidget
-  botId={botId}
-  onThemeLoaded={(theme) => setLauncherLook(deriveLookFrom(theme))}
-/>
-```
-
-`theme` is a `WidgetThemeData` (also exported from this package) with the
-fields a launcher typically needs: `primary_color`, `widget_style`,
-`avatar_icon`, `avatar_url`, `logo_url`, `color_scheme`, plus
-`teaser_message`/`welcome_message`/`trigger_rules` for a proactive greeting
-bubble.
-
-## Launcher-button styling presets
-
-`LAUNCHER_STYLES`, `PANEL_RADIUS`, and `normalizeWidgetStyle` (each design
-preset's default launcher look, its chat-panel corner radius, and the
-legacy-style-id migration map) are available from `@personaliai/react-widget/widget-style`,
-and `getOnColor`/`hexToRgb`/`generateColorScheme` from
-`@personaliai/react-widget/color-contrast` — import these instead of
-hand-copying the values into your own launcher component, so a preset
-change here doesn't silently drift out of sync with your button.
-
-## Building this package
-
-```bash
-cd packages/chatty-react
-npm install
-npm run build      # emits dist/index.{js,cjs,d.ts} + dist/styles.css
-```
-
-Published to the public npm registry as `@personaliai/react-widget`.
+For standalone script embeds, this package also compiles `chatty-app.js` and `chatty-app.css`, which expose `window.ChattyDOM.mount(container, options)` for mounting into any DOM node or ShadowRoot.
