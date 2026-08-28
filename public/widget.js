@@ -35,6 +35,28 @@
     return;
   }
 
+  // window.Chatty.open()/.close()/.toggle() — queued until the widget has
+  // actually mounted and reported its API back via onApiReady below, so a
+  // call made right after the script tag (a common pattern) isn't dropped.
+  var chattyApi = null;
+  var pendingCalls = [];
+  function queueOrCall(name) {
+    return function () {
+      if (chattyApi) chattyApi[name]();
+      else pendingCalls.push(name);
+    };
+  }
+  window.Chatty = {
+    open: queueOrCall("open"),
+    close: queueOrCall("close"),
+    toggle: queueOrCall("toggle"),
+  };
+  function onApiReady(api) {
+    chattyApi = api;
+    for (var i = 0; i < pendingCalls.length; i++) api[pendingCalls[i]]();
+    pendingCalls = [];
+  }
+
   var colorAttr = script.getAttribute("data-color");
   var styleAttr = script.getAttribute("data-style");
   var position = script.getAttribute("data-position") || "right"; // right | left
@@ -55,7 +77,7 @@
   function mountShadowWidget() {
     var host = document.createElement("div");
     host.id = "chatty-widget-host";
-    host.style.cssText = "position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;";
+    host.style.cssText = "position:fixed;bottom:0;right:0;width:auto;height:auto;z-index:2147483646;pointer-events:none;";
     document.body.appendChild(host);
 
     var container = (typeof host.attachShadow === "function") ? host.attachShadow({ mode: "open" }) : host;
@@ -76,6 +98,7 @@
           mobileFullscreen: mobileFull,
           teaserEnabled: teaserEnabled,
           soundEnabled: soundEnabled,
+          onApiReady: onApiReady,
         });
       }
     }

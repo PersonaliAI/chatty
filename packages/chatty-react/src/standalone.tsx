@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import ChatWidgetCore from "./ChatWidgetCore";
+import ChatWidgetCore, { type ChatWidgetCoreProps } from "./ChatWidgetCore";
 import { getOnColor } from "./color-contrast";
 import { normalizeWidgetStyle } from "./widget-style";
 import "./widget-presets.css";
@@ -54,6 +54,12 @@ interface TriggerRule {
   message?: string;
 }
 
+export interface ChattyWidgetApi {
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
+}
+
 export interface StandaloneMountOptions {
   botId: string;
   color?: string | null;
@@ -64,6 +70,10 @@ export interface StandaloneMountOptions {
   soundEnabled?: boolean;
   onOpen?: () => void;
   onClose?: () => void;
+  // widget.js's documented `window.Chatty.open()/.close()/.toggle()` API —
+  // wired through here since the open/closed state lives inside this
+  // component, not in widget.js itself.
+  onApiReady?: (api: ChattyWidgetApi) => void;
 }
 
 export function ChattyStandaloneApp({
@@ -76,6 +86,7 @@ export function ChattyStandaloneApp({
   soundEnabled = true,
   onOpen,
   onClose,
+  onApiReady,
 }: StandaloneMountOptions) {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
@@ -205,30 +216,44 @@ export function ChattyStandaloneApp({
     }
   };
 
+  // Expose imperative open/close/toggle once, matching widget.js's
+  // documented `window.Chatty.open()/.close()/.toggle()` API — these
+  // close over the latest `open` value via the ref below rather than
+  // re-firing onApiReady on every open/close toggle.
+  const openRef = useRef(open);
+  openRef.current = open;
+  useEffect(() => {
+    if (!onApiReady) return;
+    onApiReady({
+      open: () => handleOpen(true),
+      close: () => handleOpen(false),
+      toggle: () => handleOpen(!openRef.current),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onApiReady]);
+
   const iconColor = launcherIconOverride || getOnColor(launcherBg);
   const side = position === "left" ? "left" : "right";
   const panelRadius = (colorAttr ? null : PANEL_RADIUS[currentDesign]) || "16px";
 
   const renderIcon = () => {
     if (open) {
-      return <X className="size-6" style={{ stroke: iconColor }} />;
+      return <X style={{ width: 28, height: 28, stroke: iconColor }} />;
     }
-    if (LAUNCHER_ICONS[avatarIconType]) {
+    if (avatarIconType && LAUNCHER_ICONS[avatarIconType]) {
       const Icon = LAUNCHER_ICONS[avatarIconType];
-      return <Icon className="size-7" style={{ stroke: iconColor }} />;
+      return <Icon style={{ width: 28, height: 28, stroke: iconColor }} />;
     }
     if (customIconUrl) {
       return (
         <img
           src={customIconUrl}
           alt=""
-          className="size-9 rounded-full object-cover"
-          style={{ backgroundColor: customLogoBgColor || "transparent" }}
+          style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", backgroundColor: customLogoBgColor || "transparent" }}
         />
       );
     }
-    const dotColor = launcherIconOverride || LAUNCHER_STYLES[currentDesign]?.dot || iconColor;
-    return <span className="block size-4 rounded-full opacity-90" style={{ background: dotColor }} />;
+    return <MessageCircle style={{ width: 28, height: 28, stroke: iconColor }} />;
   };
 
   return (
@@ -377,6 +402,7 @@ export function ChattyStandaloneApp({
             padding: 0,
             transition: "transform 0.2s ease, opacity 0.25s ease",
             touchAction: "manipulation",
+            pointerEvents: "auto",
           }}
         >
           {renderIcon()}
@@ -429,9 +455,41 @@ export function mountChatty(
   };
 }
 
+// Just the chat panel (header, messages, composer) with no launcher button
+// or teaser bubble of its own — for a host page that already has its own
+// launcher chrome and only wants the panel itself. Same component and same
+// zero-iframe rendering as mountChatty above, just without
+// ChattyStandaloneApp's own launcher/teaser wrapped around it. Props mirror
+// ChatWidgetCoreProps (see ChatWidgetCore.tsx) rather than
+// StandaloneMountOptions.
+export function mountChattyPanel(
+  target: HTMLElement | ShadowRoot,
+  options: ChatWidgetCoreProps
+) {
+  let root = mountedRoots.get(target);
+  if (!root) {
+    root = createRoot(target as HTMLElement);
+    mountedRoots.set(target, root);
+  }
+  root.render(
+    <div style={{ width: "100%", height: "100%" }}>
+      <ChatWidgetCore {...options} />
+    </div>
+  );
+  return {
+    unmount: () => {
+      root?.unmount();
+      mountedRoots.delete(target);
+    },
+  };
+}
+
 // Attach to window for direct browser usage
 if (typeof window !== "undefined") {
-  (window as unknown as { ChattyDOM: { mount: typeof mountChatty } }).ChattyDOM = {
+  (window as unknown as {
+    ChattyDOM: { mount: typeof mountChatty; mountPanel: typeof mountChattyPanel };
+  }).ChattyDOM = {
     mount: mountChatty,
+    mountPanel: mountChattyPanel,
   };
 }
