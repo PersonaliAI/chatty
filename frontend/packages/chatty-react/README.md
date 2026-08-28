@@ -43,11 +43,16 @@ import "katex/dist/katex.min.css";
 function App() {
   return (
     <div style={{ position: "fixed", bottom: 20, right: 20, width: 380, height: 560 }}>
-      <ChattyWidget botId="YOUR_BOT_UUID" originToken={null} />
+      <ChattyWidget botId="YOUR_BOT_UUID" />
     </div>
   );
 }
 ```
+
+Omit `originToken` entirely (as above) to get the verified rate-limit tier
+automatically — see "Origin verification" below. Pass `originToken={null}`
+explicitly only if you deliberately want the unverified tier (e.g. a preview
+sandbox).
 
 `ChattyWidget` renders the full panel (header, messages, composer) filling
 its container — it doesn't manage a floating launcher button, open/close
@@ -66,24 +71,57 @@ it mirrors the bot's dashboard settings 1:1: `botId` (required),
 `paramShowSenderTag`, `paramCsatEnabled`, `paramColorScheme`, plus the
 optional bridge props (`onWidgetReady`, `onWidgetClose`,
 `onAssistantMessage`, `onRequestNotificationPermission`,
-`onTriggerNotification`, `forceFullscreen`, `notificationGranted`) for
-wiring your own launcher chrome around it.
+`onTriggerNotification`, `forceFullscreen`, `notificationGranted`,
+`onThemeLoaded`) for wiring your own launcher chrome around it.
 
 Only `botId` is required — everything else defaults to the bot's own
 saved dashboard settings, fetched live from the Chatty API on mount.
 
 ## Origin verification
 
-`originToken` is optional. Passing `null` (as in the example above) means
-every chat call falls into the backend's stricter *unverified-origin*
-rate-limit tier — never a hard block, just a lower message-per-minute
-ceiling (see `main.py`'s `_widget_rate_limit_or_429`). The hosted
-`widget.js`/iframe path gets a verified token via a server-side Referer
-exchange that only a real iframe navigation can produce; this package runs
-directly in your own page with no equivalent mechanism, so there is
-currently no way to mint one from here. If your usage needs the higher
-rate-limit tier, get in touch about a proper API-key-based verification
-path for direct SDK usage instead.
+`originToken` is optional. Omit it (recommended) and this component
+verifies its own origin on mount by exchanging `window.location.href` with
+the backend's `/api/widget/verify-origin` endpoint — the same mechanism
+`EmbedClient.tsx`'s iframe route uses, just driven by the page's own URL
+instead of a server-captured Referer, since a same-realm mount has no
+iframe navigation for a parent page to capture one on its behalf. This
+gets you the verified rate-limit tier automatically as long as the bot's
+`allowed_domains` includes your site.
+
+Pass `originToken={null}` explicitly to force the unverified tier (e.g. a
+preview/playground sandbox that shouldn't count against a real domain's
+quota), or pass an already-minted token string if your app calls
+`/api/widget/verify-origin` itself for some other reason.
+
+## Avoiding duplicate theme fetches
+
+If your host app renders its own chrome around this widget (a custom
+launcher button, a header showing the bot's name/avatar), don't fetch
+`/api/widget/theme` yourself — pass `onThemeLoaded` and reuse the same
+data this component already fetches on mount and on its periodic refresh:
+
+```tsx
+<ChattyWidget
+  botId={botId}
+  onThemeLoaded={(theme) => setLauncherLook(deriveLookFrom(theme))}
+/>
+```
+
+`theme` is a `WidgetThemeData` (also exported from this package) with the
+fields a launcher typically needs: `primary_color`, `widget_style`,
+`avatar_icon`, `avatar_url`, `logo_url`, `color_scheme`, plus
+`teaser_message`/`welcome_message`/`trigger_rules` for a proactive greeting
+bubble.
+
+## Launcher-button styling presets
+
+`LAUNCHER_STYLES`, `PANEL_RADIUS`, and `normalizeWidgetStyle` (each design
+preset's default launcher look, its chat-panel corner radius, and the
+legacy-style-id migration map) are available from `@personaliai/react-widget/widget-style`,
+and `getOnColor`/`hexToRgb`/`generateColorScheme` from
+`@personaliai/react-widget/color-contrast` — import these instead of
+hand-copying the values into your own launcher component, so a preset
+change here doesn't silently drift out of sync with your button.
 
 ## Building this package
 
@@ -93,5 +131,4 @@ npm install
 npm run build      # emits dist/index.{js,cjs,d.ts} + dist/styles.css
 ```
 
-Not currently published to a public npm registry — install via `file:` or
-a private registry until that's set up.
+Published to the public npm registry as `@personaliai/react-widget`.
