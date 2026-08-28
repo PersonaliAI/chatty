@@ -12,6 +12,7 @@ import {
   Headphones,
   Sparkles,
   MessageSquare,
+  MessageCircle,
   User,
   X,
   type LucideIcon,
@@ -24,8 +25,10 @@ const BACKEND_URL =
 const LAUNCHER_ICONS: Record<string, LucideIcon> = {
   bot: Bot,
   headset: Headphones,
+  headphones: Headphones,
   sparkles: Sparkles,
   message: MessageSquare,
+  chat: MessageCircle,
   user: User,
 };
 
