@@ -1,14 +1,14 @@
 {
-  "name": "@personaliai/react-widget",
-  "version": "0.2.0",
-  "description": "Embed the Chatty chat assistant directly in a React app — no iframe, calls the Chatty API directly. Same UI and behavior as the hosted embed.",
+  "name": "@personaliai/chatty-widget",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Standalone Shadow DOM chat widget bundle for Chatty — builds chatty-app.js and chatty-app.css",
   "license": "MIT",
   "type": "module",
   "keywords": [
     "chatty",
     "chatbot",
     "chat-widget",
-    "react",
     "ai",
     "customer-support"
   ],
@@ -18,39 +18,9 @@
     "url": "https://github.com/PersonaliAI/chatty.git",
     "directory": "packages/chatty-react"
   },
-  "bugs": "https://github.com/PersonaliAI/chatty/issues",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./widget-style": {
-      "types": "./dist/widget-style.d.ts",
-      "import": "./dist/widget-style.js",
-      "require": "./dist/widget-style.cjs"
-    },
-    "./color-contrast": {
-      "types": "./dist/color-contrast.d.ts",
-      "import": "./dist/color-contrast.js",
-      "require": "./dist/color-contrast.cjs"
-    },
-    "./styles.css": "./dist/styles.css"
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
-  },
-  "peerDependencies": {
-    "react": ">=18",
-    "react-dom": ">=18"
   },
   "dependencies": {
     "emoji-picker-react": "^4.19.1",

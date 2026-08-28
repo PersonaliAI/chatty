@@ -5828,11 +5828,11 @@ export default function Dashboard() {
                       ],
                     },
                     react: {
-                      title: "Add to React / Next.js (Component or Script)",
+                      title: "Add to React / Next.js",
                       steps: [
-                        { label: "Option A: Install the first-party component package:", code: "npm install @personaliai/react-widget" },
-                        { label: "Render ChattyWidget directly in your component tree:", code: `import { ChattyWidget } from "@personaliai/react-widget";\nimport "@personaliai/react-widget/styles.css";\n\nexport default function ChatPage() {\n  return (\n    <div style={{ width: 380, height: 600 }}>\n      <ChattyWidget botId="${botId || "YOUR_BOT_ID"}" />\n    </div>\n  );\n}` },
-                        { label: "Option B: Use the 1-line script tag with Next.js Script component in your layout:", code: `<Script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  strategy="afterInteractive"\n/>` },
+                        { label: "Add the script tag to your root layout (e.g. app/layout.tsx):", code: `import Script from "next/script";\n\n// Inside your <body>:\n<Script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  strategy="afterInteractive"\n/>` },
+                        { label: "For plain React (Vite / CRA), add to your index.html before </body>:", code: embedScriptCode },
+                        { label: "Renders as native vector DOM elements inside an isolated Shadow Root — zero iframes, 100% sharp at any zoom level." },
                       ],
                     },
                     wordpress: {
