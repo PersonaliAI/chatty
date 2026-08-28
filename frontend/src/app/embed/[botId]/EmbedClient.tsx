@@ -304,7 +304,26 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       }
     };
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+
+    // Prevent trackpad pinch-to-zoom (which sends ctrlKey + wheel or gesture events)
+    // inside the iframe from causing visual viewport magnification and text blurriness.
+    const preventPinch = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    };
+    const preventGesture = (e: Event) => e.preventDefault();
+
+    window.addEventListener("wheel", preventPinch, { passive: false });
+    window.addEventListener("gesturestart", preventGesture);
+    window.addEventListener("gesturechange", preventGesture);
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      window.removeEventListener("wheel", preventPinch);
+      window.removeEventListener("gesturestart", preventGesture);
+      window.removeEventListener("gesturechange", preventGesture);
+    };
   }, []);
 
   const requestPushPermission = async () => {
