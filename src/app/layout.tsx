@@ -63,6 +63,8 @@ export const metadata: Metadata = {
   },
 };
 
+import Script from "next/script";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -73,6 +75,11 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <FirebaseAnalytics />
+        <Script
+          src="/widget.js"
+          data-id="c8fa19c8-dd25-43a3-9c55-e8099e6f532e"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

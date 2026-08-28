@@ -17,6 +17,10 @@
   var isBot = /jina|bot|crawl|spider|headless|lighthouse/i.test(ua) || navigator.webdriver;
   if (isBot) return;
 
+  // Don't mount floating widget over dashboard editor or embed iframe preview
+  var path = (window.location.pathname || "").toLowerCase();
+  if (path.startsWith("/dashboard") || path.startsWith("/embed/") || path.startsWith("/kb/")) return;
+
   window.__chattyWidgetLoaded = true;
 
   var script = document.currentScript;
