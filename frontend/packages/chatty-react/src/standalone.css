@@ -1,0 +1,15 @@
+/* CSS entry point for the standalone Shadow DOM bundle (chatty-app.css)
+ * ONLY — not shipped to React SDK consumers. Tailwind's own reset/
+ * preflight only belongs here because this bundle always mounts inside a
+ * Shadow Root: Shadow DOM naturally scopes it away from the host page,
+ * the same way a real iframe used to. widget-presets.css itself stays
+ * plain, un-Tailwind-processed CSS (see tsup.config.ts's separate copy
+ * of it to dist/styles.css) — dumping Tailwind's global preflight into
+ * that copy would leak margin/font resets into every React SDK
+ * consumer's own page, since that mount path has no Shadow Root to
+ * contain it.
+ */
+@import "tailwindcss";
+@source "./";
+
+@import "./widget-presets.css";

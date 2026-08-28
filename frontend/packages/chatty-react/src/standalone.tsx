@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import ChatWidgetCore, { type ChatWidgetCoreProps } from "./ChatWidgetCore";
 import { getOnColor } from "./color-contrast";
 import { normalizeWidgetStyle } from "./widget-style";
-import "./widget-presets.css";
+import "./standalone.css";
 import "katex/dist/katex.min.css";
 import {
   Bot,
