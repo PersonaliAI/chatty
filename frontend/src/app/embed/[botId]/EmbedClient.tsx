@@ -157,6 +157,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const paramShowSenderTag = searchParams.get("show_sender_tag");
   const paramCsatEnabled = searchParams.get("csat_enabled");
   const paramColorScheme = searchParams.get("color_scheme");
+  const paramFont = searchParams.get("font");
+  const paramFontSizePercent = searchParams.get("font_size_percent");
 
   // Scope stored session + history per embedding site, so different host sites
   // (and the dashboard playground) don't share one conversation.
@@ -240,6 +242,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // entirely (applied via an injected !important stylesheet below, the
   // only thing that reliably beats globals.css's .style-* !important rules).
   const [colorScheme, setColorScheme] = useState<WidgetColorScheme | null>(null);
+  // null = keep the active design preset's own default font.
+  const [fontFamily, setFontFamily] = useState<string | null>(null);
+  const [fontSizePercent, setFontSizePercent] = useState(100);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -753,6 +758,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
             setColorScheme(rawScheme ? JSON.parse(rawScheme) : null);
           } catch { setColorScheme(null); }
+          setFontFamily(isPreview ? (paramFont || bot.font_family || null) : (bot.font_family || paramFont || null));
+          const rawFontSize = isPreview ? (paramFontSizePercent || bot.font_size_percent) : (bot.font_size_percent || paramFontSizePercent);
+          const parsedFontSize = parseInt(String(rawFontSize), 10);
+          setFontSizePercent(Number.isFinite(parsedFontSize) && parsedFontSize > 0 ? parsedFontSize : 100);
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
           setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg, sender: "ai" }]);
@@ -765,7 +774,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       }
     }
     loadBot();
-  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag, paramCsatEnabled]);
+  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag, paramCsatEnabled, paramColorScheme, paramFont, paramFontSizePercent]);
 
   // Run the bot owner's custom JS once, after the widget config has loaded. Scoped to
   // this embed iframe only — same trust model as the owner's own custom CSS.
@@ -852,6 +861,22 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   }, []);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotResponding, tab]);
+
+  // Load the owner's chosen Google Font at runtime — this route has no
+  // static next/font/google import for arbitrary owner-picked fonts (those
+  // are build-time only), so a plain <link> to Google's own CSS is the only
+  // way to load one by name. Keyed by font name so re-renders with the
+  // same font don't insert a duplicate <link>.
+  useEffect(() => {
+    if (typeof document === "undefined" || !fontFamily) return;
+    const id = `chatty-google-font-${fontFamily.replace(/[^a-zA-Z0-9]/g, "-")}`;
+    if (document.getElementById(id)) return;
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily).replace(/%20/g, "+")}:wght@400;500;600;700&display=swap`;
+    document.head.appendChild(link);
+  }, [fontFamily]);
 
   // ---- Text message (streamed via SSE) ----
   // Update the most recent assistant bubble's content in place as tokens arrive.
@@ -1254,9 +1279,24 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // the bot owner inject arbitrary CSS here), just guarding against a
   // malformed stored value breaking the whole stylesheet.
   const colorSchemeCss = buildColorSchemeCss(colorScheme, "#chatty-root");
+  // Same reasoning as colorSchemeCss above — only an equally-specific
+  // injected !important rule can beat each preset's own font-family
+  // !important rule.
+  const fontFamilyCss = fontFamily && /^[a-zA-Z0-9 -]+$/.test(fontFamily)
+    ? `#chatty-root { font-family: "${fontFamily}", sans-serif !important; }`
+    : "";
 
   return (
-    <div id="chatty-root" className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, touchAction: "manipulation", ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
+    <div
+      id="chatty-root"
+      className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`}
+      style={{
+        backgroundColor: primaryColor,
+        touchAction: "manipulation",
+        zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined,
+        ...primaryColorCssVars(primaryColor),
+      } as React.CSSProperties}
+    >
       <style dangerouslySetInnerHTML={{ __html: `
         html, body {
           touch-action: manipulation;
@@ -1302,6 +1342,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           box-shadow: none !important;
         }
         ${colorSchemeCss}
+        ${fontFamilyCss}
       ` }} />
       {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
       {/* Header */}

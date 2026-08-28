@@ -171,6 +171,11 @@ export interface ChatWidgetCoreProps {
   paramShowSenderTag?: string | null;
   paramCsatEnabled?: string | null;
   paramColorScheme?: string | null;
+  // Google Fonts family name (null = the active design preset's own
+  // default font) and a size scale as a percentage of the widget's normal
+  // text size (100 = unchanged, matches font_size_percent in the DB).
+  paramFont?: string | null;
+  paramFontSizePercent?: string | null;
   // The following are only ever passed by widget-entry.tsx (the standalone
   // Shadow DOM mount) — EmbedClient.tsx (the Next.js iframe route) never
   // passes them, so every branch below that checks one of these falls back
@@ -212,6 +217,8 @@ export interface WidgetThemeData {
   teaser_message?: string;
   welcome_message?: string;
   trigger_rules?: unknown;
+  font_family?: string | null;
+  font_size_percent?: number;
 }
 
 export default function ChatWidgetCore({
@@ -229,6 +236,8 @@ export default function ChatWidgetCore({
   paramShowSenderTag = null,
   paramCsatEnabled = null,
   paramColorScheme = null,
+  paramFont = null,
+  paramFontSizePercent = null,
   onWidgetReady,
   onWidgetClose,
   onAssistantMessage,
@@ -349,6 +358,11 @@ export default function ChatWidgetCore({
   // entirely (applied via an injected !important stylesheet below, the
   // only thing that reliably beats globals.css's .style-* !important rules).
   const [colorScheme, setColorScheme] = useState<WidgetColorScheme | null>(null);
+  // null = keep the active design preset's own default font (its
+  // widget-presets.css `font-family: var(--font-x), sans-serif !important`
+  // rule). Set once the owner picks a Google Font in the Customizer.
+  const [fontFamily, setFontFamily] = useState<string | null>(null);
+  const [fontSizePercent, setFontSizePercent] = useState(100);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -887,6 +901,10 @@ export default function ChatWidgetCore({
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
             setColorScheme(rawScheme ? JSON.parse(rawScheme) : null);
           } catch { setColorScheme(null); }
+          setFontFamily(isPreview ? (paramFont || bot.font_family || null) : (bot.font_family || paramFont || null));
+          const rawFontSize = isPreview ? (paramFontSizePercent || bot.font_size_percent) : (bot.font_size_percent || paramFontSizePercent);
+          const parsedFontSize = parseInt(String(rawFontSize), 10);
+          setFontSizePercent(Number.isFinite(parsedFontSize) && parsedFontSize > 0 ? parsedFontSize : 100);
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
           setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg, sender: "ai" }]);
@@ -902,6 +920,8 @@ export default function ChatWidgetCore({
               teaser_message: bot.teaser_message,
               welcome_message: bot.welcome_message,
               trigger_rules: bot.trigger_rules,
+              font_family: bot.font_family ?? null,
+              font_size_percent: bot.font_size_percent || 100,
             });
           }
         }
@@ -918,7 +938,7 @@ export default function ChatWidgetCore({
     // above — it only needs to fire once per successful/failed load, not
     // whenever the caller happens to re-render with a fresh function ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag, paramCsatEnabled, paramColorScheme]);
+  }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag, paramCsatEnabled, paramColorScheme, paramFont, paramFontSizePercent]);
 
   // Run the bot owner's custom JS once, after the widget config has loaded.
   // Executed inside a sandboxed, srcdoc iframe (allow-scripts only, no
@@ -1040,6 +1060,29 @@ export default function ChatWidgetCore({
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [inputValue]);
+
+  // Load the owner's chosen Google Font at runtime — a <link> to Google's
+  // own CSS, not next/font/google (which only ever works inside this app's
+  // own root layout; the standalone Shadow DOM bundle and third-party
+  // iframes never render that layout, so its font-loading mechanism can't
+  // reach them at all, only a plain runtime <link> can). Appending to
+  // document.head (not rootRef's own tree) is deliberate and safe even
+  // inside a Shadow Root: loaded fonts are a document-wide resource in
+  // every browser, not scoped by the shadow boundary the way CSS/DOM is,
+  // so this reaches the widget regardless of which mount path rendered it.
+  // Keyed by font name so re-renders with the same font don't re-insert a
+  // duplicate <link>, and so switching fonts doesn't leave old ones loaded
+  // forever.
+  useEffect(() => {
+    if (typeof document === "undefined" || !fontFamily) return;
+    const id = `chatty-google-font-${fontFamily.replace(/[^a-zA-Z0-9]/g, "-")}`;
+    if (document.getElementById(id)) return;
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily).replace(/%20/g, "+")}:wght@400;500;600;700&display=swap`;
+    document.head.appendChild(link);
+  }, [fontFamily]);
 
   // ---- Text message (streamed via SSE) ----
   // Update the most recent assistant bubble's content in place as tokens arrive.
@@ -1442,9 +1485,35 @@ export default function ChatWidgetCore({
   // the bot owner inject arbitrary CSS here), just guarding against a
   // malformed stored value breaking the whole stylesheet.
   const colorSchemeCss = buildColorSchemeCss(colorScheme, "#chatty-root");
+  // Same reasoning as colorSchemeCss above: each preset's own font-family
+  // rule in widget-presets.css is !important, so only an equally-specific
+  // injected !important rule can override it — a plain inline style
+  // attribute never would. Restricted to letters/digits/spaces/hyphen
+  // (every real Google Font name fits that), not a security boundary
+  // (custom_css already lets the owner inject arbitrary CSS) so much as a
+  // guard against a malformed stored value breaking the stylesheet or
+  // escaping the rule via injected quotes/braces.
+  const fontFamilyCss = fontFamily && /^[a-zA-Z0-9 -]+$/.test(fontFamily)
+    ? `#chatty-root { font-family: "${fontFamily}", sans-serif !important; }`
+    : "";
 
   return (
-    <div ref={rootRef} id="chatty-root" className={`w-full h-full flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, touchAction: "manipulation", ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
+    <div
+      ref={rootRef}
+      id="chatty-root"
+      className={`w-full h-full flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`}
+      style={{
+        backgroundColor: primaryColor,
+        touchAction: "manipulation",
+        // `zoom` (not a font-size/rem change) so every existing Tailwind
+        // text-size class throughout this component scales together
+        // proportionally without needing each one rewritten in em/rem —
+        // the same effect as if the visitor's own default text size were
+        // that percentage, scoped to just this widget.
+        zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined,
+        ...primaryColorCssVars(primaryColor),
+      } as React.CSSProperties}
+    >
       <style dangerouslySetInnerHTML={{ __html: `
         ${ownsDocument ? `
         /* html/body targeting only applies when this document is a real
@@ -1499,6 +1568,7 @@ export default function ChatWidgetCore({
           box-shadow: none !important;
         }
         ${colorSchemeCss}
+        ${fontFamilyCss}
       ` }} />
       {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
       {/* Header */}

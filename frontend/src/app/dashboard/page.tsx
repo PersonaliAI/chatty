@@ -117,6 +117,8 @@ interface Bot {
   teaser_message?: string;
   primary_color?: string;
   widget_style?: string;
+  font_family?: string | null;
+  font_size_percent?: number;
   send_button_style?: string;
   avatar_icon?: string;
   avatar_url?: string | null;
@@ -294,6 +296,35 @@ const IconLibraryPicker = dynamic(
   () => import("@/components/icon-library-picker").then((m) => m.IconLibraryPicker),
   { ssr: false }
 );
+
+// A curated subset of Google Fonts (not the full ~1800-font catalog — a
+// dropdown that size stops being a picker) spanning the categories a chat
+// widget's body text realistically wants: readable sans-serifs, a few
+// serifs for the more editorial presets, one monospace, one rounded/
+// friendly display face. `null` (the first option) means "use the active
+// design preset's own default font" rather than overriding it.
+const GOOGLE_FONTS: { value: string | null; label: string }[] = [
+  { value: null, label: "Design default" },
+  { value: "Inter", label: "Inter" },
+  { value: "Roboto", label: "Roboto" },
+  { value: "Open Sans", label: "Open Sans" },
+  { value: "Lato", label: "Lato" },
+  { value: "Poppins", label: "Poppins" },
+  { value: "Nunito", label: "Nunito" },
+  { value: "Work Sans", label: "Work Sans" },
+  { value: "DM Sans", label: "DM Sans" },
+  { value: "Manrope", label: "Manrope" },
+  { value: "Sora", label: "Sora" },
+  { value: "Outfit", label: "Outfit" },
+  { value: "Space Grotesk", label: "Space Grotesk" },
+  { value: "Plus Jakarta Sans", label: "Plus Jakarta Sans" },
+  { value: "Quicksand", label: "Quicksand" },
+  { value: "Rubik", label: "Rubik" },
+  { value: "Playfair Display", label: "Playfair Display" },
+  { value: "Merriweather", label: "Merriweather" },
+  { value: "Lora", label: "Lora" },
+  { value: "IBM Plex Mono", label: "IBM Plex Mono (monospace)" },
+];
 
 const LOCALE_TEXTS: Record<string, Record<string, string>> = {
   EN: {
@@ -654,6 +685,10 @@ export default function Dashboard() {
   // currently showing — transient UI state, not saved with the bot.
   const [sectionColorProp, setSectionColorProp] = useState<Record<string, "bg" | "text" | "icon">>({});
   const [widgetStyle, setWidgetStyle] = useState<string>("minimal");
+  // null = keep the active design preset's own default font. 100 = normal
+  // text size; the scale is a percentage of that, not an absolute px value.
+  const [fontFamily, setFontFamily] = useState<string | null>(null);
+  const [fontSizePercent, setFontSizePercent] = useState(100);
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
   const [avatarIcon, setAvatarIcon] = useState("logo");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -1378,6 +1413,8 @@ export default function Dashboard() {
         setTeaserMessage(activeBot.teaser_message || "👋 Need help? Chat with us.");
         setPrimaryColor(activeBot.primary_color);
         setColorScheme(activeBot.color_scheme || null);
+        setFontFamily(activeBot.font_family || null);
+        setFontSizePercent(activeBot.font_size_percent || 100);
         const styleVal = activeBot.widget_style || "minimal";
         const [styleName, logoBg, shapeVal] = styleVal.split(":");
         setWidgetStyle(normalizeWidgetStyle(styleName));
@@ -1494,6 +1531,8 @@ export default function Dashboard() {
       setTeaserMessage(selected.teaser_message || "👋 Need help? Chat with us.");
       setPrimaryColor(selected.primary_color || "#f97316");
       setColorScheme((selected.color_scheme as WidgetColorScheme) || null);
+      setFontFamily(selected.font_family || null);
+      setFontSizePercent(selected.font_size_percent || 100);
 
       const styleVal = selected.widget_style || "minimal";
       const [styleName, logoBg, shapeVal] = styleVal.split(":");
@@ -1690,6 +1729,10 @@ export default function Dashboard() {
     () => COUNTRIES.map((c) => ({ value: c.code, label: c.name, icon: <span>{c.flag}</span> })),
     []
   );
+  const fontOptions: ModernSelectOption[] = useMemo(
+    () => GOOGLE_FONTS.map((f) => ({ value: f.value ?? "", label: f.label })),
+    []
+  );
   const providerOptions: ModernSelectOption[] = useMemo(
     () => [
       {
@@ -1749,6 +1792,25 @@ export default function Dashboard() {
     if (!botCountry) setBotCountry(detectCountryCode());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingSession]);
+
+  // Load the selected Google Font at runtime for the Customizer's own live
+  // preview (see #customizer-live-preview below) — same technique the
+  // actual widget uses (ChatWidgetCore.tsx / EmbedClient.tsx), since a
+  // font picked from an open-ended catalog can't be a build-time
+  // next/font/google import. Keyed by name so switching fonts doesn't
+  // insert a duplicate <link>, and picking "Design default" (null) again
+  // just leaves whichever ones were already loaded — a rare case a stale
+  // unused <link> isn't worth cleaning up for.
+  useEffect(() => {
+    if (!fontFamily) return;
+    const id = `chatty-google-font-${fontFamily.replace(/[^a-zA-Z0-9]/g, "-")}`;
+    if (document.getElementById(id)) return;
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily).replace(/%20/g, "+")}:wght@400;500;600;700&display=swap`;
+    document.head.appendChild(link);
+  }, [fontFamily]);
 
   // Localized Date-Time Formatter
   const formatDateTime = (dateStr: string) => {
@@ -2235,6 +2297,8 @@ export default function Dashboard() {
           primary_color: primaryColor,
           widget_style: `${widgetStyle}:${logoBgColor || ""}:${launcherShape}`,
           color_scheme: colorScheme,
+          font_family: fontFamily,
+          font_size_percent: fontSizePercent,
           send_button_style: sendButtonStyle,
           avatar_icon: avatarIcon,
           avatar_url: avatarUrl,
@@ -2315,6 +2379,8 @@ export default function Dashboard() {
                 primary_color: primaryColor,
                 widget_style: `${widgetStyle}:${logoBgColor || ""}:${launcherShape}`,
                 color_scheme: colorScheme,
+                font_family: fontFamily,
+                font_size_percent: fontSizePercent,
                 send_button_style: sendButtonStyle,
                 avatar_icon: avatarIcon,
                 avatar_url: avatarUrl,
@@ -3863,6 +3929,39 @@ export default function Dashboard() {
                     <hr className="border-neutral-100 dark:border-neutral-800 my-4" />
 
                     <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Font</label>
+                      <ModernSelect
+                        value={fontFamily ?? ""}
+                        options={fontOptions}
+                        onChange={(v) => handleInputChange(setFontFamily, v || null)}
+                      />
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                        Loaded from Google Fonts. &quot;Design default&quot; keeps the active design preset&apos;s own font.
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355">Text Size</label>
+                        <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 tabular-nums">{fontSizePercent}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={80}
+                        max={150}
+                        step={5}
+                        value={fontSizePercent}
+                        onChange={(e) => handleInputChange(setFontSizePercent, Number(e.target.value))}
+                        className="w-full accent-[#f97316] cursor-pointer"
+                      />
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                        Scales every text size in the widget together, as a percentage of normal (100%).
+                      </p>
+                    </div>
+
+                    <hr className="border-neutral-100 dark:border-neutral-800 my-4" />
+
+                    <div>
                       <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Chatbot Name</label>
                       <input
                         type="text"
@@ -4219,11 +4318,15 @@ export default function Dashboard() {
                       margin and clips any shadow off. An id selector is used (not a
                       Tailwind class) so it reliably beats globals.css's !important
                       .style-* rule regardless of stylesheet order. */}
-                  <style>{`#customizer-live-preview { box-shadow: none !important; }\n${buildColorSchemeCss(colorScheme, "#customizer-live-preview")}`}</style>
+                  <style>{`#customizer-live-preview { box-shadow: none !important; }\n${buildColorSchemeCss(colorScheme, "#customizer-live-preview")}\n${
+                    fontFamily && /^[a-zA-Z0-9 -]+$/.test(fontFamily)
+                      ? `#customizer-live-preview { font-family: "${fontFamily}", sans-serif !important; }`
+                      : ""
+                  }`}</style>
                   <div
                     id="customizer-live-preview"
                     className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
-                    style={primaryColorCssVars(primaryColor) as React.CSSProperties}
+                    style={{ ...primaryColorCssVars(primaryColor), zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined } as React.CSSProperties}
                   >
                     {/* Header — background always the brand color, same as the real
                         embedded widget; per-style CSS (globals.css) overrides it where a
@@ -5130,8 +5233,8 @@ export default function Dashboard() {
                 botId ? (
                   <>
                     <iframe
-                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}-${JSON.stringify(colorScheme)}`}
-                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}&color_scheme=${encodeURIComponent(colorScheme ? JSON.stringify(colorScheme) : "")}`}
+                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}-${JSON.stringify(colorScheme)}-${fontFamily}-${fontSizePercent}`}
+                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}&color_scheme=${encodeURIComponent(colorScheme ? JSON.stringify(colorScheme) : "")}&font=${encodeURIComponent(fontFamily || "")}&font_size_percent=${fontSizePercent}`}
                       title="Live widget preview"
                       // Deliberately no border/radius/shadow/background of its
                       // own — every design preset already draws a complete
