@@ -57,27 +57,8 @@ That's it. A chat bubble will appear in the bottom-right corner.
     Go to **Settings → Advanced → Code Injection** and paste the script into the **Footer** section.
   </Accordion>
 
-  <Accordion title="Next.js / React (SDK or Script)">
-    For React and Next.js applications, you can install the first-party component package:
-
-    ```bash
-    npm install @personaliai/react-widget
-    ```
-
-    ```tsx
-    import { ChattyWidget } from "@personaliai/react-widget";
-    import "@personaliai/react-widget/styles.css";
-
-    export default function ChatPage() {
-      return (
-        <div className="h-[600px] w-[380px]">
-          <ChattyWidget botId="YOUR_BOT_ID" />
-        </div>
-      );
-    }
-    ```
-
-    Alternatively, add the `<Script>` tag using Next.js's built-in Script component:
+  <Accordion title="Next.js / React">
+    Add the script tag to your root layout using Next.js's built-in Script component:
 
     ```tsx
     import Script from "next/script";
@@ -95,6 +76,10 @@ That's it. A chat bubble will appear in the bottom-right corner.
       );
     }
     ```
+
+    For plain React (Vite / CRA), add the standard script tag to your `index.html` before `</body>`.
+
+    Renders as native vector DOM elements inside an isolated Shadow Root — zero iframes, 100% sharp at any zoom level.
   </Accordion>
 
   <Accordion title="Inline Full-Page Embed">

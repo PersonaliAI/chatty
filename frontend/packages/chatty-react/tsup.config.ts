@@ -5,33 +5,6 @@ import path from "node:path";
 export default defineConfig([
   {
     entry: {
-      index: "src/index.ts",
-      "widget-style": "src/widget-style.ts",
-      "color-contrast": "src/color-contrast.ts",
-    },
-    format: ["esm", "cjs"],
-    dts: true,
-    sourcemap: true,
-    clean: true,
-    platform: "browser",
-    external: ["react", "react-dom", "react/jsx-runtime"],
-    noExternal: [
-      "framer-motion",
-      "react-markdown",
-      "remark-gfm",
-      "remark-math",
-      "rehype-katex",
-      "katex",
-      "lucide-react",
-      "emoji-picker-react",
-      "livekit-client",
-    ],
-    onSuccess: async () => {
-      fs.copyFileSync("src/widget-presets.css", "dist/styles.css");
-    },
-  },
-  {
-    entry: {
       "chatty-app": "src/standalone.tsx",
     },
     // No `globalName` here: esbuild's IIFE globalName wrapper assigns the
