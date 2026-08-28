@@ -400,19 +400,26 @@ export default function ChatWidgetCore({
   });
   const pushGranted = notificationGranted !== undefined ? notificationGranted : internalPushGranted;
 
-  // Root mount element — background/overflow mutations below target this
-  // node's own document only when it's not inside a Shadow DOM tree (see
-  // the two "transparent background" effects further down). Today
-  // ChatWidgetCore always renders as the sole content of a dedicated
-  // /embed/[botId] iframe document, so getRootNode() is always the regular
-  // Document and this is a no-op change — it only matters once a future
-  // standalone bundle mounts this component into a Shadow Root on a host
-  // page, where mutating document.body would corrupt the host page itself.
+  // Root mount element. The two "transparent background" effects further
+  // down (and the global html/body rule in the injected <style> below) are
+  // only safe when `document` here is a document ChatWidgetCore fully owns
+  // — i.e. it's the sole content of a real /embed/[botId] iframe. That is
+  // NOT the case for either of this component's actual current mount
+  // paths: the React SDK mounts it directly into the host app's own
+  // document (ChatWidgetCore.tsx docs/README — e.g. PriceShield's
+  // ChatClient.tsx), and standalone.tsx mounts it into a Shadow Root that
+  // still lives in the host page's own document. Both share `document`
+  // with the host, so mutating document.body/documentElement — or
+  // injecting an unscoped `html, body {}` rule that a Shadow Root doesn't
+  // even contain to begin with — would corrupt the host page itself
+  // (previously happened: forced the host's <body> transparent and,
+  // via the <style> block, forced `overflow: hidden` / `animation: none`
+  // on the host's own html/body). `window.self !== window.top` is true
+  // only when this code is actually running as an iframe's own document,
+  // which correctly excludes both of today's mount paths while still
+  // allowing the effects to fire if a real iframe mount is added later.
   const rootRef = useRef<HTMLDivElement>(null);
-  const isInShadowDom = () => {
-    const root = rootRef.current?.getRootNode();
-    return typeof ShadowRoot !== "undefined" && root instanceof ShadowRoot;
-  };
+  const ownsDocument = typeof window !== "undefined" && window.self !== window.top;
 
   useEffect(() => {
     // Only the iframe path (EmbedClient.tsx never passes forceFullscreen/
@@ -710,15 +717,15 @@ export default function ChatWidgetCore({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId]);
 
-  // Reset html and body backgrounds to transparent to prevent white corners in
-  // rounded iframe borders. Skipped inside a Shadow DOM mount — there,
-  // document.body belongs to the host page, not to us, and must not be touched.
+  // Reset html and body backgrounds to transparent to prevent white corners
+  // in rounded iframe borders. Only when we actually own `document` (see
+  // ownsDocument above) — otherwise this is the host page's own body.
   useEffect(() => {
-    if (typeof window !== "undefined" && !isInShadowDom()) {
+    if (ownsDocument) {
       document.documentElement.style.setProperty("background-color", "transparent", "important");
       document.body.style.setProperty("background-color", "transparent", "important");
     }
-  }, []);
+  }, [ownsDocument]);
 
   // Persist messages (cap to last 100)
   useEffect(() => {
@@ -912,8 +919,18 @@ export default function ChatWidgetCore({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag, paramCsatEnabled, paramColorScheme]);
 
-  // Run the bot owner's custom JS once, after the widget config has loaded. Scoped to
-  // this embed iframe only — same trust model as the owner's own custom CSS.
+  // Run the bot owner's custom JS once, after the widget config has loaded.
+  // Executed inside a sandboxed, srcdoc iframe (allow-scripts only, no
+  // allow-same-origin) rather than a bare `new Function` in this
+  // component's own realm. `new Function` here would run with full access
+  // to whatever document ChatWidgetCore happens to be mounted into — for
+  // the real /embed/[botId] iframe that's an isolated cross-origin
+  // document (fine), but for the React SDK and the widget.js Shadow DOM
+  // mount it's the *host app's own* document: a malicious or compromised
+  // bot's custom JS could read the host's cookies/localStorage/DOM/session
+  // directly. The sandboxed iframe gives an opaque, null-origin browsing
+  // context in every mount path, so a bad script can only break the
+  // widget, matching what the dashboard's custom-JS field promises.
   useEffect(() => {
     if (!customJs) return;
 
@@ -951,12 +968,21 @@ export default function ChatWidgetCore({
       console.error("Failed to parse visual flow data:", err);
     }
 
-    // Execute any standard custom JS runnable script
+    // Execute any standard custom JS runnable script, sandboxed (see comment
+    // above the effect) so it can never reach the host app's realm.
+    let sandboxFrame: HTMLIFrameElement | null = null;
     try {
       const runnableJs = customJs.replace(/\/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*\//g, "").trim();
       if (runnableJs) {
-        const fn = new Function(runnableJs);
-        fn();
+        sandboxFrame = document.createElement("iframe");
+        sandboxFrame.style.display = "none";
+        sandboxFrame.setAttribute("sandbox", "allow-scripts");
+        sandboxFrame.setAttribute("aria-hidden", "true");
+        // Escape "</script>" so the runnable string can't close the wrapper
+        // script tag early and inject markup into the sandbox document.
+        const escaped = runnableJs.replace(/<\/script/gi, "<\\/script");
+        sandboxFrame.srcdoc = `<!DOCTYPE html><script>try{${escaped}}catch(e){console.error("Chatty custom JS execution error:",e);}<\/script>`;
+        (rootRef.current ?? document.body).appendChild(sandboxFrame);
       }
     } catch (err) {
       console.error("Chatty custom JS execution error:", err);
@@ -965,6 +991,9 @@ export default function ChatWidgetCore({
     // from this external string, and executeFlowNode is a stable closure over
     // the fresh `flow` parsed above, not the outer flowConfig state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      sandboxFrame?.remove();
+    };
   }, [customJs]);
 
   // Real-time flow sync: re-fetch bot config every 30s so that flow builder
@@ -988,14 +1017,14 @@ export default function ChatWidgetCore({
   }, [botId]);
 
   // Force transparent iframe body background to resolve sub-pixel corner
-  // bleeding. Same Shadow DOM guard as the effect above.
+  // bleeding. Same ownsDocument guard as the effect above.
   useEffect(() => {
-    if (typeof document !== "undefined" && !isInShadowDom()) {
+    if (ownsDocument) {
       document.documentElement.style.setProperty("background-color", "transparent", "important");
       document.body.style.setProperty("background-color", "transparent", "important");
       document.body.style.setProperty("background", "transparent", "important");
     }
-  }, []);
+  }, [ownsDocument]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotResponding, tab]);
 
@@ -1404,6 +1433,15 @@ export default function ChatWidgetCore({
   return (
     <div ref={rootRef} id="chatty-root" className={`w-full h-full flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, touchAction: "manipulation", ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
       <style dangerouslySetInnerHTML={{ __html: `
+        ${ownsDocument ? `
+        /* html/body targeting only applies when this document is a real
+           /embed iframe we fully own (see ownsDocument above) — as a plain
+           <style> tag it is NOT scoped to #chatty-root, so on the React SDK's
+           direct host-page mount this used to force overflow:hidden and
+           animation:none onto the *host app's* own html/body. Inside a
+           Shadow Root it would be a harmless no-op (no real html/body
+           element exists in that tree), but gating it explicitly here is
+           clearer than relying on that as the only thing making it safe. */
         html, body {
           touch-action: manipulation;
           background: transparent !important;
@@ -1421,7 +1459,7 @@ export default function ChatWidgetCore({
              marketing pages render text. */
           -webkit-font-smoothing: auto !important;
           -moz-osx-font-smoothing: auto !important;
-        }
+        }` : ""}
         /* Strip only box-shadow inside the iframe: the container fills the iframe
            edge-to-edge with zero margin, so any shadow has no room to render and
            gets hard-clipped by the iframe's own overflow:hidden (ugly) — this is

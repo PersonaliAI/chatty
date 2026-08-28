@@ -181,7 +181,6 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const botId = "c8fa19c8-dd25-43a3-9c55-e8099e6f532e"; // The official landing page bot ID
   const [themeColor, setThemeColor] = useState("#f97316");
@@ -231,20 +230,11 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Listen for close/ready messages from the embedded iframe chatbot
-  useEffect(() => {
-    const handleMessage = (ev: MessageEvent) => {
-      if (ev.data && typeof ev.data === "object") {
-        if (ev.data.type === "chatty:close") {
-          setIsWidgetOpen(false);
-          setIsConnecting(false);
-          setProgress(0);
-        }
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  const handlePanelClose = () => {
+    setIsWidgetOpen(false);
+    setIsConnecting(false);
+    setProgress(0);
+  };
 
   // Waiting wheel circulation progress when connecting
   useEffect(() => {
@@ -262,7 +252,7 @@ export default function Home() {
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 90) {
-          return 90; // Wait at 90% until iframe load triggers 100%
+          return 90; // Wait at 90% until the panel's onWidgetReady triggers 100%
         }
         return prev + 5; // Climb to 90% smoothly
       });
@@ -271,27 +261,16 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [isConnecting, isWidgetOpen]);
 
-  // Told to the iframe's own document so it can round its own root container
-  // to match — the outer div/iframe's border-radius+overflow-hidden clip
-  // (rounded-none below 640px, rounded-2xl at/above it) is not reliably
-  // honored by every browser for content painted inside an iframe, which
-  // was leaving the header's corners visibly square regardless of viewport.
-  const notifyIframeFullscreen = () => {
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "chatty-fullscreen", value: window.innerWidth < 640 },
-      window.location.origin
-    );
-  };
-
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 640 : false
+  );
   useEffect(() => {
-    if (!isWidgetOpen && !isConnecting) return;
-    notifyIframeFullscreen();
-    window.addEventListener("resize", notifyIframeFullscreen);
-    return () => window.removeEventListener("resize", notifyIframeFullscreen);
-  }, [isWidgetOpen, isConnecting]);
+    const handleResize = () => setIsMobileViewport(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
-  const handleIframeLoad = () => {
-    notifyIframeFullscreen();
+  const handlePanelReady = () => {
     if (isConnecting) {
       setProgress(100);
       setTimeout(() => {
@@ -300,6 +279,73 @@ export default function Home() {
       }, 150); // short delay to show 100% progress
     }
   };
+
+  // Mounts the same zero-iframe chat panel widget.js uses (window.ChattyDOM,
+  // loaded from /chatty-app.js) into a Shadow Root this component owns —
+  // this page used to embed <iframe src="/embed/[botId]"> here, which is
+  // exactly the blurry-on-pinch-zoom bitmap scaling the rest of the product
+  // moved off of. mountPanel renders just the chat panel (no launcher/teaser
+  // of its own), since this page already draws its own launcher button above.
+  const panelHostRef = useRef<HTMLDivElement>(null);
+  const panelContainerRef = useRef<ShadowRoot | HTMLDivElement | null>(null);
+  const panelMountRef = useRef<{ unmount: () => void } | null>(null);
+
+  const renderPanel = () => {
+    const container = panelContainerRef.current;
+    const ChattyDOM = (window as unknown as { ChattyDOM?: { mountPanel?: (t: Element | ShadowRoot, o: Record<string, unknown>) => { unmount: () => void } } }).ChattyDOM;
+    if (!container || !ChattyDOM?.mountPanel) return;
+    panelMountRef.current = ChattyDOM.mountPanel(container, {
+      botId,
+      forceFullscreen: isMobileViewport,
+      onWidgetReady: handlePanelReady,
+      onWidgetClose: handlePanelClose,
+    });
+  };
+
+  useEffect(() => {
+    if (!(isWidgetOpen || isConnecting) || !panelHostRef.current) return;
+    let cancelled = false;
+    const host = panelHostRef.current;
+    const container = typeof host.attachShadow === "function" ? host.attachShadow({ mode: "open" }) : host;
+    panelContainerRef.current = container;
+
+    if (typeof host.attachShadow === "function") {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "/chatty-app.css";
+      container.appendChild(link);
+    }
+
+    const ChattyDOM = (window as unknown as { ChattyDOM?: { mountPanel?: unknown } }).ChattyDOM;
+    if (ChattyDOM?.mountPanel) {
+      renderPanel();
+    } else {
+      const script = document.createElement("script");
+      script.src = "/chatty-app.js";
+      script.async = true;
+      script.onload = () => {
+        if (!cancelled) renderPanel();
+      };
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      cancelled = true;
+      panelMountRef.current?.unmount();
+      panelMountRef.current = null;
+      panelContainerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWidgetOpen, isConnecting, botId]);
+
+  // Keep the panel's fullscreen-vs-popup mode current across a resize
+  // without tearing down and remounting the whole panel (mountPanel just
+  // re-renders into the already-mounted React root).
+  useEffect(() => {
+    renderPanel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobileViewport]);
+
 
   // Some launcher designs (currently only Neubrutalism) draw a hard,
   // unblurred, offset box-shadow as a deliberate "layered" look. That
@@ -955,7 +1001,7 @@ export default function Home() {
 
       {/* Live Chatbot Widget Overlay — deliberately no border/shadow of its
           own: every design preset already draws a complete background+
-          border+radius+shadow on its own root container inside the iframe
+          border+radius+shadow on its own root container inside the panel
           (see globals.css's .style-* rules, all !important), so decorating
           this outer box too just doubled up on borders. Radius DOES match
           the active design's own PANEL_RADIUS exactly (desktop only — full-
@@ -988,13 +1034,13 @@ export default function Home() {
           }`}
           style={{ "--panel-radius": PANEL_RADIUS[widgetStyle] || "0px" } as React.CSSProperties}
         >
-          {/* Iframe */}
-          <iframe
-            ref={iframeRef}
-            src={`https://chatty.personaliai.com/embed/${botId}`}
-            className="flex-1 w-full border-0 rounded-none sm:rounded-[var(--panel-radius)] touch-manipulation"
-            allow="microphone"
-            onLoad={handleIframeLoad}
+          {/* Zero-iframe chat panel — mounted into a Shadow Root by
+              renderPanel() above via window.ChattyDOM.mountPanel, the same
+              native-vector-DOM rendering widget.js uses for every other
+              embed of this widget. */}
+          <div
+            ref={panelHostRef}
+            className="flex-1 w-full rounded-none sm:rounded-[var(--panel-radius)] touch-manipulation overflow-hidden"
           />
         </div>
       )}
