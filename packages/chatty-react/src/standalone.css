@@ -12,4 +12,24 @@
 @import "tailwindcss";
 @source "./";
 
+/* Tailwind v4's default `dark:` variant follows the visitor's OS
+ * prefers-color-scheme — but every `.style-*` preset's own dark variant
+ * (widget-presets.css's `.dark .style-minimal { ... !important }` etc.)
+ * needs an actual `.dark` *class* ancestor to match, and nothing here
+ * ever adds one inside this Shadow Root (class inheritance from the host
+ * page's <html class="dark"> stops dead at the shadow boundary — a
+ * Shadow Root doesn't inherit ancestor classes the way normal DOM does).
+ * Left at the default, any visitor with OS dark mode on got `dark:`
+ * utility classes (bg-neutral-950 etc.) firing on their own while the
+ * preset's forced text color stayed pinned to its light-mode value —
+ * dark text on a dark background, invisible (CSAT/offline-form/KB-search
+ * boxes, all of which set only their own background via `dark:bg-*` and
+ * rely on inheriting color from the preset). Matching globals.css's own
+ * class-based strategy makes `dark:` inert here instead of wrong — since
+ * nothing ever sets `.dark` inside the shadow tree, no `dark:` utility
+ * fires at all, and the preset's own (light-variant) forced color always
+ * wins consistently, matching what actually renders visually either way.
+ */
+@custom-variant dark (&:is(.dark *));
+
 @import "./widget-presets.css";
