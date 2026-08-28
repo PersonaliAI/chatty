@@ -2,7 +2,11 @@ import { defineConfig } from "tsup";
 import fs from "node:fs";
 
 export default defineConfig({
-  entry: { index: "src/index.ts" },
+  entry: {
+    index: "src/index.ts",
+    "widget-style": "src/widget-style.ts",
+    "color-contrast": "src/color-contrast.ts",
+  },
   format: ["esm", "cjs"],
   dts: true,
   sourcemap: true,

@@ -1,1 +1,5 @@
-export { default as ChattyWidget, type ChatWidgetCoreProps as ChattyWidgetProps } from "./ChatWidgetCore";
+export {
+  default as ChattyWidget,
+  type ChatWidgetCoreProps as ChattyWidgetProps,
+  type WidgetThemeData,
+} from "./ChatWidgetCore";

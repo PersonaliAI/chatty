@@ -151,7 +151,14 @@ function CodeBlock({ lang, text }: { lang: string; text: string }) {
 
 export interface ChatWidgetCoreProps {
   botId: string;
-  originToken: string | null;
+  // Explicit string | null = caller manages verification itself (EmbedClient.tsx
+  // and widget-entry.tsx both do this today, exchanging the iframe's genuine
+  // server-side Referer for a token via /api/widget/verify-origin before this
+  // component ever mounts). Omitted entirely = this component verifies its
+  // own origin directly against the backend using window.location.href,
+  // since a same-realm mount (this package's whole point) has no iframe
+  // Referer for a parent page to capture on its behalf.
+  originToken?: string | null;
   isPreview?: boolean;
   paramColor?: string | null;
   paramStyle?: string | null;
@@ -183,6 +190,28 @@ export interface ChatWidgetCoreProps {
   // them for the iframe path exactly as before.
   forceFullscreen?: boolean;
   notificationGranted?: boolean;
+  // Fires once the bot's theme/customization has loaded (both the initial
+  // load and the periodic refresh). Lets a host app that renders its own
+  // chrome around this widget (e.g. a custom floating launcher button)
+  // reuse this data instead of independently re-fetching
+  // /api/widget/theme itself — see the README's "Custom launcher" section.
+  onThemeLoaded?: (theme: WidgetThemeData) => void;
+}
+
+// The subset of /api/widget/theme's response a host app typically needs to
+// style its own chrome around this widget (a launcher button, a page
+// header) without re-fetching the endpoint itself.
+export interface WidgetThemeData {
+  name?: string;
+  primary_color?: string;
+  widget_style?: string;
+  avatar_icon?: string;
+  avatar_url?: string | null;
+  logo_url?: string | null;
+  color_scheme?: WidgetColorScheme | null;
+  teaser_message?: string;
+  welcome_message?: string;
+  trigger_rules?: unknown;
 }
 
 export default function ChatWidgetCore({
@@ -207,8 +236,30 @@ export default function ChatWidgetCore({
   onTriggerNotification,
   forceFullscreen,
   notificationGranted,
+  onThemeLoaded,
 }: ChatWidgetCoreProps) {
-  const widgetTokenHeader: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
+  // Auto-verify our own origin when the caller didn't supply a token at all
+  // (a same-realm mount has no server-captured Referer for anyone else to
+  // exchange on its behalf, unlike EmbedClient.tsx's iframe route). An
+  // explicit originToken (including explicit null, e.g. a preview/playground
+  // that deliberately wants the unverified tier) always wins over this.
+  const [autoOriginToken, setAutoOriginToken] = useState<string | null>(null);
+  useEffect(() => {
+    if (originToken !== undefined) return;
+    if (typeof window === "undefined" || !botId) return;
+    let cancelled = false;
+    fetch(`${BACKEND_URL}/api/widget/verify-origin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bot_id: botId, referer: window.location.href }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d?.token) setAutoOriginToken(d.token); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [botId, originToken]);
+  const effectiveOriginToken = originToken !== undefined ? originToken : autoOriginToken;
+  const widgetTokenHeader: Record<string, string> = effectiveOriginToken ? { "X-Widget-Token": effectiveOriginToken } : {};
 
   // Scope stored session + history per embedding site, so different host sites
   // (and the dashboard playground) don't share one conversation.
@@ -831,6 +882,20 @@ export default function ChatWidgetCore({
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
           setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg, sender: "ai" }]);
+          if (onThemeLoaded) {
+            onThemeLoaded({
+              name: bot.name,
+              primary_color: bot.primary_color,
+              widget_style: bot.widget_style,
+              avatar_icon: bot.avatar_icon,
+              avatar_url: bot.avatar_url,
+              logo_url: bot.logo_url,
+              color_scheme: bot.color_scheme ?? null,
+              teaser_message: bot.teaser_message,
+              welcome_message: bot.welcome_message,
+              trigger_rules: bot.trigger_rules,
+            });
+          }
         }
       } catch (err) {
         console.error("Failed to load bot:", err);
@@ -1451,7 +1516,7 @@ export default function ChatWidgetCore({
             botId={botId}
             sessionId={sessionId}
             backendUrl={BACKEND_URL}
-            originToken={originToken}
+            originToken={effectiveOriginToken}
             visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
             primaryColor={primaryColor}
             onClose={() => { setVoiceCallOpen(false); refetchNow(); }}
