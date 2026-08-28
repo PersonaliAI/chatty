@@ -1574,10 +1574,23 @@ export default function ChatWidgetCore({
           />
         ) : showCsat ? (
           /* CSAT Feedback Modal */
+          // Colors here are deliberately currentColor-relative (style props,
+          // not text-neutral-* / dark:* classes) rather than the pattern
+          // used elsewhere in this file: those classes assume Tailwind's
+          // `dark:` variant tracks whichever style preset is actually
+          // active, but presets can be dark on their own (dark-sleek etc,
+          // no `.dark` ancestor needed) or light, independent of the
+          // visitor's OS color scheme — so a fixed `text-neutral-800
+          // dark:text-neutral-200` pairs correctly with the active preset
+          // only by coincidence. currentColor already IS the active
+          // preset's own forced text color at this point in the tree
+          // (widget-presets.css's .style-X { color: ... !important }), so
+          // deriving from it is correct for every preset unconditionally,
+          // not just the ones the coincidence happened to favor.
           <div className="p-5 flex flex-col justify-center h-full space-y-4">
             <div className="text-center space-y-2">
-              <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-250">How was your conversation?</h3>
-              <p className="text-[11px] text-neutral-500">Your rating helps us improve support quality.</p>
+              <h3 className="text-sm font-bold">How was your conversation?</h3>
+              <p className="text-[11px]" style={{ opacity: 0.6 }}>Your rating helps us improve support quality.</p>
             </div>
             {/* Stars selection */}
             <div className="flex justify-center gap-1.5 py-2">
@@ -1586,9 +1599,8 @@ export default function ChatWidgetCore({
                   key={star}
                   type="button"
                   onClick={() => setCsatRating(star)}
-                  className={`text-2xl transition-transform hover:scale-110 cursor-pointer ${
-                    star <= csatRating ? "text-yellow-400" : "text-neutral-300 dark:text-neutral-700"
-                  }`}
+                  className="text-2xl transition-transform hover:scale-110 cursor-pointer"
+                  style={{ color: star <= csatRating ? "#facc15" : "currentColor", opacity: star <= csatRating ? 1 : 0.25 }}
                 >
                   ★
                 </button>
@@ -1600,14 +1612,18 @@ export default function ChatWidgetCore({
               value={csatComment}
               onChange={(e) => setCsatComment(e.target.value)}
               placeholder="What went well or could be better? (optional)..."
-              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-xs resize-none focus:outline-none"
+              className="w-full rounded-xl px-3 py-2 text-xs resize-none focus:outline-none"
+              style={{ backgroundColor: "color-mix(in srgb, currentColor 6%, transparent)", border: "1px solid color-mix(in srgb, currentColor 15%, transparent)" }}
             />
             {/* Action buttons */}
             <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => { setShowCsat(false); notifyClose(); }}
-                className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer text-neutral-600 dark:text-neutral-350"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
+                style={{ border: "1px solid color-mix(in srgb, currentColor 20%, transparent)", opacity: 0.8 }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 8%, transparent)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 Skip
               </button>

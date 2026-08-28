@@ -257,3 +257,44 @@
 .dark .style-luxury-editorial { background-color: #14120f !important; color: #efe6d3 !important; border-color: #b08a3e !important; }
 .dark .style-luxury-editorial .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #201c16) 40%, #201c16) !important; color: color-mix(in srgb, var(--on-primary, #efe6d3) 20%, #efe6d3) !important; }
 .dark .style-luxury-editorial .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #14120f) 15%, #14120f) !important; color: #efe6d3 !important; border-color: #4a3f2a !important; }
+
+/* Thin, modern scrollbars — replaces the browser's default full-width
+ * scroller. `.scrollbar-thin` is referenced on the message list (and
+ * voice-call transcript) but was never actually defined anywhere; it's
+ * been a no-op, so those have always rendered the OS default scrollbar
+ * too. `.epr-body` is emoji-picker-react's own internal scroll
+ * container (its class, not ours) for the emoji grid. */
+.scrollbar-thin,
+.epr-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar,
+.epr-body::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track,
+.epr-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb,
+.epr-body::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.25);
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover,
+.epr-body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+.dark .scrollbar-thin,
+.dark .epr-body {
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb,
+.dark .epr-body::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover,
+.dark .epr-body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
