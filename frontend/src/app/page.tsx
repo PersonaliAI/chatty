@@ -306,14 +306,16 @@ export default function Home() {
     if (!(isWidgetOpen || isConnecting) || !panelHostRef.current) return;
     let cancelled = false;
     const host = panelHostRef.current;
-    const container = typeof host.attachShadow === "function" ? host.attachShadow({ mode: "open" }) : host;
+    const container = host.shadowRoot || (typeof host.attachShadow === "function" ? host.attachShadow({ mode: "open" }) : host);
     panelContainerRef.current = container;
 
     if (typeof host.attachShadow === "function") {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = "/chatty-app.css";
-      container.appendChild(link);
+      if (!container.querySelector("link[href*='chatty-app.css']")) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = "/chatty-app.css";
+        container.appendChild(link);
+      }
     }
 
     const ChattyDOM = (window as unknown as { ChattyDOM?: { mountPanel?: unknown } }).ChattyDOM;
@@ -333,7 +335,6 @@ export default function Home() {
       cancelled = true;
       panelMountRef.current?.unmount();
       panelMountRef.current = null;
-      panelContainerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWidgetOpen, isConnecting, botId]);
