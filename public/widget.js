@@ -447,11 +447,30 @@
     "pointer-events:none;transition:opacity .2s ease,transform .2s ease;background:transparent !important;";
 
   var iframe = document.createElement("iframe");
-  iframe.style.cssText = "width:100% !important;height:100% !important;border:0 !important;display:block !important;border-radius:16px !important;overflow:hidden !important;background:transparent !important;touch-action:manipulation;";
+  iframe.style.cssText = "width:100% !important;height:100% !important;border:0 !important;display:block !important;border-radius:16px !important;overflow:hidden !important;background:transparent !important;touch-action:manipulation;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;image-rendering:-webkit-optimize-contrast;text-rendering:optimizeLegibility;";
   iframe.setAttribute("title", "Chat assistant");
   iframe.setAttribute("allow", "clipboard-write; microphone; notifications");
   var iframeLoaded = false;
   panel.appendChild(iframe);
+
+  // Prevent trackpad pinch-to-zoom (which browsers send as ctrlKey + wheel or gesture events)
+  // from causing visual viewport bitmap scaling and blurriness over the widget.
+  function preventPinch(e) {
+    if (e.ctrlKey) {
+      e.preventDefault();
+    }
+  }
+  function preventGesture(e) {
+    e.preventDefault();
+  }
+  try {
+    panel.addEventListener("wheel", preventPinch, { passive: false });
+    panel.addEventListener("gesturestart", preventGesture, { passive: false });
+    panel.addEventListener("gesturechange", preventGesture, { passive: false });
+    btn.addEventListener("wheel", preventPinch, { passive: false });
+    btn.addEventListener("gesturestart", preventGesture, { passive: false });
+    btn.addEventListener("gesturechange", preventGesture, { passive: false });
+  } catch {}
 
   window.addEventListener("message", function (e) {
     if (e.origin !== origin) return;
