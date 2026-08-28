@@ -1,6 +1,6 @@
 {
   "name": "@personaliai/react-widget",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Embed the Chatty chat assistant directly in a React app — no iframe, calls the Chatty API directly. Same UI and behavior as the hosted embed.",
   "license": "MIT",
   "type": "module",

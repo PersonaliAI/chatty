@@ -1305,7 +1305,7 @@ export default function ChatWidgetCore({
   };
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center bg-transparent"><Loader2 className="size-6 animate-spin text-neutral-400" /></div>;
+    return <div className="flex h-full items-center justify-center bg-transparent"><Loader2 className="size-6 animate-spin text-neutral-400" /></div>;
   }
 
   const mdComponents: Components = {
@@ -1337,7 +1337,7 @@ export default function ChatWidgetCore({
   const colorSchemeCss = buildColorSchemeCss(colorScheme, "#chatty-root");
 
   return (
-    <div ref={rootRef} id="chatty-root" className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, touchAction: "manipulation", ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
+    <div ref={rootRef} id="chatty-root" className={`w-full h-full flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`} style={{ backgroundColor: primaryColor, touchAction: "manipulation", ...primaryColorCssVars(primaryColor) } as React.CSSProperties}>
       <style dangerouslySetInnerHTML={{ __html: `
         html, body {
           touch-action: manipulation;
