@@ -1,4 +1,4 @@
-# @chatty/react-widget
+# @personaliai/react-widget
 
 Embed the Chatty chat assistant directly inside a React app — calls the
 Chatty API directly, no iframe involved. Same UI and behavior as the
@@ -24,7 +24,7 @@ React app who can `npm install` a component instead.
 ## Install
 
 ```bash
-npm install @chatty/react-widget
+npm install @personaliai/react-widget
 ```
 
 `react` and `react-dom` (>=18) are peer dependencies — everything else this
@@ -34,8 +34,8 @@ is bundled in.
 ## Usage
 
 ```tsx
-import { ChattyWidget } from "@chatty/react-widget";
-import "@chatty/react-widget/styles.css";
+import { ChattyWidget } from "@personaliai/react-widget";
+import "@personaliai/react-widget/styles.css";
 // Only needed if you use bot replies with math notation — same as the
 // hosted embed, this isn't bundled in since it's ~1MB of embedded fonts.
 import "katex/dist/katex.min.css";

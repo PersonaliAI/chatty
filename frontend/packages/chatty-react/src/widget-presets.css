@@ -48,10 +48,10 @@
  * approach above is what keeps that case safe in practice, not a formal
  * guarantee for every possible hex value.
  *
- * Shared verbatim between the Next.js app (globals.css @imports this file)
- * and the standalone Vite widget bundle (widget-styles.css @imports it too)
- * — kept as a single source instead of duplicated, per the Shadow DOM
- * rewrite plan (C:\Users\HP\.claude\plans\gleaming-watching-sunrise.md).
+ * Ship this file alongside ChattyWidget (import "@chatty/react-widget/styles.css")
+ * — these are plain CSS selectors keyed off classNames the component
+ * renders (.chat-header, .bot-bubble, etc.), not Tailwind-generated
+ * utilities, so nothing else needs to build or scan this package's source.
  */
 
 /* 1. Minimal — clean SaaS, off-white, DM Sans. */

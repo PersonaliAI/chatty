@@ -168,10 +168,9 @@ export interface ChatWidgetCoreProps {
   // Shadow DOM mount) — EmbedClient.tsx (the Next.js iframe route) never
   // passes them, so every branch below that checks one of these falls back
   // to exactly the postMessage-based behavior this component always had,
-  // unchanged, for the iframe path. See the Shadow DOM rewrite plan's
-  // Stage 4 (C:\Users\HP\.claude\plans\gleaming-watching-sunrise.md) — same
-  // JS realm as the host page now, so direct calls replace postMessage
-  // instead of window.parent / window.addEventListener("message").
+  // unchanged, for the iframe path. These bridge props exist for a
+  // same-realm host (e.g. a Shadow DOM mount) where direct calls can
+  // replace postMessage / window.addEventListener("message").
   onWidgetReady?: () => void;
   onWidgetClose?: () => void;
   onAssistantMessage?: () => void;
