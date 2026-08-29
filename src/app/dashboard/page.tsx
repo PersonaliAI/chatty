@@ -759,6 +759,15 @@ export default function Dashboard() {
   const [savingVoiceTts, setSavingVoiceTts] = useState(false);
   const [voiceAgentRole, setVoiceAgentRole] = useState("general");
   const [voiceMaxDurationMinutes, setVoiceMaxDurationMinutes] = useState(15);
+  // Realtime mode (Gemini Live / OpenAI Realtime — speech-to-speech, no
+  // separate STT/TTS stage). voiceTtsVoice above is reused as the realtime
+  // voice when this mode is active, same as the backend column reuse.
+  const [voiceMode, setVoiceMode] = useState<"pipeline" | "realtime">("pipeline");
+  const [voiceRealtimeProvider, setVoiceRealtimeProvider] = useState<"google" | "openai">("google");
+  const [voiceRealtimeModel, setVoiceRealtimeModel] = useState("");
+  const [voiceRealtimeApiKeyInput, setVoiceRealtimeApiKeyInput] = useState("");
+  const [voiceRealtimeConfigured, setVoiceRealtimeConfigured] = useState(false);
+  const [savingVoiceRealtime, setSavingVoiceRealtime] = useState(false);
   const [systemInstructions, setSystemInstructions] = useState(
     "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite."
   );
@@ -3138,6 +3147,7 @@ export default function Dashboard() {
       if (res.ok) {
         const d = await res.json();
         setVoiceEnabled(!!d.voice_enabled);
+        setVoiceMode(d.voice_mode === "realtime" ? "realtime" : "pipeline");
         setVoiceSttProvider(d.voice_stt_provider || "google");
         setVoiceTtsProvider(d.voice_tts_provider || "google");
         setVoiceTtsVoice(d.voice_tts_voice || "");
@@ -3145,6 +3155,9 @@ export default function Dashboard() {
         setVoiceTtsConfigured(!!d.voice_tts_configured);
         setVoiceAgentRole(d.voice_agent_role || "general");
         setVoiceMaxDurationMinutes(d.voice_max_duration_minutes || 15);
+        setVoiceRealtimeProvider(d.voice_realtime_provider === "openai" ? "openai" : "google");
+        setVoiceRealtimeModel(d.voice_realtime_model || "");
+        setVoiceRealtimeConfigured(!!d.voice_realtime_configured);
       }
     } catch (err) {
       console.error("Failed to load voice settings:", err);
@@ -3161,11 +3174,14 @@ export default function Dashboard() {
   const [savingVoiceField, setSavingVoiceField] = useState(false);
   const handleAutoSaveVoiceField = async (fields: {
     voice_enabled?: boolean;
+    voice_mode?: "pipeline" | "realtime";
     voice_stt_provider?: string;
     voice_tts_provider?: string;
     voice_tts_voice?: string | null;
     voice_agent_role?: string;
     voice_max_duration_minutes?: number;
+    voice_realtime_provider?: "google" | "openai";
+    voice_realtime_model?: string | null;
   }) => {
     if (!botId) return;
     setSavingVoiceField(true);
@@ -3185,16 +3201,18 @@ export default function Dashboard() {
     }
   };
 
-  const handleSaveVoiceByok = async (kind: "stt" | "tts", clear = false) => {
+  const handleSaveVoiceByok = async (kind: "stt" | "tts" | "realtime", clear = false) => {
     if (!botId) return;
-    const setSaving = kind === "stt" ? setSavingVoiceStt : setSavingVoiceTts;
-    const keyInput = kind === "stt" ? voiceSttApiKeyInput : voiceTtsApiKeyInput;
-    const setKeyInput = kind === "stt" ? setVoiceSttApiKeyInput : setVoiceTtsApiKeyInput;
+    const setSaving = kind === "stt" ? setSavingVoiceStt : kind === "tts" ? setSavingVoiceTts : setSavingVoiceRealtime;
+    const keyInput = kind === "stt" ? voiceSttApiKeyInput : kind === "tts" ? voiceTtsApiKeyInput : voiceRealtimeApiKeyInput;
+    const setKeyInput = kind === "stt" ? setVoiceSttApiKeyInput : kind === "tts" ? setVoiceTtsApiKeyInput : setVoiceRealtimeApiKeyInput;
     setSaving(true);
     try {
       const body = kind === "stt"
         ? { voice_stt_api_key: clear ? "" : keyInput }
-        : { voice_tts_api_key: clear ? "" : keyInput };
+        : kind === "tts"
+        ? { voice_tts_api_key: clear ? "" : keyInput }
+        : { voice_realtime_api_key: clear ? "" : keyInput };
       const res = await fetchWithFallback(`/api/bots/${botId}/voice-settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -7791,6 +7809,131 @@ const { reply, session_id } = await res.json();`}</pre>
                           configures knowledge base behavior.
                         </p>
 
+                        {/* Mode tabs — Pipeline (STT -> LLM -> TTS, today's
+                            default) vs Realtime (Gemini Live / OpenAI
+                            Realtime speech-to-speech — faster & more
+                            natural, no separate STT/TTS provider choice).
+                            Same horizontal pill-tab pattern as the Mailbox
+                            tab's client/admin filter elsewhere on this page. */}
+                        <div>
+                          <div className="flex items-center gap-0.5 bg-neutral-50 dark:bg-neutral-950 rounded-lg p-0.5 border border-neutral-200 dark:border-neutral-800 w-fit mb-3">
+                            {([
+                              { value: "pipeline" as const, label: "Pipeline" },
+                              { value: "realtime" as const, label: "Realtime" },
+                            ]).map((t) => (
+                              <button
+                                key={t.value}
+                                type="button"
+                                onClick={() => {
+                                  setVoiceMode(t.value);
+                                  handleAutoSaveVoiceField({ voice_mode: t.value });
+                                }}
+                                className={`px-3.5 py-1.5 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
+                                  voiceMode === t.value
+                                    ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                                    : "text-neutral-400 hover:text-neutral-600"
+                                }`}
+                              >
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1">
+                            {voiceMode === "realtime"
+                              ? "Speech-to-speech — the model listens and speaks directly, no separate transcription/synthesis step. Faster and more natural, still uses your knowledge base and booking/lead-capture tools."
+                              : "Classic pipeline — pick a speech-to-text and text-to-speech provider independently."}
+                          </p>
+                        </div>
+
+                        {voiceMode === "realtime" ? (
+                          <>
+                            {/* Realtime provider */}
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Realtime Provider</label>
+                              <ModernSelect
+                                value={voiceRealtimeProvider}
+                                onChange={(v) => {
+                                  const provider = v as "google" | "openai";
+                                  const defaultModel = provider === "google" ? "gemini-3.1-flash-live-preview" : "gpt-realtime";
+                                  setVoiceRealtimeProvider(provider);
+                                  setVoiceRealtimeModel(defaultModel);
+                                  handleAutoSaveVoiceField({ voice_realtime_provider: provider, voice_realtime_model: defaultModel });
+                                }}
+                                options={[
+                                  { value: "google", label: "Google Gemini Live", hint: "gemini-3.1-flash-live-preview" },
+                                  { value: "openai", label: "OpenAI Realtime", hint: "gpt-realtime" },
+                                ]}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Model</label>
+                              <input
+                                type="text"
+                                value={voiceRealtimeModel}
+                                onChange={(e) => setVoiceRealtimeModel(e.target.value)}
+                                onBlur={(e) => handleAutoSaveVoiceField({ voice_realtime_model: e.target.value || null })}
+                                placeholder={voiceRealtimeProvider === "google" ? "gemini-3.1-flash-live-preview" : "gpt-realtime"}
+                                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Voice (optional)</label>
+                              <input
+                                type="text"
+                                value={voiceTtsVoice}
+                                onChange={(e) => setVoiceTtsVoice(e.target.value)}
+                                onBlur={(e) => handleAutoSaveVoiceField({ voice_tts_voice: e.target.value || null })}
+                                placeholder={voiceRealtimeProvider === "google" ? "Puck" : "marin"}
+                                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                              />
+                              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Leave blank to use the default voice.</p>
+                            </div>
+
+                            <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Realtime API Key (optional)</span>
+                                {voiceRealtimeConfigured && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+                                    <Check className="size-2.5" /> Configured
+                                  </span>
+                                )}
+                                {!voiceRealtimeConfigured && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
+                                    Using shared key
+                                  </span>
+                                )}
+                              </div>
+                              <input
+                                type="password"
+                                value={voiceRealtimeApiKeyInput}
+                                onChange={(e) => setVoiceRealtimeApiKeyInput(e.target.value)}
+                                placeholder={voiceRealtimeConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : "Bring your own API key, or leave blank to use the shared key"}
+                                className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleSaveVoiceByok("realtime", false)}
+                                  disabled={savingVoiceRealtime || !voiceRealtimeApiKeyInput.trim()}
+                                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
+                                >
+                                  {savingVoiceRealtime ? "Saving…" : "Save key"}
+                                </button>
+                                {voiceRealtimeConfigured && (
+                                  <button
+                                    onClick={() => handleSaveVoiceByok("realtime", true)}
+                                    disabled={savingVoiceRealtime}
+                                    className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
+                                  >
+                                    Remove key
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                        <>
                         {/* Speech-to-Text provider */}
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Speech-to-Text Provider</label>
@@ -7933,6 +8076,8 @@ const { reply, session_id } = await res.json();`}</pre>
                         <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
                           Voice uses the same AI Foundation Model and key configured above.
                         </p>
+                        </>
+                        )}
 
                         {/* Call Limits */}
                         <div className="pt-2 mt-2 border-t border-neutral-100 dark:border-neutral-800">
