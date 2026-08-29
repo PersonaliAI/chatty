@@ -7899,17 +7899,12 @@ const { reply, session_id } = await res.json();`}</pre>
                                     <Check className="size-2.5" /> Configured
                                   </span>
                                 )}
-                                {!voiceRealtimeConfigured && (
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
-                                    Using shared key
-                                  </span>
-                                )}
                               </div>
                               <input
                                 type="password"
                                 value={voiceRealtimeApiKeyInput}
                                 onChange={(e) => setVoiceRealtimeApiKeyInput(e.target.value)}
-                                placeholder={voiceRealtimeConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : "Bring your own API key, or leave blank to use the shared key"}
+                                placeholder={voiceRealtimeConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : "API key (optional)"}
                                 className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                               />
                               <div className="flex gap-2">
