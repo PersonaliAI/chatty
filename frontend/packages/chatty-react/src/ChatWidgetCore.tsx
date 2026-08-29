@@ -20,9 +20,9 @@ import { normalizeWidgetStyle } from "./widget-style";
 // package's README for the two imports a consumer needs to add once.
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
-  Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
+  Paperclip, Smile, Mic, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
-  Link2, ThumbsUp, ThumbsDown, Mail, Bell, Phone, Play, Pause,
+  Link2, ThumbsUp, ThumbsDown, Mail, Bell, Phone, Play, Pause, Trash2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -795,10 +795,17 @@ export default function ChatWidgetCore({
   const [recording, setRecording] = useState(false);
   const [barLevels, setBarLevels] = useState<number[]>(() => Array(RECORD_BAR_COUNT).fill(0));
   const [transcribing, setTranscribing] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Set by cancelRecording() right before stopping the recorder, so
+  // mr.onstop knows to discard the take silently instead of transcribing/
+  // sending it — MediaRecorder only has one stop event, not a separate
+  // cancel one.
+  const recordingCancelledRef = useRef(false);
 
   const [liveAgent, setLiveAgent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1463,6 +1470,7 @@ export default function ChatWidgetCore({
       return;
     }
     try {
+      recordingCancelledRef.current = false;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       // Live amplitude animation while recording — each bar samples a
@@ -1498,10 +1506,13 @@ export default function ChatWidgetCore({
       mr.ondataavailable = (ev) => { if (ev.data.size > 0) audioChunksRef.current.push(ev.data); };
       mr.onstop = async () => {
         if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        if (recordingIntervalRef.current) { clearInterval(recordingIntervalRef.current); recordingIntervalRef.current = null; }
         audioContextRef.current?.close();
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         setBarLevels(Array(RECORD_BAR_COUNT).fill(0));
+        setRecordingSeconds(0);
+        if (recordingCancelledRef.current) { recordingCancelledRef.current = false; return; }
 
         const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
         if (blob.size === 0) return;
@@ -1558,9 +1569,19 @@ export default function ChatWidgetCore({
       mediaRecorderRef.current = mr;
       mr.start();
       setRecording(true);
+      setRecordingSeconds(0);
+      recordingIntervalRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
     } catch {
       showToast("Microphone access denied.", "error");
     }
+  };
+
+  // Discards the in-progress recording instead of transcribing/sending it —
+  // stopping is the only event MediaRecorder gives us, so this just flags
+  // the take as cancelled for mr.onstop (above) to skip processing.
+  const cancelRecording = () => {
+    recordingCancelledRef.current = true;
+    mediaRecorderRef.current?.stop();
   };
 
   // ---- AI search ----
@@ -2168,6 +2189,49 @@ export default function ChatWidgetCore({
               sendText(inputValue);
             }}
             className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
+            {recording ? (
+              <div className="flex items-center gap-2 py-1">
+                <motion.button
+                  type="button"
+                  onClick={cancelRecording}
+                  whileTap={{ scale: 0.85 }}
+                  aria-label="Cancel recording"
+                  className="p-1.5 rounded-full text-neutral-400 hover:text-red-500 shrink-0 cursor-pointer"
+                >
+                  <Trash2 className="size-4.5" />
+                </motion.button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <motion.span
+                    className="size-2 rounded-full bg-red-500"
+                    animate={{ opacity: [1, 0.25, 1] }}
+                    transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                  <span className="text-[11px] font-semibold tabular-nums text-red-500 w-7">
+                    {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, "0")}
+                  </span>
+                </div>
+                <div className="flex-1 flex items-center gap-[2.5px] h-6" aria-hidden>
+                  {barLevels.map((level, i) => (
+                    <span
+                      key={i}
+                      className="w-[2.5px] rounded-full bg-red-400 shrink-0 transition-[height] duration-[50ms] ease-out"
+                      style={{ height: `${Math.max(10, level * 100)}%` }}
+                    />
+                  ))}
+                </div>
+                <motion.button
+                  type="button"
+                  onClick={toggleRecord}
+                  whileTap={{ scale: 0.85 }}
+                  aria-label="Stop and send"
+                  style={{ background: primaryColor, color: onPrimary }}
+                  className="size-8 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
+                >
+                  <Send className="size-3.5" />
+                </motion.button>
+              </div>
+            ) : (
+            <>
             {pendingFiles.length > 0 && (
               <div className="flex gap-1.5 px-0 pt-1 pb-1.5 flex-wrap">
                 {pendingFiles.map((pf, idx) => (
@@ -2214,27 +2278,16 @@ export default function ChatWidgetCore({
                   e.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder={recording ? "Recording… tap ◼ to stop" : transcribing ? "Transcribing…" : "Compose your message…"} disabled={isBotResponding || recording || transcribing}
+              placeholder={transcribing ? "Transcribing…" : "Compose your message…"} disabled={isBotResponding || transcribing}
               rows={1}
               className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5 resize-none max-h-[108px] overflow-y-auto leading-relaxed" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></motion.button>
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></motion.button>
-                <button type="button" onClick={toggleRecord} disabled={transcribing} className={`p-1.5 rounded-full disabled:opacity-50 ${recording ? "text-red-500" : "chat-input-bar-icon text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
-                  {transcribing ? <Loader2 className="size-4.5 animate-spin" /> : recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
+                <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1.5 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio">
+                  {transcribing ? <Loader2 className="size-4.5 animate-spin" /> : <Mic className="size-4.5" />}
                 </button>
-                {recording && (
-                  <div className="flex items-center gap-[2px] h-5 px-1" aria-hidden>
-                    {barLevels.map((level, i) => (
-                      <span
-                        key={i}
-                        className="w-0.5 bg-red-500 rounded-full transition-[height] duration-[50ms] ease-out"
-                        style={{ height: `${Math.max(2, level * 18)}px` }}
-                      />
-                    ))}
-                  </div>
-                )}
               </div>
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
@@ -2249,6 +2302,8 @@ export default function ChatWidgetCore({
                 );
               })()}
             </div>
+            </>
+            )}
           </form>
           {!isOfficialWebsite && !hideBranding && (
             <div className="text-center pt-2 pb-0.5 text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide">
