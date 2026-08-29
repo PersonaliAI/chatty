@@ -85,6 +85,8 @@ import {
   Phone,
   LayoutGrid,
   Pencil,
+  Info,
+  Play,
   type LucideIcon
 } from "lucide-react";
 
@@ -131,6 +133,7 @@ interface Bot {
   hide_branding?: boolean;
   show_sender_tag?: boolean;
   csat_enabled?: boolean;
+  voice_message_mode?: "transcribe" | "audio";
   webhook_url?: string;
   custom_css?: string;
   custom_js?: string;
@@ -690,6 +693,12 @@ export default function Dashboard() {
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [fontSizePercent, setFontSizePercent] = useState(100);
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
+  // What happens when a visitor finishes recording a voice message in the
+  // chat composer: "transcribe" lands the transcript in the input box for
+  // them to review/edit before sending (current default); "audio" skips
+  // transcription and sends the recording itself as a playable voice
+  // message bubble.
+  const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [avatarIcon, setAvatarIcon] = useState("logo");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   // Set only when the current avatarUrl came from the icon library (not a
@@ -1440,6 +1449,7 @@ export default function Dashboard() {
         setHideBranding(activeBot.hide_branding || false);
         setShowSenderTag(activeBot.show_sender_tag || false);
         setCsatEnabled(activeBot.csat_enabled !== false);
+        setVoiceMessageMode(activeBot.voice_message_mode === "audio" ? "audio" : "transcribe");
         setWebhookUrl(activeBot.webhook_url || "");
         setNotificationEmails(activeBot.notification_emails || "");
         setCustomCss(activeBot.custom_css || "");
@@ -1560,6 +1570,7 @@ export default function Dashboard() {
       setHideBranding(selected.hide_branding || false);
       setShowSenderTag(selected.show_sender_tag || false);
       setCsatEnabled(selected.csat_enabled !== false);
+      setVoiceMessageMode(selected.voice_message_mode === "audio" ? "audio" : "transcribe");
       setWebhookUrl(selected.webhook_url || "");
       setCustomCss(selected.custom_css || "");
       setCustomJs(selected.custom_js || "");
@@ -2318,6 +2329,7 @@ export default function Dashboard() {
           hide_branding: hideBranding,
           show_sender_tag: showSenderTag,
           csat_enabled: csatEnabled,
+          voice_message_mode: voiceMessageMode,
           webhook_url: webhookUrl,
           notification_emails: notificationEmails,
           custom_css: customCss,
@@ -2400,6 +2412,7 @@ export default function Dashboard() {
                 hide_branding: hideBranding,
                 show_sender_tag: showSenderTag,
                 csat_enabled: csatEnabled,
+                voice_message_mode: voiceMessageMode,
                 webhook_url: webhookUrl,
                 custom_css: customCss,
                 custom_js: customJs,
@@ -3969,6 +3982,49 @@ export default function Dashboard() {
                     <hr className="border-neutral-100 dark:border-neutral-800 my-4" />
 
                     <div>
+                      <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-2">
+                        Voice Messages
+                        <span
+                          className="inline-flex text-neutral-400 dark:text-neutral-500 cursor-help"
+                          title="Controls what happens when a visitor taps the mic, records, and stops. 'Transcribe & send as text' turns the recording into text they can review and edit before sending. 'Send as audio message' skips that step and delivers the recording itself as a playable voice message."
+                        >
+                          <Info className="size-3.5" />
+                        </span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleInputChange(setVoiceMessageMode, "transcribe")}
+                          className={`px-3 py-2 rounded-lg border text-[11px] font-semibold cursor-pointer transition-colors ${
+                            voiceMessageMode === "transcribe"
+                              ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
+                              : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-700"
+                          }`}
+                        >
+                          Transcribe &amp; send as text
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInputChange(setVoiceMessageMode, "audio")}
+                          className={`px-3 py-2 rounded-lg border text-[11px] font-semibold cursor-pointer transition-colors ${
+                            voiceMessageMode === "audio"
+                              ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
+                              : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-700"
+                          }`}
+                        >
+                          Send as audio message
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
+                        {voiceMessageMode === "audio"
+                          ? "Recordings are sent as-is, styled to match this design — see the preview."
+                          : "Recordings are transcribed to text the visitor can review before sending."}
+                      </p>
+                    </div>
+
+                    <hr className="border-neutral-100 dark:border-neutral-800 my-4" />
+
+                    <div>
                       <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Chatbot Name</label>
                       <input
                         type="text"
@@ -4387,6 +4443,32 @@ export default function Dashboard() {
                           style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
                         >
                           Hi there, testing theme preview!
+                        </div>
+                      </div>
+
+                      {/* Static demo of the voice-message player — same
+                          classNames as the real AudioBubble in
+                          ChatWidgetCore.tsx, so it picks up this design's
+                          .user-bubble theming (and .audio-bubble-* rules,
+                          see globals.css) exactly as it will in the actual
+                          widget. No real <audio> element; the bars/time are
+                          fixed since this is a design preview, not a player. */}
+                      <div className="flex gap-2 ml-auto flex-row-reverse max-w-[85%]">
+                        <div
+                          className="user-bubble p-2.5 rounded-2xl rounded-tr-none leading-relaxed"
+                          style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
+                        >
+                          <div className="audio-bubble flex items-center gap-2.5 py-0.5 min-w-[188px]">
+                            <span className="audio-bubble-btn shrink-0 size-8 rounded-full flex items-center justify-center">
+                              <Play className="size-3.5 fill-current ml-0.5" />
+                            </span>
+                            <span className="flex-1 flex items-center gap-[2.5px] h-5">
+                              {[0.4, 0.7, 0.5, 0.9, 0.6, 1, 0.45, 0.75, 0.55, 0.85, 0.4, 0.65, 0.5, 0.95, 0.6, 0.7, 0.45, 0.8, 0.55, 0.9, 0.5, 0.7, 0.4, 0.6].map((h, i) => (
+                                <span key={i} className="audio-bubble-bar w-[2.5px] rounded-full shrink-0" style={{ height: `${h * 100}%`, opacity: i < 6 ? 1 : 0.35 }} />
+                              ))}
+                            </span>
+                            <span className="audio-bubble-time text-[10px] tabular-nums opacity-70 shrink-0">0:12</span>
+                          </div>
                         </div>
                       </div>
                     </div>

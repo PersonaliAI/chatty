@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
@@ -17,7 +17,7 @@ import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, Square, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
-  Link2, ThumbsUp, ThumbsDown, Mail, Bell, Phone,
+  Link2, ThumbsUp, ThumbsDown, Mail, Bell, Phone, Play, Pause,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,6 +30,99 @@ import { useSearchParams } from "next/navigation";
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
 const RECORD_BAR_COUNT = 14;
+
+// The default placeholder content a voice message gets when the visitor
+// didn't type an accompanying caption (set where the message is created,
+// below) — used to skip rendering it as redundant text under the player.
+const VOICE_MESSAGE_PLACEHOLDER = "🎤 Voice message";
+
+// A WhatsApp/Telegram-style voice-message player: play/pause + a seekable
+// waveform + elapsed/duration, themed entirely through `currentColor` and
+// `color-mix()` (see .audio-bubble-* rules in globals.css) so it
+// automatically matches whichever design preset (and primaryColor) the
+// surrounding .user-bubble/.bot-bubble is already using. Mirrors
+// packages/chatty-react/src/ChatWidgetCore.tsx's AudioBubble exactly — this
+// route is a separate, parallel widget implementation, not a consumer of
+// that package.
+function AudioBubble({ src }: { src: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  // There's no real peak/amplitude data for a recorded clip, so the bars are
+  // a deterministic pseudo-waveform hashed from the src URL — the same
+  // message always renders the same bar pattern (rather than a fresh random
+  // shape on every re-render, which would look broken/flickery).
+  const bars = useMemo(() => {
+    let seed = 0;
+    for (let i = 0; i < src.length; i++) seed = (seed * 31 + src.charCodeAt(i)) >>> 0;
+    return Array.from({ length: 24 }, () => {
+      seed = (seed * 1103515245 + 12345) >>> 0;
+      return 0.28 + ((seed >>> 8) % 100) / 100 * 0.72;
+    });
+  }, [src]);
+
+  const progress = duration > 0 ? currentTime / duration : 0;
+
+  const togglePlay = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) el.pause();
+    else el.play().catch(() => {});
+  };
+
+  const seek: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    const el = audioRef.current;
+    if (!el || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const fraction = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    el.currentTime = fraction * duration;
+    setCurrentTime(el.currentTime);
+  };
+
+  const fmt = (s: number) => {
+    if (!isFinite(s) || s < 0) s = 0;
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  return (
+    <div className="audio-bubble flex items-center gap-2.5 py-0.5 min-w-[188px] max-w-[220px]">
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setCurrentTime(0); }}
+        className="hidden"
+      />
+      <button
+        type="button"
+        onClick={togglePlay}
+        aria-label={playing ? "Pause voice message" : "Play voice message"}
+        className="audio-bubble-btn shrink-0 size-8 rounded-full flex items-center justify-center transition-transform active:scale-90 cursor-pointer"
+      >
+        {playing ? <Pause className="size-3.5 fill-current" /> : <Play className="size-3.5 fill-current ml-0.5" />}
+      </button>
+      <div className="flex-1 flex items-center gap-[2.5px] h-5 cursor-pointer" onClick={seek}>
+        {bars.map((h, idx) => (
+          <span
+            key={idx}
+            className="audio-bubble-bar w-[2.5px] rounded-full shrink-0"
+            style={{ height: `${h * 100}%`, opacity: idx / bars.length < progress ? 1 : 0.35 }}
+          />
+        ))}
+      </div>
+      <span className="audio-bubble-time text-[10px] tabular-nums opacity-70 shrink-0">
+        {fmt(playing || currentTime > 0 ? currentTime : duration)}
+      </span>
+    </div>
+  );
+}
 
 // Send-button variants (icon + shape). Keyed by chatty_bots.send_button_style.
 const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: React.ReactNode; label?: string }> = {
@@ -248,6 +341,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  // What a finished in-chat voice recording turns into — set on
+  // chatty_bots.voice_message_mode (Customizer > Voice Messages).
+  const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [voiceCallOpen, setVoiceCallOpen] = useState(false);
 
   const [tab, setTab] = useState<Tab>("messages");
@@ -755,6 +851,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           setShowSenderTag(isPreview && paramShowSenderTag !== null ? paramShowSenderTag === "true" : !!bot.show_sender_tag);
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
           setVoiceEnabled(!!bot.voice_enabled);
+          setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
           try {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
             setColorScheme(rawScheme ? JSON.parse(rawScheme) : null);
@@ -1075,7 +1172,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     const isImage = file.type.startsWith("image/");
     const isAudio = file.type.startsWith("audio/");
     const localUrl = URL.createObjectURL(file);
-    setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? "🎤 Voice message" : `📎 ${filename}`), fileUrl: localUrl, fileType: file.type }]);
+    setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? VOICE_MESSAGE_PLACEHOLDER : `📎 ${filename}`), fileUrl: localUrl, fileType: file.type }]);
     setIsBotResponding(true);
     try {
       const fd = new FormData();
@@ -1208,6 +1305,14 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           wav = await audioBlobToWav(blob);
         } catch {
           showToast("Couldn't process that recording — try again.", "error");
+          return;
+        }
+
+        // Agent setting (Customizer > Voice Messages): "audio" sends the
+        // recording itself, skipping transcription entirely; "transcribe"
+        // (default) is the original review-before-send flow below.
+        if (voiceMessageMode === "audio") {
+          sendMedia(wav, "voice-message.wav");
           return;
         }
 
@@ -1611,10 +1716,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                         {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL — neither works with next/image's optimizer */}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
-                        {msg.fileUrl && msg.fileType?.startsWith("audio/") && <audio controls src={msg.fileUrl} className="mb-1 max-w-[180px]" />}
+                        {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
                         {msg.role === "assistant"
                           ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>{msg.content}</ReactMarkdown>
-                          : <span>{msg.content}</span>}
+                          : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
                         {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
                           <div className="mt-1.5 flex items-center gap-1">
                             <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
