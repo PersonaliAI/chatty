@@ -415,6 +415,23 @@ body {
 .dark .style-luxury-editorial .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #201c16) 40%, #201c16) !important; color: color-mix(in srgb, var(--on-primary, #efe6d3) 20%, #efe6d3) !important; }
 .dark .style-luxury-editorial .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #14120f) 15%, #14120f) !important; color: #efe6d3 !important; border-color: #4a3f2a !important; }
 
+/* Voice-message player (AudioBubble in the real widget; the Customizer's
+ * live preview below mirrors the same classNames on a static demo bubble).
+ * One shared, preset-agnostic rule block — it themes itself entirely off
+ * `currentColor`, which every .user-bubble/.bot-bubble rule above already
+ * sets per preset, so it automatically matches every design with no extra
+ * per-preset CSS. Mirrors packages/chatty-react/src/widget-presets.css. */
+.audio-bubble-btn {
+  background-color: color-mix(in srgb, currentColor 18%, transparent);
+  color: currentColor;
+}
+.audio-bubble-btn:hover {
+  background-color: color-mix(in srgb, currentColor 28%, transparent);
+}
+.audio-bubble-bar {
+  background-color: currentColor;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-none::-webkit-scrollbar {
   display: none;
