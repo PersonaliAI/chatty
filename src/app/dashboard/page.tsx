@@ -1379,7 +1379,14 @@ export default function Dashboard() {
       if (error) throw error;
       
       setUserBots(bots || []);
-      let activeBot = bots?.[0];
+      // chatty_bots.updated_at has no update trigger — it only ever reflects
+      // creation time — so ordering by it and taking [0] really means "most
+      // recently created bot," not "currently active bot." Reloading after
+      // any save (e.g. saveOnboardingStep, called right after the lead
+      // capture toggle) would silently snap the whole panel back to a
+      // different bot's data whenever the active bot wasn't the newest one,
+      // making saves on any other bot look like they hadn't persisted.
+      let activeBot = (botId && bots?.find((b) => b.id === botId)) || bots?.[0];
 
       if (!activeBot) {
         // Create a default chatbot configuration if none exists
@@ -3708,7 +3715,7 @@ export default function Dashboard() {
             )}
 
             <a
-              href="https://docs.personaliai.com"
+              href="https://docs.chatty.personaliai.com"
               target="_blank"
               rel="noreferrer"
               className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2 py-1.5 sm:px-2.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
@@ -4537,8 +4544,20 @@ export default function Dashboard() {
                     <h4 className="text-xs font-bold flex items-center gap-2"><Database className="size-4 text-[#f97316]" />Lead Capture</h4>
                     <p className="text-[10px] text-neutral-400 mt-1 max-w-md">Collect visitor details in conversations. Required fields must be gathered; new fields create columns in the Leads table automatically.</p>
                   </div>
-                  <button type="button" onClick={() => setLeadCaptureEnabled((v) => !v)} aria-label="Toggle lead capture"
-                    className={`relative w-10 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${leadCaptureEnabled ? "bg-[#f97316]" : "bg-neutral-300 dark:bg-neutral-700"}`}>
+                  <button type="button" disabled={savingLeadCapture || !botId}
+                    onClick={async () => {
+                      const next = !leadCaptureEnabled;
+                      setLeadCaptureEnabled(next);
+                      if (!botId) return;
+                      setSavingLeadCapture(true);
+                      try {
+                        await saveOnboardingStep(onboardingStep || 0, onboardingCompleted, { lead_fields: leadFields, lead_capture_enabled: next, lead_required_fields: leadRequiredFields });
+                      } finally {
+                        setSavingLeadCapture(false);
+                      }
+                    }}
+                    aria-label="Toggle lead capture"
+                    className={`relative w-10 h-6 rounded-full transition-colors shrink-0 cursor-pointer disabled:opacity-50 ${leadCaptureEnabled ? "bg-[#f97316]" : "bg-neutral-300 dark:bg-neutral-700"}`}>
                     <span className={`absolute top-0.5 size-5 rounded-full bg-white transition-all ${leadCaptureEnabled ? "left-[18px]" : "left-0.5"}`} />
                   </button>
                 </div>
@@ -6471,7 +6490,7 @@ const { reply, session_id } = await res.json();`}</pre>
                 </div>
               </div>
               <p className="text-[10px] text-neutral-400 -mt-3">
-                Full event/payload/retry reference in the <a href="https://docs.personaliai.com/guides/webhooks" target="_blank" rel="noreferrer" className="underline">webhooks docs</a>.
+                Full event/payload/retry reference in the <a href="https://docs.chatty.personaliai.com/guides/webhooks" target="_blank" rel="noreferrer" className="underline">webhooks docs</a>.
               </p>
             </div>
           )}
