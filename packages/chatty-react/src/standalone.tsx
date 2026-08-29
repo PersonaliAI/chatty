@@ -297,23 +297,38 @@ export function ChattyStandaloneApp({
             transition: "all 0.25s ease",
           }}
         >
-          <span
+          {/* A real <button>, not a bare <span>, and sized as an actual
+              28x28 tap target rather than tight to the "×" glyph (which was
+              only ~12x18px — below any usable touch-target size, easy to
+              miss on a real click/tap even though the handler itself was
+              always correct). */}
+          <button
+            type="button"
+            aria-label="Dismiss"
             onClick={(e) => {
               e.stopPropagation();
               setTeaserVisible(false);
             }}
             style={{
               position: "absolute",
-              top: "6px",
-              right: "9px",
+              top: 0,
+              right: 0,
+              width: "28px",
+              height: "28px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               fontSize: "18px",
               lineHeight: 1,
               color: "#9ca3af",
               cursor: "pointer",
+              background: "transparent",
+              border: "none",
+              padding: 0,
             }}
           >
             &times;
-          </span>
+          </button>
           <span>{teaserText}</span>
         </div>
       )}
