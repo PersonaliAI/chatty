@@ -1,0 +1,106 @@
+version: "3.8"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chatty Voice Stack — Self-hosted LiveKit + Voice Worker
+# ─────────────────────────────────────────────────────────────────────────────
+# Runs on a single Contabo VPS 4 (4 vCPU / 8 GB / €4.40/mo).
+# No LiveKit Cloud dependency — all API keys are self-generated.
+#
+# Usage:
+#   cp .env.example .env   # fill in real values
+#   docker compose up -d
+#   docker compose logs -f
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Caddy: auto-SSL reverse proxy ────────────────────────────────────────
+  # Provisions Let's Encrypt certs automatically for ${DOMAIN}.
+  # Proxies wss:// to LiveKit's WebSocket port (7880).
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"       # HTTP (ACME challenge + redirect to HTTPS)
+      - "443:443"     # HTTPS / WSS
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data          # cert storage
+      - caddy_config:/config
+    environment:
+      - DOMAIN=${DOMAIN:-livekit.personaliai.com}
+    depends_on:
+      - livekit
+
+  # ── LiveKit Server (SFU) ─────────────────────────────────────────────────
+  # Open-source media server. Forwards audio/video packets between
+  # participants — no transcoding, very lightweight for audio-only calls.
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml --node-ip ${LIVEKIT_HOST:?Set LIVEKIT_HOST to your VPS public IP}
+    ports:
+      - "7880:7880"             # WebSocket signalling (proxied by Caddy)
+      - "7881:7881"             # TURN/TCP fallback
+      - "50000-50200:50000-50200/udp"   # RTP media (narrowed from 50000-60000
+                                         # to avoid Docker iptables overhead —
+                                         # 200 ports = 200 concurrent streams,
+                                         # more than enough for VPS 4)
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      - redis
+
+  # ── Redis ────────────────────────────────────────────────────────────────
+  # Room state coordination for LiveKit. Single-node, no persistence needed.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Internal only — not exposed to host network.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── Voice Worker ─────────────────────────────────────────────────────────
+  # Chatty's LiveKit agent — bridges STT → Brain → TTS.
+  # Connects to the local LiveKit server via ws://livekit:7880.
+  voice-worker:
+    build:
+      context: ..
+      dockerfile: voice-agent/Dockerfile
+    restart: unless-stopped
+    environment:
+      # LiveKit connection — points to the co-located server (internal Docker
+      # network), not LiveKit Cloud. ws:// (not wss://) because TLS terminates
+      # at Caddy; inside Docker network, plaintext is fine.
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
+      # Worker config
+      - LIVEKIT_NUM_IDLE_PROCESSES=${LIVEKIT_NUM_IDLE_PROCESSES:-3}
+      - LIVEKIT_LOG_LEVEL=${LIVEKIT_LOG_LEVEL:-INFO}
+      # Supabase
+      - SUPABASE_URL=${SUPABASE_URL:?Set SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:?Set SUPABASE_SERVICE_KEY}
+      # LLM
+      - GEMINI_API_KEY=${GEMINI_API_KEY:?Set GEMINI_API_KEY}
+      # STT/TTS provider keys (optional — falls back to Google)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
+      - ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY:-}
+      - SONIOX_API_KEY=${SONIOX_API_KEY:-}
+      - CARTESIA_API_KEY=${CARTESIA_API_KEY:-}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+      - FISH_API_KEY=${FISH_API_KEY:-}
+      # Encryption key for BYOK decryption
+      - BYOK_ENCRYPTION_KEY=${BYOK_ENCRYPTION_KEY:-}
+    depends_on:
+      livekit:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:

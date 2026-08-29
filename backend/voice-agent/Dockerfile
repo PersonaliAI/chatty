@@ -56,4 +56,4 @@ USER appuser
 # job dispatch; unlike the API, this is not a request/response HTTP server,
 # so there's no ${PORT} to bind (Cloud Run still needs a container that
 # doesn't exit, which `start` satisfies by running forever).
-CMD ["python", "voice_worker.py", "start"]
+CMD ["python", "voice-agent/voice_worker.py", "start"]

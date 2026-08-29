@@ -26,7 +26,14 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
+import sys
 from typing import Any, AsyncIterable, Optional
+
+# Ensure project root is in sys.path so app and plugins are always importable
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from livekit import api
 from livekit.agents import (
@@ -297,27 +304,13 @@ def _build_tts(bot: dict[str, Any]):
 
 
 # AgentServer's built-in HTTP port (health/monitoring endpoint, distinct from
-# the outbound WebSocket connection it makes to LIVEKIT_URL for job dispatch)
-# must bind to whatever Cloud Run injects via $PORT — Cloud Run *services*
-# require a container to listen on that port and pass a startup health check
-# before a revision is considered ready, even though this worker's real job
-# (voice calls) has nothing to do with inbound HTTP.
-# num_idle_processes defaults to 8 in production mode (ServerEnvOption's
-# prod_default) — each idle process pre-loads the full agent stack, which
-# previously blew past a 1Gi/1cpu Cloud Run instance before any finished
-# initializing ("no warmed process available", "timed out waiting for idle
-# processes to initialize") even though the worker itself registered fine.
-# Now 2 (not the previous 1): docling/torch/transformers were dropped from
-# requirements.txt (this worker never used them), so each idle process's
-# import footprint is meaningfully smaller — 2 warm processes fit comfortably
-# in the deploy's memory budget (deploy-voice-worker.sh) and mean a second
-# concurrent call doesn't cold-start behind the first.
+# the outbound WebSocket connection it makes to LIVEKIT_URL for job dispatch).
+# On Docker Compose / VPS, defaults to 8081.
+# num_idle_processes defaults to 3 on VPS (4 vCPU / 8GB RAM has plenty of headroom
+# for 3 warm worker processes).
 server = AgentServer(
     port=int(os.environ.get("PORT", 8081)),
-    num_idle_processes=int(os.environ.get("LIVEKIT_NUM_IDLE_PROCESSES", "2")),
-    # Back to INFO: the raw DEBUG dump was dominated by gRPC/HTTP2 frame
-    # noise and gave no STT/VAD signal. Real visibility now comes from the
-    # explicit session.on(...) diagnostics below instead.
+    num_idle_processes=int(os.environ.get("LIVEKIT_NUM_IDLE_PROCESSES", "3")),
     log_level=os.environ.get("LIVEKIT_LOG_LEVEL", "INFO"),
 )
 
