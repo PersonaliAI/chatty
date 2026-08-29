@@ -1903,9 +1903,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             </span>
           )}
           <span className="flex-1 truncate">{toast.message}</span>
+          {/* p-1.5 -m-1.5: pad the tap target, not the icon - this had zero
+              padding at all, so its clickable area was exactly the bare
+              12px icon (size-3), easy to miss on a real click. Negative
+              margin keeps the toast's own visual padding/spacing unchanged. */}
           <button
+            type="button"
+            aria-label="Dismiss"
             onClick={() => setToast(null)}
-            className="text-neutral-400 hover:text-neutral-200 cursor-pointer"
+            className="p-1.5 -m-1.5 text-neutral-400 hover:text-neutral-200 cursor-pointer shrink-0"
           >
             <X className="size-3" />
           </button>
