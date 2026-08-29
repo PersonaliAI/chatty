@@ -58,7 +58,7 @@ flowchart LR
     voice --> api
     api --> db[("Supabase\nPostgres + pgvector + RLS")]
     api --> llm["Gemini / BYOK LLM"]
-    voice --> livekit["LiveKit Cloud\n(WebRTC transport)"]
+    voice --> livekit["LiveKit Server\n(Self-Hosted / Cloud)"]
 
     style widget fill:#6366f1,color:#fff,stroke:none
     style dashboard fill:#6366f1,color:#fff,stroke:none
@@ -71,7 +71,7 @@ flowchart LR
 chatty/
 ├── frontend/     Next.js — dashboard, embeddable widget, widget.js loader
 ├── backend/      FastAPI — chat/RAG/bookings/channels API
-│   └── voice_worker.py   a separate LiveKit Agents process for the voice agent
+│   └── voice-agent/  LiveKit voice worker agent + self-hosted VPS stack
 └── docker-compose.yml
 ```
 
@@ -109,7 +109,7 @@ docker compose up --build backend frontend
 
 Dashboard: `http://localhost:3000` — sign up, create a bot, and the widget embed snippet is generated for you under bot settings.
 
-To also run the voice agent: `docker compose up --build` (no service names) brings up `voice-worker` too. It needs a free [LiveKit Cloud](https://cloud.livekit.io) project — set `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `backend/.env`.
+To also run the voice agent: `docker compose up --build` (no service names) brings up `voice-worker` too. Set `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `backend/.env` (supports self-hosted LiveKit or LiveKit Cloud).
 
 ## 💻 Local Development (without Docker)
 
@@ -131,21 +131,12 @@ npm run dev
 **Voice worker** (optional):
 ```bash
 cd backend
-python voice_worker.py dev
+python voice-agent/voice_worker.py dev
 ```
 
 ## ⚙️ Configuration Reference
 
 Every environment variable is documented inline in [`backend/.env.example`](backend/.env.example) and [`frontend/.env.example`](frontend/.env.example) — what it's for, where to get it, and what happens if you leave it blank.
-
-## 🗺️ Roadmap
-
-- [ ] One-click deploy buttons (Railway / Render / Fly.io)
-- [ ] Additional channels (Instagram DM, Discord)
-- [ ] Multi-language knowledge base auto-translation
-- [ ] Admin CLI for bulk bot provisioning
-
-Have an idea? [Open an issue](https://github.com/PersonaliAI/chatty/issues).
 
 ## 🤝 Contributing
 
