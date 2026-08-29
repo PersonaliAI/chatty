@@ -87,7 +87,22 @@ function AudioBubble({ src }: { src: string }) {
         ref={audioRef}
         src={src}
         preload="metadata"
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+        onLoadedMetadata={(e) => {
+          const el = e.currentTarget;
+          // Chrome reports Infinity for a MediaRecorder-produced blob's
+          // duration until forced to seek past the end — without this, every
+          // voice message we record ourselves shows "0:00" regardless of its
+          // real length (fmt() below maps non-finite durations to 0).
+          if (isFinite(el.duration)) setDuration(el.duration);
+          else el.currentTime = 1e101;
+        }}
+        onDurationChange={(e) => {
+          const d = e.currentTarget.duration;
+          if (isFinite(d) && d > 0) {
+            setDuration(d);
+            if (e.currentTarget.currentTime !== 0) e.currentTarget.currentTime = 0;
+          }
+        }}
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
