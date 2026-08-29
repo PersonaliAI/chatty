@@ -435,6 +435,29 @@ export default function ChatWidgetCore({
   const rootRef = useRef<HTMLDivElement>(null);
   const ownsDocument = typeof window !== "undefined" && window.self !== window.top;
 
+  // #chatty-root's own real, unscaled pixel size — needed to compensate
+  // the font-size-% wrapper below correctly. `zoom` does NOT scale a
+  // *percentage* width/height the way it scales content: `width: 76.9%;
+  // zoom: 130%` still lays out (and reports via getBoundingClientRect) as
+  // literally 76.9% of the parent's real size, not 100% - percentages are
+  // resolved against the containing block's actual size regardless of the
+  // zoomed element's own zoom. Pixel lengths behave differently: `width:
+  // 292px; zoom: 130%` DOES render as 380px (292 × 1.3) - zoom scales
+  // absolute lengths but not relative ones. So the wrapper's compensated
+  // size has to be computed in real pixels from the actual container size,
+  // which can only be known at runtime (ResizeObserver), not authored as a
+  // fixed percentage in JSX.
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setContainerSize({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   useEffect(() => {
     // Only the iframe path (EmbedClient.tsx never passes forceFullscreen/
     // notificationGranted) still needs this listener — the standalone
@@ -1567,26 +1590,22 @@ export default function ChatWidgetCore({
       {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
       {/* Text-size scaling lives on this inner wrapper, not #chatty-root
           itself — #chatty-root's own w-full/h-full defines the widget's
-          real footprint (the iframe/host container it's actually given),
-          and `zoom` scales BOTH a box's contents AND, per spec, how much
-          room percentage/viewport units resolve to inside it. Putting zoom
-          directly on #chatty-root left its own h-full sizing computed in
-          the zoomed coordinate space, so at e.g. 130% the flex column
-          needed 130% more room than the outer frame actually had — the
-          header/composer grew but the frame didn't, clipping the message
-          list (or the whole bottom of the panel) against #chatty-root's
-          own overflow-hidden. Compensating the wrapper's own width/height
-          by the inverse ratio (10000/percent, since width/height are already
-          %) cancels that out: zoom makes it render bigger, the shrunk
-          logical size makes it occupy exactly the same space it always did,
-          so only the *content inside* ends up larger — which was the
-          actual goal. */}
+          real footprint (the iframe/host container it's actually given).
+          Compensating the wrapper's size has to be done in real PIXELS
+          (containerSize, from the ResizeObserver above), not percentages:
+          `width: 76.9%; zoom: 130%` still lays out — and reports via
+          getBoundingClientRect — as literally 76.9% of the parent's real
+          size, not 100%; zoom does not scale how a *percentage* resolves.
+          Pixel lengths behave differently: `width: 292px; zoom: 130%` DOES
+          render as 380px (292 × 1.3). So this only compensates once
+          containerSize is known; until then it renders unscaled for one
+          frame rather than with wrong (percentage-based) math. */}
       <div
         className="w-full h-full flex flex-col overflow-hidden"
-        style={fontSizePercent !== 100 ? {
+        style={fontSizePercent !== 100 && containerSize ? {
           zoom: `${fontSizePercent}%`,
-          width: `${10000 / fontSizePercent}%`,
-          height: `${10000 / fontSizePercent}%`,
+          width: `${containerSize.width / (fontSizePercent / 100)}px`,
+          height: `${containerSize.height / (fontSizePercent / 100)}px`,
         } : undefined}
       >
       {/* Header */}

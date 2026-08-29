@@ -551,6 +551,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [liveAgent, setLiveAgent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [pendingFiles, setPendingFiles] = useState<{file: File; preview: string}[]>([]);
   const lastPollRef = useRef<string>(new Date().toISOString());
 
@@ -877,6 +878,29 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily).replace(/%20/g, "+")}:wght@400;500;600;700&display=swap`;
     document.head.appendChild(link);
   }, [fontFamily]);
+
+  // #chatty-root's own real, unscaled pixel size — needed to compensate
+  // the font-size-% wrapper below correctly. `zoom` does NOT scale a
+  // *percentage* width/height the way it scales content: `width: 76.9%;
+  // zoom: 130%` still lays out (and reports via getBoundingClientRect) as
+  // literally 76.9% of the parent's real size, not 100% - percentages are
+  // resolved against the containing block's actual size regardless of the
+  // zoomed element's own zoom. Pixel lengths behave differently: `width:
+  // 292px; zoom: 130%` DOES render as 380px (292 × 1.3) - zoom scales
+  // absolute lengths but not relative ones. So the wrapper's compensated
+  // size has to be computed in real pixels from the actual container size,
+  // which can only be known at runtime (ResizeObserver), not authored as a
+  // fixed percentage in JSX.
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setContainerSize({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // ---- Text message (streamed via SSE) ----
   // Update the most recent assistant bubble's content in place as tokens arrive.
@@ -1288,6 +1312,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   return (
     <div
+      ref={rootRef}
       id="chatty-root"
       className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`}
       style={{
@@ -1346,18 +1371,16 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
       {/* Text-size scaling lives on this inner wrapper, not #chatty-root
           itself — see ChatWidgetCore.tsx's identical wrapper for the full
-          reasoning: zoom directly on #chatty-root computed its own
-          w-full/h-screen sizing in the zoomed coordinate space too, so at
-          e.g. 130% the flex column needed 130% more room than the iframe
-          actually had, clipping content against #chatty-root's own
-          overflow-hidden. The inverse-ratio width/height compensation
-          cancels that out. */}
+          reasoning: zoom does not scale a *percentage* width/height the
+          way it scales absolute (px) ones, so the compensation has to be
+          computed in real pixels from containerSize (ResizeObserver
+          above), not authored as a fixed percentage. */}
       <div
         className="w-full h-full flex flex-col overflow-hidden"
-        style={fontSizePercent !== 100 ? {
+        style={fontSizePercent !== 100 && containerSize ? {
           zoom: `${fontSizePercent}%`,
-          width: `${10000 / fontSizePercent}%`,
-          height: `${10000 / fontSizePercent}%`,
+          width: `${containerSize.width / (fontSizePercent / 100)}px`,
+          height: `${containerSize.height / (fontSizePercent / 100)}px`,
         } : undefined}
       >
       {/* Header */}
