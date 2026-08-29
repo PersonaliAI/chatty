@@ -1505,12 +1505,6 @@ export default function ChatWidgetCore({
       style={{
         backgroundColor: primaryColor,
         touchAction: "manipulation",
-        // `zoom` (not a font-size/rem change) so every existing Tailwind
-        // text-size class throughout this component scales together
-        // proportionally without needing each one rewritten in em/rem —
-        // the same effect as if the visitor's own default text size were
-        // that percentage, scoped to just this widget.
-        zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined,
         ...primaryColorCssVars(primaryColor),
       } as React.CSSProperties}
     >
@@ -1571,6 +1565,30 @@ export default function ChatWidgetCore({
         ${fontFamilyCss}
       ` }} />
       {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
+      {/* Text-size scaling lives on this inner wrapper, not #chatty-root
+          itself — #chatty-root's own w-full/h-full defines the widget's
+          real footprint (the iframe/host container it's actually given),
+          and `zoom` scales BOTH a box's contents AND, per spec, how much
+          room percentage/viewport units resolve to inside it. Putting zoom
+          directly on #chatty-root left its own h-full sizing computed in
+          the zoomed coordinate space, so at e.g. 130% the flex column
+          needed 130% more room than the outer frame actually had — the
+          header/composer grew but the frame didn't, clipping the message
+          list (or the whole bottom of the panel) against #chatty-root's
+          own overflow-hidden. Compensating the wrapper's own width/height
+          by the inverse ratio (10000/percent, since width/height are already
+          %) cancels that out: zoom makes it render bigger, the shrunk
+          logical size makes it occupy exactly the same space it always did,
+          so only the *content inside* ends up larger — which was the
+          actual goal. */}
+      <div
+        className="w-full h-full flex flex-col overflow-hidden"
+        style={fontSizePercent !== 100 ? {
+          zoom: `${fontSizePercent}%`,
+          width: `${10000 / fontSizePercent}%`,
+          height: `${10000 / fontSizePercent}%`,
+        } : undefined}
+      >
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
@@ -2146,6 +2164,7 @@ export default function ChatWidgetCore({
         </div>
       )}
 
+      </div>
     </div>
   );
 }

@@ -1293,7 +1293,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       style={{
         backgroundColor: primaryColor,
         touchAction: "manipulation",
-        zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined,
         ...primaryColorCssVars(primaryColor),
       } as React.CSSProperties}
     >
@@ -1345,6 +1344,22 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         ${fontFamilyCss}
       ` }} />
       {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
+      {/* Text-size scaling lives on this inner wrapper, not #chatty-root
+          itself — see ChatWidgetCore.tsx's identical wrapper for the full
+          reasoning: zoom directly on #chatty-root computed its own
+          w-full/h-screen sizing in the zoomed coordinate space too, so at
+          e.g. 130% the flex column needed 130% more room than the iframe
+          actually had, clipping content against #chatty-root's own
+          overflow-hidden. The inverse-ratio width/height compensation
+          cancels that out. */}
+      <div
+        className="w-full h-full flex flex-col overflow-hidden"
+        style={fontSizePercent !== 100 ? {
+          zoom: `${fontSizePercent}%`,
+          width: `${10000 / fontSizePercent}%`,
+          height: `${10000 / fontSizePercent}%`,
+        } : undefined}
+      >
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
@@ -1874,6 +1889,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         </div>
       )}
 
+      </div>
     </div>
   );
 }
