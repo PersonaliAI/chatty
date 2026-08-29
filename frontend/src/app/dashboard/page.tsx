@@ -1111,6 +1111,7 @@ export default function Dashboard() {
   const [sourceTypeFilter, setSourceTypeFilter] = useState<"all" | "text" | "url" | "file">("all");
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
   const [crawlDropdownOpen, setCrawlDropdownOpen] = useState<string | null>(null);
+  const [recrawlingSourceId, setRecrawlingSourceId] = useState<string | null>(null);
 
   // Mailbox tab state
   const [mailboxFilter, setMailboxFilter] = useState<"all" | "client" | "admin">("all");
@@ -2978,6 +2979,35 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Error deleting source:", err);
+    }
+  };
+
+  // The refresh icon next to a URL source's re-crawl schedule dropdown
+  // — that dropdown only sets the auto re-crawl cadence, it never actually
+  // triggers a crawl. This does: same /api/crawl/pages endpoint the initial
+  // crawl uses, which upserts by (bot_id, type=url, name=url) so re-crawling
+  // an existing source updates its row in place rather than duplicating it.
+  const handleRecrawlNow = async (sourceId: string, url: string) => {
+    if (!botId || recrawlingSourceId) return;
+    setRecrawlingSourceId(sourceId);
+    try {
+      const res = await fetchWithFallback("/api/crawl/pages", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, urls: [url] }),
+      });
+      const body = await res.json().catch(() => ({}));
+      const result = body.results?.[0];
+      if (res.ok && result?.ok) {
+        setSources((prev) => prev.map((s) => (s.id === sourceId ? { ...s, charCount: result.chars ?? s.charCount, status: "trained" } : s)));
+        showToast("Re-crawled — knowledge base updated.", "success");
+      } else {
+        showToast(result?.error ? `Re-crawl failed: ${result.error}` : "Re-crawl failed.", "error");
+      }
+    } catch (err) {
+      console.error("Error re-crawling source:", err);
+      showToast("Re-crawl failed.", "error");
+    } finally {
+      setRecrawlingSourceId(null);
     }
   };
 
@@ -5252,7 +5282,16 @@ export default function Dashboard() {
                               </div>
                               {s.type === "url" && (
                                 <div className="flex items-center gap-2 mt-1.5">
-                                  <RefreshCw className="size-3 text-neutral-400 shrink-0" />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRecrawlNow(s.id, s.name)}
+                                    disabled={recrawlingSourceId === s.id}
+                                    aria-label="Re-crawl now"
+                                    title="Re-crawl now"
+                                    className="shrink-0 text-neutral-400 hover:text-[#f97316] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                                  >
+                                    <RefreshCw className={`size-3 ${recrawlingSourceId === s.id ? "animate-spin" : ""}`} />
+                                  </button>
                                   <div className="relative">
                                     <button
                                       type="button"
