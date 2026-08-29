@@ -1889,6 +1889,15 @@ export default function Dashboard() {
       loadByokStatus(botId);
       loadVoiceSettings(botId);
     }
+    // The Voice Agent tab reads/writes the same voiceEnabled/voiceStt.../
+    // voiceTts... state as the Settings tab's voice section, but is its own
+    // separate tab — this was never in the list of tabs that trigger
+    // loadVoiceSettings, so opening it always showed the untouched default
+    // state (voiceEnabled=false) regardless of what's actually saved,
+    // making the toggle look broken/unsaved even though writes were fine.
+    if (botId && activeTab === "voice_agent") {
+      loadVoiceSettings(botId);
+    }
     if (botId && activeTab === "knowledge") {
       loadDriveSyncSchedule();
       loadUnanswered();
