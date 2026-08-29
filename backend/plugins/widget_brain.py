@@ -217,8 +217,12 @@ async def run_widget_assistant(
             media_instruction = (
                 "The visitor sent a VOICE MESSAGE and the audio is attached below. "
                 "You ARE able to hear and understand audio — listen to it, interpret what "
-                "the visitor is asking, and answer their question normally. "
-                "Never say you cannot process audio or ask them to type it out."
+                "the visitor is asking, and answer their question normally. Don't refuse to "
+                "engage with it or claim you can't process audio in general. "
+                "However, if the recording is silent, too quiet, or has no discernible "
+                "speech, say so plainly — e.g. \"I couldn't quite catch that — could you "
+                "try recording again, or type your message instead?\" — instead of "
+                "guessing or answering a question they never actually asked."
             )
         elif media_mime.startswith("image/"):
             media_instruction = (
