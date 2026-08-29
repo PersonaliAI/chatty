@@ -295,6 +295,12 @@ export function ChattyStandaloneApp({
             fontSize: "14px",
             lineHeight: 1.45,
             transition: "all 0.25s ease",
+            // The shadow host is pointer-events:none (so the widget doesn't
+            // block clicks elsewhere on the host page); only elements that
+            // opt back in with pointer-events:auto are actually clickable.
+            // This bubble never did, so both it and its dismiss button were
+            // visually present but inert to real clicks.
+            pointerEvents: "auto",
           }}
         >
           {/* A real <button>, not a bare <span>, and sized as an actual
