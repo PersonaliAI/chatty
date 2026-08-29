@@ -204,16 +204,29 @@ async def set_byok(bot_id: str, req: BYOKUpdate, user: dict[str, Any] = Depends(
 @router.get("/api/bots/{bot_id}/voice-settings")
 async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Never returns decrypted BYOK keys — only whether one is configured."""
-    res = await run_db(lambda: supabase.table("chatty_bots").select(
-        "voice_enabled, voice_stt_provider, voice_stt_byok_key_encrypted, "
-        "voice_tts_provider, voice_tts_byok_key_encrypted, voice_tts_voice, "
-        "voice_agent_role, voice_max_duration_minutes, user_id"
-    ).eq("id", bot_id).execute())
+    try:
+        res = await run_db(lambda: supabase.table("chatty_bots").select(
+            "voice_enabled, voice_mode, voice_stt_provider, voice_stt_byok_key_encrypted, "
+            "voice_tts_provider, voice_tts_byok_key_encrypted, voice_tts_voice, "
+            "voice_agent_role, voice_max_duration_minutes, "
+            "voice_realtime_provider, voice_realtime_model, voice_realtime_byok_key_encrypted, "
+            "user_id"
+        ).eq("id", bot_id).execute())
+    except Exception:
+        # voice_mode/voice_realtime_*'s migration (20260829030000) may not be
+        # applied to this environment yet — fall back to the columns that
+        # are guaranteed to exist rather than 400ing the whole request.
+        res = await run_db(lambda: supabase.table("chatty_bots").select(
+            "voice_enabled, voice_stt_provider, voice_stt_byok_key_encrypted, "
+            "voice_tts_provider, voice_tts_byok_key_encrypted, voice_tts_voice, "
+            "voice_agent_role, voice_max_duration_minutes, user_id"
+        ).eq("id", bot_id).execute())
     if not res.data or res.data[0]["user_id"] != user["auth_user_id"]:
         raise HTTPException(status_code=403, detail="Unauthorized")
     row = res.data[0]
     return {
         "voice_enabled": bool(row.get("voice_enabled")),
+        "voice_mode": row.get("voice_mode") or "pipeline",
         "voice_stt_provider": row.get("voice_stt_provider") or "google",
         "voice_tts_provider": row.get("voice_tts_provider") or "google",
         "voice_tts_voice": row.get("voice_tts_voice"),
@@ -221,6 +234,9 @@ async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require
         "voice_tts_configured": bool(row.get("voice_tts_byok_key_encrypted")),
         "voice_agent_role": row.get("voice_agent_role") or "general",
         "voice_max_duration_minutes": row.get("voice_max_duration_minutes") or 15,
+        "voice_realtime_provider": row.get("voice_realtime_provider") or "google",
+        "voice_realtime_model": row.get("voice_realtime_model"),
+        "voice_realtime_configured": bool(row.get("voice_realtime_byok_key_encrypted")),
     }
 
 
@@ -235,6 +251,22 @@ async def set_voice_settings(
     update: dict[str, Any] = {}
     if req.voice_enabled is not None:
         update["voice_enabled"] = req.voice_enabled
+    if req.voice_mode is not None:
+        if req.voice_mode not in ("pipeline", "realtime"):
+            raise HTTPException(status_code=400, detail="voice_mode must be 'pipeline' or 'realtime'")
+        update["voice_mode"] = req.voice_mode
+    if req.voice_realtime_provider is not None:
+        if req.voice_realtime_provider not in ("google", "openai"):
+            raise HTTPException(status_code=400, detail="voice_realtime_provider must be 'google' or 'openai'")
+        update["voice_realtime_provider"] = req.voice_realtime_provider
+        if req.voice_realtime_provider == "google":
+            update["voice_realtime_byok_key_encrypted"] = None  # no key needed for the default
+    if req.voice_realtime_model is not None:
+        update["voice_realtime_model"] = req.voice_realtime_model or None
+    if req.voice_realtime_api_key is not None:
+        update["voice_realtime_byok_key_encrypted"] = (
+            llm_providers.encrypt_api_key(req.voice_realtime_api_key) if req.voice_realtime_api_key else None
+        )
     if req.voice_stt_provider is not None:
         update["voice_stt_provider"] = req.voice_stt_provider
         if req.voice_stt_provider == "google":

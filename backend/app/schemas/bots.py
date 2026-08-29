@@ -26,6 +26,7 @@ class DashboardWebhookCreateRequest(BaseModel):
 
 class VoiceSettingsUpdate(BaseModel):
     voice_enabled: Optional[bool] = None
+    voice_mode: Optional[str] = None  # pipeline | realtime
     voice_stt_provider: Optional[str] = None
     voice_tts_provider: Optional[str] = None
     voice_tts_voice: Optional[str] = None
@@ -33,3 +34,9 @@ class VoiceSettingsUpdate(BaseModel):
     voice_tts_api_key: Optional[str] = None  # plaintext; gets encrypted. "" clears it
     voice_agent_role: Optional[str] = None  # general | booking | info | lead
     voice_max_duration_minutes: Optional[int] = None
+    # Realtime mode (speech-to-speech: Gemini Live / OpenAI Realtime) — no
+    # separate STT/TTS stage, so voice_tts_voice above is reused as the
+    # realtime voice (e.g. "Puck"/"marin") rather than adding another column.
+    voice_realtime_provider: Optional[str] = None  # google | openai
+    voice_realtime_model: Optional[str] = None
+    voice_realtime_api_key: Optional[str] = None  # plaintext; gets encrypted. "" clears it

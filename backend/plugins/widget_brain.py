@@ -172,6 +172,45 @@ async def _translate_to_english_for_rag(text: str) -> str:
     return text
 
 
+async def search_knowledge(
+    bot_id: str, owner_user: dict[str, Any], bot: dict[str, Any], query: str
+) -> tuple[str, list[dict]]:
+    """The RAG step run_widget_assistant does at the start of every turn —
+    extracted so it's reusable outside the text-chat tool-calling loop, e.g.
+    as a callable tool for a voice_mode="realtime" (Gemini Live/OpenAI
+    Realtime) session, which has no discrete "build a prompt, call the LLM
+    once" step of its own to hook this into. Behavior is unchanged from
+    before this was pulled out of run_widget_assistant."""
+    knowledge_context = ""
+    english_query = await _translate_to_english_for_rag(query)
+    if bot.get("sync_google_drive"):
+        try:
+            chunks = await doc_rag.search(
+                supabase, user_id=owner_user["id"], query=english_query, count=5
+            )
+            if chunks:
+                knowledge_context = doc_rag.format_for_prompt(chunks)
+        except Exception:
+            logger.exception("Widget RAG search failed")
+
+    source_refs: list[dict] = []
+    try:
+        res_sources = await run_db(lambda: supabase.table("chatty_sources")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("status", "trained")
+            .execute())
+        if res_sources.data:
+            ranked = _rank_sources(english_query, res_sources.data)
+            if ranked:
+                knowledge_context += "\n\nWebsite / business knowledge (most relevant first):" + ranked
+            source_refs = _ranked_source_refs(english_query, res_sources.data)
+    except Exception:
+        logger.exception("Widget sources query failed")
+
+    return knowledge_context, source_refs
+
+
 async def run_widget_assistant(
     *,
     bot_id: str,
@@ -252,32 +291,7 @@ async def run_widget_assistant(
         messages.append({"role": "user", "content": text or "(the visitor sent an attachment)"})
 
     # 2. RAG Context
-    knowledge_context = ""
-    english_query = await _translate_to_english_for_rag(text)
-    if bot.get("sync_google_drive"):
-        try:
-            chunks = await doc_rag.search(
-                supabase, user_id=owner_user["id"], query=english_query, count=5
-            )
-            if chunks:
-                knowledge_context = doc_rag.format_for_prompt(chunks)
-        except Exception:
-            logger.exception("Widget RAG search failed")
-
-    source_refs: list[dict] = []
-    try:
-        res_sources = await run_db(lambda: supabase.table("chatty_sources")
-            .select("*")
-            .eq("bot_id", bot_id)
-            .eq("status", "trained")
-            .execute())
-        if res_sources.data:
-            ranked = _rank_sources(english_query, res_sources.data)
-            if ranked:
-                knowledge_context += "\n\nWebsite / business knowledge (most relevant first):" + ranked
-            source_refs = _ranked_source_refs(english_query, res_sources.data)
-    except Exception:
-        logger.exception("Widget sources query failed")
+    knowledge_context, source_refs = await search_knowledge(bot_id, owner_user, bot, text)
 
     # 3. Timezone Calculations
     import pytz
