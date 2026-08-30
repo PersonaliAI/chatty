@@ -279,6 +279,33 @@ const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   billing: "billing", settings: "settings",
 };
 
+/** A custom checkbox for the Team section's per-tab permission grants —
+ * native checkboxes render the browser/OS's own check glyph (often a flat
+ * black tick on whatever accent-color background), which doesn't match this
+ * app's rounded, white-on-orange button styling used everywhere else. */
+function TeamTabCheckbox({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-300 cursor-pointer select-none"
+    >
+      <span
+        className={`flex items-center justify-center size-4 rounded-[5px] border transition-colors duration-150 ${
+          checked
+            ? "bg-[#f97316] border-[#f97316]"
+            : "bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600"
+        }`}
+      >
+        {checked && <Check className="size-3 text-white" strokeWidth={3.5} />}
+      </span>
+      {label}
+    </button>
+  );
+}
+
 /** Inline role + per-tab permission editor for one row in the Team section's
  * member list. Kept local state so keystrokes/checkbox toggles don't touch
  * teamMembers (and re-render the whole list) until Save is pressed. */
@@ -304,15 +331,12 @@ function MemberPermissionEditor({
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1.5">
         {grantableTabs.map((tab) => (
-          <label key={tab} className="flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-400 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={draftTabs.includes(tab)}
-              onChange={(e) => setDraftTabs((p) => e.target.checked ? [...p, tab] : p.filter((t) => t !== tab))}
-              className="size-3 accent-[#f97316]"
-            />
-            {TAB_LABELS[tab]}
-          </label>
+          <TeamTabCheckbox
+            key={tab}
+            checked={draftTabs.includes(tab)}
+            onChange={(checked) => setDraftTabs((p) => checked ? [...p, tab] : p.filter((t) => t !== tab))}
+            label={TAB_LABELS[tab]}
+          />
         ))}
       </div>
       <div className="flex items-center gap-2">
@@ -7091,15 +7115,12 @@ const { reply, session_id } = await res.json();`}</pre>
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                       {grantableTabs.map((tab) => (
-                        <label key={tab} className="flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-400 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={inviteTabs.includes(tab)}
-                            onChange={(e) => setInviteTabs((p) => e.target.checked ? [...p, tab] : p.filter((t) => t !== tab))}
-                            className="size-3 accent-[#f97316]"
-                          />
-                          {TAB_LABELS[tab]}
-                        </label>
+                        <TeamTabCheckbox
+                          key={tab}
+                          checked={inviteTabs.includes(tab)}
+                          onChange={(checked) => setInviteTabs((p) => checked ? [...p, tab] : p.filter((t) => t !== tab))}
+                          label={TAB_LABELS[tab]}
+                        />
                       ))}
                     </div>
                     {teamMembers.length > 0 && (
