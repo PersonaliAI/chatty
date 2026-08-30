@@ -14,6 +14,7 @@ from app.core.clients import supabase
 from app.core.config import MODEL_NAME
 from app.core.db import run_db
 from app.core.deps import require_user
+from app.core.permissions import verify_bot_permission
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.schemas.bots import (
     BYOKUpdate,
@@ -26,9 +27,6 @@ from plugins import llm_providers
 from plugins import notifications as notify
 from plugins.widget_brain import GEMINI_FALLBACK_MODELS
 
-# Bridged helpers still living in main.py (Phase 2 leaves these in place to
-# avoid a large, risky helper-extraction pass alongside the route split).
-from main import _verify_bot_owner
 import json
 
 logger = logging.getLogger("chatty")
@@ -169,11 +167,14 @@ async def generate_business(
 
 @router.get("/api/bots/{bot_id}/byok")
 async def get_byok_status(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    """Never returns the decrypted key — only whether one is configured."""
+    """Never returns the decrypted key — only whether one is configured.
+    Owner-only by default; a team member needs the 'byok' permission, which
+    (unlike most tabs) only the owner can grant — see app.core.permissions."""
+    await verify_bot_permission(bot_id, user, "byok")
     res = await run_db(lambda: supabase.table("chatty_bots").select("byok_provider, byok_model, byok_api_key_encrypted, user_id") \
         .eq("id", bot_id).execute())
-    if not res.data or res.data[0]["user_id"] != user["auth_user_id"]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
     row = res.data[0]
     return {
         "provider": row.get("byok_provider"),
@@ -184,9 +185,7 @@ async def get_byok_status(bot_id: str, user: dict[str, Any] = Depends(require_us
 
 @router.post("/api/bots/{bot_id}/byok")
 async def set_byok(bot_id: str, req: BYOKUpdate, user: dict[str, Any] = Depends(require_user)):
-    res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id").eq("id", bot_id).execute())
-    if not res.data or res.data[0]["user_id"] != user["auth_user_id"]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    await verify_bot_permission(bot_id, user, "byok")
 
     if req.provider and req.provider not in ("openai", "anthropic", "openrouter"):
         raise HTTPException(status_code=400, detail="provider must be openai, anthropic, or openrouter")
@@ -204,6 +203,7 @@ async def set_byok(bot_id: str, req: BYOKUpdate, user: dict[str, Any] = Depends(
 @router.get("/api/bots/{bot_id}/voice-settings")
 async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Never returns decrypted BYOK keys — only whether one is configured."""
+    await verify_bot_permission(bot_id, user, "voice")
     try:
         res = await run_db(lambda: supabase.table("chatty_bots").select(
             "voice_enabled, voice_mode, voice_stt_provider, voice_stt_byok_key_encrypted, "
@@ -221,8 +221,8 @@ async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require
             "voice_tts_provider, voice_tts_byok_key_encrypted, voice_tts_voice, "
             "voice_agent_role, voice_max_duration_minutes, user_id"
         ).eq("id", bot_id).execute())
-    if not res.data or res.data[0]["user_id"] != user["auth_user_id"]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
     row = res.data[0]
     return {
         "voice_enabled": bool(row.get("voice_enabled")),
@@ -244,9 +244,7 @@ async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require
 async def set_voice_settings(
     bot_id: str, req: VoiceSettingsUpdate, user: dict[str, Any] = Depends(require_user)
 ):
-    res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id").eq("id", bot_id).execute())
-    if not res.data or res.data[0]["user_id"] != user["auth_user_id"]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    await verify_bot_permission(bot_id, user, "voice")
 
     update: dict[str, Any] = {}
     if req.voice_enabled is not None:
@@ -297,7 +295,7 @@ async def set_voice_settings(
 
 @router.get("/api/bots/{bot_id}/webhooks")
 async def dashboard_list_webhooks(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    await _verify_bot_owner(bot_id, user)
+    await verify_bot_permission(bot_id, user, "webhooks")
     res = await run_db(lambda: supabase.table("chatty_webhooks").select(
         "id, url, events, active, created_at"
     ).eq("bot_id", bot_id).order("created_at", desc=True).execute())
@@ -308,7 +306,7 @@ async def dashboard_list_webhooks(bot_id: str, user: dict[str, Any] = Depends(re
 async def dashboard_create_webhook(
     bot_id: str, req: DashboardWebhookCreateRequest, user: dict[str, Any] = Depends(require_user)
 ):
-    await _verify_bot_owner(bot_id, user)
+    await verify_bot_permission(bot_id, user, "webhooks")
     url = (req.url or "").strip()
     if not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="url must be a valid http(s) URL")
@@ -333,7 +331,7 @@ async def dashboard_create_webhook(
 async def dashboard_delete_webhook(
     bot_id: str, webhook_id: str, user: dict[str, Any] = Depends(require_user)
 ):
-    await _verify_bot_owner(bot_id, user)
+    await verify_bot_permission(bot_id, user, "webhooks")
     res = await run_db(lambda: supabase.table("chatty_webhooks").select("id").eq("id", webhook_id).eq("bot_id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Webhook not found")

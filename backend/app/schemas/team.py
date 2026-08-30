@@ -11,3 +11,10 @@ class TeamInviteRequest(BaseModel):
     bot_id: str
     email: str
     role: Optional[str] = "agent"
+    permissions: Optional[list[str]] = None  # defaults to the role's default set when omitted
+
+
+class TeamUpdateRequest(BaseModel):
+    bot_id: str
+    role: Optional[str] = None
+    permissions: Optional[list[str]] = None
