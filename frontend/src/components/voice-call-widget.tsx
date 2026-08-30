@@ -399,6 +399,36 @@ export default function VoiceCallWidget({
             Close
           </motion.button>
         </div>
+      ) : status === "ended" ? (
+        // Distinct end-of-call summary instead of leaving the active-call
+        // mute/hangup controls visibly lingering over a disconnected room.
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+          className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-4"
+        >
+          <div
+            className="size-12 rounded-full flex items-center justify-center"
+            style={{ background: `${primaryColor}1a` }}
+          >
+            <PhoneOff className="size-5" style={{ color: primaryColor }} />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Call ended</p>
+            <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">{fmtDuration(duration)}</p>
+          </div>
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.85 }}
+            transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+            onClick={onClose}
+            className="px-4 py-2 rounded-full text-xs font-semibold text-white mt-1"
+            style={{ background: primaryColor }}
+          >
+            Back to chat
+          </motion.button>
+        </motion.div>
       ) : (
         <>
           {/* Compact status row — small orb + state text, replacing what used
@@ -451,12 +481,11 @@ export default function VoiceCallWidget({
                     className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                      className={`max-w-[80%] px-3 py-2 text-xs leading-relaxed ${
                         entry.speaker === "visitor"
-                          ? "text-white rounded-br-md"
-                          : "bg-neutral-100 dark:bg-neutral-850 text-neutral-800 dark:text-neutral-200 rounded-bl-md"
+                          ? "user-bubble rounded-br-md"
+                          : "bot-bubble rounded-bl-md"
                       }`}
-                      style={entry.speaker === "visitor" ? { background: primaryColor } : undefined}
                     >
                       {entry.text.trim() ? (
                         <>
@@ -492,7 +521,7 @@ export default function VoiceCallWidget({
               whileTap={{ scale: 0.85 }}
               transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={toggleMute}
-              disabled={status === "connecting" || status === "requesting-mic" || status === "ended"}
+              disabled={status === "connecting" || status === "requesting-mic"}
               aria-label={muted ? "Unmute microphone" : "Mute microphone"}
               className="size-12 rounded-full flex items-center justify-center border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 disabled:opacity-40"
             >
