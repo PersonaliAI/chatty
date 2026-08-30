@@ -87,6 +87,8 @@ import {
   Pencil,
   Info,
   Play,
+  MicOff,
+  PhoneOff,
   type LucideIcon
 } from "lucide-react";
 
@@ -688,6 +690,12 @@ export default function Dashboard() {
   // currently showing — transient UI state, not saved with the bot.
   const [sectionColorProp, setSectionColorProp] = useState<Record<string, "bg" | "text" | "icon">>({});
   const [widgetStyle, setWidgetStyle] = useState<string>("minimal");
+  // Which view the Customizer's live preview shows — a static mockup of the
+  // in-chat text conversation, or of the voice-call screen (orb, live
+  // transcript bubbles, mute/hangup). Both are hand-built mockups (like the
+  // rest of #customizer-live-preview), not the real ChatWidgetCore/
+  // VoiceCallWidget components, for the same zero-reload-lag reason.
+  const [previewView, setPreviewView] = useState<"chat" | "call">("chat");
   // null = keep the active design preset's own default font. 100 = normal
   // text size; the scale is a percentage of that, not an absolute px value.
   const [fontFamily, setFontFamily] = useState<string | null>(null);
@@ -4433,6 +4441,30 @@ export default function Dashboard() {
                     can't visually drift from the real widget. */}
                 <div className="lg:col-span-5 flex flex-col items-center">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
+                  {/* Chat/Call preview chip — same horizontal pill-tab pattern
+                      as the Mailbox filter and the Voice Agent tab's Pipeline/
+                      Realtime tabs elsewhere on this page. Always shown (not
+                      just when voiceEnabled) so switching it on can be
+                      previewed here first. */}
+                  <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-lg p-0.5 mb-3">
+                    {([
+                      { value: "chat" as const, label: "Chat", icon: MessageCircle },
+                      { value: "call" as const, label: "Call", icon: Phone },
+                    ]).map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setPreviewView(t.value)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
+                          previewView === t.value
+                            ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                            : "text-neutral-400 hover:text-neutral-600"
+                        }`}
+                      >
+                        <t.icon className="size-3" /> {t.label}
+                      </button>
+                    ))}
+                  </div>
                   {/* box-shadow stripped to match the real embedded widget exactly —
                       EmbedClient.tsx strips it too, since the iframe there has zero
                       margin and clips any shadow off. An id selector is used (not a
@@ -4472,6 +4504,48 @@ export default function Dashboard() {
                       </div>
                     </div>
 
+                    {previewView === "call" ? (
+                      /* Static mockup of VoiceCallWidget.tsx's call screen —
+                         compact status row, a couple of fake transcript
+                         turns using the same .bot-bubble/.user-bubble
+                         classes the real one now uses, and mute/hangup
+                         controls. No live audio, just the visual design. */
+                      <div className="flex-1 flex flex-col p-4 text-xs">
+                        <div className="flex items-center gap-3 w-full pb-3 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
+                          <div
+                            className="shrink-0 rounded-full flex items-center justify-center size-9"
+                            style={{
+                              background: `radial-gradient(circle at 35% 30%, ${primaryColor}dd, ${primaryColor}88)`,
+                              boxShadow: `0 0 12px ${primaryColor}55`,
+                            }}
+                          >
+                            <div className="rounded-full bg-white/25 backdrop-blur-sm size-5" />
+                          </div>
+                          <p className="flex-1 min-w-0 text-xs font-semibold text-neutral-500 dark:text-neutral-400 tracking-wide truncate">00:14</p>
+                        </div>
+                        <div className="flex-1 min-h-0 w-full overflow-y-auto py-3 space-y-2.5">
+                          <div className="flex justify-start">
+                            <div className="bot-bubble max-w-[80%] px-3 py-2 text-xs leading-relaxed rounded-bl-md">
+                              Hi! How can I help you today?
+                            </div>
+                          </div>
+                          <div className="flex justify-end">
+                            <div className="user-bubble max-w-[80%] px-3 py-2 text-xs leading-relaxed rounded-br-md">
+                              What are your pricing plans?
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-center gap-4 pb-1 pt-1 shrink-0">
+                          <div className="size-12 rounded-full flex items-center justify-center border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300">
+                            <MicOff className="size-5" />
+                          </div>
+                          <div className="size-14 rounded-full flex items-center justify-center bg-red-500 text-white shadow-lg">
+                            <PhoneOff className="size-6" />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                    <>
                     {/* Messages list */}
                     <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
                       <div className="flex gap-2 max-w-[85%]">
@@ -4578,6 +4652,8 @@ export default function Dashboard() {
                         </div>
                       )}
                     </div>
+                    </>
+                    )}
                   </div>
 
                   {/* Floating Launcher preview in Customizer — mirrors the real
