@@ -186,15 +186,18 @@ def build_team_invite_email_html(*, bot_name: str, inviter_email: str, role: str
     return _email_shell(
         title=f"You've been added to {bot_name_e} 👋",
         intro=f"<strong>{inviter_email_e}</strong> gave you {('admin' if role == 'admin' else 'agent')} "
-              f"access to the <strong>{bot_name_e}</strong> chatbot on Chatty.",
+              f"access to the <strong>{bot_name_e}</strong> chatbot on Chatty. "
+              f"<strong>No account yet?</strong> Create one at chatty.personaliai.com using this exact "
+              f"email address — this chatbot will appear in your dashboard automatically, no separate "
+              f"invite link needed.",
         rows=[
             ("Chatbot", bot_name_e),
             ("Invited by", inviter_email_e),
             ("Role", role.capitalize()),
         ],
-        cta_label="Sign in to Chatty",
+        cta_label="Sign in or create an account",
         cta_url="https://chatty.personaliai.com/login",
-        footer="Sign in (or sign up) with this email address to see this chatbot in your dashboard.",
+        footer="Use this same email address whether you're signing in or creating a new account.",
     )
 
 

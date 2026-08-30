@@ -118,6 +118,25 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
     }
   };
 
+  // The X button and step-0's "Skip" both used to call the raw onClose prop
+  // directly — pure local state, no persistence — so the wizard reappeared
+  // on every single page load/refresh forever, since onboarding_completed
+  // never actually got set unless the visitor finished all 4 steps via
+  // finish() above. This marks it done (without touching name/color/etc.,
+  // since nothing was actually configured on an early exit) before closing.
+  const dismiss = async () => {
+    try {
+      await supabase.from("chatty_bots").update({
+        onboarding_completed: true,
+        updated_at: new Date().toISOString(),
+      }).eq("id", botId);
+    } catch (e) {
+      console.error("dismiss failed", e);
+    } finally {
+      onClose();
+    }
+  };
+
   const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
@@ -136,7 +155,7 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
             </h3>
             <p className="text-[10px] text-neutral-400 mt-0.5">Step {step + 1} of {steps.length} · {steps[step]}</p>
           </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 cursor-pointer"><X className="size-4" /></button>
+          <button onClick={dismiss} className="text-neutral-400 hover:text-neutral-600 cursor-pointer"><X className="size-4" /></button>
         </div>
 
         {/* Progress */}
@@ -271,7 +290,7 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-neutral-100 dark:border-neutral-850 flex items-center justify-between">
-          <button onClick={step === 0 ? onClose : back} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer flex items-center gap-1.5">
+          <button onClick={step === 0 ? dismiss : back} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer flex items-center gap-1.5">
             {step === 0 ? "Skip" : <><ArrowLeft className="size-3.5" /> Back</>}
           </button>
           {step < steps.length - 1 ? (
