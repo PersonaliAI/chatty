@@ -4268,7 +4268,8 @@ export default function Dashboard() {
                         step={5}
                         value={fontSizePercent}
                         onChange={(e) => handleInputChange(setFontSizePercent, Number(e.target.value))}
-                        className="w-full accent-[#f97316] cursor-pointer"
+                        style={{ "--slider-fill": `${((fontSizePercent - 80) / (150 - 80)) * 100}%` } as React.CSSProperties}
+                        className="chatty-slider w-full cursor-pointer"
                       />
                       <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
                         Scales every text size in the widget together, as a percentage of normal (100%).

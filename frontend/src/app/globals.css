@@ -476,3 +476,71 @@ body {
   border-color: var(--color-neutral-800, #262626);
 }
 
+/* Modern range slider (e.g. the Customizer's Text Size control). A bare
+   <input type="range"> with only `accent-color` set still renders the
+   browser/OS's own flat, dark, low-contrast track — accent-color only
+   themes the thumb and (on Chromium) the filled portion, not the
+   unfilled remainder. This gives it a slim pill track, a soft orange fill
+   up to the thumb (driven by the --slider-fill custom property each
+   input sets inline from its own value/min/max), and a real thumb with a
+   ring instead of the OS default. */
+.chatty-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    #f97316 0%,
+    #f97316 var(--slider-fill, 50%),
+    var(--color-neutral-200, #e5e5e5) var(--slider-fill, 50%),
+    var(--color-neutral-200, #e5e5e5) 100%
+  );
+  outline: none;
+}
+.dark .chatty-slider {
+  background: linear-gradient(
+    to right,
+    #f97316 0%,
+    #f97316 var(--slider-fill, 50%),
+    var(--color-neutral-800, #262626) var(--slider-fill, 50%),
+    var(--color-neutral-800, #262626) 100%
+  );
+}
+.chatty-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 2.5px solid #f97316;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  margin-top: 0; /* Firefox needs no offset; Chromium centers via track height match */
+  transition: transform 0.1s ease;
+}
+.chatty-slider::-webkit-slider-thumb:hover,
+.chatty-slider::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+}
+.chatty-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 2.5px solid #f97316;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.chatty-slider::-moz-range-thumb:hover,
+.chatty-slider::-moz-range-thumb:active {
+  transform: scale(1.15);
+}
+.chatty-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: transparent; /* the linear-gradient above already paints the full track */
+}
+
