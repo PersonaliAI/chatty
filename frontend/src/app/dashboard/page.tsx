@@ -6926,23 +6926,25 @@ const { reply, session_id } = await res.json();`}</pre>
                     their dashboard automatically. Access is limited to this bot only. Agent and Admin currently
                     have the same permissions.
                   </p>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <input
                       type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
                       placeholder="teammate@company.com"
-                      className="flex-1 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      className="flex-1 min-w-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                     />
-                    <div className="w-28 shrink-0">
-                      <ModernSelect
-                        value={inviteRole}
-                        options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
-                        onChange={(v) => setInviteRole(v as "agent" | "admin")}
-                      />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="w-28 shrink-0">
+                        <ModernSelect
+                          value={inviteRole}
+                          options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
+                          onChange={(v) => setInviteRole(v as "agent" | "admin")}
+                        />
+                      </div>
+                      <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@")}
+                        className="flex-1 sm:flex-initial px-3.5 py-2 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap">
+                        {invitingTeam ? "Inviting…" : "Invite"}
+                      </button>
                     </div>
-                    <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@")}
-                      className="px-3.5 py-2 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap">
-                      {invitingTeam ? "Inviting…" : "Invite"}
-                    </button>
                   </div>
                   {teamMembers.length > 0 && (
                     <div className="space-y-1.5">
