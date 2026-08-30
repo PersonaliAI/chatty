@@ -279,6 +279,78 @@ const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   billing: "billing", settings: "settings",
 };
 
+/** Quick Connect's Google/Microsoft buttons, as a modern dropdown instead of
+ * a single toggle. One OAuth connection unlocks several services (Google:
+ * Drive + Calendar; Microsoft: OneDrive + Outlook Calendar + Teams), so the
+ * button always reads the provider's own name/icon ("Google"/"Microsoft" —
+ * never "Google Drive", which wrongly implied Drive was the only thing
+ * connecting bought you) and the dropdown lists what it unlocks. Each
+ * service row starts the OAuth flow itself if not yet connected. */
+function CloudProviderMenu({
+  label, iconSrc, connected, services, onDisconnect,
+}: {
+  label: string;
+  iconSrc: string;
+  connected: boolean;
+  services: { label: string; iconSrc: string; onClick: () => void }[];
+  onDisconnect: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
+          connected ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400" : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
+        }`}
+      >
+        <Image src={iconSrc} alt="" width={16} height={16} className="size-4 object-contain" />
+        {label}
+        {connected && <Check className="size-3" />}
+        <ChevronDown className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1.5 w-56 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-lg shadow-black/10 dark:shadow-black/40 overflow-hidden">
+          {!connected && (
+            <div className="px-3 py-2 text-[10px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-850">
+              Connect {label} to unlock:
+            </div>
+          )}
+          {services.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => { setOpen(false); s.onClick(); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+            >
+              <Image src={s.iconSrc} alt="" width={16} height={16} className="size-4 object-contain" />
+              {s.label}
+            </button>
+          ))}
+          {connected && (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); onDisconnect(); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer border-t border-neutral-100 dark:border-neutral-850"
+            >
+              Disconnect {label}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** A custom checkbox for the Team section's per-tab permission grants —
  * native checkboxes render the browser/OS's own check glyph (often a flat
  * black tick on whatever accent-color background), which doesn't match this
@@ -4977,30 +5049,26 @@ export default function Dashboard() {
               {/* Quick connect strip */}
               <div className="flex flex-wrap items-center gap-2 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mr-1">Quick connect:</span>
-                <button
-                  onClick={() => googleConnected ? setKbSourceTab("drive") : handleConnectCloud("google")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
-                    googleConnected ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400" : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
-                  }`}
-                >
-                  {/* Generic Google mark before connecting (the button is about
-                      the account, not Drive specifically yet); Drive's own icon
-                      once connected, since that's what it now represents. */}
-                  <Image src={googleConnected ? "/logos/google-drive.png" : "/logos/google.png"} alt="" width={16} height={16} className="size-4 object-contain" />
-                  {googleConnected ? "Google Drive" : "Connect Google"}
-                  {googleConnected && <Check className="size-3" />}
-                </button>
-                <button
-                  onClick={() => microsoftConnected ? setKbSourceTab("onedrive") : handleConnectCloud("microsoft")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
-                    microsoftConnected ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400" : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
-                  }`}
-                >
-                  {/* Same here — generic Microsoft mark before connecting, OneDrive's own after. */}
-                  <Image src={microsoftConnected ? "/logos/onedrive.png" : "/logos/microsoft.png"} alt="" width={16} height={16} className="size-4 object-contain" />
-                  {microsoftConnected ? "OneDrive" : "Connect Microsoft"}
-                  {microsoftConnected && <Check className="size-3" />}
-                </button>
+                <CloudProviderMenu
+                  label="Google"
+                  iconSrc="/logos/google.png"
+                  connected={googleConnected}
+                  onDisconnect={() => handleDisconnectCloud("google")}
+                  services={[
+                    { label: "Google Drive", iconSrc: "/logos/google-drive.png", onClick: () => googleConnected ? setKbSourceTab("drive") : handleConnectCloud("google") },
+                    { label: "Google Calendar", iconSrc: "/logos/google-calendar.png", onClick: () => handleCalendarSyncChange("google") },
+                  ]}
+                />
+                <CloudProviderMenu
+                  label="Microsoft"
+                  iconSrc="/logos/microsoft.png"
+                  connected={microsoftConnected}
+                  onDisconnect={() => handleDisconnectCloud("microsoft")}
+                  services={[
+                    { label: "OneDrive", iconSrc: "/logos/onedrive.png", onClick: () => microsoftConnected ? setKbSourceTab("onedrive") : handleConnectCloud("microsoft") },
+                    { label: "Outlook Calendar", iconSrc: "/logos/outlook-calendar.png", onClick: () => handleCalendarSyncChange("outlook") },
+                  ]}
+                />
                 <button
                   onClick={() => setKbSourceTab("url")}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5 text-[11px] font-semibold transition-colors cursor-pointer"
