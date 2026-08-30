@@ -1397,14 +1397,18 @@ export default function Dashboard() {
   async function loadBotSettings(userId: string) {
     setLoadingLists(true);
     try {
+      // No .eq("user_id", userId) filter — RLS itself now returns exactly
+      // the right set (bots this user owns, OR-ed with bots they're a team
+      // member of, per the "Team members can view bots they're added to"
+      // policy), so an explicit owner-only filter here would silently hide
+      // every team-invited bot even though the user is allowed to read it.
       const { data: bots, error } = await supabase
         .from("chatty_bots")
         .select("*")
-        .eq("user_id", userId)
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
-      
+
       setUserBots(bots || []);
       // chatty_bots.updated_at has no update trigger — it only ever reflects
       // creation time — so ordering by it and taking [0] really means "most
@@ -3565,7 +3569,7 @@ export default function Dashboard() {
             setWelcomeMsg(f.welcomeMessage); setSystemInstructions(f.systemInstructions);
             setLogoUrl(f.logoUrl); setOnboardingCompleted(true);
           }}
-          onClose={() => setShowWizard(false)}
+          onClose={() => { setShowWizard(false); setOnboardingCompleted(true); }}
         />
       )}
 
@@ -6916,10 +6920,11 @@ const { reply, session_id } = await res.json();`}</pre>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Team</h3>
                   </div>
                   <p className="text-[11px] text-neutral-400 -mt-2">
-                    Invite teammates to help manage this bot&apos;s inbox and leads. This doesn&apos;t send an email —
-                    they need their own account: if they don&apos;t have one, they sign up at chatty.personaliai.com
-                    with the exact email below, and this bot appears in their dashboard automatically. Access is
-                    limited to this bot only. Agent and Admin currently have the same permissions.
+                    Invite teammates to help manage this bot&apos;s inbox and leads. We&apos;ll email them, but this
+                    doesn&apos;t create an account for them — they need their own: if they don&apos;t have one yet,
+                    they sign up at chatty.personaliai.com with the exact email below, and this bot appears in
+                    their dashboard automatically. Access is limited to this bot only. Agent and Admin currently
+                    have the same permissions.
                   </p>
                   <div className="flex items-center gap-2">
                     <input
