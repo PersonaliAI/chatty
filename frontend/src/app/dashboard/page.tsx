@@ -250,6 +250,79 @@ interface KnowledgeMessage {
 // (no separate typed text on a button or a launcher circle).
 const ICON_ONLY_SECTIONS = new Set(["sendBtn", "launcher"]);
 
+// Dashboard-tab permission keys — keep in sync with the backend's
+// app/core/permissions.py ALL_TABS. A team member's `permissions` array
+// (chatty_team_members.permissions) lists which of these they hold; the
+// owner implicitly holds all of them.
+const CHATTY_TEAM_TABS = ["inbox", "sources", "design", "settings", "voice", "team", "billing", "byok", "webhooks"] as const;
+type ChattyTeamTab = (typeof CHATTY_TEAM_TABS)[number];
+// Only the owner may grant/revoke these for anyone, including an admin
+// managing the roster — mirrors OWNER_ONLY_TABS in app/core/permissions.py.
+const OWNER_ONLY_TABS = new Set<ChattyTeamTab>(["billing", "byok", "webhooks"]);
+const DEFAULT_ADMIN_TABS: ChattyTeamTab[] = ["inbox", "sources", "design", "settings", "voice", "team"];
+const DEFAULT_AGENT_TABS: ChattyTeamTab[] = ["inbox"];
+const TAB_LABELS: Record<ChattyTeamTab, string> = {
+  inbox: "Inbox", sources: "Knowledge", design: "Customizer", settings: "Settings",
+  voice: "Voice Agent", team: "Team", billing: "Billing", byok: "BYOK keys", webhooks: "Webhooks",
+};
+
+// Which permission tab (if any) gates each sidebar nav item. `null` means
+// every team member can see it regardless of permissions (read-only/low-risk
+// sections). Real enforcement lives in the backend/RLS — this only hides
+// the nav entry so a member doesn't land on a tab whose actions will 403.
+const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
+  home: null, customizer: "design", knowledge: "sources", playground: null,
+  inbox: "inbox", flows: "settings", campaigns: "settings", leads: "inbox",
+  feedback: "inbox", map: "inbox", meetings: "inbox", voice_agent: "voice",
+  mailbox: "inbox", notifications: "settings", audit_log: "settings",
+  analytics: "inbox", integrations: "settings", developer: "webhooks",
+  billing: "billing", settings: "settings",
+};
+
+/** Inline role + per-tab permission editor for one row in the Team section's
+ * member list. Kept local state so keystrokes/checkbox toggles don't touch
+ * teamMembers (and re-render the whole list) until Save is pressed. */
+function MemberPermissionEditor({
+  role, permissions, grantableTabs, onSave, onCancel,
+}: {
+  role: "agent" | "admin";
+  permissions: ChattyTeamTab[];
+  grantableTabs: readonly ChattyTeamTab[];
+  onSave: (role: "agent" | "admin", permissions: ChattyTeamTab[]) => void;
+  onCancel: () => void;
+}) {
+  const [draftRole, setDraftRole] = useState(role);
+  const [draftTabs, setDraftTabs] = useState<ChattyTeamTab[]>(permissions);
+  return (
+    <div className="space-y-2 pt-1">
+      <div className="w-28">
+        <ModernSelect
+          value={draftRole}
+          options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
+          onChange={(v) => setDraftRole(v as "agent" | "admin")}
+        />
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+        {grantableTabs.map((tab) => (
+          <label key={tab} className="flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-400 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={draftTabs.includes(tab)}
+              onChange={(e) => setDraftTabs((p) => e.target.checked ? [...p, tab] : p.filter((t) => t !== tab))}
+              className="size-3 accent-[#f97316]"
+            />
+            {TAB_LABELS[tab]}
+          </label>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={() => onSave(draftRole, draftTabs)} className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-[#f97316] text-white hover:opacity-90 transition-opacity">Save</button>
+        <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-medium rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 /** A styled dropdown for Section Colors' property picker — a native
  * <select>'s CLOSED box can be restyled with appearance:none, but its
  * OPENED option list is OS/browser chrome in every browser with no CSS
@@ -721,10 +794,17 @@ export default function Dashboard() {
   const [logoBgColor, setLogoBgColor] = useState("");
   const [launcherShape, setLauncherShape] = useState("circle");
   const [userBots, setUserBots] = useState<Bot[]>([]);
-  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; role: string }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; role: string; permissions?: string[] }[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
+  const [inviteTabs, setInviteTabs] = useState<ChattyTeamTab[]>(DEFAULT_AGENT_TABS);
   const [invitingTeam, setInvitingTeam] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  // Defaults to owner-level access so a single-owner bot (no /api/team/me
+  // round trip has resolved yet, or the caller genuinely is the owner) never
+  // flashes a permission-gated empty state.
+  const [myRole, setMyRole] = useState<string>("owner");
+  const [myPermissions, setMyPermissions] = useState<string[]>([...CHATTY_TEAM_TABS]);
   const [suggestedColors, setSuggestedColors] = useState<string[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -1929,6 +2009,41 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, botId]);
 
+  // The caller's own role + dashboard-tab permissions for the active bot —
+  // drives which sidebar tabs/actions are shown. Fetched whenever the active
+  // bot changes (not just when the Settings tab opens), since sidebar
+  // visibility needs it from first paint.
+  useEffect(() => {
+    if (!botId) return;
+    (async () => {
+      try {
+        const res = await fetchWithFallback(`/api/team/me?bot_id=${botId}`);
+        if (res.ok) {
+          const d = await res.json();
+          const role = d.role || "owner";
+          const permissions: string[] = role === "owner" ? [...CHATTY_TEAM_TABS] : (d.permissions || []);
+          setMyRole(role);
+          setMyPermissions(permissions);
+          // If the active bot switched to one where this tab isn't granted
+          // (e.g. switching from an owned bot to a shared bot as an agent),
+          // the sidebar link disappears but the content pane wouldn't
+          // otherwise notice — bounce back to the always-visible Overview.
+          const requiredTab = NAV_TAB_PERMISSION[activeTab];
+          if (requiredTab && role !== "owner" && !permissions.includes(requiredTab)) {
+            setActiveTab("home");
+          }
+        }
+      } catch { /* keep the owner-level default on failure */ }
+    })();
+    // Deliberately excludes activeTab — this should only re-check on a bot
+    // switch, not refire on every tab click.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botId]);
+
+  function canAccessTab(tab: ChattyTeamTab | null): boolean {
+    return !tab || myRole === "owner" || myPermissions.includes(tab);
+  }
+
   // Team members (seats) for the active bot.
   async function loadTeam() {
     if (!botId) return;
@@ -1945,7 +2060,7 @@ export default function Dashboard() {
     try {
       const res = await fetchWithFallback("/api/team", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, email, role: inviteRole }),
+        body: JSON.stringify({ bot_id: botId, email, role: inviteRole, permissions: inviteTabs }),
       });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -1968,6 +2083,22 @@ export default function Dashboard() {
     try {
       await fetchWithFallback(`/api/team/${id}?bot_id=${botId}`, { method: "DELETE" });
     } catch { /* optimistic */ }
+  }
+
+  async function updateTeamMember(id: string, role: "agent" | "admin", permissions: ChattyTeamTab[]) {
+    if (!botId) return;
+    try {
+      const res = await fetchWithFallback(`/api/team/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, role, permissions }),
+      });
+      if (res.ok) {
+        setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, role, permissions } : m)));
+        setEditingMemberId(null);
+      } else {
+        showToast("Couldn't update permissions. Try again.", "error");
+      }
+    } catch { showToast("Couldn't update permissions. Try again.", "error"); }
   }
 
   // Knowledge gaps: questions the bot couldn't confidently answer.
@@ -3706,7 +3837,7 @@ export default function Dashboard() {
               { id: "developer", label: "Developer API", icon: Puzzle },
               { id: "billing", label: "Billing", icon: CreditCard },
               { id: "settings", label: t("settings"), icon: Settings },
-            ].map((link) => {
+            ].filter((link) => canAccessTab(NAV_TAB_PERMISSION[link.id])).map((link) => {
               const Icon = link.icon;
               return (
                 <button
@@ -6914,52 +7045,102 @@ const { reply, session_id } = await res.json();`}</pre>
               <div className="w-full max-w-2xl p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-8">
 
                 {/* SECTION 0: TEAM */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <Users className="size-4 text-[#f97316]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Team</h3>
-                  </div>
-                  <p className="text-[11px] text-neutral-400 -mt-2">
-                    Invite teammates to help manage this bot&apos;s inbox and leads. We&apos;ll email them, but this
-                    doesn&apos;t create an account for them — they need their own: if they don&apos;t have one yet,
-                    they sign up at chatty.personaliai.com with the exact email below, and this bot appears in
-                    their dashboard automatically. Access is limited to this bot only. Agent and Admin currently
-                    have the same permissions.
-                  </p>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <input
-                      type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="teammate@company.com"
-                      className="flex-1 min-w-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                    />
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="w-28 shrink-0">
-                        <ModernSelect
-                          value={inviteRole}
-                          options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
-                          onChange={(v) => setInviteRole(v as "agent" | "admin")}
-                        />
-                      </div>
-                      <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@")}
-                        className="flex-1 sm:flex-initial px-3.5 py-2 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap">
-                        {invitingTeam ? "Inviting…" : "Invite"}
-                      </button>
+                {canAccessTab("team") && (() => {
+                  // What THIS caller may grant to someone else — an admin
+                  // managing the roster can hand out any tab except the
+                  // owner-only ones (billing/BYOK/webhooks), matching the
+                  // backend's OWNER_ONLY_TABS enforcement.
+                  const grantableTabs = CHATTY_TEAM_TABS.filter((t) => myRole === "owner" || !OWNER_ONLY_TABS.has(t));
+                  return (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                      <Users className="size-4 text-[#f97316]" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Team</h3>
                     </div>
-                  </div>
-                  {teamMembers.length > 0 && (
-                    <div className="space-y-1.5">
-                      {teamMembers.map((m) => (
-                        <div key={m.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-xs text-neutral-700 dark:text-neutral-200 truncate">{m.email}</span>
-                            <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-500">{m.role}</span>
-                          </div>
-                          <button onClick={() => removeTeamMember(m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-red-500 transition-colors shrink-0">Remove</button>
+                    <p className="text-[11px] text-neutral-400 -mt-2">
+                      Invite teammates to help manage this bot. We&apos;ll email them, but this doesn&apos;t create an
+                      account for them — they need their own: if they don&apos;t have one yet, they sign up at
+                      chatty.personaliai.com with the exact email below, and this bot appears in their dashboard
+                      automatically. Access is limited to this bot only, and to the tabs checked below — pick which
+                      dashboard sections they can reach.
+                    </p>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <input
+                        type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
+                        placeholder="teammate@company.com"
+                        className="flex-1 min-w-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      />
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="w-28 shrink-0">
+                          <ModernSelect
+                            value={inviteRole}
+                            options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
+                            onChange={(v) => {
+                              const role = v as "agent" | "admin";
+                              setInviteRole(role);
+                              setInviteTabs((role === "admin" ? DEFAULT_ADMIN_TABS : DEFAULT_AGENT_TABS)
+                                .filter((t) => grantableTabs.includes(t)) as ChattyTeamTab[]);
+                            }}
+                          />
                         </div>
+                        <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@")}
+                          className="flex-1 sm:flex-initial px-3.5 py-2 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap">
+                          {invitingTeam ? "Inviting…" : "Invite"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                      {grantableTabs.map((tab) => (
+                        <label key={tab} className="flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-400 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={inviteTabs.includes(tab)}
+                            onChange={(e) => setInviteTabs((p) => e.target.checked ? [...p, tab] : p.filter((t) => t !== tab))}
+                            className="size-3 accent-[#f97316]"
+                          />
+                          {TAB_LABELS[tab]}
+                        </label>
                       ))}
                     </div>
-                  )}
-                </div>
+                    {teamMembers.length > 0 && (
+                      <div className="space-y-1.5">
+                        {teamMembers.map((m) => {
+                          const memberTabs = (m.permissions || []) as ChattyTeamTab[];
+                          const isEditing = editingMemberId === m.id;
+                          return (
+                            <div key={m.id} className="px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-xs text-neutral-700 dark:text-neutral-200 truncate">{m.email}</span>
+                                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-500">{m.role}</span>
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <button onClick={() => setEditingMemberId(isEditing ? null : m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors">
+                                    {isEditing ? "Close" : "Manage"}
+                                  </button>
+                                  <button onClick={() => removeTeamMember(m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-red-500 transition-colors">Remove</button>
+                                </div>
+                              </div>
+                              {!isEditing && memberTabs.length > 0 && (
+                                <p className="text-[10px] text-neutral-400 truncate">{memberTabs.map((t) => TAB_LABELS[t] || t).join(", ")}</p>
+                              )}
+                              {isEditing && (
+                                <MemberPermissionEditor
+                                  role={m.role === "admin" ? "admin" : "agent"}
+                                  permissions={memberTabs}
+                                  grantableTabs={grantableTabs}
+                                  onSave={(role, permissions) => updateTeamMember(m.id, role, permissions)}
+                                  onCancel={() => setEditingMemberId(null)}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  );
+                })()}
 
                 {/* SECTION 1: AI ENGINE */}
                 <div className="space-y-4">
