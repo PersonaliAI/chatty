@@ -117,7 +117,7 @@ export function ModernSelect({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.13, ease: "easeOut" }}
-            className={`absolute z-50 mt-1.5 w-max min-w-full max-w-[calc(100vw-2rem)] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl overflow-hidden ${
+            className={`absolute z-50 mt-1.5 w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl overflow-hidden ${
               align === "right" ? "right-0" : "left-0"
             }`}
           >
