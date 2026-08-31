@@ -31,27 +31,42 @@ export async function middleware(request: NextRequest) {
   return response
 }
 
+// Best-effort in-memory cache of the last known-good frame-ancestors value per
+// bot. Persists for the lifetime of the server process/instance (resets on
+// redeploy/cold-start) so a transient lookup failure can fall back to the
+// bot's real configured value instead of a wildcard.
+const frameAncestorsCache = new Map<string, string>()
+
 async function embedFrameAncestors(botId: string): Promise<string> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) return '*'
+  if (!url || !key) return frameAncestorsCache.get(botId) ?? '*'
   try {
     const res = await fetch(
       `${url}/rest/v1/chatty_bots?id=eq.${encodeURIComponent(botId)}&select=allowed_domains`,
       { headers: { apikey: key, Authorization: `Bearer ${key}` } }
     )
-    if (!res.ok) return '*'
+    if (!res.ok) return frameAncestorsCache.get(botId) ?? '*'
     const rows = (await res.json()) as { allowed_domains?: string[] }[]
     const domains = rows?.[0]?.allowed_domains
-    if (!domains || domains.length === 0) return '*' // empty allowlist = embeddable anywhere
+    if (!domains || domains.length === 0) {
+      // empty allowlist = embeddable anywhere; this is a legitimate
+      // configuration state, so cache it as this bot's known-good value.
+      frameAncestorsCache.set(botId, '*')
+      return '*'
+    }
     const parts = ["'self'"]
     for (const d of domains) {
       const clean = d.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
       parts.push(`https://${clean}`, `https://*.${clean}`)
     }
-    return parts.join(' ')
+    const frameAncestors = parts.join(' ')
+    frameAncestorsCache.set(botId, frameAncestors)
+    return frameAncestors
   } catch {
-    return '*' // fail-open so the widget never breaks on a transient error
+    // fail-open so the widget never breaks on a transient error, but prefer
+    // the last known-good value over a wildcard when we have one cached.
+    return frameAncestorsCache.get(botId) ?? '*'
   }
 }
 
