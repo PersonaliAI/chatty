@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Inter, DM_Sans, Quicksand, Space_Grotesk, Lora, Playfair_Display } from "next/font/google";
 import { FirebaseAnalytics } from "@/components/firebase-analytics";
 import "./globals.css";
+// NOTE: the "Chatty on Chatty" support widget (eating our own dog food) is
+// mounted on the marketing landing page only (src/app/page.tsx), not here —
+// it doesn't belong on authenticated app pages like /dashboard.
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -63,8 +66,6 @@ export const metadata: Metadata = {
   },
 };
 
-import Script from "next/script";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -75,11 +76,6 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <FirebaseAnalytics />
-        <Script
-          src="/widget.js"
-          data-id="c8fa19c8-dd25-43a3-9c55-e8099e6f532e"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   );

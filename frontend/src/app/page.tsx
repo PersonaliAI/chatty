@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import Script from "next/script";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -656,6 +657,14 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Chatty on Chatty — the landing page runs its own product as its
+          support widget. */}
+      <Script
+        src="https://chatty.personaliai.com/widget.js"
+        data-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
+        strategy="afterInteractive"
+      />
     </div>
   );
 }
