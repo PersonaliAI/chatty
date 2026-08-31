@@ -17,7 +17,7 @@ import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
-  Link2, ThumbsUp, ThumbsDown, Mail, Bell, Phone, Play, Pause, Trash2,
+  Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -404,6 +404,16 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     if (typeof window === "undefined") return false;
     return "Notification" in window && Notification.permission === "granted";
   });
+  // Browsers don't let a site programmatically revoke Notification
+  // permission — only the user can do that via browser/site settings. So
+  // "turning off" notifications from the bell, once granted, is our own
+  // in-widget mute flag rather than an actual permission change; it just
+  // gates triggerPush below. Persisted per bot+host so it survives reloads,
+  // same pattern as the session id / message cache above.
+  const [pushMuted, setPushMuted] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(`chatty_push_muted_${botId}_${hostKey}`) === "1";
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -478,9 +488,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     }
   };
 
+  const toggleMute = () => {
+    setPushMuted((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(`chatty_push_muted_${botId}_${hostKey}`, next ? "1" : "0"); } catch {}
+      return next;
+    });
+  };
+
   const triggerPushRef = useRef<(bodyText: string) => void>(() => {});
   const triggerPush = (bodyText: string) => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || pushMuted) return;
     try {
       if (window.parent && window.parent !== window) {
         window.parent.postMessage({
@@ -1554,19 +1572,32 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             </motion.button>
           )}
           <button
-            onClick={requestPushPermission}
+            onClick={pushGranted ? toggleMute : requestPushPermission}
             className={`${voiceEnabled ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
             style={{ opacity: 0.8 }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            aria-label="Toggle push notifications"
-            title={pushGranted ? "Browser notifications enabled" : "Enable browser notifications"}
+            aria-label={pushGranted ? (pushMuted ? "Unmute notifications" : "Mute notifications") : "Enable browser notifications"}
+            title={
+              !pushGranted
+                ? "Enable browser notifications"
+                : pushMuted
+                  ? "Notifications muted — tap to unmute"
+                  : "Browser notifications enabled — tap to mute"
+            }
           >
             {/* "Granted" state shown via a solid fill, not a fixed color — a
                 hardcoded amber here was nearly invisible against presets
                 with a yellow header (e.g. Neubrutalism's #ffde59). Filling
-                with currentColor keeps it legible against every preset. */}
-            <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
+                with currentColor keeps it legible against every preset.
+                Browsers don't let a site revoke Notification permission
+                itself, so "muted" is our own flag (gates triggerPush) shown
+                via the crossed-out glyph, not an actual permission change. */}
+            {pushGranted && pushMuted ? (
+              <BellOff className="size-4" />
+            ) : (
+              <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
+            )}
           </button>
           <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
