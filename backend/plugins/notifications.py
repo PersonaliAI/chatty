@@ -28,8 +28,9 @@ from typing import Any, Optional
 
 import httpx
 
+from app.core import ssrf
 from app.core.db import run_db
-from app.core.ssrf import UnsafeURLError, assert_safe_url_async
+from app.core.ssrf import UnsafeURLError
 from plugins import google_integrations as g
 
 logger = logging.getLogger("kin.notifications")
@@ -349,25 +350,25 @@ async def deliver_webhook(*, url: str, event: str, bot_id: str, data: dict) -> b
     break the conversation/lead flow that triggered it."""
     if not url:
         return False
-    # Re-checked here, not just at registration (this field has no registration
-    # endpoint of its own in this codebase, but even where a URL IS validated at
-    # registration, deliveries can happen well after — DNS could point somewhere
-    # else by then).
-    try:
-        await assert_safe_url_async(url)
-    except UnsafeURLError:
-        logger.warning("Webhook delivery blocked for %s (event=%s): unsafe URL", url, event)
-        return False
     payload = {
         "event": event,
         "bot_id": bot_id,
         "data": data,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+    # Re-checked here, not just at registration (this field has no registration
+    # endpoint of its own in this codebase, but even where a URL IS validated at
+    # registration, deliveries can happen well after — DNS could point somewhere
+    # else by then). ssrf.request_async resolves and validates the host once
+    # and connects to that exact IP, so there's no second, attacker-controlled
+    # DNS lookup between the check and the connection (DNS rebinding).
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.post(url, json=payload)
+            r = await ssrf.request_async(client, "POST", url, json=payload)
         return r.status_code < 300
+    except UnsafeURLError:
+        logger.warning("Webhook delivery blocked for %s (event=%s): unsafe URL", url, event)
+        return False
     except Exception:
         logger.exception("Webhook delivery failed for %s (event=%s)", url, event)
         return False
@@ -405,25 +406,26 @@ def sign_webhook_body(secret: str, body: bytes) -> str:
 
 async def _post_signed_webhook(url: str, secret: str, payload: dict) -> tuple[bool, Optional[str]]:
     """Returns (success, error_message)."""
+    body = json.dumps(payload, default=str).encode()
+    signature = sign_webhook_body(secret, body)
     # Re-checked here, not just at registration — retries can happen up to
     # WEBHOOK_BACKOFF_SCHEDULE's full 8h window after the URL was validated,
     # long enough for DNS to point somewhere else by delivery time.
-    try:
-        await assert_safe_url_async(url)
-    except UnsafeURLError as exc:
-        return False, f"unsafe URL: {exc}"
-    body = json.dumps(payload, default=str).encode()
-    signature = sign_webhook_body(secret, body)
+    # ssrf.request_async pins the connection to the IP it just validated, so
+    # a rebound DNS record between check and connect can't redirect delivery
+    # to a private address.
     try:
         async with httpx.AsyncClient(timeout=WEBHOOK_TIMEOUT_SECONDS) as client:
-            r = await client.post(
-                url,
+            r = await ssrf.request_async(
+                client, "POST", url,
                 content=body,
                 headers={"Content-Type": "application/json", "X-Chatty-Signature": signature},
             )
         if r.status_code < 300:
             return True, None
         return False, f"HTTP {r.status_code}"
+    except UnsafeURLError as exc:
+        return False, f"unsafe URL: {exc}"
     except Exception as exc:  # noqa: BLE001
         return False, str(exc)[:300]
 

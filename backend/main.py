@@ -324,14 +324,16 @@ async def geoip_lookup(ip: str) -> dict[str, Any]:
         return _geoip_cache[ip]
     info: dict[str, Any] = {}
     try:
+        # ipapi.co over HTTPS (ip-api.com's HTTPS endpoint requires a paid
+        # plan) — avoids sending visitor IPs over plaintext HTTP.
         async with httpx.AsyncClient(timeout=4) as c:
-            r = await c.get(f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,lat,lon")
+            r = await c.get(f"https://ipapi.co/{ip}/json/")
         if r.status_code < 300:
             d = r.json()
-            if d.get("status") == "success":
+            if not d.get("error"):
                 info = {
-                    "country": d.get("country"), "region": d.get("regionName"),
-                    "city": d.get("city"), "lat": d.get("lat"), "lon": d.get("lon"),
+                    "country": d.get("country_name"), "region": d.get("region"),
+                    "city": d.get("city"), "lat": d.get("latitude"), "lon": d.get("longitude"),
                 }
     except Exception:
         logger.exception("geoip lookup failed for %s", ip)

@@ -16,6 +16,7 @@ from app.core.config import FUNCTION_SECRET
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.security import verify_function_secret
+from app.core import ssrf
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.schemas.crawl import CrawlDiscoverRequest, CrawlPagesRequest, SourceScheduleUpdate
 
@@ -59,11 +60,12 @@ async def crawl_discover(
     # Manual redirect handling (not httpx's follow_redirects) so every hop —
     # not just the URL the caller supplied — gets SSRF-checked. A redirect
     # to an internal address would otherwise bypass the check on the
-    # original URL entirely.
+    # original URL entirely. ssrf.request_async resolves+validates+connects
+    # to a single pinned IP per hop, so DNS can't rebind between the check
+    # and the connection for any hop either.
     async def safe_get(client: httpx.AsyncClient, url: str, *, max_redirects: int = 5):
         for _ in range(max_redirects + 1):
-            await assert_safe_url_async(url)
-            r = await client.get(url)
+            r = await ssrf.request_async(client, "GET", url)
             if r.is_redirect:
                 location = r.headers.get("location")
                 if not location:

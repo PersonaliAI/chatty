@@ -202,16 +202,31 @@ def create_app() -> FastAPI:
     # browser reports "blocked by CORS policy" hiding the real 500.
     @app.exception_handler(Exception)
     async def _global_exception_handler(request: _StarletteRequest, exc: Exception):
-        logger.exception("unhandled exception on %s %s", request.method, request.url.path)
+        # Full details (exception type, message, traceback) go to server-side
+        # logging (and Sentry, if configured — it auto-captures unhandled
+        # exceptions once sentry_sdk.init() has run). Only a generic message
+        # plus the request ID go back over the wire: the detailed text used
+        # to be echoed straight into the HTTP response body, which could leak
+        # internal details (DB driver errors, table/column names, internal
+        # paths) to public/widget callers on any unhandled 500.
+        request_id = getattr(request.state, "request_id", "")
+        logger.exception(
+            "unhandled exception on %s %s (request_id=%s)",
+            request.method, request.url.path, request_id,
+        )
         origin = request.headers.get("origin", "")
         allow_origin = origin if origin in ALLOWED_ORIGINS else (ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else "*")
+        detail = "internal server error"
+        if request_id:
+            detail = f"internal server error (request_id={request_id})"
         return JSONResponse(
             status_code=500,
-            content={"detail": f"server error: {type(exc).__name__}: {str(exc)[:300]}"},
+            content={"detail": detail},
             headers={
                 "Access-Control-Allow-Origin": allow_origin,
                 "Access-Control-Allow-Credentials": "true",
                 "Vary": "Origin",
+                **({"X-Request-ID": request_id} if request_id else {}),
             },
         )
 
