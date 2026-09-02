@@ -97,7 +97,7 @@ const featuresList: Feature[] = [
   {
     icon: Lock,
     title: "BYOK Option",
-    desc: "You can provide your own OpenAI or OpenRouter API key to manage your costs.",
+    desc: "Provide your own OpenAI, Anthropic, or OpenRouter API key to manage your costs — on every plan.",
   },
   {
     icon: Globe,
@@ -148,7 +148,7 @@ const faqs = [
   },
   {
     question: "Can I use my own API keys?",
-    answer: "Yes! The Business plan includes a Bring-Your-Own-Key (BYOK) option, allowing you to use your own OpenAI or OpenRouter API keys to manage message costs directly.",
+    answer: "Yes — on every plan. Bring-Your-Own-Key (BYOK) lets you use your own OpenAI, Anthropic, or OpenRouter API key to manage message costs directly.",
   },
   {
     question: "What counts as a 'message credit'?",
@@ -398,6 +398,10 @@ export default function Home() {
                         <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
                         <span>Lead collection & API</span>
                       </li>
+                      <li className="flex items-start gap-2.5">
+                        <span className="font-mono text-neutral-950 dark:text-white shrink-0 select-none">[✓]</span>
+                        <span>BYOK (Bring-Your-Own-Key)</span>
+                      </li>
                     </ul>
                   </div>
                   <div className="mt-8">
@@ -506,10 +510,6 @@ export default function Home() {
                       <li className="flex items-start gap-2.5">
                         <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
                         <span>5 chatbots</span>
-                      </li>
-                      <li className="flex items-start gap-2.5">
-                        <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
-                        <span>BYOK (Bring-Your-Own-Key) option</span>
                       </li>
                       <li className="flex items-start gap-2.5">
                         <span className="font-mono text-neutral-955 dark:text-white shrink-0 select-none">[✓]</span>
