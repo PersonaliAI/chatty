@@ -45,6 +45,19 @@ const LAUNCHER_STYLES: Record<string, { bg: string; radius: string; shadow: stri
   "luxury-editorial": { bg: "#161412", radius: "50%", shadow: "0 8px 22px rgba(0,0,0,.3)", dot: "#b08a3e" },
 };
 
+// Named presets, not raw pixel props, so a bot owner's saved choice keeps
+// working even if these numbers are retuned later. "default" matches this
+// widget's original, pre-customization size exactly.
+const PANEL_SIZE_PRESETS: Record<string, { width: number; height: number }> = {
+  compact: { width: 320, height: 460 },
+  default: { width: 380, height: 560 },
+  large: { width: 440, height: 660 },
+};
+const MIN_PANEL_WIDTH = 300;
+const MIN_PANEL_HEIGHT = 380;
+const MAX_PANEL_WIDTH = 720;
+const MAX_PANEL_HEIGHT = 860;
+
 const PANEL_RADIUS: Record<string, string> = {
   minimal: "18px", playful: "28px", corporate: "10px", "dark-sleek": "16px",
   "gradient-glow": "24px", glassmorphism: "20px", ecommerce: "14px",
@@ -97,6 +110,14 @@ export function ChattyStandaloneApp({
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 480 : false
   );
+
+  // The bot owner's saved default (from the Customizer's "Chat Window Size"
+  // setting); customSize overrides it once a visitor drags the resize
+  // handle, for this browser tab's lifetime only — not persisted, so the
+  // widget starts back at the owner's default on the visitor's next visit.
+  const [panelSize, setPanelSize] = useState("default");
+  const [customSize, setCustomSize] = useState<{ width: number; height: number } | null>(null);
+  const resizeDragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
 
   const [currentDesign, setCurrentDesign] = useState(() => normalizeWidgetStyle(styleAttr));
   const [launcherBg, setLauncherBg] = useState(() => colorAttr || LAUNCHER_STYLES[normalizeWidgetStyle(styleAttr)]?.bg || "#f97316");
@@ -193,6 +214,8 @@ export function ChattyStandaloneApp({
         const logo = (d.avatar_icon === "custom" && d.avatar_url) ? d.avatar_url : d.logo_url;
         if (logo) setCustomIconUrl(logo);
 
+        if (d.panel_size && PANEL_SIZE_PRESETS[d.panel_size]) setPanelSize(d.panel_size);
+
         if (d.teaser_message || d.welcome_message) {
           setTeaserText(d.teaser_message || d.welcome_message);
         }
@@ -252,6 +275,39 @@ export function ChattyStandaloneApp({
   const iconColor = launcherIconOverride || getOnColor(launcherBg);
   const side = position === "left" ? "left" : "right";
   const panelRadius = (colorAttr ? null : PANEL_RADIUS[currentDesign]) || "16px";
+
+  const activePreset = PANEL_SIZE_PRESETS[panelSize] || PANEL_SIZE_PRESETS.default;
+  const panelWidth = customSize?.width ?? activePreset.width;
+  const panelHeight = customSize?.height ?? activePreset.height;
+
+  // The panel is anchored by `bottom` + `[side]` (never top/left directly),
+  // so growing width/height alone already extends it away from whichever
+  // corner is pinned — no need to also reposition the panel while dragging.
+  // Only the sign of each delta flips with `side`, since dragging toward the
+  // panel's open interior always means "grow" regardless of which edge that
+  // is on screen.
+  const handleResizePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    resizeDragRef.current = { startX: e.clientX, startY: e.clientY, startW: panelWidth, startH: panelHeight };
+    const widthSign = side === "right" ? -1 : 1;
+    const onMove = (ev: PointerEvent) => {
+      const drag = resizeDragRef.current;
+      if (!drag) return;
+      const nextWidth = drag.startW + (ev.clientX - drag.startX) * widthSign;
+      const nextHeight = drag.startH - (ev.clientY - drag.startY);
+      setCustomSize({
+        width: Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, nextWidth)),
+        height: Math.min(MAX_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, nextHeight)),
+      });
+    };
+    const onUp = () => {
+      resizeDragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
   const renderIcon = () => {
     if (open) {
@@ -366,14 +422,49 @@ export function ChattyStandaloneApp({
             : {
                 bottom: "92px",
                 [side]: "20px",
-                width: "380px",
-                height: "560px",
+                width: `${panelWidth}px`,
+                height: `${panelHeight}px`,
                 maxWidth: "calc(100vw - 40px)",
                 maxHeight: "calc(100vh - 120px)",
                 borderRadius: panelRadius,
               }),
         }}
       >
+        {/* Resize handle — sits at the corner opposite the panel's anchored
+            corner (bottom+[side]), so dragging it always grows the panel
+            away from wherever it's pinned. Skipped on mobile fullscreen,
+            where the panel already fills the viewport. */}
+        {!(isMobile && mobileFullscreen) && (
+          <div
+            onPointerDown={handleResizePointerDown}
+            title="Drag to resize"
+            style={{
+              position: "absolute",
+              top: 0,
+              [side]: 0,
+              width: "18px",
+              height: "18px",
+              cursor: side === "right" ? "nesw-resize" : "nwse-resize",
+              zIndex: 1,
+              touchAction: "none",
+            }}
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              style={{
+                position: "absolute",
+                top: "4px",
+                [side]: "4px",
+                opacity: 0.35,
+                transform: side === "left" ? "scaleX(-1)" : undefined,
+              }}
+            >
+              <path d="M9 1L1 9M9 5L5 9" stroke="#9ca3af" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          </div>
+        )}
         <ChatWidgetCore
           botId={botId}
           originToken={null}

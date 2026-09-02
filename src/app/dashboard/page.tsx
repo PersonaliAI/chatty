@@ -123,6 +123,7 @@ interface Bot {
   widget_style?: string;
   font_family?: string | null;
   font_size_percent?: number;
+  panel_size?: string;
   send_button_style?: string;
   avatar_icon?: string;
   avatar_url?: string | null;
@@ -869,6 +870,10 @@ export default function Dashboard() {
   // text size; the scale is a percentage of that, not an absolute px value.
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [fontSizePercent, setFontSizePercent] = useState(100);
+  // Default chat panel size on desktop — a preset name, not raw pixels, so
+  // adding a new size later never needs a schema change. Visitors can still
+  // drag-resize their own window from whichever size this sets as the start.
+  const [panelSize, setPanelSize] = useState("default");
   const [sendButtonStyle, setSendButtonStyle] = useState("plane");
   // What happens when a visitor finishes recording a voice message in the
   // chat composer: "transcribe" lands the transcript in the input box for
@@ -1629,6 +1634,7 @@ export default function Dashboard() {
         setColorScheme(activeBot.color_scheme || null);
         setFontFamily(activeBot.font_family || null);
         setFontSizePercent(activeBot.font_size_percent || 100);
+        setPanelSize(activeBot.panel_size || "default");
         const styleVal = activeBot.widget_style || "minimal";
         const [styleName, logoBg, shapeVal] = styleVal.split(":");
         setWidgetStyle(normalizeWidgetStyle(styleName));
@@ -1748,6 +1754,7 @@ export default function Dashboard() {
       setColorScheme((selected.color_scheme as WidgetColorScheme) || null);
       setFontFamily(selected.font_family || null);
       setFontSizePercent(selected.font_size_percent || 100);
+      setPanelSize(selected.panel_size || "default");
 
       const styleVal = selected.widget_style || "minimal";
       const [styleName, logoBg, shapeVal] = styleVal.split(":");
@@ -2575,6 +2582,7 @@ export default function Dashboard() {
           color_scheme: colorScheme,
           font_family: fontFamily,
           font_size_percent: fontSizePercent,
+          panel_size: panelSize,
           send_button_style: sendButtonStyle,
           avatar_icon: avatarIcon,
           avatar_url: avatarUrl,
@@ -2658,6 +2666,7 @@ export default function Dashboard() {
                 color_scheme: colorScheme,
                 font_family: fontFamily,
                 font_size_percent: fontSizePercent,
+                panel_size: panelSize,
                 send_button_style: sendButtonStyle,
                 avatar_icon: avatarIcon,
                 avatar_url: avatarUrl,
@@ -4273,6 +4282,33 @@ export default function Dashboard() {
                       />
                       <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
                         Scales every text size in the widget together, as a percentage of normal (100%).
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-2">Chat Window Size</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { id: "compact", label: "Compact" },
+                          { id: "default", label: "Default" },
+                          { id: "large", label: "Large" },
+                        ] as const).map((size) => (
+                          <button
+                            key={size.id}
+                            type="button"
+                            onClick={() => handleInputChange(setPanelSize, size.id)}
+                            className={`px-3 py-2 rounded-lg border text-[11px] font-semibold cursor-pointer transition-colors ${
+                              panelSize === size.id
+                                ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
+                                : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-700"
+                            }`}
+                          >
+                            {size.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                        Starting size of the chat window on desktop. Visitors can still drag the window&apos;s corner to resize it themselves.
                       </p>
                     </div>
 
