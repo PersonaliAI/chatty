@@ -141,11 +141,11 @@ function AudioBubble({ src }: { src: string }) {
 
 // Send-button variants (icon + shape). Keyed by chatty_bots.send_button_style.
 const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: React.ReactNode; label?: string }> = {
-  plane:      { shape: "size-8 rounded-full",        icon: <Send className="size-4" /> },
-  arrowUp:    { shape: "size-8 rounded-full",        icon: <ArrowUp className="size-4" /> },
-  arrowRight: { shape: "size-8 rounded-full",        icon: <ArrowRight className="size-4" /> },
-  square:     { shape: "size-8 rounded-lg",          icon: <Send className="size-4" /> },
-  label:      { shape: "h-8 px-3.5 rounded-full gap-1.5", icon: <Send className="size-3.5" />, label: "Send" },
+  plane:      { shape: "size-7 rounded-full",        icon: <Send className="size-3.5" /> },
+  arrowUp:    { shape: "size-7 rounded-full",        icon: <ArrowUp className="size-3.5" /> },
+  arrowRight: { shape: "size-7 rounded-full",        icon: <ArrowRight className="size-3.5" /> },
+  square:     { shape: "size-7 rounded-lg",          icon: <Send className="size-3.5" /> },
+  label:      { shape: "h-7 px-3 rounded-full gap-1.5", icon: <Send className="size-3" />, label: "Send" },
 };
 
 // Browsers record audio as webm/opus, which Gemini does NOT accept. Decode and
@@ -1990,7 +1990,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               }
               sendText(inputValue);
             }}
-            className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
+            className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2 pb-1 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
             {recording ? (
               <div className="flex items-center gap-2 py-1">
                 <motion.button
@@ -2063,13 +2063,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             )}
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }} onPaste={onPaste}
               placeholder={transcribing ? "Transcribing…" : "Compose your message…"} disabled={isBotResponding || transcribing}
-              className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5" />
+              className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
-                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></motion.button>
-                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4.5" /></motion.button>
-                <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1.5 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio">
-                  {transcribing ? <Loader2 className="size-4.5 animate-spin" /> : <Mic className="size-4.5" />}
+                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
+                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4" /></motion.button>
+                <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio">
+                  {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
               </div>
               {(() => {
