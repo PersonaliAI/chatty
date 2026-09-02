@@ -1313,6 +1313,7 @@ export default function Dashboard() {
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
   const [crawlDropdownOpen, setCrawlDropdownOpen] = useState<string | null>(null);
   const [recrawlingSourceId, setRecrawlingSourceId] = useState<string | null>(null);
+  const [crawlingAll, setCrawlingAll] = useState(false);
 
   // Mailbox tab state
   const [mailboxFilter, setMailboxFilter] = useState<"all" | "client" | "admin">("all");
@@ -3277,6 +3278,43 @@ export default function Dashboard() {
       showToast("Re-crawl failed.", "error");
     } finally {
       setRecrawlingSourceId(null);
+    }
+  };
+
+  // Re-crawls every URL source at once (up to the API's 100-per-call cap)
+  // via the same /api/crawl/pages endpoint handleRecrawlNow uses for a
+  // single source — one request, results mapped back per-source by URL.
+  const handleCrawlAll = async () => {
+    if (!botId || crawlingAll) return;
+    const urlSources = sources.filter((s) => s.type === "url");
+    if (urlSources.length === 0) return;
+    setCrawlingAll(true);
+    try {
+      const res = await fetchWithFallback("/api/crawl/pages", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, urls: urlSources.slice(0, 100).map((s) => s.name) }),
+      });
+      const body = await res.json().catch(() => ({}));
+      const results: { url: string; ok: boolean; chars?: number }[] = body.results || [];
+      if (res.ok && results.length) {
+        const byUrl = new Map(results.map((r) => [r.url, r]));
+        setSources((prev) => prev.map((s) => {
+          const r = s.type === "url" ? byUrl.get(s.name) : undefined;
+          return r?.ok ? { ...s, charCount: r.chars ?? s.charCount, status: "trained" } : s;
+        }));
+        const failed = results.length - (body.indexed ?? 0);
+        showToast(
+          failed > 0 ? `Re-crawled ${body.indexed}/${results.length} sources (${failed} failed).` : `Re-crawled all ${body.indexed} sources.`,
+          failed > 0 ? "error" : "success",
+        );
+      } else {
+        showToast("Crawl all failed.", "error");
+      }
+    } catch (err) {
+      console.error("Error crawling all sources:", err);
+      showToast("Crawl all failed.", "error");
+    } finally {
+      setCrawlingAll(false);
     }
   };
 
@@ -5592,6 +5630,18 @@ export default function Dashboard() {
                         className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg pl-8 pr-3 py-1.5 text-[11px] w-40 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                       />
                     </div>
+                    {/* Crawl all URL sources now */}
+                    {sources.some((s) => s.type === "url") && (
+                      <button
+                        onClick={handleCrawlAll}
+                        disabled={crawlingAll || recrawlingSourceId !== null}
+                        title="Re-crawl every URL source now"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-950 rounded-lg text-[10px] font-semibold text-neutral-600 dark:text-neutral-300 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                      >
+                        <RefreshCw className={`size-3.5 ${crawlingAll ? "animate-spin" : ""}`} />
+                        Crawl All
+                      </button>
+                    )}
                   </div>
                 </div>
 
