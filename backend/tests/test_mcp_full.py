@@ -14,6 +14,7 @@ from app.schemas.bots_api import (
     WidgetStylingUpdateRequest,
     FlowUpdateRequest,
     CampaignCreateRequest,
+    CampaignUpdateRequest,
     VoiceAgentConfigRequest,
     LeadCaptureConfigRequest,
     CalendarIntegrationRequest,
@@ -323,3 +324,117 @@ def test_inbox_transcripts_and_human_takeover():
             assert gaps[0]["frequency"] == 2
             assert gaps[0]["first_seen"] == "2026-09-02T10:00:00Z"
             assert gaps[0]["last_seen"] == "2026-09-02T11:00:00Z"
+
+
+def test_conversation_notes():
+    principal = _mock_principal()
+    with patch("app.core.oauth.require_bot_access", return_value={"id": "bot-abc-123"}):
+        with patch("app.services.mcp_inbox_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result([{"id": "note-1", "note": "Escalated to billing", "created_at": "2026-09-02T10:00:00Z"}])
+            added = asyncio.run(mcp_inbox_service.add_conversation_internal_note(principal, "bot-abc-123", "sess-1", "Escalated to billing"))
+            assert added["note"] == "Escalated to billing"
+
+            notes = asyncio.run(mcp_inbox_service.list_conversation_notes(principal, "bot-abc-123", "sess-1"))
+            assert len(notes) == 1
+
+
+# ===========================================================================
+# 7. LEAD CAPTURE, CALENDAR, KNOWLEDGE UPLOAD/SYNC, MAILBOX (real-column fixes)
+# ===========================================================================
+
+
+def test_lead_capture_uses_real_columns():
+    principal = _mock_principal()
+    with patch("app.core.oauth.require_bot_access", return_value={"id": "bot-abc-123"}):
+        with patch("app.services.bots_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result([{"id": "bot-abc-123"}])
+            res = asyncio.run(bots_service.configure_lead_capture(
+                principal, "bot-abc-123",
+                LeadCaptureConfigRequest(enabled=True, collect_name=True, collect_email=True, collect_phone=False),
+            ))
+            assert res["lead_required_fields"] == ["name", "email"]
+            assert res["enabled"] is True
+
+
+def test_calendar_integration_uses_real_columns():
+    principal = _mock_principal()
+    with patch("app.core.oauth.require_bot_access", return_value={"id": "bot-abc-123"}):
+        with patch("app.services.bots_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result([{"id": "bot-abc-123"}])
+            res = asyncio.run(bots_service.configure_calendar(
+                principal, "bot-abc-123",
+                CalendarIntegrationRequest(enabled=True, provider="microsoft_outlook", meeting_duration_minutes=45, timezone="America/New_York"),
+            ))
+            assert res["sync_outlook_calendar"] is True
+            assert res["sync_google_calendar"] is False
+            assert res["scheduling_duration_minutes"] == 45
+            assert res["bot_timezone"] == "America/New_York"
+
+
+def test_upload_knowledge_document():
+    principal = _mock_principal()
+    import base64
+    with patch("app.core.oauth.require_bot_access", return_value={"id": "bot-abc-123"}):
+        with patch("app.services.bots_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result([{"id": "src-1", "name": "report.pdf", "char_count": 11}])
+            with patch("plugins.doc_rag._extract_text_from_blob", return_value="Extracted text"):
+                res = asyncio.run(bots_service.upload_knowledge_document(
+                    principal, "bot-abc-123", "report.pdf", base64.b64encode(b"fake-pdf-bytes").decode(), "application/pdf",
+                ))
+            assert res["name"] == "report.pdf"
+
+
+def test_sync_cloud_storage_requires_connected_account():
+    principal = _mock_principal()
+    with patch("app.core.oauth.require_bot_access", return_value={"id": "bot-abc-123"}):
+        with patch("app.core.oauth.user_dict_for_principal", return_value={"id": "user-1"}):
+            # No google_access_token on the user -> real, honest error instead
+            # of pretending to index anything.
+            try:
+                asyncio.run(bots_service.sync_cloud_storage(principal, "bot-abc-123", "gdrive", "folder-id", 10))
+                assert False, "expected HTTPException"
+            except Exception as e:
+                assert "not connected" in str(e)
+
+
+def test_sync_cloud_storage_indexes_when_connected():
+    principal = _mock_principal()
+    with patch("app.core.oauth.require_bot_access", return_value={"id": "bot-abc-123"}):
+        with patch("app.core.oauth.user_dict_for_principal", return_value={"id": "user-1", "google_access_token": "tok"}):
+            with patch("app.services.bots_service.supabase.table") as mock_table:
+                mock_table.return_value = _mock_query_result([{"id": "bot-abc-123"}])
+                with patch("plugins.doc_rag.index_folder", return_value=[{"id": "doc-1"}, {"id": "doc-2"}]):
+                    res = asyncio.run(bots_service.sync_cloud_storage(principal, "bot-abc-123", "gdrive", "folder-id", 10))
+                assert res["indexed_count"] == 2
+                assert res["provider"] == "gdrive"
+
+
+def test_export_leads_csv_and_mailbox_logs():
+    principal = _mock_principal()
+    leads = [{"id": "lead-1", "name": "Jane", "email": "jane@example.com", "created_at": "2026-09-02T10:00:00Z"}]
+    with patch("app.core.oauth.require_bot_access", return_value={"id": "bot-abc-123"}):
+        with patch("app.services.bots_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result(leads)
+            csv_text = asyncio.run(bots_service.export_leads(principal, "bot-abc-123", 100, "csv"))
+            assert "jane@example.com" in csv_text
+            assert "id,name,email,created_at" in csv_text.replace("\r\n", "\n").splitlines()[0]
+
+            mock_table.return_value = _mock_query_result([
+                {"id": "n1", "meeting_id": "m1", "recipient": "jane@example.com", "channel": "email", "type": "client", "subject": "Meeting Confirmed", "status": "sent", "error_message": None, "created_at": "2026-09-02T10:00:00Z"},
+            ])
+            logs = asyncio.run(bots_service.get_mailbox_logs(principal, "bot-abc-123"))
+            assert len(logs) == 1
+            assert logs[0]["channel"] == "email"
+
+
+def test_update_campaign_maps_field_names_to_real_columns():
+    principal = _mock_principal()
+    with patch("app.core.oauth.require_bot_access", return_value={"id": "bot-abc-123"}):
+        with patch("app.services.mcp_campaign_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result([{"id": "camp-1", "type": "popup_modal", "message": "New copy"}])
+            res = asyncio.run(mcp_campaign_service.update_campaign(
+                principal, "bot-abc-123", "camp-1",
+                CampaignUpdateRequest(campaign_type="popup_modal", message_content="New copy"),
+            ))
+            assert res["type"] == "popup_modal"
+            assert res["message"] == "New copy"

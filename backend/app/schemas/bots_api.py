@@ -92,21 +92,30 @@ class VoiceAgentConfigRequest(BaseModel):
 
 
 class LeadCaptureConfigRequest(BaseModel):
+    # chatty_bots only has lead_capture_enabled (bool) and lead_required_fields
+    # (text[], default {name,email} — the fields plugins/widget_brain.py
+    # actually requires before capturing a lead). There's no trigger_timing,
+    # custom_fields, or crm_destination column or consumer anywhere in this
+    # codebase — the earlier version of this schema declared them but
+    # bots_service.configure_lead_capture silently dropped them on write.
     enabled: bool = True
-    trigger_timing: str = Field("mid_conversation", description="pre_chat, mid_conversation, post_chat")
     collect_name: bool = True
     collect_email: bool = True
     collect_phone: bool = False
-    custom_fields: Optional[list[str]] = None
-    crm_destination: Optional[str] = None
 
 
 class CalendarIntegrationRequest(BaseModel):
-    provider: str = Field("google_calendar", description="google_calendar, microsoft_outlook")
+    # chatty_bots has calendar_scheduling_enabled, scheduling_duration_minutes,
+    # bot_timezone, sync_google_calendar, sync_outlook_calendar/
+    # sync_office365_calendar, and meeting_provider (the video-call link
+    # generator, e.g. google_meet/zoom) — there's no available_days/
+    # working_hours_start/working_hours_end column or business-hours check
+    # anywhere in the booking flow (plugins/agent_tools.py books whatever
+    # time is requested); the earlier version of this schema declared those
+    # three plus a "provider" field that don't map to any real column.
+    enabled: bool = True
+    provider: str = Field("google_calendar", description="google_calendar, microsoft_outlook, or office365")
     meeting_duration_minutes: int = 30
-    available_days: list[str] = Field(default_factory=lambda: ["mon", "tue", "wed", "thu", "fri"])
-    working_hours_start: str = "09:00"
-    working_hours_end: str = "17:00"
     timezone: str = "UTC"
 
 

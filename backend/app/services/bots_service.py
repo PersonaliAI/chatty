@@ -204,6 +204,108 @@ async def crawl_website_knowledge(principal: dict[str, Any], bot_id: str, url: s
     return {"id": row.get("id"), "name": row.get("name"), "char_count": row.get("char_count")}
 
 
+async def upload_knowledge_document(
+    principal: dict[str, Any], bot_id: str, file_name: str, file_base64: str, mime_type: str = ""
+) -> dict[str, Any]:
+    """Indexes a PDF/DOCX/XLSX/PPTX/image/text file as a knowledge source.
+    Reuses plugins.doc_rag's real text-extraction (OCR-backed for PDFs and
+    images via genai_client) — the same code path POST /api/documents/upload
+    uses for the web chat paperclip button — but stores the extracted text
+    in chatty_sources like the bot's other knowledge tools, rather than the
+    separate account-level drive_documents table, so it works regardless of
+    whether the bot has sync_google_drive enabled."""
+    await _oauth.require_bot_access(principal, bot_id)
+
+    import base64
+    from app.core.clients import genai_client
+    from plugins import doc_rag
+
+    file_name = (file_name or "upload").strip()
+    try:
+        data = base64.b64decode(file_base64, validate=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="file_base64 is not valid base64") from exc
+    if not data:
+        raise HTTPException(status_code=400, detail="file is empty")
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="file too large (max 20MB)")
+
+    content = (await doc_rag._extract_text_from_blob(
+        data, mime_type or "", file_name, genai_client=genai_client
+    )).strip()
+    if not content:
+        raise HTTPException(status_code=422, detail="Could not extract any text from this file")
+
+    res = await run_db(lambda: supabase.table("chatty_sources").insert({
+        "bot_id": bot_id,
+        "type": "text",
+        "name": file_name[:255],
+        "content": content,
+        "status": "trained",
+        "char_count": len(content),
+    }).execute())
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to add knowledge source")
+    row = res.data[0]
+    return {"id": row.get("id"), "name": row.get("name"), "char_count": row.get("char_count")}
+
+
+def _drive_folder_id_from(s: str) -> str:
+    """Accept either a raw folder ID or a Drive folder URL — same parsing
+    app/routers/documents.py's dashboard endpoint uses."""
+    s = (s or "").strip()
+    if "/folders/" in s:
+        return s.split("/folders/", 1)[1].split("?")[0].split("/")[0]
+    return s
+
+
+async def sync_cloud_storage(
+    principal: dict[str, Any], bot_id: str, provider: str, folder_id_or_url: str, max_files: int = 50
+) -> dict[str, Any]:
+    """Indexes a Google Drive/OneDrive folder via plugins.doc_rag.index_folder
+    — the same pipeline POST /api/documents/index-folder uses. Indexing is
+    account-scoped (drive_documents is keyed by user_id, not bot_id): once
+    indexed, every bot on this account with sync_google_drive=true draws on
+    the same documents, not just this bot_id. Requires the account to have
+    already connected Google/Microsoft from the dashboard — there's no
+    OAuth-connect flow reachable through this API."""
+    await _oauth.require_bot_access(principal, bot_id)
+    user = await _oauth.user_dict_for_principal(principal)
+
+    from app.core.clients import genai_client
+    from plugins import doc_rag
+
+    provider = (provider or "gdrive").lower()
+    if provider not in ("gdrive", "onedrive"):
+        raise HTTPException(status_code=400, detail="provider must be 'gdrive' or 'onedrive'")
+    if provider == "onedrive":
+        if not user.get("microsoft_access_token"):
+            raise HTTPException(status_code=400, detail="Microsoft account is not connected — connect it from the dashboard first")
+        folder_id = (folder_id_or_url or "").strip()
+    else:
+        if not user.get("google_access_token"):
+            raise HTTPException(status_code=400, detail="Google account is not connected — connect it from the dashboard first")
+        folder_id = _drive_folder_id_from(folder_id_or_url)
+    if not folder_id:
+        raise HTTPException(status_code=400, detail="folder_id_or_url is required")
+
+    max_files = max(min(max_files, 200), 1)
+    indexed = await doc_rag.index_folder(
+        supabase, genai_client, user=user, folder_id=folder_id, max_files=max_files, source=provider,
+    )
+    # sync_google_drive is the one real flag plugins/widget_brain.py checks
+    # to decide whether a bot's RAG draws on drive_documents at all — it
+    # gates both sources despite the name (see that file's search_knowledge).
+    await run_db(lambda: supabase.table("chatty_bots").update({"sync_google_drive": True}).eq("id", bot_id).execute())
+    return {
+        "bot_id": bot_id,
+        "provider": provider,
+        "folder_id": folder_id,
+        "indexed_count": len(indexed),
+        "note": "Indexing is account-scoped, not bot-scoped. sync_google_drive was enabled on this bot so it now draws on these documents.",
+    }
+
+
 async def list_knowledge_sources(principal: dict[str, Any], bot_id: str) -> list[dict[str, Any]]:
     await _oauth.require_bot_access(principal, bot_id)
     res = await run_db(lambda: supabase.table("chatty_sources").select(
@@ -242,15 +344,19 @@ async def test_rag_retrieval(principal: dict[str, Any], bot_id: str, query: str,
 
 async def configure_lead_capture(principal: dict[str, Any], bot_id: str, body: LeadCaptureConfigRequest) -> dict[str, Any]:
     await _oauth.require_bot_access(principal, bot_id)
+    required_fields = [
+        f for f, on in (("name", body.collect_name), ("email", body.collect_email), ("phone", body.collect_phone)) if on
+    ]
     updates = {
         "lead_capture_enabled": body.enabled,
-        "lead_capture_timing": body.trigger_timing,
-        "lead_collect_name": body.collect_name,
-        "lead_collect_email": body.collect_email,
-        "lead_collect_phone": body.collect_phone,
+        "lead_required_fields": required_fields,
     }
     await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
-    return {"bot_id": bot_id, **updates}
+    return {
+        "bot_id": bot_id,
+        "enabled": body.enabled,
+        "lead_required_fields": required_fields,
+    }
 
 
 async def list_leads(principal: dict[str, Any], bot_id: str, limit: int = 100) -> list[dict[str, Any]]:
@@ -259,18 +365,60 @@ async def list_leads(principal: dict[str, Any], bot_id: str, limit: int = 100) -
     return res.data or []
 
 
+async def export_leads(principal: dict[str, Any], bot_id: str, limit: int = 100, format: str = "json") -> Any:
+    """Same rows as list_leads, as CSV text when format='csv'. Columns are
+    whatever chatty_leads actually returns for these rows (not a hardcoded
+    list), so the export never claims a field that isn't real."""
+    if format not in ("json", "csv"):
+        raise HTTPException(status_code=400, detail="format must be 'json' or 'csv'")
+    leads = await list_leads(principal, bot_id, limit)
+    if format == "json":
+        return leads
+
+    import csv
+    import io
+
+    if not leads:
+        return ""
+    columns: list[str] = []
+    for lead in leads:
+        for key in lead.keys():
+            if key not in columns:
+                columns.append(key)
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=columns)
+    writer.writeheader()
+    writer.writerows(leads)
+    return buf.getvalue()
+
+
+async def get_mailbox_logs(principal: dict[str, Any], bot_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    """Real outgoing-email/push log — chatty_notifications, already
+    populated by plugins/agent_tools.py for every meeting-confirmation
+    email/push it sends (client + admin copies). There's no separate
+    'mailbox' feature or table; this is that same real log, exposed for the
+    Developer API."""
+    await _oauth.require_bot_access(principal, bot_id)
+    res = await run_db(lambda: supabase.table("chatty_notifications").select(
+        "id, meeting_id, recipient, channel, type, subject, status, error_message, created_at"
+    ).eq("bot_id", bot_id).order("created_at", desc=True).limit(limit).execute())
+    return res.data or []
+
+
 async def configure_calendar(principal: dict[str, Any], bot_id: str, body: CalendarIntegrationRequest) -> dict[str, Any]:
     await _oauth.require_bot_access(principal, bot_id)
-    updates = {
-        "calendar_provider": body.provider,
-        "meeting_duration": body.meeting_duration_minutes,
-        "calendar_timezone": body.timezone,
-        "calendar_available_days": body.available_days,
-        "calendar_hours_start": body.working_hours_start,
-        "calendar_hours_end": body.working_hours_end,
+    if body.provider not in ("google_calendar", "microsoft_outlook", "office365"):
+        raise HTTPException(status_code=400, detail="provider must be google_calendar, microsoft_outlook, or office365")
+    updates: dict[str, Any] = {
+        "calendar_scheduling_enabled": body.enabled,
+        "scheduling_duration_minutes": body.meeting_duration_minutes,
+        "bot_timezone": body.timezone,
+        "sync_google_calendar": body.provider == "google_calendar",
+        "sync_outlook_calendar": body.provider == "microsoft_outlook",
+        "sync_office365_calendar": body.provider == "office365",
     }
     await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
-    return {"bot_id": bot_id, **updates}
+    return {"bot_id": bot_id, "provider": body.provider, **updates}
 
 
 async def list_meetings(principal: dict[str, Any], bot_id: str) -> list[dict[str, Any]]:

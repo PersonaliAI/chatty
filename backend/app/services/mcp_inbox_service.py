@@ -98,6 +98,30 @@ async def send_agent_message(principal: dict[str, Any], bot_id: str, session_id:
     return res.data[0]
 
 
+async def add_conversation_internal_note(principal: dict[str, Any], bot_id: str, session_id: str, note: str) -> dict[str, Any]:
+    """Private agent note on a conversation — chatty_session_notes (see
+    that migration's comment). Never sent to the visitor, unlike
+    send_agent_message; purely for other human agents working the inbox."""
+    await _oauth.require_bot_access(principal, bot_id)
+    note = (note or "").strip()
+    if not note:
+        raise HTTPException(status_code=400, detail="note must not be empty")
+    res = await run_db(lambda: supabase.table("chatty_session_notes").insert({
+        "bot_id": bot_id, "session_id": session_id, "note": note,
+    }).execute())
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to add note")
+    return res.data[0]
+
+
+async def list_conversation_notes(principal: dict[str, Any], bot_id: str, session_id: str) -> list[dict[str, Any]]:
+    await _oauth.require_bot_access(principal, bot_id)
+    res = await run_db(lambda: supabase.table("chatty_session_notes").select(
+        "id, note, created_at"
+    ).eq("bot_id", bot_id).eq("session_id", session_id).order("created_at", desc=False).execute())
+    return res.data or []
+
+
 async def discover_knowledge_gaps(principal: dict[str, Any], bot_id: str) -> list[dict[str, Any]]:
     """Real, unresolved entries from chatty_unanswered — the same queue the
     dashboard's unanswered-questions view surfaces — grouped by exact

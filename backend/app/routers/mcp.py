@@ -438,6 +438,22 @@ async def crawl_website_knowledge(bot_id: str, url: str) -> dict:
 
 
 @mcp.tool()
+async def upload_knowledge_document(bot_id: str, file_name: str, file_base64: str, mime_type: str = "") -> dict:
+    """Index a PDF, DOCX, XLSX, PPTX, image, or text file (base64-encoded, max 20MB) as a knowledge source."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await bots_service.upload_knowledge_document(principal, bot_id, file_name, file_base64, mime_type)
+
+
+@mcp.tool()
+async def sync_cloud_storage(bot_id: str, provider: str, folder_id_or_url: str, max_files: int = 50) -> dict:
+    """Index a Google Drive or OneDrive folder (provider='gdrive'|'onedrive') into the account's knowledge base. Requires the account already connected that provider from the dashboard."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await bots_service.sync_cloud_storage(principal, bot_id, provider, folder_id_or_url, max_files)
+
+
+@mcp.tool()
 async def list_knowledge_sources(bot_id: str) -> list:
     """List all indexed knowledge sources, character counts, and training statuses."""
     principal = await _current_principal()
@@ -498,6 +514,22 @@ async def send_agent_message(bot_id: str, session_id: str, message: str) -> dict
     return await mcp_inbox_service.send_agent_message(principal, bot_id, session_id, message)
 
 
+@mcp.tool()
+async def add_conversation_internal_note(bot_id: str, session_id: str, note: str) -> dict:
+    """Add a private agent note to a conversation. Never sent to the visitor — for other human agents working the inbox."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_inbox_service.add_conversation_internal_note(principal, bot_id, session_id, note)
+
+
+@mcp.tool()
+async def list_conversation_notes(bot_id: str, session_id: str) -> list:
+    """List private agent notes on a conversation."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_inbox_service.list_conversation_notes(principal, bot_id, session_id)
+
+
 # ===========================================================================
 # 8. LEADS, CALENDAR & MEETINGS
 # ===========================================================================
@@ -507,17 +539,15 @@ async def send_agent_message(bot_id: str, session_id: str, message: str) -> dict
 async def configure_lead_capture(
     bot_id: str,
     enabled: bool = True,
-    trigger_timing: str = "mid_conversation",
     collect_name: bool = True,
     collect_email: bool = True,
     collect_phone: bool = False,
 ) -> dict:
-    """Configure in-chat lead capture form fields and timing rules."""
+    """Configure in-chat lead capture: whether it's on and which fields (name/email/phone) are required before a lead is captured."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     body = LeadCaptureConfigRequest(
         enabled=enabled,
-        trigger_timing=trigger_timing,
         collect_name=collect_name,
         collect_email=collect_email,
         collect_phone=collect_phone,
@@ -534,22 +564,36 @@ async def list_leads(bot_id: str, limit: int = 100) -> list:
 
 
 @mcp.tool()
+async def export_leads(bot_id: str, limit: int = 100, format: str = "json") -> Any:
+    """Export captured leads as JSON (default) or CSV text."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await bots_service.export_leads(principal, bot_id, limit, format)
+
+
+@mcp.tool()
+async def get_mailbox_logs(bot_id: str, limit: int = 50) -> list:
+    """Get the log of outgoing meeting-confirmation emails/push notifications sent by this bot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await bots_service.get_mailbox_logs(principal, bot_id, limit)
+
+
+@mcp.tool()
 async def configure_calendar_integration(
     bot_id: str,
+    enabled: bool = True,
     provider: str = "google_calendar",
     meeting_duration_minutes: int = 30,
-    working_hours_start: str = "09:00",
-    working_hours_end: str = "17:00",
     timezone: str = "UTC",
 ) -> dict:
-    """Configure Google Calendar or Outlook for direct in-chat meeting scheduling."""
+    """Configure Google Calendar/Outlook/Office365 for direct in-chat meeting scheduling."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     body = CalendarIntegrationRequest(
+        enabled=enabled,
         provider=provider,
         meeting_duration_minutes=meeting_duration_minutes,
-        working_hours_start=working_hours_start,
-        working_hours_end=working_hours_end,
         timezone=timezone,
     )
     return await bots_service.configure_calendar(principal, bot_id, body)
