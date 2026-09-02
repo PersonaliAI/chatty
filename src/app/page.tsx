@@ -556,13 +556,72 @@ export default function Home() {
             </div>
           </section>
 
+          {/* MCP Section */}
+          <section id="mcp" className="border-b border-neutral-200 dark:border-neutral-900">
+            <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-900">
+              {/* Left block: Title */}
+              <div className="md:col-span-4 p-8 md:p-12 flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">[ 03 / AGENT CONTROL ]</span>
+                  <h2 className="text-3xl font-bold tracking-tight uppercase">Start With MCP</h2>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-sans max-w-sm">
+                  Chatty ships a full Model Context Protocol server. Point Claude, ChatGPT, or any MCP-compatible
+                  client at your account and run the entire dashboard — every bot, flow, campaign, and
+                  integration — from a conversation instead of clicking through screens.
+                </p>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-[#f97316] hover:gap-2.5 transition-all"
+                >
+                  Connect your agent <ArrowRight className="size-3" />
+                </Link>
+              </div>
+
+              {/* Right block: details */}
+              <div className="md:col-span-8 p-8 md:p-12 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { icon: Lock, title: "OAuth 2.0 + PKCE", desc: "RFC 7591/8414-compliant dynamic client registration — no shared secrets pasted into a config file." },
+                    { icon: Cpu, title: "55 real tools", desc: "Bots, flows, campaigns, voice, knowledge, inbox, leads, calendar, guardrails, team, billing, GDPR export." },
+                    { icon: RefreshCw, title: "Same data, same rules", desc: "Every tool reads and writes the exact tables the dashboard does — nothing simulated, nothing mocked." },
+                    { icon: Shield, title: "Scoped access", desc: "read / write / knowledge / voice / actions / admin scopes, so an agent only gets what it needs." },
+                  ].map((c, i) => {
+                    const Icon = c.icon;
+                    return (
+                      <div key={i} className="border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 space-y-1.5">
+                        <Icon className="size-4 text-[#f97316]" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-white">{c.title}</h3>
+                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">{c.desc}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Add to any MCP client</p>
+                  <pre className="bg-neutral-950 text-neutral-100 rounded-xl p-4 overflow-x-auto text-[11px] font-mono leading-relaxed">{`{
+  "mcpServers": {
+    "chatty": {
+      "url": "https://api.chatty.personaliai.com/mcp"
+    }
+  }
+}`}</pre>
+                  <p className="text-[10px] text-neutral-400">
+                    The client opens a standard OAuth 2.0 authorization flow on first connect — approve it once, no API key to copy anywhere.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* FAQ Section */}
           <section id="faq" className="border-b border-neutral-200 dark:border-neutral-900">
             <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-neutral-200 dark:divide-neutral-900">
               {/* Left block: Title */}
               <div className="md:col-span-4 p-8 md:p-12 flex flex-col justify-between space-y-4">
                 <div className="space-y-2">
-                  <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">[ 03 / COMMON INQUIRIES ]</span>
+                  <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-widest block">[ 04 / COMMON INQUIRIES ]</span>
                   <h2 className="text-3xl font-bold tracking-tight uppercase">Questions</h2>
                 </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-sans max-w-sm">
