@@ -580,6 +580,14 @@ async def get_mailbox_logs(bot_id: str, limit: int = 50) -> list:
 
 
 @mcp.tool()
+async def export_visitor_data(bot_id: str) -> dict:
+    """GDPR data-portability export: every conversation, session, and lead held for this bot, as JSON."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    return await bots_service.export_visitor_data(principal, bot_id)
+
+
+@mcp.tool()
 async def configure_calendar_integration(
     bot_id: str,
     enabled: bool = True,

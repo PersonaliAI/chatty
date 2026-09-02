@@ -405,6 +405,40 @@ async def get_mailbox_logs(principal: dict[str, Any], bot_id: str, limit: int = 
     return res.data or []
 
 
+async def export_visitor_data(principal: dict[str, Any], bot_id: str) -> dict[str, Any]:
+    """Right to data portability (GDPR): every visitor record held for a
+    bot — conversations, sessions, leads — as one JSON payload. Same query
+    shape as GET /api/admin/gdpr/export. require_bot_access already implies
+    ownership here: an OAuth principal only passes it for a bot it owns, and
+    an API key can only ever have been minted by the bot's owner in the
+    first place (see POST /api/keys) — so this needs no extra owner check
+    beyond what every other tool in this file already relies on."""
+    await _oauth.require_bot_access(principal, bot_id)
+
+    import asyncio
+    import datetime
+
+    conv_res, sess_res, leads_res = await asyncio.gather(
+        run_db(lambda: supabase.table("chatty_conversations").select("*").eq("bot_id", bot_id)
+               .order("created_at", desc=False).limit(50000).execute()),
+        run_db(lambda: supabase.table("chatty_sessions").select("*").eq("bot_id", bot_id)
+               .limit(50000).execute()),
+        run_db(lambda: supabase.table("chatty_leads").select("*").eq("bot_id", bot_id)
+               .limit(50000).execute()),
+    )
+    conv = conv_res.data or []
+    sess = sess_res.data or []
+    leads = leads_res.data or []
+    return {
+        "bot_id": bot_id,
+        "exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "counts": {"conversations": len(conv), "sessions": len(sess), "leads": len(leads)},
+        "conversations": conv,
+        "sessions": sess,
+        "leads": leads,
+    }
+
+
 async def configure_calendar(principal: dict[str, Any], bot_id: str, body: CalendarIntegrationRequest) -> dict[str, Any]:
     await _oauth.require_bot_access(principal, bot_id)
     if body.provider not in ("google_calendar", "microsoft_outlook", "office365"):
