@@ -75,6 +75,20 @@ mcp = FastMCP(
         resource_server_url=AnyHttpUrl(_MCP_RESOURCE_URL),
         required_scopes=["chat"],
     ),
+    # Cloud Run scales this service to zero and recycles instances under
+    # normal idle traffic. FastMCP's default (stateful) mode keeps each MCP
+    # session's state in that one process's memory and requires every
+    # request in the session to land back on it — the moment Cloud Run
+    # kills or replaces the instance (which it does within about a minute
+    # of idling, confirmed via `gcloud run services logs read`: a fresh
+    # "Started server process" immediately followed by "Shutting down"
+    # 26s later), the client's Mcp-Session-Id points at a session that no
+    # longer exists anywhere, and every subsequent call 400s — this is
+    # exactly what broke every tool call right after the previous fix.
+    # stateless_http=True makes each HTTP request fully self-contained
+    # (no server-side session to lose), which is the documented setting
+    # for serverless/horizontally-scaled deployments like this one.
+    stateless_http=True,
 )
 
 
