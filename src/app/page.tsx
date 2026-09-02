@@ -223,7 +223,7 @@ export default function Home() {
               <Link href="#features" className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-450 dark:hover:text-white transition-colors">Features</Link>
               <Link href="#pricing" className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-450 dark:hover:text-white transition-colors">Pricing</Link>
               <Link href="#faq" className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-450 dark:hover:text-white transition-colors">FAQ</Link>
-              <Link href="/dashboard" className="text-neutral-900 dark:text-white font-semibold">Dashboard</Link>
+              <Link href="/dashboard" className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-450 dark:hover:text-white transition-colors">Dashboard</Link>
             </nav>
             <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
               <a
