@@ -11,6 +11,7 @@ A dedicated FastAPI service that powers Chatty:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -697,6 +698,24 @@ app.include_router(_router_oauth.router)
 # only falls through to this mount for paths none of them matched, so it
 # can't shadow any other endpoint.
 app.mount("/", _router_mcp.mcp_asgi_app)
+
+
+# mcp_asgi_app carries its own internal lifespan (it's a separate Starlette
+# app), but Starlette/FastAPI never runs a mounted sub-app's lifespan on its
+# own — only the ROOT app's lifespan fires. Without this, FastMCP's
+# StreamableHTTPSessionManager.run() (which sets up the task group every
+# session depends on) never executes, and every real MCP client connection
+# fails after OAuth succeeds with "RuntimeError: Task group is not
+# initialized. Make sure to use run()." — this had no test coverage because
+# TestClient's `with` context and the app never being exercised as a
+# long-lived ASGI server both papered over it locally.
+@contextlib.asynccontextmanager
+async def _lifespan(_app):
+    async with _router_mcp.mcp.session_manager.run():
+        yield
+
+
+app.router.lifespan_context = _lifespan
 
 
 if __name__ == "__main__":
