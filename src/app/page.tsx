@@ -24,6 +24,8 @@ import {
   RefreshCw,
   Lock,
   UserCheck,
+  CalendarCheck,
+  Zap,
   FolderOpen,
   Mail,
   User,
@@ -260,6 +262,31 @@ export default function Home() {
               <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xl font-sans font-normal">
                 An AI chatbot that captures leads and triggers actions. Zero coding, live on your site in five minutes.
               </p>
+
+              <div className="flex flex-wrap justify-center gap-3">
+                {[
+                  { icon: Zap, title: "Zero-Code, Full Control", desc: "Or drive it all through MCP", bg: "bg-violet-100 dark:bg-violet-500/15", fg: "text-violet-600 dark:text-violet-400" },
+                  { icon: UserCheck, title: "Captures Every Lead", desc: "Name, email, phone — automatically", bg: "bg-emerald-100 dark:bg-emerald-500/15", fg: "text-emerald-600 dark:text-emerald-400" },
+                  { icon: CalendarCheck, title: "Books Its Own Meetings", desc: "Straight onto your calendar", bg: "bg-sky-100 dark:bg-sky-500/15", fg: "text-sky-600 dark:text-sky-400" },
+                ].map((c, i) => {
+                  const Icon = c.icon;
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2.5 pl-3 pr-4 py-2 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm"
+                    >
+                      <span className={`flex items-center justify-center size-7 rounded-full shrink-0 ${c.bg} ${c.fg}`}>
+                        <Icon className="size-3.5" strokeWidth={2.25} />
+                      </span>
+                      <span className="text-left">
+                        <span className="block text-xs font-semibold text-neutral-900 dark:text-white leading-tight">{c.title}</span>
+                        <span className="block text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight">{c.desc}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="flex flex-wrap justify-center items-center gap-4 pt-2">
                 <Link href="/dashboard">
                   <Button className="h-12 px-6 bg-neutral-950 hover:bg-neutral-900 text-white dark:bg-white dark:text-black dark:hover:bg-neutral-100 rounded-none text-xs font-mono uppercase tracking-wider transition-colors border border-neutral-955 dark:border-white cursor-pointer">
