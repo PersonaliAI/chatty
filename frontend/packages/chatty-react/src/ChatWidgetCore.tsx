@@ -22,7 +22,7 @@ import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
-  Link2, ThumbsUp, ThumbsDown, Mail, Bell, Phone, Play, Pause, Trash2,
+  Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -524,6 +524,25 @@ export default function ChatWidgetCore({
     return "Notification" in window && Notification.permission === "granted";
   });
   const pushGranted = notificationGranted !== undefined ? notificationGranted : internalPushGranted;
+  // Browsers don't let a site programmatically revoke Notification
+  // permission — only the user can do that via browser/site settings. So
+  // "turning off" notifications from the bell, once granted, is our own
+  // in-widget mute flag rather than an actual permission change; it just
+  // gates triggerPush below. Persisted per bot so it survives reloads —
+  // same pattern (and same reasoning) as EmbedClient.tsx's identical
+  // pushMuted, just keyed by botId alone here since this mount path
+  // (widget.js Shadow DOM / React SDK) already lives on exactly one host
+  // page, so localStorage is naturally scoped to that host already —
+  // EmbedClient's iframe additionally needs a hostKey because one bot's
+  // /embed/[botId] iframe can be reused across different embedding sites.
+  const [pushMuted, setPushMuted] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(`chatty_push_muted_${botId}`) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   // Root mount element. The two "transparent background" effects further
   // down (and the global html/body rule in the injected <style> below) are
@@ -638,9 +657,19 @@ export default function ChatWidgetCore({
     }
   };
 
+  const toggleMute = () => {
+    setPushMuted((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(`chatty_push_muted_${botId}`, next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  };
+
   const triggerPushRef = useRef<(bodyText: string) => void>(() => {});
   const triggerPush = (bodyText: string) => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || pushMuted) return;
     if (onTriggerNotification) {
       onTriggerNotification(botName, bodyText, avatarUrl);
     } else {
@@ -1787,19 +1816,32 @@ export default function ChatWidgetCore({
             </motion.button>
           )}
           <button
-            onClick={requestPushPermission}
+            onClick={pushGranted ? toggleMute : requestPushPermission}
             className={`${voiceEnabled ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
             style={{ opacity: 0.8 }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            aria-label="Toggle push notifications"
-            title={pushGranted ? "Browser notifications enabled" : "Enable browser notifications"}
+            aria-label={pushGranted ? (pushMuted ? "Unmute notifications" : "Mute notifications") : "Enable browser notifications"}
+            title={
+              !pushGranted
+                ? "Enable browser notifications"
+                : pushMuted
+                  ? "Notifications muted — tap to unmute"
+                  : "Browser notifications enabled — tap to mute"
+            }
           >
             {/* "Granted" state shown via a solid fill, not a fixed color — a
                 hardcoded amber here was nearly invisible against presets
                 with a yellow header (e.g. Neubrutalism's #ffde59). Filling
-                with currentColor keeps it legible against every preset. */}
-            <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
+                with currentColor keeps it legible against every preset.
+                Browsers don't let a site revoke Notification permission
+                itself, so "muted" is our own flag (gates triggerPush) shown
+                via the crossed-out glyph, not an actual permission change. */}
+            {pushGranted && pushMuted ? (
+              <BellOff className="size-4" />
+            ) : (
+              <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
+            )}
           </button>
           <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
