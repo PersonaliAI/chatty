@@ -38,6 +38,6 @@ livekit-plugins-deepgram==1.6.10
 livekit-plugins-assemblyai==1.6.10
 livekit-plugins-soniox==1.6.10
 livekit-plugins-openai==1.6.10
-livekit-plugins-cartesia==1.6.10
+livekit-plugins-cartesia==1.7.1
 livekit-plugins-elevenlabs==1.6.10
 livekit-plugins-fishaudio==1.6.10
