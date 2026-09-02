@@ -415,6 +415,31 @@ body {
 .dark .style-luxury-editorial .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #201c16) 40%, #201c16) !important; color: color-mix(in srgb, var(--on-primary, #efe6d3) 20%, #efe6d3) !important; }
 .dark .style-luxury-editorial .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #14120f) 15%, #14120f) !important; color: #efe6d3 !important; border-color: #4a3f2a !important; }
 
+/* Active outline on the composer while typing. Every preset above sets
+ * .style-X .chat-input-bar's border-color with !important, so a plain
+ * `.chat-input-bar:focus-within` rule (fewer selector parts, and — since
+ * these preset rules live in the same unlayered stylesheet — no layer
+ * to win on either) can never beat it. Qualifying with the same
+ * `.style-X` prefix matches each preset's own specificity, and coming
+ * later in this file wins the tiebreak. The box-shadow ring (not just
+ * border-color) is what actually stays visible on presets that set
+ * `border: none` above (Playful, Gradient Glow) — border-style:none hides
+ * any border-color regardless of specificity, but a box-shadow doesn't
+ * depend on border-style at all. */
+.style-minimal .chat-input-bar:focus-within,
+.style-playful .chat-input-bar:focus-within,
+.style-corporate .chat-input-bar:focus-within,
+.style-dark-sleek .chat-input-bar:focus-within,
+.style-gradient-glow .chat-input-bar:focus-within,
+.style-glassmorphism .chat-input-bar:focus-within,
+.style-ecommerce .chat-input-bar:focus-within,
+.style-healthcare-calm .chat-input-bar:focus-within,
+.style-neubrutalism .chat-input-bar:focus-within,
+.style-luxury-editorial .chat-input-bar:focus-within {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 25%, transparent) !important;
+}
+
 /* Voice-message player (AudioBubble in the real widget; the Customizer's
  * live preview below mirrors the same classNames on a static demo bubble).
  * One shared, preset-agnostic rule block — it themes itself entirely off

@@ -1990,7 +1990,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               }
               sendText(inputValue);
             }}
-            className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2 pb-1 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors">
+            className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2 pb-1 transition-all">
             {recording ? (
               <div className="flex items-center gap-2 py-1">
                 <motion.button
