@@ -15,6 +15,7 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from mcp.types import Icon
 from pydantic import AnyHttpUrl
 
 from app.core import oauth as _oauth
@@ -69,6 +70,11 @@ mcp = FastMCP(
         "bots, flows, campaigns, voice agents, knowledge bases, lead capture, calendar meetings, "
         "analytics, and design audits."
     ),
+    website_url="https://chatty.personaliai.com",
+    # Without this, connector UIs fall back to a generic icon (nothing was
+    # served at api.chatty.personaliai.com/favicon.ico) — chatty.personaliai.com's
+    # real favicon.png, already public.
+    icons=[Icon(src="https://chatty.personaliai.com/favicon.png", mimeType="image/png")],
     token_verifier=ChattyTokenVerifier(),
     auth=AuthSettings(
         issuer_url=AnyHttpUrl(_BACKEND_BASE_URL),

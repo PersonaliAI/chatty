@@ -29,9 +29,16 @@ from app.schemas.bots_api import (
 
 _BOT_LIST_COLUMNS = "id, name, welcome_message, primary_color, selected_model, created_at"
 _BOT_DETAIL_FIELDS = [
+    # teaser_enabled/teaser_text/sound_enabled/mobile_fullscreen never
+    # existed on chatty_bots (see the customize_widget_styling fix) — the
+    # `if k in row` guard in _project_bot meant they silently vanished from
+    # every response instead of erroring, which is also why real fields
+    # like conversation_starters and hide_branding were invisible here even
+    # after being written successfully.
     "id", "name", "welcome_message", "primary_color", "selected_model", "system_instructions",
-    "widget_style", "response_language", "strict_mode", "lead_capture_enabled", "teaser_enabled",
-    "teaser_text", "sound_enabled", "mobile_fullscreen", "allowed_domains", "created_at", "updated_at",
+    "widget_style", "response_language", "strict_mode", "lead_capture_enabled",
+    "avatar_url", "avatar_icon", "logo_url", "teaser_message", "conversation_starters",
+    "custom_css", "hide_branding", "allowed_domains", "created_at", "updated_at",
 ]
 
 
