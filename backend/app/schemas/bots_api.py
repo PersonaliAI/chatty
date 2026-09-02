@@ -31,20 +31,23 @@ class KnowledgeTextCreateRequest(BaseModel):
 
 
 class WidgetStylingUpdateRequest(BaseModel):
+    # Matches app/routers/widget.py's real theme columns exactly. The
+    # earlier version of this schema had position/teaser_enabled/
+    # sound_enabled/mobile_fullscreen/teaser_delay_seconds — none of which
+    # exist on chatty_bots or are read anywhere in the live widget (teaser
+    # on/off is actually a per-embed <script data-teaser> attribute, not a
+    # bot setting) — plus starter_questions and remove_branding, which are
+    # real features under different column names (conversation_starters,
+    # hide_branding).
     primary_color: Optional[str] = None
     widget_style: Optional[str] = None
-    position: Optional[str] = None
     avatar_url: Optional[str] = None
     avatar_icon: Optional[str] = None
     header_logo_url: Optional[str] = None
-    teaser_enabled: Optional[bool] = None
     teaser_message: Optional[str] = None
-    teaser_delay_seconds: Optional[int] = None
-    sound_enabled: Optional[bool] = None
-    mobile_fullscreen: Optional[bool] = None
-    starter_questions: Optional[list[str]] = None
+    conversation_starters: Optional[list[str]] = None
     custom_css: Optional[str] = None
-    remove_branding: Optional[bool] = None
+    hide_branding: Optional[bool] = None
 
 
 class FlowUpdateRequest(BaseModel):

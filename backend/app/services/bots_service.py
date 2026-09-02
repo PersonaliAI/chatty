@@ -120,28 +120,20 @@ async def update_widget_styling(principal: dict[str, Any], bot_id: str, body: Wi
         updates["primary_color"] = body.primary_color
     if body.widget_style is not None:
         updates["widget_style"] = body.widget_style
-    if body.position is not None:
-        updates["position"] = body.position
     if body.avatar_url is not None:
         updates["avatar_url"] = body.avatar_url
     if body.avatar_icon is not None:
         updates["avatar_icon"] = body.avatar_icon
     if body.header_logo_url is not None:
         updates["logo_url"] = body.header_logo_url
-    if body.teaser_enabled is not None:
-        updates["teaser_enabled"] = body.teaser_enabled
     if body.teaser_message is not None:
-        updates["teaser_text"] = body.teaser_message
-    if body.sound_enabled is not None:
-        updates["sound_enabled"] = body.sound_enabled
-    if body.mobile_fullscreen is not None:
-        updates["mobile_fullscreen"] = body.mobile_fullscreen
-    if body.starter_questions is not None:
-        updates["starter_questions"] = body.starter_questions
+        updates["teaser_message"] = body.teaser_message
+    if body.conversation_starters is not None:
+        updates["conversation_starters"] = body.conversation_starters
     if body.custom_css is not None:
         updates["custom_css"] = body.custom_css
-    if body.remove_branding is not None:
-        updates["remove_branding"] = body.remove_branding
+    if body.hide_branding is not None:
+        updates["hide_branding"] = body.hide_branding
 
     if updates:
         res = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())

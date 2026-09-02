@@ -191,37 +191,27 @@ async def customize_widget_styling(
     bot_id: str,
     primary_color: Optional[str] = None,
     widget_style: Optional[str] = None,
-    position: Optional[str] = None,
     avatar_url: Optional[str] = None,
     avatar_icon: Optional[str] = None,
     header_logo_url: Optional[str] = None,
-    teaser_enabled: Optional[bool] = None,
     teaser_message: Optional[str] = None,
-    teaser_delay_seconds: Optional[int] = None,
-    sound_enabled: Optional[bool] = None,
-    mobile_fullscreen: Optional[bool] = None,
-    starter_questions: Optional[List[str]] = None,
+    conversation_starters: Optional[List[str]] = None,
     custom_css: Optional[str] = None,
-    remove_branding: Optional[bool] = None,
+    hide_branding: Optional[bool] = None,
 ) -> dict:
-    """Customize widget appearance, colors, launcher, teaser bubble, and CSS."""
+    """Customize widget appearance: colors, avatar/logo, teaser bubble message, conversation-starter chips, custom CSS, and white-label branding."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     body = WidgetStylingUpdateRequest(
         primary_color=primary_color,
         widget_style=widget_style,
-        position=position,
         avatar_url=avatar_url,
         avatar_icon=avatar_icon,
         header_logo_url=header_logo_url,
-        teaser_enabled=teaser_enabled,
         teaser_message=teaser_message,
-        teaser_delay_seconds=teaser_delay_seconds,
-        sound_enabled=sound_enabled,
-        mobile_fullscreen=mobile_fullscreen,
-        starter_questions=starter_questions,
+        conversation_starters=conversation_starters,
         custom_css=custom_css,
-        remove_branding=remove_branding,
+        hide_branding=hide_branding,
     )
     return await bots_service.update_widget_styling(principal, bot_id, body)
 
