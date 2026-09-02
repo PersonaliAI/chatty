@@ -245,11 +245,16 @@ def test_well_known_authorization_server_metadata_is_served():
     assert "S256" in body["code_challenge_methods_supported"]
 
 
-def test_well_known_protected_resource_metadata_is_served_by_the_mcp_mount():
+def test_well_known_protected_resource_metadata_is_served_at_both_paths():
+    # Explicit routes in oauth.py, not just FastMCP's own auto-registration
+    # (see oauth.py's comment on this pair) — TestClient and the real
+    # deployed service disagreed about which of these FastMCP alone would
+    # serve, so both are covered explicitly rather than depending on either.
     client = TestClient(main.app)
-    r = client.get("/.well-known/oauth-protected-resource/mcp")
-    assert r.status_code == 200
-    assert r.json()["resource"].endswith("/mcp")
+    for path in ("/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"):
+        r = client.get(path)
+        assert r.status_code == 200, path
+        assert r.json()["resource"].endswith("/mcp")
 
 
 def test_register_client_rejects_non_https_redirect_uri():

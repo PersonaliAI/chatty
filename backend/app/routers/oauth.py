@@ -73,11 +73,36 @@ async def oauth_authorization_server_metadata():
     }
 
 
-# RFC 9728 (oauth-protected-resource) is served by the MCP mount itself
-# (app/routers/mcp.py, via FastMCP's AuthSettings.resource_server_url) at
-# /.well-known/oauth-protected-resource/mcp — scoped to that specific
-# resource, which is the more spec-correct granularity than one generic
-# root-level copy, so there's deliberately no duplicate of it here.
+_MCP_RESOURCE_URL = f"{_BACKEND_BASE_URL}/mcp"
+
+
+def _protected_resource_metadata() -> dict[str, Any]:
+    return {
+        "resource": _MCP_RESOURCE_URL,
+        "authorization_servers": [_BACKEND_BASE_URL],
+        "scopes_supported": list(_SCOPE_DESCRIPTIONS.keys()),
+    }
+
+
+# RFC 9728 (oauth-protected-resource) is ALSO auto-served by the MCP mount
+# itself (app/routers/mcp.py, via FastMCP's AuthSettings.resource_server_url)
+# — in theory at /.well-known/oauth-protected-resource/mcp per the spec's
+# path-scoped convention. In practice this repo's local TestClient and the
+# real deployed Cloud Run service disagreed about which of
+# /.well-known/oauth-protected-resource and its /mcp-suffixed sibling
+# FastMCP actually serves (a discrepancy not worth chasing further — root
+# cause unconfirmed). These two explicit routes, registered ahead of the
+# MCP mount in main.py's app.mount("/", ...) call, make both paths work
+# deterministically regardless of environment, rather than depending on
+# FastMCP's own registration for either.
+@router.get("/.well-known/oauth-protected-resource", tags=["OAuth2"])
+async def oauth_protected_resource_metadata_root():
+    return _protected_resource_metadata()
+
+
+@router.get("/.well-known/oauth-protected-resource/mcp", tags=["OAuth2"])
+async def oauth_protected_resource_metadata_mcp():
+    return _protected_resource_metadata()
 
 
 # ---------------------------------------------------------------------------
