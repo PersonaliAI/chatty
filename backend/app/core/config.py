@@ -55,6 +55,13 @@ LEMON_API_KEY = os.environ.get("LEMONSQUEEZY_API_KEY", "")
 LEMON_STORE_ID = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://personaliai.com")
+# Deliberately a separate var from FRONTEND_URL above: per env.yaml.example's
+# own comment, FRONTEND_URL is intentionally pinned to Kin's dashboard
+# (kin.personaliai.com) because Kin owns /dashboard/integrations, the one
+# thing that currently reads FRONTEND_URL. That doesn't apply here — the
+# OAuth2 consent screen is a Chatty-specific page and must land on Chatty's
+# own frontend regardless of where FRONTEND_URL points.
+CHATTY_FRONTEND_URL = os.environ.get("CHATTY_FRONTEND_URL", "https://chatty.personaliai.com")
 
 ALLOWED_ORIGINS = [
     o.strip()

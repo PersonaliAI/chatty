@@ -19,6 +19,10 @@ PyYAML==6.0.3
 Pillow==12.3.0
 litellm==1.98.0
 
+# MCP (Model Context Protocol) server — Developer API's /mcp endpoint,
+# app/routers/mcp.py.
+mcp==1.12.4
+
 sentry-sdk[fastapi]==2.59.0
 
 # LiveKit voice worker (Phase B) — pinned to versions verified installed

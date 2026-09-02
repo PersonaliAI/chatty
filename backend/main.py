@@ -660,11 +660,14 @@ def _update_key_usage(key_row: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 from app.routers import admin as _router_admin  # noqa: E402
 from app.routers import bots as _router_bots  # noqa: E402
+from app.routers import bots_api as _router_bots_api  # noqa: E402
 from app.routers import crawl as _router_crawl  # noqa: E402
 from app.routers import cron as _router_cron  # noqa: E402
 from app.routers import documents as _router_documents  # noqa: E402
 from app.routers import flow as _router_flow  # noqa: E402
 from app.routers import integrations as _router_integrations  # noqa: E402
+from app.routers import mcp as _router_mcp  # noqa: E402
+from app.routers import oauth as _router_oauth  # noqa: E402
 from app.routers import onboarding as _router_onboarding  # noqa: E402
 from app.routers import public_api as _router_public_api  # noqa: E402
 from app.routers import team as _router_team  # noqa: E402
@@ -678,6 +681,7 @@ app.include_router(_router_webhooks.router)
 app.include_router(_router_team.router)
 app.include_router(_router_admin.router)
 app.include_router(_router_bots.router)
+app.include_router(_router_bots_api.router)
 app.include_router(_router_crawl.router)
 app.include_router(_router_documents.router)
 app.include_router(_router_integrations.router)
@@ -685,6 +689,14 @@ app.include_router(_router_onboarding.router)
 app.include_router(_router_flow.router)
 app.include_router(_router_cron.router)
 app.include_router(_router_public_api.router)
+app.include_router(_router_oauth.router)
+# Full ASGI sub-app (not a FastAPI router — the MCP SDK builds its own
+# Starlette app with its own auth middleware), mounted at root so its
+# internal route (streamable_http_path, "/mcp") becomes the final path.
+# Registered last: Starlette tries specific routes/routers above first and
+# only falls through to this mount for paths none of them matched, so it
+# can't shadow any other endpoint.
+app.mount("/", _router_mcp.mcp_asgi_app)
 
 
 if __name__ == "__main__":
