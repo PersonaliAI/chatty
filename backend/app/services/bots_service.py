@@ -360,16 +360,68 @@ async def configure_domain_allowlist(principal: dict[str, Any], bot_id: str, dom
 
 
 async def configure_notifications(principal: dict[str, Any], bot_id: str, body: NotificationsConfigRequest) -> dict[str, Any]:
+    """chatty_bots only has a real notification_emails column — there's no
+    per-bot slack_webhook_url/discord_webhook_url/notify_on_lead/
+    notify_on_escalation (the earlier version of this function wrote those
+    four straight to a table that doesn't have them). Slack/Discord/custom
+    alerting is the real chatty_webhooks subscription system instead (see
+    create_webhook_subscription/list_webhook_subscriptions below) — the
+    same table/permission-gated tab app/routers/bots.py's dashboard
+    Webhooks settings already use."""
     await _oauth.require_bot_access(principal, bot_id)
-    updates = {
-        "notification_emails": body.admin_emails,
-        "slack_webhook_url": body.slack_webhook_url,
-        "discord_webhook_url": body.discord_webhook_url,
-        "notify_on_lead": body.notify_on_lead,
-        "notify_on_escalation": body.notify_on_human_escalation,
-    }
+    updates = {"notification_emails": body.admin_emails}
     await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
     return {"bot_id": bot_id, **updates}
+
+
+async def create_webhook_subscription(principal: dict[str, Any], bot_id: str, url: str, events: list[str]) -> dict[str, Any]:
+    """Real event-webhook subscription (chatty_webhooks) — same table and
+    validation the dashboard's owner-only Webhooks tab uses. Covers Slack/
+    Discord/custom alerting: point `url` at a Slack/Discord incoming
+    webhook (or any HTTPS endpoint) and pick from plugins.notifications.
+    WEBHOOK_EVENTS (e.g. "lead_captured", "human_escalation")."""
+    import secrets as _secrets
+    from app.core.ssrf import UnsafeURLError, assert_safe_url_async
+    from plugins import notifications as notify
+
+    user = await _oauth.user_dict_for_principal(principal)
+    await verify_bot_permission(bot_id, user, "webhooks")
+
+    url = (url or "").strip()
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="url must be a valid http(s) URL")
+    try:
+        await assert_safe_url_async(url)
+    except UnsafeURLError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid url: {exc}") from exc
+    valid_events = [e for e in (events or []) if e in notify.WEBHOOK_EVENTS]
+    if not valid_events:
+        raise HTTPException(status_code=400, detail=f"events must include at least one of: {', '.join(notify.WEBHOOK_EVENTS)}")
+
+    secret = f"whsec_{_secrets.token_hex(24)}"
+    row = await run_db(lambda: supabase.table("chatty_webhooks").insert({
+        "bot_id": bot_id, "url": url, "events": valid_events, "secret": secret, "active": True,
+    }).execute())
+    return row.data[0] if row.data else {"url": url, "events": valid_events}
+
+
+async def list_webhook_subscriptions(principal: dict[str, Any], bot_id: str) -> list[dict[str, Any]]:
+    user = await _oauth.user_dict_for_principal(principal)
+    await verify_bot_permission(bot_id, user, "webhooks")
+    res = await run_db(lambda: supabase.table("chatty_webhooks").select(
+        "id, url, events, active, created_at"
+    ).eq("bot_id", bot_id).order("created_at", desc=True).execute())
+    return res.data or []
+
+
+async def delete_webhook_subscription(principal: dict[str, Any], bot_id: str, webhook_id: str) -> dict[str, Any]:
+    user = await _oauth.user_dict_for_principal(principal)
+    await verify_bot_permission(bot_id, user, "webhooks")
+    res = await run_db(lambda: supabase.table("chatty_webhooks").select("id").eq("id", webhook_id).eq("bot_id", bot_id).execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    await run_db(lambda: supabase.table("chatty_webhooks").delete().eq("id", webhook_id).execute())
+    return {"success": True, "deleted_id": webhook_id}
 
 
 async def get_audit_logs(principal: dict[str, Any], bot_id: str, limit: int = 50) -> list[dict[str, Any]]:

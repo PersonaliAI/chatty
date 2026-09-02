@@ -50,9 +50,22 @@ async def list_campaigns(principal: dict[str, Any], bot_id: str) -> list[dict[st
     return res.data or []
 
 
+_UPDATE_FIELD_TO_COLUMN = {"campaign_type": "type", "message_content": "message"}
+
+
 async def update_campaign(principal: dict[str, Any], bot_id: str, campaign_id: str, body: CampaignUpdateRequest) -> dict[str, Any]:
+    """CampaignUpdateRequest field names don't all match chatty_campaigns
+    column names (campaign_type/message_content vs. the real type/message
+    columns, same mapping create_campaign already applies) — dumping the
+    model straight into an update() would silently write to nonexistent
+    column names and 400 from PostgREST, or (worse) succeed at renaming a
+    campaign's `campaign_type`/`message_content` keys into row data that no
+    read path ever looks at."""
     await _oauth.require_bot_access(principal, bot_id)
-    updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    updates = {
+        _UPDATE_FIELD_TO_COLUMN.get(k, k): v
+        for k, v in body.model_dump(exclude_unset=True).items() if v is not None
+    }
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     res = await run_db(lambda: supabase.table("chatty_campaigns").update(updates).eq(

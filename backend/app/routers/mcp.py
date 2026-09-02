@@ -330,6 +330,40 @@ async def list_campaigns(bot_id: str) -> list:
 
 
 @mcp.tool()
+async def update_campaign(
+    bot_id: str,
+    campaign_id: str,
+    name: Optional[str] = None,
+    message_content: Optional[str] = None,
+    campaign_type: Optional[str] = None,
+    url_patterns: Optional[List[str]] = None,
+    trigger_type: Optional[str] = None,
+    trigger_value: Optional[int] = None,
+    target_devices: Optional[List[str]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    is_active: Optional[bool] = None,
+) -> dict:
+    """Update an existing campaign (only passed fields are modified)."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    body = CampaignUpdateRequest(
+        name=name, message_content=message_content, campaign_type=campaign_type,
+        url_patterns=url_patterns, trigger_type=trigger_type, trigger_value=trigger_value,
+        target_devices=target_devices, start_date=start_date, end_date=end_date, is_active=is_active,
+    )
+    return await mcp_campaign_service.update_campaign(principal, bot_id, campaign_id, body)
+
+
+@mcp.tool()
+async def delete_campaign(bot_id: str, campaign_id: str) -> dict:
+    """Permanently delete a campaign."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_campaign_service.delete_campaign(principal, bot_id, campaign_id)
+
+
+@mcp.tool()
 async def get_campaign_analytics(bot_id: str, campaign_id: str) -> dict:
     """Get performance metrics (impressions, clicks, CTR, conversions) for a campaign."""
     principal = await _current_principal()
@@ -607,6 +641,39 @@ async def manage_team_members(bot_id: str, action: str, email: str, role: str = 
     _oauth.check_principal_scope(principal, "admin")
     body = TeamMemberRequest(email=email, role=role)
     return await bots_service.manage_team_members(principal, bot_id, action, body)
+
+
+@mcp.tool()
+async def configure_notifications(bot_id: str, admin_emails: List[str]) -> dict:
+    """Set the admin email addresses that receive lead/escalation alert emails. For Slack/Discord/custom event alerts, use create_webhook_subscription instead."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    body = NotificationsConfigRequest(admin_emails=admin_emails)
+    return await bots_service.configure_notifications(principal, bot_id, body)
+
+
+@mcp.tool()
+async def create_webhook_subscription(bot_id: str, url: str, events: List[str]) -> dict:
+    """Subscribe a URL (Slack/Discord incoming webhook, or any HTTPS endpoint) to real-time bot events. Returns a signing secret used to verify delivered payloads."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    return await bots_service.create_webhook_subscription(principal, bot_id, url, events)
+
+
+@mcp.tool()
+async def list_webhook_subscriptions(bot_id: str) -> list:
+    """List event-webhook subscriptions configured for a bot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    return await bots_service.list_webhook_subscriptions(principal, bot_id)
+
+
+@mcp.tool()
+async def delete_webhook_subscription(bot_id: str, webhook_id: str) -> dict:
+    """Delete an event-webhook subscription."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    return await bots_service.delete_webhook_subscription(principal, bot_id, webhook_id)
 
 
 @mcp.tool()

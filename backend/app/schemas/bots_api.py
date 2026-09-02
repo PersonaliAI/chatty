@@ -129,8 +129,8 @@ class TeamMemberRequest(BaseModel):
 
 
 class NotificationsConfigRequest(BaseModel):
+    # chatty_bots.notification_emails is the only real column here — Slack/
+    # Discord/custom alerting is the separate chatty_webhooks subscription
+    # system (see bots_service.create_webhook_subscription), not a per-bot
+    # webhook URL field.
     admin_emails: list[str] = Field(default_factory=list)
-    slack_webhook_url: Optional[str] = None
-    discord_webhook_url: Optional[str] = None
-    notify_on_lead: bool = True
-    notify_on_human_escalation: bool = True
