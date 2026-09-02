@@ -15,7 +15,6 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
-from mcp.types import Icon
 from pydantic import AnyHttpUrl
 
 from app.core import oauth as _oauth
@@ -70,11 +69,13 @@ mcp = FastMCP(
         "bots, flows, campaigns, voice agents, knowledge bases, lead capture, calendar meetings, "
         "analytics, and design audits."
     ),
-    website_url="https://chatty.personaliai.com",
-    # Without this, connector UIs fall back to a generic icon (nothing was
-    # served at api.chatty.personaliai.com/favicon.ico) — chatty.personaliai.com's
-    # real favicon.png, already public.
-    icons=[Icon(src="https://chatty.personaliai.com/favicon.png", mimeType="image/png")],
+    # NOTE: website_url/icons (for connector-UI branding) aren't supported
+    # by the pinned mcp==1.12.4 SDK version — FastMCP.__init__ doesn't
+    # accept either kwarg, which crashed the container on startup
+    # (ImportError: cannot import name 'Icon' from 'mcp.types') the one
+    # time this was tried. Revisit after bumping the mcp package version,
+    # verified against the actual pinned version in requirements.txt, not
+    # whatever happens to be on the local machine's default python.
     token_verifier=ChattyTokenVerifier(),
     auth=AuthSettings(
         issuer_url=AnyHttpUrl(_BACKEND_BASE_URL),
