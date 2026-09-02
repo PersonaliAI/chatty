@@ -1031,13 +1031,21 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
   useEffect(() => {
     const el = rootRef.current;
+    // While `loading` is true, the component's early return above renders a
+    // spinner instead of the real #chatty-root div — rootRef.current is null
+    // on that first commit, so with an empty deps array this effect would
+    // bail out via the guard below and never run again, permanently leaving
+    // containerSize null (and therefore the font-size zoom below permanently
+    // disabled) even once the real content mounts. Depending on `loading`
+    // makes this effect re-run the moment that happens, by which point
+    // rootRef.current is the real element.
     if (!el || typeof ResizeObserver === "undefined") return;
     const measure = () => setContainerSize({ width: el.clientWidth, height: el.clientHeight });
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [loading]);
 
   // ---- Text message (streamed via SSE) ----
   // Update the most recent assistant bubble's content in place as tokens arrive.
