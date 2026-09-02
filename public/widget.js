@@ -87,7 +87,7 @@
   // expects — doMount()'s `window.ChattyDOM.mount` check just no-ops with
   // no error, so the widget never appears. Bump this on every release that
   // changes chatty-app.js/css in a way that matters (not just cosmetic).
-  var ASSET_VERSION = "2026-09-02.1";
+  var ASSET_VERSION = "2026-09-02.2";
 
   // Preconnect to origin for fast asset loading
   try {
