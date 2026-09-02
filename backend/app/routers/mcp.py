@@ -12,9 +12,15 @@ SDK's own verified-token model) doesn't carry the Chatty user_id our
 service functions need — the extra DB lookup is cheap (one indexed query)
 and keeps the SDK's token model untouched rather than smuggling extra
 fields into it.
-"""
 
-from __future__ import annotations
+Deliberately NO `from __future__ import annotations` here, unlike every
+other file in this codebase: FastMCP's @mcp.tool() decorator inspects each
+tool function's real parameter type objects via inspect.signature() at
+import time — with PEP 563 deferred evaluation active, every annotation
+becomes a plain string instead, and FastMCP's issubclass(annotation, ...)
+check crashes on a string with "issubclass() arg 1 must be a class"
+(confirmed the hard way: this took the service down on first deploy).
+"""
 
 import logging
 from typing import Any, Optional
