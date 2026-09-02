@@ -174,6 +174,24 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // widget.js (loaded below via <Script>) mounts itself by appending a
+  // #chatty-widget-host div straight to document.body — outside React's
+  // tree, and guarded by a one-time window.__chattyWidgetLoaded flag so it
+  // never re-runs. Next's client-side router only unmounts this page's own
+  // React tree on navigation; it has no way to know about (or undo)
+  // widget.js's direct DOM/window side effects. Without this cleanup, a
+  // visitor who clicks a <Link> from this landing page straight into
+  // /dashboard (or any other authenticated route) keeps seeing the support
+  // bubble until a full page reload — this effect's cleanup tears it down
+  // the moment this page unmounts, so it never follows the visitor in.
+  useEffect(() => {
+    return () => {
+      document.getElementById("chatty-widget-host")?.remove();
+      delete (window as unknown as { Chatty?: unknown }).Chatty;
+      delete (window as unknown as { __chattyWidgetLoaded?: unknown }).__chattyWidgetLoaded;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans antialiased selection:bg-neutral-200 dark:selection:bg-neutral-800">
       {/* Boxed Grid Layout container */}
