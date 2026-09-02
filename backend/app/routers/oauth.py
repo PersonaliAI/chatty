@@ -223,7 +223,14 @@ async def authorize_decision(
     row = {
         "code": code,
         "client_id": body.client_id,
-        "user_id": user["id"],
+        # auth_user_id, not the internal users.id — chatty_bots.user_id (and
+        # every other bot-ownership check in this codebase: bots.py, admin.py,
+        # crawl.py, onboarding.py, public_api.py) is keyed on auth_user_id.
+        # Storing the internal id here would make OAuth-created bots invisible
+        # to the dashboard and vice versa — every downstream principal["user_id"]
+        # comparison (require_bot_access, bots_service.create_bot/list_bots)
+        # depends on this being the same id space.
+        "user_id": user["auth_user_id"],
         "redirect_uri": body.redirect_uri,
         "scope": body.scope,
         "code_challenge": body.code_challenge,

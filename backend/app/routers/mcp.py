@@ -1,29 +1,15 @@
 """MCP (Model Context Protocol) server exposing Chatty bot management as
-tools an MCP client (Claude Desktop, etc.) can call, authenticated via the
-OAuth2 access tokens issued by app/routers/oauth.py.
+tools, resources, and prompts an MCP client (Claude Desktop, Cursor, Windsurf, etc.)
+can call, authenticated via OAuth2 access tokens issued by app/routers/oauth.py.
 
-Every tool is a thin wrapper over app/services/bots_service.py — the exact
-same code the REST /api/v1/bots* endpoints call — so there is one
-implementation of "create a bot" / "customize a bot" / etc., not two that
-could drift apart. Auth is handled by the MCP SDK's own Bearer-token
-middleware (ChattyTokenVerifier below); each tool re-resolves the token to
-a full `principal` dict (see app/core/oauth.py) because AccessToken (the
-SDK's own verified-token model) doesn't carry the Chatty user_id our
-service functions need — the extra DB lookup is cheap (one indexed query)
-and keeps the SDK's token model untouched rather than smuggling extra
-fields into it.
-
-Deliberately NO `from __future__ import annotations` here, unlike every
-other file in this codebase: FastMCP's @mcp.tool() decorator inspects each
-tool function's real parameter type objects via inspect.signature() at
-import time — with PEP 563 deferred evaluation active, every annotation
-becomes a plain string instead, and FastMCP's issubclass(annotation, ...)
-check crashes on a string with "issubclass() arg 1 must be a class"
-(confirmed the hard way: this took the service down on first deploy).
+Deliberately NO `from __future__ import annotations` here: FastMCP's @mcp.tool()
+decorator inspects each tool function's real parameter type objects via
+inspect.signature() at import time.
 """
 
+import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, List, Dict
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
@@ -32,8 +18,29 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 
 from app.core import oauth as _oauth
-from app.schemas.bots_api import BotCreateRequest, BotUpdateRequest
-from app.services import bots_service
+from app.schemas.bots_api import (
+    BotCreateRequest,
+    BotUpdateRequest,
+    WidgetStylingUpdateRequest,
+    FlowUpdateRequest,
+    CampaignCreateRequest,
+    CampaignUpdateRequest,
+    VoiceAgentConfigRequest,
+    LeadCaptureConfigRequest,
+    CalendarIntegrationRequest,
+    GuardrailsConfigRequest,
+    BYOKConfigRequest,
+    TeamMemberRequest,
+    NotificationsConfigRequest,
+)
+from app.services import (
+    bots_service,
+    mcp_design_service,
+    mcp_flow_service,
+    mcp_campaign_service,
+    mcp_voice_service,
+    mcp_inbox_service,
+)
 
 logger = logging.getLogger("chatty")
 
@@ -58,9 +65,9 @@ class ChattyTokenVerifier(TokenVerifier):
 mcp = FastMCP(
     name="chatty",
     instructions=(
-        "Tools for creating and managing Chatty AI chatbots: create a bot, "
-        "list your bots, read or update a bot's configuration, add knowledge "
-        "to its knowledge base, and pull usage analytics."
+        "Full-featured MCP server for Chatty AI chatbots: create, customize, and manage "
+        "bots, flows, campaigns, voice agents, knowledge bases, lead capture, calendar meetings, "
+        "analytics, and design audits."
     ),
     token_verifier=ChattyTokenVerifier(),
     auth=AuthSettings(
@@ -71,12 +78,10 @@ mcp = FastMCP(
 )
 
 
-async def _current_principal() -> dict[str, Any]:
-    """Re-resolves the already-verified request token into the same
-    `principal` shape the REST API uses (see module docstring)."""
+async def _current_principal() -> dict:
     access_token = get_access_token()
     if access_token is None:
-        raise RuntimeError("No authenticated MCP session — this should be unreachable, the SDK's auth middleware already rejects unauthenticated calls")
+        raise RuntimeError("No authenticated MCP session")
     row = await _oauth.resolve_access_token(f"Bearer {access_token.token}")
     return {
         "auth_type": "oauth",
@@ -86,9 +91,14 @@ async def _current_principal() -> dict[str, Any]:
     }
 
 
+# ===========================================================================
+# 1. BOT LIFECYCLE (Create, List, Get, Update, Clone, Delete)
+# ===========================================================================
+
+
 @mcp.tool()
-async def list_chatbots() -> list[dict[str, Any]]:
-    """List every chatbot owned by the authenticated user's account."""
+async def list_chatbots() -> list:
+    """List every chatbot owned or accessible by the authenticated user's account."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "read")
     return await bots_service.list_bots(principal)
@@ -102,17 +112,8 @@ async def create_chatbot(
     selected_model: Optional[str] = None,
     primary_color: Optional[str] = None,
     response_language: Optional[str] = None,
-) -> dict[str, Any]:
-    """Create a new Chatty AI chatbot.
-
-    Args:
-        name: The bot's display name.
-        welcome_message: First message visitors see when opening the widget.
-        system_instructions: The bot's system prompt — its persona, rules, and knowledge boundaries.
-        selected_model: LLM model id to use (leave unset for the account default).
-        primary_color: Hex color (e.g. "#f97316") for the widget's accent color.
-        response_language: Language the bot should reply in (e.g. "en", "es").
-    """
+) -> dict:
+    """Create a new Chatty AI chatbot with initial identity and settings."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     body = BotCreateRequest(
@@ -127,8 +128,8 @@ async def create_chatbot(
 
 
 @mcp.tool()
-async def get_chatbot(bot_id: str) -> dict[str, Any]:
-    """Get one chatbot's current configuration by id."""
+async def get_chatbot(bot_id: str) -> dict:
+    """Get full configuration details for a single chatbot by ID."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "read")
     return await bots_service.get_bot(principal, bot_id)
@@ -146,9 +147,8 @@ async def update_chatbot(
     response_language: Optional[str] = None,
     strict_mode: Optional[bool] = None,
     lead_capture_enabled: Optional[bool] = None,
-) -> dict[str, Any]:
-    """Customize an existing chatbot. Only the fields you pass are changed —
-    omit anything you don't want to touch."""
+) -> dict:
+    """Update settings for an existing chatbot (only passed fields are modified)."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     body = BotUpdateRequest(
@@ -166,29 +166,539 @@ async def update_chatbot(
 
 
 @mcp.tool()
-async def add_chatbot_knowledge(bot_id: str, name: str, content: str) -> dict[str, Any]:
-    """Add a text snippet to a chatbot's knowledge base, so it can answer
-    questions grounded in that content.
+async def clone_chatbot(bot_id: str, new_name: str) -> dict:
+    """Clone an existing chatbot into a new bot instance."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await bots_service.clone_bot(principal, bot_id, new_name)
 
-    Args:
-        bot_id: The chatbot to add knowledge to.
-        name: A short label for this knowledge source (shown in the dashboard).
-        content: The text content itself (max 100,000 characters).
-    """
+
+@mcp.tool()
+async def delete_chatbot(bot_id: str) -> dict:
+    """Delete a chatbot permanently."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    return await bots_service.delete_bot(principal, bot_id)
+
+
+# ===========================================================================
+# 2. CUSTOMIZER & DESIGN STUDIO (Styling, WCAG Audit, HTML Sandbox, SDKs)
+# ===========================================================================
+
+
+@mcp.tool()
+async def customize_widget_styling(
+    bot_id: str,
+    primary_color: Optional[str] = None,
+    widget_style: Optional[str] = None,
+    position: Optional[str] = None,
+    avatar_url: Optional[str] = None,
+    avatar_icon: Optional[str] = None,
+    header_logo_url: Optional[str] = None,
+    teaser_enabled: Optional[bool] = None,
+    teaser_message: Optional[str] = None,
+    teaser_delay_seconds: Optional[int] = None,
+    sound_enabled: Optional[bool] = None,
+    mobile_fullscreen: Optional[bool] = None,
+    starter_questions: Optional[List[str]] = None,
+    custom_css: Optional[str] = None,
+    remove_branding: Optional[bool] = None,
+) -> dict:
+    """Customize widget appearance, colors, launcher, teaser bubble, and CSS."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    body = WidgetStylingUpdateRequest(
+        primary_color=primary_color,
+        widget_style=widget_style,
+        position=position,
+        avatar_url=avatar_url,
+        avatar_icon=avatar_icon,
+        header_logo_url=header_logo_url,
+        teaser_enabled=teaser_enabled,
+        teaser_message=teaser_message,
+        teaser_delay_seconds=teaser_delay_seconds,
+        sound_enabled=sound_enabled,
+        mobile_fullscreen=mobile_fullscreen,
+        starter_questions=starter_questions,
+        custom_css=custom_css,
+        remove_branding=remove_branding,
+    )
+    return await bots_service.update_widget_styling(principal, bot_id, body)
+
+
+@mcp.tool()
+async def analyze_widget_design(bot_id: str) -> dict:
+    """Evaluate widget WCAG contrast ratios, mobile ergonomics, and microcopy."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_design_service.analyze_widget_design(principal, bot_id)
+
+
+@mcp.tool()
+async def preview_widget_html(bot_id: str, test_theme: str = "light") -> str:
+    """Generate a standalone live HTML preview of the customized Shadow-DOM widget."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_design_service.preview_widget_html(principal, bot_id, test_theme)
+
+
+@mcp.tool()
+async def generate_embed_code(bot_id: str, framework: str = "html_script") -> dict:
+    """Generate embed code for HTML, Next.js, WordPress, Shopify, iOS, or Android."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_design_service.generate_embed_code(principal, bot_id, framework)
+
+
+# ===========================================================================
+# 3. VISUAL FLOW BUILDER
+# ===========================================================================
+
+
+@mcp.tool()
+async def generate_flow_with_ai(bot_id: str, description: str) -> dict:
+    """Generate a visual conversational React Flow schema using AI."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_flow_service.generate_flow_with_ai(principal, bot_id, description)
+
+
+@mcp.tool()
+async def get_bot_flow(bot_id: str) -> dict:
+    """Get the visual conversational flow nodes and edges for a bot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_flow_service.get_bot_flow(principal, bot_id)
+
+
+@mcp.tool()
+async def update_bot_flow(bot_id: str, nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]], is_active: bool = True) -> dict:
+    """Update and activate/deactivate a visual flow schema for a bot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    body = FlowUpdateRequest(nodes=nodes, edges=edges, is_active=is_active)
+    return await mcp_flow_service.update_bot_flow(principal, bot_id, body)
+
+
+@mcp.tool()
+async def simulate_flow_execution(bot_id: str, simulated_user_inputs: List[str]) -> dict:
+    """Simulate user interactions through the bot's visual flow."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_flow_service.simulate_flow_execution(principal, bot_id, simulated_user_inputs)
+
+
+# ===========================================================================
+# 4. PROACTIVE CAMPAIGNS
+# ===========================================================================
+
+
+@mcp.tool()
+async def create_campaign(
+    bot_id: str,
+    name: str,
+    message_content: str,
+    campaign_type: str = "chat_bubble",
+    url_patterns: Optional[List[str]] = None,
+    trigger_type: str = "time_on_page",
+    trigger_value: int = 5,
+    target_devices: Optional[List[str]] = None,
+    is_active: bool = True,
+) -> dict:
+    """Create a proactive announcement or visitor engagement campaign."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    body = CampaignCreateRequest(
+        name=name,
+        message_content=message_content,
+        campaign_type=campaign_type,
+        url_patterns=url_patterns or ["*"],
+        trigger_type=trigger_type,
+        trigger_value=trigger_value,
+        target_devices=target_devices or ["desktop", "mobile"],
+        is_active=is_active,
+    )
+    return await mcp_campaign_service.create_campaign(principal, bot_id, body)
+
+
+@mcp.tool()
+async def list_campaigns(bot_id: str) -> list:
+    """List all proactive campaigns created for a bot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_campaign_service.list_campaigns(principal, bot_id)
+
+
+@mcp.tool()
+async def get_campaign_analytics(bot_id: str, campaign_id: str) -> dict:
+    """Get performance metrics (impressions, clicks, CTR, conversions) for a campaign."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_campaign_service.get_campaign_analytics(principal, bot_id, campaign_id)
+
+
+# ===========================================================================
+# 5. VOICE AGENT (LiveKit Real-Time Audio)
+# ===========================================================================
+
+
+@mcp.tool()
+async def configure_voice_agent(
+    bot_id: str,
+    enabled: bool = True,
+    tts_provider: str = "openai",
+    voice_id: str = "alloy",
+    voice_temperature: float = 0.7,
+    stt_provider: str = "deepgram",
+    language: str = "en",
+    interruption_enabled: bool = True,
+    vad_sensitivity: str = "medium",
+    endpointing_delay_ms: int = 500,
+    voice_system_prompt: Optional[str] = None,
+) -> dict:
+    """Configure LiveKit real-time voice parameters, STT/TTS models, and turn-detection."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    body = VoiceAgentConfigRequest(
+        enabled=enabled,
+        tts_provider=tts_provider,
+        voice_id=voice_id,
+        voice_temperature=voice_temperature,
+        stt_provider=stt_provider,
+        language=language,
+        interruption_enabled=interruption_enabled,
+        vad_sensitivity=vad_sensitivity,
+        endpointing_delay_ms=endpointing_delay_ms,
+        voice_system_prompt=voice_system_prompt,
+    )
+    return await mcp_voice_service.configure_voice_agent(principal, bot_id, body)
+
+
+@mcp.tool()
+async def mint_voice_token(bot_id: str, visitor_timezone: str = "UTC") -> dict:
+    """Generate a LiveKit JWT token and dispatch the real-time voice worker for a room."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_voice_service.mint_voice_token(principal, bot_id, visitor_timezone)
+
+
+# ===========================================================================
+# 6. KNOWLEDGE BASE & RAG
+# ===========================================================================
+
+
+@mcp.tool()
+async def add_chatbot_knowledge(bot_id: str, name: str, content: str) -> dict:
+    """Add a text snippet or Q&A document to a chatbot's knowledge base."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     return await bots_service.add_knowledge_text(principal, bot_id, name, content)
 
 
 @mcp.tool()
-async def analyze_chatbot(bot_id: str) -> dict[str, Any]:
-    """Get usage analytics for a chatbot: message counts, unique visitor
-    sessions, and leads captured."""
+async def crawl_website_knowledge(bot_id: str, url: str) -> dict:
+    """Fetch a URL and index its content as a knowledge source (same crawl used by the dashboard's URL-import and the Developer API's POST /api/v1/knowledge)."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await bots_service.crawl_website_knowledge(principal, bot_id, url)
+
+
+@mcp.tool()
+async def list_knowledge_sources(bot_id: str) -> list:
+    """List all indexed knowledge sources, character counts, and training statuses."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "read")
-    return await bots_service.bot_analytics(principal, bot_id)
+    return await bots_service.list_knowledge_sources(principal, bot_id)
 
 
-# Mounted into the main FastAPI app at /mcp (see main.py) via this ASGI
-# sub-app — streamable-HTTP is the current MCP transport (SSE is legacy).
+@mcp.tool()
+async def delete_knowledge_source(bot_id: str, source_id: str) -> dict:
+    """Delete a knowledge source and its vector embeddings."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await bots_service.delete_knowledge_source(principal, bot_id, source_id)
+
+
+@mcp.tool()
+async def test_rag_retrieval(bot_id: str, query: str, top_k: int = 4) -> dict:
+    """Simulate a test query against the bot's vector index and inspect retrieved chunks."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await bots_service.test_rag_retrieval(principal, bot_id, query, top_k)
+
+
+# ===========================================================================
+# 7. INBOX, LIVE CHAT & HUMAN TAKEOVER
+# ===========================================================================
+
+
+@mcp.tool()
+async def list_conversations(bot_id: str, status: str = "all", limit: int = 50) -> list:
+    """List recent visitor conversation sessions."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_inbox_service.list_conversations(principal, bot_id, status, limit)
+
+
+@mcp.tool()
+async def get_conversation_transcript(bot_id: str, session_id: str) -> dict:
+    """Get full message transcripts and citations for a conversation session."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_inbox_service.get_conversation_transcript(principal, bot_id, session_id)
+
+
+@mcp.tool()
+async def human_agent_takeover(bot_id: str, session_id: str, pause_ai: bool = True) -> dict:
+    """Pause AI responses to allow a human support agent to take over the live chat."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_inbox_service.human_agent_takeover(principal, bot_id, session_id, pause_ai)
+
+
+@mcp.tool()
+async def send_agent_message(bot_id: str, session_id: str, message: str) -> dict:
+    """Send a human agent message into an active visitor conversation."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_inbox_service.send_agent_message(principal, bot_id, session_id, message)
+
+
+# ===========================================================================
+# 8. LEADS, CALENDAR & MEETINGS
+# ===========================================================================
+
+
+@mcp.tool()
+async def configure_lead_capture(
+    bot_id: str,
+    enabled: bool = True,
+    trigger_timing: str = "mid_conversation",
+    collect_name: bool = True,
+    collect_email: bool = True,
+    collect_phone: bool = False,
+) -> dict:
+    """Configure in-chat lead capture form fields and timing rules."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    body = LeadCaptureConfigRequest(
+        enabled=enabled,
+        trigger_timing=trigger_timing,
+        collect_name=collect_name,
+        collect_email=collect_email,
+        collect_phone=collect_phone,
+    )
+    return await bots_service.configure_lead_capture(principal, bot_id, body)
+
+
+@mcp.tool()
+async def list_leads(bot_id: str, limit: int = 100) -> list:
+    """List captured visitor contact leads."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await bots_service.list_leads(principal, bot_id, limit)
+
+
+@mcp.tool()
+async def configure_calendar_integration(
+    bot_id: str,
+    provider: str = "google_calendar",
+    meeting_duration_minutes: int = 30,
+    working_hours_start: str = "09:00",
+    working_hours_end: str = "17:00",
+    timezone: str = "UTC",
+) -> dict:
+    """Configure Google Calendar or Outlook for direct in-chat meeting scheduling."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    body = CalendarIntegrationRequest(
+        provider=provider,
+        meeting_duration_minutes=meeting_duration_minutes,
+        working_hours_start=working_hours_start,
+        working_hours_end=working_hours_end,
+        timezone=timezone,
+    )
+    return await bots_service.configure_calendar(principal, bot_id, body)
+
+
+@mcp.tool()
+async def list_meetings(bot_id: str) -> list:
+    """List meetings booked by visitors through the chatbot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await bots_service.list_meetings(principal, bot_id)
+
+
+# ===========================================================================
+# 9. ANALYTICS, DATA SCIENCE & SELF-HEALING GAPS
+# ===========================================================================
+
+
+@mcp.tool()
+async def analyze_chatbot(bot_id: str, since: Optional[str] = None) -> dict:
+    """Get usage analytics: message counts, visitor sessions, and leads captured. Optionally filter to activity at or after `since` (ISO 8601 datetime)."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await bots_service.bot_analytics(principal, bot_id, since)
+
+
+@mcp.tool()
+async def discover_knowledge_gaps(bot_id: str) -> list:
+    """Scan transcripts for unanswered user queries and cluster missing FAQ topics."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_inbox_service.discover_knowledge_gaps(principal, bot_id)
+
+
+@mcp.tool()
+async def analyze_sentiment_trends(bot_id: str, sample_size: int = 50) -> dict:
+    """Perform NLP sentiment analysis across recent visitor chat interactions."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_inbox_service.analyze_sentiment(principal, bot_id, sample_size)
+
+
+@mcp.tool()
+async def get_feedback_and_csat(bot_id: str) -> dict:
+    """Get visitor CSAT scores and feedback comments."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await bots_service.get_feedback_summary(principal, bot_id)
+
+
+# ===========================================================================
+# 10. SETTINGS, GUARDRAILS, BYOK & TEAM RBAC
+# ===========================================================================
+
+
+@mcp.tool()
+async def configure_guardrails(
+    bot_id: str,
+    strict_mode: bool = True,
+    blocked_topics: Optional[List[str]] = None,
+    blocked_keywords: Optional[List[str]] = None,
+    fallback_message: Optional[str] = None,
+) -> dict:
+    """Set strict RAG grounding boundaries, blocked topics, and safety fallback messages."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    body = GuardrailsConfigRequest(
+        strict_mode=strict_mode,
+        blocked_topics=blocked_topics,
+        blocked_keywords=blocked_keywords,
+        fallback_message=fallback_message,
+    )
+    return await bots_service.configure_guardrails(principal, bot_id, body)
+
+
+@mcp.tool()
+async def configure_byok(bot_id: str, provider: str, api_key: str) -> dict:
+    """Configure Bring-Your-Own-Key (OpenAI, Anthropic, OpenRouter) to minimize token costs."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    body = BYOKConfigRequest(provider=provider, api_key=api_key)
+    return await bots_service.configure_byok(principal, bot_id, body)
+
+
+@mcp.tool()
+async def manage_team_members(bot_id: str, action: str, email: str, role: str = "agent") -> dict:
+    """Invite, update, or remove team members for a chatbot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    body = TeamMemberRequest(email=email, role=role)
+    return await bots_service.manage_team_members(principal, bot_id, action, body)
+
+
+@mcp.tool()
+async def configure_domain_allowlist(bot_id: str, allowed_domains: List[str]) -> dict:
+    """Restrict widget embedding strictly to authorized domains."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    return await bots_service.configure_domain_allowlist(principal, bot_id, allowed_domains)
+
+
+@mcp.tool()
+async def get_audit_logs(bot_id: str, limit: int = 50) -> list:
+    """Get immutable audit logs of administrative actions and configuration changes."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await bots_service.get_audit_logs(principal, bot_id, limit)
+
+
+@mcp.tool()
+async def get_account_billing() -> dict:
+    """Get message credits, active bot counts, and subscription status."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await bots_service.get_account_billing(principal)
+
+
+# ===========================================================================
+# 11. MCP RESOURCES (Live Context Providers)
+# ===========================================================================
+
+
+@mcp.resource("chatty://bots/list")
+async def resource_bots_list() -> str:
+    """Live JSON catalog of all chatbots owned by the user."""
+    principal = await _current_principal()
+    bots = await bots_service.list_bots(principal)
+    return json.dumps(bots, indent=2)
+
+
+@mcp.resource("chatty://bots/{bot_id}/config")
+async def resource_bot_config(bot_id: str) -> str:
+    """Live full configuration snapshot for a specific chatbot."""
+    principal = await _current_principal()
+    bot = await bots_service.get_bot(principal, bot_id)
+    return json.dumps(bot, indent=2)
+
+
+@mcp.resource("chatty://bots/{bot_id}/analytics")
+async def resource_bot_analytics(bot_id: str) -> str:
+    """Real-time analytics and message throughput for a chatbot."""
+    principal = await _current_principal()
+    analytics = await bots_service.bot_analytics(principal, bot_id)
+    return json.dumps(analytics, indent=2)
+
+
+@mcp.resource("chatty://bots/{bot_id}/knowledge-gaps")
+async def resource_bot_knowledge_gaps(bot_id: str) -> str:
+    """Auto-clustered list of missing knowledge topics based on user queries."""
+    principal = await _current_principal()
+    gaps = await mcp_inbox_service.discover_knowledge_gaps(principal, bot_id)
+    return json.dumps(gaps, indent=2)
+
+
+# ===========================================================================
+# 12. MCP PROMPTS (Pre-Configured Autonomous Workflows)
+# ===========================================================================
+
+
+@mcp.prompt("audit-and-optimize-bot")
+def prompt_audit_and_optimize(bot_id: str) -> str:
+    """Runs a 360-degree audit across RAG accuracy, WCAG contrast, and unanswered queries."""
+    return (
+        f"Please run a comprehensive audit on Chatty Bot '{bot_id}':\n"
+        f"1. Check knowledge sources and test RAG retrieval with `list_knowledge_sources` and `test_rag_retrieval`.\n"
+        f"2. Audit widget design accessibility with `analyze_widget_design`.\n"
+        f"3. Mine conversation logs for unanswered queries with `discover_knowledge_gaps`.\n"
+        f"4. Propose an updated system prompt and action plan to optimize performance."
+    )
+
+
+@mcp.prompt("build-bot-from-brand")
+def prompt_build_bot_from_brand(website_url: str, bot_name: str) -> str:
+    """Autonomous brand onboarding: sets up RAG, visual flow, and styling for a company URL."""
+    return (
+        f"Please build a complete, ready-to-deploy Chatty chatbot for '{website_url}':\n"
+        f"1. Create the bot named '{bot_name}' with `create_chatbot`.\n"
+        f"2. Add initial brand knowledge text with `add_chatbot_knowledge`.\n"
+        f"3. Generate a multi-step visual flow using `generate_flow_with_ai`.\n"
+        f"4. Verify WCAG contrast with `analyze_widget_design`.\n"
+        f"5. Return the ready-to-embed WordPress and React snippets from `generate_embed_code`."
+    )
+
+
+# ASGI mount for streamable-HTTP transport
 mcp_asgi_app = mcp.streamable_http_app()

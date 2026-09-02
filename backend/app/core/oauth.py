@@ -131,6 +131,17 @@ async def resolve_principal(authorization: Optional[str], request: Any = None) -
     Returns a common shape:
       {"auth_type": "oauth", "user_id": ..., "scopes": [...], "client_id": ...}
       {"auth_type": "api_key", "user_id": ..., "scopes": [...], "bot_id": ..., "key_row": {...}}
+
+    IMPORTANT: "user_id" here is always the Supabase **auth_user_id**, not
+    the internal `users.id` — matching chatty_bots.user_id and
+    chatty_api_keys.user_id's own convention (see bots.py, admin.py,
+    crawl.py, onboarding.py, public_api.py: every one of them compares
+    chatty_bots.user_id against user["auth_user_id"]). Both branches below
+    already return the right thing (chatty_api_keys.user_id was always
+    written as auth_user_id — see public_api.py's key-creation endpoint);
+    the OAuth token issuance side (oauth.py's authorize_decision) is what
+    has to store auth_user_id too, or every downstream require_bot_access
+    check silently compares the wrong id space.
     """
     raw = (authorization or "").split(" ", 1)[-1].strip()
     if raw.startswith(_ACCESS_TOKEN_PREFIX):
@@ -163,6 +174,17 @@ def check_principal_scope(principal: dict[str, Any], required: str) -> None:
         status_code=403,
         detail=f"Missing required scope '{required}'. Granted scopes: {scopes}.",
     )
+
+
+async def user_dict_for_principal(principal: dict[str, Any]) -> dict[str, Any]:
+    """Bridges an OAuth/API-key principal into the full `users` row shape
+    app.core.permissions.verify_bot_permission expects (auth_user_id +
+    email, for its owner-vs-team-member RBAC check) — for endpoints that
+    need real permission checking beyond simple bot ownership (e.g. team
+    member management), not just require_bot_access's ownership check."""
+    from app.core.deps import get_user_by_auth_id  # local import avoids a cycle
+
+    return await run_db(lambda: get_user_by_auth_id(principal["user_id"]))
 
 
 async def require_bot_access(principal: dict[str, Any], bot_id: str) -> dict[str, Any]:
