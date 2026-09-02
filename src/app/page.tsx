@@ -258,7 +258,7 @@ export default function Home() {
                 <span className="text-neutral-400 dark:text-neutral-500 font-light">Optimized for conversion.</span>
               </h1>
               <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xl font-sans font-normal">
-                An AI chatbot that does more than just chat. Plug in your website, files, and tools. Deploy a custom assistant that captures leads and triggers actions. Zero coding, active on your website in under five minutes.
+                An AI chatbot that captures leads and triggers actions. Zero coding, live on your site in five minutes.
               </p>
               <div className="flex flex-wrap justify-center items-center gap-4 pt-2">
                 <Link href="/dashboard">
