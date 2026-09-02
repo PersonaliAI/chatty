@@ -643,21 +643,27 @@ async def widget_theme(bot_id: str):
     )
     try:
         res = await run_db(lambda: supabase.table("chatty_bots").select(
-            f"{base_columns}, font_family, font_size_percent, voice_message_mode").eq("id", bot_id).execute())
+            f"{base_columns}, font_family, font_size_percent, voice_message_mode, panel_size").eq("id", bot_id).execute())
     except Exception:
         try:
-            # voice_message_mode's migration (20260829020000) may not be
-            # applied yet — retry without it before falling further back.
+            # panel_size's migration (20260902070328) may not be applied to
+            # this environment yet — retry without it before falling further back.
             res = await run_db(lambda: supabase.table("chatty_bots").select(
-                f"{base_columns}, font_family, font_size_percent").eq("id", bot_id).execute())
+                f"{base_columns}, font_family, font_size_percent, voice_message_mode").eq("id", bot_id).execute())
         except Exception:
-            # font_family/font_size_percent's migration (20260829010000) may
-            # not be applied to this environment yet either — PostgREST 400s
-            # the whole select on an unknown column, which would otherwise
-            # break every bot's widget theme, not just skip the new fields.
-            # Falls back to the columns that are guaranteed to exist.
-            res = await run_db(lambda: supabase.table("chatty_bots").select(
-                base_columns).eq("id", bot_id).execute())
+            try:
+                # voice_message_mode's migration (20260829020000) may not be
+                # applied yet — retry without it before falling further back.
+                res = await run_db(lambda: supabase.table("chatty_bots").select(
+                    f"{base_columns}, font_family, font_size_percent").eq("id", bot_id).execute())
+            except Exception:
+                # font_family/font_size_percent's migration (20260829010000) may
+                # not be applied to this environment yet either — PostgREST 400s
+                # the whole select on an unknown column, which would otherwise
+                # break every bot's widget theme, not just skip the new fields.
+                # Falls back to the columns that are guaranteed to exist.
+                res = await run_db(lambda: supabase.table("chatty_bots").select(
+                    base_columns).eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     b = res.data[0]
@@ -694,6 +700,7 @@ async def widget_theme(bot_id: str):
         "font_family": b.get("font_family"),
         "font_size_percent": b.get("font_size_percent") or 100,
         "voice_message_mode": b.get("voice_message_mode") or "transcribe",
+        "panel_size": b.get("panel_size") or "default",
     }
 
 
