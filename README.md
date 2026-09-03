@@ -52,7 +52,7 @@ Self-host it in about ten minutes with Docker, or let us run it for you. No vend
 
 ## Why Chatty
 
-Every hosted chatbot SaaS charges per-seat or per-message and holds your conversation data. Chatty is open-core: run it yourself for free, or use [Chatty Cloud](https://chatty.personaliai.com) — our own hosted version of this exact repo, if you'd rather skip the ops work. Either way you get the same feature set — streaming chat, a real-time voice agent, RAG over your own documents, meeting booking, lead capture, WhatsApp/Slack/Telegram channels, and a full [MCP server](#mcp-server--agent-control) so an AI agent can run the whole dashboard for you.
+Every hosted chatbot SaaS charges per-seat or per-message and holds your conversation data. Chatty is open-core: run it yourself for free, or use [Chatty Cloud](https://chatty.personaliai.com) — our own hosted version of this exact repo, if you'd rather skip the ops work. Either way you get the same feature set — streaming chat, a real-time voice agent, RAG over your own documents, meeting booking, lead capture, WhatsApp/Slack channels, and a full [MCP server](#mcp-server--agent-control) so an AI agent can run the whole dashboard for you.
 
 |  | Closed-source SaaS chatbots | **Chatty** |
 |---|---|---|
@@ -69,7 +69,7 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 - 🎙️ **Real-time voice agent** — phone-call-style conversations via LiveKit, same brain as the chat widget
 - 📚 **RAG over your own knowledge base** — upload PDF/DOCX/PPTX/XLSX, crawl URLs, auto-chunked and embedded
 - 🛠️ **Tool-calling** — books real meetings (Zoom/Google Meet links), captures leads, checks a calendar
-- 🔌 **Omnichannel** — WhatsApp, Slack, and Telegram, in addition to the web widget
+- 🔌 **Omnichannel** — WhatsApp and Slack, in addition to the web widget
 - 🔑 **BYOK** — default is Gemini (generous free tier); swap in your own OpenAI/Anthropic/OpenRouter key per bot
 - 🤖 **MCP server** — connect Claude, ChatGPT, or any MCP client and run the entire dashboard from a conversation: create bots, edit flows, run campaigns, manage leads, configure voice, and more, all as 55 callable tools secured by OAuth 2.0 + PKCE (see [MCP Server & Agent Control](#mcp-server--agent-control))
 - 📊 **Dashboard** — manage bots, inbox/conversations, knowledge sources, booking rules, campaigns, and channel connections
@@ -123,7 +123,7 @@ Both services talk to a single Supabase Postgres database — schema + row-level
 | [Supabase](https://supabase.com) account | free tier | Database (Postgres + Auth + Storage) |
 | [Google AI Studio](https://aistudio.google.com/apikey) API key | free tier | Default LLM (Gemini) |
 
-Everything else (LiveKit for voice, WhatsApp/Slack/Telegram tokens, Google/Microsoft OAuth, Lemon Squeezy billing, Sentry, Upstash Redis) is **optional** — each env var you leave blank just disables that one feature; nothing else breaks.
+Everything else (LiveKit for voice, WhatsApp/Slack tokens, Google/Microsoft OAuth, Lemon Squeezy billing, Sentry, Upstash Redis) is **optional** — each env var you leave blank just disables that one feature; nothing else breaks.
 
 ## 🚀 Quick Start (Docker Compose)
 
@@ -223,7 +223,7 @@ BYOK_ENCRYPTION_KEY=<python -c "from cryptography.fernet import Fernet; print(Fe
 
 Open `frontend/.env` and `.env` (repo root) and fill in the matching `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` (same values as above — the frontend only ever sees the public `anon` key, never `service_role`).
 
-Every other variable in `backend/.env.example` is optional and documented inline — voice, WhatsApp, Slack, Telegram, Google/Microsoft OAuth, billing, error monitoring, and more. Leave them blank to start; each one unlocks exactly one feature. See the full [Environment Variable Reference](#environment-variable-reference) below for what each does.
+Every other variable in `backend/.env.example` is optional and documented inline — voice, WhatsApp, Slack, Google/Microsoft OAuth, billing, error monitoring, and more. Leave them blank to start; each one unlocks exactly one feature. See the full [Environment Variable Reference](#environment-variable-reference) below for what each does.
 
 **If you're deploying under your own domain** (not just running locally), also set `CHATTY_BACKEND_URL` and `CHATTY_FRONTEND_URL` in `backend/.env` to your real domains — these are the OAuth issuer and MCP resource identifiers; leaving them at the default breaks OAuth/MCP client discovery once you're not running on `localhost`. See [MCP Server & Agent Control](#mcp-server--agent-control).
 
@@ -254,7 +254,6 @@ Each of these is opt-in — set the relevant env vars in `backend/.env` and rest
 | Feature | Env vars | Notes |
 |---|---|---|
 | **Voice agent** | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Free tier at [cloud.livekit.io](https://cloud.livekit.io), or self-host LiveKit. Then also run the voice worker: `docker compose up --build` (no service names — this brings up `voice-worker` too). |
-| **Telegram channel** | `TELEGRAM_BOT_TOKEN` | Create a bot via [@BotFather](https://t.me/BotFather). |
 | **WhatsApp channel** | `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Meta Cloud API — see [Meta's developer docs](https://developers.facebook.com/docs/whatsapp/cloud-api). |
 | **Slack channel** | `SLACK_SIGNING_SECRET` | From your Slack app's **Basic Information** page. |
 | **Google Calendar/Gmail booking** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Create OAuth credentials at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials). |
@@ -360,7 +359,7 @@ Every environment variable is documented inline in [`backend/.env.example`](back
 | `BYOK_ENCRYPTION_KEY` | Encrypts customer-supplied BYOK API keys at rest |
 | `GEMINI_API_KEY` | Default LLM |
 
-**Backend — optional, one per feature:** voice (LiveKit), Telegram, WhatsApp, Slack, Google/Microsoft OAuth (calendar booking), transactional email (OneSignal), Zoom, web crawl (Jina), billing (Lemon Squeezy), rate limiting (Upstash Redis), error monitoring (Sentry), and `CHATTY_BACKEND_URL`/`CHATTY_FRONTEND_URL` (only needed once you're deployed under your own domain — see [MCP Server & Agent Control](#mcp-server--agent-control)). Full list with setup links: [`backend/.env.example`](backend/.env.example).
+**Backend — optional, one per feature:** voice (LiveKit), WhatsApp, Slack, Google/Microsoft OAuth (calendar booking), transactional email (OneSignal), Zoom, web crawl (Jina), billing (Lemon Squeezy), rate limiting (Upstash Redis), error monitoring (Sentry), and `CHATTY_BACKEND_URL`/`CHATTY_FRONTEND_URL` (only needed once you're deployed under your own domain — see [MCP Server & Agent Control](#mcp-server--agent-control)). Full list with setup links: [`backend/.env.example`](backend/.env.example).
 
 **Frontend — required:**
 
