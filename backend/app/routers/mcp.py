@@ -18,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 
 from app.core import oauth as _oauth
+from app.core.config import CHATTY_BACKEND_URL
 from app.schemas.bots_api import (
     BotCreateRequest,
     BotUpdateRequest,
@@ -45,7 +46,7 @@ from app.services import (
 
 logger = logging.getLogger("chatty")
 
-_BACKEND_BASE_URL = "https://api.chatty.personaliai.com"
+_BACKEND_BASE_URL = CHATTY_BACKEND_URL
 _MCP_RESOURCE_URL = f"{_BACKEND_BASE_URL}/mcp"
 
 

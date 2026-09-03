@@ -62,6 +62,13 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://personaliai.com")
 # OAuth2 consent screen is a Chatty-specific page and must land on Chatty's
 # own frontend regardless of where FRONTEND_URL points.
 CHATTY_FRONTEND_URL = os.environ.get("CHATTY_FRONTEND_URL", "https://chatty.personaliai.com")
+# This service's own public URL — the OAuth issuer/resource identifiers the
+# MCP server (app/routers/mcp.py) advertises in its metadata must exactly
+# match the domain a client actually reaches it at, or every real OAuth
+# client rejects the token as issued by the wrong party. Was hardcoded to
+# PersonaliAI's own Cloud Run domain, which silently broke MCP/OAuth for
+# anyone self-hosting this repo under their own domain.
+CHATTY_BACKEND_URL = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com")
 
 ALLOWED_ORIGINS = [
     o.strip()

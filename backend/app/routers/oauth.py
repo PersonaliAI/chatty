@@ -28,7 +28,7 @@ from fastapi.responses import RedirectResponse
 
 from app.core import oauth as _oauth
 from app.core.clients import supabase
-from app.core.config import CHATTY_FRONTEND_URL
+from app.core.config import CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.schemas.oauth import (
@@ -42,7 +42,7 @@ logger = logging.getLogger("chatty")
 
 router = APIRouter()
 
-_BACKEND_BASE_URL = "https://api.chatty.personaliai.com"
+_BACKEND_BASE_URL = CHATTY_BACKEND_URL
 
 _SCOPE_DESCRIPTIONS = {
     "chat": "Send messages to your bots and read their replies",
