@@ -68,7 +68,7 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 - 💬 **Embeddable chat widget** — one `<script>` tag, streaming replies, works on any website
 - 🎙️ **Real-time voice agent** — phone-call-style conversations via LiveKit, same brain as the chat widget
 - 📚 **RAG over your own knowledge base** — upload PDF/DOCX/PPTX/XLSX, crawl URLs, auto-chunked and embedded
-- 🛠️ **Tool-calling** — books real meetings (Google Meet/Microsoft Teams links), captures leads, checks a calendar
+- 🛠️ **Tool-calling** — books real meetings (Google Meet/Microsoft Teams/Zoom links), captures leads, checks a calendar
 - 🔌 **Omnichannel** — WhatsApp and Slack, in addition to the web widget
 - 🔑 **BYOK** — default is Gemini (generous free tier); swap in your own OpenAI/Anthropic/OpenRouter key per bot
 - 🤖 **MCP server** — connect Claude, ChatGPT, or any MCP client and run the entire dashboard from a conversation: create bots, edit flows, run campaigns, manage leads, configure voice, and more, all as 55 callable tools secured by OAuth 2.0 + PKCE (see [MCP Server & Agent Control](#mcp-server--agent-control))
@@ -258,6 +258,7 @@ Each of these is opt-in — set the relevant env vars in `backend/.env` and rest
 | **Slack channel** | `SLACK_SIGNING_SECRET` | From your Slack app's **Basic Information** page. |
 | **Google Calendar/Gmail booking** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Create OAuth credentials at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials). |
 | **Microsoft 365 booking** | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Register an app in Azure AD. Real Teams online-meeting links, not a placeholder. |
+| **Real Zoom meeting links** | `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` | Server-to-Server OAuth app in the [Zoom Marketplace](https://marketplace.zoom.us) (`meeting:write:meeting` scope). A single backend-wide credential — no per-user connect flow. Without this, bookings fall back to a placeholder link. |
 | **Billing / paid plans** | `LEMONSQUEEZY_API_KEY` + related vars | Only relevant if you're reselling access; skip entirely for internal/free use. |
 | **Error monitoring** | `SENTRY_DSN` | Optional — leave blank and errors just go to stdout/logs. |
 
@@ -358,7 +359,7 @@ Every environment variable is documented inline in [`backend/.env.example`](back
 | `BYOK_ENCRYPTION_KEY` | Encrypts customer-supplied BYOK API keys at rest |
 | `GEMINI_API_KEY` | Default LLM |
 
-**Backend — optional, one per feature:** voice (LiveKit), WhatsApp, Slack, Google/Microsoft OAuth (calendar booking), transactional email (OneSignal), web crawl (Jina), billing (Lemon Squeezy), rate limiting (Upstash Redis), error monitoring (Sentry), and `CHATTY_BACKEND_URL`/`CHATTY_FRONTEND_URL` (only needed once you're deployed under your own domain — see [MCP Server & Agent Control](#mcp-server--agent-control)). Full list with setup links: [`backend/.env.example`](backend/.env.example).
+**Backend — optional, one per feature:** voice (LiveKit), WhatsApp, Slack, Google/Microsoft OAuth (calendar booking), Zoom (Server-to-Server OAuth), transactional email (OneSignal), web crawl (Jina), billing (Lemon Squeezy), rate limiting (Upstash Redis), error monitoring (Sentry), and `CHATTY_BACKEND_URL`/`CHATTY_FRONTEND_URL` (only needed once you're deployed under your own domain — see [MCP Server & Agent Control](#mcp-server--agent-control)). Full list with setup links: [`backend/.env.example`](backend/.env.example).
 
 **Frontend — required:**
 
