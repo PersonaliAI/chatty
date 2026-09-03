@@ -6,6 +6,7 @@ implementation shared by the REST API (app/routers/bots_api.py) and the MCP tool
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Optional
 from fastapi import HTTPException
 
@@ -27,6 +28,8 @@ from app.schemas.bots_api import (
     TeamMemberRequest,
     NotificationsConfigRequest,
 )
+
+logger = logging.getLogger("chatty")
 
 _BOT_LIST_COLUMNS = "id, name, welcome_message, primary_color, selected_model, created_at"
 _BOT_DETAIL_FIELDS = [
@@ -51,6 +54,26 @@ _BOT_DETAIL_FIELDS = [
 
 def _project_bot(row: dict[str, Any]) -> dict[str, Any]:
     return {k: row.get(k) for k in _BOT_DETAIL_FIELDS if k in row}
+
+
+async def _write_audit_log(bot_id: str, action: str, details: str, performed_by: str = "owner_api") -> None:
+    """Records an admin/security-relevant action to chatty_audit_logs.
+
+    Every one of these tools is reachable via the MCP server and the
+    Developer API with only ownership-level gating (see require_bot_access/
+    verify_bot_permission above) — get_audit_logs advertises itself as "the"
+    record of administrative actions and configuration changes for a bot,
+    but until this, nothing in this module ever wrote to that table, so it
+    was always empty for anything done outside the dashboard's admin.py/
+    onboarding.py flows. Never pass secret values (raw or encrypted API
+    keys, webhook signing secrets) into `details`.
+    """
+    try:
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+            "bot_id": bot_id, "action": action, "details": details, "performed_by": performed_by,
+        }).execute())
+    except Exception:
+        logger.warning("Failed to write audit log for bot %s action %s", bot_id, action, exc_info=True)
 
 
 async def create_bot(principal: dict[str, Any], body: BotCreateRequest) -> dict[str, Any]:
@@ -102,6 +125,11 @@ async def update_bot(principal: dict[str, Any], bot_id: str, body: BotUpdateRequ
 
 
 async def delete_bot(principal: dict[str, Any], bot_id: str) -> dict[str, Any]:
+    # No _write_audit_log call here: chatty_audit_logs.bot_id is a NOT NULL
+    # FK to chatty_bots(id) ON DELETE CASCADE, so any row logged against this
+    # bot_id — written before or after the delete — is gone the instant the
+    # bot is deleted. Recording a bot's deletion durably needs an
+    # account-scoped log table, not this bot-scoped one; out of scope here.
     bot = await _oauth.require_bot_access(principal, bot_id)
     await run_db(lambda: supabase.table("chatty_bots").delete().eq("id", bot_id).execute())
     return {"deleted": True, "bot_id": bot_id, "name": bot.get("name")}
@@ -455,6 +483,10 @@ async def export_visitor_data(principal: dict[str, Any], bot_id: str) -> dict[st
     conv = conv_res.data or []
     sess = sess_res.data or []
     leads = leads_res.data or []
+    await _write_audit_log(
+        bot_id, "visitor_data_exported",
+        f"GDPR export: {len(conv)} conversation rows, {len(sess)} sessions, {len(leads)} leads",
+    )
     return {
         "bot_id": bot_id,
         "exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -519,6 +551,10 @@ async def configure_byok(principal: dict[str, Any], bot_id: str, body: BYOKConfi
     if body.api_key:
         update["byok_api_key_encrypted"] = llm_providers.encrypt_api_key(body.api_key)
     await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
+    await _write_audit_log(
+        bot_id, "byok_configured",
+        f"BYOK provider set to '{body.provider}'" + (" (API key rotated)" if body.api_key else " (key unchanged)"),
+    )
     # Never return the key (raw or encrypted) — same contract as
     # GET /api/bots/{bot_id}/byok: only confirm it's configured.
     return {"bot_id": bot_id, "provider": body.provider, "model": body.model, "byok_configured": True}
@@ -543,6 +579,7 @@ async def manage_team_members(principal: dict[str, Any], bot_id: str, action: st
 
     if action == "remove":
         await run_db(lambda: supabase.table("chatty_team_members").delete().eq("bot_id", bot_id).eq("email", email).execute())
+        await _write_audit_log(bot_id, "team_member_removed", f"Removed team member {email}")
         return {"action": "remove", "email": email, "bot_id": bot_id}
 
     # Same two rules as team.py's invite/update endpoints: role can only ever
@@ -558,12 +595,14 @@ async def manage_team_members(principal: dict[str, Any], bot_id: str, action: st
         {"bot_id": bot_id, "email": email, "role": role, "permissions": permissions},
         on_conflict="bot_id,email",
     ).execute())
+    await _write_audit_log(bot_id, "team_member_upserted", f"{action}: {email} set to role '{role}'")
     return {"action": action, "email": email, "role": role, "permissions": permissions, "bot_id": bot_id}
 
 
 async def configure_domain_allowlist(principal: dict[str, Any], bot_id: str, domains: list[str]) -> dict[str, Any]:
     await _oauth.require_bot_access(principal, bot_id)
     await run_db(lambda: supabase.table("chatty_bots").update({"allowed_domains": domains}).eq("id", bot_id).execute())
+    await _write_audit_log(bot_id, "domain_allowlist_updated", f"allowed_domains set to {domains}")
     return {"bot_id": bot_id, "allowed_domains": domains}
 
 
@@ -579,6 +618,7 @@ async def configure_notifications(principal: dict[str, Any], bot_id: str, body: 
     await _oauth.require_bot_access(principal, bot_id)
     updates = {"notification_emails": body.admin_emails}
     await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
+    await _write_audit_log(bot_id, "notifications_configured", f"admin_emails set to {body.admin_emails}")
     return {"bot_id": bot_id, **updates}
 
 
@@ -610,6 +650,12 @@ async def create_webhook_subscription(principal: dict[str, Any], bot_id: str, ur
     row = await run_db(lambda: supabase.table("chatty_webhooks").insert({
         "bot_id": bot_id, "url": url, "events": valid_events, "secret": secret, "active": True,
     }).execute())
+    # Deliberately logs the destination URL and events, never the signing
+    # secret — this is the single tool that can point bot events (which can
+    # include lead/visitor PII) at an arbitrary external endpoint, so it's
+    # the one place a later audit most needs a durable record of where data
+    # started flowing and when.
+    await _write_audit_log(bot_id, "webhook_created", f"Subscribed {url} to events: {', '.join(valid_events)}")
     return row.data[0] if row.data else {"url": url, "events": valid_events}
 
 
@@ -625,10 +671,11 @@ async def list_webhook_subscriptions(principal: dict[str, Any], bot_id: str) -> 
 async def delete_webhook_subscription(principal: dict[str, Any], bot_id: str, webhook_id: str) -> dict[str, Any]:
     user = await _oauth.user_dict_for_principal(principal)
     await verify_bot_permission(bot_id, user, "webhooks")
-    res = await run_db(lambda: supabase.table("chatty_webhooks").select("id").eq("id", webhook_id).eq("bot_id", bot_id).execute())
+    res = await run_db(lambda: supabase.table("chatty_webhooks").select("id, url").eq("id", webhook_id).eq("bot_id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Webhook not found")
     await run_db(lambda: supabase.table("chatty_webhooks").delete().eq("id", webhook_id).execute())
+    await _write_audit_log(bot_id, "webhook_deleted", f"Removed subscription to {res.data[0].get('url')}")
     return {"success": True, "deleted_id": webhook_id}
 
 
