@@ -39,6 +39,12 @@ _BOT_DETAIL_FIELDS = [
     "widget_style", "response_language", "strict_mode", "lead_capture_enabled",
     "avatar_url", "avatar_icon", "logo_url", "teaser_message", "conversation_starters",
     "custom_css", "hide_branding", "allowed_domains", "created_at", "updated_at",
+    # Included so a caller can actually SEE this — it silently overrides
+    # primary_color/widget_style per-element wherever it's set (see
+    # WidgetStylingUpdateRequest.clear_color_scheme's comment) and was
+    # otherwise invisible here, making a real color change look like it
+    # didn't take effect with no way to tell why.
+    "color_scheme",
 ]
 
 
@@ -141,6 +147,8 @@ async def update_widget_styling(principal: dict[str, Any], bot_id: str, body: Wi
         updates["custom_css"] = body.custom_css
     if body.hide_branding is not None:
         updates["hide_branding"] = body.hide_branding
+    if body.clear_color_scheme:
+        updates["color_scheme"] = None
 
     if updates:
         res = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())

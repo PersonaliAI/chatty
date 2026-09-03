@@ -48,6 +48,18 @@ class WidgetStylingUpdateRequest(BaseModel):
     conversation_starters: Optional[list[str]] = None
     custom_css: Optional[str] = None
     hide_branding: Optional[bool] = None
+    # chatty_bots.color_scheme is a separate, per-element hex override (set
+    # by the dashboard Customizer's advanced color pickers — header/
+    # sendBtn/inputBar/launcher/botBubble/userBubble). GET /api/widget/theme
+    # (app/routers/widget.py) passes it straight through as-is; the actual
+    # CSS-injection that makes it win over primary_color/widget_style for
+    # any element it covers happens client-side, in both the widget's React
+    # embed and the standalone chatty-app.js bundle. A bot customized this
+    # way before, then simplified back to a plain primary_color/widget_style
+    # change, keeps the old per-element colors fighting the new ones with no
+    # way to see or undo it through this API — clear_color_scheme=True
+    # resets it to null so primary_color/widget_style fully take over again.
+    clear_color_scheme: Optional[bool] = None
 
 
 class FlowUpdateRequest(BaseModel):

@@ -219,8 +219,9 @@ async def customize_widget_styling(
     conversation_starters: Optional[List[str]] = None,
     custom_css: Optional[str] = None,
     hide_branding: Optional[bool] = None,
+    clear_color_scheme: Optional[bool] = None,
 ) -> dict:
-    """Customize widget appearance: colors, avatar/logo, teaser bubble message, conversation-starter chips, custom CSS, and white-label branding."""
+    """Customize widget appearance: colors, avatar/logo, teaser bubble message, conversation-starter chips, custom CSS, and white-label branding. If primary_color/widget_style changes don't seem to take effect, check the returned color_scheme field — a per-element color override set earlier (via the dashboard's advanced color pickers) takes priority over them wherever it's set; pass clear_color_scheme=true to remove it."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     body = WidgetStylingUpdateRequest(
@@ -233,6 +234,7 @@ async def customize_widget_styling(
         conversation_starters=conversation_starters,
         custom_css=custom_css,
         hide_branding=hide_branding,
+        clear_color_scheme=clear_color_scheme,
     )
     return await bots_service.update_widget_styling(principal, bot_id, body)
 
