@@ -22,7 +22,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# env files (.env is a real file self-hosters create from .env.example —
+# LEMONSQUEEZY_API_KEY and other secrets can live in it, unlike backend's
+# split of secrets away from NEXT_PUBLIC_* build args)
+.env
 .env*.local
 
 # vercel
