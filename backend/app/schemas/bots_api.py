@@ -30,6 +30,26 @@ class KnowledgeTextCreateRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=100_000)
 
 
+class SectionColorsInput(BaseModel):
+    bg: Optional[str] = None
+    text: Optional[str] = None
+    icon: Optional[str] = None
+
+
+class WidgetColorSchemeInput(BaseModel):
+    """Mirrors WidgetColorScheme in chatty/src/lib/color-contrast.ts. Every
+    section is optional so a caller can set just one (e.g. only `header`)
+    without needing to also restate the other five — update_widget_styling
+    merges whatever's given here on top of the bot's existing color_scheme,
+    section by section, field by field."""
+    header: Optional[SectionColorsInput] = None
+    botBubble: Optional[SectionColorsInput] = None
+    userBubble: Optional[SectionColorsInput] = None
+    inputBar: Optional[SectionColorsInput] = None
+    sendBtn: Optional[SectionColorsInput] = None
+    launcher: Optional[SectionColorsInput] = None
+
+
 class WidgetStylingUpdateRequest(BaseModel):
     # Matches app/routers/widget.py's real theme columns exactly. The
     # earlier version of this schema had position/teaser_enabled/
@@ -60,6 +80,15 @@ class WidgetStylingUpdateRequest(BaseModel):
     # way to see or undo it through this API — clear_color_scheme=True
     # resets it to null so primary_color/widget_style fully take over again.
     clear_color_scheme: Optional[bool] = None
+    # Seed hex for plugins.color_scheme.generate_color_scheme — a direct
+    # Python port of generateColorScheme in color-contrast.ts (verified
+    # byte-identical output against the real TS source for the same seed),
+    # so "auto-generate from this color" gives the same result whether
+    # triggered here or from the dashboard's own Auto-generate button.
+    # Applied first; any section/field also set via `color_scheme` below
+    # overrides the generated value for that field.
+    auto_generate_color_scheme: Optional[str] = None
+    color_scheme: Optional[WidgetColorSchemeInput] = None
 
 
 class FlowUpdateRequest(BaseModel):

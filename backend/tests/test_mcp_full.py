@@ -118,6 +118,85 @@ def test_update_clone_and_delete_bot():
             assert deleted["bot_id"] == "bot-abc-123"
 
 
+def test_widget_styling_color_scheme():
+    from app.schemas.bots_api import WidgetStylingUpdateRequest, WidgetColorSchemeInput, SectionColorsInput
+    from plugins.color_scheme import generate_color_scheme
+
+    principal = _mock_principal()
+
+    # Auto-generate alone: color_scheme sent to the DB matches the pure
+    # algorithm output for the same seed.
+    bot_data = {"id": "bot-abc-123", "color_scheme": None}
+    with patch("app.core.oauth.require_bot_access", return_value=bot_data):
+        with patch("app.services.bots_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result([bot_data])
+            asyncio.run(bots_service.update_widget_styling(
+                principal, "bot-abc-123",
+                WidgetStylingUpdateRequest(auto_generate_color_scheme="#c67139"),
+            ))
+            sent = mock_table.return_value.update.call_args[0][0]
+            assert sent["color_scheme"] == generate_color_scheme("#c67139")
+
+    # auto_generate + a header override in the same call: header comes from
+    # the override, every other section still comes from the generated base.
+    with patch("app.core.oauth.require_bot_access", return_value=bot_data):
+        with patch("app.services.bots_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result([bot_data])
+            asyncio.run(bots_service.update_widget_styling(
+                principal, "bot-abc-123",
+                WidgetStylingUpdateRequest(
+                    auto_generate_color_scheme="#c67139",
+                    color_scheme=WidgetColorSchemeInput(header=SectionColorsInput(bg="#111827", text="#ffffff")),
+                ),
+            ))
+            sent = mock_table.return_value.update.call_args[0][0]
+            base = generate_color_scheme("#c67139")
+            assert sent["color_scheme"]["header"] == {"bg": "#111827", "text": "#ffffff"}
+            assert sent["color_scheme"]["botBubble"] == base["botBubble"]
+            assert sent["color_scheme"]["launcher"] == base["launcher"]
+
+    # Partial override with no seed: merges onto the bot's EXISTING stored
+    # scheme instead of discarding it, and untouched fields on the touched
+    # section survive (only `bg` changes, `text` stays).
+    existing_bot = {
+        "id": "bot-abc-123",
+        "color_scheme": {"header": {"bg": "#111827", "text": "#ffffff"}, "launcher": {"bg": "#111827", "text": "#ffffff"}},
+    }
+    with patch("app.core.oauth.require_bot_access", return_value=existing_bot):
+        with patch("app.services.bots_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result([existing_bot])
+            asyncio.run(bots_service.update_widget_styling(
+                principal, "bot-abc-123",
+                WidgetStylingUpdateRequest(color_scheme=WidgetColorSchemeInput(header=SectionColorsInput(bg="#c67139"))),
+            ))
+            sent = mock_table.return_value.update.call_args[0][0]
+            assert sent["color_scheme"]["header"] == {"bg": "#c67139", "text": "#ffffff"}
+            assert sent["color_scheme"]["launcher"] == {"bg": "#111827", "text": "#ffffff"}
+
+    # clear_color_scheme wins outright even if a seed/override is also passed.
+    with patch("app.core.oauth.require_bot_access", return_value=existing_bot):
+        with patch("app.services.bots_service.supabase.table") as mock_table:
+            mock_table.return_value = _mock_query_result([existing_bot])
+            asyncio.run(bots_service.update_widget_styling(
+                principal, "bot-abc-123",
+                WidgetStylingUpdateRequest(clear_color_scheme=True, auto_generate_color_scheme="#c67139"),
+            ))
+            sent = mock_table.return_value.update.call_args[0][0]
+            assert sent["color_scheme"] is None
+
+    # Bad seed hex is rejected rather than silently falling back to the
+    # brand-orange default baked into hex_to_rgb's parse-failure path.
+    with patch("app.core.oauth.require_bot_access", return_value=bot_data):
+        try:
+            asyncio.run(bots_service.update_widget_styling(
+                principal, "bot-abc-123",
+                WidgetStylingUpdateRequest(auto_generate_color_scheme="not-a-color"),
+            ))
+            assert False, "expected HTTPException for invalid seed color"
+        except Exception as e:
+            assert "400" in str(getattr(e, "status_code", "")) or getattr(e, "status_code", None) == 400
+
+
 # ===========================================================================
 # 2. DESIGN STUDIO & WCAG AUDIT
 # ===========================================================================

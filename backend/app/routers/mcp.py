@@ -22,6 +22,7 @@ from app.schemas.bots_api import (
     BotCreateRequest,
     BotUpdateRequest,
     WidgetStylingUpdateRequest,
+    WidgetColorSchemeInput,
     FlowUpdateRequest,
     CampaignCreateRequest,
     CampaignUpdateRequest,
@@ -220,8 +221,18 @@ async def customize_widget_styling(
     custom_css: Optional[str] = None,
     hide_branding: Optional[bool] = None,
     clear_color_scheme: Optional[bool] = None,
+    auto_generate_color_scheme: Optional[str] = None,
+    color_scheme: Optional[WidgetColorSchemeInput] = None,
 ) -> dict:
-    """Customize widget appearance: colors, avatar/logo, teaser bubble message, conversation-starter chips, custom CSS, and white-label branding. If primary_color/widget_style changes don't seem to take effect, check the returned color_scheme field — a per-element color override set earlier (via the dashboard's advanced color pickers) takes priority over them wherever it's set; pass clear_color_scheme=true to remove it."""
+    """Customize widget appearance: colors, avatar/logo, teaser bubble message, conversation-starter chips, custom CSS, and white-label branding.
+
+    Per-section colors (independent of primary_color/widget_style — these are the dashboard Customizer's advanced color pickers):
+    - auto_generate_color_scheme: pass a seed hex (e.g. "#c67139") to derive a full, harmonious 6-section scheme (header, botBubble, userBubble, inputBar, sendBtn, launcher) — same algorithm as the dashboard's own Auto-generate button.
+    - color_scheme: set/override individual sections directly, e.g. {"header": {"bg": "#111827", "text": "#ffffff"}} — only the sections/fields given are touched, everything else (existing or just auto-generated) is left as-is. Combine both in one call: auto-generate a base scheme, then override just the header.
+    - clear_color_scheme=true removes it entirely so primary_color/widget_style fully take over again.
+
+    If a primary_color/widget_style change doesn't seem to take effect, check the returned color_scheme field — it takes priority over them wherever it's set.
+    """
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     body = WidgetStylingUpdateRequest(
@@ -235,6 +246,8 @@ async def customize_widget_styling(
         custom_css=custom_css,
         hide_branding=hide_branding,
         clear_color_scheme=clear_color_scheme,
+        auto_generate_color_scheme=auto_generate_color_scheme,
+        color_scheme=color_scheme,
     )
     return await bots_service.update_widget_styling(principal, bot_id, body)
 

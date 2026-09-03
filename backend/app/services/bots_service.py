@@ -13,6 +13,7 @@ from app.core import oauth as _oauth
 from app.core.clients import supabase
 from app.core.db import run_db
 from app.core.permissions import OWNER_ONLY_TABS, default_permissions_for_role, verify_bot_permission
+from plugins import color_scheme as color_scheme_mod
 from plugins import llm_providers
 from plugins import widget_brain
 from app.schemas.bots_api import (
@@ -127,7 +128,7 @@ async def clone_bot(principal: dict[str, Any], bot_id: str, new_name: str) -> di
 
 
 async def update_widget_styling(principal: dict[str, Any], bot_id: str, body: WidgetStylingUpdateRequest) -> dict[str, Any]:
-    await _oauth.require_bot_access(principal, bot_id)
+    bot = await _oauth.require_bot_access(principal, bot_id)
     updates: dict[str, Any] = {}
     if body.primary_color is not None:
         updates["primary_color"] = body.primary_color
@@ -149,6 +150,24 @@ async def update_widget_styling(principal: dict[str, Any], bot_id: str, body: Wi
         updates["hide_branding"] = body.hide_branding
     if body.clear_color_scheme:
         updates["color_scheme"] = None
+    elif body.auto_generate_color_scheme or body.color_scheme is not None:
+        if body.auto_generate_color_scheme:
+            if not color_scheme_mod.safe_hex(body.auto_generate_color_scheme):
+                raise HTTPException(status_code=400, detail="auto_generate_color_scheme must be a hex color like #c67139")
+            scheme: dict[str, Any] = color_scheme_mod.generate_color_scheme(body.auto_generate_color_scheme)
+        else:
+            # No seed given — start from whatever's already stored (or
+            # empty) so a single-section override doesn't wipe the rest.
+            scheme = dict(bot.get("color_scheme") or {})
+        if body.color_scheme is not None:
+            overrides = body.color_scheme.model_dump(exclude_unset=True)
+            for section, fields in overrides.items():
+                if not fields:
+                    continue
+                merged = dict(scheme.get(section) or {})
+                merged.update({k: v for k, v in fields.items() if v is not None})
+                scheme[section] = merged
+        updates["color_scheme"] = scheme
 
     if updates:
         res = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
