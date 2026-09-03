@@ -22,6 +22,7 @@ import httpx
 from plugins import google_integrations as g
 from plugins import microsoft_integrations as ms
 from plugins import notifications as notify
+from plugins import zoom_integration as zoom
 
 from app.core.db import run_db
 
@@ -437,6 +438,28 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         elif provider == "teams":
             # Real Teams join link from the Outlook online meeting we created.
             meeting_link = result.get("online_meeting_url") or result.get("web_link")
+        elif provider == "zoom" and zoom.zoom_configured():
+            # Zoom meetings aren't attached to the calendar event we just
+            # created (Server-to-Server OAuth is a separate, backend-wide
+            # credential, not tied to the owner's connected Google/Microsoft
+            # account) — mint one directly from the same start/end args.
+            meeting_link = None
+            try:
+                duration_minutes = 30
+                start_arg, end_arg = args.get("start"), args.get("end")
+                if start_arg and end_arg:
+                    try:
+                        delta = _parse_iso(end_arg) - _parse_iso(start_arg)
+                        duration_minutes = max(int(delta.total_seconds() // 60), 1)
+                    except ValueError:
+                        pass
+                zoom_meeting = await zoom.create_meeting(
+                    topic=summary, start=start_arg or "", duration_minutes=duration_minutes,
+                    timezone_str=tz_label,
+                )
+                meeting_link = zoom_meeting.get("join_url")
+            except Exception:
+                logger.exception("Failed to create Zoom meeting")
         else:
             meeting_link = result.get("hangoutLink") or result.get("html_link")
 

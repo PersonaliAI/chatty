@@ -344,6 +344,8 @@ async def get_capabilities(user: dict[str, Any] = Depends(require_user)):
     """Report which optional integrations are configured on the backend so the
     UI can gate provider choices."""
     from plugins import notifications as _notify
+    from plugins import zoom_integration as _zoom
     return {
         "onesignal_configured": _notify.onesignal_configured(),
+        "zoom_configured": _zoom.zoom_configured(),
     }
