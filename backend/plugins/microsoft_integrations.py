@@ -1050,8 +1050,13 @@ async def update_outlook_event(
     body: Optional[str] = None,
     location: Optional[str] = None,
     attendees: Optional[list[str]] = None,
+    calendar_id: Optional[str] = None,
+    timezone_override: Optional[str] = None,
 ) -> dict[str, Any]:
-    tz_str = user.get("timezone") or "UTC"
+    """Partial update (PATCH) of an existing event — only the fields passed
+    are touched. Used for reschedule (start/end only) so the event's Teams
+    join link, attendee list, and Graph event id all stay intact."""
+    tz_str = timezone_override or user.get("timezone") or "UTC"
     payload: dict[str, Any] = {}
     if subject is not None:
         payload["subject"] = subject
@@ -1067,9 +1072,12 @@ async def update_outlook_event(
         payload["attendees"] = [
             {"emailAddress": {"address": a}, "type": "required"} for a in attendees
         ]
-    res = await _api(
-        supabase, user, "PATCH", f"{GRAPH_BASE}/me/events/{event_id}", json_body=payload
+    url = (
+        f"{GRAPH_BASE}/me/calendars/{calendar_id}/events/{event_id}"
+        if calendar_id
+        else f"{GRAPH_BASE}/me/events/{event_id}"
     )
+    res = await _api(supabase, user, "PATCH", url, json_body=payload)
     return _format_outlook_event(res)
 
 

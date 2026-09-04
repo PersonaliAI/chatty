@@ -223,6 +223,142 @@ def test_get_available_slots_empty_returns_helpful_message(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# _reschedule_meeting
+# ---------------------------------------------------------------------------
+
+
+def _reschedule_supabase(meeting_row, users_row=None):
+    """A MagicMock supabase whose chatty_meetings select returns `meeting_row`
+    (or none if falsy), and whose users select (for host resolution) returns
+    `users_row` if given."""
+    supabase = MagicMock()
+
+    def table(name):
+        t = MagicMock()
+        if name == "chatty_meetings":
+            t.select.return_value.eq.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value = \
+                MagicMock(data=[meeting_row] if meeting_row else [])
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        elif name == "users":
+            # _resolve_meeting_host uses .ilike("email", ...); the admin
+            # owner-email lookup uses .eq("auth_user_id", ...) — support both.
+            t.select.return_value.ilike.return_value.limit.return_value.execute.return_value = MagicMock(
+                data=[users_row] if users_row else [])
+            t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
+        elif name in ("chatty_audit_logs", "chatty_notifications"):
+            t.insert.return_value.execute.return_value = MagicMock()
+        return t
+
+    supabase.table.side_effect = table
+    return supabase
+
+
+def test_reschedule_meeting_requires_bot_in_context():
+    result = asyncio.run(at._reschedule_meeting({}, {}, MagicMock(), context={}))
+    assert "Scheduling isn't configured" in result["error"]
+
+
+def test_reschedule_meeting_requires_visitor_email():
+    context = {"bot": {"meeting_provider": "google_meet"}, "bot_id": "bot-1"}
+    result = asyncio.run(at._reschedule_meeting({}, {}, MagicMock(), context=context))
+    assert "visitor_email is required" in result["error"]
+
+
+def test_reschedule_meeting_rejects_bad_datetimes():
+    context = {"bot": {"meeting_provider": "google_meet"}, "bot_id": "bot-1"}
+    args = {"visitor_email": "jane@example.com", "new_start": "garbage", "new_end": "also garbage"}
+    result = asyncio.run(at._reschedule_meeting(args, {}, MagicMock(), context=context))
+    assert "Invalid new_start" in result["error"]
+
+
+def test_reschedule_meeting_rejects_end_before_start():
+    context = {"bot": {"meeting_provider": "google_meet"}, "bot_id": "bot-1"}
+    args = {"visitor_email": "jane@example.com", "new_start": "2026-06-25T10:00:00+00:00", "new_end": "2026-06-25T09:00:00+00:00"}
+    result = asyncio.run(at._reschedule_meeting(args, {}, MagicMock(), context=context))
+    assert "new_end must be after new_start" in result["error"]
+
+
+def test_reschedule_meeting_no_existing_booking():
+    supabase = _reschedule_supabase(meeting_row=None)
+    context = {"bot": {"meeting_provider": "google_meet"}, "bot_id": "bot-1"}
+    args = {"visitor_email": "jane@example.com", "new_start": "2026-06-25T10:00:00+00:00", "new_end": "2026-06-25T10:30:00+00:00"}
+    result = asyncio.run(at._reschedule_meeting(args, {"email": "owner@example.com"}, supabase, context=context))
+    assert "No upcoming booking found" in result["error"]
+
+
+def test_reschedule_meeting_without_provider_event_id_rejected():
+    meeting = {"id": "meet-1", "attendee_email": "jane@example.com"}  # no provider_event_id
+    supabase = _reschedule_supabase(meeting_row=meeting)
+    context = {"bot": {"meeting_provider": "google_meet"}, "bot_id": "bot-1"}
+    args = {"visitor_email": "jane@example.com", "new_start": "2026-06-25T10:00:00+00:00", "new_end": "2026-06-25T10:30:00+00:00"}
+    result = asyncio.run(at._reschedule_meeting(args, {"email": "owner@example.com"}, supabase, context=context))
+    assert "can't be rescheduled automatically" in result["error"]
+
+
+def test_reschedule_meeting_rejects_when_new_slot_unavailable(monkeypatch):
+    from plugins import availability_engine as avail
+    meeting = {"id": "meet-1", "attendee_email": "jane@example.com", "provider_event_id": "evt-1", "assigned_to_email": ""}
+    supabase = _reschedule_supabase(meeting_row=meeting)
+    monkeypatch.setattr(avail, "is_slot_available", AsyncMock(return_value=False))
+    context = {"bot": {"meeting_provider": "google_meet"}, "bot_id": "bot-1"}
+    args = {"visitor_email": "jane@example.com", "new_start": "2026-06-25T10:00:00+00:00", "new_end": "2026-06-25T10:30:00+00:00"}
+    result = asyncio.run(at._reschedule_meeting(args, {"email": "owner@example.com"}, supabase, context=context))
+    assert "isn't available" in result["error"]
+
+
+def test_reschedule_meeting_success_updates_calendar_and_row(monkeypatch):
+    from plugins import availability_engine as avail
+    meeting = {
+        "id": "meet-1", "attendee_email": "jane@example.com", "attendee_name": "Jane",
+        "provider_event_id": "evt-1", "assigned_to_email": "", "title": "Demo Meeting with Jane",
+        "meeting_link": "https://meet.google.com/abc", "provider": "google_meet",
+    }
+    supabase = _reschedule_supabase(meeting_row=meeting)
+    monkeypatch.setattr(avail, "is_slot_available", AsyncMock(return_value=True))
+    update_mock = AsyncMock(return_value={"id": "evt-1"})
+    monkeypatch.setattr(at.g, "update_calendar_event", update_mock)
+    monkeypatch.setattr(at.notify, "build_client_email_html", MagicMock(return_value="<html/>"))
+    monkeypatch.setattr(at.notify, "build_admin_email_html", MagicMock(return_value="<html/>"))
+    monkeypatch.setattr(at.notify, "deliver_email", AsyncMock(return_value="sent"))
+
+    context = {"bot": {"meeting_provider": "google_meet", "bot_timezone": "UTC"}, "bot_id": "bot-1"}
+    args = {"visitor_email": "jane@example.com", "new_start": "2026-06-25T10:00:00+00:00", "new_end": "2026-06-25T10:30:00+00:00"}
+    result = asyncio.run(at._reschedule_meeting(args, {"email": "owner@example.com", "auth_user_id": "owner-1"}, supabase, context=context))
+
+    assert result["success"] is True
+    update_mock.assert_awaited_once()
+    _, kwargs = update_mock.call_args
+    assert kwargs["event_id"] == "evt-1"
+
+
+def test_reschedule_meeting_uses_assigned_host_credentials(monkeypatch):
+    """When the meeting was assigned to a round-robin teammate, the PATCH
+    must use THEIR calendar credentials, not the caller's."""
+    from plugins import availability_engine as avail
+    meeting = {
+        "id": "meet-1", "attendee_email": "jane@example.com", "attendee_name": "Jane",
+        "provider_event_id": "evt-1", "assigned_to_email": "teammate@example.com",
+        "title": "Demo Meeting with Jane", "meeting_link": "https://meet.google.com/abc", "provider": "google_meet",
+    }
+    teammate_user = {"email": "teammate@example.com", "google_access_token": "teammate-tok"}
+    supabase = _reschedule_supabase(meeting_row=meeting, users_row=teammate_user)
+    monkeypatch.setattr(avail, "is_slot_available", AsyncMock(return_value=True))
+    update_mock = AsyncMock(return_value={"id": "evt-1"})
+    monkeypatch.setattr(at.g, "update_calendar_event", update_mock)
+    monkeypatch.setattr(at.notify, "build_client_email_html", MagicMock(return_value="<html/>"))
+    monkeypatch.setattr(at.notify, "build_admin_email_html", MagicMock(return_value="<html/>"))
+    monkeypatch.setattr(at.notify, "deliver_email", AsyncMock(return_value="sent"))
+
+    context = {"bot": {"meeting_provider": "google_meet", "bot_timezone": "UTC"}, "bot_id": "bot-1"}
+    args = {"visitor_email": "jane@example.com", "new_start": "2026-06-25T10:00:00+00:00", "new_end": "2026-06-25T10:30:00+00:00"}
+    caller = {"email": "owner@example.com", "auth_user_id": "owner-1"}
+    asyncio.run(at._reschedule_meeting(args, caller, supabase, context=context))
+
+    call_args, _ = update_mock.call_args
+    assert call_args[1] == teammate_user  # the `user` positional arg to g.update_calendar_event
+
+
+# ---------------------------------------------------------------------------
 # _list_outlook_events / _create_outlook_event
 # ---------------------------------------------------------------------------
 

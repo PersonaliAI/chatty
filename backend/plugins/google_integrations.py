@@ -1146,7 +1146,18 @@ async def update_calendar_event(
     location: Optional[str] = None,
     attendees: Optional[list[str]] = None,
     calendar_id: str = "primary",
+    timezone_override: Optional[str] = None,
 ) -> dict[str, Any]:
+    """Partial update (PATCH) of an existing event — only the fields passed
+    are touched. Used for reschedule (start/end only) so the event's
+    conferenceData/join link, attendee list, and Google-side event id all
+    stay intact instead of forcing a fresh confirmation email with a
+    brand-new link."""
+    # timezone_override (the bot's configured bot_timezone) takes priority
+    # over the owner's user-profile timezone field, same reasoning as
+    # create_calendar_event — a reschedule shouldn't silently drift to a
+    # different offset than the event was originally booked with.
+    tz_str = timezone_override or user.get("timezone") or "UTC"
     body: dict[str, Any] = {}
     if summary is not None:
         body["summary"] = summary
@@ -1157,9 +1168,9 @@ async def update_calendar_event(
     if attendees is not None:
         body["attendees"] = [{"email": a} for a in attendees]
     if start:
-        body["start"] = {"dateTime": start, "timeZone": user.get("timezone") or "UTC"}
+        body["start"] = {"dateTime": _with_explicit_offset(start, tz_str), "timeZone": tz_str}
     if end:
-        body["end"] = {"dateTime": end, "timeZone": user.get("timezone") or "UTC"}
+        body["end"] = {"dateTime": _with_explicit_offset(end, tz_str), "timeZone": tz_str}
     res = await _api(
         supabase,
         user,

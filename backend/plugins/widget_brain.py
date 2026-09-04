@@ -437,6 +437,10 @@ async def run_widget_assistant(
             f"   - CRITICAL: Confirming availability is NOT the same as booking. Never tell the visitor a meeting is booked, scheduled, or confirmed until you have actually called the booking tool in this same turn and it returned successfully.\n"
             f"   - The booking tool returns a join link ('hangout_link' / 'online_meeting_url'). ALWAYS put this join link directly in your confirmation message to the visitor.\n"
             f"   - After booking, ensure `create_lead` has been called to save all visitor details ({lead_fields_str}).\n\n"
+            f"RESCHEDULING AN EXISTING MEETING:\n"
+            f"   - If a visitor with an existing booking asks to move it, first ask for the email address it was booked under (if not already known), then call `get_available_slots` "
+            f"with `near` set to their new preferred time, present the returned options exactly as before, and once they confirm one, call `reschedule_meeting` with that visitor_email and the confirmed new_start/new_end. "
+            f"Never guess a new time yourself — only offer times `get_available_slots` actually returned.\n\n"
         )
     else:
         scheduling_block = (
@@ -692,9 +696,9 @@ async def run_widget_assistant(
     allowed_tool_names = []
     if bot.get("calendar_scheduling_enabled"):
         if use_ms_calendar:
-            allowed_tool_names.extend(["get_available_slots", "list_outlook_events", "create_outlook_event"])
+            allowed_tool_names.extend(["get_available_slots", "list_outlook_events", "create_outlook_event", "reschedule_meeting"])
         elif owner_user.get("google_access_token"):
-            allowed_tool_names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event"])
+            allowed_tool_names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting"])
     allowed_tool_names.append("create_lead")
 
     widget_decls = [d for d in agent_tools.DECLARATIONS if d["function"]["name"] in allowed_tool_names]

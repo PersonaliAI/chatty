@@ -138,6 +138,18 @@ DECLARATIONS: list[dict] = [
         },
         ["bot_id", "name", "email"],
     ),
+    _tool(
+        "reschedule_meeting",
+        "Move an existing booked meeting to a new time. Use when a visitor with an existing "
+        "booking asks to reschedule. Call get_available_slots first to find a real open time, "
+        "then call this with that exact time — never guess a new time yourself.",
+        {
+            "visitor_email": {"type": "string", "description": "The email address the original meeting was booked under."},
+            "new_start": {"type": "string", "description": "ISO 8601 new start datetime, from get_available_slots."},
+            "new_end": {"type": "string", "description": "ISO 8601 new end datetime, from get_available_slots."},
+        },
+        ["visitor_email", "new_start", "new_end"],
+    ),
 ]
 
 
@@ -379,6 +391,176 @@ async def _get_available_slots(args: dict, user: dict, supabase, context: Option
                        "within business hours. Let the visitor know and offer to have someone follow up.",
         }
     return {"slots": slots}
+
+
+async def _resolve_meeting_host(supabase, meeting: dict, caller_user: dict) -> dict:
+    """Whoever's calendar the meeting actually lives on — the round-robin
+    assignee (Phase 2) if this meeting has one and it isn't already the
+    caller, otherwise the caller (the bot owner, for solo/legacy bookings
+    made before assigned_to_email existed)."""
+    assigned_email = (meeting.get("assigned_to_email") or "").strip().lower()
+    caller_email = (caller_user.get("email") or "").strip().lower()
+    if not assigned_email or assigned_email == caller_email:
+        return caller_user
+    try:
+        u_res = await run_db(lambda: supabase.table("users").select("*").ilike(
+            "email", assigned_email).limit(1).execute())
+        if u_res.data:
+            return u_res.data[0]
+    except Exception:
+        logger.exception("Failed to resolve meeting host %r for reschedule", assigned_email)
+    return caller_user
+
+
+async def _reschedule_meeting(args: dict, user: dict, supabase, context: Optional[dict] = None) -> dict:
+    """Widget/visitor-driven reschedule: looks up the visitor's own upcoming
+    booking by email, then delegates to the shared core. See
+    reschedule_meeting_core for the admin-dashboard equivalent, which
+    already has a specific meeting_id and skips this lookup."""
+    bot = (context or {}).get("bot")
+    bot_id = (context or {}).get("bot_id")
+    if not bot or not bot_id:
+        return {"error": "Scheduling isn't configured for this conversation."}
+
+    visitor_email = (args.get("visitor_email") or "").strip().lower()
+    if not visitor_email:
+        return {"error": "visitor_email is required."}
+    try:
+        new_start = _parse_iso(args.get("new_start") or "")
+        new_end = _parse_iso(args.get("new_end") or "")
+    except ValueError:
+        return {"error": "Invalid new_start/new_end — use ISO 8601 datetimes with a timezone offset."}
+    if new_start.tzinfo is None:
+        new_start = new_start.replace(tzinfo=timezone.utc)
+    if new_end.tzinfo is None:
+        new_end = new_end.replace(tzinfo=timezone.utc)
+    if new_end <= new_start:
+        return {"error": "new_end must be after new_start."}
+
+    try:
+        res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq(
+            "bot_id", bot_id).eq("attendee_email", visitor_email).eq(
+            "status", "scheduled").order("start_time", desc=True).limit(1).execute())
+    except Exception:
+        logger.exception("reschedule_meeting lookup failed")
+        return {"error": "Couldn't look up that booking right now. Try again in a moment."}
+    if not res.data:
+        return {"error": "No upcoming booking found for that email. Double-check the email, or book a new meeting instead."}
+
+    return await reschedule_meeting_core(res.data[0], new_start, new_end, bot, bot_id, user, supabase)
+
+
+async def reschedule_meeting_core(
+    meeting: dict, new_start: datetime, new_end: datetime,
+    bot: dict, bot_id: str, user: dict, supabase, *, performed_by: str = "assistant",
+) -> dict:
+    """The actual reschedule action, given an already-resolved meeting row —
+    shared by the widget tool (_reschedule_meeting, which looks the meeting
+    up by visitor email first) and the admin dashboard's reschedule endpoint
+    (app/routers/admin.py, which already has the meeting_id)."""
+    attendee_email = (meeting.get("attendee_email") or "").strip().lower()
+    if not meeting.get("provider_event_id"):
+        return {"error": "This booking can't be rescheduled automatically — ask the visitor to contact the team directly."}
+
+    host_user = await _resolve_meeting_host(supabase, meeting, user)
+    use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
+
+    from plugins import availability_engine as avail
+    try:
+        # Doesn't exclude the meeting's own current slot from the busy check
+        # (Google/Outlook's free-busy responses don't carry event ids to
+        # match against) — only matters if the new time overlaps the old
+        # one, a rare case, and it fails safe (rejects) rather than unsafe.
+        available = await avail.is_slot_available(
+            supabase, host_user, bot=bot, use_ms_calendar=use_ms_calendar,
+            start_utc=new_start, end_utc=new_end,
+        )
+    except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
+        raise
+    except Exception:
+        logger.exception("Reschedule conflict check failed")
+        available = True  # fail open, same posture as the booking-time guard
+
+    if not available:
+        return {
+            "error": (
+                "That new time isn't available. Call get_available_slots to find a real open "
+                "time and offer that to the visitor instead."
+            )
+        }
+
+    owner_tz_str = avail.resolve_owner_timezone(bot, user)
+    try:
+        if use_ms_calendar:
+            await ms.update_outlook_event(
+                supabase, host_user, event_id=meeting["provider_event_id"],
+                start=new_start.isoformat(), end=new_end.isoformat(), timezone_override=owner_tz_str,
+            )
+        else:
+            await g.update_calendar_event(
+                supabase, host_user, event_id=meeting["provider_event_id"],
+                start=new_start.isoformat(), end=new_end.isoformat(), timezone_override=owner_tz_str,
+            )
+    except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("reschedule_meeting failed to update the calendar event")
+        return {"error": f"Couldn't reschedule the meeting: {exc}"}
+
+    try:
+        await run_db(lambda: supabase.table("chatty_meetings").update({
+            "start_time": new_start.isoformat(), "end_time": new_end.isoformat(),
+        }).eq("id", meeting["id"]).execute())
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+            "bot_id": bot_id,
+            "action": "meeting_rescheduled",
+            "details": f"Meeting with {meeting.get('attendee_name') or attendee_email} moved to {new_start.isoformat()}.",
+            "performed_by": performed_by,
+        }).execute())
+    except Exception:
+        logger.exception("Failed to update chatty_meetings row after reschedule")
+
+    tz_label = bot.get("bot_timezone") or "UTC"
+    summary = meeting.get("title") or "Meeting"
+    try:
+        client_html = notify.build_client_email_html(
+            visitor_name=meeting.get("attendee_name") or "Guest", summary=summary,
+            start=new_start.isoformat(), timezone_label=tz_label,
+            meeting_link=meeting.get("meeting_link") or "", provider=meeting.get("provider") or "google_meet",
+        )
+        await notify.deliver_email(
+            supabase=supabase, owner_user=host_user, to=attendee_email,
+            subject=f"Meeting Rescheduled: {summary}", html=client_html,
+        )
+        admin_html = notify.build_admin_email_html(
+            visitor_name=meeting.get("attendee_name") or "Guest", visitor_email=attendee_email,
+            summary=summary, start=new_start.isoformat(), timezone_label=tz_label,
+            meeting_link=meeting.get("meeting_link") or "", provider=meeting.get("provider") or "google_meet",
+        )
+        # Same "notify the real owner, not necessarily whoever's calendar
+        # this lives on" reasoning as _process_widget_booking's admin email.
+        owner_email = user.get("email") or "admin@personaliai.com"
+        owner_auth_id = bot.get("user_id")
+        if owner_auth_id and owner_auth_id != user.get("auth_user_id"):
+            try:
+                owner_res = await run_db(lambda: supabase.table("users").select("email").eq(
+                    "auth_user_id", owner_auth_id).limit(1).execute())
+                if owner_res.data and owner_res.data[0].get("email"):
+                    owner_email = owner_res.data[0]["email"]
+            except Exception:
+                logger.exception("Failed to resolve bot owner's email for reschedule admin notification")
+        await notify.deliver_email(
+            supabase=supabase, owner_user=user, to=owner_email,
+            subject=f"Meeting Rescheduled: {meeting.get('attendee_name') or attendee_email}", html=admin_html,
+        )
+    except Exception:
+        logger.exception("Failed to send reschedule notification emails")
+
+    return {
+        "success": True,
+        "message": f"Meeting rescheduled to {new_start.isoformat()}.",
+        "meeting_link": meeting.get("meeting_link"),
+    }
 
 
 async def _list_outlook_events(args: dict, user: dict, supabase) -> dict:
@@ -677,6 +859,9 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             # (the owner, in solo/no-team-configured bots, or if that step
             # failed open) rather than leaving this column empty.
             "assigned_to_email": args.get("_assigned_to_email") or (user.get("email") or "").strip().lower() or None,
+            # Needed to reschedule (PATCH the same event) instead of
+            # delete+recreate — see reschedule_meeting.
+            "provider_event_id": result.get("id"),
         }).execute())
 
         meeting_id = meet_res.data[0]["id"] if meet_res.data else None
@@ -969,6 +1154,8 @@ async def execute(
             return await _check_calendar_availability(args, user, supabase, context=context)
         if name == "get_available_slots":
             return await _get_available_slots(args, user, supabase, context=context)
+        if name == "reschedule_meeting":
+            return await _reschedule_meeting(args, user, supabase, context=context)
         if name == "create_lead":
             return await _create_lead(args, user, supabase)
         if name == "web_search":

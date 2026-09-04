@@ -28,3 +28,8 @@ class InboxAIToggle(BaseModel):
 class InboxDeleteRequest(BaseModel):
     bot_id: str
     session_id: str
+
+
+class RescheduleMeetingRequest(BaseModel):
+    new_start: str  # ISO 8601, with timezone offset
+    new_end: str

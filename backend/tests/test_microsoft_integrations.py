@@ -416,3 +416,37 @@ def test_format_outlook_contact_no_mobile_phone_not_included_as_none():
     out = m._format_outlook_contact(raw)
     assert None not in out["phones"]
     assert out["phones"] == []
+
+
+# ---------------------------------------------------------------------------
+# update_outlook_event — reschedule (PATCH, not delete+recreate)
+# ---------------------------------------------------------------------------
+
+
+def test_update_outlook_event_patches_default_calendar(monkeypatch):
+    api_mock = AsyncMock(return_value={"id": "evt1", "webLink": "https://outlook.com/evt1"})
+    monkeypatch.setattr(m, "_api", api_mock)
+    result = asyncio.run(m.update_outlook_event(
+        MagicMock(), {"email": "owner@example.com"},
+        event_id="evt1", start="2026-06-25T10:00:00", end="2026-06-25T10:30:00",
+        timezone_override="America/New_York",
+    ))
+    assert result["id"] == "evt1"
+    args, kwargs = api_mock.call_args
+    assert args[2] == "PATCH"
+    assert args[3] == f"{m.GRAPH_BASE}/me/events/evt1"
+    body = kwargs["json_body"]
+    assert body["start"] == {"dateTime": "2026-06-25T10:00:00", "timeZone": "America/New_York"}
+    assert body["end"] == {"dateTime": "2026-06-25T10:30:00", "timeZone": "America/New_York"}
+
+
+def test_update_outlook_event_uses_named_calendar_when_given(monkeypatch):
+    api_mock = AsyncMock(return_value={"id": "evt1"})
+    monkeypatch.setattr(m, "_api", api_mock)
+    asyncio.run(m.update_outlook_event(
+        MagicMock(), {"email": "owner@example.com"},
+        event_id="evt1", start="2026-06-25T10:00:00", end="2026-06-25T10:30:00",
+        calendar_id="cal-2",
+    ))
+    args, _ = api_mock.call_args
+    assert args[3] == f"{m.GRAPH_BASE}/me/calendars/cal-2/events/evt1"

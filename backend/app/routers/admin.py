@@ -20,6 +20,7 @@ from app.schemas.admin import (
     InboxDeleteRequest,
     InboxReplyRequest,
     MessageFeedbackRequest,
+    RescheduleMeetingRequest,
 )
 from plugins import notifications as notify
 
@@ -336,3 +337,48 @@ async def admin_update_meeting_status(
     except Exception as e:
         logger.exception("Failed to update meeting status")
         raise HTTPException(status_code=500, detail="Failed to update meeting status") from e
+
+
+@router.post("/api/admin/meetings/{meeting_id}/reschedule")
+async def admin_reschedule_meeting(
+    meeting_id: str,
+    req: RescheduleMeetingRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Owner/admin-initiated reschedule from the dashboard — reuses the same
+    core logic (agent_tools.reschedule_meeting_core) the widget's
+    reschedule_meeting tool uses, just starting from a meeting_id already in
+    hand instead of looking one up by visitor email."""
+    res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq("id", meeting_id).execute())
+    if not res_meet.data:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    meeting = res_meet.data[0]
+    bot_id = meeting["bot_id"]
+
+    # TODO(Phase 5): rewire to verify_bot_permission(..., "meetings") once
+    # that tab exists — owner-only for now, matching this file's other
+    # meeting endpoints.
+    await _verify_bot_owner(bot_id, user)
+
+    res_bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+    if not res_bot.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = res_bot.data[0]
+
+    from plugins.agent_tools import _parse_iso, reschedule_meeting_core
+    try:
+        new_start = _parse_iso(req.new_start)
+        new_end = _parse_iso(req.new_end)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid new_start/new_end — use ISO 8601 with a timezone offset.")
+    if new_start.tzinfo is None:
+        new_start = new_start.replace(tzinfo=timezone.utc)
+    if new_end.tzinfo is None:
+        new_end = new_end.replace(tzinfo=timezone.utc)
+    if new_end <= new_start:
+        raise HTTPException(status_code=400, detail="new_end must be after new_start.")
+
+    result = await reschedule_meeting_core(meeting, new_start, new_end, bot, bot_id, user, supabase, performed_by="user")
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result

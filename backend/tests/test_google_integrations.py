@@ -663,3 +663,28 @@ def test_walk_slide_text_extracts_shape_and_table_text():
     result = g._walk_slide_text(elements)
     assert "Title text" in result
     assert "Cell" in result
+
+
+# ---------------------------------------------------------------------------
+# update_calendar_event — reschedule (PATCH, not delete+recreate)
+# ---------------------------------------------------------------------------
+
+
+def test_update_calendar_event_patches_existing_event(monkeypatch):
+    api_mock = AsyncMock(return_value={"id": "evt1", "htmlLink": "https://calendar.google.com/evt1"})
+    monkeypatch.setattr(g, "_api", api_mock)
+    result = asyncio.run(g.update_calendar_event(
+        MagicMock(), {"email": "owner@example.com"},
+        event_id="evt1", start="2026-06-25T10:00:00", end="2026-06-25T10:30:00",
+        timezone_override="America/New_York",
+    ))
+    assert result["id"] == "evt1"
+    args, kwargs = api_mock.call_args
+    assert args[2] == "PATCH"
+    assert args[3] == f"{g.CALENDAR_BASE}/calendars/primary/events/evt1"
+    body = kwargs["json_body"]
+    assert body["start"]["timeZone"] == "America/New_York"
+    assert body["end"]["timeZone"] == "America/New_York"
+    # No conferenceData/summary in a reschedule PATCH — only the time moves.
+    assert "conferenceData" not in body
+    assert "summary" not in body
