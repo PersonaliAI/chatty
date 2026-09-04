@@ -73,9 +73,17 @@ export function MeetingsCalendar({
           font-size: 11px !important; padding: 4px 10px !important;
           color: var(--fc-button-text-color) !important;
         }
-        .chatty-fc-theme .fc-button-active,
-        .chatty-fc-theme .fc-button:disabled {
+        .chatty-fc-theme .fc-button-active {
           color: #ffffff !important;
+        }
+        /* Disabled (e.g. "today" when the calendar already shows the
+           current range) keeps the normal text color — only its own
+           background changes (dims via opacity), unlike the active-view
+           button which gets a real orange fill. Matching disabled's color
+           to active's white text left it invisible against its own
+           unchanged transparent background — this is that fix. */
+        .chatty-fc-theme .fc-button:disabled {
+          opacity: 0.4;
         }
         .chatty-fc-theme .fc-icon { color: var(--fc-button-text-color); }
         .chatty-fc-theme .fc-event { cursor: pointer; border-radius: 6px; padding: 1px 4px; font-size: 10px; }
