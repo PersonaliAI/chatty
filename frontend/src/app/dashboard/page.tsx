@@ -1023,7 +1023,7 @@ export default function Dashboard() {
   const [logoBgColor, setLogoBgColor] = useState("");
   const [launcherShape, setLauncherShape] = useState("circle");
   const [userBots, setUserBots] = useState<Bot[]>([]);
-  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; name?: string; phone?: string; role: string; permissions?: string[]; bookable?: boolean }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; name?: string; phone?: string; role: string; permissions?: string[]; bookable?: boolean; book_on_own_calendar?: boolean }[]>([]);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
@@ -2411,6 +2411,24 @@ export default function Dashboard() {
     } catch {
       setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, bookable: !bookable } : m)));
       showToast("Couldn't update round-robin setting. Try again.", "error");
+    }
+  }
+
+  async function toggleMemberCalendarPreference(id: string, bookOnOwnCalendar: boolean) {
+    if (!botId) return;
+    setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, book_on_own_calendar: bookOnOwnCalendar } : m))); // optimistic
+    try {
+      const res = await fetchWithFallback(`/api/team/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, book_on_own_calendar: bookOnOwnCalendar }),
+      });
+      if (!res.ok) {
+        setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, book_on_own_calendar: !bookOnOwnCalendar } : m)));
+        showToast("Couldn't update calendar preference. Try again.", "error");
+      }
+    } catch {
+      setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, book_on_own_calendar: !bookOnOwnCalendar } : m)));
+      showToast("Couldn't update calendar preference. Try again.", "error");
     }
   }
 
@@ -7623,14 +7641,28 @@ const { reply, session_id } = await res.json();`}</pre>
                                 <p className="text-[10px] text-neutral-400 truncate">{memberTabs.map((t) => TAB_LABELS[t] || t).join(", ")}</p>
                               )}
                               {canAccessTab("team") && (
-                                <label className="flex items-center gap-1.5 cursor-pointer w-fit">
-                                  <input
-                                    type="checkbox" checked={!!m.bookable}
-                                    onChange={(e) => toggleMemberBookable(m.id, e.target.checked)}
-                                    className="size-3.5 accent-[#f97316]"
-                                  />
-                                  <span className="text-[10px] text-neutral-500">Bookable for round-robin meetings</span>
-                                </label>
+                                <div className="space-y-1.5">
+                                  <label className="flex items-center gap-1.5 cursor-pointer w-fit">
+                                    <input
+                                      type="checkbox" checked={!!m.bookable}
+                                      onChange={(e) => toggleMemberBookable(m.id, e.target.checked)}
+                                      className="size-3.5 accent-[#f97316]"
+                                    />
+                                    <span className="text-[10px] text-neutral-500">Bookable for round-robin meetings</span>
+                                  </label>
+                                  {m.bookable && (
+                                    <label className="flex items-center gap-1.5 cursor-pointer w-fit pl-5">
+                                      <input
+                                        type="checkbox" checked={m.book_on_own_calendar !== false}
+                                        onChange={(e) => toggleMemberCalendarPreference(m.id, e.target.checked)}
+                                        className="size-3.5 accent-[#f97316]"
+                                      />
+                                      <span className="text-[10px] text-neutral-500">
+                                        {m.book_on_own_calendar !== false ? "Books on their own calendar" : "Books on your (admin) calendar instead"}
+                                      </span>
+                                    </label>
+                                  )}
+                                </div>
                               )}
                               {isEditing && (
                                 <MemberPermissionEditor
