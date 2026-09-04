@@ -301,11 +301,9 @@ async def run_widget_assistant(
     except Exception:
         v_tz = pytz.utc
 
-    owner_tz_str = bot.get("bot_timezone") or owner_user.get("timezone") or "UTC"
-    try:
-        o_tz = pytz.timezone(owner_tz_str)
-    except Exception:
-        o_tz = pytz.utc
+    from plugins.availability_engine import resolve_owner_timezone
+    owner_tz_str = resolve_owner_timezone(bot, owner_user)
+    o_tz = pytz.timezone(owner_tz_str)
 
     current_time_visitor = now_utc.astimezone(v_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
     current_time_owner = now_utc.astimezone(o_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
@@ -369,26 +367,32 @@ async def run_widget_assistant(
     # their meeting platform without separately re-touching a dropdown that already
     # displayed "Outlook".
     use_ms_calendar = provider == "teams"
+    avail_instruction = (
+        "Availability Check: Once you have the visitor's preferred date/time, call `get_available_slots` with "
+        "near=<the ISO datetime the visitor asked for, converted to the owner's timezone>. It already accounts for "
+        "business hours, working days, buffer time, minimum notice, and daily/weekly caps — it returns REAL, "
+        "guaranteed-bookable slots, nearest to what the visitor asked for first. NEVER compute availability "
+        "yourself from raw calendar data, and never invent or guess a slot — only offer times `get_available_slots` "
+        "actually returned. If the visitor's exact requested time isn't the first slot returned, that means it "
+        "wasn't available; present the returned slots as alternatives instead."
+    )
     if use_ms_calendar:
-        avail_instruction = (
-            f"Availability Check: Once you have the visitor's preferred date, check the owner's availability with `list_outlook_events` for that day. "
-            f"If the requested slot is busy, inspect the returned events, find free gaps between {_fmt_hour(bh_start)} and {_fmt_hour(bh_end)}, and proactively recommend 2 to 3 guaranteed open slots."
-        )
         book_instruction = (
             "To book, call `create_outlook_event` with: subject='Demo Meeting with <Visitor Full Name>', "
             "start=start_iso_time, end=end_iso_time, attendees=[visitor_real_email], body=description_details, "
             "online_meeting=true (this generates the Microsoft Teams join link). Booking automatically emails "
-            "the client and admin and records the meeting."
+            "the client and admin and records the meeting. The server independently re-verifies the slot is still "
+            "open right before booking and will reject it if it isn't — if that happens, call `get_available_slots` "
+            "again and offer the visitor a fresh alternative rather than retrying the same time."
         )
     else:
-        avail_instruction = (
-            f"Availability Check: Once you have the visitor's preferred date, call `check_calendar_availability` spanning the entire working day (from {_fmt_hour(bh_start)} to {_fmt_hour(bh_end)} on that date in the owner's timezone). "
-            f"This returns all busy intervals for that day at once. If the requested slot is busy or outside allowed hours, do NOT guess — look at the free gaps between the busy intervals and proactively recommend 2 to 3 guaranteed open slots within allowed business hours."
-        )
         book_instruction = (
             "To book, call `create_calendar_event` with: summary='Demo Meeting with <Visitor Full Name>', "
             "start=start_iso_time, end=end_iso_time, attendees=[visitor_real_email], description=description_details. "
-            "Booking automatically emails the client and admin and records the meeting."
+            "Booking automatically emails the client and admin and records the meeting. The server independently "
+            "re-verifies the slot is still open right before booking and will reject it if it isn't — if that "
+            "happens, call `get_available_slots` again and offer the visitor a fresh alternative rather than "
+            "retrying the same time."
         )
 
     # 4. Prompt compilation — only include scheduling guidance when booking is enabled
@@ -415,7 +419,7 @@ async def run_widget_assistant(
             f"   - RELATIVE DATES: When the visitor gives a relative date (such as 'tomorrow', 'tomorrow at 10 am', 'next Monday', 'day after tomorrow'), you MUST resolve it to the exact calendar date immediately using 'Current Time in Visitor's Location' ({current_time_visitor}). NEVER ask the visitor to confirm what date tomorrow is — calculate it yourself!\n\n"
             f"2. AVAILABILITY CHECK & CONTACT DETAILS REQUEST:\n"
             f"   - {avail_instruction}\n"
-            f"   - If the requested slot is busy, conflicted, or outside business hours: proactively recommend 2 to 3 open alternative slots within allowed business hours.\n"
+            f"   - Present 2 to 3 of the returned slots to the visitor (in the visitor's own timezone) — whether their exact requested time was available or you're offering alternatives.\n"
             f"   - If the requested slot IS AVAILABLE:\n"
             f"     * Check if you already have the visitor's verified name and real email address from earlier in the conversation.\n"
             f"     * If you do NOT have their name or email yet: DO NOT CALL the booking tool! Confirm that the slot is open, and IMMEDIATELY ask for their required contact details ({required_fields_str}) and optional details ({optional_fields_str}) in this same reply.\n"
@@ -688,9 +692,9 @@ async def run_widget_assistant(
     allowed_tool_names = []
     if bot.get("calendar_scheduling_enabled"):
         if use_ms_calendar:
-            allowed_tool_names.extend(["list_outlook_events", "create_outlook_event"])
+            allowed_tool_names.extend(["get_available_slots", "list_outlook_events", "create_outlook_event"])
         elif owner_user.get("google_access_token"):
-            allowed_tool_names.extend(["check_calendar_availability", "create_calendar_event"])
+            allowed_tool_names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event"])
     allowed_tool_names.append("create_lead")
 
     widget_decls = [d for d in agent_tools.DECLARATIONS if d["function"]["name"] in allowed_tool_names]
@@ -832,7 +836,7 @@ async def run_widget_assistant(
                 args,
                 user=owner_user,
                 supabase=supabase,
-                context={"source": "widget", "session_id": session_id, "bot_id": bot_id, "bot": bot},
+                context={"source": "widget", "session_id": session_id, "bot_id": bot_id, "bot": bot, "visitor_timezone": visitor_timezone},
             )
             if fn_name in ("create_calendar_event", "create_outlook_event") and isinstance(result, dict) and "error" not in result:
                 booking_tool_succeeded = True

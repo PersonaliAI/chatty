@@ -79,6 +79,22 @@ DECLARATIONS: list[dict] = [
         ["start", "end"],
     ),
     _tool(
+        "get_available_slots",
+        "Returns real, guaranteed-bookable meeting slots — already computed to respect "
+        "business hours, working days, buffer time, minimum notice, and daily/weekly "
+        "meeting caps. ALWAYS call this to find open times or alternatives; NEVER compute "
+        "or guess available times yourself from raw calendar data.",
+        {
+            "near": {
+                "type": "string",
+                "description": "ISO 8601 datetime the visitor asked for (even if unavailable). "
+                                "Returned slots are sorted by closeness to this. Omit to get the soonest slots instead.",
+            },
+            "count": {"type": "integer", "description": "How many slots to return (default 5)."},
+        },
+        [],
+    ),
+    _tool(
         "list_outlook_events",
         "List Outlook calendar events. Optional days_ahead window similar to "
         "the Google Calendar tool.",
@@ -312,6 +328,56 @@ async def _check_calendar_availability(args: dict, user: dict, supabase, context
     except Exception as exc:  # noqa: BLE001
         logger.exception("check_calendar_availability failed")
         return {"error": f"availability check failed: {exc}"}
+
+
+async def _get_available_slots(args: dict, user: dict, supabase, context: Optional[dict] = None) -> dict:
+    bot = (context or {}).get("bot")
+    if not bot:
+        return {"error": "Scheduling isn't configured for this conversation."}
+    use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
+    if use_ms_calendar:
+        if g_err := _need_microsoft(user, required_scope="Calendars.ReadWrite"):
+            return g_err
+    else:
+        if g_err := _need_google(user):
+            return g_err
+
+    from plugins import availability_engine as avail
+
+    owner_tz_str = avail.resolve_owner_timezone(bot, user)
+    now_utc = datetime.now(tz=timezone.utc)
+    near_utc = None
+    if args.get("near"):
+        try:
+            near_utc = _parse_iso(args["near"])
+            if near_utc.tzinfo is None:
+                near_utc = near_utc.replace(tzinfo=timezone.utc)
+            near_utc = near_utc.astimezone(timezone.utc)
+        except ValueError:
+            near_utc = None
+    count = max(1, min(int(args.get("count") or 5), 10))
+
+    bot_id = (context or {}).get("bot_id") or bot.get("id")
+    try:
+        slots = await avail.get_available_slots(
+            supabase, user, bot_id=bot_id, bot=bot, owner_tz_str=owner_tz_str,
+            use_ms_calendar=use_ms_calendar, now_utc=now_utc,
+            visitor_tz_str=(context or {}).get("visitor_timezone"),
+            near_utc=near_utc, max_results=count,
+        )
+    except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("get_available_slots failed")
+        return {"error": f"availability check failed: {exc}"}
+
+    if not slots:
+        return {
+            "slots": [],
+            "message": "No open slots found in the next few weeks — the calendar is fully booked "
+                       "within business hours. Let the visitor know and offer to have someone follow up.",
+        }
+    return {"slots": slots}
 
 
 async def _list_outlook_events(args: dict, user: dict, supabase) -> dict:
@@ -766,6 +832,45 @@ async def execute(
                 except Exception:
                     pass
 
+            # Hard conflict guard — neither create_calendar_event nor
+            # create_outlook_event did any freeBusy check of their own before
+            # this; they trusted the model to have called an availability
+            # check first and gotten it right. A model that skipped the
+            # check (or hallucinated a slot) could double-book. This is the
+            # last line of defense right before the event is actually
+            # created, independent of whatever the model did or didn't do
+            # earlier in the conversation.
+            if context and context.get("bot") and args.get("start") and args.get("end"):
+                try:
+                    from plugins import availability_engine as avail
+                    start_dt = _parse_iso(args["start"])
+                    end_dt = _parse_iso(args["end"])
+                    if start_dt.tzinfo is None:
+                        start_dt = start_dt.replace(tzinfo=timezone.utc)
+                    if end_dt.tzinfo is None:
+                        end_dt = end_dt.replace(tzinfo=timezone.utc)
+                    use_ms = name == "create_outlook_event"
+                    available = await avail.is_slot_available(
+                        supabase, user, bot=context["bot"], use_ms_calendar=use_ms,
+                        start_utc=start_dt.astimezone(timezone.utc), end_utc=end_dt.astimezone(timezone.utc),
+                    )
+                    if not available:
+                        return {
+                            "error": (
+                                "That slot is no longer available — it conflicts with an existing "
+                                "booking or the required buffer around one. Call get_available_slots "
+                                "to find a real open time and offer that to the visitor instead."
+                            )
+                        }
+                except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
+                    raise
+                except Exception:
+                    # Fail open, same posture as the quota check above — a
+                    # broken conflict check shouldn't itself block every
+                    # booking; it just means this particular safety net
+                    # didn't fire for this call.
+                    logger.exception("Booking conflict guard failed")
+
             if context and context.get("source") == "widget":
                 attendees = args.get("attendees") or []
                 if isinstance(attendees, str):
@@ -829,6 +934,8 @@ async def execute(
             return res
         if name == "check_calendar_availability":
             return await _check_calendar_availability(args, user, supabase, context=context)
+        if name == "get_available_slots":
+            return await _get_available_slots(args, user, supabase, context=context)
         if name == "create_lead":
             return await _create_lead(args, user, supabase)
         if name == "web_search":
