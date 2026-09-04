@@ -367,6 +367,39 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+  const emojiPanelRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const attachPanelRef = useRef<HTMLDivElement>(null);
+  const attachButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Closes the emoji/attach popovers on any tap outside them. The trigger
+  // buttons are excluded from the "outside" check (rather than just letting
+  // this close them too) because mousedown fires before the button's own
+  // onClick — closing here first would flip emojiOpen/attachOpen to false,
+  // then the button's setEmojiOpen(o => !o) would read that just-updated
+  // false and immediately reopen it instead of toggling closed.
+  useEffect(() => {
+    if (!emojiOpen && !attachOpen) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (
+        emojiPanelRef.current?.contains(target) ||
+        emojiButtonRef.current?.contains(target) ||
+        attachPanelRef.current?.contains(target) ||
+        attachButtonRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setEmojiOpen(false);
+      setAttachOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [emojiOpen, attachOpen]);
 
   // setSources is currently unused: the Articles tab renders from this list but
   // nothing yet populates it from the backend (help-articles feed isn't wired up).
@@ -1938,6 +1971,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
                 exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
                 transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                ref={emojiPanelRef}
                 className="emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(64vh,440px)] min-h-[280px] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
               >
                 <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
@@ -1964,6 +1998,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
                 exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
                 transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                ref={attachPanelRef}
                 className="absolute bottom-[84px] left-2.5 z-10 w-52 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
               >
                 <AttachMenu
@@ -2066,8 +2101,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
-                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
-                <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4" /></motion.button>
+                <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
+                <motion.button ref={attachButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4" /></motion.button>
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
