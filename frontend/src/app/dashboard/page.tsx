@@ -419,7 +419,7 @@ function TimePicker({ minutes, onChange }: { minutes: number; onChange: (minutes
 
   return (
     <div className="flex items-center gap-1">
-      <div className="w-14">
+      <div className="w-[68px] shrink-0">
         <ModernSelect
           size="sm" value={String(h12)}
           options={_TIME_PICKER_HOURS.map((h) => ({ value: h, label: h }))}
@@ -427,14 +427,14 @@ function TimePicker({ minutes, onChange }: { minutes: number; onChange: (minutes
         />
       </div>
       <span className="text-neutral-400 text-[10px]">:</span>
-      <div className="w-14">
+      <div className="w-[68px] shrink-0">
         <ModernSelect
           size="sm" value={String(m).padStart(2, "0")}
           options={_TIME_PICKER_MINUTES.map((mm) => ({ value: mm, label: mm }))}
           onChange={(v) => update(h12, parseInt(v, 10), isPM)}
         />
       </div>
-      <div className="w-16">
+      <div className="w-[68px] shrink-0">
         <ModernSelect
           size="sm" value={isPM ? "PM" : "AM"}
           options={[{ value: "AM", label: "AM" }, { value: "PM", label: "PM" }]}
