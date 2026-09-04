@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from app.core.clients import supabase
 from app.core.db import run_db
 from app.core.deps import require_user
+from app.core.permissions import verify_bot_permission
 from app.schemas.admin import (
     InboxAIToggle,
     InboxDeleteRequest,
@@ -202,22 +203,62 @@ async def gdpr_export(bot_id: str, user: dict[str, Any] = Depends(require_user))
     }
 
 
+async def _verify_meeting_access(meeting: dict, user: dict[str, Any]) -> str:
+    """Owner/admin get full access to any meeting for the bot; an agent only
+    to meetings assigned to them. Returns the caller's role, or raises 403."""
+    role = await verify_bot_permission(meeting["bot_id"], user, "meetings")
+    if role == "agent":
+        caller_email = (user.get("email") or "").strip().lower()
+        if (meeting.get("assigned_to_email") or "").strip().lower() != caller_email:
+            raise HTTPException(status_code=403, detail="Unauthorized")
+    return role
+
+
 @router.get("/api/admin/meetings")
 async def admin_get_meetings(
     bot_id: str,
     user: dict[str, Any] = Depends(require_user),
 ):
-    # Verify auth
-    res_bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
-    if not res_bot.data:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    # Owner/admin see every meeting for the bot; an agent sees only meetings
+    # assigned to them (Phase 2's round-robin assignment) — matches the
+    # dashboard's per-role calendar view (no member selector for agents).
+    role = await verify_bot_permission(bot_id, user, "meetings")
 
     try:
-        res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq("bot_id", bot_id).order("start_time", desc=True).execute())
+        if role == "agent":
+            caller_email = (user.get("email") or "").strip().lower()
+            res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq(
+                "bot_id", bot_id).eq("assigned_to_email", caller_email).order("start_time", desc=True).execute())
+        else:
+            res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq(
+                "bot_id", bot_id).order("start_time", desc=True).execute())
         return {"meetings": res.data or []}
     except Exception as e:
         logger.exception("Failed to fetch meetings")
         raise HTTPException(status_code=500, detail="Failed to fetch meetings") from e
+
+
+@router.get("/api/admin/meetings/{meeting_id}/messages")
+async def admin_get_meeting_messages(
+    meeting_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """The email thread for one meeting (confirmation/reschedule/cancellation
+    emails sent, plus any visitor replies captured via the Resend inbound
+    webhook — see app/routers/webhooks.py::resend_inbound)."""
+    res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("bot_id, assigned_to_email").eq(
+        "id", meeting_id).execute())
+    if not res_meet.data:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    await _verify_meeting_access(res_meet.data[0], user)
+
+    try:
+        res = await run_db(lambda: supabase.table("chatty_meeting_messages").select("*").eq(
+            "meeting_id", meeting_id).order("created_at", desc=False).execute())
+        return {"messages": res.data or []}
+    except Exception as e:
+        logger.exception("Failed to fetch meeting messages")
+        raise HTTPException(status_code=500, detail="Failed to fetch meeting messages") from e
 
 
 @router.get("/api/admin/notifications")
@@ -281,17 +322,14 @@ async def admin_update_meeting_status(
     user: dict[str, Any] = Depends(require_user),
 ):
     try:
-        # Get meeting details to find bot_id and verify owner
+        # Get meeting details to find bot_id and verify access
         res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq("id", meeting_id).execute())
         if not res_meet.data:
             raise HTTPException(status_code=404, detail="Meeting not found")
         meeting = res_meet.data[0]
         bot_id = meeting["bot_id"]
 
-        # Verify auth
-        res_bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
-        if not res_bot.data:
-            raise HTTPException(status_code=403, detail="Unauthorized")
+        await _verify_meeting_access(meeting, user)
 
         await run_db(lambda: supabase.table("chatty_meetings").update({"status": status}).eq("id", meeting_id).execute())
 
@@ -355,10 +393,7 @@ async def admin_reschedule_meeting(
     meeting = res_meet.data[0]
     bot_id = meeting["bot_id"]
 
-    # TODO(Phase 5): rewire to verify_bot_permission(..., "meetings") once
-    # that tab exists — owner-only for now, matching this file's other
-    # meeting endpoints.
-    await _verify_bot_owner(bot_id, user)
+    await _verify_meeting_access(meeting, user)
 
     res_bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
     if not res_bot.data:
