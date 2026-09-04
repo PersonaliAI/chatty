@@ -8519,6 +8519,131 @@ const { reply, session_id } = await res.json();`}</pre>
                   </div>
                 </div>
               )}
+
+              {/* Original list view — kept alongside the calendar above, not replaced by it. */}
+              <div className="space-y-8 pt-4">
+                <div className="space-y-4">
+                  <h5 className="text-xs font-bold text-neutral-750 dark:text-neutral-300 flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Upcoming appointments ({filteredMeetings.filter(m => new Date(m.start_time) >= new Date() && m.status !== 'cancelled').length})
+                  </h5>
+                  <div className="overflow-x-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                    <table className="w-full border-collapse text-left text-xs text-neutral-500 dark:text-neutral-400">
+                      <thead className="bg-neutral-50 dark:bg-neutral-955 font-semibold text-neutral-700 dark:text-neutral-300">
+                        <tr>
+                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Client</th>
+                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Meeting Details</th>
+                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Scheduled Time</th>
+                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Status</th>
+                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 font-medium text-neutral-800 dark:text-neutral-200">
+                        {filteredMeetings.filter(m => new Date(m.start_time) >= new Date() && m.status !== 'cancelled').map((m) => (
+                          <tr key={m.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10 cursor-pointer" onClick={() => openMeetingPanel(m.id)}>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-neutral-900 dark:text-white">{m.attendee_name || "Guest User"}</div>
+                              <div className="text-[10px] text-neutral-450 font-mono mt-0.5">{m.attendee_email}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold">{m.title}</div>
+                              {m.meeting_link && (
+                                <a href={m.meeting_link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-500 hover:underline flex items-center gap-1 mt-1 text-[10px] cursor-pointer">
+                                  <ExternalLink className="size-3" /> Join {m.provider === 'google_meet' ? 'Google Meet' : m.provider}
+                                </a>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 font-mono text-neutral-600 dark:text-neutral-300">
+                              {formatDateTime(m.start_time)}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400">
+                                {m.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => handleUpdateMeetingStatus(m.id, 'completed')}
+                                  className="text-[9px] font-bold bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 px-2 py-1 rounded-lg cursor-pointer"
+                                >
+                                  Done
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateMeetingStatus(m.id, 'cancelled')}
+                                  className="text-[9px] font-bold bg-red-50 hover:bg-red-100 dark:bg-red-950/20 text-red-650 dark:text-red-400 px-2 py-1 rounded-lg cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+
+                        {filteredMeetings.filter(m => new Date(m.start_time) >= new Date() && m.status !== 'cancelled').length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-8 text-center text-neutral-400 dark:text-neutral-500">
+                              No upcoming appointments scheduled
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <h5 className="text-xs font-bold text-neutral-750 dark:text-neutral-450 flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-neutral-400"></span>
+                    Past / Cancelled appointments ({filteredMeetings.filter(m => new Date(m.start_time) < new Date() || m.status === 'cancelled').length})
+                  </h5>
+                  <div className="overflow-x-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                    <table className="w-full border-collapse text-left text-xs text-neutral-500 dark:text-neutral-400">
+                      <thead className="bg-neutral-50 dark:bg-neutral-955 font-semibold text-neutral-700 dark:text-neutral-300">
+                        <tr>
+                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Client</th>
+                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Meeting Details</th>
+                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Scheduled Time</th>
+                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-neutral-700 dark:text-neutral-350">
+                        {filteredMeetings.filter(m => new Date(m.start_time) < new Date() || m.status === 'cancelled').map((m) => (
+                          <tr key={m.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10 opacity-75 cursor-pointer" onClick={() => openMeetingPanel(m.id)}>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-neutral-800 dark:text-neutral-300">{m.attendee_name || "Guest User"}</div>
+                              <div className="text-[10px] text-neutral-400 font-mono mt-0.5">{m.attendee_email}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold">{m.title}</div>
+                            </td>
+                            <td className="px-6 py-4 font-mono">
+                              {formatDateTime(m.start_time)}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                m.status === 'completed'
+                                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400'
+                                  : 'bg-red-50 text-red-755 dark:bg-red-950/20 dark:text-red-400'
+                              }`}>
+                                {m.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+
+                        {filteredMeetings.filter(m => new Date(m.start_time) < new Date() || m.status === 'cancelled').length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-8 text-center text-neutral-400 dark:text-neutral-500">
+                              No past meetings recorded
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             </div>
             );
           })()}
