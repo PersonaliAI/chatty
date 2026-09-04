@@ -14,7 +14,7 @@ its main success/failure branches are covered, not every branch.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -623,3 +623,42 @@ def test_process_widget_booking_swallows_exceptions_and_does_not_raise(monkeypat
     asyncio.run(at._process_widget_booking(
         {"summary": "x", "start": "a", "end": "b"}, {}, supabase, {}, {"bot_id": "bot1"},
     ))
+
+
+def test_check_bot_meeting_quota_under_limit():
+    supabase = MagicMock()
+    mock_res = MagicMock(count=2, data=[{"id": "1"}, {"id": "2"}])
+    supabase.table.return_value.select.return_value.eq.return_value.neq.return_value.gte.return_value.lt.return_value.execute.return_value = mock_res
+
+    bot = {"max_daily_meetings": 4}
+    res = asyncio.run(at.check_bot_meeting_quota("bot1", datetime(2026, 9, 5, 10, 0, tzinfo=timezone.utc), bot, supabase))
+    assert res is None
+
+
+def test_check_bot_meeting_quota_reaches_daily_limit():
+    supabase = MagicMock()
+    mock_res = MagicMock(count=4, data=[{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}])
+    supabase.table.return_value.select.return_value.eq.return_value.neq.return_value.gte.return_value.lt.return_value.execute.return_value = mock_res
+
+    bot = {"max_daily_meetings": 4}
+    res = asyncio.run(at.check_bot_meeting_quota("bot1", datetime(2026, 9, 5, 10, 0, tzinfo=timezone.utc), bot, supabase))
+    assert res is not None
+    assert res["limit_reached"] is True
+    assert res["reason"] == "daily_limit"
+    assert "Daily meeting limit of 4 reached" in res["message"]
+
+
+def test_execute_blocks_create_calendar_event_when_quota_reached(monkeypatch):
+    quota_err = {"limit_reached": True, "message": "Daily meeting limit reached"}
+    monkeypatch.setattr(at, "check_bot_meeting_quota", AsyncMock(return_value=quota_err))
+
+    context = {"bot_id": "bot1", "bot": {"max_daily_meetings": 3}}
+    res = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo", "start": "2026-09-05T10:00:00Z", "end": "2026-09-05T10:30:00Z"},
+        user={},
+        supabase=MagicMock(),
+        context=context,
+    ))
+    assert "error" in res
+    assert "Daily meeting limit reached" in res["error"]

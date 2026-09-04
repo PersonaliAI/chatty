@@ -43,6 +43,7 @@ _BOT_DETAIL_FIELDS = [
     "widget_style", "response_language", "strict_mode", "lead_capture_enabled",
     "avatar_url", "avatar_icon", "logo_url", "teaser_message", "conversation_starters",
     "custom_css", "hide_branding", "allowed_domains", "created_at", "updated_at",
+    "max_daily_meetings", "max_weekly_meetings",
     # Included so a caller can actually SEE this — it silently overrides
     # primary_color/widget_style per-element wherever it's set (see
     # WidgetStylingUpdateRequest.clear_color_scheme's comment) and was
@@ -509,6 +510,10 @@ async def configure_calendar(principal: dict[str, Any], bot_id: str, body: Calen
         "sync_outlook_calendar": body.provider == "microsoft_outlook",
         "sync_office365_calendar": body.provider == "office365",
     }
+    if body.max_daily_meetings is not None:
+        updates["max_daily_meetings"] = body.max_daily_meetings
+    if body.max_weekly_meetings is not None:
+        updates["max_weekly_meetings"] = body.max_weekly_meetings
     await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
     return {"bot_id": bot_id, "provider": body.provider, **updates}
 

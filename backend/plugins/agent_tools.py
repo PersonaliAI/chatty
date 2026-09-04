@@ -203,7 +203,83 @@ async def _create_calendar_event(args: dict, user: dict, supabase) -> dict:
     )
 
 
-async def _check_calendar_availability(args: dict, user: dict, supabase) -> dict:
+async def check_bot_meeting_quota(
+    bot_id: str,
+    target_dt: datetime,
+    bot: dict[str, Any],
+    supabase,
+) -> Optional[dict[str, Any]]:
+    """Check if the bot has hit max_daily_meetings or max_weekly_meetings for target_dt."""
+    max_daily = int(bot.get("max_daily_meetings") or 0)
+    max_weekly = int(bot.get("max_weekly_meetings") or 0)
+    if not max_daily and not max_weekly:
+        return None
+
+    # Normalise target_dt to UTC
+    if target_dt.tzinfo is not None:
+        target_utc = target_dt.astimezone(timezone.utc)
+    else:
+        target_utc = target_dt.replace(tzinfo=timezone.utc)
+
+    # Day window in UTC
+    day_start = target_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
+
+    if max_daily:
+        try:
+            res = await run_db(lambda: supabase.table("chatty_meetings")
+                .select("id", count="exact")
+                .eq("bot_id", bot_id)
+                .neq("status", "cancelled")
+                .gte("start_time", day_start.isoformat())
+                .lt("start_time", day_end.isoformat())
+                .execute())
+            count_day = res.count if res and res.count is not None else len(res.data or [])
+            if count_day >= max_daily:
+                return {
+                    "limit_reached": True,
+                    "reason": "daily_limit",
+                    "max_daily_meetings": max_daily,
+                    "count": count_day,
+                    "message": (
+                        f"Daily meeting limit of {max_daily} reached for this date. "
+                        "This day is at full capacity. Please proactively suggest open slots on the next available business day."
+                    ),
+                }
+        except Exception:
+            logger.exception("Failed checking daily meeting quota")
+
+    if max_weekly:
+        # Week window (Monday to Sunday)
+        week_start = (target_utc - timedelta(days=target_utc.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        week_end = week_start + timedelta(days=7)
+        try:
+            res_w = await run_db(lambda: supabase.table("chatty_meetings")
+                .select("id", count="exact")
+                .eq("bot_id", bot_id)
+                .neq("status", "cancelled")
+                .gte("start_time", week_start.isoformat())
+                .lt("start_time", week_end.isoformat())
+                .execute())
+            count_week = res_w.count if res_w and res_w.count is not None else len(res_w.data or [])
+            if count_week >= max_weekly:
+                return {
+                    "limit_reached": True,
+                    "reason": "weekly_limit",
+                    "max_weekly_meetings": max_weekly,
+                    "count": count_week,
+                    "message": (
+                        f"Weekly meeting limit of {max_weekly} reached for this week. "
+                        "This week is at full capacity. Please proactively suggest open slots in the following week."
+                    ),
+                }
+        except Exception:
+            logger.exception("Failed checking weekly meeting quota")
+
+    return None
+
+
+async def _check_calendar_availability(args: dict, user: dict, supabase, context: Optional[dict] = None) -> dict:
     if g_err := _need_google(user):
         return g_err
     try:
@@ -216,6 +292,16 @@ async def _check_calendar_availability(args: dict, user: dict, supabase) -> dict
         )}
     if time_max <= time_min:
         return {"error": "'end' must be after 'start' — use a 30-minute window."}
+
+    # Quota check if bot configuration is available in context
+    if context and context.get("bot_id") and context.get("bot"):
+        quota_err = await check_bot_meeting_quota(context["bot_id"], time_min, context["bot"], supabase)
+        if quota_err:
+            return {
+                "busy": {"primary": [{"start": time_min.isoformat(), "end": time_max.isoformat()}]},
+                **quota_err,
+            }
+
     try:
         return await g.check_calendar_availability(
             supabase, user, time_min=time_min, time_max=time_max,
@@ -635,13 +721,22 @@ async def execute(
     if context and context.get("bot_id") and "bot_id" in args:
         args = {**args, "bot_id": context["bot_id"]}
     try:
+        if name in ("create_calendar_event", "create_outlook_event"):
+            if context and context.get("bot_id") and context.get("bot") and args.get("start"):
+                try:
+                    start_dt = _parse_iso(args["start"])
+                    quota_err = await check_bot_meeting_quota(context["bot_id"], start_dt, context["bot"], supabase)
+                    if quota_err:
+                        return {"error": quota_err["message"]}
+                except Exception:
+                    pass
         if name == "create_calendar_event":
             res = await _create_calendar_event(args, user, supabase)
             if context and context.get("source") == "widget" and "error" not in res:
                 await _process_widget_booking(args, user, supabase, res, context)
             return res
         if name == "check_calendar_availability":
-            return await _check_calendar_availability(args, user, supabase)
+            return await _check_calendar_availability(args, user, supabase, context=context)
         if name == "create_lead":
             return await _create_lead(args, user, supabase)
         if name == "web_search":

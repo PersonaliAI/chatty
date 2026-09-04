@@ -23,6 +23,8 @@ class BotUpdateRequest(BaseModel):
     response_language: Optional[str] = None
     strict_mode: Optional[bool] = None
     lead_capture_enabled: Optional[bool] = None
+    max_daily_meetings: Optional[int] = None
+    max_weekly_meetings: Optional[int] = None
 
 
 class KnowledgeTextCreateRequest(BaseModel):
@@ -161,6 +163,8 @@ class CalendarIntegrationRequest(BaseModel):
     provider: str = Field("google_calendar", description="google_calendar, microsoft_outlook, or office365")
     meeting_duration_minutes: int = 30
     timezone: str = "UTC"
+    max_daily_meetings: Optional[int] = 0
+    max_weekly_meetings: Optional[int] = 0
 
 
 class GuardrailsConfigRequest(BaseModel):

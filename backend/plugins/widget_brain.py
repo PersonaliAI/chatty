@@ -345,6 +345,16 @@ async def run_widget_assistant(
         f"- Advance Notice: Only offer slots at least {advance_hours} hours from the current time.\n"
         if advance_hours else ""
     )
+    max_daily_meetings = int(bot.get("max_daily_meetings") or 0)
+    max_weekly_meetings = int(bot.get("max_weekly_meetings") or 0)
+    max_daily_line = (
+        f"- Daily Meeting Limit: Maximum {max_daily_meetings} meetings per day. If a date is at capacity, do NOT book on that date; politely explain that the day's demo capacity is filled and proactively suggest open slots on the next available business day.\n"
+        if max_daily_meetings else ""
+    )
+    max_weekly_line = (
+        f"- Weekly Meeting Limit: Maximum {max_weekly_meetings} meetings per week. If a week is at capacity, politely suggest slots in the following week.\n"
+        if max_weekly_meetings else ""
+    )
 
     provider = bot.get("meeting_provider") or "google_meet"
     provider_label = {"google_meet": "Google Meet", "zoom": "Zoom",
@@ -360,7 +370,10 @@ async def run_widget_assistant(
     # displayed "Outlook".
     use_ms_calendar = provider == "teams"
     if use_ms_calendar:
-        avail_instruction = "- Once you have this info, check the owner's availability with `list_outlook_events` for the requested day.\n"
+        avail_instruction = (
+            f"- Availability Check: Once you have the visitor's preferred date, check the owner's availability with `list_outlook_events` for that day. "
+            f"If the requested slot is busy, inspect the returned events, find free gaps between {_fmt_hour(bh_start)} and {_fmt_hour(bh_end)}, and proactively recommend 2 to 3 guaranteed open slots.\n"
+        )
         book_instruction = (
             "- To book, call `create_outlook_event` with: subject='Demo Meeting with <visitor name>', "
             "start=start_iso_time, end=end_iso_time, attendees=[visitor_email], body=description_details, "
@@ -368,7 +381,10 @@ async def run_widget_assistant(
             "the client and admin and records the meeting.\n"
         )
     else:
-        avail_instruction = "- Once you have this info, you must first check the business owner's calendar availability using `check_calendar_availability` for the requested interval.\n"
+        avail_instruction = (
+            f"- Availability Check: Once you have the visitor's preferred date, call `check_calendar_availability` spanning the entire working day (from {_fmt_hour(bh_start)} to {_fmt_hour(bh_end)} on that date in the owner's timezone). "
+            f"This returns all busy intervals for that day at once. If the requested slot is busy or outside allowed hours, do NOT guess — look at the free gaps between the busy intervals and proactively recommend 2 to 3 guaranteed open slots within allowed business hours (e.g. 'That slot at 2:00 PM is already taken, but I have openings at 3:30 PM and 4:30 PM on the same day. Would either of those work for you?').\n"
+        )
         book_instruction = (
             "- To book, call `create_calendar_event` with: summary='Demo Meeting with <visitor name>', "
             "start=start_iso_time, end=end_iso_time, attendees=[visitor_email], description=description_details. "
@@ -389,13 +405,15 @@ async def run_widget_assistant(
             f"- Allowed Business Hours: Only schedule meetings between {_fmt_hour(bh_start)} and {_fmt_hour(bh_end)} in the Business Owner's timezone ({owner_tz_str}), on these days only: {work_days_str}. Never book outside these hours or on other days.\n"
             f"{buffer_line}"
             f"{advance_line}"
+            f"{max_daily_line}"
+            f"{max_weekly_line}"
             f"- If the visitor wants to schedule a meeting/demo, check if the business offers meetings or demos using the knowledge base.\n"
             f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking.\n"
-            f"- The visitor's timezone has ALREADY been auto-detected as {visitor_timezone or 'UTC'} (from their browser/device) — do NOT ask them for it. Only raise it if the value is exactly 'UTC' (detection failed) or the visitor says they're somewhere else (e.g. traveling), in which case ask which timezone to use instead.\n"
-            f"- Before booking any slot, you MUST collect these REQUIRED details (do not book until each is provided): {required_fields_str} and preferred date/time. Also ASK for these optional details once each — they are optional, so don't block the booking if the visitor skips them: {optional_fields_str}. Ask for any missing field one at a time.\n"
+            f"- TIMEZONE HANDLING: The visitor's timezone is ALREADY known as {visitor_timezone or 'UTC'}. NEVER ask the visitor for their timezone under any circumstances (never say 'please include timezone' or ask what timezone they are in). When asking for their preferred time, simply ask: 'What day and time works best for you?' Always automatically assume any date and time they mention is in their timezone ({visitor_timezone or 'UTC'}).\n"
+            f"- Before booking any slot, you MUST collect these REQUIRED details (do not book until each is provided): {required_fields_str} and preferred date/time. Ask for any missing field one at a time. Also ASK for these optional details once each — they are optional, so don't block the booking if the visitor skips them: {optional_fields_str}.\n"
             f"- Always interpret and confirm the visitor's requested time in THEIR timezone ({visitor_timezone or 'UTC'}), then convert to the owner's timezone for the calendar event.\n"
             f"{avail_instruction}"
-            f"- Only schedule the event if it's free. If busy, suggest alternative slots.\n"
+            f"- Only schedule the event if it's free. If busy or conflicted, proactively offer alternative open slots.\n"
             f"{book_instruction}"
             f"- CRITICAL: Confirming availability is NOT the same as booking. Never tell the visitor a meeting is booked, scheduled, or confirmed until you have actually called the booking tool in this same turn and it returned successfully. If you checked availability but have not yet called the booking tool, call it now before replying — do not stop after the availability check and describe the booking as done.\n"
             f"- The booking tool's result includes a real 'hangout_link'/'online_meeting_url' (join link) and 'html_link' "
@@ -802,7 +820,7 @@ async def run_widget_assistant(
                 args,
                 user=owner_user,
                 supabase=supabase,
-                context={"source": "widget", "session_id": session_id, "bot_id": bot_id},
+                context={"source": "widget", "session_id": session_id, "bot_id": bot_id, "bot": bot},
             )
             if fn_name in ("create_calendar_event", "create_outlook_event") and isinstance(result, dict) and "error" not in result:
                 booking_tool_succeeded = True

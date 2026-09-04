@@ -157,6 +157,8 @@ interface Bot {
   working_days?: string[];
   buffer_minutes?: number;
   advance_notice_hours?: number;
+  max_daily_meetings?: number;
+  max_weekly_meetings?: number;
   allowed_domains?: string[];
   onboarding_step?: number;
   onboarding_completed?: boolean;
@@ -1037,6 +1039,8 @@ export default function Dashboard() {
   const [workingDays, setWorkingDays] = useState<string[]>(["mon", "tue", "wed", "thu", "fri"]);
   const [bufferMinutes, setBufferMinutes] = useState(0);
   const [advanceNoticeHours, setAdvanceNoticeHours] = useState(0);
+  const [maxDailyMeetings, setMaxDailyMeetings] = useState(0);
+  const [maxWeeklyMeetings, setMaxWeeklyMeetings] = useState(0);
 
   // Developer / API keys
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
@@ -1677,6 +1681,8 @@ export default function Dashboard() {
         setWorkingDays(activeBot.working_days || ["mon", "tue", "wed", "thu", "fri"]);
         setBufferMinutes(activeBot.buffer_minutes ?? 0);
         setAdvanceNoticeHours(activeBot.advance_notice_hours ?? 0);
+        setMaxDailyMeetings(activeBot.max_daily_meetings ?? 0);
+        setMaxWeeklyMeetings(activeBot.max_weekly_meetings ?? 0);
         setAllowedDomains(activeBot.allowed_domains || []);
         setOnboardingStep(activeBot.onboarding_step || 0);
         setOnboardingCompleted(activeBot.onboarding_completed || false);
@@ -1798,6 +1804,8 @@ export default function Dashboard() {
       setWorkingDays(selected.working_days || ["mon", "tue", "wed", "thu", "fri"]);
       setBufferMinutes(selected.buffer_minutes ?? 0);
       setAdvanceNoticeHours(selected.advance_notice_hours ?? 0);
+      setMaxDailyMeetings(selected.max_daily_meetings ?? 0);
+      setMaxWeeklyMeetings(selected.max_weekly_meetings ?? 0);
       setAllowedDomains(selected.allowed_domains || []);
       setOnboardingStep(selected.onboarding_step || 0);
       setOnboardingCompleted(selected.onboarding_completed || false);
@@ -2621,6 +2629,8 @@ export default function Dashboard() {
           working_days: workingDays,
           buffer_minutes: bufferMinutes,
           advance_notice_hours: advanceNoticeHours,
+          max_daily_meetings: maxDailyMeetings,
+          max_weekly_meetings: maxWeeklyMeetings,
           allowed_domains: allowedDomains,
           voice_enabled: voiceEnabled,
           voice_stt_provider: voiceSttProvider,
@@ -2704,6 +2714,8 @@ export default function Dashboard() {
                 working_days: workingDays,
                 buffer_minutes: bufferMinutes,
                 advance_notice_hours: advanceNoticeHours,
+                max_daily_meetings: maxDailyMeetings,
+                max_weekly_meetings: maxWeeklyMeetings,
                 allowed_domains: allowedDomains,
                 voice_enabled: voiceEnabled,
                 voice_stt_provider: voiceSttProvider,
@@ -8071,7 +8083,7 @@ const { reply, session_id } = await res.json();`}</pre>
                         {/* Buffer + advance notice */}
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Buffer Between Meetings</label>
+                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Buffer Between Meetings</label>
                             <ModernSelect
                               value={String(bufferMinutes)}
                               options={[0, 5, 10, 15, 30].map((m) => ({ value: String(m), label: m === 0 ? "No buffer" : `${m} min` }))}
@@ -8079,11 +8091,48 @@ const { reply, session_id } = await res.json();`}</pre>
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Minimum Advance Notice</label>
+                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Minimum Advance Notice</label>
                             <ModernSelect
                               value={String(advanceNoticeHours)}
                               options={[0, 1, 2, 4, 12, 24, 48].map((h) => ({ value: String(h), label: h === 0 ? "None" : `${h} hours` }))}
                               onChange={(v) => handleInputChange(setAdvanceNoticeHours, parseInt(v, 10))}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Daily + weekly booking quotas */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Meetings Per Day</label>
+                            <ModernSelect
+                              value={String(maxDailyMeetings)}
+                              options={[
+                                { value: "0", label: "No limit (unlimited)" },
+                                { value: "1", label: "1 per day" },
+                                { value: "2", label: "2 per day" },
+                                { value: "3", label: "3 per day" },
+                                { value: "4", label: "4 per day" },
+                                { value: "5", label: "5 per day" },
+                                { value: "6", label: "6 per day" },
+                                { value: "8", label: "8 per day" },
+                              ]}
+                              onChange={(v) => handleInputChange(setMaxDailyMeetings, parseInt(v, 10))}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Meetings Per Week</label>
+                            <ModernSelect
+                              value={String(maxWeeklyMeetings)}
+                              options={[
+                                { value: "0", label: "No limit (unlimited)" },
+                                { value: "5", label: "5 per week" },
+                                { value: "10", label: "10 per week" },
+                                { value: "15", label: "15 per week" },
+                                { value: "20", label: "20 per week" },
+                                { value: "25", label: "25 per week" },
+                                { value: "30", label: "30 per week" },
+                              ]}
+                              onChange={(v) => handleInputChange(setMaxWeeklyMeetings, parseInt(v, 10))}
                             />
                           </div>
                         </div>
@@ -8095,6 +8144,8 @@ const { reply, session_id } = await res.json();`}</pre>
                           <p>• Days: <b>{workingDays.length ? workingDays.map((d) => d.toUpperCase()).join(", ") : "None set"}</b></p>
                           <p>• Duration: <b>{schedulingDuration} min</b>{bufferMinutes ? <> · Buffer: <b>{bufferMinutes} min</b></> : null}</p>
                           {advanceNoticeHours ? <p>• Advance notice: <b>{advanceNoticeHours} hours</b></p> : null}
+                          {maxDailyMeetings ? <p>• Daily limit: <b>Max {maxDailyMeetings} meetings/day</b></p> : null}
+                          {maxWeeklyMeetings ? <p>• Weekly limit: <b>Max {maxWeeklyMeetings} meetings/week</b></p> : null}
                           <p>• Platform: <b>{meetingProvider.replace("_", " ")}</b></p>
                           <p>• Collects all lead fields (<b>{leadFields.join(", ")}</b>) + visitor timezone before booking</p>
                         </div>
