@@ -201,13 +201,17 @@ class AvailableSlot:
 
 
 def _format_slot_label(dt: datetime) -> str:
-    """"Monday, Jan 5 at 9:00 AM" — built with portable strftime directives
-    only (no `%-d`/`%-I`; those are glibc extensions Windows' C runtime
-    doesn't support, and this needs to run the same in local dev as in the
-    Linux container it's deployed to)."""
+    """"Monday, Jan 5 at 9:00 AM EST" — always includes the zone so a
+    presented time is never ambiguous about which timezone it's in (built
+    with portable strftime directives only — no `%-d`/`%-I`; those are
+    glibc extensions Windows' C runtime doesn't support, and this needs to
+    run the same in local dev as in the Linux container it's deployed to).
+    `%Z` gives a named abbreviation (EST/IST/...) for zones that have one,
+    or a numeric UTC offset for zones that don't."""
     hour12 = dt.hour % 12 or 12
     ampm = "AM" if dt.hour < 12 else "PM"
-    return f"{dt.strftime('%A, %b')} {dt.day} at {hour12}:{dt.minute:02d} {ampm}"
+    tz_label = dt.strftime("%Z") or dt.strftime("%z")
+    return f"{dt.strftime('%A, %b')} {dt.day} at {hour12}:{dt.minute:02d} {ampm} {tz_label}".rstrip()
 
 
 def compute_available_slots(
