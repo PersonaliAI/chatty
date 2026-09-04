@@ -214,6 +214,90 @@ def _format_slot_label(dt: datetime) -> str:
     return f"{dt.strftime('%A, %b')} {dt.day} at {hour12}:{dt.minute:02d} {ampm} {tz_label}".rstrip()
 
 
+def _day_ranges_from_business_hours(
+    business_hours_start: int, business_hours_end: int, working_days: list[str],
+) -> dict[int, list[tuple[int, int]]]:
+    """Converts the bot-level single business_hours_start/end + working_days
+    into the more general day-of-week -> [(start_minute, end_minute), ...]
+    shape a per-member schedule (multiple ranges per day, e.g. split hours)
+    also uses — so both the single-calendar and team paths walk through the
+    exact same slot-generation core below."""
+    start_min, end_min = business_hours_start * 60, business_hours_end * 60
+    return {_DAY_NUM[d]: [(start_min, end_min)] for d in working_days if d in _DAY_NUM}
+
+
+def day_ranges_from_rules(rules: list[dict[str, Any]]) -> dict[int, list[tuple[int, int]]]:
+    """Converts a member's chatty_availability_rules rows into the same
+    day-of-week -> [(start_minute, end_minute), ...] shape. Multiple rows for
+    the same day (split hours) are kept as separate ranges."""
+    day_ranges: dict[int, list[tuple[int, int]]] = {}
+    for r in rules:
+        day = r.get("day_of_week")
+        s, e = r.get("start_minute"), r.get("end_minute")
+        if day is None or s is None or e is None:
+            continue
+        day_ranges.setdefault(int(day), []).append((int(s), int(e)))
+    return day_ranges
+
+
+def _raw_slots_for_schedule(
+    *,
+    day_ranges: dict[int, list[tuple[int, int]]],
+    tz: Any,
+    busy_intervals: list[tuple[datetime, datetime]],
+    duration_minutes: int,
+    buffer_minutes: int,
+    advance_notice_hours: int,
+    max_daily_meetings: int,
+    max_weekly_meetings: int,
+    daily_counts: dict[str, int],
+    weekly_counts: dict[str, int],
+    now_utc: datetime,
+    search_days: int,
+) -> list[tuple[datetime, datetime]]:
+    """The shared slot-walking core: for each working day (any day present
+    in `day_ranges`) within the search window, builds candidate
+    `duration_minutes` slots across every configured minute-range for that
+    day, filtering out anything busy (padded by `buffer_minutes`), inside
+    the advance-notice window, or on a day/week already at its meeting cap.
+    Both the single-schedule (`compute_available_slots`) and per-member
+    (`get_team_available_slots`) paths call this so the actual arithmetic
+    only exists once."""
+    slot_len = timedelta(minutes=duration_minutes)
+    min_start_utc = now_utc + timedelta(hours=advance_notice_hours)
+    start_local_date = now_utc.astimezone(tz).date()
+
+    found: list[tuple[datetime, datetime]] = []
+    for offset in range(search_days):
+        day = start_local_date + timedelta(days=offset)
+        ranges = day_ranges.get(day.weekday())
+        if not ranges:
+            continue
+        day_key = day.isoformat()
+        if max_daily_meetings and daily_counts.get(day_key, 0) >= max_daily_meetings:
+            continue
+        wk = _week_key(day)
+        if max_weekly_meetings and weekly_counts.get(wk, 0) >= max_weekly_meetings:
+            continue
+
+        for start_min, end_min in ranges:
+            try:
+                local_start = tz.localize(datetime.combine(day, time()) + timedelta(minutes=start_min))
+                local_end = tz.localize(datetime.combine(day, time()) + timedelta(minutes=end_min))
+            except Exception:
+                continue
+            cursor = local_start.astimezone(dt_timezone.utc)
+            range_end_utc = local_end.astimezone(dt_timezone.utc)
+
+            while cursor + slot_len <= range_end_utc:
+                slot_end = cursor + slot_len
+                if cursor >= min_start_utc and not _slot_conflicts(cursor, slot_end, busy_intervals, buffer_minutes):
+                    found.append((cursor, slot_end))
+                cursor += slot_len
+
+    return found
+
+
 def compute_available_slots(
     *,
     busy_intervals: list[tuple[datetime, datetime]],
@@ -234,49 +318,30 @@ def compute_available_slots(
     near_utc: Optional[datetime] = None,
     visitor_tz_str: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    """The actual slot generator. Walks each working day in the owner's own
-    calendar (in their timezone, so business hours/day-of-week boundaries
-    mean what they say), builds candidate slots at `duration_minutes`
-    increments across business hours, and keeps only the ones that clear
-    every real constraint: not already busy (padded by `buffer_minutes`),
-    not inside the `advance_notice_hours` window, and not on a day/week
-    already at its meeting cap. Returns up to `max_results` slots, nearest
-    to `near_utc` first if given (use this when the visitor asked for a
-    specific time that turned out to be unavailable — the alternatives
-    should be close to what they wanted, not just chronologically first),
-    otherwise soonest-first."""
+    """The single-calendar slot generator (solo-owner bots, or the fallback
+    schedule per-member rules fall back to). Walks each working day in the
+    owner's own calendar (in their timezone, so business hours/day-of-week
+    boundaries mean what they say), builds candidate slots at
+    `duration_minutes` increments across business hours, and keeps only the
+    ones that clear every real constraint: not already busy (padded by
+    `buffer_minutes`), not inside the `advance_notice_hours` window, and not
+    on a day/week already at its meeting cap. Returns up to `max_results`
+    slots, nearest to `near_utc` first if given (use this when the visitor
+    asked for a specific time that turned out to be unavailable — the
+    alternatives should be close to what they wanted, not just
+    chronologically first), otherwise soonest-first."""
     tz = pytz.timezone(owner_tz_str)
-    slot_len = timedelta(minutes=duration_minutes)
-    min_start_utc = now_utc + timedelta(hours=advance_notice_hours)
-    work_day_nums = {_DAY_NUM[d] for d in working_days if d in _DAY_NUM}
+    day_ranges = _day_ranges_from_business_hours(business_hours_start, business_hours_end, working_days)
 
-    found: list[AvailableSlot] = []
-    start_local_date = now_utc.astimezone(tz).date()
-
-    for offset in range(search_days):
-        day = start_local_date + timedelta(days=offset)
-        if day.weekday() not in work_day_nums:
-            continue
-        day_key = day.isoformat()
-        if max_daily_meetings and daily_counts.get(day_key, 0) >= max_daily_meetings:
-            continue
-        wk = _week_key(day)
-        if max_weekly_meetings and weekly_counts.get(wk, 0) >= max_weekly_meetings:
-            continue
-
-        try:
-            local_start = tz.localize(datetime.combine(day, time(hour=business_hours_start)))
-            local_end = tz.localize(datetime.combine(day, time(hour=business_hours_end)))
-        except Exception:
-            continue
-        cursor = local_start.astimezone(dt_timezone.utc)
-        day_end_utc = local_end.astimezone(dt_timezone.utc)
-
-        while cursor + slot_len <= day_end_utc:
-            slot_end = cursor + slot_len
-            if cursor >= min_start_utc and not _slot_conflicts(cursor, slot_end, busy_intervals, buffer_minutes):
-                found.append(AvailableSlot(cursor, slot_end, owner_tz_str, visitor_tz_str))
-            cursor += slot_len
+    raw = _raw_slots_for_schedule(
+        day_ranges=day_ranges, tz=tz, busy_intervals=busy_intervals,
+        duration_minutes=duration_minutes, buffer_minutes=buffer_minutes,
+        advance_notice_hours=advance_notice_hours,
+        max_daily_meetings=max_daily_meetings, max_weekly_meetings=max_weekly_meetings,
+        daily_counts=daily_counts, weekly_counts=weekly_counts,
+        now_utc=now_utc, search_days=search_days,
+    )
+    found = [AvailableSlot(s, e, owner_tz_str, visitor_tz_str) for s, e in raw]
 
     if near_utc is not None:
         found.sort(key=lambda s: abs((s.start_utc - near_utc).total_seconds()))
@@ -345,6 +410,183 @@ async def get_available_slots(
         near_utc=near_utc,
         visitor_tz_str=visitor_tz_str,
     )
+
+
+async def get_bookable_members(
+    supabase, bot_id: str, bot: dict[str, Any], owner_user: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """The pool of people round-robin can assign a meeting to for this bot:
+    always the bot owner first (so a solo-owner bot with zero team members
+    configured keeps working exactly as before), plus any
+    chatty_team_members row with bookable=true whose own `users` account
+    already has a connected calendar matching this bot's meeting_provider
+    (Google, unless meeting_provider is "teams"). Every logged-in Chatty
+    user already has their own google_access_token/microsoft_access_token
+    columns from the existing Settings -> Integrations connect flow — no new
+    OAuth plumbing needed here, this just looks up whichever member's own
+    tokens instead of always the owner's. A bookable member with no matching
+    connected calendar is silently excluded (nothing to check availability
+    against), not an error."""
+    use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
+    owner_email = (owner_user.get("email") or "").strip().lower()
+    owner_has_token = bool(owner_user.get("microsoft_access_token")) if use_ms_calendar else bool(owner_user.get("google_access_token"))
+    members: list[dict[str, Any]] = []
+    if owner_has_token:
+        members.append({"email": owner_email, "user": owner_user, "use_ms_calendar": use_ms_calendar})
+    try:
+        res = await run_db(lambda: supabase.table("chatty_team_members").select("email").eq(
+            "bot_id", bot_id).eq("bookable", True).execute())
+        rows = res.data or []
+    except Exception:
+        rows = []
+    for row in rows:
+        email = (row.get("email") or "").strip().lower()
+        if not email or email == owner_email:
+            continue
+        try:
+            u_res = await run_db(lambda email=email: supabase.table("users").select("*").ilike(
+                "email", email).limit(1).execute())
+        except Exception:
+            continue
+        if not u_res.data:
+            continue
+        member_user = u_res.data[0]
+        has_token = bool(member_user.get("microsoft_access_token")) if use_ms_calendar else bool(member_user.get("google_access_token"))
+        if not has_token:
+            continue
+        members.append({"email": email, "user": member_user, "use_ms_calendar": use_ms_calendar})
+    return members
+
+
+async def get_team_available_slots(
+    supabase,
+    *,
+    bot_id: str,
+    bot: dict[str, Any],
+    members: list[dict[str, Any]],
+    owner_tz_str: str,
+    now_utc: datetime,
+    visitor_tz_str: Optional[str] = None,
+    near_utc: Optional[datetime] = None,
+    max_results: int = 5,
+    search_days: int = 21,
+) -> list[dict[str, Any]]:
+    """Unions every bookable member's own individually-computed available
+    slots (their own calendar, their own chatty_availability_rules — falling
+    back to the bot's business hours when a member has none) into a single
+    list: a time is offered to the visitor if ANY member could take it,
+    without revealing which one — the visitor never picks a specific person,
+    `pick_assignee` decides that at actual booking time. With a single
+    member (the common case: no team configured, or nobody bookable), this
+    produces identical results to `get_available_slots`."""
+    duration_minutes = int(bot.get("scheduling_duration_minutes") or 30)
+    bh_start = int(bot.get("business_hours_start") if bot.get("business_hours_start") is not None else 9)
+    bh_end = int(bot.get("business_hours_end") if bot.get("business_hours_end") is not None else 17)
+    working_days = bot.get("working_days") or ["mon", "tue", "wed", "thu", "fri"]
+    buffer_minutes = int(bot.get("buffer_minutes") or 0)
+    advance_notice_hours = int(bot.get("advance_notice_hours") or 0)
+    max_daily = int(bot.get("max_daily_meetings") or 0)
+    max_weekly = int(bot.get("max_weekly_meetings") or 0)
+    bot_day_ranges = _day_ranges_from_business_hours(bh_start, bh_end, working_days)
+
+    tz = pytz.timezone(owner_tz_str)
+    window_start = now_utc
+    window_end = now_utc + timedelta(days=search_days + 1)
+
+    daily_counts, weekly_counts = {}, {}
+    if max_daily or max_weekly:
+        daily_counts, weekly_counts = await get_meeting_counts(supabase, bot_id, owner_tz_str, window_start, window_end)
+
+    rules_by_email: dict[str, list[dict]] = {}
+    try:
+        emails = [m["email"] for m in members]
+        res = await run_db(lambda: supabase.table("chatty_availability_rules").select("*").eq(
+            "bot_id", bot_id).in_("member_email", emails).execute())
+        for r in res.data or []:
+            rules_by_email.setdefault((r.get("member_email") or "").lower(), []).append(r)
+    except Exception:
+        pass
+
+    union: dict[str, tuple[datetime, datetime]] = {}
+    for m in members:
+        member_rules = rules_by_email.get(m["email"], [])
+        day_ranges = day_ranges_from_rules(member_rules) or bot_day_ranges
+        busy = await fetch_busy_intervals(
+            supabase, m["user"], use_ms_calendar=m["use_ms_calendar"],
+            time_min=window_start, time_max=window_end,
+        )
+        raw = _raw_slots_for_schedule(
+            day_ranges=day_ranges, tz=tz, busy_intervals=busy,
+            duration_minutes=duration_minutes, buffer_minutes=buffer_minutes,
+            advance_notice_hours=advance_notice_hours,
+            max_daily_meetings=max_daily, max_weekly_meetings=max_weekly,
+            daily_counts=daily_counts, weekly_counts=weekly_counts,
+            now_utc=now_utc, search_days=search_days,
+        )
+        for s, e in raw:
+            union.setdefault(s.isoformat(), (s, e))
+
+    found = [AvailableSlot(s, e, owner_tz_str, visitor_tz_str) for s, e in union.values()]
+    if near_utc is not None:
+        found.sort(key=lambda x: abs((x.start_utc - near_utc).total_seconds()))
+    else:
+        found.sort(key=lambda x: x.start_utc)
+    return [x.to_dict() for x in found[:max_results]]
+
+
+async def pick_assignee(
+    supabase,
+    *,
+    bot_id: str,
+    members: list[dict[str, Any]],
+    owner_tz_str: str,
+    buffer_minutes: int,
+    slot_start_utc: datetime,
+    slot_end_utc: datetime,
+) -> Optional[dict[str, Any]]:
+    """Who should this specific, already-chosen slot be assigned to? The
+    listing step (`get_team_available_slots`) only unions availability, it
+    never attributes a slot to a person — so this re-checks fresh, right at
+    booking time, which of the bookable members are actually free for
+    [slot_start_utc, slot_end_utc], then picks whoever has the fewest
+    meetings already booked this week (ties keep `members` list order —
+    owner first, then team members in whatever order the roster query
+    returned). Returns None if nobody is actually free (a race: the slot was
+    open when listed, taken by the time of booking)."""
+    buf = timedelta(minutes=buffer_minutes)
+    free: list[dict[str, Any]] = []
+    for m in members:
+        busy = await fetch_busy_intervals(
+            supabase, m["user"], use_ms_calendar=m["use_ms_calendar"],
+            time_min=slot_start_utc - buf - timedelta(minutes=1),
+            time_max=slot_end_utc + buf + timedelta(minutes=1),
+        )
+        if not _slot_conflicts(slot_start_utc, slot_end_utc, busy, buffer_minutes):
+            free.append(m)
+
+    if not free:
+        return None
+    if len(free) == 1:
+        return free[0]
+
+    tz = pytz.timezone(owner_tz_str)
+    week_start_local = _week_key(slot_start_utc.astimezone(tz).date())
+    week_start_utc = tz.localize(datetime.fromisoformat(week_start_local)).astimezone(dt_timezone.utc)
+    week_end_utc = week_start_utc + timedelta(days=7)
+    counts: dict[str, int] = {}
+    try:
+        res = await run_db(lambda: supabase.table("chatty_meetings").select("assigned_to_email").eq(
+            "bot_id", bot_id).neq("status", "cancelled").gte(
+            "start_time", week_start_utc.isoformat()).lt("start_time", week_end_utc.isoformat()).execute())
+        for row in res.data or []:
+            email = (row.get("assigned_to_email") or "").strip().lower()
+            if email:
+                counts[email] = counts.get(email, 0) + 1
+    except Exception:
+        pass
+
+    free.sort(key=lambda m: counts.get(m["email"], 0))
+    return free[0]
 
 
 async def is_slot_available(

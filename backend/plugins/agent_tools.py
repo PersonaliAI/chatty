@@ -334,13 +334,6 @@ async def _get_available_slots(args: dict, user: dict, supabase, context: Option
     bot = (context or {}).get("bot")
     if not bot:
         return {"error": "Scheduling isn't configured for this conversation."}
-    use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
-    if use_ms_calendar:
-        if g_err := _need_microsoft(user, required_scope="Calendars.ReadWrite"):
-            return g_err
-    else:
-        if g_err := _need_google(user):
-            return g_err
 
     from plugins import availability_engine as avail
 
@@ -359,10 +352,18 @@ async def _get_available_slots(args: dict, user: dict, supabase, context: Option
 
     bot_id = (context or {}).get("bot_id") or bot.get("id")
     try:
-        slots = await avail.get_available_slots(
-            supabase, user, bot_id=bot_id, bot=bot, owner_tz_str=owner_tz_str,
-            use_ms_calendar=use_ms_calendar, now_utc=now_utc,
-            visitor_tz_str=(context or {}).get("visitor_timezone"),
+        # get_bookable_members always includes the owner (if their own
+        # calendar is connected) plus any teammate opted into round-robin
+        # for this bot — with zero team members configured this is just the
+        # owner, and get_team_available_slots then behaves identically to
+        # the old single-calendar path.
+        members = await avail.get_bookable_members(supabase, bot_id, bot, user)
+        if not members:
+            use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
+            return _need_microsoft(user, required_scope="Calendars.ReadWrite") if use_ms_calendar else _need_google(user)
+        slots = await avail.get_team_available_slots(
+            supabase, bot_id=bot_id, bot=bot, members=members, owner_tz_str=owner_tz_str,
+            now_utc=now_utc, visitor_tz_str=(context or {}).get("visitor_timezone"),
             near_utc=near_utc, max_results=count,
         )
     except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
@@ -670,14 +671,33 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             "provider": provider,
             "status": "scheduled",
             "attendee_email": visitor_email,
-            "attendee_name": visitor_name
+            "attendee_name": visitor_name,
+            # Set by the round-robin assignment step in execute(); falls back
+            # to whichever account's credentials actually created the event
+            # (the owner, in solo/no-team-configured bots, or if that step
+            # failed open) rather than leaving this column empty.
+            "assigned_to_email": args.get("_assigned_to_email") or (user.get("email") or "").strip().lower() or None,
         }).execute())
 
         meeting_id = meet_res.data[0]["id"] if meet_res.data else None
 
         # 6. Send real notifications (beautiful HTML email + push) and record them
         start_label = args.get("start") or ""
+        # `user` here may be the round-robin ASSIGNEE, not necessarily the
+        # bot's actual owner (it's whoever's calendar the event was created
+        # on, needed above for add_meet_to_event) — the admin notification
+        # should still reach the real owner regardless of who got assigned,
+        # so re-derive it from the bot row rather than trusting `user`.
         owner_email = user.get("email") or "admin@personaliai.com"
+        bot_owner_auth_id = bot.get("user_id")
+        if bot_owner_auth_id and bot_owner_auth_id != user.get("auth_user_id"):
+            try:
+                owner_res = await run_db(lambda: supabase.table("users").select("email").eq(
+                    "auth_user_id", bot_owner_auth_id).limit(1).execute())
+                if owner_res.data and owner_res.data[0].get("email"):
+                    owner_email = owner_res.data[0]["email"]
+            except Exception:
+                logger.exception("Failed to resolve bot owner's email for admin notification")
 
         # --- Client confirmation email ---
         client_html = notify.build_client_email_html(
@@ -744,7 +764,8 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         admin_push_status = await notify.deliver_push(
             headings="New Booking",
             contents=f"New meeting scheduled by {visitor_name}.",
-            external_id=owner_id if (owner_id := user.get("auth_user_id")) else None,
+            # Same real-owner-not-necessarily-assignee reasoning as owner_email above.
+            external_id=bot_owner_auth_id or user.get("auth_user_id"),
         )
         await _insert_notification({
             "bot_id": bot_id,
@@ -832,14 +853,19 @@ async def execute(
                 except Exception:
                     pass
 
-            # Hard conflict guard — neither create_calendar_event nor
-            # create_outlook_event did any freeBusy check of their own before
-            # this; they trusted the model to have called an availability
-            # check first and gotten it right. A model that skipped the
-            # check (or hallucinated a slot) could double-book. This is the
-            # last line of defense right before the event is actually
-            # created, independent of whatever the model did or didn't do
-            # earlier in the conversation.
+            # Assignment + hard conflict guard, combined: neither
+            # create_calendar_event nor create_outlook_event did any
+            # freeBusy check of their own before this — they trusted the
+            # model to have called an availability check first and gotten it
+            # right. A model that skipped the check (or hallucinated a slot)
+            # could double-book. pick_assignee re-checks fresh, right here,
+            # which of the bot's bookable members (owner + any round-robin
+            # teammates) are actually free for this exact slot; if nobody is,
+            # that itself is the conflict guard. The chosen member's own
+            # tokens (not necessarily the owner's) are used to create the
+            # event below, and their email is threaded through to
+            # _process_widget_booking for the chatty_meetings row.
+            booking_user = user
             if context and context.get("bot") and args.get("start") and args.get("end"):
                 try:
                     from plugins import availability_engine as avail
@@ -849,12 +875,17 @@ async def execute(
                         start_dt = start_dt.replace(tzinfo=timezone.utc)
                     if end_dt.tzinfo is None:
                         end_dt = end_dt.replace(tzinfo=timezone.utc)
-                    use_ms = name == "create_outlook_event"
-                    available = await avail.is_slot_available(
-                        supabase, user, bot=context["bot"], use_ms_calendar=use_ms,
-                        start_utc=start_dt.astimezone(timezone.utc), end_utc=end_dt.astimezone(timezone.utc),
+                    bot_cfg = context["bot"]
+                    bot_id_for_assign = context.get("bot_id") or bot_cfg.get("id")
+                    owner_tz_str = avail.resolve_owner_timezone(bot_cfg, user)
+                    buffer_minutes = int(bot_cfg.get("buffer_minutes") or 0)
+                    members = await avail.get_bookable_members(supabase, bot_id_for_assign, bot_cfg, user)
+                    assignee = await avail.pick_assignee(
+                        supabase, bot_id=bot_id_for_assign, members=members, owner_tz_str=owner_tz_str,
+                        buffer_minutes=buffer_minutes,
+                        slot_start_utc=start_dt.astimezone(timezone.utc), slot_end_utc=end_dt.astimezone(timezone.utc),
                     )
-                    if not available:
+                    if assignee is None:
                         return {
                             "error": (
                                 "That slot is no longer available — it conflicts with an existing "
@@ -862,6 +893,8 @@ async def execute(
                                 "to find a real open time and offer that to the visitor instead."
                             )
                         }
+                    booking_user = assignee["user"]
+                    args = {**args, "_assigned_to_email": assignee["email"]}
                 except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
                     raise
                 except Exception:
@@ -928,9 +961,9 @@ async def execute(
                                 )
                             }
         if name == "create_calendar_event":
-            res = await _create_calendar_event(args, user, supabase)
+            res = await _create_calendar_event(args, booking_user, supabase)
             if context and context.get("source") == "widget" and "error" not in res:
-                await _process_widget_booking(args, user, supabase, res, context)
+                await _process_widget_booking(args, booking_user, supabase, res, context)
             return res
         if name == "check_calendar_availability":
             return await _check_calendar_availability(args, user, supabase, context=context)
@@ -943,9 +976,9 @@ async def execute(
         if name == "list_outlook_events":
             return await _list_outlook_events(args, user, supabase)
         if name == "create_outlook_event":
-            res = await _create_outlook_event(args, user, supabase)
+            res = await _create_outlook_event(args, booking_user, supabase)
             if context and context.get("source") == "widget" and "error" not in res:
-                await _process_widget_booking(args, user, supabase, res, context)
+                await _process_widget_booking(args, booking_user, supabase, res, context)
             return res
         return {"error": f"unknown tool: {name}"}
     except ms.MicrosoftNotConnected:

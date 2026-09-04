@@ -179,6 +179,50 @@ def test_check_calendar_availability_wraps_other_exceptions(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# _get_available_slots — delegates to the team-aware engine functions
+# ---------------------------------------------------------------------------
+
+
+def test_get_available_slots_requires_bot_in_context():
+    result = asyncio.run(at._get_available_slots({}, {}, MagicMock(), context={}))
+    assert "Scheduling isn't configured" in result["error"]
+
+
+def test_get_available_slots_no_bookable_members_returns_connection_error(monkeypatch):
+    from plugins import availability_engine as avail
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[]))
+    user = {}  # no google_access_token
+    context = {"bot": {"meeting_provider": "google_meet"}, "bot_id": "bot-1"}
+    result = asyncio.run(at._get_available_slots({}, user, MagicMock(), context=context))
+    assert "Google not connected" in result["error"]
+
+
+def test_get_available_slots_delegates_to_team_engine(monkeypatch):
+    from plugins import availability_engine as avail
+    members = [{"email": "a@example.com", "user": {}, "use_ms_calendar": False}]
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=members))
+    team_mock = AsyncMock(return_value=[{"start": "2026-01-05T09:00:00Z", "end": "2026-01-05T09:30:00Z"}])
+    monkeypatch.setattr(avail, "get_team_available_slots", team_mock)
+
+    context = {"bot": {"meeting_provider": "google_meet"}, "bot_id": "bot-1"}
+    result = asyncio.run(at._get_available_slots({}, {"google_access_token": "tok"}, MagicMock(), context=context))
+    assert result["slots"][0]["start"] == "2026-01-05T09:00:00Z"
+    team_mock.assert_awaited_once()
+    _, kwargs = team_mock.call_args
+    assert kwargs["members"] == members
+
+
+def test_get_available_slots_empty_returns_helpful_message(monkeypatch):
+    from plugins import availability_engine as avail
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[{"email": "a@example.com", "user": {}, "use_ms_calendar": False}]))
+    monkeypatch.setattr(avail, "get_team_available_slots", AsyncMock(return_value=[]))
+    context = {"bot": {"meeting_provider": "google_meet"}, "bot_id": "bot-1"}
+    result = asyncio.run(at._get_available_slots({}, {"google_access_token": "tok"}, MagicMock(), context=context))
+    assert result["slots"] == []
+    assert "fully booked" in result["message"]
+
+
+# ---------------------------------------------------------------------------
 # _list_outlook_events / _create_outlook_event
 # ---------------------------------------------------------------------------
 
@@ -537,6 +581,54 @@ def test_execute_create_calendar_event_skips_booking_side_effects_on_error(monke
     booking_mock.assert_not_awaited()
 
 
+def test_execute_rejects_booking_when_nobody_free(monkeypatch):
+    from plugins import availability_engine as avail
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[{"email": "a@example.com", "user": {}, "use_ms_calendar": False}]))
+    monkeypatch.setattr(avail, "pick_assignee", AsyncMock(return_value=None))
+    create_mock = AsyncMock(return_value={"id": "evt1"})
+    monkeypatch.setattr(at, "_create_calendar_event", create_mock)
+
+    result = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Jane Doe", "start": "2026-06-25T09:00:00+00:00",
+         "end": "2026-06-25T09:30:00+00:00", "attendees": ["jane@example.org"]},
+        user={"email": "owner@example.com"}, supabase=MagicMock(),
+        context={"source": "widget", "bot_id": "b1", "bot": {"meeting_provider": "google_meet"}},
+    ))
+    assert "no longer available" in result["error"]
+    create_mock.assert_not_awaited()
+
+
+def test_execute_books_against_assigned_member_not_caller(monkeypatch):
+    from plugins import availability_engine as avail
+    assignee = {"email": "jane@example.com", "user": {"email": "jane@example.com", "google_access_token": "jane-tok"}, "use_ms_calendar": False}
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[assignee]))
+    monkeypatch.setattr(avail, "pick_assignee", AsyncMock(return_value=assignee))
+    create_mock = AsyncMock(return_value={"id": "evt1"})
+    booking_mock = AsyncMock()
+    monkeypatch.setattr(at, "_create_calendar_event", create_mock)
+    monkeypatch.setattr(at, "_process_widget_booking", booking_mock)
+
+    owner_user = {"email": "owner@example.com", "google_access_token": "owner-tok"}
+    result = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Jane Doe", "start": "2026-06-25T09:00:00+00:00",
+         "end": "2026-06-25T09:30:00+00:00", "attendees": ["jane@example.org"]},
+        user=owner_user, supabase=MagicMock(),
+        context={"source": "widget", "bot_id": "b1", "bot": {"meeting_provider": "google_meet"}},
+    ))
+    assert result == {"id": "evt1"}
+    # The event was created using the ASSIGNED member's credentials, not the caller's.
+    create_args, _ = create_mock.call_args
+    assert create_args[1] == assignee["user"]
+    # And _process_widget_booking received args carrying the assignment, and
+    # the assignee's user dict too (needed for add_meet_to_event to attach
+    # the conference to the right calendar).
+    booking_args, _ = booking_mock.call_args
+    assert booking_args[0]["_assigned_to_email"] == "jane@example.com"
+    assert booking_args[1] == assignee["user"]
+
+
 def test_execute_create_calendar_event_rejects_missing_attendee_email():
     result = asyncio.run(at.execute(
         "create_calendar_event",
@@ -647,6 +739,65 @@ def test_process_widget_booking_creates_lead_and_meeting_for_google_meet(monkeyp
     # fallback call needed since hangoutLink was already present).
     meetings_table_calls = [c for c in supabase.table.call_args_list if c.args[0] == "chatty_meetings"]
     assert meetings_table_calls
+
+
+def test_process_widget_booking_stores_assigned_to_email(monkeypatch):
+    supabase = MagicMock()
+    bots_result = MagicMock(data=[{"meeting_provider": "google_meet", "bot_timezone": "UTC", "user_id": "owner-auth-1"}])
+    leads_select_result = MagicMock(data=[])
+    leads_insert_result = MagicMock(data=[{"id": "lead-9"}])
+    captured_meeting_insert = {}
+
+    def table(name):
+        t = MagicMock()
+        if name == "chatty_bots":
+            t.select.return_value.eq.return_value.execute.return_value = bots_result
+        elif name == "chatty_leads":
+            t.select.return_value.eq.return_value.eq.return_value.execute.return_value = leads_select_result
+            t.insert.return_value.execute.return_value = leads_insert_result
+        elif name == "chatty_meetings":
+            def do_insert(payload):
+                captured_meeting_insert.update(payload)
+                m = MagicMock()
+                m.execute.return_value = MagicMock(data=[{"id": "meet-1"}])
+                return m
+            t.insert.side_effect = do_insert
+        elif name == "users":
+            t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+                data=[{"email": "real-owner@example.com"}])
+        elif name in ("chatty_notifications", "chatty_audit_logs"):
+            t.insert.return_value.execute.return_value = MagicMock()
+        return t
+
+    supabase.table.side_effect = table
+    monkeypatch.setattr(at.notify, "enqueue_webhook_event", AsyncMock())
+    monkeypatch.setattr(at.notify, "build_client_email_html", MagicMock(return_value="<html/>"))
+    monkeypatch.setattr(at.notify, "build_admin_email_html", MagicMock(return_value="<html/>"))
+    captured_admin_recipient = {}
+
+    async def fake_deliver_email(*, supabase, owner_user, to, subject, html):
+        if subject.startswith("New Meeting"):
+            captured_admin_recipient["to"] = to
+        return "sent"
+    monkeypatch.setattr(at.notify, "deliver_email", fake_deliver_email)
+    monkeypatch.setattr(at.notify, "deliver_push", AsyncMock(return_value="sent"))
+
+    args = {
+        "summary": "Demo Meeting with Jane", "start": "2026-06-25T09:00:00",
+        "end": "2026-06-25T09:30:00", "attendees": ["jane@example.com"],
+        "_assigned_to_email": "jane-assignee@example.com",
+    }
+    result = {"id": "evt1", "hangoutLink": "https://meet.google.com/abc"}
+    # `user` is the ASSIGNEE (whose credentials created the event) — deliberately
+    # different from the bot's real owner (user_id "owner-auth-1").
+    assignee_user = {"email": "jane-assignee@example.com", "auth_user_id": "assignee-auth-2"}
+    context = {"bot_id": "bot1", "session_id": "sess1"}
+
+    asyncio.run(at._process_widget_booking(args, assignee_user, supabase, result, context))
+
+    assert captured_meeting_insert["assigned_to_email"] == "jane-assignee@example.com"
+    # Admin notification still reaches the REAL owner, not the assignee.
+    assert captured_admin_recipient["to"] == "real-owner@example.com"
 
 
 def test_process_widget_booking_swallows_exceptions_and_does_not_raise(monkeypatch):

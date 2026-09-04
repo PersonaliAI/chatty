@@ -285,3 +285,219 @@ def test_is_slot_available_false_when_conflicting(monkeypatch):
         start_utc=_utc(2026, 1, 5, 10, 15), end_utc=_utc(2026, 1, 5, 10, 45),
     ))
     assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# day_ranges_from_rules
+# ---------------------------------------------------------------------------
+
+
+def test_day_ranges_from_rules_groups_by_day():
+    rules = [
+        {"day_of_week": 0, "start_minute": 540, "end_minute": 720},
+        {"day_of_week": 0, "start_minute": 780, "end_minute": 1020},  # split hours, same day
+        {"day_of_week": 2, "start_minute": 540, "end_minute": 1020},
+    ]
+    dr = avail.day_ranges_from_rules(rules)
+    assert dr[0] == [(540, 720), (780, 1020)]
+    assert dr[2] == [(540, 1020)]
+    assert 1 not in dr
+
+
+def test_day_ranges_from_rules_empty():
+    assert avail.day_ranges_from_rules([]) == {}
+
+
+# ---------------------------------------------------------------------------
+# get_bookable_members
+# ---------------------------------------------------------------------------
+
+
+class _FakeQuery:
+    def __init__(self, results):
+        self._results = results
+
+    def __getattr__(self, _name):
+        def _chain(*_a, **_k):
+            return self
+        return _chain
+
+    def execute(self):
+        return self._results.pop(0)
+
+
+class FakeSupabase:
+    def __init__(self):
+        self._results = []
+
+    def queue(self, data):
+        from types import SimpleNamespace
+        self._results.append(SimpleNamespace(data=data))
+        return self
+
+    def table(self, _name):
+        return _FakeQuery(self._results)
+
+
+OWNER_USER = {"email": "owner@example.com", "auth_user_id": "owner-1", "google_access_token": "owner-tok"}
+
+
+def test_get_bookable_members_owner_only_when_no_team(monkeypatch):
+    fake = FakeSupabase()
+    fake.queue([])  # chatty_team_members: no bookable rows
+    members = asyncio.run(avail.get_bookable_members(fake, "bot-1", {"meeting_provider": "google_meet"}, OWNER_USER))
+    assert len(members) == 1
+    assert members[0]["email"] == "owner@example.com"
+
+
+def test_get_bookable_members_excludes_owner_without_token():
+    fake = FakeSupabase()
+    fake.queue([])
+    owner_no_token = {"email": "owner@example.com", "auth_user_id": "owner-1"}
+    members = asyncio.run(avail.get_bookable_members(fake, "bot-1", {"meeting_provider": "google_meet"}, owner_no_token))
+    assert members == []
+
+
+def test_get_bookable_members_includes_connected_teammate():
+    fake = FakeSupabase()
+    fake.queue([{"email": "jane@example.com"}])  # bookable team member
+    fake.queue([{"email": "jane@example.com", "google_access_token": "jane-tok"}])  # users lookup
+    members = asyncio.run(avail.get_bookable_members(fake, "bot-1", {"meeting_provider": "google_meet"}, OWNER_USER))
+    emails = {m["email"] for m in members}
+    assert emails == {"owner@example.com", "jane@example.com"}
+
+
+def test_get_bookable_members_excludes_teammate_without_matching_calendar():
+    fake = FakeSupabase()
+    fake.queue([{"email": "jane@example.com"}])
+    fake.queue([{"email": "jane@example.com"}])  # no google_access_token on their users row
+    members = asyncio.run(avail.get_bookable_members(fake, "bot-1", {"meeting_provider": "google_meet"}, OWNER_USER))
+    assert {m["email"] for m in members} == {"owner@example.com"}
+
+
+def test_get_bookable_members_skips_owner_duplicate_row():
+    fake = FakeSupabase()
+    fake.queue([{"email": "owner@example.com"}])  # owner accidentally also has a bookable team row
+    members = asyncio.run(avail.get_bookable_members(fake, "bot-1", {"meeting_provider": "google_meet"}, OWNER_USER))
+    assert len(members) == 1  # not double-counted
+
+
+# ---------------------------------------------------------------------------
+# pick_assignee
+# ---------------------------------------------------------------------------
+
+
+def test_pick_assignee_single_free_member(monkeypatch):
+    monkeypatch.setattr(avail, "fetch_busy_intervals", AsyncMock(return_value=[]))
+    members = [{"email": "a@example.com", "user": {}, "use_ms_calendar": False}]
+    chosen = asyncio.run(avail.pick_assignee(
+        MagicMock(), bot_id="bot-1", members=members, owner_tz_str="UTC", buffer_minutes=0,
+        slot_start_utc=_utc(2026, 1, 5, 10, 0), slot_end_utc=_utc(2026, 1, 5, 10, 30),
+    ))
+    assert chosen["email"] == "a@example.com"
+
+
+def test_pick_assignee_none_free_returns_none(monkeypatch):
+    busy = [(_utc(2026, 1, 5, 10, 0), _utc(2026, 1, 5, 10, 30))]
+    monkeypatch.setattr(avail, "fetch_busy_intervals", AsyncMock(return_value=busy))
+    members = [{"email": "a@example.com", "user": {}, "use_ms_calendar": False}]
+    chosen = asyncio.run(avail.pick_assignee(
+        MagicMock(), bot_id="bot-1", members=members, owner_tz_str="UTC", buffer_minutes=0,
+        slot_start_utc=_utc(2026, 1, 5, 10, 0), slot_end_utc=_utc(2026, 1, 5, 10, 30),
+    ))
+    assert chosen is None
+
+
+def test_pick_assignee_prefers_member_with_fewer_meetings(monkeypatch):
+    # Both free; b@example.com has fewer meetings this week -> gets picked.
+    monkeypatch.setattr(avail, "fetch_busy_intervals", AsyncMock(return_value=[]))
+    fake = FakeSupabase()
+    fake.queue([
+        {"assigned_to_email": "a@example.com"},
+        {"assigned_to_email": "a@example.com"},
+        {"assigned_to_email": "b@example.com"},
+    ])
+    members = [
+        {"email": "a@example.com", "user": {}, "use_ms_calendar": False},
+        {"email": "b@example.com", "user": {}, "use_ms_calendar": False},
+    ]
+    chosen = asyncio.run(avail.pick_assignee(
+        fake, bot_id="bot-1", members=members, owner_tz_str="UTC", buffer_minutes=0,
+        slot_start_utc=_utc(2026, 1, 5, 10, 0), slot_end_utc=_utc(2026, 1, 5, 10, 30),
+    ))
+    assert chosen["email"] == "b@example.com"
+
+
+def test_pick_assignee_only_frees_members_that_are_actually_free(monkeypatch):
+    # a is busy at the slot, b is free -> b gets it even with no meeting-count query needed.
+    async def fake_fetch(supabase, u, *, use_ms_calendar, time_min, time_max):
+        if u.get("email") == "a@example.com":
+            return [(_utc(2026, 1, 5, 10, 0), _utc(2026, 1, 5, 10, 30))]
+        return []
+    monkeypatch.setattr(avail, "fetch_busy_intervals", fake_fetch)
+    members = [
+        {"email": "a@example.com", "user": {"email": "a@example.com"}, "use_ms_calendar": False},
+        {"email": "b@example.com", "user": {"email": "b@example.com"}, "use_ms_calendar": False},
+    ]
+    chosen = asyncio.run(avail.pick_assignee(
+        MagicMock(), bot_id="bot-1", members=members, owner_tz_str="UTC", buffer_minutes=0,
+        slot_start_utc=_utc(2026, 1, 5, 10, 0), slot_end_utc=_utc(2026, 1, 5, 10, 30),
+    ))
+    assert chosen["email"] == "b@example.com"
+
+
+# ---------------------------------------------------------------------------
+# get_team_available_slots
+# ---------------------------------------------------------------------------
+
+
+def test_get_team_available_slots_unions_across_members(monkeypatch):
+    """Member A is fully booked all day; member B is free. The visitor
+    should still see open slots (from B), proving this is a real union and
+    not just "first member's calendar"."""
+    async def fake_fetch(supabase, u, *, use_ms_calendar, time_min, time_max):
+        if u.get("email") == "a@example.com":
+            return [(_utc(2026, 1, 5, 0, 0), _utc(2026, 1, 6, 0, 0))]  # busy all day
+        return []
+    monkeypatch.setattr(avail, "fetch_busy_intervals", fake_fetch)
+
+    fake = FakeSupabase()
+    fake.queue([])  # chatty_availability_rules: no per-member rules -> both fall back to bot hours
+
+    members = [
+        {"email": "a@example.com", "user": {"email": "a@example.com"}, "use_ms_calendar": False},
+        {"email": "b@example.com", "user": {"email": "b@example.com"}, "use_ms_calendar": False},
+    ]
+    bot = {
+        "scheduling_duration_minutes": 30, "business_hours_start": 9, "business_hours_end": 17,
+        "working_days": ["mon", "tue", "wed", "thu", "fri"], "buffer_minutes": 0, "advance_notice_hours": 0,
+        "max_daily_meetings": 0, "max_weekly_meetings": 0,
+    }
+    slots = asyncio.run(avail.get_team_available_slots(
+        fake, bot_id="bot-1", bot=bot, members=members, owner_tz_str="UTC",
+        now_utc=_MONDAY_9AM_UTC, max_results=3,
+    ))
+    assert len(slots) == 3
+    assert slots[0]["start"] == "2026-01-05T09:00:00Z"
+
+
+def test_get_team_available_slots_uses_member_own_rules(monkeypatch):
+    """Member has a chatty_availability_rules row restricting them to
+    10am-11am on Monday only — the union should reflect that narrower
+    window, not the bot's wider 9-5 default."""
+    monkeypatch.setattr(avail, "fetch_busy_intervals", AsyncMock(return_value=[]))
+    fake = FakeSupabase()
+    fake.queue([{"member_email": "a@example.com", "day_of_week": 0, "start_minute": 600, "end_minute": 660}])
+
+    members = [{"email": "a@example.com", "user": {"email": "a@example.com"}, "use_ms_calendar": False}]
+    bot = {
+        "scheduling_duration_minutes": 30, "business_hours_start": 9, "business_hours_end": 17,
+        "working_days": ["mon", "tue", "wed", "thu", "fri"], "buffer_minutes": 0, "advance_notice_hours": 0,
+        "max_daily_meetings": 0, "max_weekly_meetings": 0,
+    }
+    slots = asyncio.run(avail.get_team_available_slots(
+        fake, bot_id="bot-1", bot=bot, members=members, owner_tz_str="UTC",
+        now_utc=_MONDAY_9AM_UTC, max_results=10,
+    ))
+    monday_starts = {s["start"] for s in slots if s["start"].startswith("2026-01-05")}
+    assert monday_starts == {"2026-01-05T10:00:00Z", "2026-01-05T10:30:00Z"}  # only within 10-11am
