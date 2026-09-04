@@ -18,6 +18,7 @@ returns" — not "do the math yourself".
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from datetime import timezone as dt_timezone
@@ -200,18 +201,41 @@ class AvailableSlot:
         return out
 
 
+_OFFSET_LIKE_RE = re.compile(r"^[+-]\d{2}:?\d{2}$")
+
+
 def _format_slot_label(dt: datetime) -> str:
-    """"Monday, Jan 5 at 9:00 AM EST" — always includes the zone so a
-    presented time is never ambiguous about which timezone it's in (built
-    with portable strftime directives only — no `%-d`/`%-I`; those are
-    glibc extensions Windows' C runtime doesn't support, and this needs to
-    run the same in local dev as in the Linux container it's deployed to).
-    `%Z` gives a named abbreviation (EST/IST/...) for zones that have one,
-    or a numeric UTC offset for zones that don't."""
+    """"Monday, Jan 5 at 9:00 AM EST" (or "...at 9:00 AM GMT+5:30" for a zone
+    with no common abbreviation, e.g. Asia/Colombo) — always includes the
+    zone so a presented time is never ambiguous about which timezone it's
+    in (built with portable strftime directives only — no `%-d`/`%-I`;
+    those are glibc extensions Windows' C runtime doesn't support, and this
+    needs to run the same in local dev as in the Linux container it's
+    deployed to). `%Z` gives a named abbreviation (EST/IST/...) for zones
+    that have one. For a zone that doesn't (e.g. Asia/Colombo), pytz's own
+    `tzname()` — not empty, as might be expected — returns the raw POSIX
+    offset string itself (e.g. "+0530"), which reads as arbitrary digits
+    rather than obviously a timezone; detected and replaced with a
+    "GMT+H:MM"-style label instead."""
     hour12 = dt.hour % 12 or 12
     ampm = "AM" if dt.hour < 12 else "PM"
-    tz_label = dt.strftime("%Z") or dt.strftime("%z")
+    raw_tz = dt.strftime("%Z")
+    tz_label = raw_tz if raw_tz and not _OFFSET_LIKE_RE.match(raw_tz) else _gmt_offset_label(dt)
     return f"{dt.strftime('%A, %b')} {dt.day} at {hour12}:{dt.minute:02d} {ampm} {tz_label}".rstrip()
+
+
+def _gmt_offset_label(dt: datetime) -> str:
+    """"GMT+5:30" / "GMT-8" / "GMT" — from a tz-aware datetime's UTC offset,
+    for zones `%Z` can't name."""
+    offset = dt.utcoffset()
+    if offset is None:
+        return ""
+    total_minutes = int(offset.total_seconds() // 60)
+    sign = "+" if total_minutes >= 0 else "-"
+    hours, minutes = divmod(abs(total_minutes), 60)
+    if total_minutes == 0:
+        return "GMT"
+    return f"GMT{sign}{hours}" + (f":{minutes:02d}" if minutes else "")
 
 
 def _day_ranges_from_business_hours(

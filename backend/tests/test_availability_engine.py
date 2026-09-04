@@ -215,6 +215,43 @@ def test_visitor_local_label_included_when_tz_given():
     assert "visitor_local_label" in slots[0]
 
 
+# ---------------------------------------------------------------------------
+# _format_slot_label / _gmt_offset_label — timezone readability
+# ---------------------------------------------------------------------------
+
+
+def test_format_slot_label_uses_named_abbreviation_when_available():
+    kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "America/New_York"}
+    slots = avail.compute_available_slots(busy_intervals=[], now_utc=_MONDAY_9AM_UTC, max_results=1, **kwargs)
+    # America/New_York in January is EST — a real named abbreviation, not a bare offset.
+    assert "EST" in slots[0]["owner_local_label"] or "EDT" in slots[0]["owner_local_label"]
+    assert "+" not in slots[0]["owner_local_label"]
+
+
+def test_format_slot_label_falls_back_to_gmt_offset_for_unnamed_zone():
+    # Asia/Colombo has no common named abbreviation — pytz's %Z returns ''.
+    kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "Asia/Colombo"}
+    now = _utc(2026, 1, 5, 0, 0)
+    slots = avail.compute_available_slots(busy_intervals=[], now_utc=now, max_results=1, **kwargs)
+    label = slots[0]["owner_local_label"]
+    assert "GMT+5:30" in label
+    assert "+0530" not in label  # not the bare, easy-to-miss-as-a-timezone digits
+
+
+def test_gmt_offset_label_formats_positive_and_negative():
+    plus = _utc(2026, 1, 5, 0, 0).astimezone(pytz.timezone("Asia/Colombo"))
+    minus = _utc(2026, 1, 5, 0, 0).astimezone(pytz.timezone("America/Los_Angeles"))
+    utc_dt = _utc(2026, 1, 5, 0, 0)
+    assert avail._gmt_offset_label(plus) == "GMT+5:30"
+    assert avail._gmt_offset_label(minus) in ("GMT-8", "GMT-7")  # PST or PDT depending on DST
+    assert avail._gmt_offset_label(utc_dt) == "GMT"
+
+
+def test_gmt_offset_label_omits_minutes_when_whole_hour():
+    dt = _utc(2026, 1, 5, 0, 0).astimezone(pytz.timezone("Asia/Tokyo"))  # +9, no minutes
+    assert avail._gmt_offset_label(dt) == "GMT+9"
+
+
 def test_empty_working_days_yields_no_slots():
     kwargs = {**DEFAULT_KWARGS, "working_days": []}
     slots = avail.compute_available_slots(
