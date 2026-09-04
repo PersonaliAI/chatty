@@ -445,10 +445,11 @@ def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str
 
     tools.append(search_knowledge_base)
 
-    allowed_tool_names = []
-    if bot.get("calendar_scheduling_enabled") and owner_user.get("google_access_token"):
-        allowed_tool_names.extend(["check_calendar_availability", "create_calendar_event"])
-    allowed_tool_names.append("create_lead")
+    # Same tool selection as text/pipeline mode (widget_brain.scheduling_tool_names)
+    # — get_available_slots, Outlook/Teams support, and reschedule_meeting all
+    # used to be missing here specifically because this list was hand-rolled
+    # separately and had quietly drifted out of parity with the text path.
+    allowed_tool_names = widget_brain.scheduling_tool_names(bot, owner_user)
 
     for tool_name in allowed_tool_names:
         schema = next((d["function"] for d in agent_tools.DECLARATIONS if d["function"]["name"] == tool_name), None)
@@ -458,7 +459,12 @@ def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str
         async def _run(raw_arguments: dict[str, Any], context: RunContext, _name: str = tool_name) -> Any:
             return await agent_tools.execute(
                 _name, raw_arguments, user=owner_user, supabase=supabase,
-                context={"bot_id": bot_id, "source": "widget"},
+                # "bot" is required here (not just bot_id) — agent_tools.execute's
+                # round-robin assignment/conflict-guard and get_available_slots/
+                # reschedule_meeting handlers all key off context["bot"]; without
+                # it those silently no-op back to "always book the owner's own
+                # calendar, no real conflict check", exactly the gap this fixes.
+                context={"bot_id": bot_id, "bot": bot, "source": "widget"},
             )
 
         tools.append(function_tool(_run, raw_schema=schema))

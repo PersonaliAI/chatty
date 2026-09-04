@@ -211,6 +211,30 @@ async def search_knowledge(
     return knowledge_context, source_refs
 
 
+def scheduling_tool_names(bot: dict[str, Any], owner_user: dict[str, Any]) -> list[str]:
+    """Which calendar/booking tool names (from agent_tools.DECLARATIONS) a
+    session should get, given this bot's scheduling config and the owner's
+    connected calendar. Single source of truth for both the text/pipeline
+    tool-calling loop below and the realtime voice agent
+    (voice-agent/voice_worker.py::_build_realtime_tools) — they previously
+    each hand-rolled their own version of this list and had drifted out of
+    parity (realtime never got Outlook/Teams support, reschedule_meeting,
+    or the newer get_available_slots-based flow)."""
+    provider = bot.get("meeting_provider") or "google_meet"
+    # See the longer comment at this same check further down in
+    # run_widget_assistant: meeting_provider alone decides Teams vs Google,
+    # not also requiring sync_outlook_calendar.
+    use_ms_calendar = provider == "teams"
+    names: list[str] = []
+    if bot.get("calendar_scheduling_enabled"):
+        if use_ms_calendar:
+            names.extend(["get_available_slots", "list_outlook_events", "create_outlook_event", "reschedule_meeting"])
+        elif owner_user.get("google_access_token"):
+            names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting"])
+    names.append("create_lead")
+    return names
+
+
 async def run_widget_assistant(
     *,
     bot_id: str,
@@ -693,13 +717,7 @@ async def run_widget_assistant(
             )
 
     # 5. Build Tools list
-    allowed_tool_names = []
-    if bot.get("calendar_scheduling_enabled"):
-        if use_ms_calendar:
-            allowed_tool_names.extend(["get_available_slots", "list_outlook_events", "create_outlook_event", "reschedule_meeting"])
-        elif owner_user.get("google_access_token"):
-            allowed_tool_names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting"])
-    allowed_tool_names.append("create_lead")
+    allowed_tool_names = scheduling_tool_names(bot, owner_user)
 
     widget_decls = [d for d in agent_tools.DECLARATIONS if d["function"]["name"] in allowed_tool_names]
     if answer_mode == "web":
