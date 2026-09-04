@@ -127,6 +127,73 @@ def test_email_channels_never_drops_a_channel(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# reply_to threading (team scheduling Phase 4 — meeting reply capture)
+# ---------------------------------------------------------------------------
+
+
+class _FakeHttpxResponse:
+    def __init__(self, status_code=200):
+        self.status_code = status_code
+        self.text = ""
+
+    def json(self):
+        return {}
+
+
+class _FakeHttpxClient:
+    """Captures the last JSON payload posted, regardless of URL."""
+    last_payload = None
+
+    def __init__(self, *a, **kw):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def post(self, url, json=None, headers=None):
+        _FakeHttpxClient.last_payload = json
+        return _FakeHttpxResponse()
+
+
+def test_send_resend_email_includes_reply_to_when_given(monkeypatch):
+    monkeypatch.setattr(notify, "RESEND_API_KEY", "re_test")
+    monkeypatch.setattr(notify.httpx, "AsyncClient", _FakeHttpxClient)
+    asyncio.run(notify._send_resend_email(to="a@example.com", subject="s", html="<p/>", reply_to="meeting+abc@meetings.example.com"))
+    assert _FakeHttpxClient.last_payload["reply_to"] == "meeting+abc@meetings.example.com"
+
+
+def test_send_resend_email_omits_reply_to_when_not_given(monkeypatch):
+    monkeypatch.setattr(notify, "RESEND_API_KEY", "re_test")
+    monkeypatch.setattr(notify.httpx, "AsyncClient", _FakeHttpxClient)
+    asyncio.run(notify._send_resend_email(to="a@example.com", subject="s", html="<p/>"))
+    assert "reply_to" not in _FakeHttpxClient.last_payload
+
+
+def test_send_onesignal_email_includes_reply_to_when_given(monkeypatch):
+    monkeypatch.setattr(notify, "ONESIGNAL_APP_ID", "app")
+    monkeypatch.setattr(notify, "ONESIGNAL_REST_API_KEY", "key")
+    monkeypatch.setattr(notify.httpx, "AsyncClient", _FakeHttpxClient)
+    asyncio.run(notify._send_onesignal_email(to="a@example.com", subject="s", html="<p/>", reply_to="meeting+abc@meetings.example.com"))
+    assert _FakeHttpxClient.last_payload["email_reply_to_address"] == "meeting+abc@meetings.example.com"
+
+
+def test_deliver_email_threads_reply_to_through(monkeypatch):
+    from unittest.mock import AsyncMock
+    captured = {}
+
+    async def fake_sender(*, to, subject, html, reply_to=None):
+        captured["reply_to"] = reply_to
+        return True
+    monkeypatch.setattr(notify, "_email_channels", lambda: [("sent", fake_sender)])
+    asyncio.run(notify.deliver_email(supabase=None, owner_user={}, to="a@example.com",
+                                      subject="s", html="<p/>", reply_to="meeting+abc@meetings.example.com"))
+    assert captured["reply_to"] == "meeting+abc@meetings.example.com"
+
+
+# ---------------------------------------------------------------------------
 # Email template HTML-escaping (XSS regression guard)
 # ---------------------------------------------------------------------------
 

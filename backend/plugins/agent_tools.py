@@ -25,9 +25,34 @@ from plugins import microsoft_integrations as ms
 from plugins import notifications as notify
 from plugins import zoom_integration as zoom
 
+from app.core.config import RESEND_INBOUND_DOMAIN
 from app.core.db import run_db
 
 logger = logging.getLogger("chatty.tools")
+
+
+def _meeting_reply_to(meeting_id: str) -> Optional[str]:
+    """A unique Reply-To address for a meeting's confirmation/reschedule
+    emails, so a visitor's reply lands on the right chatty_meetings row
+    instead of nowhere — see app/routers/webhooks.py::resend_inbound. None
+    (no Reply-To header) when RESEND_INBOUND_DOMAIN isn't configured, which
+    just means replies aren't captured, not that sending fails."""
+    if not RESEND_INBOUND_DOMAIN or not meeting_id:
+        return None
+    return f"meeting+{meeting_id}@{RESEND_INBOUND_DOMAIN}"
+
+
+async def _log_meeting_message(supabase, meeting_id: str, *, direction: str, from_email: str,
+                                subject: Optional[str] = None, body_text: Optional[str] = None) -> None:
+    if not meeting_id:
+        return
+    try:
+        await run_db(lambda: supabase.table("chatty_meeting_messages").insert({
+            "meeting_id": meeting_id, "direction": direction, "from_email": from_email,
+            "subject": subject, "body_text": body_text,
+        }).execute())
+    except Exception:
+        logger.exception("Failed to log meeting message for meeting %s", meeting_id)
 
 
 # ---------------------------------------------------------------------------
@@ -522,16 +547,22 @@ async def reschedule_meeting_core(
 
     tz_label = bot.get("bot_timezone") or "UTC"
     summary = meeting.get("title") or "Meeting"
+    meeting_id = meeting.get("id")
+    reply_to = _meeting_reply_to(meeting_id) if meeting_id else None
     try:
         client_html = notify.build_client_email_html(
             visitor_name=meeting.get("attendee_name") or "Guest", summary=summary,
             start=new_start.isoformat(), timezone_label=tz_label,
             meeting_link=meeting.get("meeting_link") or "", provider=meeting.get("provider") or "google_meet",
         )
+        client_subject = f"Meeting Rescheduled: {summary}"
         await notify.deliver_email(
             supabase=supabase, owner_user=host_user, to=attendee_email,
-            subject=f"Meeting Rescheduled: {summary}", html=client_html,
+            subject=client_subject, html=client_html, reply_to=reply_to,
         )
+        if meeting_id:
+            await _log_meeting_message(supabase, meeting_id, direction="outbound",
+                                        from_email=notify.RESEND_EMAIL_FROM, subject=client_subject, body_text=client_html)
         admin_html = notify.build_admin_email_html(
             visitor_name=meeting.get("attendee_name") or "Guest", visitor_email=attendee_email,
             summary=summary, start=new_start.isoformat(), timezone_label=tz_label,
@@ -552,6 +583,7 @@ async def reschedule_meeting_core(
         await notify.deliver_email(
             supabase=supabase, owner_user=user, to=owner_email,
             subject=f"Meeting Rescheduled: {meeting.get('attendee_name') or attendee_email}", html=admin_html,
+            reply_to=reply_to,
         )
     except Exception:
         logger.exception("Failed to send reschedule notification emails")
@@ -884,6 +916,8 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             except Exception:
                 logger.exception("Failed to resolve bot owner's email for admin notification")
 
+        reply_to = _meeting_reply_to(meeting_id) if meeting_id else None
+
         # --- Client confirmation email ---
         client_html = notify.build_client_email_html(
             visitor_name=visitor_name, summary=summary, start=start_label,
@@ -892,8 +926,11 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         client_subject = f"Meeting Confirmed: {summary}"
         client_status = await notify.deliver_email(
             supabase=supabase, owner_user=user, to=visitor_email,
-            subject=client_subject, html=client_html,
+            subject=client_subject, html=client_html, reply_to=reply_to,
         )
+        if meeting_id:
+            await _log_meeting_message(supabase, meeting_id, direction="outbound",
+                                        from_email=notify.RESEND_EMAIL_FROM, subject=client_subject, body_text=client_html)
         await _insert_notification({
             "bot_id": bot_id,
             "meeting_id": meeting_id,
@@ -915,7 +952,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         admin_subject = f"New Meeting Booked: {visitor_name}"
         admin_status = await notify.deliver_email(
             supabase=supabase, owner_user=user, to=owner_email,
-            subject=admin_subject, html=admin_html,
+            subject=admin_subject, html=admin_html, reply_to=reply_to,
         )
         await _insert_notification({
             "bot_id": bot_id,

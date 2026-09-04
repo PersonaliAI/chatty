@@ -207,7 +207,7 @@ def build_team_invite_email_html(*, bot_name: str, inviter_email: str, role: str
 # ---------------------------------------------------------------------------
 
 
-async def _send_onesignal_email(*, to: str, subject: str, html: str) -> bool:
+async def _send_onesignal_email(*, to: str, subject: str, html: str, reply_to: Optional[str] = None) -> bool:
     if not onesignal_configured():
         return False
     payload = {
@@ -219,6 +219,8 @@ async def _send_onesignal_email(*, to: str, subject: str, html: str) -> bool:
         "include_email_tokens": [to],
         "target_channel": "email",
     }
+    if reply_to:
+        payload["email_reply_to_address"] = reply_to
     headers = {
         "Authorization": f"Key {ONESIGNAL_REST_API_KEY}",
         "Content-Type": "application/json",
@@ -235,7 +237,7 @@ async def _send_onesignal_email(*, to: str, subject: str, html: str) -> bool:
         return False
 
 
-async def _send_resend_email(*, to: str, subject: str, html: str) -> bool:
+async def _send_resend_email(*, to: str, subject: str, html: str, reply_to: Optional[str] = None) -> bool:
     if not resend_configured():
         return False
     payload = {
@@ -244,6 +246,8 @@ async def _send_resend_email(*, to: str, subject: str, html: str) -> bool:
         "subject": subject,
         "html": html,
     }
+    if reply_to:
+        payload["reply_to"] = reply_to
     headers = {
         "Authorization": f"Bearer {RESEND_API_KEY}",
         "Content-Type": "application/json",
@@ -300,14 +304,21 @@ async def _send_gmail_html(*, supabase, owner_user: dict, to: str,
 
 
 async def deliver_email(*, supabase, owner_user: dict, to: str, subject: str,
-                        html: str) -> str:
+                        html: str, reply_to: Optional[str] = None) -> str:
     """Best-effort email delivery. Tries OneSignal and Resend in whichever order
     EMAIL_PROVIDER_PREFERRED specifies (both run regardless — the non-preferred
     one is the fallback), then the owner's connected Gmail, before giving up.
     Returns the resulting status string: 'sent' (OneSignal), 'sent_resend',
-    'sent_gmail', or 'logged'."""
+    'sent_gmail', or 'logged'.
+
+    `reply_to` (used by meeting notifications to route a visitor's reply
+    into that meeting's thread — see plugins/agent_tools.py's
+    _meeting_reply_to) is honored by both OneSignal and Resend regardless of
+    which one actually ends up sending, since either could be the preferred
+    channel; the Gmail fallback doesn't support it (rare path, Gmail's own
+    reply-to would need a header this SDK call doesn't expose)."""
     for status, sender in _email_channels():
-        if await sender(to=to, subject=subject, html=html):
+        if await sender(to=to, subject=subject, html=html, reply_to=reply_to):
             return status
     # Fall back to owner's Gmail if they have Google connected
     if owner_user and owner_user.get("google_access_token"):

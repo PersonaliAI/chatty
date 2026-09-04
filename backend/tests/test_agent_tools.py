@@ -253,6 +253,57 @@ def _reschedule_supabase(meeting_row, users_row=None):
     return supabase
 
 
+# ---------------------------------------------------------------------------
+# _meeting_reply_to / _log_meeting_message
+# ---------------------------------------------------------------------------
+
+
+def test_meeting_reply_to_none_when_domain_unconfigured(monkeypatch):
+    monkeypatch.setattr(at, "RESEND_INBOUND_DOMAIN", "")
+    assert at._meeting_reply_to("meet-1") is None
+
+
+def test_meeting_reply_to_none_without_meeting_id(monkeypatch):
+    monkeypatch.setattr(at, "RESEND_INBOUND_DOMAIN", "meetings.example.com")
+    assert at._meeting_reply_to("") is None
+
+
+def test_meeting_reply_to_builds_address(monkeypatch):
+    monkeypatch.setattr(at, "RESEND_INBOUND_DOMAIN", "meetings.example.com")
+    assert at._meeting_reply_to("meet-1") == "meeting+meet-1@meetings.example.com"
+
+
+def test_log_meeting_message_inserts_row():
+    supabase = MagicMock()
+    captured = {}
+
+    def do_insert(payload):
+        captured.update(payload)
+        m = MagicMock()
+        m.execute.return_value = MagicMock()
+        return m
+    supabase.table.return_value.insert.side_effect = do_insert
+
+    asyncio.run(at._log_meeting_message(supabase, "meet-1", direction="outbound",
+                                         from_email="chatty@example.com", subject="s", body_text="b"))
+    assert captured["meeting_id"] == "meet-1"
+    assert captured["direction"] == "outbound"
+    assert captured["from_email"] == "chatty@example.com"
+
+
+def test_log_meeting_message_noop_without_meeting_id():
+    supabase = MagicMock()
+    asyncio.run(at._log_meeting_message(supabase, "", direction="outbound", from_email="a@example.com"))
+    supabase.table.assert_not_called()
+
+
+def test_log_meeting_message_swallows_exceptions():
+    supabase = MagicMock()
+    supabase.table.side_effect = RuntimeError("db exploded")
+    # Should not raise.
+    asyncio.run(at._log_meeting_message(supabase, "meet-1", direction="outbound", from_email="a@example.com"))
+
+
 def test_reschedule_meeting_requires_bot_in_context():
     result = asyncio.run(at._reschedule_meeting({}, {}, MagicMock(), context={}))
     assert "Scheduling isn't configured" in result["error"]
@@ -911,7 +962,7 @@ def test_process_widget_booking_stores_assigned_to_email(monkeypatch):
     monkeypatch.setattr(at.notify, "build_admin_email_html", MagicMock(return_value="<html/>"))
     captured_admin_recipient = {}
 
-    async def fake_deliver_email(*, supabase, owner_user, to, subject, html):
+    async def fake_deliver_email(*, supabase, owner_user, to, subject, html, reply_to=None):
         if subject.startswith("New Meeting"):
             captured_admin_recipient["to"] = to
         return "sent"

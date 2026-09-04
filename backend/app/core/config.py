@@ -54,6 +54,14 @@ LEMON_WEBHOOK_SECRET = (
 LEMON_API_KEY = os.environ.get("LEMONSQUEEZY_API_KEY", "")
 LEMON_STORE_ID = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
 
+# Resend inbound email (meeting reply capture — team scheduling Phase 4).
+# RESEND_INBOUND_DOMAIN is the subdomain Resend's inbound routing is
+# configured for (MX records point there); RESEND_INBOUND_WEBHOOK_SECRET is
+# the `whsec_...` signing secret from the Resend webhook's dashboard page,
+# used to verify the Svix-signed POST to /webhook/resend-inbound.
+RESEND_INBOUND_DOMAIN = os.environ.get("RESEND_INBOUND_DOMAIN", "")
+RESEND_INBOUND_WEBHOOK_SECRET = os.environ.get("RESEND_INBOUND_WEBHOOK_SECRET", "")
+
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://personaliai.com")
 # Deliberately a separate var from FRONTEND_URL above: per env.yaml.example's
 # own comment, FRONTEND_URL is intentionally pinned to Kin's dashboard

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
 import logging
 import os
+import re
 import time
 from datetime import datetime, timezone
 
@@ -15,7 +17,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 
 from app.core.clients import supabase
-from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET
+from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, RESEND_INBOUND_WEBHOOK_SECRET
 from app.core.db import run_db
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
@@ -221,3 +223,103 @@ async def webhook_lemonsqueezy(request: Request):
             logger.exception("Failed to record subscription update: %s", e)
 
     return {"status": "success"}
+
+
+# ---------------------------------------------------------------------------
+# Resend inbound email — captures a visitor's reply to a meeting
+# confirmation/reschedule email (team scheduling Phase 4). Resend signs
+# these with Svix, not a plain HMAC hex digest like Lemon Squeezy above —
+# svix-id/svix-timestamp/svix-signature headers, secret prefixed "whsec_".
+# ---------------------------------------------------------------------------
+
+
+def _verify_svix_signature(svix_id: str, svix_timestamp: str, raw_body: bytes,
+                           svix_signature_header: str, secret: str) -> bool:
+    if not secret or not svix_id or not svix_timestamp or not svix_signature_header:
+        return False
+    try:
+        secret_bytes = base64.b64decode(secret.removeprefix("whsec_"))
+    except Exception:
+        return False
+    signed_content = f"{svix_id}.{svix_timestamp}.".encode() + raw_body
+    expected = base64.b64encode(hmac.new(secret_bytes, signed_content, hashlib.sha256).digest()).decode()
+    # The header can carry multiple space-separated "v1,<sig>" candidates
+    # (e.g. during a Svix secret rotation) — any matching one is valid.
+    for part in svix_signature_header.split():
+        if "," not in part:
+            continue
+        version, sig = part.split(",", 1)
+        if version == "v1" and hmac.compare_digest(sig, expected):
+            return True
+    return False
+
+
+_MEETING_REPLY_ADDRESS_RE = re.compile(r"^meeting\+([0-9a-fA-F-]{36})@")
+
+
+@router.post("/webhook/resend-inbound")
+async def resend_inbound(request: Request):
+    """Captures a visitor's reply into that meeting's thread
+    (chatty_meeting_messages) by matching the "meeting+<uuid>@..." local
+    part plugins/agent_tools.py::_meeting_reply_to put in the Reply-To
+    header of the original email. Fails closed (rejects unverified
+    requests) rather than the softer "skip verification if unconfigured"
+    pattern Lemon Squeezy's webhook above uses — this endpoint writes into
+    real customer meeting records from a payload anyone can POST, so an
+    unconfigured secret should block it, not silently accept anything."""
+    raw_body = await request.body()
+    if not _verify_svix_signature(
+        request.headers.get("svix-id", ""), request.headers.get("svix-timestamp", ""),
+        raw_body, request.headers.get("svix-signature", ""), RESEND_INBOUND_WEBHOOK_SECRET,
+    ):
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    data = payload.get("data") or {}
+    to_field = data.get("to")
+    if isinstance(to_field, list):
+        to_addresses = to_field
+    elif isinstance(to_field, str):
+        to_addresses = [to_field]
+    else:
+        to_addresses = []
+
+    meeting_id = None
+    for addr in to_addresses:
+        addr_str = addr.get("email") if isinstance(addr, dict) else addr
+        if not addr_str:
+            continue
+        m = _MEETING_REPLY_ADDRESS_RE.match(addr_str.strip())
+        if m:
+            meeting_id = m.group(1)
+            break
+
+    if not meeting_id:
+        # Not addressed to a meeting-reply alias — nothing to do, but still
+        # 200 so Resend doesn't keep retrying a delivery we'll never use.
+        return {"ok": True, "matched": False}
+
+    res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("id").eq("id", meeting_id).execute())
+    if not res_meet.data:
+        logger.warning("resend_inbound: no meeting found for id %s", meeting_id)
+        return {"ok": True, "matched": False}
+
+    from_field = data.get("from")
+    from_email = (from_field.get("email") if isinstance(from_field, dict) else from_field) or "unknown"
+    subject = (data.get("subject") or "")[:500]
+    body_text = (data.get("text") or data.get("html") or "")[:20000]
+
+    try:
+        await run_db(lambda: supabase.table("chatty_meeting_messages").insert({
+            "meeting_id": meeting_id, "direction": "inbound", "from_email": from_email,
+            "subject": subject, "body_text": body_text,
+        }).execute())
+    except Exception:
+        logger.exception("Failed to record inbound meeting reply for meeting %s", meeting_id)
+        raise HTTPException(status_code=500, detail="Failed to record message")
+
+    return {"ok": True, "matched": True}
