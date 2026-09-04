@@ -397,6 +397,54 @@ function TeamTabCheckbox({ checked, onChange, label }: { checked: boolean; onCha
   );
 }
 
+const _TIME_PICKER_HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
+const _TIME_PICKER_MINUTES = ["00", "15", "30", "45"];
+
+/** A compact 3-part time picker (hour / minute / AM-PM) built from
+ * ModernSelect, replacing a bare native `<input type="time">` — the latter
+ * renders as unstyled browser chrome (a plain clock-icon field) that looks
+ * out of place next to the rest of this dashboard's styled controls.
+ * `minutes` is minutes-since-midnight (0-1439), matching
+ * chatty_availability_rules.start_minute/end_minute. */
+function TimePicker({ minutes, onChange }: { minutes: number; onChange: (minutes: number) => void }) {
+  const h24 = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  const isPM = h24 >= 12;
+  const h12 = h24 % 12 || 12;
+
+  function update(newH12: number, newM: number, newIsPM: boolean) {
+    const newH24 = (newH12 % 12) + (newIsPM ? 12 : 0);
+    onChange(newH24 * 60 + newM);
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <div className="w-14">
+        <ModernSelect
+          size="sm" value={String(h12)}
+          options={_TIME_PICKER_HOURS.map((h) => ({ value: h, label: h }))}
+          onChange={(v) => update(parseInt(v, 10), m, isPM)}
+        />
+      </div>
+      <span className="text-neutral-400 text-[10px]">:</span>
+      <div className="w-14">
+        <ModernSelect
+          size="sm" value={String(m).padStart(2, "0")}
+          options={_TIME_PICKER_MINUTES.map((mm) => ({ value: mm, label: mm }))}
+          onChange={(v) => update(h12, parseInt(v, 10), isPM)}
+        />
+      </div>
+      <div className="w-16">
+        <ModernSelect
+          size="sm" value={isPM ? "PM" : "AM"}
+          options={[{ value: "AM", label: "AM" }, { value: "PM", label: "PM" }]}
+          onChange={(v) => update(h12, m, v === "PM")}
+        />
+      </div>
+    </div>
+  );
+}
+
 /** Inline role + per-tab permission editor for one row in the Team section's
  * member list. Kept local state so keystrokes/checkbox toggles don't touch
  * teamMembers (and re-render the whole list) until Save is pressed. */
@@ -443,15 +491,6 @@ const AVAILABILITY_DAYS = [
   { value: 3, label: "Thu" }, { value: 4, label: "Fri" }, { value: 5, label: "Sat" }, { value: 6, label: "Sun" },
 ] as const;
 
-function minutesToTimeInput(m: number): string {
-  const h = Math.floor(m / 60).toString().padStart(2, "0");
-  const mm = (m % 60).toString().padStart(2, "0");
-  return `${h}:${mm}`;
-}
-function timeInputToMinutes(t: string): number {
-  const [h, m] = t.split(":").map((n) => parseInt(n, 10) || 0);
-  return h * 60 + m;
-}
 
 /** Per-day recurring availability for one team member — matches
  * chatty_availability_rules (day_of_week 0=Mon..6=Sun, start_minute/
@@ -512,24 +551,15 @@ function MemberAvailabilityEditor({ memberId, botId, showToast, fetchWithFallbac
         const rule = dayRule(value);
         const on = !!rule;
         return (
-          <div key={value} className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 w-14 shrink-0 cursor-pointer">
-              <input type="checkbox" checked={on} onChange={(e) => toggleDay(value, e.target.checked)} className="size-3.5 accent-[#f97316]" />
-              <span className="text-[10px] font-semibold text-neutral-600 dark:text-neutral-300">{label}</span>
-            </label>
+          <div key={value} className="flex items-center gap-2.5">
+            <div className="w-16 shrink-0">
+              <TeamTabCheckbox checked={on} onChange={(checked) => toggleDay(value, checked)} label={label} />
+            </div>
             {on && rule && (
               <>
-                <input
-                  type="time" value={minutesToTimeInput(rule.start_minute)}
-                  onChange={(e) => updateDay(value, "start_minute", timeInputToMinutes(e.target.value))}
-                  className="text-[10px] bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5"
-                />
+                <TimePicker minutes={rule.start_minute} onChange={(m) => updateDay(value, "start_minute", m)} />
                 <span className="text-[10px] text-neutral-400">to</span>
-                <input
-                  type="time" value={minutesToTimeInput(rule.end_minute)}
-                  onChange={(e) => updateDay(value, "end_minute", timeInputToMinutes(e.target.value))}
-                  className="text-[10px] bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5"
-                />
+                <TimePicker minutes={rule.end_minute} onChange={(m) => updateDay(value, "end_minute", m)} />
               </>
             )}
           </div>
@@ -7642,25 +7672,19 @@ const { reply, session_id } = await res.json();`}</pre>
                               )}
                               {canAccessTab("team") && (
                                 <div className="space-y-1.5">
-                                  <label className="flex items-center gap-1.5 cursor-pointer w-fit">
-                                    <input
-                                      type="checkbox" checked={!!m.bookable}
-                                      onChange={(e) => toggleMemberBookable(m.id, e.target.checked)}
-                                      className="size-3.5 accent-[#f97316]"
-                                    />
-                                    <span className="text-[10px] text-neutral-500">Bookable for round-robin meetings</span>
-                                  </label>
+                                  <TeamTabCheckbox
+                                    checked={!!m.bookable}
+                                    onChange={(checked) => toggleMemberBookable(m.id, checked)}
+                                    label="Bookable for round-robin meetings"
+                                  />
                                   {m.bookable && (
-                                    <label className="flex items-center gap-1.5 cursor-pointer w-fit pl-5">
-                                      <input
-                                        type="checkbox" checked={m.book_on_own_calendar !== false}
-                                        onChange={(e) => toggleMemberCalendarPreference(m.id, e.target.checked)}
-                                        className="size-3.5 accent-[#f97316]"
+                                    <div className="pl-5">
+                                      <TeamTabCheckbox
+                                        checked={m.book_on_own_calendar !== false}
+                                        onChange={(checked) => toggleMemberCalendarPreference(m.id, checked)}
+                                        label={m.book_on_own_calendar !== false ? "Books on their own calendar" : "Books on your (admin) calendar instead"}
                                       />
-                                      <span className="text-[10px] text-neutral-500">
-                                        {m.book_on_own_calendar !== false ? "Books on their own calendar" : "Books on your (admin) calendar instead"}
-                                      </span>
-                                    </label>
+                                    </div>
                                   )}
                                 </div>
                               )}
