@@ -669,7 +669,7 @@ async def run_widget_assistant(
                 session_id=session_id,
             )
             if byok_reply:
-                return {"reply": byok_reply, "thinking": "", "sources": source_refs}
+                return {"reply": byok_reply, "thinking": "", "sources": _refs_grounded_in_reply(source_refs, byok_reply)}
             logger.warning("BYOK provider %s returned an empty reply for bot %s — falling back to Gemini", byok_provider, bot_id)
         except Exception as exc:
             # api_key is a customer's own third-party LLM credential — some
@@ -787,7 +787,7 @@ async def run_widget_assistant(
             if on_token and not stream_live:
                 # Held back for validation above — release it now as one chunk.
                 await on_token(reply)
-            return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": source_refs}
+            return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply)}
 
         messages.append(gen["message"])
 
@@ -860,7 +860,7 @@ async def run_widget_assistant(
         )
     if on_token and not stream_live:
         await on_token(reply)
-    return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": source_refs}
+    return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply)}
 
 
 _STOPWORDS = {
@@ -1047,6 +1047,26 @@ def _rank_sources(query: str, sources: list[dict], max_sources: int = 6,
         lines.append(block)
         total += len(block)
     return "".join(lines)
+
+
+def _refs_grounded_in_reply(refs: list[dict], reply: str) -> list[dict]:
+    """`_ranked_source_refs` scores candidates against the visitor's raw
+    message alone, so a message like "can I book a demo?" spuriously matches
+    any doc that happens to mention "book"/"demo" (an API-reference page, the
+    Zoom integration doc, etc.) even when the actual reply is a plain
+    scheduling question that used none of that content. Keep only the refs
+    whose own name shares a real token with what the assistant actually said
+    — a cheap proxy for "this citation reflects the reply", not just "this
+    document matched the question"."""
+    reply_tokens = _query_tokens(reply)
+    if not reply_tokens:
+        return []
+    grounded = []
+    for ref in refs:
+        name_tokens = _query_tokens(ref.get("name") or "")
+        if name_tokens & reply_tokens:
+            grounded.append(ref)
+    return grounded
 
 
 def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list[dict]:
