@@ -260,16 +260,16 @@ const ICON_ONLY_SECTIONS = new Set(["sendBtn", "launcher"]);
 // app/core/permissions.py ALL_TABS. A team member's `permissions` array
 // (chatty_team_members.permissions) lists which of these they hold; the
 // owner implicitly holds all of them.
-const CHATTY_TEAM_TABS = ["inbox", "sources", "design", "settings", "voice", "team", "billing", "byok", "webhooks"] as const;
+const CHATTY_TEAM_TABS = ["inbox", "sources", "design", "settings", "voice", "team", "meetings", "billing", "byok", "webhooks"] as const;
 type ChattyTeamTab = (typeof CHATTY_TEAM_TABS)[number];
 // Only the owner may grant/revoke these for anyone, including an admin
 // managing the roster — mirrors OWNER_ONLY_TABS in app/core/permissions.py.
 const OWNER_ONLY_TABS = new Set<ChattyTeamTab>(["billing", "byok", "webhooks"]);
-const DEFAULT_ADMIN_TABS: ChattyTeamTab[] = ["inbox", "sources", "design", "settings", "voice", "team"];
+const DEFAULT_ADMIN_TABS: ChattyTeamTab[] = ["inbox", "sources", "design", "settings", "voice", "team", "meetings"];
 const DEFAULT_AGENT_TABS: ChattyTeamTab[] = ["inbox"];
 const TAB_LABELS: Record<ChattyTeamTab, string> = {
   inbox: "Inbox", sources: "Knowledge", design: "Customizer", settings: "Settings",
-  voice: "Voice Agent", team: "Team", billing: "Billing", byok: "BYOK keys", webhooks: "Webhooks",
+  voice: "Voice Agent", team: "Team", meetings: "Meetings", billing: "Billing", byok: "BYOK keys", webhooks: "Webhooks",
 };
 
 // Which permission tab (if any) gates each sidebar nav item. `null` means
@@ -421,6 +421,110 @@ function MemberPermissionEditor({
         <button onClick={() => onSave(draftRole, draftTabs)} className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-[#f97316] text-white hover:opacity-90 transition-opacity">Save</button>
         <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-medium rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors">Cancel</button>
       </div>
+    </div>
+  );
+}
+
+const AVAILABILITY_DAYS = [
+  { value: 0, label: "Mon" }, { value: 1, label: "Tue" }, { value: 2, label: "Wed" },
+  { value: 3, label: "Thu" }, { value: 4, label: "Fri" }, { value: 5, label: "Sat" }, { value: 6, label: "Sun" },
+] as const;
+
+function minutesToTimeInput(m: number): string {
+  const h = Math.floor(m / 60).toString().padStart(2, "0");
+  const mm = (m % 60).toString().padStart(2, "0");
+  return `${h}:${mm}`;
+}
+function timeInputToMinutes(t: string): number {
+  const [h, m] = t.split(":").map((n) => parseInt(n, 10) || 0);
+  return h * 60 + m;
+}
+
+/** Per-day recurring availability for one team member — matches
+ * chatty_availability_rules (day_of_week 0=Mon..6=Sun, start_minute/
+ * end_minute). Round-robin only considers a member "free" within these
+ * windows; a member with no rows falls back to the bot's own business
+ * hours (see plugins/availability_engine.py). */
+function MemberAvailabilityEditor({ memberId, botId, showToast, fetchWithFallback }: {
+  memberId: string; botId: string;
+  showToast: (msg: string, kind: "success" | "error" | "info") => void;
+  fetchWithFallback: (path: string, options?: RequestInit) => Promise<Response>;
+}) {
+  const [rules, setRules] = useState<{ day_of_week: number; start_minute: number; end_minute: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchWithFallback(`/api/team/${memberId}/availability?bot_id=${botId}`);
+        if (res.ok && !cancelled) {
+          const d = await res.json();
+          setRules(d.rules || []);
+        }
+      } finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [memberId, botId]);
+
+  function dayRule(day: number) { return rules.find((r) => r.day_of_week === day); }
+  function toggleDay(day: number, on: boolean) {
+    setRules((p) => on
+      ? [...p, { day_of_week: day, start_minute: 540, end_minute: 1020 }] // default 9am-5pm
+      : p.filter((r) => r.day_of_week !== day));
+  }
+  function updateDay(day: number, field: "start_minute" | "end_minute", minutes: number) {
+    setRules((p) => p.map((r) => (r.day_of_week === day ? { ...r, [field]: minutes } : r)));
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetchWithFallback(`/api/team/${memberId}/availability`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, rules }),
+      });
+      if (!res.ok) showToast("Couldn't save availability. Try again.", "error");
+      else showToast("Availability saved.", "success");
+    } catch { showToast("Couldn't save availability. Try again.", "error"); } finally { setSaving(false); }
+  }
+
+  if (loading) return <p className="text-[10px] text-neutral-400 py-1">Loading availability…</p>;
+
+  return (
+    <div className="space-y-1.5 pt-1">
+      <p className="text-[10px] text-neutral-400">Recurring weekly availability for round-robin booking. Days left off use this bot&apos;s default business hours.</p>
+      {AVAILABILITY_DAYS.map(({ value, label }) => {
+        const rule = dayRule(value);
+        const on = !!rule;
+        return (
+          <div key={value} className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 w-14 shrink-0 cursor-pointer">
+              <input type="checkbox" checked={on} onChange={(e) => toggleDay(value, e.target.checked)} className="size-3.5 accent-[#f97316]" />
+              <span className="text-[10px] font-semibold text-neutral-600 dark:text-neutral-300">{label}</span>
+            </label>
+            {on && rule && (
+              <>
+                <input
+                  type="time" value={minutesToTimeInput(rule.start_minute)}
+                  onChange={(e) => updateDay(value, "start_minute", timeInputToMinutes(e.target.value))}
+                  className="text-[10px] bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5"
+                />
+                <span className="text-[10px] text-neutral-400">to</span>
+                <input
+                  type="time" value={minutesToTimeInput(rule.end_minute)}
+                  onChange={(e) => updateDay(value, "end_minute", timeInputToMinutes(e.target.value))}
+                  className="text-[10px] bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5"
+                />
+              </>
+            )}
+          </div>
+        );
+      })}
+      <button onClick={save} disabled={saving} className="mt-1 px-2.5 py-1 text-[10px] font-semibold rounded-md bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
+        {saving ? "Saving…" : "Save availability"}
+      </button>
     </div>
   );
 }
@@ -900,12 +1004,14 @@ export default function Dashboard() {
   const [logoBgColor, setLogoBgColor] = useState("");
   const [launcherShape, setLauncherShape] = useState("circle");
   const [userBots, setUserBots] = useState<Bot[]>([]);
-  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; role: string; permissions?: string[] }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; name?: string; phone?: string; role: string; permissions?: string[]; bookable?: boolean }[]>([]);
+  const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
   const [inviteTabs, setInviteTabs] = useState<ChattyTeamTab[]>(DEFAULT_AGENT_TABS);
   const [invitingTeam, setInvitingTeam] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editingAvailabilityId, setEditingAvailabilityId] = useState<string | null>(null);
   // Defaults to owner-level access so a single-owner bot (no /api/team/me
   // round trip has resolved yet, or the caller genuinely is the owner) never
   // flashes a permission-gated empty state.
@@ -2170,15 +2276,17 @@ export default function Dashboard() {
 
   async function inviteTeamMember() {
     const email = inviteEmail.trim().toLowerCase();
-    if (!email.includes("@") || !botId) return;
+    const name = inviteName.trim();
+    if (!email.includes("@") || !name || !botId) return;
     setInvitingTeam(true);
     try {
       const res = await fetchWithFallback("/api/team", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, email, role: inviteRole, permissions: inviteTabs }),
+        body: JSON.stringify({ bot_id: botId, email, name, role: inviteRole, permissions: inviteTabs }),
       });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
+        setInviteName("");
         setInviteEmail("");
         await loadTeam();
         showToast(
@@ -2214,6 +2322,24 @@ export default function Dashboard() {
         showToast("Couldn't update permissions. Try again.", "error");
       }
     } catch { showToast("Couldn't update permissions. Try again.", "error"); }
+  }
+
+  async function toggleMemberBookable(id: string, bookable: boolean) {
+    if (!botId) return;
+    setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, bookable } : m))); // optimistic
+    try {
+      const res = await fetchWithFallback(`/api/team/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, bookable }),
+      });
+      if (!res.ok) {
+        setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, bookable: !bookable } : m))); // revert
+        showToast("Couldn't update round-robin setting. Try again.", "error");
+      }
+    } catch {
+      setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, bookable: !bookable } : m)));
+      showToast("Couldn't update round-robin setting. Try again.", "error");
+    }
   }
 
   // Knowledge gaps: questions the bot couldn't confidently answer.
@@ -7355,6 +7481,11 @@ const { reply, session_id } = await res.json();`}</pre>
                     </p>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                       <input
+                        type="text" value={inviteName} onChange={(e) => setInviteName(e.target.value)}
+                        placeholder="Full name"
+                        className="sm:w-40 shrink-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      />
+                      <input
                         type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
                         placeholder="teammate@company.com"
                         className="flex-1 min-w-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
@@ -7372,7 +7503,7 @@ const { reply, session_id } = await res.json();`}</pre>
                             }}
                           />
                         </div>
-                        <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@")}
+                        <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@") || !inviteName.trim()}
                           className="flex-1 sm:flex-initial px-3.5 py-2 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap">
                           {invitingTeam ? "Inviting…" : "Invite"}
                         </button>
@@ -7393,14 +7524,23 @@ const { reply, session_id } = await res.json();`}</pre>
                         {teamMembers.map((m) => {
                           const memberTabs = (m.permissions || []) as ChattyTeamTab[];
                           const isEditing = editingMemberId === m.id;
+                          const isEditingAvailability = editingAvailabilityId === m.id;
+                          const isSelf = !!user?.email && user.email.toLowerCase() === m.email.toLowerCase();
+                          const canManageAvailability = canAccessTab("team") || isSelf;
                           return (
                             <div key={m.id} className="px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 space-y-2">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs text-neutral-700 dark:text-neutral-200 truncate">{m.email}</span>
+                                  <span className="text-xs text-neutral-700 dark:text-neutral-200 truncate">{m.name || m.email}</span>
+                                  {m.name && <span className="text-[10px] text-neutral-400 truncate">{m.email}</span>}
                                   <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-500">{m.role}</span>
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">
+                                  {canManageAvailability && (
+                                    <button onClick={() => setEditingAvailabilityId(isEditingAvailability ? null : m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors">
+                                      {isEditingAvailability ? "Close" : "Availability"}
+                                    </button>
+                                  )}
                                   <button onClick={() => setEditingMemberId(isEditing ? null : m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors">
                                     {isEditing ? "Close" : "Manage"}
                                   </button>
@@ -7410,6 +7550,16 @@ const { reply, session_id } = await res.json();`}</pre>
                               {!isEditing && memberTabs.length > 0 && (
                                 <p className="text-[10px] text-neutral-400 truncate">{memberTabs.map((t) => TAB_LABELS[t] || t).join(", ")}</p>
                               )}
+                              {canAccessTab("team") && (
+                                <label className="flex items-center gap-1.5 cursor-pointer w-fit">
+                                  <input
+                                    type="checkbox" checked={!!m.bookable}
+                                    onChange={(e) => toggleMemberBookable(m.id, e.target.checked)}
+                                    className="size-3.5 accent-[#f97316]"
+                                  />
+                                  <span className="text-[10px] text-neutral-500">Bookable for round-robin meetings</span>
+                                </label>
+                              )}
                               {isEditing && (
                                 <MemberPermissionEditor
                                   role={m.role === "admin" ? "admin" : "agent"}
@@ -7417,6 +7567,12 @@ const { reply, session_id } = await res.json();`}</pre>
                                   grantableTabs={grantableTabs}
                                   onSave={(role, permissions) => updateTeamMember(m.id, role, permissions)}
                                   onCancel={() => setEditingMemberId(null)}
+                                />
+                              )}
+                              {isEditingAvailability && botId && (
+                                <MemberAvailabilityEditor
+                                  memberId={m.id} botId={botId}
+                                  showToast={showToast} fetchWithFallback={fetchWithFallback}
                                 />
                               )}
                             </div>
