@@ -371,56 +371,68 @@ async def run_widget_assistant(
     use_ms_calendar = provider == "teams"
     if use_ms_calendar:
         avail_instruction = (
-            f"- Availability Check: Once you have the visitor's preferred date, check the owner's availability with `list_outlook_events` for that day. "
-            f"If the requested slot is busy, inspect the returned events, find free gaps between {_fmt_hour(bh_start)} and {_fmt_hour(bh_end)}, and proactively recommend 2 to 3 guaranteed open slots.\n"
+            f"Availability Check: Once you have the visitor's preferred date, check the owner's availability with `list_outlook_events` for that day. "
+            f"If the requested slot is busy, inspect the returned events, find free gaps between {_fmt_hour(bh_start)} and {_fmt_hour(bh_end)}, and proactively recommend 2 to 3 guaranteed open slots."
         )
         book_instruction = (
-            "- To book, call `create_outlook_event` with: subject='Demo Meeting with <visitor name>', "
-            "start=start_iso_time, end=end_iso_time, attendees=[visitor_email], body=description_details, "
+            "To book, call `create_outlook_event` with: subject='Demo Meeting with <Visitor Full Name>', "
+            "start=start_iso_time, end=end_iso_time, attendees=[visitor_real_email], body=description_details, "
             "online_meeting=true (this generates the Microsoft Teams join link). Booking automatically emails "
-            "the client and admin and records the meeting.\n"
+            "the client and admin and records the meeting."
         )
     else:
         avail_instruction = (
-            f"- Availability Check: Once you have the visitor's preferred date, call `check_calendar_availability` spanning the entire working day (from {_fmt_hour(bh_start)} to {_fmt_hour(bh_end)} on that date in the owner's timezone). "
-            f"This returns all busy intervals for that day at once. If the requested slot is busy or outside allowed hours, do NOT guess — look at the free gaps between the busy intervals and proactively recommend 2 to 3 guaranteed open slots within allowed business hours (e.g. 'That slot at 2:00 PM is already taken, but I have openings at 3:30 PM and 4:30 PM on the same day. Would either of those work for you?').\n"
+            f"Availability Check: Once you have the visitor's preferred date, call `check_calendar_availability` spanning the entire working day (from {_fmt_hour(bh_start)} to {_fmt_hour(bh_end)} on that date in the owner's timezone). "
+            f"This returns all busy intervals for that day at once. If the requested slot is busy or outside allowed hours, do NOT guess — look at the free gaps between the busy intervals and proactively recommend 2 to 3 guaranteed open slots within allowed business hours."
         )
         book_instruction = (
-            "- To book, call `create_calendar_event` with: summary='Demo Meeting with <visitor name>', "
-            "start=start_iso_time, end=end_iso_time, attendees=[visitor_email], description=description_details. "
-            "Booking automatically emails the client and admin and records the meeting.\n"
+            "To book, call `create_calendar_event` with: summary='Demo Meeting with <Visitor Full Name>', "
+            "start=start_iso_time, end=end_iso_time, attendees=[visitor_real_email], description=description_details. "
+            "Booking automatically emails the client and admin and records the meeting."
         )
 
     # 4. Prompt compilation — only include scheduling guidance when booking is enabled
     scheduling_enabled = bool(bot.get("calendar_scheduling_enabled"))
     if scheduling_enabled:
         scheduling_block = (
-            f"Timezone & Scheduling Guidelines:\n"
+            f"TIMEZONE & SCHEDULING GUIDELINES:\n"
             f"- Visitor Timezone: {visitor_timezone or 'UTC'}\n"
             f"- Current Time in Visitor's Location: {current_time_visitor}\n"
             f"- Business Owner Timezone: {owner_tz_str}\n"
             f"- Current Time at Business Owner's Location: {current_time_owner}\n\n"
             f"SCHEDULING RULES:\n"
-            f"- Meeting Duration Limit: Exactly {duration_min} minutes. Ensure the difference between the start time and end time of the booked slot is exactly {duration_min} minutes when checking availability and creating calendar events.\n"
+            f"- Meeting Duration: Exactly {duration_min} minutes. The difference between start and end must be exactly {duration_min} minutes.\n"
             f"- Allowed Business Hours: Only schedule meetings between {_fmt_hour(bh_start)} and {_fmt_hour(bh_end)} in the Business Owner's timezone ({owner_tz_str}), on these days only: {work_days_str}. Never book outside these hours or on other days.\n"
             f"{buffer_line}"
             f"{advance_line}"
             f"{max_daily_line}"
             f"{max_weekly_line}"
-            f"- If the visitor wants to schedule a meeting/demo, check if the business offers meetings or demos using the knowledge base.\n"
-            f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking.\n"
-            f"- TIMEZONE HANDLING: The visitor's timezone is ALREADY known as {visitor_timezone or 'UTC'}. NEVER ask the visitor for their timezone under any circumstances (never say 'please include timezone' or ask what timezone they are in). When asking for their preferred time, simply ask: 'What day and time works best for you?' Always automatically assume any date and time they mention is in their timezone ({visitor_timezone or 'UTC'}).\n"
-            f"- Before booking any slot, you MUST collect these REQUIRED details (do not book until each is provided): {required_fields_str} and preferred date/time. Ask for any missing field one at a time. Also ASK for these optional details once each — they are optional, so don't block the booking if the visitor skips them: {optional_fields_str}.\n"
-            f"- Always interpret and confirm the visitor's requested time in THEIR timezone ({visitor_timezone or 'UTC'}), then convert to the owner's timezone for the calendar event.\n"
-            f"{avail_instruction}"
-            f"- Only schedule the event if it's free. If busy or conflicted, proactively offer alternative open slots.\n"
-            f"{book_instruction}"
-            f"- CRITICAL: Confirming availability is NOT the same as booking. Never tell the visitor a meeting is booked, scheduled, or confirmed until you have actually called the booking tool in this same turn and it returned successfully. If you checked availability but have not yet called the booking tool, call it now before replying — do not stop after the availability check and describe the booking as done.\n"
-            f"- The booking tool's result includes a real 'hangout_link'/'online_meeting_url' (join link) and 'html_link' "
-            f"(calendar entry). ALWAYS put the join link directly in your confirmation message to the visitor, in this same "
-            f"reply — do not only say a confirmation email is on its way, since email delivery to the visitor isn't "
-            f"guaranteed. Use ONLY the exact value the tool returned; never invent or reconstruct a link yourself.\n"
-            f"- After booking, always call `create_lead` to save ALL collected visitor details (bot_id='{bot_id}') as a lead, including every field you gathered ({lead_fields_str}).\n\n"
+            f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking.\n\n"
+            f"MANDATORY 4-STEP BOOKING WORKFLOW (Follow in strict chronological order — DO NOT skip steps):\n"
+            f"1. DATE & TIME SELECTION:\n"
+            f"   - The visitor's timezone is ALREADY known as {visitor_timezone or 'UTC'}. NEVER ask the visitor for their timezone under any circumstances (never say 'please include timezone' or ask what timezone they are in).\n"
+            f"   - When asking for their preferred time, simply ask: 'What day and time works best for you?'\n"
+            f"   - RELATIVE DATES: When the visitor gives a relative date (such as 'tomorrow', 'tomorrow at 10 am', 'next Monday', 'day after tomorrow'), you MUST resolve it to the exact calendar date immediately using 'Current Time in Visitor's Location' ({current_time_visitor}). NEVER ask the visitor to confirm what date tomorrow is — calculate it yourself!\n\n"
+            f"2. AVAILABILITY CHECK & CONTACT DETAILS REQUEST:\n"
+            f"   - {avail_instruction}\n"
+            f"   - If the requested slot is busy, conflicted, or outside business hours: proactively recommend 2 to 3 open alternative slots within allowed business hours.\n"
+            f"   - If the requested slot IS AVAILABLE:\n"
+            f"     * Check if you already have the visitor's verified name and real email address from earlier in the conversation.\n"
+            f"     * If you do NOT have their name or email yet: DO NOT CALL the booking tool! Confirm that the slot is open, and IMMEDIATELY ask for their required contact details ({required_fields_str}) and optional details ({optional_fields_str}) in this same reply.\n"
+            f"       Example: 'Tomorrow at 10:00 AM is available! To reserve your slot and send you the calendar invite, could you please share your {required_fields_str}?' (and ask once for {optional_fields_str}).\n"
+            f"     * STRICT RULE: You MUST STOP and wait for the visitor to respond with their contact info. Never call the booking tool or claim the meeting is confirmed before the visitor has provided their real name and email!\n\n"
+            f"3. COLLECT DETAILS & RECORD LEAD:\n"
+            f"   - REQUIRED fields to collect before booking: {required_fields_str}.\n"
+            f"   - OPTIONAL fields: {optional_fields_str} (e.g. phone number). Ask once, but do not block booking if the visitor chooses to skip optional fields.\n"
+            f"   - As soon as the visitor shares contact details, call `create_lead` with bot_id='{bot_id}' and all gathered fields ({lead_fields_str}).\n\n"
+            f"4. FINALIZE BOOKING (Only after date, time, name, and email are ALL confirmed in hand):\n"
+            f"   - {book_instruction}\n"
+            f"   - STRICT PROHIBITION: NEVER call the booking tool with empty, dummy, or placeholder emails like 'guest@example.com'. 'attendees' MUST contain the visitor's actual email address.\n"
+            f"   - Include the visitor's real name in the meeting title (e.g. 'Demo Meeting with <Visitor Full Name>').\n"
+            f"   - Convert the visitor's preferred time to the owner's timezone for the calendar event.\n"
+            f"   - CRITICAL: Confirming availability is NOT the same as booking. Never tell the visitor a meeting is booked, scheduled, or confirmed until you have actually called the booking tool in this same turn and it returned successfully.\n"
+            f"   - The booking tool returns a join link ('hangout_link' / 'online_meeting_url'). ALWAYS put this join link directly in your confirmation message to the visitor.\n"
+            f"   - After booking, ensure `create_lead` has been called to save all visitor details ({lead_fields_str}).\n\n"
         )
     else:
         scheduling_block = (

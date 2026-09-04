@@ -515,7 +515,8 @@ def test_execute_create_calendar_event_triggers_widget_booking_side_effects(monk
     monkeypatch.setattr(at, "_create_calendar_event", create_mock)
     monkeypatch.setattr(at, "_process_widget_booking", booking_mock)
     result = asyncio.run(at.execute(
-        "create_calendar_event", {"summary": "x", "start": "a", "end": "b"},
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Jane Doe", "start": "a", "end": "b", "attendees": ["jane@example.org"]},
         user={}, supabase=MagicMock(), context={"source": "widget", "bot_id": "b1"},
     ))
     assert result == {"id": "evt1"}
@@ -528,11 +529,43 @@ def test_execute_create_calendar_event_skips_booking_side_effects_on_error(monke
     monkeypatch.setattr(at, "_create_calendar_event", create_mock)
     monkeypatch.setattr(at, "_process_widget_booking", booking_mock)
     result = asyncio.run(at.execute(
-        "create_calendar_event", {"summary": "x", "start": "a", "end": "b"},
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Jane Doe", "start": "a", "end": "b", "attendees": ["jane@example.org"]},
         user={}, supabase=MagicMock(), context={"source": "widget", "bot_id": "b1"},
     ))
     assert "error" in result
     booking_mock.assert_not_awaited()
+
+
+def test_execute_create_calendar_event_rejects_missing_attendee_email():
+    result = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Jane Doe", "start": "a", "end": "b"},
+        user={}, supabase=MagicMock(), context={"source": "widget", "bot_id": "b1"},
+    ))
+    assert "error" in result
+    assert "valid visitor email address is REQUIRED" in result["error"]
+
+
+def test_execute_create_calendar_event_rejects_dummy_attendee_email():
+    result = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Jane Doe", "start": "a", "end": "b", "attendees": ["guest@example.com"]},
+        user={}, supabase=MagicMock(), context={"source": "widget", "bot_id": "b1"},
+    ))
+    assert "error" in result
+    assert "valid visitor email address is REQUIRED" in result["error"]
+
+
+def test_execute_create_calendar_event_rejects_missing_name_when_required():
+    result = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting", "start": "a", "end": "b", "attendees": ["valid@domain.com"]},
+        user={}, supabase=MagicMock(),
+        context={"source": "widget", "bot_id": "b1", "bot": {"lead_required_fields": ["name", "email"]}},
+    ))
+    assert "error" in result
+    assert "Visitor's name is REQUIRED before booking" in result["error"]
 
 
 def test_execute_unknown_tool_returns_error_dict():

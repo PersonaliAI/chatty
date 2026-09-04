@@ -15,6 +15,7 @@ import logging
 import os
 import urllib.parse
 from datetime import datetime, timedelta, timezone
+import re
 from typing import Any, Optional
 
 import httpx
@@ -62,7 +63,7 @@ DECLARATIONS: list[dict] = [
             "end": {"type": "string", "description": "ISO 8601 end datetime."},
             "description": {"type": "string", "description": "Optional event description."},
             "location": {"type": "string", "description": "Optional physical/virtual location."},
-            "attendees": {"type": "array", "items": {"type": "string"}, "description": "Optional list of attendee email addresses."},
+            "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee email addresses. For widget demo bookings, the visitor's real email address is required here before booking."},
             "all_day": {"type": "boolean", "description": "True for all-day events; start/end then become dates."},
         },
         ["summary", "start", "end"],
@@ -97,7 +98,7 @@ DECLARATIONS: list[dict] = [
             "end": {"type": "string", "description": "ISO 8601 end datetime."},
             "body": {"type": "string", "description": "Optional description."},
             "location": {"type": "string", "description": "Optional location."},
-            "attendees": {"type": "array", "items": {"type": "string"}, "description": "Optional attendee emails."},
+            "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee emails. For widget demo bookings, the visitor's real email address is required here before booking."},
             "is_all_day": {"type": "boolean", "description": "All-day event."},
             "calendar_id": {"type": "string", "description": "Optional non-default calendar."},
             "online_meeting": {"type": "boolean", "description": "Set true to create a Microsoft Teams online meeting and generate a join link."},
@@ -475,35 +476,69 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
 
         # 2. Get attendee details
         attendees = args.get("attendees") or []
-        visitor_email = attendees[0] if attendees else "guest@example.com"
+        if isinstance(attendees, str):
+            attendees = [attendees]
+        visitor_email = _dedupe_doubled(attendees[0] if attendees else "guest@example.com")
 
         # Parse visitor name from summary/subject or default
         summary = args.get("summary") or args.get("subject") or "Demo Meeting"
-        visitor_name = summary.replace("Demo Meeting with ", "").replace("Demo Meeting", "").strip() or "Guest"
+        raw_name = summary.replace("Demo Meeting with ", "").replace("Demo Meeting with", "").replace("Demo Meeting", "").strip()
+        visitor_name = _dedupe_doubled(raw_name) or "Guest"
+
+        # If visitor_name is generic or suspicious, try to recover from session lead in DB
+        invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes"}
+        session_id = context.get("session_id")
+        if (not visitor_name or visitor_name.lower() in invalid_names) and session_id:
+            try:
+                lead_res = await run_db(lambda: supabase.table("chatty_leads").select("name").eq("bot_id", bot_id).eq("session_id", session_id).order("created_at", desc=True).limit(1).execute())
+                if lead_res.data and lead_res.data[0].get("name"):
+                    db_name = _dedupe_doubled(lead_res.data[0]["name"].strip())
+                    if db_name and db_name.lower() not in invalid_names:
+                        visitor_name = db_name
+            except Exception:
+                pass
 
         # 3. Find or create lead
         res_lead = await run_db(lambda: supabase.table("chatty_leads").select("*").eq("bot_id", bot_id).eq("email", visitor_email).execute())
         lead_id = None
         if res_lead.data:
             lead_id = res_lead.data[0]["id"]
+            if visitor_name and visitor_name.lower() not in invalid_names:
+                await run_db(lambda: supabase.table("chatty_leads").update({"name": visitor_name}).eq("id", lead_id).execute())
         else:
-            # Create a lead
-            lead_res = await run_db(lambda: supabase.table("chatty_leads").insert({
-                "bot_id": bot_id,
-                "name": visitor_name,
-                "email": visitor_email,
-                "phone": ""
-            }).execute())
-            if lead_res.data:
-                lead_id = lead_res.data[0]["id"]
+            lead_by_session = None
+            if session_id:
                 try:
-                    await notify.enqueue_webhook_event(
-                        supabase, bot_id=bot_id, event="lead.created",
-                        session_id=context.get("session_id") or "",
-                        data={"id": lead_id, "name": visitor_name, "email": visitor_email},
-                    )
+                    s_res = await run_db(lambda: supabase.table("chatty_leads").select("*").eq("bot_id", bot_id).eq("session_id", session_id).order("created_at", desc=True).limit(1).execute())
+                    if s_res.data:
+                        lead_by_session = s_res.data[0]
                 except Exception:
-                    logger.exception("lead.created webhook enqueue failed (booking flow)")
+                    pass
+            if lead_by_session:
+                lead_id = lead_by_session["id"]
+                update_fields = {"email": visitor_email}
+                if visitor_name and visitor_name.lower() not in invalid_names:
+                    update_fields["name"] = visitor_name
+                await run_db(lambda: supabase.table("chatty_leads").update(update_fields).eq("id", lead_id).execute())
+            else:
+                # Create a lead
+                lead_res = await run_db(lambda: supabase.table("chatty_leads").insert({
+                    "bot_id": bot_id,
+                    "session_id": session_id,
+                    "name": visitor_name,
+                    "email": visitor_email,
+                    "phone": ""
+                }).execute())
+                if lead_res.data:
+                    lead_id = lead_res.data[0]["id"]
+                    try:
+                        await notify.enqueue_webhook_event(
+                            supabase, bot_id=bot_id, event="lead.created",
+                            session_id=session_id or "",
+                            data={"id": lead_id, "name": visitor_name, "email": visitor_email},
+                        )
+                    except Exception:
+                        logger.exception("lead.created webhook enqueue failed (booking flow)")
 
         # 4. Generate meeting link depending on provider
         provider = bot.get("meeting_provider") or "google_meet"
@@ -730,6 +765,63 @@ async def execute(
                         return {"error": quota_err["message"]}
                 except Exception:
                     pass
+
+            if context and context.get("source") == "widget":
+                attendees = args.get("attendees") or []
+                if isinstance(attendees, str):
+                    attendees = [attendees]
+                elif not isinstance(attendees, (list, tuple)):
+                    attendees = []
+
+                visitor_email = ""
+                for att in attendees:
+                    if isinstance(att, str):
+                        cand = _dedupe_doubled(att.strip()).lower()
+                        if (
+                            re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", cand)
+                            and not any(dummy in cand for dummy in ("guest@example.com", "@example.com", "test@test.com", "user@example.com", "none@", "null@"))
+                        ):
+                            visitor_email = cand
+                            break
+
+                if not visitor_email:
+                    return {
+                        "error": (
+                            "Cannot book meeting: A valid visitor email address is REQUIRED in 'attendees' before booking can be completed. "
+                            "Do NOT call this tool yet. Ask the visitor for their name and email address first, "
+                            "and call this tool only after they provide their real email address."
+                        )
+                    }
+
+                # Ensure args['attendees'] has the clean visitor email
+                args = {**args, "attendees": [visitor_email]}
+
+                bot_cfg = context.get("bot") or {}
+                req_fields = [f.lower() for f in (bot_cfg.get("lead_required_fields") or [])]
+                if "name" in req_fields:
+                    summary = args.get("summary") or args.get("subject") or ""
+                    clean_name = summary.replace("Demo Meeting with ", "").replace("Demo Meeting with", "").replace("Demo Meeting", "").strip()
+                    invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes"}
+                    if not clean_name or clean_name.lower() in invalid_names or "@" in clean_name:
+                        session_id = context.get("session_id")
+                        bot_id = context.get("bot_id")
+                        has_db_name = False
+                        if session_id and bot_id:
+                            try:
+                                lead_res = await run_db(lambda: supabase.table("chatty_leads").select("name").eq("bot_id", bot_id).eq("session_id", session_id).order("created_at", desc=True).limit(1).execute())
+                                if lead_res.data and lead_res.data[0].get("name"):
+                                    if lead_res.data[0]["name"].strip().lower() not in invalid_names:
+                                        has_db_name = True
+                            except Exception:
+                                pass
+                        if not has_db_name:
+                            return {
+                                "error": (
+                                    "Cannot book meeting: Visitor's name is REQUIRED before booking. "
+                                    "Do NOT call this tool yet. Ask the visitor for their name first, "
+                                    "and include it in the summary (e.g. summary='Demo Meeting with <Visitor Name>')."
+                                )
+                            }
         if name == "create_calendar_event":
             res = await _create_calendar_event(args, user, supabase)
             if context and context.get("source") == "widget" and "error" not in res:
