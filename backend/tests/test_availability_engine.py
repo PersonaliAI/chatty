@@ -252,6 +252,45 @@ def test_gmt_offset_label_omits_minutes_when_whole_hour():
     assert avail._gmt_offset_label(dt) == "GMT+9"
 
 
+def test_tz_place_name_extracts_last_path_segment():
+    assert avail._tz_place_name("Asia/Colombo") == "Colombo"
+    assert avail._tz_place_name("America/Argentina/Buenos_Aires") == "Buenos Aires"
+    assert avail._tz_place_name("UTC") is None
+    assert avail._tz_place_name(None) is None
+
+
+def test_format_slot_label_includes_place_name_for_offset_zone():
+    kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "Asia/Colombo"}
+    now = _utc(2026, 1, 5, 0, 0)
+    slots = avail.compute_available_slots(busy_intervals=[], now_utc=now, max_results=1, **kwargs)
+    assert "GMT+5:30 (Colombo)" in slots[0]["owner_local_label"]
+
+
+def test_format_slot_label_includes_place_name_for_named_zone():
+    kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "America/New_York"}
+    slots = avail.compute_available_slots(busy_intervals=[], now_utc=_MONDAY_9AM_UTC, max_results=1, **kwargs)
+    label = slots[0]["owner_local_label"]
+    assert "(New York)" in label
+    assert "EST" in label or "EDT" in label
+
+
+def test_owner_and_visitor_labels_derive_from_the_same_instant():
+    """The visitor and owner labels must always agree on the real moment in
+    time — they're two renderings of one start_utc, not independently
+    computed — even though the clock time/date printed differs by zone."""
+    kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "Asia/Colombo"}
+    slots = avail.compute_available_slots(
+        busy_intervals=[], now_utc=_utc(2026, 1, 5, 0, 0), max_results=1,
+        visitor_tz_str="America/New_York", **kwargs,
+    )
+    slot = slots[0]
+    owner_dt = datetime.fromisoformat(slot["start"].replace("Z", "+00:00")).astimezone(pytz.timezone("Asia/Colombo"))
+    visitor_dt = datetime.fromisoformat(slot["start"].replace("Z", "+00:00")).astimezone(pytz.timezone("America/New_York"))
+    assert owner_dt.astimezone(timezone.utc) == visitor_dt.astimezone(timezone.utc)  # same real instant
+    assert "(Colombo)" in slot["owner_local_label"]
+    assert "(New York)" in slot["visitor_local_label"]
+
+
 def test_empty_working_days_yields_no_slots():
     kwargs = {**DEFAULT_KWARGS, "working_days": []}
     slots = avail.compute_available_slots(

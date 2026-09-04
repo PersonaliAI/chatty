@@ -186,16 +186,20 @@ class AvailableSlot:
     visitor_tz_str: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
+        # owner_local_label and visitor_local_label are both derived from
+        # this SAME start_utc instant — they're two displays of one real
+        # moment in time, not independently computed, so they can never
+        # disagree with each other; only the zone each is rendered in differs.
         owner_local = self.start_utc.astimezone(pytz.timezone(self.owner_tz_str))
         out = {
             "start": self.start_utc.isoformat().replace("+00:00", "Z"),
             "end": self.end_utc.isoformat().replace("+00:00", "Z"),
-            "owner_local_label": _format_slot_label(owner_local),
+            "owner_local_label": _format_slot_label(owner_local, self.owner_tz_str),
         }
         if self.visitor_tz_str:
             try:
                 visitor_local = self.start_utc.astimezone(pytz.timezone(self.visitor_tz_str))
-                out["visitor_local_label"] = _format_slot_label(visitor_local)
+                out["visitor_local_label"] = _format_slot_label(visitor_local, self.visitor_tz_str)
             except Exception:
                 pass
         return out
@@ -204,24 +208,39 @@ class AvailableSlot:
 _OFFSET_LIKE_RE = re.compile(r"^[+-]\d{2}:?\d{2}$")
 
 
-def _format_slot_label(dt: datetime) -> str:
-    """"Monday, Jan 5 at 9:00 AM EST" (or "...at 9:00 AM GMT+5:30" for a zone
-    with no common abbreviation, e.g. Asia/Colombo) — always includes the
-    zone so a presented time is never ambiguous about which timezone it's
-    in (built with portable strftime directives only — no `%-d`/`%-I`;
-    those are glibc extensions Windows' C runtime doesn't support, and this
-    needs to run the same in local dev as in the Linux container it's
-    deployed to). `%Z` gives a named abbreviation (EST/IST/...) for zones
-    that have one. For a zone that doesn't (e.g. Asia/Colombo), pytz's own
-    `tzname()` — not empty, as might be expected — returns the raw POSIX
-    offset string itself (e.g. "+0530"), which reads as arbitrary digits
-    rather than obviously a timezone; detected and replaced with a
-    "GMT+H:MM"-style label instead."""
+def _format_slot_label(dt: datetime, tz_name: Optional[str] = None) -> str:
+    """"Monday, Jan 5 at 9:00 AM EST (New York)" — or "...GMT+5:30 (Colombo)"
+    for a zone with no common abbreviation. Always includes both an
+    abbreviation/offset AND, when the IANA zone string is available, the
+    place name it actually identifies — "EST" alone doesn't say which
+    country/region it's for, and neither does a bare offset like
+    "GMT+5:30" shared by several very different places. Built with
+    portable strftime directives only — no `%-d`/`%-I`; those are glibc
+    extensions Windows' C runtime doesn't support, and this needs to run
+    the same in local dev as in the Linux container it's deployed to.
+    `%Z` gives a named abbreviation (EST/IST/...) for zones that have one.
+    For a zone that doesn't (e.g. Asia/Colombo), pytz's own `tzname()` —
+    not empty, as might be expected — returns the raw POSIX offset string
+    itself (e.g. "+0530"), which reads as arbitrary digits rather than
+    obviously a timezone; detected and replaced with a "GMT+H:MM"-style
+    label instead."""
     hour12 = dt.hour % 12 or 12
     ampm = "AM" if dt.hour < 12 else "PM"
     raw_tz = dt.strftime("%Z")
     tz_label = raw_tz if raw_tz and not _OFFSET_LIKE_RE.match(raw_tz) else _gmt_offset_label(dt)
+    place = _tz_place_name(tz_name)
+    if place:
+        tz_label = f"{tz_label} ({place})"
     return f"{dt.strftime('%A, %b')} {dt.day} at {hour12}:{dt.minute:02d} {ampm} {tz_label}".rstrip()
+
+
+def _tz_place_name(tz_name: Optional[str]) -> Optional[str]:
+    """"Asia/Colombo" -> "Colombo", "America/Argentina/Buenos_Aires" ->
+    "Buenos Aires" — the last IANA path segment, underscores as spaces.
+    None for a bare offset string (no "/") or no zone given at all."""
+    if not tz_name or "/" not in tz_name:
+        return None
+    return tz_name.rsplit("/", 1)[-1].replace("_", " ")
 
 
 def _gmt_offset_label(dt: datetime) -> str:
