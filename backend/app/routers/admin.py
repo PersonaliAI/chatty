@@ -4,7 +4,6 @@ endpoints (/api/admin/*)."""
 from __future__ import annotations
 
 import asyncio
-import html
 import logging
 import time
 from datetime import datetime, timezone
@@ -23,7 +22,6 @@ from app.schemas.admin import (
     MessageFeedbackRequest,
     RescheduleMeetingRequest,
 )
-from plugins import notifications as notify
 
 # Bridged helpers still living in main.py (shared across many route groups).
 from main import _verify_bot_access, _verify_bot_owner
@@ -331,9 +329,23 @@ async def admin_update_meeting_status(
 
         await _verify_meeting_access(meeting, user)
 
-        await run_db(lambda: supabase.table("chatty_meetings").update({"status": status}).eq("id", meeting_id).execute())
+        # Cancelling goes through the shared core (agent_tools.cancel_meeting_core)
+        # so the dashboard's Cancel button does the same thing the widget/email
+        # cancel_meeting tool does — deletes the real calendar event, not just
+        # the DB row — instead of duplicating that logic here.
+        if status.lower() in ("cancelled", "canceled"):
+            res_bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+            if not res_bot.data:
+                raise HTTPException(status_code=404, detail="Bot not found")
+            bot = res_bot.data[0]
 
-        # Log audit
+            from plugins.agent_tools import cancel_meeting_core
+            result = await cancel_meeting_core(meeting, bot, bot_id, user, supabase, performed_by="user")
+            if "error" in result:
+                raise HTTPException(status_code=400, detail=result["error"])
+            return {"success": True, "message": "Meeting status updated successfully"}
+
+        await run_db(lambda: supabase.table("chatty_meetings").update({"status": status}).eq("id", meeting_id).execute())
         await run_db(lambda: supabase.table("chatty_audit_logs").insert({
             "bot_id": bot_id,
             "action": "meeting_status_updated",
@@ -341,37 +353,9 @@ async def admin_update_meeting_status(
             "performed_by": "user"
         }).execute())
 
-        # Notify the client (and admin) when a meeting is cancelled.
-        if status.lower() in ("cancelled", "canceled") and meeting.get("attendee_email"):
-            try:
-                # Meeting fields are ultimately visitor-supplied (via the chat
-                # booking flow) — escape before embedding in HTML sent by email.
-                title = html.escape(meeting.get("title") or "your meeting")
-                start = html.escape(meeting.get("start_time") or "")
-                tz = html.escape(meeting.get("timezone") or "UTC")
-                name = html.escape(meeting.get("attendee_name") or "there")
-                cancel_html = (
-                    "<div style='font-family:sans-serif;max-width:520px;line-height:1.6'>"
-                    "<h2 style='color:#dc2626;margin:0 0 8px'>Meeting cancelled</h2>"
-                    f"<p>Hi {name},</p>"
-                    f"<p>Your meeting <b>{title}</b> scheduled for <b>{start} ({tz})</b> has been cancelled.</p>"
-                    "<p>If this was unexpected or you'd like to rebook, just start a new chat with us.</p>"
-                    "</div>"
-                )
-                await notify.deliver_email(
-                    supabase=supabase, owner_user=user, to=meeting["attendee_email"],
-                    subject=f"Meeting cancelled: {title}", html=cancel_html,
-                )
-                owner_email = user.get("email") or user.get("google_email")
-                if owner_email:
-                    await notify.deliver_email(
-                        supabase=supabase, owner_user=user, to=owner_email,
-                        subject=f"Meeting cancelled — {name}", html=cancel_html,
-                    )
-            except Exception:
-                logger.exception("cancellation email failed")
-
         return {"success": True, "message": "Meeting status updated successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Failed to update meeting status")
         raise HTTPException(status_code=500, detail="Failed to update meeting status") from e

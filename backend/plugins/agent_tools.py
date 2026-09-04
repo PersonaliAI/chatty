@@ -11,6 +11,7 @@ never select those tools, and has been removed.
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
@@ -176,6 +177,16 @@ DECLARATIONS: list[dict] = [
             "new_end": {"type": "string", "description": "ISO 8601 new end datetime, from get_available_slots."},
         },
         ["visitor_email", "new_start", "new_end"],
+    ),
+    _tool(
+        "cancel_meeting",
+        "Cancel an existing booked meeting entirely. Use only when a visitor with an existing "
+        "booking clearly wants to cancel — not reschedule. Confirm that intent before calling this; "
+        "it can't be undone from the chat.",
+        {
+            "visitor_email": {"type": "string", "description": "The email address the original meeting was booked under."},
+        },
+        ["visitor_email"],
     ),
 ]
 
@@ -597,6 +608,122 @@ async def reschedule_meeting_core(
     }
 
 
+async def _cancel_meeting(args: dict, user: dict, supabase, context: Optional[dict] = None) -> dict:
+    """Widget/visitor-driven cancellation: looks up the visitor's own upcoming
+    booking by email, then delegates to the shared core. See cancel_meeting_core
+    for the admin-dashboard equivalent, which already has a specific meeting_id."""
+    bot = (context or {}).get("bot")
+    bot_id = (context or {}).get("bot_id")
+    if not bot or not bot_id:
+        return {"error": "Scheduling isn't configured for this conversation."}
+
+    visitor_email = (args.get("visitor_email") or "").strip().lower()
+    if not visitor_email:
+        return {"error": "visitor_email is required."}
+
+    try:
+        res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq(
+            "bot_id", bot_id).eq("attendee_email", visitor_email).eq(
+            "status", "scheduled").order("start_time", desc=True).limit(1).execute())
+    except Exception:
+        logger.exception("cancel_meeting lookup failed")
+        return {"error": "Couldn't look up that booking right now. Try again in a moment."}
+    if not res.data:
+        return {"error": "No upcoming booking found for that email. Double-check the email."}
+
+    return await cancel_meeting_core(res.data[0], bot, bot_id, user, supabase)
+
+
+async def cancel_meeting_core(
+    meeting: dict, bot: dict, bot_id: str, user: dict, supabase, *, performed_by: str = "assistant",
+) -> dict:
+    """Cancels a booked meeting: best-effort deletes the underlying
+    Google/Outlook calendar event (a missing or already-gone event doesn't
+    block cancellation, it just gets logged), flips the DB status to
+    'cancelled', and emails both the visitor and the bot owner. Shared by
+    the widget tool (_cancel_meeting), the email-reply agent
+    (confirm_cancel), and the admin dashboard's cancel-via-status endpoint
+    (app/routers/admin.py::admin_update_meeting_status)."""
+    if meeting.get("status") == "cancelled":
+        return {"error": "This meeting is already cancelled."}
+
+    attendee_email = (meeting.get("attendee_email") or "").strip().lower()
+    host_user = await _resolve_meeting_host(supabase, meeting, user)
+    use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
+
+    if meeting.get("provider_event_id"):
+        try:
+            if use_ms_calendar:
+                await ms.delete_outlook_event(supabase, host_user, event_id=meeting["provider_event_id"])
+            else:
+                await g.delete_calendar_event(supabase, host_user, event_id=meeting["provider_event_id"])
+        except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
+            raise
+        except Exception:
+            logger.exception("cancel_meeting failed to delete the calendar event — cancelling anyway")
+
+    try:
+        await run_db(lambda: supabase.table("chatty_meetings").update({
+            "status": "cancelled",
+        }).eq("id", meeting["id"]).execute())
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+            "bot_id": bot_id,
+            "action": "meeting_cancelled",
+            "details": f"Meeting with {meeting.get('attendee_name') or attendee_email} cancelled.",
+            "performed_by": performed_by,
+        }).execute())
+    except Exception:
+        logger.exception("Failed to update chatty_meetings row after cancellation")
+        return {"error": "Couldn't cancel the meeting — try again in a moment."}
+
+    # Meeting fields are ultimately visitor-supplied (via the chat booking
+    # flow) — escape before embedding in HTML sent by email.
+    title = html.escape(meeting.get("title") or "your meeting")
+    start = html.escape(meeting.get("start_time") or "")
+    tz_label = html.escape(bot.get("bot_timezone") or "UTC")
+    name = html.escape(meeting.get("attendee_name") or "there")
+    meeting_id = meeting.get("id")
+    reply_to = _meeting_reply_to(meeting_id) if meeting_id else None
+    cancel_html = (
+        "<div style='font-family:sans-serif;max-width:520px;line-height:1.6'>"
+        "<h2 style='color:#dc2626;margin:0 0 8px'>Meeting cancelled</h2>"
+        f"<p>Hi {name},</p>"
+        f"<p>Your meeting <b>{title}</b> scheduled for <b>{start} ({tz_label})</b> has been cancelled.</p>"
+        "<p>If this was unexpected or you'd like to rebook, just start a new chat with us.</p>"
+        "</div>"
+    )
+    try:
+        client_subject = f"Meeting cancelled: {title}"
+        await notify.deliver_email(
+            supabase=supabase, owner_user=host_user, to=attendee_email,
+            subject=client_subject, html=cancel_html, reply_to=reply_to,
+        )
+        if meeting_id:
+            await _log_meeting_message(supabase, meeting_id, direction="outbound",
+                                        from_email=notify.RESEND_EMAIL_FROM, subject=client_subject, body_text=cancel_html)
+        # Same "notify the real owner, not necessarily whoever's calendar
+        # this lives on" reasoning as _process_widget_booking's admin email.
+        owner_email = user.get("email") or user.get("google_email") or "admin@personaliai.com"
+        owner_auth_id = bot.get("user_id")
+        if owner_auth_id and owner_auth_id != user.get("auth_user_id"):
+            try:
+                owner_res = await run_db(lambda: supabase.table("users").select("email").eq(
+                    "auth_user_id", owner_auth_id).limit(1).execute())
+                if owner_res.data and owner_res.data[0].get("email"):
+                    owner_email = owner_res.data[0]["email"]
+            except Exception:
+                logger.exception("Failed to resolve bot owner's email for cancellation admin notification")
+        await notify.deliver_email(
+            supabase=supabase, owner_user=user, to=owner_email,
+            subject=f"Meeting cancelled — {meeting.get('attendee_name') or attendee_email}", html=cancel_html,
+            reply_to=reply_to,
+        )
+    except Exception:
+        logger.exception("Failed to send cancellation notification emails")
+
+    return {"success": True, "message": "Meeting cancelled."}
+
+
 # ---------------------------------------------------------------------------
 # Email reschedule conversation — auto-reply to a visitor's inbound email
 # reply about an existing booking (app/routers/webhooks.py::resend_inbound
@@ -618,6 +745,13 @@ _EMAIL_AGENT_TOOLS: list[dict] = [
             "new_end": {"type": "string", "description": "ISO 8601 confirmed new end datetime, from get_available_slots."},
         },
         ["new_start", "new_end"],
+    ),
+    _tool(
+        "confirm_cancel",
+        "Cancel the meeting entirely. Call this ONLY once the visitor has clearly confirmed in this "
+        "email thread that they want to cancel — not reschedule.",
+        {},
+        [],
     ),
 ]
 
@@ -679,12 +813,14 @@ async def handle_meeting_email_reply(supabase, meeting: dict, inbound_from_email
             f"{meeting.get('start_time')} ({bot.get('bot_timezone') or 'UTC'}). "
             f"Visitor: {meeting.get('attendee_name') or 'Guest'} <{meeting.get('attendee_email')}>.\n"
             f"Current time: {now_local.strftime('%A, %B %d, %Y %H:%M')} ({owner_tz_str}).\n\n"
-            "Help them reschedule if that's what they want; answer briefly if it's something else.\n"
+            "Help them reschedule or cancel if that's what they want; answer briefly if it's something else.\n"
             "- NEVER invent or guess a time yourself. Call get_available_slots (with `near` set to whatever "
             "time they proposed, in the business's own timezone above) to get REAL options, and only offer "
             "times it actually returned.\n"
             "- Only call confirm_reschedule once they've clearly confirmed ONE specific time — never on a "
             "vague reply; ask a clarifying question instead.\n"
+            "- Only call confirm_cancel once they've clearly said they want to cancel (not reschedule) — "
+            "if it's ambiguous, ask which they'd prefer instead of guessing.\n"
             "- Keep the reply a short, plain, professional email body — no subject line, no signature block.\n"
             "- If this isn't about scheduling at all, write a brief reply saying a team member will follow "
             "up, and don't call any tool."
@@ -732,6 +868,10 @@ async def handle_meeting_email_reply(supabase, meeting: dict, inbound_from_email
                         )
                     except ValueError:
                         result = {"error": "Invalid new_start/new_end — use ISO 8601 with a timezone offset."}
+                elif fn_name == "confirm_cancel":
+                    result = await cancel_meeting_core(
+                        meeting, bot, bot_id, owner_user, supabase, performed_by="visitor_email",
+                    )
                 else:
                     result = {"error": f"unknown tool: {fn_name}"}
                 messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps({"result": result})})
@@ -1354,6 +1494,8 @@ async def execute(
             return await _get_available_slots(args, user, supabase, context=context)
         if name == "reschedule_meeting":
             return await _reschedule_meeting(args, user, supabase, context=context)
+        if name == "cancel_meeting":
+            return await _cancel_meeting(args, user, supabase, context=context)
         if name == "create_lead":
             return await _create_lead(args, user, supabase)
         if name == "web_search":

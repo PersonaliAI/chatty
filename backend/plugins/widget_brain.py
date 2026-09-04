@@ -228,9 +228,9 @@ def scheduling_tool_names(bot: dict[str, Any], owner_user: dict[str, Any]) -> li
     names: list[str] = []
     if bot.get("calendar_scheduling_enabled"):
         if use_ms_calendar:
-            names.extend(["get_available_slots", "list_outlook_events", "create_outlook_event", "reschedule_meeting"])
+            names.extend(["get_available_slots", "list_outlook_events", "create_outlook_event", "reschedule_meeting", "cancel_meeting"])
         elif owner_user.get("google_access_token"):
-            names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting"])
+            names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting", "cancel_meeting"])
     names.append("create_lead")
     return names
 
@@ -465,6 +465,9 @@ async def run_widget_assistant(
             f"   - If a visitor with an existing booking asks to move it, first ask for the email address it was booked under (if not already known), then call `get_available_slots` "
             f"with `near` set to their new preferred time, present the returned options exactly as before, and once they confirm one, call `reschedule_meeting` with that visitor_email and the confirmed new_start/new_end. "
             f"Never guess a new time yourself — only offer times `get_available_slots` actually returned.\n\n"
+            f"CANCELLING AN EXISTING MEETING:\n"
+            f"   - If a visitor with an existing booking asks to cancel (not reschedule), first ask for the email address it was booked under (if not already known), confirm they really want to cancel "
+            f"(not move it to a new time), and then call `cancel_meeting` with that visitor_email. It cannot be undone — never call it on an ambiguous request; ask a clarifying question instead.\n\n"
         )
     else:
         scheduling_block = (
