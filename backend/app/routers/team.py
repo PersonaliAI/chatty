@@ -16,7 +16,7 @@ from app.core.permissions import (
     get_bot_role_and_permissions,
     verify_bot_permission,
 )
-from app.schemas.team import TeamInviteRequest, TeamUpdateRequest
+from app.schemas.team import AvailabilityRulesRequest, TeamInviteRequest, TeamUpdateRequest
 from plugins import notifications as notify
 
 logger = logging.getLogger("chatty")
@@ -55,11 +55,18 @@ async def invite_team(req: TeamInviteRequest, user: dict[str, Any] = Depends(req
     email = (req.email or "").strip().lower()
     if "@" not in email or "." not in email:
         raise HTTPException(status_code=400, detail="A valid email is required")
+    name = (req.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="A name is required")
     role = req.role if req.role in ("admin", "agent") else "agent"
     permissions = _sanitize_permissions(req.permissions, role, caller_role)
     try:
         await run_db(lambda: supabase.table("chatty_team_members").upsert(
-            {"bot_id": req.bot_id, "email": email, "role": role, "permissions": permissions},
+            {
+                "bot_id": req.bot_id, "email": email, "name": name,
+                "phone": (req.phone or "").strip() or None,
+                "role": role, "permissions": permissions,
+            },
             on_conflict="bot_id,email",
         ).execute())
     except Exception:
@@ -81,7 +88,7 @@ async def invite_team(req: TeamInviteRequest, user: dict[str, Any] = Depends(req
     except Exception:
         logger.exception("team invite email failed for %s", email)
 
-    return {"ok": True, "email": email, "role": role, "permissions": permissions, "email_status": email_status}
+    return {"ok": True, "email": email, "name": name, "role": role, "permissions": permissions, "email_status": email_status}
 
 
 @router.patch("/api/team/{member_id}")
@@ -96,6 +103,15 @@ async def update_team(member_id: str, req: TeamUpdateRequest, user: dict[str, An
     update: dict[str, Any] = {"role": role}
     if req.permissions is not None:
         update["permissions"] = _sanitize_permissions(req.permissions, role, caller_role)
+    if req.name is not None:
+        name = req.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        update["name"] = name
+    if req.phone is not None:
+        update["phone"] = req.phone.strip() or None
+    if req.bookable is not None:
+        update["bookable"] = req.bookable
 
     await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
         "id", member_id).eq("bot_id", req.bot_id).execute())
@@ -108,3 +124,52 @@ async def remove_team(member_id: str, bot_id: str, user: dict[str, Any] = Depend
     await run_db(lambda: supabase.table("chatty_team_members").delete().eq(
         "id", member_id).eq("bot_id", bot_id).execute())
     return {"ok": True}
+
+
+async def _authorize_availability_access(member_id: str, bot_id: str, user: dict[str, Any]) -> dict[str, Any]:
+    """A member may manage their own availability; anyone with the 'team'
+    permission on this bot (owner, or an admin with that tab) may manage
+    anyone's. Returns the member row (needed for its email) or raises 403/404."""
+    existing = await run_db(lambda: supabase.table("chatty_team_members").select("*").eq(
+        "id", member_id).eq("bot_id", bot_id).limit(1).execute())
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Member not found")
+    member = existing.data[0]
+    caller_email = (user.get("email") or "").strip().lower()
+    if caller_email and caller_email == (member.get("email") or "").strip().lower():
+        return member
+    await verify_bot_permission(bot_id, user, "team")
+    return member
+
+
+@router.get("/api/team/{member_id}/availability")
+async def get_availability(member_id: str, bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    member = await _authorize_availability_access(member_id, bot_id, user)
+    rows = (await run_db(lambda: supabase.table("chatty_availability_rules").select("*").eq(
+        "bot_id", bot_id).eq("member_email", member["email"]).order("day_of_week").execute())).data or []
+    return {"rules": rows}
+
+
+@router.put("/api/team/{member_id}/availability")
+async def set_availability(member_id: str, req: AvailabilityRulesRequest, user: dict[str, Any] = Depends(require_user)):
+    member = await _authorize_availability_access(member_id, req.bot_id, user)
+    for r in req.rules:
+        if not (0 <= r.day_of_week <= 6):
+            raise HTTPException(status_code=400, detail="day_of_week must be 0-6")
+        if not (0 <= r.start_minute < r.end_minute <= 1440):
+            raise HTTPException(status_code=400, detail="Invalid start_minute/end_minute range")
+
+    # Replace-all semantics: simplest correct behavior for "here is my full
+    # weekly schedule" — the caller always sends the complete set, not a diff.
+    await run_db(lambda: supabase.table("chatty_availability_rules").delete().eq(
+        "bot_id", req.bot_id).eq("member_email", member["email"]).execute())
+    if req.rules:
+        rows = [
+            {
+                "bot_id": req.bot_id, "member_email": member["email"],
+                "day_of_week": r.day_of_week, "start_minute": r.start_minute, "end_minute": r.end_minute,
+            }
+            for r in req.rules
+        ]
+        await run_db(lambda: supabase.table("chatty_availability_rules").insert(rows).execute())
+    return {"ok": True, "rules": [r.model_dump() for r in req.rules]}

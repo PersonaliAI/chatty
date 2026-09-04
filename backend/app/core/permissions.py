@@ -17,14 +17,18 @@ from app.core.db import run_db
 
 # Dashboard-tab permission keys. Keep in sync with the frontend's
 # CHATTY_TEAM_TABS in src/app/dashboard/page.tsx.
-ALL_TABS = ("inbox", "sources", "design", "settings", "voice", "team", "billing", "byok", "webhooks")
+ALL_TABS = ("inbox", "sources", "design", "settings", "voice", "team", "meetings", "billing", "byok", "webhooks")
 
 # Only the bot owner may grant/revoke these, regardless of who is editing a
 # member's permissions (an admin with the 'team' permission can manage the
 # roster but can't hand out billing/API-key/webhook access).
 OWNER_ONLY_TABS = frozenset({"billing", "byok", "webhooks"})
 
-DEFAULT_ADMIN_PERMISSIONS = ["inbox", "sources", "design", "settings", "voice", "team"]
+# 'meetings' is deliberately NOT in an agent's default set — an agent only
+# gets visibility once they're actually bookable/assigned meetings exist for
+# them (see plugins/availability_engine.py's round-robin); an admin manages
+# scheduling for the whole team by default, same as the other admin tabs.
+DEFAULT_ADMIN_PERMISSIONS = ["inbox", "sources", "design", "settings", "voice", "team", "meetings"]
 DEFAULT_AGENT_PERMISSIONS = ["inbox"]  # the most useful single tab for a first invite
 
 
