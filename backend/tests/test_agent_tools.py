@@ -14,6 +14,7 @@ its main success/failure branches are covered, not every branch.
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -407,6 +408,164 @@ def test_reschedule_meeting_uses_assigned_host_credentials(monkeypatch):
 
     call_args, _ = update_mock.call_args
     assert call_args[1] == teammate_user  # the `user` positional arg to g.update_calendar_event
+
+
+# ---------------------------------------------------------------------------
+# handle_meeting_email_reply — email-based reschedule conversation
+# ---------------------------------------------------------------------------
+
+
+def _email_agent_supabase(bot, thread, owner=None, host=None):
+    supabase = MagicMock()
+    captured_inserts = []
+
+    def table(name):
+        t = MagicMock()
+        if name == "chatty_bots":
+            t.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[bot] if bot else [])
+        elif name == "chatty_meeting_messages":
+            t.select.return_value.eq.return_value.order.return_value.execute.return_value = MagicMock(data=thread)
+
+            def do_insert(payload):
+                captured_inserts.append(payload)
+                m = MagicMock()
+                m.execute.return_value = MagicMock()
+                return m
+            t.insert.side_effect = do_insert
+        elif name == "users":
+            if owner is not None:
+                t.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[owner])
+            if host is not None:
+                t.select.return_value.ilike.return_value.limit.return_value.execute.return_value = MagicMock(data=[host])
+        return t
+
+    supabase.table.side_effect = table
+    supabase._captured_inserts = captured_inserts  # test-only escape hatch
+    return supabase
+
+
+_BOT = {
+    "id": "bot-1", "user_id": "owner-auth-1", "calendar_scheduling_enabled": True,
+    "meeting_provider": "google_meet", "bot_timezone": "UTC", "name": "Acme Bot",
+}
+_OWNER = {"auth_user_id": "owner-auth-1", "email": "owner@example.com", "google_access_token": "owner-tok"}
+_MEETING = {
+    "id": "meet-1", "bot_id": "bot-1", "title": "Demo Meeting with Jane",
+    "attendee_email": "jane@example.com", "attendee_name": "Jane",
+    "start_time": "2026-06-25T09:00:00+00:00", "assigned_to_email": "",
+}
+
+
+def test_handle_meeting_email_reply_noop_without_ids():
+    supabase = MagicMock()
+    asyncio.run(at.handle_meeting_email_reply(supabase, {}, "visitor@example.com"))
+    supabase.table.assert_not_called()
+
+
+def test_handle_meeting_email_reply_skips_when_scheduling_disabled(monkeypatch):
+    from plugins import ai_client
+    bot = {**_BOT, "calendar_scheduling_enabled": False}
+    supabase = _email_agent_supabase(bot, [])
+    stream_mock = AsyncMock()
+    monkeypatch.setattr(ai_client, "chat_stream", stream_mock)
+    asyncio.run(at.handle_meeting_email_reply(supabase, _MEETING, "jane@example.com"))
+    stream_mock.assert_not_awaited()
+
+
+def test_handle_meeting_email_reply_skips_when_thread_too_long(monkeypatch):
+    from plugins import ai_client
+    long_thread = [{"direction": "inbound", "body_text": "hi"} for _ in range(at._MAX_EMAIL_THREAD_MESSAGES + 1)]
+    supabase = _email_agent_supabase(_BOT, long_thread)
+    stream_mock = AsyncMock()
+    monkeypatch.setattr(ai_client, "chat_stream", stream_mock)
+    asyncio.run(at.handle_meeting_email_reply(supabase, _MEETING, "jane@example.com"))
+    stream_mock.assert_not_awaited()
+
+
+def test_handle_meeting_email_reply_sends_reply_when_no_tool_call(monkeypatch):
+    from plugins import ai_client
+    supabase = _email_agent_supabase(_BOT, [], owner=_OWNER)
+    monkeypatch.setattr(ai_client, "chat_stream", AsyncMock(return_value={
+        "text": "Sure, 3pm works — you're all set to keep the original time.",
+        "tool_calls": [], "message": {"role": "assistant", "content": "..."},
+    }))
+    deliver_mock = AsyncMock(return_value="sent")
+    monkeypatch.setattr(at.notify, "deliver_email", deliver_mock)
+
+    asyncio.run(at.handle_meeting_email_reply(supabase, _MEETING, "jane@example.com"))
+
+    deliver_mock.assert_awaited_once()
+    _, kwargs = deliver_mock.call_args
+    assert kwargs["to"] == "jane@example.com"
+    assert "3pm works" in kwargs["html"]
+    # Logged as an outbound meeting message.
+    outbound = [p for p in supabase._captured_inserts if p.get("direction") == "outbound"]
+    assert len(outbound) == 1
+    assert "3pm works" in outbound[0]["body_text"]
+
+
+def test_handle_meeting_email_reply_calls_get_available_slots(monkeypatch):
+    from plugins import ai_client
+    supabase = _email_agent_supabase(_BOT, [], owner=_OWNER)
+
+    call_log = []
+
+    async def fake_chat_stream(**kwargs):
+        if not call_log:
+            call_log.append(1)
+            return {
+                "tool_calls": [{"id": "tc1", "type": "function", "function": {"name": "get_available_slots", "arguments": "{}"}}],
+                "text": "", "message": {"role": "assistant", "tool_calls": [
+                    {"id": "tc1", "type": "function", "function": {"name": "get_available_slots", "arguments": "{}"}}
+                ]},
+            }
+        return {"text": "Here are a few options: ...", "tool_calls": [], "message": {"role": "assistant", "content": "..."}}
+    monkeypatch.setattr(ai_client, "chat_stream", fake_chat_stream)
+
+    slots_mock = AsyncMock(return_value={"slots": [{"start": "2026-06-26T15:00:00Z", "end": "2026-06-26T15:30:00Z"}]})
+    monkeypatch.setattr(at, "_get_available_slots", slots_mock)
+    monkeypatch.setattr(at.notify, "deliver_email", AsyncMock(return_value="sent"))
+
+    asyncio.run(at.handle_meeting_email_reply(supabase, _MEETING, "jane@example.com"))
+    slots_mock.assert_awaited_once()
+
+
+def test_handle_meeting_email_reply_confirms_reschedule(monkeypatch):
+    from plugins import ai_client
+    supabase = _email_agent_supabase(_BOT, [], owner=_OWNER)
+
+    call_log = []
+
+    async def fake_chat_stream(**kwargs):
+        if not call_log:
+            call_log.append(1)
+            args = json.dumps({"new_start": "2026-06-26T15:00:00+00:00", "new_end": "2026-06-26T15:30:00+00:00"})
+            return {
+                "tool_calls": [{"id": "tc1", "type": "function", "function": {"name": "confirm_reschedule", "arguments": args}}],
+                "text": "", "message": {"role": "assistant", "tool_calls": [
+                    {"id": "tc1", "type": "function", "function": {"name": "confirm_reschedule", "arguments": args}}
+                ]},
+            }
+        return {"text": "Great, you're rebooked for 3pm tomorrow!", "tool_calls": [], "message": {"role": "assistant", "content": "..."}}
+    monkeypatch.setattr(ai_client, "chat_stream", fake_chat_stream)
+
+    core_mock = AsyncMock(return_value={"success": True, "message": "rescheduled"})
+    monkeypatch.setattr(at, "reschedule_meeting_core", core_mock)
+    monkeypatch.setattr(at.notify, "deliver_email", AsyncMock(return_value="sent"))
+
+    asyncio.run(at.handle_meeting_email_reply(supabase, _MEETING, "jane@example.com"))
+
+    core_mock.assert_awaited_once()
+    call_args, kwargs = core_mock.call_args
+    assert call_args[0] == _MEETING
+    assert kwargs["performed_by"] == "visitor_email"
+
+
+def test_handle_meeting_email_reply_swallows_exceptions():
+    supabase = MagicMock()
+    supabase.table.side_effect = RuntimeError("db exploded")
+    # Should not raise.
+    asyncio.run(at.handle_meeting_email_reply(supabase, _MEETING, "jane@example.com"))
 
 
 # ---------------------------------------------------------------------------

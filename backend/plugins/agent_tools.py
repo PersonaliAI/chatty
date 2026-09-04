@@ -11,6 +11,7 @@ never select those tools, and has been removed.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import urllib.parse
@@ -19,13 +20,14 @@ import re
 from typing import Any, Optional
 
 import httpx
+import pytz
 
 from plugins import google_integrations as g
 from plugins import microsoft_integrations as ms
 from plugins import notifications as notify
 from plugins import zoom_integration as zoom
 
-from app.core.config import RESEND_INBOUND_DOMAIN
+from app.core.config import GEMINI_FALLBACK_MODELS, MODEL_NAME, RESEND_INBOUND_DOMAIN
 from app.core.db import run_db
 
 logger = logging.getLogger("chatty.tools")
@@ -593,6 +595,165 @@ async def reschedule_meeting_core(
         "message": f"Meeting rescheduled to {new_start.isoformat()}.",
         "meeting_link": meeting.get("meeting_link"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Email reschedule conversation — auto-reply to a visitor's inbound email
+# reply about an existing booking (app/routers/webhooks.py::resend_inbound
+# calls this right after recording the inbound message). Same "call the
+# real tools, never guess a time" discipline as the widget's own booking
+# flow, just triggered by an email instead of a chat message, and scoped to
+# only the two tools a reschedule conversation actually needs.
+# ---------------------------------------------------------------------------
+
+_EMAIL_AGENT_TOOLS: list[dict] = [
+    next(d for d in DECLARATIONS if d["function"]["name"] == "get_available_slots"),
+    _tool(
+        "confirm_reschedule",
+        "Finalize rescheduling the meeting to a specific NEW time the visitor has clearly confirmed in "
+        "this email thread. Call this ONLY once — never on a vague or ambiguous reply, and never with a "
+        "guessed time; only a time get_available_slots actually returned.",
+        {
+            "new_start": {"type": "string", "description": "ISO 8601 confirmed new start datetime, from get_available_slots."},
+            "new_end": {"type": "string", "description": "ISO 8601 confirmed new end datetime, from get_available_slots."},
+        },
+        ["new_start", "new_end"],
+    ),
+]
+
+# Guardrails against a runaway auto-reply loop (e.g. an out-of-office
+# auto-responder replying to our own auto-reply, back and forth forever):
+# stop auto-replying once a meeting's thread gets this long, and cap how
+# many tool-calling rounds a single reply can take.
+_MAX_EMAIL_THREAD_MESSAGES = 12
+_MAX_EMAIL_TOOL_ROUNDS = 4
+
+
+async def handle_meeting_email_reply(supabase, meeting: dict, inbound_from_email: str) -> None:
+    """Best-effort: any failure here is logged, never raised — a broken
+    auto-reply must not break inbound capture itself, which already
+    succeeded by the time this is called."""
+    bot_id = meeting.get("bot_id")
+    meeting_id = meeting.get("id")
+    if not bot_id or not meeting_id:
+        return
+
+    try:
+        from plugins import ai_client
+        from plugins import availability_engine as avail
+
+        res_bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+        if not res_bot.data:
+            return
+        bot = res_bot.data[0]
+        if not bot.get("calendar_scheduling_enabled"):
+            return  # scheduling turned off since this meeting was booked — don't offer to reschedule
+
+        res_thread = await run_db(lambda: supabase.table("chatty_meeting_messages").select("*").eq(
+            "meeting_id", meeting_id).order("created_at", desc=False).execute())
+        thread = res_thread.data or []
+        if len(thread) > _MAX_EMAIL_THREAD_MESSAGES:
+            logger.info("Meeting %s email thread exceeded %d messages — skipping auto-reply.", meeting_id, _MAX_EMAIL_THREAD_MESSAGES)
+            return
+
+        res_owner = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot["user_id"]).execute())
+        if not res_owner.data:
+            return
+        owner_user = res_owner.data[0]
+        host_user = await _resolve_meeting_host(supabase, meeting, owner_user)
+        owner_tz_str = avail.resolve_owner_timezone(bot, owner_user)
+        now_local = datetime.now(timezone.utc).astimezone(pytz.timezone(owner_tz_str))
+
+        history: list[dict] = []
+        for m in thread:
+            content = (m.get("body_text") or "").strip()
+            if not content:
+                continue
+            role = "user" if m.get("direction") == "inbound" else "assistant"
+            history.append({"role": role, "content": content[:4000]})
+
+        system_prompt = (
+            f"You're replying by email on behalf of {bot.get('name') or 'the business'} about an existing "
+            f"meeting booking.\n"
+            f"Meeting: \"{meeting.get('title') or 'Meeting'}\" currently scheduled for "
+            f"{meeting.get('start_time')} ({bot.get('bot_timezone') or 'UTC'}). "
+            f"Visitor: {meeting.get('attendee_name') or 'Guest'} <{meeting.get('attendee_email')}>.\n"
+            f"Current time: {now_local.strftime('%A, %B %d, %Y %H:%M')} ({owner_tz_str}).\n\n"
+            "Help them reschedule if that's what they want; answer briefly if it's something else.\n"
+            "- NEVER invent or guess a time yourself. Call get_available_slots (with `near` set to whatever "
+            "time they proposed, in the business's own timezone above) to get REAL options, and only offer "
+            "times it actually returned.\n"
+            "- Only call confirm_reschedule once they've clearly confirmed ONE specific time — never on a "
+            "vague reply; ask a clarifying question instead.\n"
+            "- Keep the reply a short, plain, professional email body — no subject line, no signature block.\n"
+            "- If this isn't about scheduling at all, write a brief reply saying a team member will follow "
+            "up, and don't call any tool."
+        )
+
+        messages = [{"role": "system", "content": system_prompt}] + history
+        primary_model = ai_client.resolve_gemini_model(MODEL_NAME)
+        fallback_models = [ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS]
+
+        reply_text = ""
+        for _round in range(_MAX_EMAIL_TOOL_ROUNDS):
+            gen = await ai_client.chat_stream(
+                model=primary_model, messages=messages, fallback_models=fallback_models,
+                tools=_EMAIL_AGENT_TOOLS, max_tokens=1024, temperature=0.2,
+                bot_id=bot_id, call_type="meeting_email_reply",
+            )
+            tool_calls = gen["tool_calls"]
+            if not tool_calls:
+                reply_text = gen["text"] or ""
+                break
+
+            messages.append(gen["message"])
+            for tc in tool_calls:
+                fn_name = tc["function"]["name"]
+                try:
+                    args = json.loads(tc["function"]["arguments"] or "{}")
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+                if fn_name == "get_available_slots":
+                    result = await _get_available_slots(
+                        args, host_user, supabase,
+                        context={"bot": bot, "bot_id": bot_id, "visitor_timezone": owner_tz_str},
+                    )
+                elif fn_name == "confirm_reschedule":
+                    try:
+                        new_start = _parse_iso(args.get("new_start") or "")
+                        new_end = _parse_iso(args.get("new_end") or "")
+                        if new_start.tzinfo is None:
+                            new_start = new_start.replace(tzinfo=timezone.utc)
+                        if new_end.tzinfo is None:
+                            new_end = new_end.replace(tzinfo=timezone.utc)
+                        result = await reschedule_meeting_core(
+                            meeting, new_start, new_end, bot, bot_id, owner_user, supabase,
+                            performed_by="visitor_email",
+                        )
+                    except ValueError:
+                        result = {"error": "Invalid new_start/new_end — use ISO 8601 with a timezone offset."}
+                else:
+                    result = {"error": f"unknown tool: {fn_name}"}
+                messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps({"result": result})})
+
+        if not reply_text.strip():
+            reply_text = "Thanks for your message — someone from our team will follow up shortly to confirm."
+
+        reply_to = _meeting_reply_to(meeting_id)
+        subject = f"Re: {meeting.get('title') or 'Meeting'}"
+        html_body = "<div style='font-family:sans-serif;font-size:14px;line-height:1.6;color:#222'>" + \
+            reply_text.strip().replace("\n", "<br>") + "</div>"
+        to_email = meeting.get("attendee_email") or inbound_from_email
+        await notify.deliver_email(
+            supabase=supabase, owner_user=host_user, to=to_email,
+            subject=subject, html=html_body, reply_to=reply_to,
+        )
+        await _log_meeting_message(
+            supabase, meeting_id, direction="outbound",
+            from_email=notify.RESEND_EMAIL_FROM, subject=subject, body_text=reply_text.strip(),
+        )
+    except Exception:
+        logger.exception("Meeting email auto-reply failed for meeting %s", meeting_id)
 
 
 async def _list_outlook_events(args: dict, user: dict, supabase) -> dict:

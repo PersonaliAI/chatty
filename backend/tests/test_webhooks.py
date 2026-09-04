@@ -12,13 +12,14 @@ import hashlib
 import hmac
 import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 import main  # noqa: F401 — see tests/test_admin.py for why this must come first
 from app.routers import webhooks
 from fastapi import HTTPException
+from plugins import agent_tools
 
 
 SECRET = "whsec_" + base64.b64encode(b"test-secret-bytes-32-long-000000").decode()
@@ -147,6 +148,8 @@ def test_resend_inbound_records_matched_reply(monkeypatch):
         return t
     fake_supabase.table.side_effect = table
     monkeypatch.setattr(webhooks, "supabase", fake_supabase)
+    auto_reply_mock = AsyncMock()
+    monkeypatch.setattr(agent_tools, "handle_meeting_email_reply", auto_reply_mock)
 
     req = _inbound_request({
         "to": [f"meeting+{meeting_id}@meetings.example.com"],
@@ -157,6 +160,7 @@ def test_resend_inbound_records_matched_reply(monkeypatch):
     result = asyncio.run(webhooks.resend_inbound(req))
 
     assert result == {"ok": True, "matched": True}
+    auto_reply_mock.assert_awaited_once()
     assert inserted["meeting_id"] == meeting_id
     assert inserted["direction"] == "inbound"
     assert inserted["from_email"] == "visitor@example.com"
@@ -177,6 +181,7 @@ def test_resend_inbound_handles_string_to_field(monkeypatch):
         return t
     fake_supabase.table.side_effect = table
     monkeypatch.setattr(webhooks, "supabase", fake_supabase)
+    monkeypatch.setattr(agent_tools, "handle_meeting_email_reply", AsyncMock())
 
     req = _inbound_request({"to": f"meeting+{meeting_id}@meetings.example.com", "from": "visitor@example.com"})
     result = asyncio.run(webhooks.resend_inbound(req))

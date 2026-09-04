@@ -303,10 +303,11 @@ async def resend_inbound(request: Request):
         # 200 so Resend doesn't keep retrying a delivery we'll never use.
         return {"ok": True, "matched": False}
 
-    res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("id").eq("id", meeting_id).execute())
+    res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq("id", meeting_id).execute())
     if not res_meet.data:
         logger.warning("resend_inbound: no meeting found for id %s", meeting_id)
         return {"ok": True, "matched": False}
+    meeting = res_meet.data[0]
 
     from_field = data.get("from")
     from_email = (from_field.get("email") if isinstance(from_field, dict) else from_field) or "unknown"
@@ -321,5 +322,11 @@ async def resend_inbound(request: Request):
     except Exception:
         logger.exception("Failed to record inbound meeting reply for meeting %s", meeting_id)
         raise HTTPException(status_code=500, detail="Failed to record message")
+
+    # Auto-reply using the same scheduling tools the widget uses (real
+    # availability, real reschedule) — best-effort, logged not raised, so a
+    # broken auto-reply never turns into a failed webhook delivery/retry.
+    from plugins.agent_tools import handle_meeting_email_reply
+    await handle_meeting_email_reply(supabase, meeting, from_email)
 
     return {"ok": True, "matched": True}
