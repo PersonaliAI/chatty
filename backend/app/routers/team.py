@@ -112,6 +112,8 @@ async def update_team(member_id: str, req: TeamUpdateRequest, user: dict[str, An
         update["phone"] = req.phone.strip() or None
     if req.bookable is not None:
         update["bookable"] = req.bookable
+    if req.book_on_own_calendar is not None:
+        update["book_on_own_calendar"] = req.book_on_own_calendar
 
     await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
         "id", member_id).eq("bot_id", req.bot_id).execute())

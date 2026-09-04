@@ -23,6 +23,11 @@ class TeamUpdateRequest(BaseModel):
     role: Optional[str] = None
     permissions: Optional[list[str]] = None
     bookable: Optional[bool] = None
+    # Admin preference: True (default) books this member's own connected
+    # calendar for round-robin meetings; False books the bot owner's
+    # calendar instead (for a member who hasn't/can't connect their own) —
+    # they're still who the meeting is *assigned to* for fairness/notifications.
+    book_on_own_calendar: Optional[bool] = None
 
 
 class AvailabilityRule(BaseModel):

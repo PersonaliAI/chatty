@@ -418,15 +418,24 @@ async def get_bookable_members(
     """The pool of people round-robin can assign a meeting to for this bot:
     always the bot owner first (so a solo-owner bot with zero team members
     configured keeps working exactly as before), plus any
-    chatty_team_members row with bookable=true whose own `users` account
-    already has a connected calendar matching this bot's meeting_provider
-    (Google, unless meeting_provider is "teams"). Every logged-in Chatty
-    user already has their own google_access_token/microsoft_access_token
-    columns from the existing Settings -> Integrations connect flow — no new
-    OAuth plumbing needed here, this just looks up whichever member's own
-    tokens instead of always the owner's. A bookable member with no matching
-    connected calendar is silently excluded (nothing to check availability
-    against), not an error."""
+    chatty_team_members row with bookable=true. Each such member has a
+    book_on_own_calendar preference (admin-set, defaults true):
+      - true: their OWN `users` account's connected calendar is used —
+        every logged-in Chatty user already has their own
+        google_access_token/microsoft_access_token columns from the
+        existing Settings -> Integrations connect flow, no new OAuth
+        plumbing needed here.
+      - false: the OWNER's calendar is used instead (for a member who
+        hasn't, or can't, connect their own) — they're still the one a
+        meeting gets *assigned to* for fairness-counting/notifications
+        (see caller sites' use of a member's "email"), only which calendar
+        the event physically lands on changes. Two members both set to
+        false correctly compete for the same underlying (the owner's)
+        calendar, same as any two people genuinely sharing one calendar
+        would.
+    A bookable member with no matching connected calendar available (their
+    own, or the owner's, whichever applies) is silently excluded — nothing
+    to check availability against — not an error."""
     use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
     owner_email = (owner_user.get("email") or "").strip().lower()
     owner_has_token = bool(owner_user.get("microsoft_access_token")) if use_ms_calendar else bool(owner_user.get("google_access_token"))
@@ -434,7 +443,7 @@ async def get_bookable_members(
     if owner_has_token:
         members.append({"email": owner_email, "user": owner_user, "use_ms_calendar": use_ms_calendar})
     try:
-        res = await run_db(lambda: supabase.table("chatty_team_members").select("email").eq(
+        res = await run_db(lambda: supabase.table("chatty_team_members").select("email, book_on_own_calendar").eq(
             "bot_id", bot_id).eq("bookable", True).execute())
         rows = res.data or []
     except Exception:
@@ -443,6 +452,14 @@ async def get_bookable_members(
         email = (row.get("email") or "").strip().lower()
         if not email or email == owner_email:
             continue
+        book_on_own = row.get("book_on_own_calendar")
+        book_on_own = True if book_on_own is None else bool(book_on_own)
+
+        if not book_on_own:
+            if owner_has_token:
+                members.append({"email": email, "user": owner_user, "use_ms_calendar": use_ms_calendar})
+            continue
+
         try:
             u_res = await run_db(lambda email=email: supabase.table("users").select("*").ilike(
                 "email", email).limit(1).execute())

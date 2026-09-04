@@ -382,6 +382,38 @@ def test_get_bookable_members_skips_owner_duplicate_row():
     assert len(members) == 1  # not double-counted
 
 
+def test_get_bookable_members_uses_owner_calendar_when_preference_off():
+    """A member with book_on_own_calendar=false is still assigned meetings
+    under their own email, but the calendar checked/booked is the owner's —
+    no users-table lookup for the member should even happen."""
+    fake = FakeSupabase()
+    fake.queue([{"email": "jane@example.com", "book_on_own_calendar": False}])
+    members = asyncio.run(avail.get_bookable_members(fake, "bot-1", {"meeting_provider": "google_meet"}, OWNER_USER))
+    jane = next(m for m in members if m["email"] == "jane@example.com")
+    assert jane["user"] == OWNER_USER  # uses the owner's own calendar, not a fetched teammate row
+
+
+def test_get_bookable_members_defaults_to_own_calendar_when_preference_null():
+    """A pre-existing row from before this column existed (NULL, not a real
+    false) must default to true — never silently reroute existing bookable
+    members onto the owner's calendar without an explicit admin choice."""
+    fake = FakeSupabase()
+    fake.queue([{"email": "jane@example.com", "book_on_own_calendar": None}])
+    fake.queue([{"email": "jane@example.com", "google_access_token": "jane-tok"}])
+    members = asyncio.run(avail.get_bookable_members(fake, "bot-1", {"meeting_provider": "google_meet"}, OWNER_USER))
+    jane = next(m for m in members if m["email"] == "jane@example.com")
+    assert jane["user"]["email"] == "jane@example.com"
+    assert jane["user"] != OWNER_USER
+
+
+def test_get_bookable_members_excludes_admin_calendar_member_when_owner_not_connected():
+    owner_no_token = {"email": "owner@example.com", "auth_user_id": "owner-1"}
+    fake = FakeSupabase()
+    fake.queue([{"email": "jane@example.com", "book_on_own_calendar": False}])
+    members = asyncio.run(avail.get_bookable_members(fake, "bot-1", {"meeting_provider": "google_meet"}, owner_no_token))
+    assert members == []
+
+
 # ---------------------------------------------------------------------------
 # pick_assignee
 # ---------------------------------------------------------------------------

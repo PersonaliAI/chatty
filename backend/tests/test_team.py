@@ -131,6 +131,18 @@ def test_update_team_sets_bookable(monkeypatch):
     assert result["bookable"] is True
 
 
+def test_update_team_sets_book_on_own_calendar(monkeypatch):
+    _patch_owner(monkeypatch)
+    fake = FakeSupabase()
+    fake.queue([{"role": "agent"}])
+    fake.queue(None)
+    monkeypatch.setattr(team, "supabase", fake)
+
+    req = TeamUpdateRequest(bot_id="bot-1", book_on_own_calendar=False)
+    result = asyncio.run(team.update_team("member-1", req, OWNER))
+    assert result["book_on_own_calendar"] is False
+
+
 def test_update_team_rejects_empty_name(monkeypatch):
     _patch_owner(monkeypatch)
     fake = FakeSupabase()
