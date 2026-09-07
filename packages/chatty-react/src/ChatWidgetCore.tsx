@@ -1765,7 +1765,13 @@ export default function ChatWidgetCore({
         ${colorSchemeCss}
         ${fontFamilyCss}
       ` }} />
-      {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
+      {customCss && (
+        <style
+          dangerouslySetInnerHTML={{
+            __html: customCss.replace(/<\/style/gi, '<\\/style').replace(/<script/gi, '<\\/script'),
+          }}
+        />
+      )}
       {/* Text-size scaling lives on this inner wrapper, not #chatty-root
           itself — #chatty-root's own w-full/h-full defines the widget's
           real footprint (the iframe/host container it's actually given).

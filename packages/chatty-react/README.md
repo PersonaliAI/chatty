@@ -1,80 +1,85 @@
-# Chatty Widget — Standalone Bundle
+# @personaliai/react-widget
 
-This package builds the **standalone Shadow DOM bundle** that powers the
-Chatty embeddable chat widget (`widget.js`, `chatty-app.js`, `chatty-app.css`).
+The official React SDK for [Chatty](https://chatty.personaliai.com) AI chatbots.
 
-## How to Embed (All Platforms)
+Loads the Chatty chat assistant into your React and Next.js applications using the lightweight **script method** inside an isolated Shadow DOM container. Zero CSS conflicts, 100% sharp typography, and under 2 kB bundle footprint.
 
-Add a single `<script>` tag before `</body>` on any page:
+---
 
-```html
-<script src="https://chatty.personaliai.com/widget.js"
-        data-id="YOUR_BOT_UUID" defer></script>
+## Installation
+
+```bash
+npm install @personaliai/react-widget
+# or
+yarn add @personaliai/react-widget
+# or
+pnpm add @personaliai/react-widget
 ```
 
-The script mounts directly into an isolated **Shadow DOM** container
-(`attachShadow({ mode: 'open' })`), rendering native vector DOM elements
-— zero iframes, 100% sharp text at all zoom levels (same model as Crisp).
+---
 
-### Next.js / React
+## Quickstart
 
-Use the built-in `<Script>` component in your root layout:
+Add the `<ChattyWidget />` component to your root layout or main application view:
 
-```tsx
-import Script from "next/script";
+```tsx title="app/layout.tsx (Next.js App Router)"
+import { ChattyWidget } from "@personaliai/react-widget";
 
-export default function Layout({ children }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      {children}
-      <Script
-        src="https://chatty.personaliai.com/widget.js"
-        data-id="YOUR_BOT_ID"
-        strategy="afterInteractive"
-      />
-    </>
+    <html lang="en">
+      <body>
+        {children}
+        <ChattyWidget
+          botId="YOUR_BOT_UUID"
+          position="right"
+          color="#4F46E5"
+        />
+      </body>
+    </html>
   );
 }
 ```
 
-### WordPress
+---
 
-Add to `functions.php`:
+## Programmatic Control with `useChatty()`
 
-```php
-function chatty_widget() { ?>
-<script src="https://chatty.personaliai.com/widget.js"
-        data-id="YOUR_BOT_UUID" defer></script>
-<?php }
-add_action('wp_footer', 'chatty_widget');
+Control the chat drawer from custom buttons or navbar triggers:
+
+```tsx title="components/HelpButton.tsx"
+"use client";
+
+import { useChatty } from "@personaliai/react-widget";
+
+export function HelpButton() {
+  const { open, close, toggle } = useChatty();
+
+  return (
+    <button onClick={open} className="btn-help">
+      💬 Chat with Support
+    </button>
+  );
+}
 ```
 
-### Shopify
+---
 
-Open `layout/theme.liquid` and paste the script tag before `</body>`.
+## Props
 
-## JS API
+| Prop | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `botId` | `string` | **Required** | Your bot's unique UUID from the Chatty dashboard. |
+| `position` | `"right" \| "left"` | `"right"` | Corner anchor position for the launcher trigger button. |
+| `color` | `string` | Dashboard color | Hex color override for the launcher trigger button. |
+| `style` | `string` | Dashboard style | Visual style preset override (`"minimal"`, `"playful"`, etc.). |
+| `mobileFullscreen` | `boolean` | `true` | When true, expands full-screen on mobile viewports. |
+| `teaser` | `boolean` | `true` | Whether to display the greeting teaser bubble after delay. |
+| `sound` | `boolean` | `true` | Whether to play sound chimes on incoming AI replies. |
+| `widgetUrl` | `string` | `"https://chatty.personaliai.com/widget.js"` | Custom widget script URL (for self-hosting). |
 
-```js
-window.Chatty.open();   // Open the chat panel
-window.Chatty.close();  // Close the chat panel
-window.Chatty.toggle(); // Toggle open/close
-```
+---
 
-## Data Attributes
+## License
 
-| Attribute                  | Default   | Description                        |
-| -------------------------- | --------- | ---------------------------------- |
-| `data-id`                  | (required)| Your bot UUID                      |
-| `data-color`               | —         | Override primary color             |
-| `data-style`               | —         | Widget design preset name          |
-| `data-position`            | `right`   | `right` or `left`                  |
-| `data-mobile-fullscreen`   | `true`    | Fullscreen on mobile               |
-| `data-teaser`              | `true`    | Show teaser bubble                 |
-| `data-sound`               | `true`    | Play notification chime            |
-
-## Standalone Browser Bundle
-
-This package compiles `chatty-app.js` and `chatty-app.css`, which expose
-`window.ChattyDOM.mount(container, options)` for mounting into any DOM
-node or ShadowRoot. The `widget.js` loader script handles this automatically.
+MIT

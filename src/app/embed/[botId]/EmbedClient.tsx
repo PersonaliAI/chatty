@@ -1568,7 +1568,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         ${colorSchemeCss}
         ${fontFamilyCss}
       ` }} />
-      {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
+      {customCss && (
+        <style
+          dangerouslySetInnerHTML={{
+            __html: customCss.replace(/<\/style/gi, '<\\/style').replace(/<script/gi, '<\\/script'),
+          }}
+        />
+      )}
       {/* Text-size scaling lives on this inner wrapper, not #chatty-root
           itself — see ChatWidgetCore.tsx's identical wrapper for the full
           reasoning: zoom does not scale a *percentage* width/height the
