@@ -272,7 +272,14 @@ export default function Home() {
           <div className="mt-14 sm:mt-16 relative max-w-[1080px] mx-auto">
             <div className="absolute -inset-4 sm:-inset-6 rounded-[52px] -z-10" style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 75%)" }} />
             <div className="relative rounded-[24px] sm:rounded-[36px] overflow-hidden p-2 sm:p-2.5" style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)" }}>
-              <ShowcasePlaceholder label="Drop a product screenshot (dashboard / chat widget)" className="w-full aspect-[16/9.2] rounded-[16px] sm:rounded-[26px]" />
+              <Image
+                src="/dashboard_all_21_tabs.png"
+                alt="Chatty Dashboard Overview & Live Console"
+                width={2880}
+                height={1656}
+                priority
+                className="w-full h-auto aspect-[16/9.2] object-cover rounded-[16px] sm:rounded-[26px] border border-black/5 dark:border-white/5"
+              />
             </div>
             <div className="hidden sm:flex absolute -top-[18px] right-7 rounded-full items-center gap-2 px-4.5 py-2.5 text-[12.5px] font-semibold" style={{ background: "var(--color-bg)", boxShadow: "var(--shadow-md)", color: "var(--color-accent-700)" }}>
               <Clock className="size-[15px]" />
