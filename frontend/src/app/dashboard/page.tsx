@@ -1301,8 +1301,6 @@ export default function Dashboard() {
   const [adminMeetings, setAdminMeetings] = useState<AdminMeeting[]>([]);
   const [meetingMemberFilter, setMeetingMemberFilter] = useState<string>("all");
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
-  const [meetingMessages, setMeetingMessages] = useState<MeetingMessage[]>([]);
-  const [loadingMeetingMessages, setLoadingMeetingMessages] = useState(false);
   const [reschedulingMeetingId, setReschedulingMeetingId] = useState<string | null>(null);
   const [rescheduleDateTime, setRescheduleDateTime] = useState("");
   const [reschedulingBusy, setReschedulingBusy] = useState(false);
@@ -1468,23 +1466,9 @@ export default function Dashboard() {
     }
   };
 
-  async function loadMeetingMessages(meetingId: string) {
-    setLoadingMeetingMessages(true);
-    try {
-      const res = await fetchWithFallback(`/api/admin/meetings/${meetingId}/messages`);
-      if (res.ok) {
-        const d = await res.json();
-        setMeetingMessages(d.messages || []);
-      } else {
-        setMeetingMessages([]);
-      }
-    } catch { setMeetingMessages([]); } finally { setLoadingMeetingMessages(false); }
-  }
-
   function openMeetingPanel(meetingId: string) {
     setSelectedMeetingId(meetingId);
     setReschedulingMeetingId(null);
-    loadMeetingMessages(meetingId);
   }
 
   async function handleRescheduleMeeting(meeting: AdminMeeting) {
@@ -1506,7 +1490,6 @@ export default function Dashboard() {
         setReschedulingMeetingId(null);
         setRescheduleDateTime("");
         if (botId) await loadAdminData(botId);
-        loadMeetingMessages(meeting.id);
       } else {
         const d = await res.json().catch(() => ({}));
         showToast(d.detail || "Couldn't reschedule — that time may not be available.", "error");
@@ -8699,28 +8682,6 @@ const { reply, session_id } = await res.json();`}</pre>
                       </button>
                     </div>
                   )}
-
-                  <div className="pt-2 border-t border-neutral-100 dark:border-neutral-850 space-y-2">
-                    <h6 className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Email thread</h6>
-                    {loadingMeetingMessages ? (
-                      <div className="flex items-center gap-2 text-[11px] text-neutral-400"><Loader2 className="size-3.5 animate-spin" /> Loading…</div>
-                    ) : meetingMessages.length === 0 ? (
-                      <p className="text-[11px] text-neutral-400">No messages yet.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {meetingMessages.map((msg) => (
-                          <div key={msg.id} className={`rounded-lg px-3 py-2 text-[11px] ${msg.direction === "inbound" ? "bg-blue-50 dark:bg-blue-950/20" : "bg-neutral-50 dark:bg-neutral-950"}`}>
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="font-semibold text-neutral-700 dark:text-neutral-300">{msg.direction === "inbound" ? `From ${msg.from_email}` : "Sent"}</span>
-                              <span className="text-neutral-400 text-[10px]">{formatDateTime(msg.created_at)}</span>
-                            </div>
-                            {msg.subject && <div className="text-neutral-500 dark:text-neutral-400 mb-0.5">{msg.subject}</div>}
-                            {msg.body_text && <div className="text-neutral-600 dark:text-neutral-300 line-clamp-4 whitespace-pre-wrap">{msg.body_text}</div>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
 
