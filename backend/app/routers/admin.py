@@ -15,6 +15,7 @@ from app.core.clients import supabase
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
+from app.core.uploads import read_upload_capped
 from app.schemas.admin import (
     InboxAIToggle,
     InboxDeleteRequest,
@@ -114,11 +115,9 @@ async def admin_inbox_reply_media(
     user: dict[str, Any] = Depends(require_user),
 ):
     await _verify_bot_access(bot_id, user)
-    data = await file.read()
+    data = await read_upload_capped(file, _MEDIA_MAX_BYTES, detail="File too large (max 20MB)")
     if not data:
         raise HTTPException(status_code=400, detail="Empty file")
-    if len(data) > _MEDIA_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="File too large (max 20MB)")
     mime = (file.content_type or "application/octet-stream").split(";")[0]
 
     # Upload to storage (service-role bypasses RLS)
@@ -134,7 +133,7 @@ async def admin_inbox_reply_media(
         file_url = await run_db(_upload)
     except Exception as e:
         logger.exception("Admin reply storage upload failed")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Upload failed") from e
 
     display = (text.strip() + ("\n" if text.strip() else "")) + f"[attachment: {file.filename or mime}]"
     content = display + (f"\n{file_url}" if file_url else "")

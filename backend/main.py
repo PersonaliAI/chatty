@@ -462,10 +462,21 @@ async def _resolve_api_key(
     return key_row
 
 
+_rate_state: dict[str, list[float]] = {}
+_LAST_RATE_CLEANUP = 0.0
+
+
 def _rate_limited(key_id: str, limit: int = _RATE_LIMIT, window: int = _RATE_WINDOW) -> bool:
     """In-memory sliding window. Per-process only — used as the fallback when
     the shared Upstash limiter is unconfigured or unreachable."""
+    global _LAST_RATE_CLEANUP
     now = time.time()
+    if now - _LAST_RATE_CLEANUP > 120 and len(_rate_state) > 1000:
+        _LAST_RATE_CLEANUP = now
+        stale_keys = [k for k, timestamps in _rate_state.items() if not timestamps or (now - timestamps[-1] > 300)]
+        for k in stale_keys:
+            _rate_state.pop(k, None)
+
     hits = [t for t in _rate_state.get(key_id, []) if now - t < window]
     if len(hits) >= limit:
         _rate_state[key_id] = hits
@@ -482,6 +493,18 @@ def _rate_limited(key_id: str, limit: int = _RATE_LIMIT, window: int = _RATE_WIN
 UPSTASH_REDIS_REST_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
 UPSTASH_REDIS_REST_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 
+_upstash_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_upstash_client() -> httpx.AsyncClient:
+    global _upstash_client
+    if _upstash_client is None or _upstash_client.is_closed:
+        _upstash_client = httpx.AsyncClient(
+            timeout=2.0,
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=30),
+        )
+    return _upstash_client
+
 
 async def _rate_limited_async(
     key_id: str, limit: int = _RATE_LIMIT, window: int = _RATE_WINDOW
@@ -491,12 +514,12 @@ async def _rate_limited_async(
     bucket = int(time.time()) // window
     rkey = f"rl:{key_id}:{bucket}"
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.post(
-                f"{UPSTASH_REDIS_REST_URL}/pipeline",
-                headers={"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"},
-                json=[["INCR", rkey], ["EXPIRE", rkey, str(window)]],
-            )
+        client = _get_upstash_client()
+        resp = await client.post(
+            f"{UPSTASH_REDIS_REST_URL}/pipeline",
+            headers={"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"},
+            json=[["INCR", rkey], ["EXPIRE", rkey, str(window)]],
+        )
         resp.raise_for_status()
         count = int(resp.json()[0]["result"])
         return count > limit

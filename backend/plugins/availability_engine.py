@@ -209,29 +209,17 @@ _OFFSET_LIKE_RE = re.compile(r"^[+-]\d{2}:?\d{2}$")
 
 
 def _format_slot_label(dt: datetime, tz_name: Optional[str] = None) -> str:
-    """"Monday, Jan 5 at 9:00 AM EST (New York)" — or "...GMT+5:30 (Colombo)"
-    for a zone with no common abbreviation. Always includes both an
-    abbreviation/offset AND, when the IANA zone string is available, the
-    place name it actually identifies — "EST" alone doesn't say which
-    country/region it's for, and neither does a bare offset like
-    "GMT+5:30" shared by several very different places. Built with
-    portable strftime directives only — no `%-d`/`%-I`; those are glibc
-    extensions Windows' C runtime doesn't support, and this needs to run
-    the same in local dev as in the Linux container it's deployed to.
-    `%Z` gives a named abbreviation (EST/IST/...) for zones that have one.
-    For a zone that doesn't (e.g. Asia/Colombo), pytz's own `tzname()` —
-    not empty, as might be expected — returns the raw POSIX offset string
-    itself (e.g. "+0530"), which reads as arbitrary digits rather than
-    obviously a timezone; detected and replaced with a "GMT+H:MM"-style
-    label instead."""
+    """Formats a slot label cleanly in the target timezone without robotic 'GMT...' text.
+    e.g. 'Monday, Jan 5 at 9:00 AM EST' or 'Thursday, Sep 10 at 10:00 AM'.
+    Technical offsets (+0530) and 'GMT+H:MM' labels are omitted to ensure a natural,
+    clean conversational UX."""
     hour12 = dt.hour % 12 or 12
     ampm = "AM" if dt.hour < 12 else "PM"
     raw_tz = dt.strftime("%Z")
-    tz_label = raw_tz if raw_tz and not _OFFSET_LIKE_RE.match(raw_tz) else _gmt_offset_label(dt)
-    place = _tz_place_name(tz_name)
-    if place:
-        tz_label = f"{tz_label} ({place})"
-    return f"{dt.strftime('%A, %b')} {dt.day} at {hour12}:{dt.minute:02d} {ampm} {tz_label}".rstrip()
+    tz_label = ""
+    if raw_tz and not _OFFSET_LIKE_RE.match(raw_tz) and not raw_tz.startswith("GMT") and raw_tz != "UTC":
+        tz_label = f" {raw_tz}"
+    return f"{dt.strftime('%A, %b')} {dt.day} at {hour12}:{dt.minute:02d} {ampm}{tz_label}".rstrip()
 
 
 def _tz_place_name(tz_name: Optional[str]) -> Optional[str]:

@@ -228,14 +228,15 @@ def test_format_slot_label_uses_named_abbreviation_when_available():
     assert "+" not in slots[0]["owner_local_label"]
 
 
-def test_format_slot_label_falls_back_to_gmt_offset_for_unnamed_zone():
-    # Asia/Colombo has no common named abbreviation — pytz's %Z returns ''.
+def test_format_slot_label_omits_gmt_offset_for_unnamed_zone():
+    # Asia/Colombo has no common named abbreviation — do NOT show GMT+5:30 or +0530.
     kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "Asia/Colombo"}
     now = _utc(2026, 1, 5, 0, 0)
     slots = avail.compute_available_slots(busy_intervals=[], now_utc=now, max_results=1, **kwargs)
     label = slots[0]["owner_local_label"]
-    assert "GMT+5:30" in label
-    assert "+0530" not in label  # not the bare, easy-to-miss-as-a-timezone digits
+    assert "GMT" not in label
+    assert "+0530" not in label
+    assert "Monday, Jan 5 at 9:00 AM" in label
 
 
 def test_gmt_offset_label_formats_positive_and_negative():
@@ -259,19 +260,21 @@ def test_tz_place_name_extracts_last_path_segment():
     assert avail._tz_place_name(None) is None
 
 
-def test_format_slot_label_includes_place_name_for_offset_zone():
+def test_format_slot_label_never_contains_gmt_or_city_brackets():
     kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "Asia/Colombo"}
     now = _utc(2026, 1, 5, 0, 0)
     slots = avail.compute_available_slots(busy_intervals=[], now_utc=now, max_results=1, **kwargs)
-    assert "GMT+5:30 (Colombo)" in slots[0]["owner_local_label"]
+    label = slots[0]["owner_local_label"]
+    assert "GMT" not in label
+    assert "(" not in label and ")" not in label
 
 
-def test_format_slot_label_includes_place_name_for_named_zone():
+def test_format_slot_label_includes_named_abbrev_without_gmt():
     kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "America/New_York"}
     slots = avail.compute_available_slots(busy_intervals=[], now_utc=_MONDAY_9AM_UTC, max_results=1, **kwargs)
     label = slots[0]["owner_local_label"]
-    assert "(New York)" in label
     assert "EST" in label or "EDT" in label
+    assert "GMT" not in label
 
 
 def test_owner_and_visitor_labels_derive_from_the_same_instant():
@@ -287,8 +290,9 @@ def test_owner_and_visitor_labels_derive_from_the_same_instant():
     owner_dt = datetime.fromisoformat(slot["start"].replace("Z", "+00:00")).astimezone(pytz.timezone("Asia/Colombo"))
     visitor_dt = datetime.fromisoformat(slot["start"].replace("Z", "+00:00")).astimezone(pytz.timezone("America/New_York"))
     assert owner_dt.astimezone(timezone.utc) == visitor_dt.astimezone(timezone.utc)  # same real instant
-    assert "(Colombo)" in slot["owner_local_label"]
-    assert "(New York)" in slot["visitor_local_label"]
+    assert "Monday, Jan 5 at 9:00 AM" in slot["owner_local_label"]
+    assert "EST" in slot["visitor_local_label"] or "EDT" in slot["visitor_local_label"]
+    assert "GMT" not in slot["owner_local_label"] and "GMT" not in slot["visitor_local_label"]
 
 
 def test_empty_working_days_yields_no_slots():

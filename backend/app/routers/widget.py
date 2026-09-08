@@ -316,9 +316,9 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             )
             background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
             await queue.put(_sse({"type": "done", "reply": reply, "sources": result.get("sources") or []}))
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             logger.exception("Widget stream assistant failed")
-            await queue.put(_sse({"type": "error", "detail": str(exc)}))
+            await queue.put(_sse({"type": "error", "detail": "An internal error occurred while generating a response."}))
         finally:
             await queue.put(_DONE)
 

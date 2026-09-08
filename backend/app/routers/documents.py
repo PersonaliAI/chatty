@@ -186,14 +186,11 @@ async def documents_upload(
     Returns the indexed document row with chunk_count. Use this from the
     chat composer's paperclip button — no Drive/OneDrive connection needed.
     """
-    data = await file.read()
+    data = await read_upload_capped(
+        file, MAX_UPLOAD_BYTES, detail=f"file too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)"
+    )
     if not data:
         raise HTTPException(status_code=400, detail="empty file")
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"file too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)",
-        )
     try:
         result = await doc_rag.index_blob(
             supabase,

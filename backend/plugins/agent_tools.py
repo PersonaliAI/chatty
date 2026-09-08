@@ -18,6 +18,8 @@ import os
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 import re
+import secrets
+import time
 from typing import Any, Optional
 
 import httpx
@@ -32,6 +34,141 @@ from app.core.config import GEMINI_FALLBACK_MODELS, MODEL_NAME, RESEND_INBOUND_D
 from app.core.db import run_db
 
 logger = logging.getLogger("chatty.tools")
+
+
+# ---------------------------------------------------------------------------
+# Anti-fake-meeting defenses: Domain blocklists & OTP cache
+# ---------------------------------------------------------------------------
+
+DISPOSABLE_EMAIL_DOMAINS: frozenset[str] = frozenset({
+    "mailinator.com", "guerrillamail.com", "guerrillamail.net", "guerrillamail.biz", "guerrillamail.org",
+    "sharklasers.com", "grr.la", "guerrillamailblock.com", "10minutemail.com", "10minutemail.net",
+    "tempmail.com", "temp-mail.org", "tempmail.net", "throwawaymail.com", "yopmail.com", "yopmail.net",
+    "yopmail.fr", "cool.fr.nf", "jetable.fr.nf", "dispostable.com", "trashmail.com", "trashmail.net",
+    "trashmail.me", "getairmail.com", "fakemailgenerator.com", "mohmal.com", "inboxkitten.com",
+    "mytemp.email", "generator.email", "tempail.com", "burnermail.io", "nada.ltd", "dropmail.me",
+    "crazymailing.com", "armyspy.com", "cuvox.de", "dayrep.com", "fleckens.hu", "gustr.com",
+    "jourrapide.com", "rhyta.com", "superrito.com", "teleworm.us", "einrot.com", "trash-mail.com",
+    "fakeinbox.com", "emailondeck.com", "mintemail.com", "spam4.me", "bccto.me", "chacuo.net",
+    "0815.ru", "0-mail.com", "0wnd.net", "0wnd.org", "10mail.org", "20minutemail.com", "33mail.com",
+    "anonaddy.me", "bouncr.com", "discard.email", "disposablemail.com", "dodgeit.com", "drdrb.net",
+    "e4ward.com", "filzmail.com", "getnada.com", "gishpuppy.com", "harakirimail.com", "incognitomail.org",
+    "jetable.org", "kasmail.com", "maildrop.cc", "mailcatch.com", "mailnesia.com", "mailnull.com",
+    "mytempemail.com", "noclickemail.com", "notmailinator.com", "nowmymail.com", "oneoffmail.com",
+    "pookmail.com", "safetymail.info", "soodonims.com", "spambox.us", "spamfree24.org",
+    "spamgourmet.com", "tempemail.net", "tempr.email", "trashymail.com", "wegwerfemail.de", "whyspam.me",
+})
+
+CONSUMER_EMAIL_DOMAINS: frozenset[str] = frozenset({
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "yahoo.fr", "yahoo.es", "yahoo.de",
+    "yahoo.co.in", "yahoo.ca", "yahoo.com.au", "ymail.com", "rocketmail.com",
+    "hotmail.com", "hotmail.co.uk", "hotmail.fr", "hotmail.es", "hotmail.de",
+    "outlook.com", "outlook.co.uk", "outlook.fr", "live.com", "live.co.uk", "msn.com",
+    "icloud.com", "me.com", "mac.com",
+    "aol.com", "aim.com",
+    "proton.me", "protonmail.com", "protonmail.ch",
+    "zoho.com", "zohomail.com",
+    "mail.com", "email.com",
+    "gmx.com", "gmx.net", "gmx.de",
+    "yandex.com", "yandex.ru", "ya.ru",
+    "fastmail.com", "fastmail.fm",
+    "tutanota.com", "tutamail.com", "tuta.io",
+    "comcast.net", "sbcglobal.net", "att.net", "verizon.net",
+    "charter.net", "cox.net", "bellsouth.net",
+})
+
+_IN_MEMORY_OTP: dict[str, dict[str, Any]] = {}
+
+
+def _otp_cache_key(bot_id: str, session_id: str, email: str) -> str:
+    clean_email = email.strip().lower()
+    return f"chatty:otp:{bot_id}:{session_id}:{clean_email}"
+
+
+async def _save_booking_otp(bot_id: str, session_id: str, email: str, code: str, ttl_seconds: int = 600) -> None:
+    key = _otp_cache_key(bot_id, session_id, email)
+    now = time.time()
+    payload = {"code": code, "verified": False, "attempts": 0, "expires_at": now + ttl_seconds}
+    _IN_MEMORY_OTP[key] = payload
+
+    try:
+        from app.core.security import UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN, _get_upstash_client
+        if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN:
+            client = _get_upstash_client()
+            await client.post(
+                UPSTASH_REDIS_REST_URL,
+                headers={"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"},
+                json=["SET", key, json.dumps(payload), "EX", ttl_seconds],
+            )
+    except Exception:
+        logger.warning("Failed to store OTP in Upstash, retained in-memory", exc_info=True)
+
+
+async def _get_booking_otp_state(bot_id: str, session_id: str, email: str) -> Optional[dict[str, Any]]:
+    key = _otp_cache_key(bot_id, session_id, email)
+    now = time.time()
+
+    try:
+        from app.core.security import UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN, _get_upstash_client
+        if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN:
+            client = _get_upstash_client()
+            resp = await client.post(
+                UPSTASH_REDIS_REST_URL,
+                headers={"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"},
+                json=["GET", key],
+            )
+            if resp.status_code < 300:
+                raw = resp.json().get("result")
+                if raw:
+                    return json.loads(raw)
+    except Exception:
+        logger.warning("Failed to fetch OTP from Upstash, checking in-memory", exc_info=True)
+
+    state = _IN_MEMORY_OTP.get(key)
+    if state and state.get("expires_at", 0) > now:
+        return state
+    return None
+
+
+async def _mark_booking_otp_verified(bot_id: str, session_id: str, email: str) -> None:
+    key = _otp_cache_key(bot_id, session_id, email)
+    state = await _get_booking_otp_state(bot_id, session_id, email) or {}
+    state["verified"] = True
+    _IN_MEMORY_OTP[key] = state
+
+    try:
+        from app.core.security import UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN, _get_upstash_client
+        if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN:
+            client = _get_upstash_client()
+            await client.post(
+                UPSTASH_REDIS_REST_URL,
+                headers={"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"},
+                json=["SET", key, json.dumps(state), "EX", 600],
+            )
+    except Exception:
+        pass
+
+
+async def _increment_booking_otp_attempts(bot_id: str, session_id: str, email: str) -> int:
+    key = _otp_cache_key(bot_id, session_id, email)
+    state = await _get_booking_otp_state(bot_id, session_id, email)
+    if not state:
+        return 0
+    state["attempts"] = state.get("attempts", 0) + 1
+    _IN_MEMORY_OTP[key] = state
+
+    try:
+        from app.core.security import UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN, _get_upstash_client
+        if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN:
+            client = _get_upstash_client()
+            await client.post(
+                UPSTASH_REDIS_REST_URL,
+                headers={"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"},
+                json=["SET", key, json.dumps(state), "EX", 600],
+            )
+    except Exception:
+        pass
+    return state["attempts"]
 
 
 def _meeting_reply_to(meeting_id: str) -> Optional[str]:
@@ -92,6 +229,7 @@ DECLARATIONS: list[dict] = [
             "description": {"type": "string", "description": "Optional event description."},
             "location": {"type": "string", "description": "Optional physical/virtual location."},
             "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee email addresses. For widget demo bookings, the visitor's real email address is required here before booking."},
+            "verification_code": {"type": "string", "description": "6-digit email OTP verification code provided by the visitor (required if email verification is enabled on the chatbot)."},
             "all_day": {"type": "boolean", "description": "True for all-day events; start/end then become dates."},
         },
         ["summary", "start", "end"],
@@ -115,7 +253,7 @@ DECLARATIONS: list[dict] = [
         {
             "near": {
                 "type": "string",
-                "description": "ISO 8601 datetime the visitor asked for (even if unavailable). "
+                "description": "ISO 8601 datetime the visitor asked for (e.g. '2026-09-10T10:00:00+05:30' or '2026-09-10T10:00:00'). "
                                 "Returned slots are sorted by closeness to this. Omit to get the soonest slots instead.",
             },
             "count": {"type": "integer", "description": "How many slots to return (default 5)."},
@@ -143,6 +281,7 @@ DECLARATIONS: list[dict] = [
             "body": {"type": "string", "description": "Optional description."},
             "location": {"type": "string", "description": "Optional location."},
             "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee emails. For widget demo bookings, the visitor's real email address is required here before booking."},
+            "verification_code": {"type": "string", "description": "6-digit email OTP verification code provided by the visitor (required if email verification is enabled on the chatbot)."},
             "is_all_day": {"type": "boolean", "description": "All-day event."},
             "calendar_id": {"type": "string", "description": "Optional non-default calendar."},
             "online_meeting": {"type": "boolean", "description": "Set true to create a Microsoft Teams online meeting and generate a join link."},
@@ -352,6 +491,17 @@ async def _check_calendar_availability(args: dict, user: dict, supabase, context
     try:
         time_min = _parse_iso(args.get("start") or "")
         time_max = _parse_iso(args.get("end") or "")
+        fallback_tz_str = (context or {}).get("visitor_timezone") or "UTC"
+        if time_min.tzinfo is None:
+            try:
+                time_min = pytz.timezone(fallback_tz_str).localize(time_min)
+            except Exception:
+                time_min = time_min.replace(tzinfo=timezone.utc)
+        if time_max.tzinfo is None:
+            try:
+                time_max = pytz.timezone(fallback_tz_str).localize(time_max)
+            except Exception:
+                time_max = time_max.replace(tzinfo=timezone.utc)
     except ValueError:
         return {"error": (
             "Invalid time format. Call this again with 'start' and 'end' as ISO 8601 "
@@ -388,14 +538,19 @@ async def _get_available_slots(args: dict, user: dict, supabase, context: Option
     from plugins import availability_engine as avail
 
     owner_tz_str = avail.resolve_owner_timezone(bot, user)
+    visitor_tz_str = (context or {}).get("visitor_timezone") or owner_tz_str
     now_utc = datetime.now(tz=timezone.utc)
     near_utc = None
     if args.get("near"):
         try:
-            near_utc = _parse_iso(args["near"])
-            if near_utc.tzinfo is None:
-                near_utc = near_utc.replace(tzinfo=timezone.utc)
-            near_utc = near_utc.astimezone(timezone.utc)
+            near_dt = _parse_iso(args["near"])
+            if near_dt.tzinfo is None:
+                try:
+                    target_tz = pytz.timezone(visitor_tz_str)
+                    near_dt = target_tz.localize(near_dt)
+                except Exception:
+                    near_dt = near_dt.replace(tzinfo=timezone.utc)
+            near_utc = near_dt.astimezone(timezone.utc)
         except ValueError:
             near_utc = None
     count = max(1, min(int(args.get("count") or 5), 10))
@@ -463,15 +618,34 @@ async def _reschedule_meeting(args: dict, user: dict, supabase, context: Optiona
     visitor_email = (args.get("visitor_email") or "").strip().lower()
     if not visitor_email:
         return {"error": "visitor_email is required."}
+
+    # Verify session ownership to prevent IDOR / unauthorized calendar changes
+    session_id = (context or {}).get("session_id")
+    session_lead_ids: set[str] = set()
+    if session_id:
+        try:
+            leads_res = await run_db(lambda: supabase.table("chatty_leads").select("id").eq(
+                "bot_id", bot_id).eq("session_id", session_id).execute())
+            session_lead_ids = {row["id"] for row in (leads_res.data or []) if row.get("id")}
+        except Exception:
+            session_lead_ids = set()
+
     try:
         new_start = _parse_iso(args.get("new_start") or "")
         new_end = _parse_iso(args.get("new_end") or "")
     except ValueError:
         return {"error": "Invalid new_start/new_end — use ISO 8601 datetimes with a timezone offset."}
+    fallback_tz_str = (context or {}).get("visitor_timezone") or "UTC"
     if new_start.tzinfo is None:
-        new_start = new_start.replace(tzinfo=timezone.utc)
+        try:
+            new_start = pytz.timezone(fallback_tz_str).localize(new_start)
+        except Exception:
+            new_start = new_start.replace(tzinfo=timezone.utc)
     if new_end.tzinfo is None:
-        new_end = new_end.replace(tzinfo=timezone.utc)
+        try:
+            new_end = pytz.timezone(fallback_tz_str).localize(new_end)
+        except Exception:
+            new_end = new_end.replace(tzinfo=timezone.utc)
     if new_end <= new_start:
         return {"error": "new_end must be after new_start."}
 
@@ -485,7 +659,18 @@ async def _reschedule_meeting(args: dict, user: dict, supabase, context: Optiona
     if not res.data:
         return {"error": "No upcoming booking found for that email. Double-check the email, or book a new meeting instead."}
 
-    return await reschedule_meeting_core(res.data[0], new_start, new_end, bot, bot_id, user, supabase)
+    meeting = res.data[0]
+    is_session_meeting = bool(session_lead_ids and meeting.get("lead_id") in session_lead_ids)
+
+    if not is_session_meeting and context and context.get("source") == "widget":
+        return {
+            "error": (
+                "For security, bookings from previous sessions can only be rescheduled using the link "
+                "in your confirmation email, or by replying directly to that email."
+            )
+        }
+
+    return await reschedule_meeting_core(meeting, new_start, new_end, bot, bot_id, user, supabase)
 
 
 async def reschedule_meeting_core(
@@ -621,6 +806,17 @@ async def _cancel_meeting(args: dict, user: dict, supabase, context: Optional[di
     if not visitor_email:
         return {"error": "visitor_email is required."}
 
+    # Verify session ownership to prevent IDOR / unauthorized calendar changes
+    session_id = (context or {}).get("session_id")
+    session_lead_ids: set[str] = set()
+    if session_id:
+        try:
+            leads_res = await run_db(lambda: supabase.table("chatty_leads").select("id").eq(
+                "bot_id", bot_id).eq("session_id", session_id).execute())
+            session_lead_ids = {row["id"] for row in (leads_res.data or []) if row.get("id")}
+        except Exception:
+            session_lead_ids = set()
+
     try:
         res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq(
             "bot_id", bot_id).eq("attendee_email", visitor_email).eq(
@@ -631,7 +827,18 @@ async def _cancel_meeting(args: dict, user: dict, supabase, context: Optional[di
     if not res.data:
         return {"error": "No upcoming booking found for that email. Double-check the email."}
 
-    return await cancel_meeting_core(res.data[0], bot, bot_id, user, supabase)
+    meeting = res.data[0]
+    is_session_meeting = bool(session_lead_ids and meeting.get("lead_id") in session_lead_ids)
+
+    if not is_session_meeting and context and context.get("source") == "widget":
+        return {
+            "error": (
+                "For security, bookings from previous sessions can only be cancelled using the link "
+                "in your confirmation email, or by replying directly to that email."
+            )
+        }
+
+    return await cancel_meeting_core(meeting, bot, bot_id, user, supabase)
 
 
 async def cancel_meeting_core(
@@ -1367,66 +1574,6 @@ async def execute(
         args = {**args, "bot_id": context["bot_id"]}
     try:
         if name in ("create_calendar_event", "create_outlook_event"):
-            if context and context.get("bot_id") and context.get("bot") and args.get("start"):
-                try:
-                    start_dt = _parse_iso(args["start"])
-                    quota_err = await check_bot_meeting_quota(context["bot_id"], start_dt, context["bot"], supabase)
-                    if quota_err:
-                        return {"error": quota_err["message"]}
-                except Exception:
-                    pass
-
-            # Assignment + hard conflict guard, combined: neither
-            # create_calendar_event nor create_outlook_event did any
-            # freeBusy check of their own before this — they trusted the
-            # model to have called an availability check first and gotten it
-            # right. A model that skipped the check (or hallucinated a slot)
-            # could double-book. pick_assignee re-checks fresh, right here,
-            # which of the bot's bookable members (owner + any round-robin
-            # teammates) are actually free for this exact slot; if nobody is,
-            # that itself is the conflict guard. The chosen member's own
-            # tokens (not necessarily the owner's) are used to create the
-            # event below, and their email is threaded through to
-            # _process_widget_booking for the chatty_meetings row.
-            booking_user = user
-            if context and context.get("bot") and args.get("start") and args.get("end"):
-                try:
-                    from plugins import availability_engine as avail
-                    start_dt = _parse_iso(args["start"])
-                    end_dt = _parse_iso(args["end"])
-                    if start_dt.tzinfo is None:
-                        start_dt = start_dt.replace(tzinfo=timezone.utc)
-                    if end_dt.tzinfo is None:
-                        end_dt = end_dt.replace(tzinfo=timezone.utc)
-                    bot_cfg = context["bot"]
-                    bot_id_for_assign = context.get("bot_id") or bot_cfg.get("id")
-                    owner_tz_str = avail.resolve_owner_timezone(bot_cfg, user)
-                    buffer_minutes = int(bot_cfg.get("buffer_minutes") or 0)
-                    members = await avail.get_bookable_members(supabase, bot_id_for_assign, bot_cfg, user)
-                    assignee = await avail.pick_assignee(
-                        supabase, bot_id=bot_id_for_assign, members=members, owner_tz_str=owner_tz_str,
-                        buffer_minutes=buffer_minutes,
-                        slot_start_utc=start_dt.astimezone(timezone.utc), slot_end_utc=end_dt.astimezone(timezone.utc),
-                    )
-                    if assignee is None:
-                        return {
-                            "error": (
-                                "That slot is no longer available — it conflicts with an existing "
-                                "booking or the required buffer around one. Call get_available_slots "
-                                "to find a real open time and offer that to the visitor instead."
-                            )
-                        }
-                    booking_user = assignee["user"]
-                    args = {**args, "_assigned_to_email": assignee["email"]}
-                except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
-                    raise
-                except Exception:
-                    # Fail open, same posture as the quota check above — a
-                    # broken conflict check shouldn't itself block every
-                    # booking; it just means this particular safety net
-                    # didn't fire for this call.
-                    logger.exception("Booking conflict guard failed")
-
             if context and context.get("source") == "widget":
                 attendees = args.get("attendees") or []
                 if isinstance(attendees, str):
@@ -1483,6 +1630,182 @@ async def execute(
                                     "and include it in the summary (e.g. summary='Demo Meeting with <Visitor Name>')."
                                 )
                             }
+
+                # Defense 1: Block Disposable Email Providers
+                if bot_cfg.get("booking_block_disposable_emails"):
+                    email_domain = visitor_email.split("@")[-1].lower() if "@" in visitor_email else ""
+                    if email_domain in DISPOSABLE_EMAIL_DOMAINS:
+                        return {
+                            "error": (
+                                f"Cannot book meeting: The email address domain '@{email_domain}' is a temporary or disposable email service. "
+                                "Do NOT call this tool yet. Inform the visitor that temporary or disposable email addresses are not accepted, "
+                                "and ask them to provide a permanent, valid email address to complete their booking."
+                            )
+                        }
+
+                # Defense 2: Require Business / Work Email
+                if bot_cfg.get("booking_require_business_email"):
+                    email_domain = visitor_email.split("@")[-1].lower() if "@" in visitor_email else ""
+                    if email_domain in CONSUMER_EMAIL_DOMAINS:
+                        return {
+                            "error": (
+                                f"Cannot book meeting: Personal email addresses (@{email_domain}) are not accepted. "
+                                "Do NOT call this tool yet. Ask the visitor to provide their company or business work email address "
+                                "(e.g. name@company.com) to schedule this appointment."
+                            )
+                        }
+
+                # Defense 3: Limit 1 Active Booking Per Attendee Email
+                if bot_cfg.get("booking_limit_one_active"):
+                    bot_id_val = context.get("bot_id") or bot_cfg.get("id")
+                    if bot_id_val and visitor_email:
+                        try:
+                            now_iso = datetime.now(timezone.utc).isoformat()
+                            existing_meetings = await run_db(
+                                lambda: supabase.table("chatty_meetings")
+                                .select("id, start_time, end_time, title")
+                                .eq("bot_id", bot_id_val)
+                                .eq("attendee_email", visitor_email)
+                                .eq("status", "scheduled")
+                                .gte("end_time", now_iso)
+                                .limit(1)
+                                .execute()
+                            )
+                            if existing_meetings.data:
+                                return {
+                                    "error": (
+                                        f"Cannot book meeting: An upcoming meeting is already scheduled for {visitor_email}. "
+                                        "Visitors are limited to 1 active scheduled meeting at a time. "
+                                        "Do NOT call this tool. Inform the visitor that they already have an active appointment, "
+                                        "and offer to help them reschedule or cancel their existing meeting instead."
+                                    )
+                                }
+                        except Exception:
+                            logger.exception("Active meeting check failed; failing open")
+
+                # Defense 4: Email OTP Verification
+                if bot_cfg.get("booking_email_verification"):
+                    bot_id_val = context.get("bot_id") or bot_cfg.get("id") or "default"
+                    sess_id_val = context.get("session_id") or "default"
+                    otp_state = await _get_booking_otp_state(bot_id_val, sess_id_val, visitor_email)
+
+                    is_verified = bool(otp_state and otp_state.get("verified"))
+                    if not is_verified:
+                        supplied_code = str(args.get("verification_code") or "").strip()
+                        if supplied_code and otp_state:
+                            expected_code = str(otp_state.get("code") or "").strip()
+                            if supplied_code == expected_code:
+                                await _mark_booking_otp_verified(bot_id_val, sess_id_val, visitor_email)
+                            else:
+                                attempts = await _increment_booking_otp_attempts(bot_id_val, sess_id_val, visitor_email)
+                                if attempts >= 5:
+                                    return {
+                                        "error": (
+                                            "Too many incorrect verification attempts. The verification code has expired. "
+                                            "Please ask the visitor if they would like a new verification code sent to their email."
+                                        )
+                                    }
+                                return {
+                                    "error": (
+                                        f"The verification code '{supplied_code}' is incorrect. "
+                                        f"Do NOT complete the booking yet. Ask the visitor to check the 6-digit verification code "
+                                        f"sent to {visitor_email} and provide the correct code."
+                                    )
+                                }
+                        else:
+                            # Code not supplied or OTP not sent yet: generate and dispatch OTP
+                            code = f"{secrets.randbelow(900000) + 100000}"
+                            await _save_booking_otp(bot_id_val, sess_id_val, visitor_email, code, ttl_seconds=600)
+                            bot_name = bot_cfg.get("name") or "Chatty Assistant"
+                            try:
+                                await notify.send_booking_otp_email(
+                                    to=visitor_email,
+                                    code=code,
+                                    bot_name=bot_name,
+                                    supabase=supabase,
+                                    owner_user=user,
+                                )
+                            except Exception:
+                                logger.exception("Failed to send booking OTP email")
+
+                            return {
+                                "error": (
+                                    f"A 6-digit verification code has been sent to {visitor_email}. "
+                                    "Do NOT confirm or book the meeting yet! "
+                                    f"Inform the visitor that a 6-digit verification code was just emailed to {visitor_email}, "
+                                    "and ask them to reply with the code to confirm their appointment."
+                                ),
+                                "otp_sent": True,
+                                "email": visitor_email,
+                            }
+
+            if context and context.get("bot_id") and context.get("bot") and args.get("start"):
+                try:
+                    start_dt = _parse_iso(args["start"])
+                    quota_err = await check_bot_meeting_quota(context["bot_id"], start_dt, context["bot"], supabase)
+                    if quota_err:
+                        return {"error": quota_err["message"]}
+                except Exception:
+                    pass
+
+            # Assignment + hard conflict guard, combined: neither
+            # create_calendar_event nor create_outlook_event did any
+            # freeBusy check of their own before this — they trusted the
+            # model to have called an availability check first and gotten it
+            # right. A model that skipped the check (or hallucinated a slot)
+            # could double-book. pick_assignee re-checks fresh, right here,
+            # which of the bot's bookable members (owner + any round-robin
+            # teammates) are actually free for this exact slot; if nobody is,
+            # that itself is the conflict guard. The chosen member's own
+            # tokens (not necessarily the owner's) are used to create the
+            # event below, and their email is threaded through to
+            # _process_widget_booking for the chatty_meetings row.
+            booking_user = user
+            if context and context.get("bot") and args.get("start") and args.get("end"):
+                try:
+                    from plugins import availability_engine as avail
+                    bot_cfg = context["bot"]
+                    bot_id_for_assign = context.get("bot_id") or bot_cfg.get("id")
+                    owner_tz_str = avail.resolve_owner_timezone(bot_cfg, user)
+                    visitor_tz_str = (context or {}).get("visitor_timezone") or owner_tz_str
+                    start_dt = _parse_iso(args["start"])
+                    end_dt = _parse_iso(args["end"])
+                    if start_dt.tzinfo is None:
+                        try:
+                            start_dt = pytz.timezone(visitor_tz_str).localize(start_dt)
+                        except Exception:
+                            start_dt = start_dt.replace(tzinfo=timezone.utc)
+                    if end_dt.tzinfo is None:
+                        try:
+                            end_dt = pytz.timezone(visitor_tz_str).localize(end_dt)
+                        except Exception:
+                            end_dt = end_dt.replace(tzinfo=timezone.utc)
+                    buffer_minutes = int(bot_cfg.get("buffer_minutes") or 0)
+                    members = await avail.get_bookable_members(supabase, bot_id_for_assign, bot_cfg, user)
+                    assignee = await avail.pick_assignee(
+                        supabase, bot_id=bot_id_for_assign, members=members, owner_tz_str=owner_tz_str,
+                        buffer_minutes=buffer_minutes,
+                        slot_start_utc=start_dt.astimezone(timezone.utc), slot_end_utc=end_dt.astimezone(timezone.utc),
+                    )
+                    if assignee is None:
+                        return {
+                            "error": (
+                                "That slot is no longer available — it conflicts with an existing "
+                                "booking or the required buffer around one. Call get_available_slots "
+                                "to find a real open time and offer that to the visitor instead."
+                            )
+                        }
+                    booking_user = assignee["user"]
+                    args = {**args, "_assigned_to_email": assignee["email"]}
+                except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
+                    raise
+                except Exception:
+                    # Fail open, same posture as the quota check above — a
+                    # broken conflict check shouldn't itself block every
+                    # booking; it just means this particular safety net
+                    # didn't fire for this call.
+                    logger.exception("Booking conflict guard failed")
+
         if name == "create_calendar_event":
             res = await _create_calendar_event(args, booking_user, supabase)
             if context and context.get("source") == "widget" and "error" not in res:

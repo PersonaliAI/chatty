@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Optional
 from fastapi import HTTPException
 
@@ -174,7 +175,10 @@ async def update_widget_styling(principal: dict[str, Any], bot_id: str, body: Wi
     if body.conversation_starters is not None:
         updates["conversation_starters"] = body.conversation_starters
     if body.custom_css is not None:
-        updates["custom_css"] = body.custom_css
+        css = body.custom_css.strip()
+        if re.search(r"<\s*/\s*style|<\s*script", css, re.IGNORECASE):
+            raise HTTPException(status_code=400, detail="custom_css cannot contain script or closing style tags")
+        updates["custom_css"] = css
     if body.hide_branding is not None:
         updates["hide_branding"] = body.hide_branding
     if body.clear_color_scheme:
@@ -514,6 +518,14 @@ async def configure_calendar(principal: dict[str, Any], bot_id: str, body: Calen
         updates["max_daily_meetings"] = body.max_daily_meetings
     if body.max_weekly_meetings is not None:
         updates["max_weekly_meetings"] = body.max_weekly_meetings
+    if body.booking_email_verification is not None:
+        updates["booking_email_verification"] = body.booking_email_verification
+    if body.booking_block_disposable_emails is not None:
+        updates["booking_block_disposable_emails"] = body.booking_block_disposable_emails
+    if body.booking_limit_one_active is not None:
+        updates["booking_limit_one_active"] = body.booking_limit_one_active
+    if body.booking_require_business_email is not None:
+        updates["booking_require_business_email"] = body.booking_require_business_email
     await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
     return {"bot_id": bot_id, "provider": body.provider, **updates}
 

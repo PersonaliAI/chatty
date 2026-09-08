@@ -393,7 +393,7 @@ async def run_widget_assistant(
     use_ms_calendar = provider == "teams"
     avail_instruction = (
         "Availability Check: Once you have the visitor's preferred date/time, call `get_available_slots` with "
-        "near=<the ISO datetime the visitor asked for, converted to the owner's timezone>. It already accounts for "
+        "near=<the ISO datetime the visitor asked for in the visitor's timezone, including the timezone offset e.g. 2026-09-10T10:00:00+05:30>. It already accounts for "
         "business hours, working days, buffer time, minimum notice, and daily/weekly caps — it returns REAL, "
         "guaranteed-bookable slots, nearest to what the visitor asked for first. NEVER compute availability "
         "yourself from raw calendar data, and never invent or guess a slot — only offer times `get_available_slots` "
@@ -422,6 +422,17 @@ async def run_widget_assistant(
     # 4. Prompt compilation — only include scheduling guidance when booking is enabled
     scheduling_enabled = bool(bot.get("calendar_scheduling_enabled"))
     if scheduling_enabled:
+        defense_lines: list[str] = []
+        if bot.get("booking_require_business_email"):
+            defense_lines.append("- REQUIRE BUSINESS EMAIL: The visitor MUST supply their work/business email. Free personal email accounts (@gmail.com, @yahoo.com, @hotmail.com, @outlook.com, etc.) are NOT allowed. If they provide a personal email, politely ask for their corporate work email before booking.")
+        if bot.get("booking_block_disposable_emails"):
+            defense_lines.append("- BLOCK DISPOSABLE EMAILS: Temporary/throwaway email addresses (@mailinator, @tempmail, etc.) are prohibited. Always ensure the visitor uses a permanent email.")
+        if bot.get("booking_limit_one_active"):
+            defense_lines.append("- ONE ACTIVE BOOKING LIMIT: Each visitor email can only hold 1 upcoming meeting at a time. If they already have an appointment, offer to reschedule rather than double-booking.")
+        if bot.get("booking_email_verification"):
+            defense_lines.append("- EMAIL OTP VERIFICATION: Email verification is required before confirming bookings. Calling the booking tool without verification_code will dispatch a 6-digit code to their email. When the visitor replies with their 6-digit code, supply `verification_code='<6-digit-code>'` to the booking tool to complete confirmation.")
+        defense_rules_str = ("\n".join(defense_lines) + "\n") if defense_lines else ""
+
         scheduling_block = (
             f"TIMEZONE & SCHEDULING GUIDELINES:\n"
             f"- Visitor Timezone: {visitor_timezone or 'UTC'}\n"
@@ -435,6 +446,7 @@ async def run_widget_assistant(
             f"{advance_line}"
             f"{max_daily_line}"
             f"{max_weekly_line}"
+            f"{defense_rules_str}"
             f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking.\n\n"
             f"MANDATORY 4-STEP BOOKING WORKFLOW (Follow in strict chronological order — DO NOT skip steps):\n"
             f"1. DATE & TIME SELECTION:\n"
@@ -443,11 +455,11 @@ async def run_widget_assistant(
             f"   - RELATIVE DATES: When the visitor gives a relative date (such as 'tomorrow', 'tomorrow at 10 am', 'next Monday', 'day after tomorrow'), you MUST resolve it to the exact calendar date immediately using 'Current Time in Visitor's Location' ({current_time_visitor}). NEVER ask the visitor to confirm what date tomorrow is — calculate it yourself!\n\n"
             f"2. AVAILABILITY CHECK & CONTACT DETAILS REQUEST:\n"
             f"   - {avail_instruction}\n"
-            f"   - Present 2 to 3 of the returned slots to the visitor using their `visitor_local_label` (already in the visitor's own timezone) — whether their exact requested time was available or you're offering alternatives. ALWAYS state the timezone/abbreviation exactly as given in that label (e.g. '9:00 AM EST') — never state a time without it, and never strip it off.\n"
+            f"   - Present 2 to 3 of the returned slots to the visitor using their `visitor_local_label` (which is already computed in the visitor's local timezone). State times cleanly and naturally (e.g. 'Thursday, September 10th at 10:00 AM' or '10:00 AM'). NEVER output 'GMT', 'GMT+...', or technical timezone offset strings like 'GMT+5:30 (Colombo)' in your responses — always show all times based on the visitor's timezone without technical clutter.\n"
             f"   - If the requested slot IS AVAILABLE:\n"
             f"     * Check if you already have the visitor's verified name and real email address from earlier in the conversation.\n"
             f"     * If you do NOT have their name or email yet: DO NOT CALL the booking tool! Confirm that the slot is open, and IMMEDIATELY ask for their required contact details ({required_fields_str}) and optional details ({optional_fields_str}) in this same reply.\n"
-            f"       Example: 'Tomorrow at 10:00 AM EST is available! To reserve your slot and send you the calendar invite, could you please share your {required_fields_str}?' (and ask once for {optional_fields_str}).\n"
+            f"       Example: 'Tomorrow at 10:00 AM is available! To reserve your slot and send you the calendar invite, could you please share your {required_fields_str}?' (and ask once for {optional_fields_str}).\n"
             f"     * STRICT RULE: You MUST STOP and wait for the visitor to respond with their contact info. Never call the booking tool or claim the meeting is confirmed before the visitor has provided their real name and email!\n\n"
             f"3. COLLECT DETAILS & RECORD LEAD:\n"
             f"   - REQUIRED fields to collect before booking: {required_fields_str}.\n"
@@ -458,6 +470,7 @@ async def run_widget_assistant(
             f"   - STRICT PROHIBITION: NEVER call the booking tool with empty, dummy, or placeholder emails like 'guest@example.com'. 'attendees' MUST contain the visitor's actual email address.\n"
             f"   - Include the visitor's real name in the meeting title (e.g. 'Demo Meeting with <Visitor Full Name>').\n"
             f"   - Convert the visitor's preferred time to the owner's timezone for the calendar event.\n"
+            f"   - State the confirmed time based on the visitor's local timezone cleanly and naturally (e.g. 'Your meeting is scheduled for Thursday, September 10th at 10:00 AM'). NEVER output 'GMT', 'GMT+...', or raw offset strings in your replies.\n"
             f"   - CRITICAL: Confirming availability is NOT the same as booking. Never tell the visitor a meeting is booked, scheduled, or confirmed until you have actually called the booking tool in this same turn and it returned successfully.\n"
             f"   - The booking tool returns a join link ('hangout_link' / 'online_meeting_url'). ALWAYS put this join link directly in your confirmation message to the visitor.\n"
             f"   - After booking, ensure `create_lead` has been called to save all visitor details ({lead_fields_str}).\n\n"
@@ -855,6 +868,10 @@ async def run_widget_assistant(
             # offset the real bot_timezone differs from it).
             if fn_name in ("create_calendar_event", "create_outlook_event"):
                 args["_owner_timezone"] = owner_tz_str
+                if not args.get("verification_code") and text:
+                    otp_match = re.search(r"\b(\d{6})\b", text)
+                    if otp_match:
+                        args["verification_code"] = otp_match.group(1)
 
             result = await agent_tools.execute(
                 fn_name,

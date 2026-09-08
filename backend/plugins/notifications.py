@@ -202,6 +202,23 @@ def build_team_invite_email_html(*, bot_name: str, inviter_email: str, role: str
     )
 
 
+def build_booking_otp_email_html(*, bot_name: str, code: str) -> str:
+    bot_name_e = _html.escape(bot_name or "Chatty Assistant")
+    code_e = _html.escape(code)
+    return _email_shell(
+        title="Verify your email to confirm booking 🔒",
+        intro=f"We received a meeting reservation request with <strong>{bot_name_e}</strong>. "
+              f"Please enter the verification code below in your chat to confirm your appointment. "
+              f"This code will expire in 10 minutes.",
+        rows=[
+            ("Assistant", bot_name_e),
+            ("Verification Code", f"<span style='font-size:22px;font-weight:700;letter-spacing:4px;color:#c2410c;font-family:Consolas,monospace;'>{code_e}</span>"),
+            ("Expires In", "10 minutes"),
+        ],
+        footer="If you did not request this appointment, you can safely ignore this email.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Delivery
 # ---------------------------------------------------------------------------
@@ -326,6 +343,22 @@ async def deliver_email(*, supabase, owner_user: dict, to: str, subject: str,
                                   subject=subject, html=html):
             return "sent_gmail"
     return "logged"
+
+
+async def send_booking_otp_email(*, to: str, code: str, bot_name: str, supabase=None, owner_user: Optional[dict] = None) -> bool:
+    """Send a 6-digit OTP verification email to the prospective meeting attendee."""
+    subject = f"Your verification code is {code}"
+    html = build_booking_otp_email_html(bot_name=bot_name, code=code)
+    if supabase and owner_user:
+        status = await deliver_email(supabase=supabase, owner_user=owner_user, to=to, subject=subject, html=html)
+        return status in ("sent", "sent_resend", "sent_gmail")
+    for _, sender in _email_channels():
+        try:
+            if await sender(to=to, subject=subject, html=html):
+                return True
+        except Exception:
+            logger.exception("Failed to send booking OTP via email channel")
+    return False
 
 
 async def deliver_push(*, headings: str, contents: str,

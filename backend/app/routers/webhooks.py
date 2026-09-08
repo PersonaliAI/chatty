@@ -195,10 +195,12 @@ async def webhook_lemonsqueezy(request: Request):
     """Lemon Squeezy billing webhook receiver."""
     raw_body = await request.body()
     sig = request.headers.get("x-signature", "")
-    if LEMON_WEBHOOK_SECRET:
-        mine = hmac.new(LEMON_WEBHOOK_SECRET.encode(), raw_body, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(mine, sig):
-            raise HTTPException(status_code=403, detail="Invalid signature")
+    if not LEMON_WEBHOOK_SECRET:
+        logger.error("LEMON_WEBHOOK_SECRET is not configured; rejecting incoming webhook")
+        raise HTTPException(status_code=503, detail="Billing webhook unconfigured")
+    mine = hmac.new(LEMON_WEBHOOK_SECRET.encode(), raw_body, hashlib.sha256).hexdigest()
+    if not (sig and hmac.compare_digest(mine, sig)):
+        raise HTTPException(status_code=403, detail="Invalid signature")
     try:
         data = json.loads(raw_body.decode("utf-8"))
     except Exception:

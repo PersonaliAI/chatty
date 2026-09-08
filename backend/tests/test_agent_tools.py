@@ -223,6 +223,21 @@ def test_get_available_slots_empty_returns_helpful_message(monkeypatch):
     assert "fully booked" in result["message"]
 
 
+def test_get_available_slots_naive_near_localized_to_visitor_timezone(monkeypatch):
+    from plugins import availability_engine as avail
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[{"email": "a@example.com", "user": {}, "use_ms_calendar": False}]))
+    team_mock = AsyncMock(return_value=[{"start": "2026-09-10T04:30:00Z", "end": "2026-09-10T05:00:00Z"}])
+    monkeypatch.setattr(avail, "get_team_available_slots", team_mock)
+
+    context = {"bot": {"meeting_provider": "google_meet", "bot_timezone": "Asia/Colombo"}, "bot_id": "bot-1", "visitor_timezone": "Asia/Colombo"}
+    # Naive ISO datetime without offset: "2026-09-10T10:00:00"
+    result = asyncio.run(at._get_available_slots({"near": "2026-09-10T10:00:00"}, {"google_access_token": "tok"}, MagicMock(), context=context))
+    assert result["slots"][0]["start"] == "2026-09-10T04:30:00Z"
+    _, kwargs = team_mock.call_args
+    # In Asia/Colombo (GMT+5:30), 10:00 AM is 04:30 AM UTC:
+    assert kwargs["near_utc"] == datetime(2026, 9, 10, 4, 30, tzinfo=timezone.utc)
+
+
 # ---------------------------------------------------------------------------
 # _reschedule_meeting
 # ---------------------------------------------------------------------------
@@ -1192,3 +1207,161 @@ def test_execute_blocks_create_calendar_event_when_quota_reached(monkeypatch):
     ))
     assert "error" in res
     assert "Daily meeting limit reached" in res["error"]
+
+
+# ---------------------------------------------------------------------------
+# Anti-fake-meeting defenses tests
+# ---------------------------------------------------------------------------
+
+
+def test_execute_blocks_disposable_email_when_defense_enabled():
+    context = {
+        "source": "widget",
+        "bot_id": "bot-anti-fake",
+        "bot": {"booking_block_disposable_emails": True},
+    }
+    res = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Bob", "start": "2026-09-10T10:00:00Z", "end": "2026-09-10T10:30:00Z", "attendees": ["bob@mailinator.com"]},
+        user={},
+        supabase=MagicMock(),
+        context=context,
+    ))
+    assert "error" in res
+    assert "temporary or disposable email service" in res["error"]
+
+
+def test_execute_allows_disposable_email_when_defense_disabled(monkeypatch):
+    from plugins import availability_engine as avail
+    assignee = {"email": "owner@example.com", "user": {"email": "owner@example.com"}, "use_ms_calendar": False}
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[assignee]))
+    monkeypatch.setattr(avail, "pick_assignee", AsyncMock(return_value=assignee))
+    monkeypatch.setattr(at, "_create_calendar_event", AsyncMock(return_value={"id": "evt-1"}))
+    monkeypatch.setattr(at, "_process_widget_booking", AsyncMock())
+    context = {
+        "source": "widget",
+        "bot_id": "bot-anti-fake",
+        "bot": {"booking_block_disposable_emails": False},
+    }
+    res = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Bob", "start": "2026-09-10T10:00:00Z", "end": "2026-09-10T10:30:00Z", "attendees": ["bob@mailinator.com"]},
+        user={},
+        supabase=MagicMock(),
+        context=context,
+    ))
+    assert res == {"id": "evt-1"}
+
+
+def test_execute_blocks_consumer_email_when_business_email_required():
+    context = {
+        "source": "widget",
+        "bot_id": "bot-anti-fake",
+        "bot": {"booking_require_business_email": True},
+    }
+    res = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Alice", "start": "2026-09-10T10:00:00Z", "end": "2026-09-10T10:30:00Z", "attendees": ["alice@gmail.com"]},
+        user={},
+        supabase=MagicMock(),
+        context=context,
+    ))
+    assert "error" in res
+    assert "Personal email addresses (@gmail.com) are not accepted" in res["error"]
+
+
+def test_execute_allows_corporate_email_when_business_email_required(monkeypatch):
+    from plugins import availability_engine as avail
+    assignee = {"email": "owner@example.com", "user": {"email": "owner@example.com"}, "use_ms_calendar": False}
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[assignee]))
+    monkeypatch.setattr(avail, "pick_assignee", AsyncMock(return_value=assignee))
+    monkeypatch.setattr(at, "_create_calendar_event", AsyncMock(return_value={"id": "evt-biz"}))
+    monkeypatch.setattr(at, "_process_widget_booking", AsyncMock())
+    context = {
+        "source": "widget",
+        "bot_id": "bot-anti-fake",
+        "bot": {"booking_require_business_email": True},
+    }
+    res = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Alice", "start": "2026-09-10T10:00:00Z", "end": "2026-09-10T10:30:00Z", "attendees": ["alice@acmecorp.io"]},
+        user={},
+        supabase=MagicMock(),
+        context=context,
+    ))
+    assert res == {"id": "evt-biz"}
+
+
+def test_execute_blocks_duplicate_active_meeting_when_limit_one_active_enabled():
+    supabase = MagicMock()
+    mock_active = MagicMock(data=[{"id": "meet-1", "title": "Existing Meeting"}])
+    supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.eq.return_value.gte.return_value.limit.return_value.execute.return_value = mock_active
+
+    context = {
+        "source": "widget",
+        "bot_id": "bot-anti-fake",
+        "bot": {"booking_limit_one_active": True},
+    }
+    res = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Dave", "start": "2026-09-10T10:00:00Z", "end": "2026-09-10T10:30:00Z", "attendees": ["dave@company.com"]},
+        user={},
+        supabase=supabase,
+        context=context,
+    ))
+    assert "error" in res
+    assert "An upcoming meeting is already scheduled for dave@company.com" in res["error"]
+
+
+def test_execute_triggers_otp_and_verifies_code(monkeypatch):
+    from plugins import availability_engine as avail
+    assignee = {"email": "owner@example.com", "user": {"email": "owner@example.com"}, "use_ms_calendar": False}
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[assignee]))
+    monkeypatch.setattr(avail, "pick_assignee", AsyncMock(return_value=assignee))
+    send_otp_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr(at.notify, "send_booking_otp_email", send_otp_mock)
+    monkeypatch.setattr(at, "_create_calendar_event", AsyncMock(return_value={"id": "evt-verified"}))
+    monkeypatch.setattr(at, "_process_widget_booking", AsyncMock())
+
+    context = {
+        "source": "widget",
+        "bot_id": "bot-otp",
+        "session_id": "sess-otp-1",
+        "bot": {"name": "TestBot", "booking_email_verification": True},
+    }
+
+    # Step 1: Initial booking call without code -> triggers OTP email
+    res1 = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Eve", "start": "2026-09-10T10:00:00Z", "end": "2026-09-10T10:30:00Z", "attendees": ["eve@testcorp.com"]},
+        user={},
+        supabase=MagicMock(),
+        context=context,
+    ))
+    assert "error" in res1
+    assert "verification code has been sent" in res1["error"]
+    assert res1.get("otp_sent") is True
+    send_otp_mock.assert_awaited_once()
+
+    # Step 2: Call with wrong code -> rejected
+    res2 = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Eve", "start": "2026-09-10T10:00:00Z", "end": "2026-09-10T10:30:00Z", "attendees": ["eve@testcorp.com"], "verification_code": "000000"},
+        user={},
+        supabase=MagicMock(),
+        context=context,
+    ))
+    assert "error" in res2
+    assert "verification code '000000' is incorrect" in res2["error"]
+
+    # Step 3: Call with correct code -> successfully books event
+    key = at._otp_cache_key("bot-otp", "sess-otp-1", "eve@testcorp.com")
+    correct_code = at._IN_MEMORY_OTP[key]["code"]
+    res3 = asyncio.run(at.execute(
+        "create_calendar_event",
+        {"summary": "Demo Meeting with Eve", "start": "2026-09-10T10:00:00Z", "end": "2026-09-10T10:30:00Z", "attendees": ["eve@testcorp.com"], "verification_code": correct_code},
+        user={},
+        supabase=MagicMock(),
+        context=context,
+    ))
+    assert res3 == {"id": "evt-verified"}

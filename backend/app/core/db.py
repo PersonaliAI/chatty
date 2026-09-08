@@ -24,11 +24,18 @@ to the async variant rather than just this thread-offload shim.
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, TypeVar
 
 T = TypeVar("T")
 
+# Dedicated I/O thread pool for synchronous Supabase REST calls.
+# Sized to 64 workers to prevent thread starvation under concurrent visitor traffic
+# (Python's default asyncio.to_thread pool allocates only cpu_count+4 = ~5-6 workers on Cloud Run).
+_DB_EXECUTOR = ThreadPoolExecutor(max_workers=64, thread_name_prefix="chatty-db-worker")
+
 
 async def run_db(fn: Callable[[], T]) -> T:
-    """Run a synchronous supabase-py call in a worker thread."""
-    return await asyncio.to_thread(fn)
+    """Run a synchronous supabase-py call in a dedicated I/O worker thread."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(_DB_EXECUTOR, fn)

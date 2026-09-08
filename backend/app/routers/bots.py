@@ -16,6 +16,7 @@ from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
+from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
     BYOKUpdate,
     DashboardWebhookCreateRequest,
@@ -64,8 +65,8 @@ async def upload_bot_logo(
         "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
-    data = await file.read()
-    if not data or len(data) > 10 * 1024 * 1024:
+    data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Logo must be under 10MB")
+    if not data:
         raise HTTPException(status_code=400, detail="Logo must be a non-empty image under 10MB")
     mime = (file.content_type or "image/png").split(";")[0]
     if not mime.startswith("image/"):
@@ -97,8 +98,8 @@ async def upload_bot_avatar(
         "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
-    data = await file.read()
-    if not data or len(data) > 10 * 1024 * 1024:
+    data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Avatar must be under 10MB")
+    if not data:
         raise HTTPException(status_code=400, detail="Avatar must be a non-empty image under 10MB")
     mime = (file.content_type or "image/png").split(";")[0]
     if not mime.startswith("image/"):

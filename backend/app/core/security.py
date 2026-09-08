@@ -106,14 +106,35 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 # ---------------------------------------------------------------------------
 
 _ip_state: dict[str, list[float]] = {}
+_LAST_IP_CLEANUP = 0.0
 
 UPSTASH_REDIS_REST_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
 UPSTASH_REDIS_REST_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 
+_upstash_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_upstash_client() -> httpx.AsyncClient:
+    global _upstash_client
+    if _upstash_client is None or _upstash_client.is_closed:
+        _upstash_client = httpx.AsyncClient(
+            timeout=2.0,
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=30),
+        )
+    return _upstash_client
+
 
 def _ip_rate_limited_in_memory(bucket: str, limit: int, window: int) -> bool:
     """Sliding-window check. Returns True when the bucket has hit the limit."""
+    global _LAST_IP_CLEANUP
     now = time.time()
+    # Periodic sweep of expired buckets to prevent memory leak
+    if now - _LAST_IP_CLEANUP > 120 and len(_ip_state) > 1000:
+        _LAST_IP_CLEANUP = now
+        stale_keys = [k for k, timestamps in _ip_state.items() if not timestamps or (now - timestamps[-1] > 300)]
+        for k in stale_keys:
+            _ip_state.pop(k, None)
+
     hits = [t for t in _ip_state.get(bucket, []) if now - t < window]
     if len(hits) >= limit:
         _ip_state[bucket] = hits
@@ -131,12 +152,12 @@ async def ip_rate_limited(bucket: str, limit: int, window: int) -> bool:
     window_bucket = int(time.time()) // window
     rkey = f"rl:{bucket}:{window_bucket}"
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.post(
-                f"{UPSTASH_REDIS_REST_URL}/pipeline",
-                headers={"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"},
-                json=[["INCR", rkey], ["EXPIRE", rkey, str(window)]],
-            )
+        client = _get_upstash_client()
+        resp = await client.post(
+            f"{UPSTASH_REDIS_REST_URL}/pipeline",
+            headers={"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"},
+            json=[["INCR", rkey], ["EXPIRE", rkey, str(window)]],
+        )
         resp.raise_for_status()
         count = int(resp.json()[0]["result"])
         return count > limit

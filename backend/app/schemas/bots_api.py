@@ -165,6 +165,10 @@ class CalendarIntegrationRequest(BaseModel):
     timezone: str = "UTC"
     max_daily_meetings: Optional[int] = 0
     max_weekly_meetings: Optional[int] = 0
+    booking_email_verification: Optional[bool] = False
+    booking_block_disposable_emails: Optional[bool] = False
+    booking_limit_one_active: Optional[bool] = False
+    booking_require_business_email: Optional[bool] = False
 
 
 class GuardrailsConfigRequest(BaseModel):
