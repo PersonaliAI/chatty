@@ -124,9 +124,33 @@ const chips: { icon: LucideIcon; title: string; desc: string; bg: string; fg: st
 ];
 
 const showcases = [
-  { kicker: "Knowledge", kickerColor: "var(--color-accent-700)", title: "Train it once. It answers like your best rep.", desc: "Point it at your website, files, and docs and it learns your product. Auto Train keeps it current daily, weekly, or monthly, in over 95 languages, without you touching a thing.", label: "Drop a knowledge-training screenshot", imageFirst: false },
-  { kicker: "Actions", kickerColor: "var(--color-accent-2-800)", title: 'Beyond Q&A — it gets things done.', desc: 'Let it use any of your apps, book meetings straight onto your calendar, and route conversations through guardrails so it stays reliable, never "ChatGPT for free."', label: "Drop an actions / integrations screenshot", imageFirst: true },
-  { kicker: "Leads & Analytics", kickerColor: "var(--color-accent-700)", title: "Every lead captured. Every chat measured.", desc: "Name, email, and phone are collected automatically and land in your Inbox alongside analytics on how visitors actually use your chatbot.", label: "Drop an analytics / inbox screenshot", imageFirst: false },
+  {
+    kicker: "Knowledge",
+    kickerColor: "var(--color-accent-700)",
+    title: "Train it once. It answers like your best rep.",
+    desc: "Point it at your website, files, and docs and it learns your product. Auto Train keeps it current daily, weekly, or monthly, in over 95 languages, without you touching a thing.",
+    image: "/showcase_knowledge.png",
+    alt: "Chatty Knowledge Base Training with 35 Sources & Auto-Sync",
+    imageFirst: false,
+  },
+  {
+    kicker: "Actions",
+    kickerColor: "var(--color-accent-2-800)",
+    title: 'Beyond Q&A — it gets things done.',
+    desc: 'Let it use any of your apps, book meetings straight onto your calendar, and route conversations through guardrails so it stays reliable, never "ChatGPT for free."',
+    image: "/showcase_actions.png",
+    alt: "Autonomous Meeting Scheduling & Calendar Integration",
+    imageFirst: true,
+  },
+  {
+    kicker: "Leads & Analytics",
+    kickerColor: "var(--color-accent-700)",
+    title: "Every lead captured. Every chat measured.",
+    desc: "Name, email, and phone are collected automatically and land in your Inbox alongside analytics on how visitors actually use your chatbot.",
+    image: "/showcase_leads_analytics.png",
+    alt: "Captured Leads CRM & Real-Time Analytics",
+    imageFirst: false,
+  },
 ];
 
 const mcpPoints = [
@@ -301,7 +325,15 @@ export default function Home() {
                 </Link>
               </div>
               <div className={`md:col-span-7 ${s.imageFirst ? "md:order-1" : ""}`}>
-                <ShowcasePlaceholder label={s.label} className="w-full aspect-[16/10] rounded-3xl" />
+                <div className="relative rounded-[20px] sm:rounded-[30px] overflow-hidden p-2 sm:p-2.5" style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)" }}>
+                  <Image
+                    src={s.image}
+                    alt={s.alt}
+                    width={2880}
+                    height={1800}
+                    className="w-full h-auto aspect-[16/10] object-cover rounded-[14px] sm:rounded-[22px] border border-black/5 dark:border-white/5"
+                  />
+                </div>
               </div>
             </div>
           </section>
