@@ -13,7 +13,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import { LeadsMap } from "@/components/leads-map";
-import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { OnboardingWizard, extractDomain } from "@/components/onboarding-wizard";
 import { InboxPanel } from "@/components/inbox-panel";
 import { ChatbotFlowBuilder } from "@/components/chatbot-flow-builder";
 import { CampaignsUI } from "@/components/campaigns-ui";
@@ -170,6 +170,10 @@ interface Bot {
   sync_outlook_calendar?: boolean;
   sync_office365_calendar?: boolean;
   meeting_provider?: string;
+  booking_email_verification?: boolean;
+  booking_block_disposable_emails?: boolean;
+  booking_limit_one_active?: boolean;
+  booking_require_business_email?: boolean;
   [key: string]: unknown;
 }
 
@@ -966,6 +970,7 @@ export default function Dashboard() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [createBotModalOpen, setCreateBotModalOpen] = useState(false);
   const [newBotNameInput, setNewBotNameInput] = useState("");
+  const [newBotWebsiteInput, setNewBotWebsiteInput] = useState("");
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
     message: string;
@@ -1196,6 +1201,12 @@ export default function Dashboard() {
   const [advanceNoticeHours, setAdvanceNoticeHours] = useState(0);
   const [maxDailyMeetings, setMaxDailyMeetings] = useState(0);
   const [maxWeeklyMeetings, setMaxWeeklyMeetings] = useState(0);
+
+  // Anti-fake-meeting defenses (Abuse & spam protection)
+  const [bookingEmailVerification, setBookingEmailVerification] = useState(false);
+  const [bookingBlockDisposableEmails, setBookingBlockDisposableEmails] = useState(false);
+  const [bookingLimitOneActive, setBookingLimitOneActive] = useState(false);
+  const [bookingRequireBusinessEmail, setBookingRequireBusinessEmail] = useState(false);
 
   // Developer / API keys
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
@@ -1901,6 +1912,10 @@ export default function Dashboard() {
         setSyncOutlookCalendar(activeBot.sync_outlook_calendar || false);
         setSyncOffice365Calendar(activeBot.sync_office365_calendar || false);
         setMeetingProvider(activeBot.meeting_provider || "google_meet");
+        setBookingEmailVerification(activeBot.booking_email_verification || false);
+        setBookingBlockDisposableEmails(activeBot.booking_block_disposable_emails || false);
+        setBookingLimitOneActive(activeBot.booking_limit_one_active || false);
+        setBookingRequireBusinessEmail(activeBot.booking_require_business_email || false);
         if (!activeBot.onboarding_completed) {
           // Show the structured onboarding wizard for new bots
           setShowWizard(true);
@@ -2024,6 +2039,10 @@ export default function Dashboard() {
       setSyncOutlookCalendar(selected.sync_outlook_calendar || false);
       setSyncOffice365Calendar(selected.sync_office365_calendar || false);
       setMeetingProvider(selected.meeting_provider || "google_meet");
+      setBookingEmailVerification(selected.booking_email_verification || false);
+      setBookingBlockDisposableEmails(selected.booking_block_disposable_emails || false);
+      setBookingLimitOneActive(selected.booking_limit_one_active || false);
+      setBookingRequireBusinessEmail(selected.booking_require_business_email || false);
 
       // Fetch sources
       const { data: srcList } = await supabase
@@ -2079,9 +2098,12 @@ export default function Dashboard() {
   }
 
   // Create a new chatbot configuration
-  async function handleCreateBot(name: string) {
+  async function handleCreateBot(name: string, websiteUrl?: string) {
     if (!user) return;
     if (!name.trim()) return;
+
+    const domain = websiteUrl ? extractDomain(websiteUrl) : "";
+    const initialAllowed = domain ? [domain] : [];
 
     setLoadingLists(true);
     try {
@@ -2098,6 +2120,7 @@ export default function Dashboard() {
           system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
           strict_mode: true,
           email_notify: true,
+          allowed_domains: initialAllowed,
           onboarding_step: 9,
           onboarding_completed: true
         })
@@ -2877,6 +2900,10 @@ export default function Dashboard() {
           advance_notice_hours: advanceNoticeHours,
           max_daily_meetings: maxDailyMeetings,
           max_weekly_meetings: maxWeeklyMeetings,
+          booking_email_verification: bookingEmailVerification,
+          booking_block_disposable_emails: bookingBlockDisposableEmails,
+          booking_limit_one_active: bookingLimitOneActive,
+          booking_require_business_email: bookingRequireBusinessEmail,
           allowed_domains: allowedDomains,
           voice_enabled: voiceEnabled,
           voice_stt_provider: voiceSttProvider,
@@ -2962,6 +2989,10 @@ export default function Dashboard() {
                 advance_notice_hours: advanceNoticeHours,
                 max_daily_meetings: maxDailyMeetings,
                 max_weekly_meetings: maxWeeklyMeetings,
+                booking_email_verification: bookingEmailVerification,
+                booking_block_disposable_emails: bookingBlockDisposableEmails,
+                booking_limit_one_active: bookingLimitOneActive,
+                booking_require_business_email: bookingRequireBusinessEmail,
                 allowed_domains: allowedDomains,
                 voice_enabled: voiceEnabled,
                 voice_stt_provider: voiceSttProvider,
@@ -4095,14 +4126,28 @@ export default function Dashboard() {
       {showWizard && botId && (
         <OnboardingWizard
           botId={botId}
-          initial={{ name: botName, primaryColor, widgetStyle, welcomeMessage: welcomeMsg, systemInstructions, logoUrl }}
+          initial={{
+            name: botName,
+            primaryColor,
+            widgetStyle,
+            welcomeMessage: welcomeMsg,
+            systemInstructions,
+            logoUrl,
+            allowedDomains,
+          }}
           fetchBackend={fetchWithFallback}
           supabase={supabase}
           onComplete={(f) => {
-            setBotName(f.name); setPrimaryColor(f.primaryColor);
+            setBotName(f.name);
+            setPrimaryColor(f.primaryColor);
             setWidgetStyle(f.widgetStyle);
-            setWelcomeMsg(f.welcomeMessage); setSystemInstructions(f.systemInstructions);
-            setLogoUrl(f.logoUrl); setOnboardingCompleted(true);
+            setWelcomeMsg(f.welcomeMessage);
+            setSystemInstructions(f.systemInstructions);
+            setLogoUrl(f.logoUrl);
+            if (f.allowedDomains) {
+              setAllowedDomains(f.allowedDomains);
+            }
+            setOnboardingCompleted(true);
           }}
           onClose={() => { setShowWizard(false); setOnboardingCompleted(true); }}
         />
@@ -8421,6 +8466,105 @@ const { reply, session_id } = await res.json();`}</pre>
                           </div>
                         </div>
 
+                        {/* ── Abuse & Spam Protection (4 Defenses) ── */}
+                        <div className="pt-2 border-t border-neutral-100 dark:border-neutral-850 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-[11px] font-bold uppercase tracking-wider text-neutral-450 flex items-center gap-1.5">
+                              <ShieldAlert className="size-3.5 text-[#f97316]" /> Abuse &amp; Spam Protection
+                            </h5>
+                            <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                              Optional Defenses
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 leading-normal">
+                            Prevent bots and malicious actors from flooding your calendar or reserving fake appointments.
+                          </p>
+
+                          <div className="space-y-2.5">
+                            {/* Defense 1: Email OTP Verification */}
+                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
+                              <div className="space-y-0.5 pr-2">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Email OTP Verification</span>
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 font-medium">Strongest</span>
+                                </div>
+                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                  Sends a 6-digit one-time passcode to the attendee&apos;s email before confirming the booking.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleInputChange(setBookingEmailVerification, !bookingEmailVerification)}
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
+                                  bookingEmailVerification ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                                }`}
+                              >
+                                <div className={`size-4 rounded-full bg-white transition-transform ${bookingEmailVerification ? "translate-x-4" : ""}`} />
+                              </button>
+                            </div>
+
+                            {/* Defense 2: Block Disposable Email Providers */}
+                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
+                              <div className="space-y-0.5 pr-2">
+                                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Block Disposable Emails</span>
+                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                  Rejects throwaway / burner inbox domains (e.g. mailinator, tempmail, guerrillamail).
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleInputChange(setBookingBlockDisposableEmails, !bookingBlockDisposableEmails)}
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
+                                  bookingBlockDisposableEmails ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                                }`}
+                              >
+                                <div className={`size-4 rounded-full bg-white transition-transform ${bookingBlockDisposableEmails ? "translate-x-4" : ""}`} />
+                              </button>
+                            </div>
+
+                            {/* Defense 3: Limit 1 Active Booking Per Email */}
+                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
+                              <div className="space-y-0.5 pr-2">
+                                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Limit 1 Active Booking Per Email</span>
+                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                  Prevents a single email address from hoarding multiple concurrent future bookings.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleInputChange(setBookingLimitOneActive, !bookingLimitOneActive)}
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
+                                  bookingLimitOneActive ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                                }`}
+                              >
+                                <div className={`size-4 rounded-full bg-white transition-transform ${bookingLimitOneActive ? "translate-x-4" : ""}`} />
+                              </button>
+                            </div>
+
+                            {/* Defense 4: Require Business / Work Email */}
+                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
+                              <div className="space-y-0.5 pr-2">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Require Business Email</span>
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-medium">B2B</span>
+                                </div>
+                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                  Rejects consumer inboxes (@gmail, @yahoo, @outlook, etc.) and requires a corporate domain.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleInputChange(setBookingRequireBusinessEmail, !bookingRequireBusinessEmail)}
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
+                                  bookingRequireBusinessEmail ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                                }`}
+                              >
+                                <div className={`size-4 rounded-full bg-white transition-transform ${bookingRequireBusinessEmail ? "translate-x-4" : ""}`} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
                         {/* Read-only summary of ALL active rules */}
                         <div className="text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3 space-y-1 leading-relaxed">
                           <p className="font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[9px] tracking-wider mb-1">All active booking rules</p>
@@ -8430,6 +8574,10 @@ const { reply, session_id } = await res.json();`}</pre>
                           {advanceNoticeHours ? <p>• Advance notice: <b>{advanceNoticeHours} hours</b></p> : null}
                           {maxDailyMeetings ? <p>• Daily limit: <b>Max {maxDailyMeetings} meetings/day</b></p> : null}
                           {maxWeeklyMeetings ? <p>• Weekly limit: <b>Max {maxWeeklyMeetings} meetings/week</b></p> : null}
+                          {bookingEmailVerification ? <p>• Security: <b>Email OTP verification required</b></p> : null}
+                          {bookingBlockDisposableEmails ? <p>• Security: <b>Disposable email addresses blocked</b></p> : null}
+                          {bookingLimitOneActive ? <p>• Security: <b>Max 1 active booking per attendee email</b></p> : null}
+                          {bookingRequireBusinessEmail ? <p>• Security: <b>Business/corporate email required</b></p> : null}
                           <p>• Platform: <b>{meetingProvider.replace("_", " ")}</b></p>
                           <p>• Collects all lead fields (<b>{leadFields.join(", ")}</b>) + visitor timezone before booking</p>
                         </div>
@@ -9668,8 +9816,12 @@ const { reply, session_id } = await res.json();`}</pre>
             <form onSubmit={async (e) => {
               e.preventDefault();
               if (!newBotNameInput.trim()) return;
+              const name = newBotNameInput;
+              const web = newBotWebsiteInput;
               setCreateBotModalOpen(false);
-              await handleCreateBot(newBotNameInput);
+              setNewBotNameInput("");
+              setNewBotWebsiteInput("");
+              await handleCreateBot(name, web);
             }} className="space-y-4">
               <div>
                 <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Assistant Name</label>
@@ -9683,10 +9835,29 @@ const { reply, session_id } = await res.json();`}</pre>
                   autoFocus
                 />
               </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-semibold text-neutral-500 uppercase">Website URL</label>
+                  <span className="text-[10px] text-neutral-400 font-normal">Optional</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="https://example.com"
+                  value={newBotWebsiteInput}
+                  onChange={(e) => setNewBotWebsiteInput(e.target.value)}
+                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-250 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                />
+                <p className="text-[10px] text-neutral-400 mt-1">
+                  Adds this domain to Allowed Domains in Integrations.
+                </p>
+              </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setCreateBotModalOpen(false)}
+                  onClick={() => {
+                    setCreateBotModalOpen(false);
+                    setNewBotWebsiteInput("");
+                  }}
                   className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
                 >
                   Cancel
