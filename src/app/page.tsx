@@ -52,14 +52,16 @@ function GithubIcon({ className }: { className?: string }) {
   );
 }
 
-// Stand-in for a real product screenshot — labeled, not pretending to be one.
+// Stand-in for a real product screenshot — labeled, accessible, and SEO-friendly.
 function ShowcasePlaceholder({ label, className = "" }: { label: string; className?: string }) {
   return (
     <div
+      role="region"
+      aria-label={label}
       className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed text-center px-6 ${className}`}
       style={{ borderColor: "var(--color-divider)", background: "var(--color-surface)", color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}
     >
-      <ImageIcon className="size-8" strokeWidth={1.5} />
+      <ImageIcon className="size-8" strokeWidth={1.5} aria-hidden="true" />
       <span className="text-xs font-medium">{label}</span>
     </div>
   );
@@ -129,36 +131,24 @@ const showcases = [
     kickerColor: "var(--color-accent-700)",
     title: "Train it once. It answers like your best rep.",
     desc: "Point it at your website, files, and docs and it learns your product. Auto Train keeps it current daily, weekly, or monthly, in over 95 languages, without you touching a thing.",
-    image: "/showcase_knowledge.png",
-    alt: "Chatty Knowledge Base Training with 35 Sources & Auto-Sync",
+    label: "Knowledge base training & auto-sync preview",
     imageFirst: false,
   },
   {
-    kicker: "Visual Customizer",
+    kicker: "Actions",
     kickerColor: "var(--color-accent-2-800)",
-    title: "Matches your brand in seconds. Zero coding.",
-    desc: "Choose from 10 handcrafted design presets, auto-generate harmonious color palettes from your logo, configure custom voice recordings, and preview your live widget in real-time.",
-    image: "/showcase_customizer.png",
-    alt: "Live Chatbot Visual Customizer & Real-Time Widget Preview",
+    title: 'Beyond Q&A — it gets things done.',
+    desc: 'Let it use any of your apps, book meetings straight onto your calendar, and route conversations through guardrails so it stays reliable, never "ChatGPT for free."',
+    label: "Calendar meeting scheduling & integrations preview",
     imageFirst: true,
-  },
-  {
-    kicker: "Actions & Calendar",
-    kickerColor: "var(--color-accent-700)",
-    title: "Beyond Q&A — it books its own meetings.",
-    desc: "Let it check host availability across Google Calendar and Zoom, color-code team assignments, and schedule qualified sales demos straight into your calendar in the visitor's local timezone.",
-    image: "/showcase_actions.png",
-    alt: "Autonomous Multi-Colored Meeting Calendar & Google Meet Integration",
-    imageFirst: false,
   },
   {
     kicker: "Leads & Analytics",
-    kickerColor: "var(--color-accent-2-800)",
+    kickerColor: "var(--color-accent-700)",
     title: "Every lead captured. Every chat measured.",
-    desc: "Name, email, and phone are collected automatically from natural visitor conversations and land in your Leads CRM table with instant CSV export.",
-    image: "/showcase_leads_analytics.png",
-    alt: "Captured Leads CRM & Real-Time Analytics",
-    imageFirst: true,
+    desc: "Name, email, and phone are collected automatically and land in your Inbox alongside analytics on how visitors actually use your chatbot.",
+    label: "Captured leads CRM & real-time chat analytics preview",
+    imageFirst: false,
   },
 ];
 
@@ -305,14 +295,7 @@ export default function Home() {
           <div className="mt-14 sm:mt-16 relative max-w-[1080px] mx-auto">
             <div className="absolute -inset-4 sm:-inset-6 rounded-[52px] -z-10" style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 75%)" }} />
             <div className="relative rounded-[24px] sm:rounded-[36px] overflow-hidden p-2 sm:p-2.5" style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)" }}>
-              <Image
-                src="/dashboard_all_21_tabs.png"
-                alt="Chatty Dashboard Overview & Live Console"
-                width={2880}
-                height={1656}
-                priority
-                className="w-full h-auto aspect-[16/9.2] object-cover rounded-[16px] sm:rounded-[26px] border border-black/5 dark:border-white/5"
-              />
+              <ShowcasePlaceholder label="Product console (Overview & Real-time stats)" className="w-full aspect-[16/9.2] rounded-[16px] sm:rounded-[26px]" />
             </div>
             <div className="hidden sm:flex absolute -top-[18px] right-7 rounded-full items-center gap-2 px-4.5 py-2.5 text-[12.5px] font-semibold" style={{ background: "var(--color-bg)", boxShadow: "var(--shadow-md)", color: "var(--color-accent-700)" }}>
               <Clock className="size-[15px]" />
@@ -334,15 +317,7 @@ export default function Home() {
                 </Link>
               </div>
               <div className={`md:col-span-7 ${s.imageFirst ? "md:order-1" : ""}`}>
-                <div className="relative rounded-[20px] sm:rounded-[30px] overflow-hidden p-2 sm:p-2.5" style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)" }}>
-                  <Image
-                    src={s.image}
-                    alt={s.alt}
-                    width={2880}
-                    height={1800}
-                    className="w-full h-auto aspect-[16/10] object-cover rounded-[14px] sm:rounded-[22px] border border-black/5 dark:border-white/5"
-                  />
-                </div>
+                <ShowcasePlaceholder label={s.label} className="w-full aspect-[16/10] rounded-3xl" />
               </div>
             </div>
           </section>
