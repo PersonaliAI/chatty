@@ -13,7 +13,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import { LeadsMap } from "@/components/leads-map";
-import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { OnboardingWizard, extractDomain } from "@/components/onboarding-wizard";
 import { InboxPanel } from "@/components/inbox-panel";
 import { ChatbotFlowBuilder } from "@/components/chatbot-flow-builder";
 import { CampaignsUI } from "@/components/campaigns-ui";
@@ -970,6 +970,7 @@ export default function Dashboard() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [createBotModalOpen, setCreateBotModalOpen] = useState(false);
   const [newBotNameInput, setNewBotNameInput] = useState("");
+  const [newBotWebsiteInput, setNewBotWebsiteInput] = useState("");
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
     message: string;
@@ -2097,9 +2098,12 @@ export default function Dashboard() {
   }
 
   // Create a new chatbot configuration
-  async function handleCreateBot(name: string) {
+  async function handleCreateBot(name: string, websiteUrl?: string) {
     if (!user) return;
     if (!name.trim()) return;
+
+    const domain = websiteUrl ? extractDomain(websiteUrl) : "";
+    const initialAllowed = domain ? [domain] : [];
 
     setLoadingLists(true);
     try {
@@ -2116,6 +2120,7 @@ export default function Dashboard() {
           system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
           strict_mode: true,
           email_notify: true,
+          allowed_domains: initialAllowed,
           onboarding_step: 9,
           onboarding_completed: true
         })
@@ -4121,14 +4126,28 @@ export default function Dashboard() {
       {showWizard && botId && (
         <OnboardingWizard
           botId={botId}
-          initial={{ name: botName, primaryColor, widgetStyle, welcomeMessage: welcomeMsg, systemInstructions, logoUrl }}
+          initial={{
+            name: botName,
+            primaryColor,
+            widgetStyle,
+            welcomeMessage: welcomeMsg,
+            systemInstructions,
+            logoUrl,
+            allowedDomains,
+          }}
           fetchBackend={fetchWithFallback}
           supabase={supabase}
           onComplete={(f) => {
-            setBotName(f.name); setPrimaryColor(f.primaryColor);
+            setBotName(f.name);
+            setPrimaryColor(f.primaryColor);
             setWidgetStyle(f.widgetStyle);
-            setWelcomeMsg(f.welcomeMessage); setSystemInstructions(f.systemInstructions);
-            setLogoUrl(f.logoUrl); setOnboardingCompleted(true);
+            setWelcomeMsg(f.welcomeMessage);
+            setSystemInstructions(f.systemInstructions);
+            setLogoUrl(f.logoUrl);
+            if (f.allowedDomains) {
+              setAllowedDomains(f.allowedDomains);
+            }
+            setOnboardingCompleted(true);
           }}
           onClose={() => { setShowWizard(false); setOnboardingCompleted(true); }}
         />
@@ -9797,8 +9816,12 @@ const { reply, session_id } = await res.json();`}</pre>
             <form onSubmit={async (e) => {
               e.preventDefault();
               if (!newBotNameInput.trim()) return;
+              const name = newBotNameInput;
+              const web = newBotWebsiteInput;
               setCreateBotModalOpen(false);
-              await handleCreateBot(newBotNameInput);
+              setNewBotNameInput("");
+              setNewBotWebsiteInput("");
+              await handleCreateBot(name, web);
             }} className="space-y-4">
               <div>
                 <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Assistant Name</label>
@@ -9812,10 +9835,29 @@ const { reply, session_id } = await res.json();`}</pre>
                   autoFocus
                 />
               </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-semibold text-neutral-500 uppercase">Website URL</label>
+                  <span className="text-[10px] text-neutral-400 font-normal">Optional</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="https://example.com"
+                  value={newBotWebsiteInput}
+                  onChange={(e) => setNewBotWebsiteInput(e.target.value)}
+                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-250 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                />
+                <p className="text-[10px] text-neutral-400 mt-1">
+                  Adds this domain to Allowed Domains in Integrations.
+                </p>
+              </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setCreateBotModalOpen(false)}
+                  onClick={() => {
+                    setCreateBotModalOpen(false);
+                    setNewBotWebsiteInput("");
+                  }}
                   className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
                 >
                   Cancel

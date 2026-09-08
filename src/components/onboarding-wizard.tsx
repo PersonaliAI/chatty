@@ -3,9 +3,27 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Sparkles, Upload, Loader2, Check, ArrowRight, ArrowLeft, X, Wand2, MessageSquare,
+  Sparkles, Upload, Loader2, Check, ArrowRight, ArrowLeft, X, Wand2, MessageSquare, Globe,
 } from "lucide-react";
 import { getOnColor } from "@/lib/color-contrast";
+
+export function extractDomain(url: string): string {
+  if (!url) return "";
+  const trimmed = url.trim().toLowerCase();
+  if (!trimmed) return "";
+  try {
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(withScheme);
+    const host = parsed.hostname.toLowerCase();
+    return host.replace(/^www\./, "");
+  } catch {
+    return trimmed
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\/.*$/, "")
+      .replace(/:\d+$/, "");
+  }
+}
 
 interface InitialBot {
   name: string;
@@ -14,6 +32,8 @@ interface InitialBot {
   welcomeMessage: string;
   systemInstructions: string;
   logoUrl: string | null;
+  websiteUrl?: string;
+  allowedDomains?: string[];
 }
 
 interface Props {
@@ -42,6 +62,9 @@ const STYLES = [
 export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onComplete, onClose }: Props) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initial.name);
+  const [websiteUrl, setWebsiteUrl] = useState(
+    initial.websiteUrl || (initial.allowedDomains?.[0] ? `https://${initial.allowedDomains[0]}` : "")
+  );
   const [primaryColor, setPrimaryColor] = useState(initial.primaryColor);
   const [widgetStyle, setWidgetStyle] = useState(initial.widgetStyle);
   const [welcomeMessage, setWelcomeMessage] = useState(initial.welcomeMessage);
@@ -55,6 +78,7 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   const steps = ["Identity", "Business", "Style", "Finish"];
+  const cleanDomain = extractDomain(websiteUrl);
 
   const uploadLogo = async (file: File) => {
     setUploadingLogo(true);
@@ -97,19 +121,44 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
   const finish = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase.from("chatty_bots").update({
-        name, primary_color: primaryColor, widget_style: widgetStyle,
-        welcome_message: welcomeMessage, system_instructions: systemInstructions,
+      const clean = extractDomain(websiteUrl);
+      let updatedDomains = initial.allowedDomains ? [...initial.allowedDomains] : [];
+      if (clean && !updatedDomains.includes(clean)) {
+        updatedDomains = [...updatedDomains, clean];
+      }
+
+      const updatePayload: Record<string, unknown> = {
+        name,
+        primary_color: primaryColor,
+        widget_style: widgetStyle,
+        welcome_message: welcomeMessage,
+        system_instructions: systemInstructions,
         logo_url: logoUrl,
         // "logo" without a logoUrl falls back to the selected design's own
         // dot mark (see widget.js's buildChatIcon) — a generic bot glyph
         // isn't the design's actual default, so never force it here.
         avatar_icon: "logo",
-        onboarding_completed: true, onboarding_step: 9,
+        onboarding_completed: true,
+        onboarding_step: 9,
         updated_at: new Date().toISOString(),
-      }).eq("id", botId);
+      };
+
+      if (clean) {
+        updatePayload.allowed_domains = updatedDomains;
+      }
+
+      const { error } = await supabase.from("chatty_bots").update(updatePayload).eq("id", botId);
       if (error) throw error;
-      onComplete({ name, primaryColor, widgetStyle, welcomeMessage, systemInstructions, logoUrl });
+      onComplete({
+        name,
+        primaryColor,
+        widgetStyle,
+        welcomeMessage,
+        systemInstructions,
+        logoUrl,
+        websiteUrl,
+        allowedDomains: clean ? updatedDomains : initial.allowedDomains,
+      });
       onClose();
     } catch (e) {
       console.error("finish failed", e);
@@ -126,10 +175,34 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
   // since nothing was actually configured on an early exit) before closing.
   const dismiss = async () => {
     try {
-      await supabase.from("chatty_bots").update({
+      const clean = extractDomain(websiteUrl);
+      let updatedDomains = initial.allowedDomains ? [...initial.allowedDomains] : [];
+      if (clean && !updatedDomains.includes(clean)) {
+        updatedDomains = [...updatedDomains, clean];
+      }
+
+      const updatePayload: Record<string, unknown> = {
         onboarding_completed: true,
         updated_at: new Date().toISOString(),
-      }).eq("id", botId);
+      };
+      if (clean) {
+        updatePayload.allowed_domains = updatedDomains;
+      }
+
+      await supabase.from("chatty_bots").update(updatePayload).eq("id", botId);
+      if (clean) {
+        onComplete({
+          ...initial,
+          name,
+          primaryColor,
+          widgetStyle,
+          welcomeMessage,
+          systemInstructions,
+          logoUrl,
+          websiteUrl,
+          allowedDomains: updatedDomains,
+        });
+      }
     } catch (e) {
       console.error("dismiss failed", e);
     } finally {
@@ -195,6 +268,31 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
                   <div>
                     <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 mb-1.5">Agent name</label>
                     <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Support" className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none" />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Website URL</label>
+                      <span className="text-[10px] text-neutral-400 font-normal">Optional</span>
+                    </div>
+                    <div className="relative">
+                      <Globe className="absolute left-3 top-2.5 size-3.5 text-neutral-400" />
+                      <input
+                        type="text"
+                        value={websiteUrl}
+                        onChange={(e) => setWebsiteUrl(e.target.value)}
+                        placeholder="https://example.com"
+                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg pl-8 pr-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      />
+                    </div>
+                    <p className="text-[10px] text-neutral-400 mt-1 leading-normal">
+                      {cleanDomain ? (
+                        <span className="text-green-600 dark:text-green-400 flex items-center gap-1 font-medium">
+                          <Check className="size-3 shrink-0" /> Will add <b>{cleanDomain}</b> to Allowed Domains in Integrations
+                        </span>
+                      ) : (
+                        "Locks widget embeds to this domain in Integrations so only your site can run the assistant."
+                      )}
+                    </p>
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 mb-1.5">Brand color</label>
@@ -279,6 +377,11 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
                   <p className="text-xs text-neutral-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
                     Your assistant is configured. Next, add knowledge in the Knowledge Base, then embed it on your website from Embed &amp; Integrate.
                   </p>
+                  {cleanDomain && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[11px] text-neutral-600 dark:text-neutral-300 mt-3">
+                      <Globe className="size-3 text-[#f97316]" /> Allowed domain: <b>{cleanDomain}</b> configured
+                    </div>
+                  )}
                   <div className="flex items-center justify-center gap-2 mt-4 text-[11px] text-neutral-400">
                     <MessageSquare className="size-3.5" /> Tip: train it with your FAQs for sharper answers
                   </div>

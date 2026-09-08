@@ -3,6 +3,7 @@
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
+import interactionPlugin, { type DateClickArg } from "@fullcalendar/interaction";
 import type { EventClickArg, EventInput } from "@fullcalendar/core";
 import { colorForAssignee } from "@/lib/meeting-colors";
 
@@ -87,15 +88,24 @@ export function MeetingsCalendar({
         }
         .chatty-fc-theme .fc-icon { color: var(--fc-button-text-color); }
         .chatty-fc-theme .fc-event { cursor: pointer; border-radius: 6px; padding: 1px 4px; font-size: 10px; }
+        .chatty-fc-theme .fc-daygrid-day { cursor: pointer; transition: background-color 0.15s ease; }
+        .chatty-fc-theme .fc-daygrid-day:hover { background-color: rgba(249, 115, 22, 0.05); }
         .chatty-fc-theme .fc-daygrid-day-number,
         .chatty-fc-theme .fc-col-header-cell-cushion {
-          color: var(--fc-button-text-color); opacity: 0.75; font-size: 11px;
+          color: var(--fc-button-text-color); opacity: 0.75; font-size: 11px; cursor: pointer;
         }
       `}</style>
       <FullCalendar
-        plugins={[dayGridPlugin, timeGridPlugin]}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
         headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" }}
+        navLinks={true}
+        navLinkDayClick="timeGridDay"
+        dateClick={(info: DateClickArg) => {
+          const api = info.view.calendar;
+          api.gotoDate(info.date);
+          api.changeView("timeGridDay");
+        }}
         events={events}
         height="auto"
         eventClick={(info: EventClickArg) => onSelectMeeting(info.event.id)}
