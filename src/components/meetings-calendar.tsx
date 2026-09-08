@@ -33,7 +33,7 @@ export function MeetingsCalendar({
     title: m.title || "Meeting",
     start: m.start_time,
     end: m.end_time,
-    backgroundColor: m.status === "cancelled" ? "#a3a3a3" : colorForAssignee(m.assigned_to_email),
+    backgroundColor: m.status === "cancelled" ? "#a3a3a3" : colorForAssignee(m.assigned_to_email || m.title || m.id),
     borderColor: "transparent",
     textColor: "#ffffff",
     classNames: m.status === "cancelled" ? ["chatty-fc-cancelled"] : [],
@@ -107,6 +107,7 @@ export function MeetingsCalendar({
           api.changeView("timeGridDay");
         }}
         events={events}
+        eventDisplay="block"
         height="auto"
         eventClick={(info: EventClickArg) => onSelectMeeting(info.event.id)}
         eventTimeFormat={{ hour: "numeric", minute: "2-digit", meridiem: "short" }}
