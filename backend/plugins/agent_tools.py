@@ -392,20 +392,65 @@ def _parse_iso(s: str) -> datetime:
     raise ValueError(f"unparseable datetime: {s!r}")
 
 
-async def _create_calendar_event(args: dict, user: dict, supabase) -> dict:
+def _format_invitation_time(start_str: str, tz_name: Optional[str]) -> str:
+    """Formats a meeting datetime for calendar invitations: simple time aligned with the
+    user's timezone, with the timezone in brackets.
+    e.g. 'Thursday, September 10, 2026 at 10:00 AM (Asia/Colombo)'
+    """
+    if not start_str:
+        return ""
+    clean_str = str(start_str).strip()
+    raw_tz = (tz_name or "UTC").strip()
+    if raw_tz.startswith("(") and raw_tz.endswith(")"):
+        raw_tz = raw_tz[1:-1].strip()
+    target_tz_str = raw_tz if not raw_tz.startswith("GMT") else "UTC"
+
+    # If it already contains the bracketed timezone, return as is
+    if f"({target_tz_str})" in clean_str:
+        return clean_str
+
+    try:
+        import pytz
+        target_tz = pytz.timezone(target_tz_str)
+        dt = _parse_iso(clean_str)
+        if dt.tzinfo is None:
+            dt = target_tz.localize(dt)
+        else:
+            dt = dt.astimezone(target_tz)
+        hour12 = dt.hour % 12 or 12
+        ampm = "AM" if dt.hour < 12 else "PM"
+        formatted_dt = f"{dt.strftime('%A, %B')} {dt.day}, {dt.year} at {hour12}:{dt.minute:02d} {ampm}"
+        return f"{formatted_dt} ({target_tz_str})"
+    except Exception:
+        if "(" in clean_str and ")" in clean_str:
+            return clean_str
+        return f"{clean_str} ({target_tz_str})" if target_tz_str else clean_str
+
+
+async def _create_calendar_event(args: dict, user: dict, supabase, context: Optional[dict] = None) -> dict:
     if g_err := _need_google(user):
         return g_err
+    tz_override = None
+    if context:
+        tz_override = context.get("visitor_timezone") or context.get("bot_timezone")
+    if not tz_override and args.get("_owner_timezone"):
+        tz_override = args.get("_owner_timezone")
+    desc = args.get("description") or "Scheduled via AI Assistant"
+    if args.get("start") and tz_override and "Time:" not in desc:
+        time_label = _format_invitation_time(args["start"], tz_override)
+        if time_label:
+            desc = f"{desc}\n\nTime: {time_label}"
     return await g.create_calendar_event(
         supabase,
         user,
         summary=args.get("summary") or "",
         start=args.get("start") or "",
         end=args.get("end") or "",
-        description=args.get("description"),
+        description=desc,
         location=args.get("location"),
         attendees=list(args.get("attendees") or []) or None,
         all_day=bool(args.get("all_day")),
-        timezone_override=args.get("_owner_timezone"),
+        timezone_override=tz_override,
     )
 
 
@@ -743,14 +788,16 @@ async def reschedule_meeting_core(
     except Exception:
         logger.exception("Failed to update chatty_meetings row after reschedule")
 
-    tz_label = bot.get("bot_timezone") or "UTC"
+    target_tz = meeting.get("timezone") or bot.get("bot_timezone") or "UTC"
+    start_invitation_label = _format_invitation_time(new_start.isoformat(), target_tz)
+    tz_bracket = f"({target_tz})"
     summary = meeting.get("title") or "Meeting"
     meeting_id = meeting.get("id")
     reply_to = _meeting_reply_to(meeting_id) if meeting_id else None
     try:
         client_html = notify.build_client_email_html(
             visitor_name=meeting.get("attendee_name") or "Guest", summary=summary,
-            start=new_start.isoformat(), timezone_label=tz_label,
+            start=start_invitation_label, timezone_label=tz_bracket,
             meeting_link=meeting.get("meeting_link") or "", provider=meeting.get("provider") or "google_meet",
         )
         client_subject = f"Meeting Rescheduled: {summary}"
@@ -763,7 +810,7 @@ async def reschedule_meeting_core(
                                         from_email=notify.RESEND_EMAIL_FROM, subject=client_subject, body_text=client_html)
         admin_html = notify.build_admin_email_html(
             visitor_name=meeting.get("attendee_name") or "Guest", visitor_email=attendee_email,
-            summary=summary, start=new_start.isoformat(), timezone_label=tz_label,
+            summary=summary, start=start_invitation_label, timezone_label=tz_bracket,
             meeting_link=meeting.get("meeting_link") or "", provider=meeting.get("provider") or "google_meet",
         )
         # Same "notify the real owner, not necessarily whoever's calendar
@@ -788,7 +835,7 @@ async def reschedule_meeting_core(
 
     return {
         "success": True,
-        "message": f"Meeting rescheduled to {new_start.isoformat()}.",
+        "message": f"Meeting rescheduled to {start_invitation_label}.",
         "meeting_link": meeting.get("meeting_link"),
     }
 
@@ -1120,22 +1167,32 @@ async def _list_outlook_events(args: dict, user: dict, supabase) -> dict:
     }
 
 
-async def _create_outlook_event(args: dict, user: dict, supabase) -> dict:
+async def _create_outlook_event(args: dict, user: dict, supabase, context: Optional[dict] = None) -> dict:
     if g_err := _need_microsoft(user, required_scope="Calendars.ReadWrite"):
         return g_err
+    tz_override = None
+    if context:
+        tz_override = context.get("visitor_timezone") or context.get("bot_timezone")
+    if not tz_override and args.get("_owner_timezone"):
+        tz_override = args.get("_owner_timezone")
+    body_desc = args.get("body") or "Scheduled via AI Assistant"
+    if args.get("start") and tz_override and "Time:" not in body_desc:
+        time_label = _format_invitation_time(args["start"], tz_override)
+        if time_label:
+            body_desc = f"{body_desc}\n\nTime: {time_label}"
     return await ms.create_outlook_event(
         supabase,
         user,
         subject=args.get("subject") or "",
         start=args.get("start") or "",
         end=args.get("end") or "",
-        body=args.get("body"),
+        body=body_desc,
         location=args.get("location"),
         attendees=list(args.get("attendees") or []) or None,
         is_all_day=bool(args.get("is_all_day")),
         calendar_id=args.get("calendar_id"),
         online_meeting=bool(args.get("online_meeting")),
-        timezone_override=args.get("_owner_timezone"),
+        timezone_override=tz_override,
     )
 
 
@@ -1381,6 +1438,11 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             )
 
         # 5. Insert meeting record
+        visitor_tz = (context or {}).get("visitor_timezone") or bot.get("bot_timezone") or "UTC"
+        start_raw = args.get("start") or ""
+        start_invitation_label = _format_invitation_time(start_raw, visitor_tz) or start_raw
+        tz_bracket = f"({visitor_tz})"
+
         meet_res = await run_db(lambda: supabase.table("chatty_meetings").insert({
             "bot_id": bot_id,
             "lead_id": lead_id,
@@ -1388,7 +1450,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             "description": args.get("description") or "Scheduled via AI Assistant",
             "start_time": args.get("start"),
             "end_time": args.get("end"),
-            "timezone": bot.get("bot_timezone") or "UTC",
+            "timezone": visitor_tz,
             "meeting_link": meeting_link,
             "provider": provider,
             "status": "scheduled",
@@ -1407,7 +1469,6 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         meeting_id = meet_res.data[0]["id"] if meet_res.data else None
 
         # 6. Send real notifications (beautiful HTML email + push) and record them
-        start_label = args.get("start") or ""
         # `user` here may be the round-robin ASSIGNEE, not necessarily the
         # bot's actual owner (it's whoever's calendar the event was created
         # on, needed above for add_meet_to_event) — the admin notification
@@ -1428,8 +1489,8 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
 
         # --- Client confirmation email ---
         client_html = notify.build_client_email_html(
-            visitor_name=visitor_name, summary=summary, start=start_label,
-            timezone_label=tz_label, meeting_link=meeting_link, provider=provider,
+            visitor_name=visitor_name, summary=summary, start=start_invitation_label,
+            timezone_label=tz_bracket, meeting_link=meeting_link, provider=provider,
         )
         client_subject = f"Meeting Confirmed: {summary}"
         client_status = await notify.deliver_email(
@@ -1446,7 +1507,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             "channel": "email",
             "type": "client",
             "subject": client_subject,
-            "content": f"Your meeting '{summary}' is confirmed for {start_label} ({tz_label}). Join: {meeting_link}",
+            "content": f"Your meeting '{summary}' is confirmed for {start_invitation_label}. Join: {meeting_link}",
             "html_content": client_html,
             "status": client_status,
         })
@@ -1454,7 +1515,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         # --- Admin notification email ---
         admin_html = notify.build_admin_email_html(
             visitor_name=visitor_name, visitor_email=visitor_email, summary=summary,
-            start=start_label, timezone_label=tz_label, meeting_link=meeting_link,
+            start=start_invitation_label, timezone_label=tz_bracket, meeting_link=meeting_link,
             provider=provider,
         )
         admin_subject = f"New Meeting Booked: {visitor_name}"
@@ -1469,7 +1530,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             "channel": "email",
             "type": "admin",
             "subject": admin_subject,
-            "content": f"New meeting booked by {visitor_name} ({visitor_email}) for {start_label}.",
+            "content": f"New meeting booked by {visitor_name} ({visitor_email}) for {start_invitation_label}.",
             "html_content": admin_html,
             "status": admin_status,
         })
@@ -1477,7 +1538,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         # --- Push notifications (OneSignal) ---
         client_push_status = await notify.deliver_push(
             headings="Meeting Booked",
-            contents=f"Your meeting is set for {start_label}.",
+            contents=f"Your meeting is set for {start_invitation_label}.",
             external_id=visitor_email,
         )
         await _insert_notification({
@@ -1487,7 +1548,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             "channel": "onesignal",
             "type": "client",
             "subject": "Meeting Booked",
-            "content": f"Your meeting is set for {start_label}.",
+            "content": f"Your meeting is set for {start_invitation_label}.",
             "status": client_push_status,
         })
 
@@ -1512,7 +1573,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         await run_db(lambda: supabase.table("chatty_audit_logs").insert({
             "bot_id": bot_id,
             "action": "meeting_booked",
-            "details": f"Meeting scheduled with {visitor_name} ({visitor_email}) at {args.get('start')}. Provider: {provider}.",
+            "details": f"Meeting scheduled with {visitor_name} ({visitor_email}) at {start_invitation_label}. Provider: {provider}.",
             "performed_by": "assistant"
         }).execute())
 
@@ -1807,7 +1868,7 @@ async def execute(
                     logger.exception("Booking conflict guard failed")
 
         if name == "create_calendar_event":
-            res = await _create_calendar_event(args, booking_user, supabase)
+            res = await _create_calendar_event(args, booking_user, supabase, context=context)
             if context and context.get("source") == "widget" and "error" not in res:
                 await _process_widget_booking(args, booking_user, supabase, res, context)
             return res
@@ -1826,7 +1887,7 @@ async def execute(
         if name == "list_outlook_events":
             return await _list_outlook_events(args, user, supabase)
         if name == "create_outlook_event":
-            res = await _create_outlook_event(args, booking_user, supabase)
+            res = await _create_outlook_event(args, booking_user, supabase, context=context)
             if context and context.get("source") == "widget" and "error" not in res:
                 await _process_widget_booking(args, booking_user, supabase, res, context)
             return res

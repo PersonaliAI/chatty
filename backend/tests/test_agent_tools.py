@@ -101,6 +101,29 @@ def test_parse_iso_raises_on_garbage():
 
 
 # ---------------------------------------------------------------------------
+# _format_invitation_time
+# ---------------------------------------------------------------------------
+
+
+def test_format_invitation_time_formats_simple_time_with_bracketed_timezone():
+    res = at._format_invitation_time("2026-09-10T10:00:00+05:30", "Asia/Colombo")
+    assert res == "Thursday, September 10, 2026 at 10:00 AM (Asia/Colombo)"
+    assert "GMT" not in res
+
+
+def test_format_invitation_time_converts_utc_to_visitor_timezone():
+    # 04:30 UTC is 10:00 AM in Asia/Colombo (+5:30)
+    res = at._format_invitation_time("2026-09-10T04:30:00Z", "Asia/Colombo")
+    assert res == "Thursday, September 10, 2026 at 10:00 AM (Asia/Colombo)"
+
+
+def test_format_invitation_time_avoids_double_brackets():
+    res1 = at._format_invitation_time("Thursday, September 10, 2026 at 10:00 AM (Asia/Colombo)", "Asia/Colombo")
+    assert res1 == "Thursday, September 10, 2026 at 10:00 AM (Asia/Colombo)"
+    assert "((" not in res1
+
+
+# ---------------------------------------------------------------------------
 # _create_calendar_event
 # ---------------------------------------------------------------------------
 
@@ -127,6 +150,23 @@ def test_create_calendar_event_delegates_to_google_integrations(monkeypatch):
     assert kwargs["summary"] == "Demo Meeting with Jane"
     assert kwargs["attendees"] == ["jane@example.com"]
     assert kwargs["timezone_override"] == "America/New_York"
+
+
+def test_create_calendar_event_uses_visitor_timezone_from_context(monkeypatch):
+    create_mock = AsyncMock(return_value={"id": "evt1"})
+    monkeypatch.setattr(at.g, "create_calendar_event", create_mock)
+    user = {"google_access_token": "tok"}
+    args = {
+        "summary": "Demo Meeting", "start": "2026-09-10T10:00:00",
+        "end": "2026-09-10T10:30:00", "attendees": ["jane@example.com"],
+        "_owner_timezone": "UTC",
+    }
+    context = {"visitor_timezone": "Asia/Colombo"}
+    result = asyncio.run(at._create_calendar_event(args, user, MagicMock(), context=context))
+    assert result["id"] == "evt1"
+    _, kwargs = create_mock.call_args
+    assert kwargs["timezone_override"] == "Asia/Colombo"
+    assert "Time: Thursday, September 10, 2026 at 10:00 AM (Asia/Colombo)" in kwargs["description"]
 
 
 # ---------------------------------------------------------------------------
