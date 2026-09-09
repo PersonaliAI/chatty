@@ -118,8 +118,11 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
         "content": req.text, "sender": "human",
     }).execute())
     now_iso = datetime.now(timezone.utc).isoformat()
-    # Check if first_responded_at is already set
-    sess_res = await run_db(lambda: supabase.table("chatty_sessions").select("first_responded_at").eq("bot_id", req.bot_id).eq("session_id", req.session_id).limit(1).execute())
+    # Check if first_responded_at is already set and check for email ticket
+    sess_res = await run_db(lambda: supabase.table("chatty_sessions")
+        .select("first_responded_at, channel, visitor_email, visitor_name, subject, last_inbound_message_id")
+        .eq("bot_id", req.bot_id).eq("session_id", req.session_id)
+        .limit(1).execute())
     upd: dict[str, Any] = {
         "ai_paused": True, "needs_attention": False, "last_message": req.text[:300],
         "last_message_at": now_iso,
@@ -127,6 +130,29 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
     if sess_res.data and not sess_res.data[0].get("first_responded_at"):
         upd["first_responded_at"] = now_iso
     await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+
+    # Outbound Email Threading: if session is from email channel or has customer email, deliver reply via email
+    if sess_res.data:
+        s_row = sess_res.data[0]
+        v_email = s_row.get("visitor_email")
+        if (s_row.get("channel") == "email" or v_email) and v_email:
+            try:
+                bot_name_res = await run_db(lambda: supabase.table("chatty_bots").select("name").eq("id", req.bot_id).limit(1).execute())
+                bot_name = bot_name_res.data[0]["name"] if bot_name_res.data else "Chatty Support"
+                agent_name = (user.get("user_metadata") or {}).get("name") or (user.get("email", "").split("@")[0] if user.get("email") else "Support Agent")
+                from app.services.email_service import send_ticket_reply_email
+                asyncio.create_task(send_ticket_reply_email(
+                    to_email=v_email,
+                    subject=s_row.get("subject") or "Support Request",
+                    body_text=req.text,
+                    session_id=req.session_id,
+                    bot_name=bot_name,
+                    agent_name=agent_name,
+                    in_reply_to_message_id=s_row.get("last_inbound_message_id"),
+                ))
+            except Exception as e:
+                logger.warning("Failed to enqueue outbound ticket reply email: %s", e)
+
     return {"success": True}
 
 

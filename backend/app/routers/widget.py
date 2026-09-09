@@ -147,6 +147,12 @@ async def widget_chat(
             background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
         except Exception:
             pass
+        try:
+            from app.services.slack_escalation import send_slack_escalation_alert
+            priority_val = "urgent" if "Negative" in esc else "high"
+            background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, esc, priority_val, text)
+        except Exception:
+            pass
 
     # 3. Save user message
     try:
@@ -272,6 +278,12 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         try:
             from app.routers.admin import _dispatch_ticket_to_agent
             background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
+        except Exception:
+            pass
+        try:
+            from app.services.slack_escalation import send_slack_escalation_alert
+            priority_val = "urgent" if "Negative" in esc else "high"
+            background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, esc, priority_val, text)
         except Exception:
             pass
 

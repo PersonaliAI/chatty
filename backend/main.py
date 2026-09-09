@@ -719,10 +719,12 @@ from app.routers import team as _router_team  # noqa: E402
 from app.routers import voice as _router_voice  # noqa: E402
 from app.routers import webhooks as _router_webhooks  # noqa: E402
 from app.routers import widget as _router_widget  # noqa: E402
+from app.routers import email_inbound as _router_email_inbound  # noqa: E402
 
 app.include_router(_router_widget.router)
 app.include_router(_router_voice.router)
 app.include_router(_router_webhooks.router)
+app.include_router(_router_email_inbound.router)
 app.include_router(_router_team.router)
 app.include_router(_router_admin.router)
 app.include_router(_router_bots.router)
