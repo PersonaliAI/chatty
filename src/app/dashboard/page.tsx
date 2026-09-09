@@ -6067,8 +6067,8 @@ export default function Dashboard() {
               />
 
               {/* Add Source Card */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
-                <div className="p-1.5 border-b border-neutral-100 dark:border-neutral-800 flex gap-1 overflow-x-auto">
+              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <div className="p-1.5 border-b border-neutral-100 dark:border-neutral-800 flex gap-1 overflow-x-auto rounded-t-2xl">
                   {[
                     { id: "text", label: "Text / FAQ", icon: Type },
                     { id: "url", label: "Website URL", icon: Globe },
@@ -6331,13 +6331,14 @@ export default function Dashboard() {
                       {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
                       {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
                       <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 w-40">
+                        <div className="flex items-center gap-2 min-w-[200px]">
                           <RefreshCw className="size-3 text-neutral-400 shrink-0" />
                           <ModernSelect
                             value={driveSyncSchedule}
                             options={syncScheduleOptions}
                             onChange={(v) => handleSetDriveSyncSchedule("gdrive", v as "off" | "daily" | "weekly" | "monthly")}
                             size="sm"
+                            className="min-w-[165px]"
                           />
                         </div>
                         <button
@@ -6386,13 +6387,14 @@ export default function Dashboard() {
                       {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
                       {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
                       <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 w-40">
+                        <div className="flex items-center gap-2 min-w-[200px]">
                           <RefreshCw className="size-3 text-neutral-400 shrink-0" />
                           <ModernSelect
                             value={onedriveSyncSchedule}
                             options={syncScheduleOptions}
                             onChange={(v) => handleSetDriveSyncSchedule("onedrive", v as "off" | "daily" | "weekly" | "monthly")}
                             size="sm"
+                            className="min-w-[165px]"
                           />
                         </div>
                         <button
@@ -6466,8 +6468,8 @@ export default function Dashboard() {
               )}
 
               {/* Sources List */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-3 flex-wrap">
+              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-3 flex-wrap rounded-t-2xl">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
                     {t("training_data")}
                     <span className="text-neutral-300 dark:text-neutral-600 normal-case">({sources.length})</span>
@@ -6594,7 +6596,7 @@ export default function Dashboard() {
                                     <button
                                       type="button"
                                       onClick={() => setCrawlDropdownOpen(crawlDropdownOpen === s.id ? null : s.id)}
-                                      className={`flex items-center gap-1 text-[10px] font-semibold pl-2.5 pr-2 py-1 rounded-full border cursor-pointer transition-colors ${
+                                      className={`flex items-center gap-1 text-[10px] font-semibold pl-2.5 pr-2 py-1 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${
                                         s.crawlSchedule && s.crawlSchedule !== "off"
                                           ? "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400"
                                           : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400"
@@ -6607,7 +6609,7 @@ export default function Dashboard() {
                                       <ChevronDown className={`size-3 transition-transform ${crawlDropdownOpen === s.id ? "rotate-180" : ""}`} />
                                     </button>
                                     {crawlDropdownOpen === s.id && (
-                                      <div className="absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-lg overflow-hidden">
+                                      <div className="absolute left-0 top-full mt-1 z-50 min-w-[170px] w-max rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl overflow-hidden">
                                         {([
                                           { value: "off", label: "No auto re-crawl" },
                                           { value: "daily", label: "Re-crawl daily" },
@@ -6618,7 +6620,7 @@ export default function Dashboard() {
                                             key={opt.value}
                                             type="button"
                                             onClick={() => { handleSetCrawlSchedule(s.id, opt.value); setCrawlDropdownOpen(null); }}
-                                            className={`w-full text-left px-3 py-2 text-[11px] font-medium transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800 ${
+                                            className={`w-full text-left px-3 py-2 text-[11px] font-medium transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800 whitespace-nowrap ${
                                               (s.crawlSchedule || "off") === opt.value
                                                 ? "text-orange-500 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30"
                                                 : "text-neutral-700 dark:text-neutral-300"

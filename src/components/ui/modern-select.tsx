@@ -84,6 +84,22 @@ export function ModernSelect({
     }
   }, [open, searchable]);
 
+  const [openUpwards, setOpenUpwards] = useState(false);
+
+  const toggleOpen = () => {
+    if (disabled) return;
+    if (!open && rootRef.current) {
+      const rect = rootRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 250 && rect.top > 200) {
+        setOpenUpwards(true);
+      } else {
+        setOpenUpwards(false);
+      }
+    }
+    setOpen((o) => !o);
+  };
+
   const choose = (v: string) => {
     onChange(v);
     setOpen(false);
@@ -96,14 +112,14 @@ export function ModernSelect({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         className={`w-full flex items-center justify-between gap-2 ${pad} bg-neutral-50 dark:bg-neutral-950 border rounded-lg text-left transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
           open
             ? "border-[#f97316]/60 ring-2 ring-[#f97316]/15"
             : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-350 dark:hover:border-neutral-700"
         }`}
       >
-        <span className={`flex items-center gap-2 truncate ${selected ? "text-neutral-800 dark:text-neutral-200" : "text-neutral-400"}`}>
+        <span className={`flex items-center gap-2 whitespace-nowrap min-w-0 ${selected ? "text-neutral-800 dark:text-neutral-200" : "text-neutral-400"}`}>
           {selected?.icon}
           <span className="truncate">{selected ? selected.label : placeholder}</span>
         </span>
@@ -113,11 +129,13 @@ export function ModernSelect({
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            initial={{ opacity: 0, y: openUpwards ? 4 : -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            exit={{ opacity: 0, y: openUpwards ? 4 : -4, scale: 0.98 }}
             transition={{ duration: 0.13, ease: "easeOut" }}
-            className={`absolute z-50 mt-1.5 w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl overflow-hidden ${
+            className={`absolute z-[9999] ${
+              openUpwards ? "bottom-full mb-1.5" : "top-full mt-1.5"
+            } min-w-full w-max max-w-[340px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl overflow-hidden ${
               align === "right" ? "right-0" : "left-0"
             }`}
           >
@@ -163,18 +181,18 @@ export function ModernSelect({
                     disabled={o.disabled}
                     onMouseEnter={() => !o.disabled && setActive(i)}
                     onClick={() => !o.disabled && choose(o.value)}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors ${
+                    className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors whitespace-nowrap ${
                       o.disabled ? "opacity-45 cursor-not-allowed" : "cursor-pointer"
                     } ${i === active && !o.disabled ? "bg-neutral-100 dark:bg-neutral-800" : ""} ${
                       isSel ? "text-[#f97316] font-semibold" : "text-neutral-700 dark:text-neutral-300"
                     }`}
                   >
-                    <span className="flex items-center gap-2 truncate">
+                    <span className="flex items-center gap-2 whitespace-nowrap">
                       {o.icon}
-                      <span className="truncate">{o.label}</span>
-                      {o.hint && <span className="text-[10px] text-neutral-400">{o.hint}</span>}
+                      <span className="whitespace-nowrap font-medium">{o.label}</span>
+                      {o.hint && <span className="text-[10px] text-neutral-400 ml-1">({o.hint})</span>}
                     </span>
-                    {isSel && <Check className="size-3.5 shrink-0" />}
+                    {isSel && <Check className="size-3.5 text-[#f97316] shrink-0" />}
                   </button>
                 );
               })}
