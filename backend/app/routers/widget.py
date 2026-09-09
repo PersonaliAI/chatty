@@ -142,6 +142,11 @@ async def widget_chat(
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
+        try:
+            from app.routers.admin import _dispatch_ticket_to_agent
+            background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
+        except Exception:
+            pass
 
     # 3. Save user message
     try:
@@ -262,6 +267,11 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 upd["priority"] = "high"
             await run_db(lambda: supabase.table("chatty_sessions").update(upd)
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
+        except Exception:
+            pass
+        try:
+            from app.routers.admin import _dispatch_ticket_to_agent
+            background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
         except Exception:
             pass
 

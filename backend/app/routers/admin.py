@@ -32,6 +32,10 @@ from app.schemas.kb import (
     CategoryCreateRequest,
     CategoryUpdateRequest,
 )
+from app.schemas.routing import (
+    AgentPresenceUpdateRequest,
+    RoutingSettingsUpdateRequest,
+)
 
 def _slugify(text: str) -> str:
     s = text.lower().strip()
@@ -913,4 +917,348 @@ async def admin_get_kb_analytics(bot_id: str, user: dict[str, Any] = Depends(req
         "top_articles": top_articles,
         "content_gaps": content_gaps,
     }
+
+
+# ---------------------------------------------------------------------------
+# PILLAR 3: OMNICHANNEL ROUTING, AGENT PRESENCE & LIVE QUEUE (Zendesk Level)
+# ---------------------------------------------------------------------------
+
+async def _dispatch_ticket_to_agent(bot_id: str, session_id: str) -> dict[str, Any]:
+    """Auto-dispatch an unassigned or escalated ticket to an online agent
+    respecting capacity rules and routing algorithms (spare_capacity or round_robin)."""
+    try:
+        # 1. Fetch routing settings
+        try:
+            set_res = await run_db(lambda: supabase.table("chatty_routing_settings").select("*").eq("bot_id", bot_id).execute())
+            settings = set_res.data[0] if set_res.data else {
+                "routing_enabled": True,
+                "algorithm": "spare_capacity",
+                "default_capacity": 5,
+                "offline_fallback": "unassigned_queue",
+            }
+        except Exception:
+            settings = {
+                "routing_enabled": True,
+                "algorithm": "spare_capacity",
+                "default_capacity": 5,
+                "offline_fallback": "unassigned_queue",
+            }
+
+        if not settings.get("routing_enabled", True):
+            return {"dispatched": False, "reason": "routing_disabled"}
+
+        algorithm = settings.get("algorithm") or "spare_capacity"
+        offline_fallback = settings.get("offline_fallback") or "unassigned_queue"
+
+        # 2. Fetch online agents
+        pres_res = await run_db(lambda: supabase.table("chatty_agent_presence")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("status", "online")
+            .execute())
+        online_agents = pres_res.data or []
+
+        if not online_agents:
+            return {"dispatched": False, "reason": "no_online_agents", "fallback": offline_fallback}
+
+        # 3. Calculate current workload for each online agent
+        open_tickets_res = await run_db(lambda: supabase.table("chatty_sessions")
+            .select("assigned_agent_email")
+            .eq("bot_id", bot_id)
+            .in_("status", ["open", "pending"])
+            .execute())
+
+        agent_workload: dict[str, int] = {}
+        for s in (open_tickets_res.data or []):
+            em = s.get("assigned_agent_email")
+            if em:
+                agent_workload[em.lower()] = agent_workload.get(em.lower(), 0) + 1
+
+        # Filter agents with spare capacity
+        eligible: list[dict[str, Any]] = []
+        for ag in online_agents:
+            email = (ag.get("agent_email") or "").lower()
+            active = agent_workload.get(email, 0)
+            cap = ag.get("max_capacity") or settings.get("default_capacity", 5)
+            spare = cap - active
+            if spare > 0:
+                eligible.append({
+                    **ag,
+                    "active_count": active,
+                    "spare_capacity": spare,
+                })
+
+        if not eligible:
+            return {"dispatched": False, "reason": "all_agents_at_capacity", "fallback": offline_fallback}
+
+        # 4. Pick best agent according to algorithm
+        if algorithm == "round_robin":
+            # Sort by last_assigned_at ASC (oldest assignment first)
+            eligible.sort(key=lambda a: a.get("last_assigned_at") or "1970-01-01")
+        else:
+            # Highest spare capacity first
+            eligible.sort(key=lambda a: a.get("spare_capacity", 0), reverse=True)
+
+        chosen = eligible[0]
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # 5. Assign ticket and stamp last_assigned_at
+        await run_db(lambda: supabase.table("chatty_sessions").update({
+            "assigned_agent_email": chosen["agent_email"],
+            "assigned_agent_name": chosen["agent_name"],
+        }).eq("session_id", session_id).eq("bot_id", bot_id).execute())
+
+        try:
+            await run_db(lambda: supabase.table("chatty_agent_presence").update({
+                "last_assigned_at": now_iso,
+            }).eq("id", chosen["id"]).execute())
+        except Exception:
+            pass
+
+        return {
+            "dispatched": True,
+            "assigned_agent_email": chosen["agent_email"],
+            "assigned_agent_name": chosen["agent_name"],
+            "algorithm": algorithm,
+        }
+    except Exception as e:
+        logger.warning("Ticket auto-dispatch failed: %s", e)
+        return {"dispatched": False, "reason": str(e)}
+
+
+@router.get("/api/admin/routing/presence")
+async def admin_get_routing_presence(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Fetch live presence, active workloads, and capacity for all team agents."""
+    await _verify_bot_access(bot_id, user)
+
+    user_id = user.get("id")
+    email = user.get("email") or ""
+    name = (user.get("user_metadata") or {}).get("name") or (email.split("@")[0] if email else "Agent")
+    default_my_presence = {
+        "bot_id": bot_id,
+        "user_id": user_id,
+        "agent_email": email,
+        "agent_name": name,
+        "status": "online",
+        "max_capacity": 5,
+        "active_tickets_count": 0,
+    }
+
+    try:
+        # 1. Fetch presence records
+        pres_res = await run_db(lambda: supabase.table("chatty_agent_presence")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .order("status")
+            .order("agent_name")
+            .execute())
+        presence_list = pres_res.data or []
+
+        # 2. Fetch active workloads
+        open_tickets_res = await run_db(lambda: supabase.table("chatty_sessions")
+            .select("assigned_agent_email")
+            .eq("bot_id", bot_id)
+            .in_("status", ["open", "pending"])
+            .execute())
+        workload: dict[str, int] = {}
+        for s in (open_tickets_res.data or []):
+            em = s.get("assigned_agent_email")
+            if em:
+                workload[em.lower()] = workload.get(em.lower(), 0) + 1
+
+        for p in presence_list:
+            p_email = (p.get("agent_email") or "").lower()
+            p["active_tickets_count"] = workload.get(p_email, 0)
+
+        # 3. Find current user's presence
+        my_presence = next((p for p in presence_list if p.get("user_id") == user_id), None)
+
+        if not my_presence and user_id:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            init_row = {
+                "bot_id": bot_id,
+                "user_id": user_id,
+                "agent_email": email,
+                "agent_name": name,
+                "status": "online",
+                "max_capacity": 5,
+                "last_assigned_at": now_iso,
+                "last_seen_at": now_iso,
+                "updated_at": now_iso,
+            }
+            try:
+                res_init = await run_db(lambda: supabase.table("chatty_agent_presence").insert(init_row).execute())
+                if res_init.data:
+                    my_presence = {**res_init.data[0], "active_tickets_count": workload.get(email.lower(), 0)}
+                    presence_list.append(my_presence)
+            except Exception:
+                my_presence = default_my_presence
+                presence_list.append(my_presence)
+
+        return {
+            "agents": presence_list if presence_list else [default_my_presence],
+            "my_presence": my_presence or default_my_presence,
+        }
+    except Exception as e:
+        logger.warning("Failed to fetch routing presence (migration may be pending): %s", e)
+        return {
+            "agents": [default_my_presence],
+            "my_presence": default_my_presence,
+        }
+
+
+@router.post("/api/admin/routing/status")
+async def admin_set_routing_status(req: AgentPresenceUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Set current user's live presence status (online, away, busy, offline)."""
+    await _verify_bot_access(req.bot_id, user)
+    user_id = user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing user id")
+
+    email = user.get("email") or ""
+    name = (user.get("user_metadata") or {}).get("name") or (email.split("@")[0] if email else "Agent")
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    updates: dict[str, Any] = {
+        "status": req.status,
+        "last_seen_at": now_iso,
+        "updated_at": now_iso,
+    }
+    if req.max_capacity is not None and req.max_capacity > 0:
+        updates["max_capacity"] = req.max_capacity
+
+    try:
+        existing = await run_db(lambda: supabase.table("chatty_agent_presence")
+            .select("id")
+            .eq("bot_id", req.bot_id)
+            .eq("user_id", user_id)
+            .execute())
+
+        if existing.data:
+            res = await run_db(lambda: supabase.table("chatty_agent_presence")
+                .update(updates)
+                .eq("id", existing.data[0]["id"])
+                .execute())
+        else:
+            row = {
+                "bot_id": req.bot_id,
+                "user_id": user_id,
+                "agent_email": email,
+                "agent_name": name,
+                "status": req.status,
+                "max_capacity": req.max_capacity or 5,
+                "last_assigned_at": now_iso,
+                "last_seen_at": now_iso,
+                "updated_at": now_iso,
+            }
+            res = await run_db(lambda: supabase.table("chatty_agent_presence").insert(row).execute())
+
+        return {"success": True, "presence": res.data[0] if res.data else updates}
+    except Exception as e:
+        logger.warning("Failed to update routing status (migration may be pending): %s", e)
+        return {"success": True, "presence": {**updates, "agent_email": email, "agent_name": name}}
+
+
+
+
+@router.get("/api/admin/routing/settings")
+async def admin_get_routing_settings(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Get bot omnichannel routing configuration."""
+    await _verify_bot_access(bot_id, user)
+    default_settings = {
+        "bot_id": bot_id,
+        "routing_enabled": True,
+        "algorithm": "spare_capacity",
+        "default_capacity": 5,
+        "offline_fallback": "unassigned_queue",
+    }
+    try:
+        res = await run_db(lambda: supabase.table("chatty_routing_settings").select("*").eq("bot_id", bot_id).execute())
+        if res.data:
+            return {"settings": res.data[0]}
+        return {"settings": default_settings}
+    except Exception as e:
+        logger.warning("Failed to get routing settings (migration may be pending): %s", e)
+        return {"settings": default_settings}
+
+
+@router.patch("/api/admin/routing/settings")
+async def admin_update_routing_settings(req: RoutingSettingsUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Update bot omnichannel routing configuration."""
+    await _verify_bot_access(req.bot_id, user)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    updates: dict[str, Any] = {"updated_at": now_iso}
+    if req.routing_enabled is not None:
+        updates["routing_enabled"] = req.routing_enabled
+    if req.algorithm is not None:
+        updates["algorithm"] = req.algorithm
+    if req.default_capacity is not None and req.default_capacity > 0:
+        updates["default_capacity"] = req.default_capacity
+    if req.offline_fallback is not None:
+        updates["offline_fallback"] = req.offline_fallback
+
+    try:
+        existing = await run_db(lambda: supabase.table("chatty_routing_settings").select("id").eq("bot_id", req.bot_id).execute())
+        if existing.data:
+            res = await run_db(lambda: supabase.table("chatty_routing_settings").update(updates).eq("id", existing.data[0]["id"]).execute())
+        else:
+            row = {
+                "bot_id": req.bot_id,
+                "routing_enabled": req.routing_enabled if req.routing_enabled is not None else True,
+                "algorithm": req.algorithm or "spare_capacity",
+                "default_capacity": req.default_capacity or 5,
+                "offline_fallback": req.offline_fallback or "unassigned_queue",
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            }
+            res = await run_db(lambda: supabase.table("chatty_routing_settings").insert(row).execute())
+
+        return {"settings": res.data[0] if res.data else updates}
+    except Exception as e:
+        logger.warning("Failed to update routing settings (migration may be pending): %s", e)
+        return {"settings": updates}
+
+
+@router.post("/api/admin/routing/dispatch-queue")
+async def admin_dispatch_routing_queue(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Dispatch all unassigned open/pending tickets in the queue to online agents with capacity."""
+    await _verify_bot_access(bot_id, user)
+
+    try:
+        # Find unassigned sessions
+        res_sessions = await run_db(lambda: supabase.table("chatty_sessions")
+            .select("session_id")
+            .eq("bot_id", bot_id)
+            .in_("status", ["open", "pending"])
+            .is_("assigned_agent_email", "null")
+            .order("created_at")
+            .limit(20)
+            .execute())
+
+        sessions = res_sessions.data or []
+        dispatched_count = 0
+        results = []
+
+        for s in sessions:
+            sid = s["session_id"]
+            res = await _dispatch_ticket_to_agent(bot_id, sid)
+            if res.get("dispatched"):
+                dispatched_count += 1
+                results.append({"session_id": sid, "assigned_to": res.get("assigned_agent_email")})
+
+        return {
+            "unassigned_found": len(sessions),
+            "dispatched_count": dispatched_count,
+            "results": results,
+        }
+    except Exception as e:
+        logger.warning("Failed to dispatch routing queue: %s", e)
+        return {
+            "unassigned_found": 0,
+            "dispatched_count": 0,
+            "results": [],
+            "error": str(e)
+        }
+
 
