@@ -35,6 +35,8 @@ import {
   Search,
   Link2,
   ExternalLink,
+  Users,
+  Radio,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -185,6 +187,13 @@ const STATUS_CONFIG = {
   },
 } as const;
 
+const PRESENCE_STATUS_CONFIG = {
+  online: { label: "Online", dot: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30" },
+  away: { label: "Away", dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10 border-amber-500/30" },
+  busy: { label: "Busy", dot: "bg-red-500", text: "text-red-600 dark:text-red-400", bg: "bg-red-500/10 border-red-500/30" },
+  offline: { label: "Offline", dot: "bg-neutral-400", text: "text-neutral-500 dark:text-neutral-400", bg: "bg-neutral-500/10 border-neutral-500/30" },
+} as const;
+
 function formatTimeRemaining(ms: number): string {
   const abs = Math.abs(ms);
   const minutes = Math.floor(abs / 60000);
@@ -292,12 +301,33 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Helpdesk Engine State ──
-  const [selectedStatusTab, setSelectedStatusTab] = useState<"all" | "open" | "pending" | "resolved" | "closed">("open");
+  const [selectedStatusTab, setSelectedStatusTab] = useState<"all" | "unassigned" | "open" | "pending" | "resolved" | "closed">("open");
   const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<string>("all");
   const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<string>("all");
   const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
   const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
+
+  // ── Omnichannel Routing & Presence State (Pillar 3) ──
+  const [myPresence, setMyPresence] = useState<{
+    status: "online" | "away" | "busy" | "offline";
+    max_capacity: number;
+    active_tickets_count: number;
+  }>({
+    status: "online",
+    max_capacity: 5,
+    active_tickets_count: 0,
+  });
+  const [teamPresence, setTeamPresence] = useState<Array<{
+    agent_email: string;
+    agent_name: string;
+    status: "online" | "away" | "busy" | "offline";
+    max_capacity: number;
+    active_tickets_count: number;
+  }>>([]);
+  const [presenceMenuOpen, setPresenceMenuOpen] = useState(false);
+  const [dispatchingQueue, setDispatchingQueue] = useState(false);
+  const [showRoster, setShowRoster] = useState(false);
 
   // Assignees & Current Agent
   const [assignees, setAssignees] = useState<Assignee[]>([]);
@@ -513,10 +543,85 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     } catch {}
   }, [botId, fetchBackend]);
 
+  const loadPresence = useCallback(async () => {
+    try {
+      const res = await fetchBackend(`/api/admin/routing/presence?bot_id=${botId}`);
+      if (res.ok) {
+        const d = await res.json();
+        if (d.my_presence) {
+          setMyPresence({
+            status: d.my_presence.status || "online",
+            max_capacity: d.my_presence.max_capacity || 5,
+            active_tickets_count: d.my_presence.active_tickets_count || 0,
+          });
+        }
+        if (d.agents) {
+          setTeamPresence(d.agents);
+        }
+      }
+    } catch {}
+  }, [botId, fetchBackend]);
+
+  const updatePresenceStatus = async (status: "online" | "away" | "busy" | "offline") => {
+    setMyPresence((prev) => ({ ...prev, status }));
+    setPresenceMenuOpen(false);
+    try {
+      const res = await fetchBackend("/api/admin/routing/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, status, max_capacity: myPresence.max_capacity }),
+      });
+      if (res.ok) {
+        showToast(`Status updated to ${capitalize(status)}`, "success");
+        loadPresence();
+      }
+    } catch {
+      showToast("Failed to update status", "error");
+    }
+  };
+
+  const updateMaxCapacity = async (cap: number) => {
+    if (cap < 1 || cap > 50) return;
+    setMyPresence((prev) => ({ ...prev, max_capacity: cap }));
+    try {
+      await fetchBackend("/api/admin/routing/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, status: myPresence.status, max_capacity: cap }),
+      });
+      showToast(`Max capacity updated to ${cap}`, "success");
+      loadPresence();
+    } catch {}
+  };
+
+  const dispatchQueue = async () => {
+    setDispatchingQueue(true);
+    try {
+      const res = await fetchBackend(`/api/admin/routing/dispatch-queue?bot_id=${botId}`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.dispatched_count > 0) {
+          showToast(`Assigned ${data.dispatched_count} ticket${data.dispatched_count === 1 ? "" : "s"} from queue`, "success");
+          loadSessions();
+          loadPresence();
+        } else {
+          showToast(data.unassigned_found > 0 ? "All online agents are at capacity" : "Queue is empty", "error");
+        }
+      }
+    } catch {
+      showToast("Failed to dispatch queue", "error");
+    } finally {
+      setDispatchingQueue(false);
+    }
+  };
+
   useEffect(() => {
     loadSessions();
     loadAssignees();
-  }, [loadSessions, loadAssignees]);
+    loadPresence();
+  }, [loadSessions, loadAssignees, loadPresence]);
 
   useEffect(() => {
     if (selected) {
@@ -529,14 +634,15 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Live polling every 5s
+  // Live polling every 5s for sessions, 15s for presence
   useEffect(() => {
     const id = setInterval(() => {
       loadSessions();
+      loadPresence();
       if (selected) loadMessages(selected);
     }, 5000);
     return () => clearInterval(id);
-  }, [selected, loadSessions, loadMessages]);
+  }, [selected, loadSessions, loadMessages, loadPresence]);
 
   // ── Session Update (Helpdesk Lifecycle Engine) ──
   const updateSession = useCallback(async (sid: string, patch: Partial<Session>) => {
@@ -782,6 +888,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   // ── Ticket Counters & Filtering ──
   const ticketCounts = {
     all: sessions.length,
+    unassigned: sessions.filter((s) => !s.assigned_agent_email && (s.status || "open") !== "resolved" && (s.status || "open") !== "closed").length,
     open: sessions.filter((s) => (s.status || "open") === "open").length,
     pending: sessions.filter((s) => s.status === "pending").length,
     resolved: sessions.filter((s) => s.status === "resolved").length,
@@ -790,7 +897,11 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
   const filteredSessions = sessions.filter((s) => {
     const sStatus = s.status || "open";
-    if (selectedStatusTab !== "all" && sStatus !== selectedStatusTab) {
+    if (selectedStatusTab === "unassigned") {
+      if (s.assigned_agent_email || sStatus === "resolved" || sStatus === "closed") {
+        return false;
+      }
+    } else if (selectedStatusTab !== "all" && sStatus !== selectedStatusTab) {
       return false;
     }
 
@@ -831,39 +942,198 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-      {/* ── Sessions / Tickets List Pane ── */}
-      <div className="lg:col-span-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col max-h-[640px]">
-        {/* Ticket Lifecycle Status Tabs */}
-        <div className="flex border-b border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/40 text-[11px] font-semibold select-none">
-          {[
-            { key: "all", label: "All", count: ticketCounts.all },
-            { key: "open", label: "Open", count: ticketCounts.open, dot: "bg-emerald-500" },
-            { key: "pending", label: "Pending", count: ticketCounts.pending, dot: "bg-amber-500" },
-            { key: "resolved", label: "Resolved", count: ticketCounts.resolved, dot: "bg-purple-500" },
-            { key: "closed", label: "Closed", count: ticketCounts.closed, dot: "bg-neutral-400" },
-          ].map((tab) => (
+    <div className="space-y-4">
+      {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar (Zendesk Level) ── */}
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        {/* Left: Agent Presence Status & Capacity */}
+        <div className="flex items-center gap-3">
+          <div className="relative">
             <button
-              key={tab.key}
-              onClick={() => setSelectedStatusTab(tab.key as any)}
-              className={`flex-1 py-2 px-1 flex items-center justify-center gap-1 border-b-2 transition-all cursor-pointer ${
-                selectedStatusTab === tab.key
-                  ? "border-[#f97316] text-neutral-900 dark:text-neutral-100 font-bold bg-white dark:bg-neutral-900"
-                  : "border-transparent text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+              onClick={() => setPresenceMenuOpen(!presenceMenuOpen)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                PRESENCE_STATUS_CONFIG[myPresence.status]?.bg || "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
               }`}
             >
-              {tab.dot && <span className={`size-1.5 rounded-full shrink-0 ${tab.dot}`} />}
-              <span className="truncate">{tab.label}</span>
-              <span className={`text-[9px] px-1 py-0.2 rounded-full font-mono shrink-0 ${
-                selectedStatusTab === tab.key
-                  ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 font-bold"
-                  : "bg-neutral-200/50 dark:bg-neutral-800/40 text-neutral-400"
-              }`}>
-                {tab.count}
+              <span className={`size-2.5 rounded-full shrink-0 ${PRESENCE_STATUS_CONFIG[myPresence.status]?.dot || "bg-neutral-400"} animate-pulse`} />
+              <span className={PRESENCE_STATUS_CONFIG[myPresence.status]?.text || "text-neutral-700 dark:text-neutral-300"}>
+                {PRESENCE_STATUS_CONFIG[myPresence.status]?.label || "Online"}
               </span>
+              <ChevronDown className="size-3.5 opacity-60 ml-0.5" />
             </button>
-          ))}
+
+            {/* Presence Dropdown Popover */}
+            {presenceMenuOpen && (
+              <div className="absolute left-0 top-full mt-1.5 w-52 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 p-1.5 space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 py-1">Set Your Status</div>
+                {(["online", "away", "busy", "offline"] as const).map((st) => {
+                  const cfg = PRESENCE_STATUS_CONFIG[st];
+                  return (
+                    <button
+                      key={st}
+                      onClick={() => updatePresenceStatus(st)}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                        myPresence.status === st
+                          ? "bg-neutral-100 dark:bg-neutral-800 font-semibold text-neutral-900 dark:text-white"
+                          : "hover:bg-neutral-50 dark:hover:bg-neutral-800/60 text-neutral-600 dark:text-neutral-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`size-2 rounded-full ${cfg.dot}`} />
+                        <span>{cfg.label}</span>
+                      </div>
+                      {myPresence.status === st && <Check className="size-3.5 text-emerald-500" />}
+                    </button>
+                  );
+                })}
+                <div className="border-t border-neutral-100 dark:border-neutral-800 my-1 pt-1.5 px-2">
+                  <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">
+                    <span>Max Capacity:</span>
+                    <span className="font-bold text-neutral-700 dark:text-neutral-200">{myPresence.max_capacity} tickets</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="15"
+                    value={myPresence.max_capacity}
+                    onChange={(e) => updateMaxCapacity(parseInt(e.target.value))}
+                    className="w-full h-1.5 accent-[#f97316] bg-neutral-200 dark:bg-neutral-700 rounded-lg cursor-pointer"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Capacity Meter */}
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl text-xs">
+            <span className="text-neutral-500 dark:text-neutral-400">Capacity:</span>
+            <span className="font-mono font-bold text-neutral-800 dark:text-neutral-200">
+              {myPresence.active_tickets_count} / {myPresence.max_capacity}
+            </span>
+            <div className="w-16 h-1.5 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden shrink-0">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  myPresence.active_tickets_count >= myPresence.max_capacity
+                    ? "bg-red-500"
+                    : myPresence.active_tickets_count >= myPresence.max_capacity * 0.8
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
+                }`}
+                style={{
+                  width: `${Math.min(100, (myPresence.active_tickets_count / Math.max(1, myPresence.max_capacity)) * 100)}%`,
+                }}
+              />
+            </div>
+          </div>
         </div>
+
+        {/* Middle: Team Presence Roster */}
+        <div className="relative flex items-center gap-2">
+          <button
+            onClick={() => setShowRoster(!showRoster)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors text-xs font-medium cursor-pointer"
+          >
+            <Users className="size-3.5 text-neutral-400" />
+            <span>Team Roster</span>
+            <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-1.5 py-0.2 rounded-full text-[10px]">
+              {teamPresence.filter((a) => a.status === "online").length} Online
+            </span>
+          </button>
+
+          {/* Roster Popover */}
+          {showRoster && (
+            <div className="absolute right-0 sm:left-0 top-full mt-1.5 w-72 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 p-2 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-bold text-neutral-500 dark:text-neutral-400 px-1 border-b border-neutral-100 dark:border-neutral-800 pb-1.5">
+                <span>Agent Presence & Load</span>
+                <span>Active / Max</span>
+              </div>
+              <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
+                {teamPresence.map((ag, idx) => {
+                  const cfg = PRESENCE_STATUS_CONFIG[ag.status as keyof typeof PRESENCE_STATUS_CONFIG] || PRESENCE_STATUS_CONFIG.offline;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-950/60 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`size-2 rounded-full shrink-0 ${cfg.dot}`} />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-neutral-800 dark:text-neutral-200 truncate text-[11px]">{ag.agent_name || ag.agent_email}</p>
+                          <p className="text-[10px] text-neutral-400 capitalize">{cfg.label}</p>
+                        </div>
+                      </div>
+                      <span className="font-mono text-[11px] text-neutral-600 dark:text-neutral-300 font-semibold shrink-0">
+                        {ag.active_tickets_count || 0} / {ag.max_capacity || 5}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Unassigned Queue & Auto-Assign Action */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-400 text-xs font-semibold">
+            <Radio className="size-3 animate-ping shrink-0" />
+            <span>Queue:</span>
+            <span className="font-mono font-bold">{ticketCounts.unassigned}</span>
+            <span className="text-[10px] font-normal opacity-80">unassigned</span>
+          </div>
+
+          <button
+            onClick={dispatchQueue}
+            disabled={dispatchingQueue || ticketCounts.unassigned === 0}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer ${
+              ticketCounts.unassigned > 0
+                ? "bg-[#f97316] text-white hover:bg-[#ea580c] active:scale-95"
+                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed border border-neutral-200 dark:border-neutral-700"
+            }`}
+          >
+            {dispatchingQueue ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Zap className="size-3.5 fill-current" />
+            )}
+            <span>Auto-Assign</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* ── Sessions / Tickets List Pane ── */}
+        <div className="lg:col-span-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col max-h-[640px]">
+          {/* Ticket Lifecycle Status Tabs */}
+          <div className="flex border-b border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/40 text-[11px] font-semibold select-none">
+            {[
+              { key: "all", label: "All", count: ticketCounts.all },
+              { key: "unassigned", label: "Queue", count: ticketCounts.unassigned, dot: "bg-rose-500" },
+              { key: "open", label: "Open", count: ticketCounts.open, dot: "bg-emerald-500" },
+              { key: "pending", label: "Pending", count: ticketCounts.pending, dot: "bg-amber-500" },
+              { key: "resolved", label: "Resolved", count: ticketCounts.resolved, dot: "bg-purple-500" },
+              { key: "closed", label: "Closed", count: ticketCounts.closed, dot: "bg-neutral-400" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setSelectedStatusTab(tab.key as any)}
+                className={`flex-1 py-2 px-1 flex items-center justify-center gap-1 border-b-2 transition-all cursor-pointer ${
+                  selectedStatusTab === tab.key
+                    ? "border-[#f97316] text-neutral-900 dark:text-neutral-100 font-bold bg-white dark:bg-neutral-900"
+                    : "border-transparent text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                }`}
+              >
+                {tab.dot && <span className={`size-1.5 rounded-full shrink-0 ${tab.dot}`} />}
+                <span className="truncate">{tab.label}</span>
+                <span className={`text-[9px] px-1 py-0.2 rounded-full font-mono shrink-0 ${
+                  selectedStatusTab === tab.key
+                    ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 font-bold"
+                    : "bg-neutral-200/50 dark:bg-neutral-800/40 text-neutral-400"
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
 
         {/* Filter Controls & Search */}
         <div className="p-2.5 border-b border-neutral-100 dark:border-neutral-850 space-y-2 bg-white dark:bg-neutral-900">
@@ -1632,6 +1902,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </>
         )}
       </div>
+    </div>
 
       {/* ── Toast Notification ── */}
       {toast && (
