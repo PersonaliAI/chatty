@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <>
-      <PageTitle updated="June 22, 2026">Privacy Policy</PageTitle>
+      <PageTitle updated="September 9, 2026">Privacy Policy</PageTitle>
 
       <P>
         This Privacy Policy explains how PersonaliAI (&ldquo;PersonaliAI&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;)
@@ -42,6 +42,45 @@ export default function PrivacyPage() {
         and we never join your meetings. Zoom OAuth tokens are stored encrypted at rest and are used only to
         create meetings you initiate through bookings.
       </P>
+
+      <H2>Google user data</H2>
+      <P>
+        If you choose to connect your Google account, Chatty requests access to specific Google services
+        (Google Calendar and Google Drive) strictly to provide user-facing features you configure:
+      </P>
+      <UL>
+        <li>
+          <strong>Google Calendar (<code>.../auth/calendar</code>, <code>.../auth/calendar.events</code>):</strong> Used
+          to check host availability (free/busy slots) so website visitors can schedule appointments without double-booking,
+          to create calendar events with Google Meet conference links upon booking confirmation, and to display upcoming
+          customer meetings in the dashboard calendar.
+        </li>
+        <li>
+          <strong>Google Drive (<code>.../auth/drive</code>):</strong> Used only when you explicitly connect and select a Google Drive
+          folder or file in your Knowledge Base settings. Chatty reads the designated documents (such as PDFs, Docs, Sheets, and text files)
+          solely to extract content and create search embeddings so your AI assistant can accurately answer customer inquiries
+          based on your business documentation.
+        </li>
+      </UL>
+      <P>
+        <strong>Google Limited Use Compliance:</strong> PersonaliAI&apos;s use and transfer to any other app of information
+        received from Google APIs will adhere to the{" "}
+        <a
+          href="https://developers.google.com/terms/api-services-user-data-policy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#f97316] underline hover:opacity-80"
+        >
+          Google API Services User Data Policy
+        </a>
+        , including the Limited Use requirements.
+      </P>
+      <UL>
+        <li>We do <strong>not</strong> use Google user data to train, retrain, or improve generalized or foundational AI/ML models.</li>
+        <li>We do <strong>not</strong> sell Google user data or transfer it to third parties for advertising or profiling.</li>
+        <li>Google OAuth access and refresh tokens are encrypted at rest using AES-256 and transmitted exclusively via encrypted TLS/HTTPS.</li>
+        <li>You can disconnect your Google account at any time in your dashboard settings, which immediately revokes tokens and purges stored credentials.</li>
+      </UL>
 
       <H2>How we use information</H2>
       <UL>
