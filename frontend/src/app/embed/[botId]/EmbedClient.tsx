@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
@@ -18,6 +18,7 @@ import {
   Paperclip, Smile, Mic, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
+  BookOpen, HelpCircle, Folder,
   type LucideIcon,
 } from "lucide-react";
 
@@ -218,6 +219,30 @@ interface FlowConfig {
 
 type Tab = "home" | "messages" | "articles" | "search";
 
+export interface WidgetKbArticle {
+  id: string;
+  category_id?: string;
+  title: string;
+  slug: string;
+  subtitle?: string;
+  content?: string;
+  tags?: string[];
+  is_promoted?: boolean;
+  view_count?: number;
+  helpful_count?: number;
+  created_at?: string;
+  category?: { id: string; name: string; slug: string; icon?: string };
+}
+
+export interface WidgetKbCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  article_count?: number;
+}
+
 function CodeBlock({ lang, text }: { lang: string; text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -401,11 +426,93 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     };
   }, [emojiOpen, attachOpen]);
 
-  // setSources is currently unused: the Articles tab renders from this list but
-  // nothing yet populates it from the backend (help-articles feed isn't wired up).
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [sources, setSources] = useState<Source[]>([]);
-  const [openArticle, setOpenArticle] = useState<Source | null>(null);
+  // ── Knowledge Base Articles & Categories (Crisp Style) ──
+  const [kbArticles, setKbArticles] = useState<WidgetKbArticle[]>([]);
+  const [kbCategories, setKbCategories] = useState<WidgetKbCategory[]>([]);
+  const [kbPromoted, setKbPromoted] = useState<WidgetKbArticle[]>([]);
+  const [kbLoading, setKbLoading] = useState(false);
+  const [selectedKbCat, setSelectedKbCat] = useState<string>("all");
+  const [activeArticle, setActiveArticle] = useState<WidgetKbArticle | null>(null);
+  const [loadingArticleDetail, setLoadingArticleDetail] = useState(false);
+  const [articleFeedbackGiven, setArticleFeedbackGiven] = useState<Record<string, "yes" | "no">>({});
+  const [articleFilterQuery, setArticleFilterQuery] = useState("");
+  const [searchKbResults, setSearchKbResults] = useState<WidgetKbArticle[]>([]);
+
+  const sources: Source[] = useMemo(() => {
+    return kbArticles.map((a) => ({ id: a.id, name: a.title, content: a.content || a.subtitle || "" }));
+  }, [kbArticles]);
+  const openArticle: Source | null = activeArticle
+    ? { id: activeArticle.id, name: activeArticle.title, content: activeArticle.content || activeArticle.subtitle || "" }
+    : null;
+  const setOpenArticle = (s: Source | null) => {
+    if (!s) setActiveArticle(null);
+    else {
+      const match = kbArticles.find((a) => a.id === s.id);
+      if (match) openKbArticle(match);
+      else setActiveArticle({ id: s.id, title: s.name, slug: s.id, content: s.content });
+    }
+  };
+
+  const loadKnowledgeBase = useCallback(async () => {
+    if (!botId) return;
+    setKbLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/widget/kb/portal?bot_id=${encodeURIComponent(String(botId))}`);
+      if (res.ok) {
+        const d = await res.json();
+        setKbCategories(d.categories || []);
+        setKbPromoted(d.promoted_articles || []);
+        const allArts: WidgetKbArticle[] = d.articles || [
+          ...(d.promoted_articles || []),
+          ...(d.recent_articles || []),
+        ];
+        const map = new Map<string, WidgetKbArticle>();
+        for (const a of allArts) map.set(a.id, a);
+        setKbArticles(Array.from(map.values()));
+      }
+    } catch {
+    } finally {
+      setKbLoading(false);
+    }
+  }, [botId]);
+
+  useEffect(() => {
+    loadKnowledgeBase();
+  }, [loadKnowledgeBase]);
+
+  const openKbArticle = async (art: WidgetKbArticle) => {
+    setActiveArticle(art);
+    if (!art.content) {
+      setLoadingArticleDetail(true);
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/widget/kb/articles/${encodeURIComponent(art.slug)}?bot_id=${encodeURIComponent(String(botId))}`);
+        if (res.ok) {
+          const detail = await res.json();
+          setActiveArticle(detail);
+        }
+      } catch {
+      } finally {
+        setLoadingArticleDetail(false);
+      }
+    }
+  };
+
+  const rateArticleFeedback = async (articleId: string, helpful: boolean) => {
+    setArticleFeedbackGiven((prev) => ({ ...prev, [articleId]: helpful ? "yes" : "no" }));
+    try {
+      await fetch(`${BACKEND_URL}/api/widget/kb/articles/${articleId}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_helpful: helpful }),
+      });
+    } catch {}
+  };
+
+  const askAboutArticle = (art: WidgetKbArticle) => {
+    setActiveArticle(null);
+    setTab("messages");
+    setInputValue(`I have a question about the guide "${art.title}": `);
+  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchAnswer, setSearchAnswer] = useState<string | null>(null);
@@ -1453,12 +1560,22 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     mediaRecorderRef.current?.stop();
   };
 
-  // ---- AI search ----
+  // ---- AI search & Knowledge Base ----
   const runSearch = async (q: string) => {
     if (!q.trim() || searching) return;
     setSearching(true);
     setSearchAnswer(null);
+    setSearchKbResults([]);
     try {
+      // 1. Search knowledge base articles
+      fetch(`${BACKEND_URL}/api/widget/kb/search?bot_id=${encodeURIComponent(String(botId))}&q=${encodeURIComponent(q)}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (d?.articles) setSearchKbResults(d.articles);
+        })
+        .catch(() => {});
+
+      // 2. Query AI assistant
       const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST", headers: { "Content-Type": "application/json", ...widgetTokenHeader },
         body: JSON.stringify({ bot_id: botId, session_id: `${sessionId}-search`, text: q, visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, host: getHost() }),
@@ -1568,7 +1685,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         ${colorSchemeCss}
         ${fontFamilyCss}
       ` }} />
-      {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
+      {customCss && (
+        <style
+          dangerouslySetInnerHTML={{
+            __html: customCss.replace(/<\/style/gi, '<\\/style').replace(/<script/gi, '<\\/script'),
+          }}
+        />
+      )}
       {/* Text-size scaling lives on this inner wrapper, not #chatty-root
           itself — see ChatWidgetCore.tsx's identical wrapper for the full
           reasoning: zoom does not scale a *percentage* width/height the
@@ -1781,21 +1904,74 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   <h3 className="text-sm font-bold flex items-center gap-1.5"><Sparkles className="size-4" style={{ color: primaryColor }} />Hi there 👋</h3>
                   <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{welcomeMsg}</p>
                 </div>
-                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-                  <span className="flex items-center gap-2 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
-                  <ChevronRight className="size-4 text-neutral-400" />
+
+                {/* Instant Search Bar (Crisp Style) */}
+                <div className="relative">
+                  <Search className="size-3.5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={articleFilterQuery}
+                    onChange={(e) => {
+                      setArticleFilterQuery(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setTab("articles");
+                    }}
+                    placeholder="Search for answers and guides..."
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl pl-9 pr-4 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50 shadow-xs"
+                  />
+                </div>
+
+                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
+                  <span className="flex items-center gap-2.5 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
+                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-                <button onClick={() => setShowOfflineForm(true)} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-                  <span className="flex items-center gap-2 text-xs font-semibold"><Mail className="size-4" style={{ color: primaryColor }} />Leave us a message</span>
-                  <ChevronRight className="size-4 text-neutral-400" />
+                <button onClick={() => setShowOfflineForm(true)} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
+                  <span className="flex items-center gap-2.5 text-xs font-semibold"><Mail className="size-4" style={{ color: primaryColor }} />Leave us a message</span>
+                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-                <button onClick={() => setTab("articles")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-                  <span className="flex items-center gap-2 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
-                  <ChevronRight className="size-4 text-neutral-400" />
+
+                {/* Featured Help Articles Section (Crisp Style) */}
+                {kbArticles.length > 0 && (
+                  <div className="p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+                        <BookOpen className="size-3.5" style={{ color: primaryColor }} />Help articles
+                      </span>
+                      <button
+                        onClick={() => setTab("articles")}
+                        className="text-[10px] font-bold text-[#f97316] hover:underline cursor-pointer"
+                      >
+                        View all ({kbArticles.length})
+                      </button>
+                    </div>
+                    <div className="divide-y divide-neutral-100 dark:divide-neutral-850">
+                      {(kbPromoted.length > 0 ? kbPromoted.slice(0, 3) : kbArticles.slice(0, 3)).map((art) => (
+                        <button
+                          key={art.id}
+                          onClick={() => {
+                            openKbArticle(art);
+                            setTab("articles");
+                          }}
+                          className="w-full flex items-center justify-between py-2 text-left group cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                          <span className="text-xs text-neutral-700 dark:text-neutral-300 font-medium truncate pr-2 group-hover:text-[#f97316]">
+                            {art.title}
+                          </span>
+                          <ChevronRight className="size-3 text-neutral-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={() => setTab("articles")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
+                  <span className="flex items-center gap-2.5 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
+                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-                <button onClick={() => setTab("search")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-                  <span className="flex items-center gap-2 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Search for answers</span>
-                  <ChevronRight className="size-4 text-neutral-400" />
+                <button onClick={() => setTab("search")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
+                  <span className="flex items-center gap-2.5 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Ask AI assistant</span>
+                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
             )}
@@ -1908,29 +2084,209 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               </div>
             )}
 
-            {/* ARTICLES */}
+            {/* ARTICLES (Crisp Style In-Widget Help Center) */}
             {tab === "articles" && (
-              <div className="p-4">
-                {openArticle ? (
-                  <div>
-                    <button onClick={() => setOpenArticle(null)} className="flex items-center gap-1 text-[11px] font-semibold text-neutral-500 mb-3"><ArrowLeft className="size-3.5" />All articles</button>
-                    <h3 className="text-sm font-bold mb-2">{openArticle.name}</h3>
-                    <div className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap">{openArticle.content}</div>
-                  </div>
-                ) : sources.length === 0 ? (
-                  <div className="text-center py-10"><FileText className="size-8 text-neutral-300 mx-auto" /><p className="text-xs text-neutral-400 mt-2">No articles yet.</p></div>
-                ) : (
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-400 mb-1">Help articles</h3>
-                    {sources.map((s) => (
-                      <button key={s.id} onClick={() => setOpenArticle(s)} className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 text-left">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold truncate">{s.name}</p>
-                          <p className="text-[10px] text-neutral-400 truncate">{s.content.slice(0, 60)}</p>
+              <div className="p-4 space-y-3">
+                {activeArticle ? (
+                  /* ── In-Widget Article Reader ── */
+                  <div className="space-y-3 animate-in fade-in duration-150">
+                    <button
+                      onClick={() => setActiveArticle(null)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+                    >
+                      <ArrowLeft className="size-3.5" />
+                      Back to help articles
+                    </button>
+
+                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-sm space-y-3">
+                      {activeArticle.category && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                          {activeArticle.category.name}
+                        </span>
+                      )}
+                      <h2 className="text-base font-bold text-neutral-900 dark:text-white leading-snug">
+                        {activeArticle.title}
+                      </h2>
+                      {activeArticle.subtitle && (
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                          {activeArticle.subtitle}
+                        </p>
+                      )}
+
+                      <div className="border-t border-neutral-100 dark:border-neutral-850 pt-3">
+                        {loadingArticleDetail ? (
+                          <div className="flex items-center gap-2 py-8 justify-center text-neutral-400 text-xs">
+                            <Loader2 className="size-4 animate-spin" /> Loading article content...
+                          </div>
+                        ) : (
+                          <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed space-y-2 prose prose-xs dark:prose-invert max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                              {activeArticle.content || activeArticle.subtitle || "No additional content."}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CSAT Article Rating */}
+                      <div className="border-t border-neutral-100 dark:border-neutral-850 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                          Was this article helpful?
+                        </span>
+                        {articleFeedbackGiven[activeArticle.id] ? (
+                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <Check className="size-3" /> Thank you for your feedback!
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => rateArticleFeedback(activeArticle.id, true)}
+                              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <ThumbsUp className="size-3 text-emerald-500" /> Yes
+                            </button>
+                            <button
+                              onClick={() => rateArticleFeedback(activeArticle.id, false)}
+                              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <ThumbsDown className="size-3 text-red-500" /> No
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Escalation to Chat Action */}
+                      <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 flex items-center justify-between gap-2">
+                        <div className="text-[11px]">
+                          <span className="font-semibold text-neutral-900 dark:text-white block">Still need help?</span>
+                          <span className="text-neutral-400 text-[10px]">Chat directly with our support team</span>
                         </div>
-                        <ChevronRight className="size-4 text-neutral-400 shrink-0" />
-                      </button>
-                    ))}
+                        <button
+                          onClick={() => askAboutArticle(activeArticle)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                          style={{ background: primaryColor }}
+                        >
+                          Chat with us
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Articles List & Category Filters ── */
+                  <div className="space-y-3">
+                    {/* Search Bar */}
+                    <div className="relative">
+                      <Search className="size-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={articleFilterQuery}
+                        onChange={(e) => setArticleFilterQuery(e.target.value)}
+                        placeholder="Search help articles..."
+                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-8.5 pr-8 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50 shadow-xs"
+                      />
+                      {articleFilterQuery && (
+                        <button
+                          onClick={() => setArticleFilterQuery("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Category Filter Pills */}
+                    {kbCategories.length > 0 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[10px] font-semibold">
+                        <button
+                          onClick={() => setSelectedKbCat("all")}
+                          className={`px-2.5 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer ${
+                            selectedKbCat === "all"
+                              ? "bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-bold"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                          }`}
+                        >
+                          All ({kbArticles.length})
+                        </button>
+                        {kbCategories.map((c) => (
+                          <button
+                            key={c.id}
+                            onClick={() => setSelectedKbCat(c.id)}
+                            className={`px-2.5 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer ${
+                              selectedKbCat === c.id
+                                ? "bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-bold"
+                                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                            }`}
+                          >
+                            {c.name} {c.article_count ? `(${c.article_count})` : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Articles Feed */}
+                    {kbLoading ? (
+                      <div className="py-12 flex flex-col items-center justify-center text-xs text-neutral-400 space-y-2">
+                        <Loader2 className="size-5 animate-spin" />
+                        <p>Loading help center...</p>
+                      </div>
+                    ) : (() => {
+                      const filtered = kbArticles.filter((a) => {
+                        if (selectedKbCat !== "all" && a.category_id !== selectedKbCat) {
+                          return false;
+                        }
+                        if (articleFilterQuery.trim()) {
+                          const q = articleFilterQuery.toLowerCase();
+                          const matchTitle = a.title.toLowerCase().includes(q);
+                          const matchSub = (a.subtitle || "").toLowerCase().includes(q);
+                          const matchTags = (a.tags || []).some((t) => t.toLowerCase().includes(q));
+                          return matchTitle || matchSub || matchTags;
+                        }
+                        return true;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="text-center py-10 space-y-2">
+                            <FileText className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
+                            <p className="text-xs text-neutral-500 font-medium">
+                              {articleFilterQuery ? `No articles matching "${articleFilterQuery}"` : "No help articles found."}
+                            </p>
+                            <button
+                              onClick={() => {
+                                setTab("messages");
+                                if (articleFilterQuery) setInputValue(articleFilterQuery);
+                              }}
+                              className="text-xs font-bold text-[#f97316] hover:underline cursor-pointer"
+                            >
+                              Ask our team directly →
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-2">
+                          {filtered.map((a) => (
+                            <button
+                              key={a.id}
+                              onClick={() => openKbArticle(a)}
+                              className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors text-left group cursor-pointer shadow-2xs"
+                            >
+                              <div className="min-w-0 flex-1 pr-2">
+                                <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-[#f97316] transition-colors truncate">
+                                  {a.title}
+                                </p>
+                                {a.subtitle && (
+                                  <p className="text-[11px] text-neutral-400 line-clamp-1 mt-0.5">
+                                    {a.subtitle}
+                                  </p>
+                                )}
+                              </div>
+                              <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -1938,7 +2294,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
             {/* SEARCH */}
             {tab === "search" && (
-              <div className="p-4">
+              <div className="p-4 space-y-3">
                 <form onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery); }} className="relative">
                   <Search className="size-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search our help center…"
@@ -1951,7 +2307,30 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{searchAnswer}</ReactMarkdown>
                     </div>
-                    <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg" style={{ background: primaryColor, color: onPrimary }}>Still have questions? Message us</button>
+                    <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: primaryColor, color: onPrimary }}>Still have questions? Message us</button>
+                  </div>
+                )}
+                {/* Related Help Center Articles */}
+                {searchKbResults.length > 0 && !searching && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      Relevant Help Articles
+                    </p>
+                    {searchKbResults.slice(0, 3).map((art) => (
+                      <button
+                        key={art.id}
+                        onClick={() => {
+                          openKbArticle(art);
+                          setTab("articles");
+                        }}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 text-left group cursor-pointer"
+                      >
+                        <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200 group-hover:text-[#f97316] truncate">
+                          {art.title}
+                        </span>
+                        <ChevronRight className="size-3.5 text-neutral-400 shrink-0" />
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>

@@ -462,7 +462,7 @@ export function KBManager({
               Enterprise Knowledge Base &amp; Help Center
             </h3>
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316]">
-              Zendesk Guide Level
+              Enterprise Help Center
             </span>
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed max-w-2xl">
@@ -846,7 +846,7 @@ export function KBManager({
                   Content Gap Detector
                 </h4>
                 <span className="text-[10px] bg-amber-50 dark:bg-amber-950/30 text-amber-600 font-bold px-2 py-0.5 rounded-full">
-                  Zendesk AI Level
+                  Smart AI Insights
                 </span>
               </div>
               <p className="text-[11px] text-neutral-400 leading-relaxed">

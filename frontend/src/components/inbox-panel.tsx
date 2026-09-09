@@ -38,6 +38,8 @@ import {
   Users,
   Radio,
   Mail,
+  Tag,
+  MessageSquare,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -284,6 +286,85 @@ function getSlaState(s: Session): SlaState | null {
   }
 
   return null;
+}
+
+interface FilterOption<T extends string> {
+  value: T;
+  label: string;
+  icon?: React.ReactNode;
+}
+
+function ModernFilterDropdown<T extends string>({
+  value,
+  onChange,
+  options,
+  title,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: FilterOption<T>[];
+  title?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [open]);
+
+  const selectedOpt = options.find((o) => o.value === value) || options[0];
+
+  return (
+    <div ref={ref} className="relative inline-block text-left">
+      <button
+        type="button"
+        title={title}
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 px-2 py-1 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-950 dark:hover:bg-neutral-850 border border-neutral-200/90 dark:border-neutral-800 rounded-lg text-neutral-700 dark:text-neutral-300 transition-colors text-[10px] font-semibold cursor-pointer shadow-xs focus:outline-none focus:ring-1 focus:ring-[#f97316]/40"
+      >
+        {selectedOpt?.icon}
+        <span className="truncate max-w-[70px]">{selectedOpt?.label}</span>
+        <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-150 ${open ? "rotate-180 text-neutral-700 dark:text-neutral-200" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1.5 left-0 z-50 min-w-[135px] max-h-56 overflow-y-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+          {options.map((opt) => {
+            const isSelected = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-2 py-1.5 rounded-lg text-[10px] font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                  isSelected
+                    ? "bg-[#f97316]/10 text-[#f97316] font-bold"
+                    : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                }`}
+              >
+                <span className="flex items-center gap-1.5 truncate">
+                  {opt.icon}
+                  <span className="truncate">{opt.label}</span>
+                </span>
+                {isSelected && <Check className="size-3 text-[#f97316] shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f97316" }: Props) {
@@ -955,7 +1036,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
   return (
     <div className="space-y-4">
-      {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar (Zendesk Level) ── */}
+      {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar ── */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         {/* Left: Agent Presence Status & Capacity */}
         <div className="flex items-center gap-3">
@@ -1166,54 +1247,60 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             </button>
           </div>
 
-          {/* Secondary Filters: Priority & Assignee */}
-          <div className="flex items-center justify-between gap-1.5 text-[10px]">
+          {/* Secondary Filters: Priority, Assignee, Channel & Tags */}
+          <div className="flex items-center justify-between gap-1 text-[10px] flex-wrap">
             {/* Priority Filter */}
-            <select
+            <ModernFilterDropdown
+              title="Filter by priority"
               value={selectedPriorityFilter}
-              onChange={(e) => setSelectedPriorityFilter(e.target.value)}
-              className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 focus:outline-none cursor-pointer"
-            >
-              <option value="all">All Priorities</option>
-              <option value="urgent">🔥 Urgent</option>
-              <option value="high">🔺 High</option>
-              <option value="normal">🔹 Normal</option>
-              <option value="low">🔻 Low</option>
-            </select>
+              onChange={setSelectedPriorityFilter}
+              options={[
+                { value: "all", label: "All Priorities" },
+                { value: "urgent", label: "Urgent", icon: <span className="size-1.5 rounded-full bg-red-500 shrink-0" /> },
+                { value: "high", label: "High", icon: <span className="size-1.5 rounded-full bg-amber-500 shrink-0" /> },
+                { value: "normal", label: "Normal", icon: <span className="size-1.5 rounded-full bg-blue-500 shrink-0" /> },
+                { value: "low", label: "Low", icon: <span className="size-1.5 rounded-full bg-neutral-400 shrink-0" /> },
+              ]}
+            />
 
             {/* Assignee Filter */}
-            <select
+            <ModernFilterDropdown
+              title="Filter by assignee"
               value={selectedAssigneeFilter}
-              onChange={(e) => setSelectedAssigneeFilter(e.target.value)}
-              className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 focus:outline-none cursor-pointer"
-            >
-              <option value="all">All Assignees</option>
-              <option value="me">Assigned to Me</option>
-              <option value="unassigned">Unassigned</option>
-            </select>
+              onChange={setSelectedAssigneeFilter}
+              options={[
+                { value: "all", label: "All Assignees" },
+                { value: "me", label: "Mine", icon: <User className="size-2.5 text-neutral-400 shrink-0" /> },
+                { value: "unassigned", label: "Queue", icon: <InboxIcon className="size-2.5 text-neutral-400 shrink-0" /> },
+              ]}
+            />
 
             {/* Channel Filter */}
-            <select
+            <ModernFilterDropdown
+              title="Filter by channel"
               value={selectedChannelFilter}
-              onChange={(e) => setSelectedChannelFilter(e.target.value)}
-              className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 focus:outline-none cursor-pointer"
-            >
-              <option value="all">All Channels</option>
-              <option value="web">💬 Chat</option>
-              <option value="email">✉️ Email</option>
-            </select>
+              onChange={setSelectedChannelFilter}
+              options={[
+                { value: "all", label: "Channels" },
+                { value: "web", label: "Chat", icon: <MessageSquare className="size-2.5 text-emerald-500 shrink-0" /> },
+                { value: "email", label: "Email", icon: <Mail className="size-2.5 text-blue-500 shrink-0" /> },
+              ]}
+            />
 
             {/* Tag Filter Dropdown */}
-            <select
+            <ModernFilterDropdown
+              title="Filter by tag"
               value={selectedTagFilter}
-              onChange={(e) => setSelectedTagFilter(e.target.value)}
-              className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 focus:outline-none cursor-pointer"
-            >
-              <option value="all">All Tags</option>
-              {PREDEFINED_TAGS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+              onChange={setSelectedTagFilter}
+              options={[
+                { value: "all", label: "Tags" },
+                ...PREDEFINED_TAGS.map((t) => ({
+                  value: t,
+                  label: t,
+                  icon: <Tag className="size-2.5 text-neutral-400 shrink-0" />,
+                })),
+              ]}
+            />
           </div>
         </div>
 

@@ -597,7 +597,7 @@ async def admin_reschedule_meeting(
 
 
 # ---------------------------------------------------------------------------
-# ENTERPRISE KNOWLEDGE BASE & HELP CENTER (Zendesk Guide Level)
+# ENTERPRISE KNOWLEDGE BASE & HELP CENTER
 # ---------------------------------------------------------------------------
 
 @router.get("/api/admin/kb/categories")
@@ -885,7 +885,7 @@ async def admin_delete_kb_article(article_id: str, user: dict[str, Any] = Depend
 
 @router.get("/api/admin/kb/analytics")
 async def admin_get_kb_analytics(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    """Zendesk-grade Knowledge Base Analytics & Content Gap Detection."""
+    """Enterprise Knowledge Base Analytics & Content Gap Detection."""
     await _verify_bot_access(bot_id, user)
 
     # 1. Articles stats
@@ -946,7 +946,7 @@ async def admin_get_kb_analytics(bot_id: str, user: dict[str, Any] = Depends(req
 
 
 # ---------------------------------------------------------------------------
-# PILLAR 3: OMNICHANNEL ROUTING, AGENT PRESENCE & LIVE QUEUE (Zendesk Level)
+# PILLAR 3: OMNICHANNEL ROUTING, AGENT PRESENCE & LIVE QUEUE
 # ---------------------------------------------------------------------------
 
 async def _dispatch_ticket_to_agent(bot_id: str, session_id: str) -> dict[str, Any]:

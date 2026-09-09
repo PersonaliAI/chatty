@@ -761,7 +761,7 @@ async def widget_kb_sources(bot_id: str):
 
 
 # ---------------------------------------------------------------------------
-# PUBLIC KNOWLEDGE BASE & HELP CENTER PORTAL (Zendesk Guide Level)
+# PUBLIC KNOWLEDGE BASE & HELP CENTER PORTAL
 # ---------------------------------------------------------------------------
 
 @router.get("/api/widget/kb/portal")
@@ -813,6 +813,7 @@ async def widget_kb_portal(bot_id: str):
         "categories": categories,
         "promoted_articles": promoted_articles,
         "recent_articles": recent_articles,
+        "articles": articles,
         "total_articles": len(articles),
     }
 
