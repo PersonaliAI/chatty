@@ -22,6 +22,8 @@ from app.schemas.admin import (
     InboxReplyRequest,
     MessageFeedbackRequest,
     RescheduleMeetingRequest,
+    SessionNoteCreateRequest,
+    SessionUpdateRequest,
 )
 
 # Bridged helpers still living in main.py (shared across many route groups).
@@ -98,11 +100,16 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
         "bot_id": req.bot_id, "session_id": req.session_id, "role": "assistant",
         "content": req.text, "sender": "human",
     }).execute())
-    # Taking over pauses the AI and clears the needs-attention flag.
-    await run_db(lambda: supabase.table("chatty_sessions").update({
+    now_iso = datetime.now(timezone.utc).isoformat()
+    # Check if first_responded_at is already set
+    sess_res = await run_db(lambda: supabase.table("chatty_sessions").select("first_responded_at").eq("bot_id", req.bot_id).eq("session_id", req.session_id).limit(1).execute())
+    upd: dict[str, Any] = {
         "ai_paused": True, "needs_attention": False, "last_message": req.text[:300],
-        "last_message_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+        "last_message_at": now_iso,
+    }
+    if sess_res.data and not sess_res.data[0].get("first_responded_at"):
+        upd["first_responded_at"] = now_iso
+    await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
     return {"success": True}
 
 
@@ -143,12 +150,156 @@ async def admin_inbox_reply_media(
         "content": content, "sender": "human",
     }).execute())
 
-    await run_db(lambda: supabase.table("chatty_sessions").update({
+    now_iso = datetime.now(timezone.utc).isoformat()
+    sess_res = await run_db(lambda: supabase.table("chatty_sessions").select("first_responded_at").eq("bot_id", bot_id).eq("session_id", session_id).limit(1).execute())
+    upd: dict[str, Any] = {
         "ai_paused": True, "needs_attention": False, "last_message": content[:300],
-        "last_message_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+        "last_message_at": now_iso,
+    }
+    if sess_res.data and not sess_res.data[0].get("first_responded_at"):
+        upd["first_responded_at"] = now_iso
+    await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", bot_id).eq("session_id", session_id).execute())
 
     return {"success": True, "file_url": file_url, "file_type": mime}
+
+
+@router.patch("/api/admin/inbox/session")
+async def update_inbox_session(req: SessionUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Update helpdesk session lifecycle state, priority, assignment, tags, and SLA status."""
+    await _verify_bot_access(req.bot_id, user)
+    upd: dict[str, Any] = {}
+
+    if req.status is not None:
+        valid_statuses = ("open", "pending", "resolved", "closed")
+        if req.status not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"status must be one of {valid_statuses}")
+        upd["status"] = req.status
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if req.status in ("resolved", "closed"):
+            upd["resolved_at"] = now_iso
+            sess_res = await run_db(lambda: supabase.table("chatty_sessions").select("resolution_due_at").eq("bot_id", req.bot_id).eq("session_id", req.session_id).limit(1).execute())
+            if sess_res.data and sess_res.data[0].get("resolution_due_at"):
+                due = sess_res.data[0]["resolution_due_at"]
+                upd["sla_status"] = "breached" if now_iso > due else "met"
+            else:
+                upd["sla_status"] = "met"
+        elif req.status == "open":
+            upd["resolved_at"] = None
+            upd["sla_status"] = "on_track"
+
+    if req.priority is not None:
+        valid_priorities = ("urgent", "high", "normal", "low")
+        if req.priority not in valid_priorities:
+            raise HTTPException(status_code=400, detail=f"priority must be one of {valid_priorities}")
+        upd["priority"] = req.priority
+
+    if req.assigned_agent_email is not None:
+        email_val = req.assigned_agent_email.strip() if req.assigned_agent_email else None
+        upd["assigned_agent_email"] = email_val
+        upd["assigned_agent_name"] = req.assigned_agent_name or (email_val.split("@")[0].capitalize() if email_val else None)
+
+    if req.ai_paused is not None:
+        upd["ai_paused"] = req.ai_paused
+
+    if req.needs_attention is not None:
+        upd["needs_attention"] = req.needs_attention
+        if not req.needs_attention:
+            upd["escalation_reason"] = None
+
+    if req.tags is not None:
+        upd["tags"] = req.tags
+
+    if req.escalation_reason is not None:
+        upd["escalation_reason"] = req.escalation_reason
+
+    if not upd:
+        return {"success": True, "updated": False}
+
+    res = await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    return {"success": True, "session": res.data[0] if res.data else None}
+
+
+@router.get("/api/admin/inbox/notes")
+async def list_inbox_notes(bot_id: str, session_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Fetch persistent internal staff notes for a conversation."""
+    await _verify_bot_access(bot_id, user)
+    rows = (await run_db(lambda: supabase.table("chatty_session_notes").select("*") \
+        .eq("bot_id", bot_id).eq("session_id", session_id) \
+        .order("created_at", desc=False).execute())).data or []
+    return {"notes": rows}
+
+
+@router.post("/api/admin/inbox/notes")
+async def create_inbox_note(req: SessionNoteCreateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Add a persistent staff note visible across all human agents."""
+    await _verify_bot_access(req.bot_id, user)
+    note_text = (req.note or "").strip()
+    if not note_text:
+        raise HTTPException(status_code=400, detail="Note text cannot be empty")
+    author_email = (user.get("email") or "").strip()
+    author_name = user.get("user_metadata", {}).get("name") if isinstance(user.get("user_metadata"), dict) else None
+    if not author_name and author_email:
+        author_name = author_email.split("@")[0].capitalize()
+    author_id = user.get("auth_user_id")
+
+    row = {
+        "bot_id": req.bot_id,
+        "session_id": req.session_id,
+        "note": note_text,
+        "author_name": author_name or "Support Agent",
+        "author_email": author_email or None,
+        "author_id": author_id or None,
+    }
+    res = await run_db(lambda: supabase.table("chatty_session_notes").insert(row).execute())
+    return {"success": True, "note": res.data[0] if res.data else row}
+
+
+@router.delete("/api/admin/inbox/notes/{note_id}")
+async def delete_inbox_note(note_id: str, bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Delete a staff note."""
+    await _verify_bot_access(bot_id, user)
+    await run_db(lambda: supabase.table("chatty_session_notes").delete() \
+        .eq("id", note_id).eq("bot_id", bot_id).execute())
+    return {"success": True}
+
+
+@router.get("/api/admin/inbox/assignees")
+async def get_inbox_assignees(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return all team members and agents who can be assigned conversations."""
+    await _verify_bot_access(bot_id, user)
+    assignees: list[dict[str, Any]] = []
+    seen_emails: set[str] = set()
+
+    # Current user
+    curr_email = (user.get("email") or "").strip().lower()
+    curr_name = (user.get("user_metadata") or {}).get("name") if isinstance(user.get("user_metadata"), dict) else None
+    if not curr_name and curr_email:
+        curr_name = curr_email.split("@")[0].capitalize()
+    if curr_email:
+        assignees.append({
+            "email": curr_email,
+            "name": curr_name or "Me",
+            "role": "agent",
+        })
+        seen_emails.add(curr_email)
+
+    # Team members from chatty_team_members
+    try:
+        members = (await run_db(lambda: supabase.table("chatty_team_members").select("email, name, role") \
+            .eq("bot_id", bot_id).execute())).data or []
+        for m in members:
+            m_email = (m.get("email") or "").strip().lower()
+            if m_email and m_email not in seen_emails:
+                assignees.append({
+                    "email": m_email,
+                    "name": m.get("name") or m_email.split("@")[0].capitalize(),
+                    "role": m.get("role") or "agent",
+                })
+                seen_emails.add(m_email)
+    except Exception:
+        logger.exception("Failed to fetch team members for assignees")
+
+    return {"assignees": assignees}
 
 
 @router.post("/api/admin/inbox/ai")

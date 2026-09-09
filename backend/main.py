@@ -265,8 +265,14 @@ async def _upsert_session(bot_id: str, session_id: str, last_message: str,
                 upd["visitor_name"] = visitor_name
             await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("id", row["id"]).execute())
             return row, False
+        now_dt = datetime.now(timezone.utc)
         ins = await run_db(lambda: supabase.table("chatty_sessions").insert({
             "bot_id": bot_id, "session_id": session_id, "status": "open",
+            "priority": "normal",
+            "first_response_due_at": (now_dt + timedelta(minutes=15)).isoformat(),
+            "resolution_due_at": (now_dt + timedelta(hours=4)).isoformat(),
+            "sla_status": "on_track",
+            "tags": [],
             "ai_paused": False, "visitor_name": visitor_name,
             "last_message": last_message[:300],
         }).execute())
@@ -373,10 +379,25 @@ _HANDOFF_PATTERNS = (
     "contact a person", "call me", "phone me",
 )
 
+_NEGATIVE_PATTERNS = (
+    "frustrated", "angry", "terrible", "horrible", "worst service", "waste of time",
+    "useless", "ridiculous", "unacceptable", "scam", "cancel subscription",
+    "refund", "complain", "complaint", "broken", "does not work", "doesn't work",
+)
+
 
 def _needs_human(text: str) -> bool:
     t = (text or "").lower()
     return any(p in t for p in _HANDOFF_PATTERNS)
+
+
+def _detect_sentiment_escalation(text: str) -> Optional[str]:
+    t = (text or "").lower()
+    if any(p in t for p in _HANDOFF_PATTERNS):
+        return "Customer requested human agent"
+    if any(p in t for p in _NEGATIVE_PATTERNS):
+        return "Negative sentiment detected"
+    return None
 
 
 # Phrases the assistant uses when it lacks the answer — used to detect

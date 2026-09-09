@@ -33,3 +33,23 @@ class InboxDeleteRequest(BaseModel):
 class RescheduleMeetingRequest(BaseModel):
     new_start: str  # ISO 8601, with timezone offset
     new_end: str
+
+
+class SessionUpdateRequest(BaseModel):
+    bot_id: str
+    session_id: str
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    assigned_agent_email: Optional[str] = None
+    assigned_agent_name: Optional[str] = None
+    ai_paused: Optional[bool] = None
+    needs_attention: Optional[bool] = None
+    tags: Optional[list[str]] = None
+    escalation_reason: Optional[str] = None
+
+
+class SessionNoteCreateRequest(BaseModel):
+    bot_id: str
+    session_id: str
+    note: str
+

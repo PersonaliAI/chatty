@@ -34,6 +34,7 @@ from main import (
     WIDGET_MAX_CHARS,
     WIDGET_QUOTA_REPLY,
     _client_ip,
+    _detect_sentiment_escalation,
     _log_unanswered_if_needed,
     _mint_widget_token,
     _needs_human,
@@ -126,10 +127,16 @@ async def widget_chat(
             session_id=session_id, data={"first_message": text[:500]},
         )
 
-    # Flag conversations where the visitor asks for a human.
-    if _needs_human(text):
+    # Flag conversations where the visitor asks for a human or shows frustration.
+    esc = _detect_sentiment_escalation(text)
+    if esc:
         try:
-            await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
+            upd = {"needs_attention": True, "escalation_reason": esc}
+            if "Negative" in esc:
+                upd["priority"] = "urgent"
+            else:
+                upd["priority"] = "high"
+            await run_db(lambda: supabase.table("chatty_sessions").update(upd)
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
@@ -154,8 +161,11 @@ async def widget_chat(
     # 3b. Quota gate — never spend model tokens once the owner is out of quota.
     if await chatty_quota_exceeded(owner_user, owner_id):
         try:
-            await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
-                .eq("bot_id", bot_id).eq("session_id", session_id).execute())
+            await run_db(lambda: supabase.table("chatty_sessions").update({
+                "needs_attention": True,
+                "escalation_reason": "Account quota exceeded",
+                "priority": "high",
+            }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
         try:
@@ -240,9 +250,15 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             session_id=session_id, data={"first_message": text[:500]},
         )
 
-    if _needs_human(text):
+    esc = _detect_sentiment_escalation(text)
+    if esc:
         try:
-            await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
+            upd = {"needs_attention": True, "escalation_reason": esc}
+            if "Negative" in esc:
+                upd["priority"] = "urgent"
+            else:
+                upd["priority"] = "high"
+            await run_db(lambda: supabase.table("chatty_sessions").update(upd)
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
@@ -271,8 +287,11 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     # Quota gate — save the graceful reply and stream it as a single message.
     if await chatty_quota_exceeded(owner_user, owner_id):
         try:
-            await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
-                .eq("bot_id", bot_id).eq("session_id", session_id).execute())
+            await run_db(lambda: supabase.table("chatty_sessions").update({
+                "needs_attention": True,
+                "escalation_reason": "Account quota exceeded",
+                "priority": "high",
+            }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
         try:
