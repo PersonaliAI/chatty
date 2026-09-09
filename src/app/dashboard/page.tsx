@@ -17,6 +17,7 @@ import { OnboardingWizard, extractDomain } from "@/components/onboarding-wizard"
 import { InboxPanel } from "@/components/inbox-panel";
 import { ChatbotFlowBuilder } from "@/components/chatbot-flow-builder";
 import { CampaignsUI } from "@/components/campaigns-ui";
+import { KBManager } from "@/components/kb-manager";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -5851,8 +5852,13 @@ export default function Dashboard() {
             </div>
           )}
           {/* TAB 3: KNOWLEDGE BASE */}
-          {activeTab === "knowledge" && (
-            <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-6">
+          {activeTab === "knowledge" && botId && (
+            <KBManager
+              botId={botId}
+              fetchBackend={fetchWithFallback}
+              color={primaryColor}
+              rawSourcesContent={
+                <div className="space-y-6">
               {/* Hidden file input (re-uses existing upload handler) */}
               <input
                 type="file"
@@ -6651,7 +6657,9 @@ export default function Dashboard() {
                   })()}
                 </div>
               </div>
-            </div>
+                </div>
+              }
+            />
           )}
 
           {/* TAB 4: PLAYGROUND */}

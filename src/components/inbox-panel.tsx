@@ -31,6 +31,10 @@ import {
   Plus,
   Pencil,
   Settings2,
+  BookOpen,
+  Search,
+  Link2,
+  ExternalLink,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -407,6 +411,59 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
   const filteredCanned = cannedResponses.filter(
     (c) => !cannedFilter || c.shortcut.includes(cannedFilter) || c.text.toLowerCase().includes(cannedFilter)
+  );
+
+  // ── Knowledge Base Quick-Insert state ──
+  const [kbInsertOpen, setKbInsertOpen] = useState(false);
+  const [kbArticles, setKbArticles] = useState<Array<{ id: string; title: string; slug: string; subtitle?: string; content?: string; category?: { name: string } }>>([]);
+  const [kbSearchQuery, setKbSearchQuery] = useState("");
+  const [loadingKbArticles, setLoadingKbArticles] = useState(false);
+
+  const loadKbArticles = useCallback(async () => {
+    if (!botId) return;
+    setLoadingKbArticles(true);
+    try {
+      const res = await fetchBackend(`/api/admin/kb/articles?bot_id=${botId}&status=published`);
+      if (res.ok) {
+        const d = await res.json();
+        setKbArticles(d.articles || []);
+      }
+    } catch {} finally {
+      setLoadingKbArticles(false);
+    }
+  }, [botId, fetchBackend]);
+
+  const toggleKbInsert = () => {
+    const next = !kbInsertOpen;
+    setKbInsertOpen(next);
+    if (next) {
+      setAttachOpen(false);
+      setEmojiOpen(false);
+      setCannedOpen(false);
+      loadKbArticles();
+    }
+  };
+
+  const insertArticleLink = (art: { title: string; slug: string }) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const link = `[${art.title}](${origin}/kb/${botId}?article=${art.slug})`;
+    setReply((prev) => (prev ? `${prev} ${link}` : link));
+    setKbInsertOpen(false);
+  };
+
+  const insertArticleSnippet = (art: { title: string; slug: string; subtitle?: string; content?: string }) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/kb/${botId}?article=${art.slug}`;
+    const text = art.subtitle ? `${art.subtitle}\nRead more: ${url}` : `Here is a helpful guide: ${url}`;
+    setReply((prev) => (prev ? `${prev}\n\n${text}` : text));
+    setKbInsertOpen(false);
+  };
+
+  const filteredKbArticles = kbArticles.filter(
+    (a) =>
+      !kbSearchQuery ||
+      a.title.toLowerCase().includes(kbSearchQuery.toLowerCase()) ||
+      (a.subtitle || "").toLowerCase().includes(kbSearchQuery.toLowerCase())
   );
 
   // ── Load Sessions, Messages, Notes, and Assignees ──
@@ -1396,6 +1453,94 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </motion.div>
                 )}
               </AnimatePresence>
+              <AnimatePresence>
+                {kbInsertOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute bottom-[84px] left-2.5 right-2.5 z-20 max-h-72 flex flex-col rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-2xl bg-white dark:bg-neutral-900 overflow-hidden"
+                  >
+                    <div className="p-3 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="size-4 text-[#f97316]" />
+                        <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                          Insert Knowledge Base Article
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setKbInsertOpen(false)}
+                        className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
+                      <div className="relative">
+                        <Search className="size-3 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={kbSearchQuery}
+                          onChange={(e) => setKbSearchQuery(e.target.value)}
+                          placeholder="Search published articles..."
+                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg pl-7 pr-3 py-1 text-xs focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 max-h-48 p-1">
+                      {loadingKbArticles ? (
+                        <div className="p-4 text-center text-xs text-neutral-400 flex items-center justify-center gap-2">
+                          <Loader2 className="size-3 animate-spin" /> Loading articles...
+                        </div>
+                      ) : filteredKbArticles.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-neutral-400">
+                          No published articles found.
+                        </div>
+                      ) : (
+                        filteredKbArticles.map((art) => (
+                          <div
+                            key={art.id}
+                            className="p-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-xl transition-colors flex items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-neutral-800 dark:text-neutral-200 truncate">
+                                {art.title}
+                              </p>
+                              {art.category && (
+                                <span className="text-[9px] text-neutral-400 font-semibold">
+                                  {art.category.name}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => insertArticleLink(art)}
+                                className="px-2 py-1 text-[10px] font-semibold rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 flex items-center gap-1 cursor-pointer"
+                                title="Insert markdown link"
+                              >
+                                <Link2 className="size-2.5" /> Link
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => insertArticleSnippet(art)}
+                                className="px-2 py-1 text-[10px] font-semibold rounded-lg bg-[#f97316]/10 hover:bg-[#f97316] text-[#f97316] hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Insert summary snippet and link"
+                              >
+                                Insert
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <form
                 onSubmit={(e) => { e.preventDefault(); sendReply(); }}
                 className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors"
@@ -1450,6 +1595,20 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 />
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-0.5">
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.85 }}
+                      onClick={toggleKbInsert}
+                      className={`p-1.5 rounded-full transition-colors ${
+                        kbInsertOpen
+                          ? "text-[#f97316] bg-[#f97316]/10"
+                          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                      }`}
+                      aria-label="Knowledge Base"
+                      title="Insert Help Center article link or snippet"
+                    >
+                      <BookOpen className="size-4.5" />
+                    </motion.button>
                     <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setCannedManageOpen(true); setCannedOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Canned responses" title="Manage quick responses (type / to use)"><Zap className="size-4.5" /></motion.button>
                     <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></motion.button>
                     <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full group" aria-label="Attach file">
