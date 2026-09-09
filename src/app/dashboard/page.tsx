@@ -961,6 +961,20 @@ async function extractColorsFromUrl(url: string): Promise<string[]> {
   });
 }
 
+const PLAN_LABELS: Record<string, string> = {
+  free: "Free",
+  chatty_hobby: "Hobby",
+  chatty_standard: "Standard",
+  chatty_business: "Business",
+};
+
+const MAX_BOTS_BY_PLAN: Record<string, number> = {
+  free: 1,
+  chatty_hobby: 1,
+  chatty_standard: 3,
+  chatty_business: 5,
+};
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1905,10 +1919,30 @@ export default function Dashboard() {
         }
 
         // Fetch sources
-        const { data: srcList } = await supabase
+        let srcList: any[] | null = null;
+        const { data: dbSources } = await supabase
           .from("chatty_sources")
           .select("*")
           .eq("bot_id", activeBot.id);
+
+        if (dbSources && dbSources.length > 0) {
+          srcList = dbSources;
+        } else {
+          try {
+            const resp = await fetchWithFallback(`/api/bots/${activeBot.id}/sources`);
+            if (resp.ok) {
+              const json = await resp.json();
+              if (json.sources && json.sources.length > 0) {
+                srcList = json.sources;
+              }
+            }
+          } catch (e) {
+            console.error("Failed to load sources from fallback endpoint:", e);
+          }
+          if (!srcList && dbSources) {
+            srcList = dbSources;
+          }
+        }
 
         if (srcList) {
           setSources(srcList.map(s => ({
@@ -1921,6 +1955,8 @@ export default function Dashboard() {
             crawlSchedule: s.crawl_schedule || "off",
             nextCrawlAt: s.next_crawl_at
           })));
+        } else {
+          setSources([]);
         }
 
         // Fetch leads
@@ -2028,10 +2064,30 @@ export default function Dashboard() {
       setBookingRequireBusinessEmail(selected.booking_require_business_email || false);
 
       // Fetch sources
-      const { data: srcList } = await supabase
+      let srcList: any[] | null = null;
+      const { data: dbSources } = await supabase
         .from("chatty_sources")
         .select("*")
         .eq("bot_id", selected.id);
+
+      if (dbSources && dbSources.length > 0) {
+        srcList = dbSources;
+      } else {
+        try {
+          const resp = await fetchWithFallback(`/api/bots/${selected.id}/sources`);
+          if (resp.ok) {
+            const json = await resp.json();
+            if (json.sources && json.sources.length > 0) {
+              srcList = json.sources;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to load sources from fallback endpoint:", e);
+        }
+        if (!srcList && dbSources) {
+          srcList = dbSources;
+        }
+      }
 
       if (srcList) {
         setSources(srcList.map(s => ({
@@ -2085,6 +2141,19 @@ export default function Dashboard() {
     if (!user) return;
     if (!name.trim()) return;
 
+    // Check plan limits before attempting creation
+    const ownedCount = userBots.filter((b) => b.user_id === user.id).length;
+    const currentPlan = billingInfo?.plan || "free";
+    const maxBots = MAX_BOTS_BY_PLAN[currentPlan] ?? 1;
+    if (ownedCount >= maxBots) {
+      showToast(
+        `Chatbot limit reached (${ownedCount}/${maxBots} in use). Free and Hobby plans allow 1 chatbot. Upgrade to Standard (3 chatbots) or Business (5 chatbots) to create more!`,
+        "error"
+      );
+      setActiveTab("billing");
+      return;
+    }
+
     const domain = websiteUrl ? extractDomain(websiteUrl) : "";
     const initialAllowed = domain ? [domain] : [];
 
@@ -2117,9 +2186,33 @@ export default function Dashboard() {
         switchActiveBot(newBot.id);
         showToast(`Chatbot "${name}" created successfully!`, "success");
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error creating bot:", err);
-      showToast(`Failed to create chatbot: ${err instanceof Error ? err.message : String(err)}`, "error");
+      let errMsg = "An unexpected error occurred.";
+      if (err && typeof err === "object") {
+        errMsg =
+          (err as any).message ||
+          (err as any).error_description ||
+          (err as any).detail ||
+          (err as any).hint ||
+          (err instanceof Error ? err.message : JSON.stringify(err));
+      } else if (typeof err === "string") {
+        errMsg = err;
+      }
+
+      if (
+        errMsg.toLowerCase().includes("limit reached") ||
+        errMsg.toLowerCase().includes("upgrade") ||
+        errMsg.toLowerCase().includes("check_violation")
+      ) {
+        showToast(
+          `Chatbot limit reached (${ownedCount}/${maxBots} in use). Upgrade to Standard or Business to create additional assistants!`,
+          "error"
+        );
+        setActiveTab("billing");
+      } else {
+        showToast(`Failed to create chatbot: ${errMsg}`, "error");
+      }
     } finally {
       setLoadingLists(false);
     }
@@ -4228,18 +4321,41 @@ export default function Dashboard() {
                     
                     <div className="border-t border-neutral-100 dark:border-neutral-850 my-1"></div>
                     
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBotDropdownOpen(false);
-                        setNewBotNameInput("My Assistant");
-                        setCreateBotModalOpen(true);
-                      }}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#f97316] hover:bg-[#f97316]/5 dark:hover:bg-[#f97316]/10 transition-colors text-left cursor-pointer"
-                    >
-                      <Plus className="size-3.5" />
-                      Create New Assistant
-                    </button>
+                    {(() => {
+                      const ownedCount = user ? userBots.filter((b) => b.user_id === user.id).length : 0;
+                      const currentPlan = billingInfo?.plan || "free";
+                      const maxBots = MAX_BOTS_BY_PLAN[currentPlan] ?? 1;
+                      const isAtLimit = ownedCount >= maxBots;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBotDropdownOpen(false);
+                            if (isAtLimit) {
+                              showToast(
+                                `Plan limit reached (${ownedCount}/${maxBots} chatbots). Upgrade to create additional assistants!`,
+                                "info"
+                              );
+                              setActiveTab("billing");
+                              return;
+                            }
+                            setNewBotNameInput("My Assistant");
+                            setCreateBotModalOpen(true);
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-[#f97316] hover:bg-[#f97316]/5 dark:hover:bg-[#f97316]/10 transition-colors text-left cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Plus className="size-3.5" />
+                            Create New Assistant
+                          </span>
+                          {isAtLimit && (
+                            <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                              Upgrade
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </>
               )}
@@ -9774,63 +9890,114 @@ const { reply, session_id } = await res.json();`}</pre>
                 <X className="size-4" />
               </button>
             </div>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              if (!newBotNameInput.trim()) return;
-              const name = newBotNameInput;
-              const web = newBotWebsiteInput;
-              setCreateBotModalOpen(false);
-              setNewBotNameInput("");
-              setNewBotWebsiteInput("");
-              await handleCreateBot(name, web);
-            }} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Assistant Name</label>
-                <input
-                  type="text"
-                  placeholder="My Assistant"
-                  value={newBotNameInput}
-                  onChange={(e) => setNewBotNameInput(e.target.value)}
-                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-250 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                  required
-                  autoFocus
-                />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[10px] font-semibold text-neutral-500 uppercase">Website URL</label>
-                  <span className="text-[10px] text-neutral-400 font-normal">Optional</span>
-                </div>
-                <input
-                  type="text"
-                  placeholder="https://example.com"
-                  value={newBotWebsiteInput}
-                  onChange={(e) => setNewBotWebsiteInput(e.target.value)}
-                  className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-250 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                />
-                <p className="text-[10px] text-neutral-400 mt-1">
-                  Adds this domain to Allowed Domains in Integrations.
-                </p>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreateBotModalOpen(false);
-                    setNewBotWebsiteInput("");
-                  }}
-                  className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer"
-                >
-                  Create
-                </button>
-              </div>
-            </form>
+            {(() => {
+              const ownedCount = user ? userBots.filter((b) => b.user_id === user.id).length : 0;
+              const currentPlan = billingInfo?.plan || "free";
+              const maxBots = MAX_BOTS_BY_PLAN[currentPlan] ?? 1;
+              const isAtLimit = ownedCount >= maxBots;
+
+              if (isAtLimit) {
+                return (
+                  <div className="space-y-4 py-2">
+                    <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <Sparkles className="size-4 text-[#f97316] shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <h5 className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                            Chatbot Limit Reached
+                          </h5>
+                          <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                            Your current plan (<b>{PLAN_LABELS[currentPlan] || currentPlan}</b>) allows up to <b>{maxBots} chatbot{maxBots > 1 ? "s" : ""}</b> ({ownedCount}/{maxBots} currently in use).
+                          </p>
+                          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                            Upgrade to <b>Standard</b> (3 chatbots) or <b>Business</b> (5 chatbots) to create and deploy additional assistants.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setCreateBotModalOpen(false)}
+                        className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateBotModalOpen(false);
+                          setActiveTab("billing");
+                        }}
+                        className="px-3.5 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-bold hover:opacity-90 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                      >
+                        Upgrade Plan <ArrowRight className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newBotNameInput.trim()) return;
+                  const name = newBotNameInput;
+                  const web = newBotWebsiteInput;
+                  setCreateBotModalOpen(false);
+                  setNewBotNameInput("");
+                  setNewBotWebsiteInput("");
+                  await handleCreateBot(name, web);
+                }} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Assistant Name</label>
+                    <input
+                      type="text"
+                      placeholder="My Assistant"
+                      value={newBotNameInput}
+                      onChange={(e) => setNewBotNameInput(e.target.value)}
+                      className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-250 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[10px] font-semibold text-neutral-500 uppercase">Website URL</label>
+                      <span className="text-[10px] text-neutral-400 font-normal">Optional</span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="https://example.com"
+                      value={newBotWebsiteInput}
+                      onChange={(e) => setNewBotWebsiteInput(e.target.value)}
+                      className="w-full bg-neutral-50 dark:bg-neutral-955 border border-neutral-250 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                    />
+                    <p className="text-[10px] text-neutral-400 mt-1">
+                      Adds this domain to Allowed Domains in Integrations.
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreateBotModalOpen(false);
+                        setNewBotWebsiteInput("");
+                      }}
+                      className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer text-neutral-700 dark:text-neutral-350"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer"
+                    >
+                      Create
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}
