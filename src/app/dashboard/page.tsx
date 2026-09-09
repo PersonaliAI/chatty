@@ -269,6 +269,16 @@ interface KnowledgeMessage {
   thinkingSteps?: string[];
 }
 
+interface KnowledgeProgress {
+  id: string;
+  title: string;
+  detail: string;
+  percent: number;
+  status: "active" | "success" | "error";
+  stages?: string[];
+  currentStageIndex?: number;
+}
+
 // Section Colors rows whose "text" property is really an icon/dot color
 // (no separate typed text on a button or a launcher circle).
 const ICON_ONLY_SECTIONS = new Set(["sendBtn", "launcher"]);
@@ -975,6 +985,164 @@ const MAX_BOTS_BY_PLAN: Record<string, number> = {
   chatty_business: 5,
 };
 
+function KnowledgeProgressBar({
+  progress,
+  onDismiss,
+}: {
+  progress: KnowledgeProgress | null;
+  onDismiss: () => void;
+}) {
+  if (!progress) return null;
+
+  const isSuccess = progress.status === "success";
+  const isError = progress.status === "error";
+  const isActive = progress.status === "active";
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: -8, scale: 0.99 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -8, scale: 0.99 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
+        className={`relative overflow-hidden rounded-2xl p-4 sm:p-5 border transition-all duration-300 shadow-sm ${
+          isSuccess
+            ? "bg-emerald-50/85 dark:bg-emerald-950/25 border-emerald-200/90 dark:border-emerald-800/60 shadow-emerald-500/5"
+            : isError
+            ? "bg-red-50/85 dark:bg-red-950/25 border-red-200/90 dark:border-red-800/60 shadow-red-500/5"
+            : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 shadow-[0_4px_24px_-4px_rgba(249,115,22,0.12)]"
+        }`}
+      >
+        {/* Subtle background glow effect for active state */}
+        {isActive && (
+          <div className="absolute -top-10 -right-10 size-32 bg-gradient-to-br from-orange-400/15 to-amber-400/5 rounded-full blur-2xl pointer-events-none" />
+        )}
+
+        {/* Top Header Row */}
+        <div className="relative flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className={`size-10 rounded-xl flex items-center justify-center shrink-0 transition-all ${
+                isSuccess
+                  ? "bg-emerald-500 text-white shadow-[0_0_16px_rgba(16,185,129,0.4)]"
+                  : isError
+                  ? "bg-red-500 text-white shadow-[0_0_16px_rgba(239,68,68,0.4)]"
+                  : "bg-gradient-to-br from-[#f97316] to-amber-500 text-white shadow-[0_0_16px_rgba(249,115,22,0.35)]"
+              }`}
+            >
+              {isSuccess ? (
+                <CheckCircle2 className="size-5" strokeWidth={2.5} />
+              ) : isError ? (
+                <AlertCircle className="size-5" strokeWidth={2.5} />
+              ) : (
+                <Loader2 className="size-5 animate-spin" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
+                  {progress.title}
+                </h4>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                    isSuccess
+                      ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
+                      : isError
+                      ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300"
+                      : "bg-[#f97316]/10 text-[#f97316]"
+                  }`}
+                >
+                  {isSuccess ? "Completed" : isError ? "Error" : "Processing"}
+                </span>
+              </div>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate mt-0.5 font-medium">
+                {progress.detail}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            {/* Percentage badge */}
+            <div
+              className={`font-mono text-xs sm:text-sm font-black px-2.5 py-1 rounded-xl border flex items-center gap-1 transition-colors ${
+                isSuccess
+                  ? "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                  : isError
+                  ? "bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"
+                  : "bg-orange-50 dark:bg-orange-950/30 text-[#f97316] border-orange-200/70 dark:border-orange-900/50 shadow-sm"
+              }`}
+            >
+              <span>{progress.percent}%</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+              aria-label="Dismiss progress notification"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Progress Track & Bar */}
+        <div className="relative w-full h-2.5 bg-neutral-100 dark:bg-neutral-800/80 rounded-full overflow-hidden shadow-inner">
+          <div
+            className={`h-full rounded-full relative overflow-hidden transition-all duration-300 ease-out ${
+              isSuccess
+                ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
+                : isError
+                ? "bg-gradient-to-r from-red-500 via-rose-500 to-red-400 shadow-[0_0_12px_rgba(239,68,68,0.5)]"
+                : "bg-gradient-to-r from-[#f97316] via-orange-500 to-amber-400 shadow-[0_0_14px_rgba(249,115,22,0.6)]"
+            }`}
+            style={{ width: `${Math.max(3, Math.min(100, progress.percent))}%` }}
+          >
+            {/* Shimmer light sweep animation */}
+            {isActive && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
+            )}
+          </div>
+        </div>
+
+        {/* Stage Step Indicators */}
+        {progress.stages && progress.stages.length > 0 && (
+          <div className="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800/60 flex items-center justify-between gap-2 overflow-x-auto text-[10px] scrollbar-none">
+            {progress.stages.map((stage, idx) => {
+              const currentIdx = progress.currentStageIndex ?? 0;
+              const isPassed = isSuccess || currentIdx > idx;
+              const isCurrent = isActive && currentIdx === idx;
+              return (
+                <div
+                  key={idx}
+                  className={`flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+                    isPassed
+                      ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                      : isCurrent
+                      ? "text-[#f97316] font-bold"
+                      : "text-neutral-400 dark:text-neutral-500"
+                  }`}
+                >
+                  <div
+                    className={`size-1.5 rounded-full shrink-0 ${
+                      isPassed
+                        ? "bg-emerald-500"
+                        : isCurrent
+                        ? "bg-[#f97316] ring-2 ring-orange-200 dark:ring-orange-950 animate-pulse"
+                        : "bg-neutral-300 dark:bg-neutral-700"
+                    }`}
+                  />
+                  <span className="truncate max-w-[130px] sm:max-w-none">{stage}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1534,6 +1702,99 @@ export default function Dashboard() {
   const [crawlDropdownOpen, setCrawlDropdownOpen] = useState<string | null>(null);
   const [recrawlingSourceId, setRecrawlingSourceId] = useState<string | null>(null);
   const [crawlingAll, setCrawlingAll] = useState(false);
+
+  // Knowledge Base operation progress state & controller
+  const [knowledgeProgress, setKnowledgeProgress] = useState<KnowledgeProgress | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clean up progress timers on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (progressDismissTimerRef.current) clearTimeout(progressDismissTimerRef.current);
+    };
+  }, []);
+
+  const clearKnowledgeProgressTimers = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    if (progressDismissTimerRef.current) {
+      clearTimeout(progressDismissTimerRef.current);
+      progressDismissTimerRef.current = null;
+    }
+  };
+
+  const startKnowledgeProgress = (title: string, initialDetail: string, stages: string[] = []) => {
+    clearKnowledgeProgressTimers();
+    const id = `kp-${Date.now()}`;
+    setKnowledgeProgress({
+      id,
+      title,
+      detail: initialDetail,
+      percent: 10,
+      status: "active",
+      stages,
+      currentStageIndex: 0,
+    });
+
+    progressIntervalRef.current = setInterval(() => {
+      setKnowledgeProgress((prev) => {
+        if (!prev || prev.status !== "active") return prev;
+        if (prev.percent >= 94) return prev;
+        const step = Math.max(1, Math.round((94 - prev.percent) * 0.12));
+        const nextPercent = Math.min(94, prev.percent + step);
+
+        let nextDetail = prev.detail;
+        let nextStageIndex = prev.currentStageIndex || 0;
+        if (stages.length > 0) {
+          const stageIndex = Math.min(
+            stages.length - 1,
+            Math.floor((nextPercent / 90) * stages.length)
+          );
+          if (stageIndex !== nextStageIndex && stages[stageIndex]) {
+            nextDetail = stages[stageIndex];
+            nextStageIndex = stageIndex;
+          }
+        }
+
+        return {
+          ...prev,
+          percent: nextPercent,
+          detail: nextDetail,
+          currentStageIndex: nextStageIndex,
+        };
+      });
+    }, 400);
+  };
+
+  const completeKnowledgeProgress = (title: string, successMessage: string) => {
+    clearKnowledgeProgressTimers();
+    setKnowledgeProgress((prev) => ({
+      id: prev?.id || `kp-${Date.now()}`,
+      title,
+      detail: successMessage,
+      percent: 100,
+      status: "success",
+    }));
+
+    progressDismissTimerRef.current = setTimeout(() => {
+      setKnowledgeProgress(null);
+    }, 4500);
+  };
+
+  const errorKnowledgeProgress = (title: string, errorMessage: string) => {
+    clearKnowledgeProgressTimers();
+    setKnowledgeProgress((prev) => ({
+      id: prev?.id || `kp-${Date.now()}`,
+      title,
+      detail: errorMessage,
+      percent: Math.max(prev?.percent || 0, 25),
+      status: "error",
+    }));
+  };
 
   // Mailbox tab state
   const [mailboxFilter, setMailboxFilter] = useState<"all" | "client" | "admin">("all");
@@ -3186,6 +3447,16 @@ export default function Dashboard() {
 
     setUploadingFile(file.name);
     setIsKnowledgeLoading(true);
+    startKnowledgeProgress(
+      `Uploading ${file.name}`,
+      "Uploading file and preparing RAG indexing...",
+      [
+        "Uploading document securely...",
+        "Extracting text & formatting structure...",
+        "Splitting into semantically coherent chunks...",
+        "Vectorizing content & storing in knowledge base..."
+      ]
+    );
 
     // Add a pending message
     setPlaygroundMessages((prev) => [
@@ -3213,6 +3484,10 @@ export default function Dashboard() {
 
       if (res.ok) {
         const body = await res.json();
+        completeKnowledgeProgress(
+          "Document Indexed",
+          `Successfully trained on ${file.name} (+${body.chunk_count || 0} chunks added).`
+        );
         
         // Update the assistant message in chat log
         setPlaygroundMessages((prev) =>
@@ -3232,7 +3507,11 @@ export default function Dashboard() {
           await loadBotSettings(user.id);
         }
       } else {
-        const body = await res.json();
+        const body = await res.json().catch(() => ({ detail: "Unknown backend error." }));
+        errorKnowledgeProgress(
+          "Upload Failed",
+          body.detail || "Failed to index document."
+        );
         setPlaygroundMessages((prev) =>
           prev.map((msg) =>
             msg.filename === file.name && msg.status === "pending"
@@ -3247,6 +3526,10 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("File upload error:", err);
+      errorKnowledgeProgress(
+        "Upload Failed",
+        "Could not connect to the upload server. Make sure the backend is active."
+      );
       setPlaygroundMessages((prev) =>
         prev.map((msg) =>
           msg.filename === file.name && msg.status === "pending"
@@ -3312,6 +3595,16 @@ export default function Dashboard() {
   const handleScanSitemap = async () => {
     if (!inputUrl.trim()) return;
     setScanningSitemap(true); setCrawlSummary(null); setDiscoveredUrls([]);
+    startKnowledgeProgress(
+      "Scanning Sitemap",
+      `Connecting to ${inputUrl.trim()}...`,
+      [
+        "Connecting to target web host...",
+        "Fetching sitemap.xml and robots.txt...",
+        "Parsing XML endpoints & pages...",
+        "Listing discoverable URLs for selection..."
+      ]
+    );
     try {
       const res = await fetchWithFallback("/api/crawl/discover", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -3322,11 +3615,20 @@ export default function Dashboard() {
         const urls: string[] = d.urls || [];
         setDiscoveredUrls(urls);
         setSelectedUrls(new Set(urls));
-        if (!d.sitemap_found) setCrawlSummary("No sitemap found — only this single page is available.");
+        if (!d.sitemap_found) {
+          setCrawlSummary("No sitemap found — only this single page is available.");
+          completeKnowledgeProgress("Scan Complete", "No sitemap found — single page detected.");
+        } else {
+          completeKnowledgeProgress("Sitemap Scanned", `Found ${urls.length} pages ready to crawl.`);
+        }
       } else {
         setCrawlSummary("Could not scan that site.");
+        errorKnowledgeProgress("Scan Failed", "Could not scan that website.");
       }
-    } catch { setCrawlSummary("Scan failed."); }
+    } catch {
+      setCrawlSummary("Scan failed.");
+      errorKnowledgeProgress("Scan Failed", "Network error while scanning sitemap.");
+    }
     finally { setScanningSitemap(false); }
   };
 
@@ -3335,6 +3637,16 @@ export default function Dashboard() {
     const urls = Array.from(selectedUrls);
     if (!urls.length || !botId) return;
     setCrawlingPages(true); setCrawlSummary(null);
+    startKnowledgeProgress(
+      `Crawling ${urls.length} Pages`,
+      `Queueing ${urls.length} pages for indexing...`,
+      [
+        "Dispatching crawl requests...",
+        "Parsing page HTML and content structure...",
+        "Splitting articles into semantic chunks...",
+        "Embedding vectors into knowledge base..."
+      ]
+    );
     try {
       const res = await fetchWithFallback("/api/crawl/pages", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -3342,11 +3654,19 @@ export default function Dashboard() {
       });
       if (res.ok) {
         const d = await res.json();
-        setCrawlSummary(`Indexed ${d.indexed} of ${urls.length} pages into your knowledge base.`);
+        const summaryText = `Indexed ${d.indexed} of ${urls.length} pages into your knowledge base.`;
+        setCrawlSummary(summaryText);
+        completeKnowledgeProgress("Crawl Complete", summaryText);
         setDiscoveredUrls([]); setSelectedUrls(new Set());
         if (user) loadBotSettings(user.id);
-      } else { setCrawlSummary("Crawl failed."); }
-    } catch { setCrawlSummary("Crawl failed."); }
+      } else {
+        setCrawlSummary("Crawl failed.");
+        errorKnowledgeProgress("Crawl Failed", "Failed to crawl selected pages.");
+      }
+    } catch {
+      setCrawlSummary("Crawl failed.");
+      errorKnowledgeProgress("Crawl Failed", "Connection error during page crawling.");
+    }
     finally { setCrawlingPages(false); }
   };
 
@@ -3357,6 +3677,16 @@ export default function Dashboard() {
     if (!urls.length || !botId) return;
     setCrawlingPages(true);
     setCrawlSummary(null);
+    startKnowledgeProgress(
+      `Bulk Indexing ${urls.length} URLs`,
+      `Connecting to ${urls.length} URLs in parallel...`,
+      [
+        "Initializing parallel crawler...",
+        "Downloading page contents & metadata...",
+        "Chunking article bodies for RAG...",
+        "Storing embeddings into knowledge base..."
+      ]
+    );
     try {
       const res = await fetchWithFallback("/api/crawl/pages", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -3364,15 +3694,19 @@ export default function Dashboard() {
       });
       if (res.ok) {
         const d = await res.json();
-        setCrawlSummary(`Indexed ${d.indexed} of ${urls.length} pages into your knowledge base.`);
+        const summaryText = `Indexed ${d.indexed} of ${urls.length} pages into your knowledge base.`;
+        setCrawlSummary(summaryText);
+        completeKnowledgeProgress("Bulk Crawl Complete", summaryText);
         setBulkUrlsText("");
         setBulkUrlsOpen(false);
         if (user) loadBotSettings(user.id);
       } else {
         setCrawlSummary("Bulk crawl failed.");
+        errorKnowledgeProgress("Bulk Crawl Failed", "Failed to crawl the provided URLs.");
       }
     } catch {
       setCrawlSummary("Bulk crawl failed.");
+      errorKnowledgeProgress("Bulk Crawl Failed", "Connection error during bulk crawl.");
     } finally {
       setCrawlingPages(false);
     }
@@ -3387,6 +3721,17 @@ export default function Dashboard() {
 
     const existingInState = sources.find((s) => s.name === urlName && s.type === "url");
     const newId = existingInState ? existingInState.id : `src-${Date.now()}`;
+
+    startKnowledgeProgress(
+      `Crawling Webpage`,
+      `Connecting to ${urlName}...`,
+      [
+        "Resolving domain & fetching HTML...",
+        "Extracting readable markdown content...",
+        "Analyzing text structure & chunking...",
+        "Embedding content & storing in knowledge base..."
+      ]
+    );
 
     if (existingInState) {
       setSources((prev) =>
@@ -3469,10 +3814,17 @@ export default function Dashboard() {
           setSources((prev) =>
             prev.map((s) => (s.id === newId || s.id === dbSrc.id ? { ...s, id: dbSrc.id, content: crawledContent, status: "trained", charCount: crawledContent.length } : s))
           );
+          completeKnowledgeProgress(
+            "Page Crawled & Indexed",
+            `Successfully trained on ${urlName} (${crawledContent.length.toLocaleString()} characters).`
+          );
         }, 1500);
+      } else {
+        completeKnowledgeProgress("Page Crawled", `Trained on ${urlName}.`);
       }
     } catch (err) {
       console.error("Error inserting url source:", err);
+      errorKnowledgeProgress("Crawl Failed", "Failed to crawl and index website.");
       if (!existingInState) {
         setSources((prev) => prev.filter((s) => s.id !== newId));
       }
@@ -3489,6 +3841,16 @@ export default function Dashboard() {
     const docContent = inputText;
     setInputText("");
     setInputTitle("");
+
+    startKnowledgeProgress(
+      `Indexing "${docTitle}"`,
+      "Analyzing document structure...",
+      [
+        "Splitting text into semantic paragraphs...",
+        "Generating RAG vector representations...",
+        "Saving custom knowledge source..."
+      ]
+    );
 
     const newSource: Source = {
       id: newId,
@@ -3526,10 +3888,17 @@ export default function Dashboard() {
           setSources((prev) =>
             prev.map((s) => (s.id === newId ? { ...s, id: dbSrc.id, status: "trained" } : s))
           );
+          completeKnowledgeProgress(
+            "Knowledge Added",
+            `"${docTitle}" is trained and ready (${docContent.length.toLocaleString()} characters).`
+          );
         }, 2000);
+      } else {
+        completeKnowledgeProgress("Knowledge Added", `"${docTitle}" added to knowledge base.`);
       }
     } catch (err) {
       console.error("Error inserting text source:", err);
+      errorKnowledgeProgress("Indexing Failed", "Failed to save text source.");
     }
   };
 
@@ -3574,6 +3943,18 @@ export default function Dashboard() {
     setDriveIndexError(null);
     setDriveIndexSuccess(null);
 
+    const providerName = source === "onedrive" ? "OneDrive" : "Google Drive";
+    startKnowledgeProgress(
+      `Indexing ${providerName} Folder`,
+      "Connecting to cloud storage...",
+      [
+        "Verifying cloud folder permissions...",
+        "Listing matching files and documents...",
+        "Queueing files for automatic document extraction...",
+        "Generating vector chunks for RAG..."
+      ]
+    );
+
     try {
       const res = await fetchWithFallback("/api/documents/index-folder", {
         method: "POST",
@@ -3588,15 +3969,21 @@ export default function Dashboard() {
       });
 
       if (res.ok) {
-        setDriveIndexSuccess("Indexing started in background. The files will be crawled and loaded shortly.");
+        const successMsg = "Indexing started in background. The files will be crawled and loaded shortly.";
+        setDriveIndexSuccess(successMsg);
+        completeKnowledgeProgress(`${providerName} Folder Queued`, successMsg);
         setDriveFolderUrl("");
       } else {
-        const body = await res.json();
-        setDriveIndexError(body.detail || "Failed to start folder indexing.");
+        const body = await res.json().catch(() => ({ detail: "Failed to start folder indexing." }));
+        const errDetail = body.detail || "Failed to start folder indexing.";
+        setDriveIndexError(errDetail);
+        errorKnowledgeProgress(`${providerName} Indexing Failed`, errDetail);
       }
     } catch (err) {
       console.error("Error indexing Drive folder:", err);
-      setDriveIndexError("Failed to connect to the server.");
+      const errMsg = "Failed to connect to the server.";
+      setDriveIndexError(errMsg);
+      errorKnowledgeProgress(`${providerName} Indexing Failed`, errMsg);
     } finally {
       setIsIndexingDrive(false);
     }
@@ -3625,6 +4012,16 @@ export default function Dashboard() {
   const handleRecrawlNow = async (sourceId: string, url: string) => {
     if (!botId || recrawlingSourceId) return;
     setRecrawlingSourceId(sourceId);
+    startKnowledgeProgress(
+      `Re-crawling URL`,
+      `Refreshing knowledge from ${url}...`,
+      [
+        "Connecting to live page...",
+        "Extracting updated content diffs...",
+        "Re-generating vector embeddings...",
+        "Updating knowledge base..."
+      ]
+    );
     try {
       const res = await fetchWithFallback("/api/crawl/pages", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -3635,12 +4032,16 @@ export default function Dashboard() {
       if (res.ok && result?.ok) {
         setSources((prev) => prev.map((s) => (s.id === sourceId ? { ...s, charCount: result.chars ?? s.charCount, status: "trained" } : s)));
         showToast("Re-crawled — knowledge base updated.", "success");
+        completeKnowledgeProgress("Re-crawl Complete", `Updated ${url} (${(result?.chars || 0).toLocaleString()} chars).`);
       } else {
-        showToast(result?.error ? `Re-crawl failed: ${result.error}` : "Re-crawl failed.", "error");
+        const failMsg = result?.error ? `Re-crawl failed: ${result.error}` : "Re-crawl failed.";
+        showToast(failMsg, "error");
+        errorKnowledgeProgress("Re-crawl Failed", failMsg);
       }
     } catch (err) {
       console.error("Error re-crawling source:", err);
       showToast("Re-crawl failed.", "error");
+      errorKnowledgeProgress("Re-crawl Failed", "Could not connect to crawl server.");
     } finally {
       setRecrawlingSourceId(null);
     }
@@ -3654,6 +4055,16 @@ export default function Dashboard() {
     const urlSources = sources.filter((s) => s.type === "url");
     if (urlSources.length === 0) return;
     setCrawlingAll(true);
+    startKnowledgeProgress(
+      `Re-crawling All ${urlSources.length} URLs`,
+      "Preparing full knowledge re-crawl...",
+      [
+        "Batching URLs for parallel processing...",
+        "Extracting fresh website contents...",
+        "Updating vector chunk index...",
+        "Finalizing knowledge synchronization..."
+      ]
+    );
     try {
       const res = await fetchWithFallback("/api/crawl/pages", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -3668,16 +4079,24 @@ export default function Dashboard() {
           return r?.ok ? { ...s, charCount: r.chars ?? s.charCount, status: "trained" } : s;
         }));
         const failed = results.length - (body.indexed ?? 0);
+        const msg = failed > 0 ? `Re-crawled ${body.indexed}/${results.length} sources (${failed} failed).` : `Re-crawled all ${body.indexed} sources.`;
         showToast(
-          failed > 0 ? `Re-crawled ${body.indexed}/${results.length} sources (${failed} failed).` : `Re-crawled all ${body.indexed} sources.`,
+          msg,
           failed > 0 ? "error" : "success",
         );
+        if (failed > 0) {
+          errorKnowledgeProgress("Crawl Finished with Errors", msg);
+        } else {
+          completeKnowledgeProgress("All URLs Re-crawled", msg);
+        }
       } else {
         showToast("Crawl all failed.", "error");
+        errorKnowledgeProgress("Crawl All Failed", "Could not complete re-crawling.");
       }
     } catch (err) {
       console.error("Error crawling all sources:", err);
       showToast("Crawl all failed.", "error");
+      errorKnowledgeProgress("Crawl All Failed", "Network error during full crawl.");
     } finally {
       setCrawlingAll(false);
     }
@@ -5625,12 +6044,21 @@ export default function Dashboard() {
                     {sources.some(s => s.status === "training") && (
                       <span className="text-[9px] text-[#f97316] font-medium flex items-center gap-1 mt-1">
                         <Loader2 className="size-3 animate-spin" /> {sources.filter(s => s.status === "training").length} training…
+                        {knowledgeProgress && knowledgeProgress.status === "active" && (
+                          <span className="font-mono font-bold">({knowledgeProgress.percent}%)</span>
+                        )}
                       </span>
                     )}
                   </div>
                   <div className="p-3 rounded-xl bg-green-50 dark:bg-green-950/30 text-green-500"><Check className="size-5" /></div>
                 </div>
               </div>
+
+              {/* Animated Knowledge Base Progress Bar Banner */}
+              <KnowledgeProgressBar
+                progress={knowledgeProgress}
+                onDismiss={() => setKnowledgeProgress(null)}
+              />
 
               {/* Add Source Card */}
               <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
@@ -5720,7 +6148,10 @@ export default function Dashboard() {
                           disabled={!inputUrl.trim() || scanningSitemap}
                           className="px-3 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
                         >
-                          {scanningSitemap ? <Loader2 className="size-3.5 animate-spin" /> : <Globe className="size-3.5" />} Scan sitemap
+                          {scanningSitemap ? <Loader2 className="size-3.5 animate-spin" /> : <Globe className="size-3.5" />}
+                          {scanningSitemap && knowledgeProgress?.status === "active"
+                            ? `Scanning sitemap (${knowledgeProgress.percent}%)`
+                            : "Scan sitemap"}
                         </button>
                         <button
                           type="button"
@@ -5758,7 +6189,10 @@ export default function Dashboard() {
                                 disabled={!bulkUrlsText.trim() || crawlingPages || !botId}
                                 className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
                               >
-                                {crawlingPages ? <Loader2 className="size-3.5 animate-spin" /> : <Layers className="size-3.5" />} Index all
+                                {crawlingPages ? <Loader2 className="size-3.5 animate-spin" /> : <Layers className="size-3.5" />}
+                                {crawlingPages && knowledgeProgress?.status === "active"
+                                  ? `Indexing (${knowledgeProgress.percent}%)`
+                                  : "Index all"}
                               </button>
                             </div>
                           </div>
@@ -5797,7 +6231,10 @@ export default function Dashboard() {
                               disabled={!selectedUrls.size || crawlingPages || !botId}
                               className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
                             >
-                              {crawlingPages ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />} Crawl selected ({selectedUrls.size})
+                              {crawlingPages ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
+                              {crawlingPages && knowledgeProgress?.status === "active"
+                                ? `Crawling (${knowledgeProgress.percent}%)`
+                                : `Crawl selected (${selectedUrls.size})`}
                             </button>
                           </div>
                         </div>
@@ -5817,10 +6254,32 @@ export default function Dashboard() {
                         className="w-full border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl p-8 flex flex-col items-center justify-center gap-2 text-center hover:border-[#f97316]/50 hover:bg-[#f97316]/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isKnowledgeLoading ? (
-                          <>
-                            <Loader2 className="size-6 text-[#f97316] animate-spin" />
-                            <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Indexing {uploadingFile}…</span>
-                          </>
+                          <div className="w-full max-w-sm flex flex-col items-center gap-2.5">
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="size-5 text-[#f97316] animate-spin" />
+                              <span className="text-xs font-bold text-neutral-700 dark:text-neutral-200 truncate max-w-xs">
+                                Indexing {uploadingFile}…
+                              </span>
+                              {knowledgeProgress && (
+                                <span className="text-xs font-mono font-black text-[#f97316] bg-orange-50 dark:bg-orange-950/40 px-2 py-0.5 rounded-md border border-orange-200 dark:border-orange-900/50">
+                                  {knowledgeProgress.percent}%
+                                </span>
+                              )}
+                            </div>
+                            {knowledgeProgress && (
+                              <div className="w-full h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden relative shadow-inner">
+                                <div
+                                  className="h-full bg-gradient-to-r from-[#f97316] via-orange-500 to-amber-400 rounded-full transition-all duration-300 relative overflow-hidden"
+                                  style={{ width: `${Math.max(4, Math.min(100, knowledgeProgress.percent))}%` }}
+                                >
+                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
+                                </div>
+                              </div>
+                            )}
+                            <p className="text-[10px] text-neutral-400 font-medium">
+                              {knowledgeProgress?.detail || "Parsing structure & extracting text chunks..."}
+                            </p>
+                          </div>
                         ) : (
                           <>
                             <FileUp className="size-6 text-neutral-400" />
@@ -6041,8 +6500,10 @@ export default function Dashboard() {
                         title="Re-crawl every URL source now"
                         className="flex items-center gap-1.5 px-2.5 py-1.5 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-950 rounded-lg text-[10px] font-semibold text-neutral-600 dark:text-neutral-300 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                       >
-                        <RefreshCw className={`size-3.5 ${crawlingAll ? "animate-spin" : ""}`} />
-                        Crawl All
+                        <RefreshCw className={`size-3.5 ${crawlingAll ? "animate-spin text-[#f97316]" : ""}`} />
+                        {crawlingAll && knowledgeProgress?.status === "active"
+                          ? `Crawling (${knowledgeProgress.percent}%)`
+                          : "Crawl All"}
                       </button>
                     )}
                   </div>
@@ -6088,6 +6549,9 @@ export default function Dashboard() {
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400">
                                     <Loader2 className="size-2.5 animate-spin" /> Training
+                                    {knowledgeProgress && knowledgeProgress.status === "active" && (
+                                      <span className="font-mono font-bold">({knowledgeProgress.percent}%)</span>
+                                    )}
                                   </span>
                                 )}
                               </div>
@@ -6111,9 +6575,14 @@ export default function Dashboard() {
                                     disabled={recrawlingSourceId === s.id}
                                     aria-label="Re-crawl now"
                                     title="Re-crawl now"
-                                    className="shrink-0 text-neutral-400 hover:text-[#f97316] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                                    className="shrink-0 text-neutral-400 hover:text-[#f97316] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default flex items-center gap-1"
                                   >
-                                    <RefreshCw className={`size-3 ${recrawlingSourceId === s.id ? "animate-spin" : ""}`} />
+                                    <RefreshCw className={`size-3 ${recrawlingSourceId === s.id ? "animate-spin text-[#f97316]" : ""}`} />
+                                    {recrawlingSourceId === s.id && knowledgeProgress?.status === "active" && (
+                                      <span className="text-[9px] font-mono text-[#f97316] font-bold">
+                                        {knowledgeProgress.percent}%
+                                      </span>
+                                    )}
                                   </button>
                                   <div className="relative">
                                     <button
