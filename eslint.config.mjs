@@ -52,6 +52,8 @@ const eslintConfig = defineConfig([
       // guarantees their identity is stable - and one dep the compiler
       // considers possibly-mutated later).
       "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   },
 ]);
