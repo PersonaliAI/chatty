@@ -16,6 +16,7 @@ from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
 from app.core.uploads import read_upload_capped
+import re
 from app.schemas.admin import (
     InboxAIToggle,
     InboxDeleteRequest,
@@ -25,6 +26,18 @@ from app.schemas.admin import (
     SessionNoteCreateRequest,
     SessionUpdateRequest,
 )
+from app.schemas.kb import (
+    ArticleCreateRequest,
+    ArticleUpdateRequest,
+    CategoryCreateRequest,
+    CategoryUpdateRequest,
+)
+
+def _slugify(text: str) -> str:
+    s = text.lower().strip()
+    s = re.sub(r"[^\w\s-]", "", s)
+    s = re.sub(r"[\s_-]+", "-", s)
+    return s.strip("-") or "untitled"
 
 # Bridged helpers still living in main.py (shared across many route groups).
 from main import _verify_bot_access, _verify_bot_owner
@@ -551,3 +564,353 @@ async def admin_reschedule_meeting(
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+
+# ---------------------------------------------------------------------------
+# ENTERPRISE KNOWLEDGE BASE & HELP CENTER (Zendesk Guide Level)
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/kb/categories")
+async def admin_get_kb_categories(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Fetch all knowledge base categories for a bot, with article counts."""
+    await _verify_bot_access(bot_id, user)
+    res = await run_db(lambda: supabase.table("chatty_kb_categories")
+        .select("*")
+        .eq("bot_id", bot_id)
+        .order("order_index")
+        .order("created_at")
+        .execute())
+    categories = res.data or []
+
+    # Fetch article counts per category
+    art_res = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("category_id")
+        .eq("bot_id", bot_id)
+        .execute())
+    counts: dict[str, int] = {}
+    for a in (art_res.data or []):
+        cat_id = a.get("category_id")
+        if cat_id:
+            counts[cat_id] = counts.get(cat_id, 0) + 1
+
+    for c in categories:
+        c["article_count"] = counts.get(c["id"], 0)
+
+    return {"categories": categories}
+
+
+@router.post("/api/admin/kb/categories")
+async def admin_create_kb_category(req: CategoryCreateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Create a new knowledge base category."""
+    await _verify_bot_access(req.bot_id, user)
+    slug = _slugify(req.slug or req.name)
+
+    # Ensure unique slug
+    existing = await run_db(lambda: supabase.table("chatty_kb_categories")
+        .select("id")
+        .eq("bot_id", req.bot_id)
+        .eq("slug", slug)
+        .execute())
+    if existing.data:
+        slug = f"{slug}-{int(time.time())}"
+
+    row = {
+        "bot_id": req.bot_id,
+        "name": req.name.strip(),
+        "slug": slug,
+        "description": (req.description or "").strip(),
+        "icon": (req.icon or "Folder").strip(),
+        "order_index": req.order_index or 0,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = await run_db(lambda: supabase.table("chatty_kb_categories").insert(row).execute())
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create category")
+    return {"category": res.data[0]}
+
+
+@router.patch("/api/admin/kb/categories/{cat_id}")
+async def admin_update_kb_category(cat_id: str, req: CategoryUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Update an existing knowledge base category."""
+    cat_res = await run_db(lambda: supabase.table("chatty_kb_categories").select("*").eq("id", cat_id).execute())
+    if not cat_res.data:
+        raise HTTPException(status_code=404, detail="Category not found")
+    cat = cat_res.data[0]
+    await _verify_bot_access(cat["bot_id"], user)
+
+    updates: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if req.name is not None:
+        updates["name"] = req.name.strip()
+    if req.slug is not None:
+        updates["slug"] = _slugify(req.slug)
+    if req.description is not None:
+        updates["description"] = req.description.strip()
+    if req.icon is not None:
+        updates["icon"] = req.icon.strip()
+    if req.order_index is not None:
+        updates["order_index"] = req.order_index
+
+    res = await run_db(lambda: supabase.table("chatty_kb_categories").update(updates).eq("id", cat_id).execute())
+    return {"category": res.data[0] if res.data else cat}
+
+
+@router.delete("/api/admin/kb/categories/{cat_id}")
+async def admin_delete_kb_category(cat_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Delete a category (articles inside have their category_id set to NULL)."""
+    cat_res = await run_db(lambda: supabase.table("chatty_kb_categories").select("id, bot_id").eq("id", cat_id).execute())
+    if not cat_res.data:
+        raise HTTPException(status_code=404, detail="Category not found")
+    await _verify_bot_access(cat_res.data[0]["bot_id"], user)
+
+    await run_db(lambda: supabase.table("chatty_kb_categories").delete().eq("id", cat_id).execute())
+    return {"success": True}
+
+
+@router.get("/api/admin/kb/articles")
+async def admin_get_kb_articles(
+    bot_id: str,
+    category_id: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """List all knowledge base articles with optional filters."""
+    await _verify_bot_access(bot_id, user)
+    q = supabase.table("chatty_kb_articles").select("*, category:chatty_kb_categories(name, slug, icon)").eq("bot_id", bot_id)
+    if category_id:
+        q = q.eq("category_id", category_id)
+    if status:
+        q = q.eq("status", status)
+    q = q.order("order_index").order("created_at", desc=True)
+
+    res = await run_db(lambda: q.execute())
+    articles = res.data or []
+
+    if search:
+        s = search.lower().strip()
+        articles = [a for a in articles if s in (a.get("title") or "").lower() or s in (a.get("content") or "").lower() or any(s in t.lower() for t in (a.get("tags") or []))]
+
+    return {"articles": articles}
+
+
+@router.get("/api/admin/kb/articles/{article_id}")
+async def admin_get_kb_article(article_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Fetch single knowledge base article."""
+    res = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("*, category:chatty_kb_categories(name, slug, icon)")
+        .eq("id", article_id)
+        .execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Article not found")
+    article = res.data[0]
+    await _verify_bot_access(article["bot_id"], user)
+    return {"article": article}
+
+
+@router.post("/api/admin/kb/articles")
+async def admin_create_kb_article(req: ArticleCreateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Create a new knowledge base article, automatically syncing to chatty_sources for AI RAG memory."""
+    await _verify_bot_access(req.bot_id, user)
+    slug = _slugify(req.slug or req.title)
+
+    # Check slug collision for this bot
+    existing = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("id")
+        .eq("bot_id", req.bot_id)
+        .eq("slug", slug)
+        .execute())
+    if existing.data:
+        slug = f"{slug}-{int(time.time())}"
+
+    author_email = user.get("email") or ""
+    author_name = (user.get("user_metadata") or {}).get("name") or (author_email.split("@")[0] if author_email else "Staff")
+    author_id = user.get("id")
+
+    source_id = None
+    # Auto-sync to chatty_sources if published & public
+    if req.status == "published" and req.visibility == "public" and req.content.strip():
+        source_name = f"Article: {req.title.strip()}"
+        src_res = await run_db(lambda: supabase.table("chatty_sources").insert({
+            "bot_id": req.bot_id,
+            "type": "text",
+            "name": source_name,
+            "content": req.content.strip(),
+            "char_count": len(req.content.strip()),
+            "status": "trained",
+        }).execute())
+        if src_res.data:
+            source_id = src_res.data[0]["id"]
+
+    row = {
+        "bot_id": req.bot_id,
+        "category_id": req.category_id or None,
+        "title": req.title.strip(),
+        "slug": slug,
+        "subtitle": (req.subtitle or "").strip(),
+        "content": req.content.strip(),
+        "status": req.status or "published",
+        "visibility": req.visibility or "public",
+        "author_id": author_id,
+        "author_name": author_name,
+        "author_email": author_email,
+        "tags": req.tags or [],
+        "is_promoted": bool(req.is_promoted),
+        "order_index": req.order_index or 0,
+        "source_id": source_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = await run_db(lambda: supabase.table("chatty_kb_articles").insert(row).execute())
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create article")
+    return {"article": res.data[0]}
+
+
+@router.patch("/api/admin/kb/articles/{article_id}")
+async def admin_update_kb_article(article_id: str, req: ArticleUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Update a knowledge base article, keeping chatty_sources RAG memory in sync."""
+    art_res = await run_db(lambda: supabase.table("chatty_kb_articles").select("*").eq("id", article_id).execute())
+    if not art_res.data:
+        raise HTTPException(status_code=404, detail="Article not found")
+    article = art_res.data[0]
+    bot_id = article["bot_id"]
+    await _verify_bot_access(bot_id, user)
+
+    updates: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if req.title is not None:
+        updates["title"] = req.title.strip()
+    if req.slug is not None:
+        updates["slug"] = _slugify(req.slug)
+    if req.category_id is not None:
+        updates["category_id"] = req.category_id if req.category_id != "" else None
+    if req.subtitle is not None:
+        updates["subtitle"] = req.subtitle.strip()
+    if req.content is not None:
+        updates["content"] = req.content.strip()
+    if req.status is not None:
+        updates["status"] = req.status
+    if req.visibility is not None:
+        updates["visibility"] = req.visibility
+    if req.tags is not None:
+        updates["tags"] = req.tags
+    if req.is_promoted is not None:
+        updates["is_promoted"] = req.is_promoted
+    if req.order_index is not None:
+        updates["order_index"] = req.order_index
+
+    # Resolve resulting state for RAG sync
+    eff_status = updates.get("status", article.get("status"))
+    eff_visibility = updates.get("visibility", article.get("visibility"))
+    eff_title = updates.get("title", article.get("title"))
+    eff_content = updates.get("content", article.get("content"))
+    source_id = article.get("source_id")
+
+    if eff_status == "published" and eff_visibility == "public" and eff_content:
+        source_name = f"Article: {eff_title}"
+        if source_id:
+            await run_db(lambda: supabase.table("chatty_sources").update({
+                "name": source_name,
+                "content": eff_content,
+                "char_count": len(eff_content),
+                "status": "trained",
+            }).eq("id", source_id).execute())
+        else:
+            src_res = await run_db(lambda: supabase.table("chatty_sources").insert({
+                "bot_id": bot_id,
+                "type": "text",
+                "name": source_name,
+                "content": eff_content,
+                "char_count": len(eff_content),
+                "status": "trained",
+            }).execute())
+            if src_res.data:
+                updates["source_id"] = src_res.data[0]["id"]
+    else:
+        # Article is unpublished/internal/empty — unlink from RAG sources so bot doesn't expose it
+        if source_id:
+            await run_db(lambda: supabase.table("chatty_sources").delete().eq("id", source_id).execute())
+            updates["source_id"] = None
+
+    res = await run_db(lambda: supabase.table("chatty_kb_articles").update(updates).eq("id", article_id).execute())
+    return {"article": res.data[0] if res.data else article}
+
+
+@router.delete("/api/admin/kb/articles/{article_id}")
+async def admin_delete_kb_article(article_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Delete an article and its linked RAG memory."""
+    art_res = await run_db(lambda: supabase.table("chatty_kb_articles").select("id, bot_id, source_id").eq("id", article_id).execute())
+    if not art_res.data:
+        raise HTTPException(status_code=404, detail="Article not found")
+    article = art_res.data[0]
+    await _verify_bot_access(article["bot_id"], user)
+
+    source_id = article.get("source_id")
+    if source_id:
+        await run_db(lambda: supabase.table("chatty_sources").delete().eq("id", source_id).execute())
+
+    await run_db(lambda: supabase.table("chatty_kb_articles").delete().eq("id", article_id).execute())
+    return {"success": True}
+
+
+@router.get("/api/admin/kb/analytics")
+async def admin_get_kb_analytics(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Zendesk-grade Knowledge Base Analytics & Content Gap Detection."""
+    await _verify_bot_access(bot_id, user)
+
+    # 1. Articles stats
+    art_res = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("id, title, slug, status, view_count, helpful_count, not_helpful_count")
+        .eq("bot_id", bot_id)
+        .execute())
+    articles = art_res.data or []
+
+    total_articles = len(articles)
+    published_count = sum(1 for a in articles if a.get("status") == "published")
+    draft_count = sum(1 for a in articles if a.get("status") == "draft")
+    archived_count = sum(1 for a in articles if a.get("status") == "archived")
+
+    total_views = sum(a.get("view_count") or 0 for a in articles)
+    total_helpful = sum(a.get("helpful_count") or 0 for a in articles)
+    total_not_helpful = sum(a.get("not_helpful_count") or 0 for a in articles)
+    total_votes = total_helpful + total_not_helpful
+    csat_percent = round((total_helpful / total_votes * 100), 1) if total_votes > 0 else 100.0
+
+    # Sort top articles by view_count
+    top_articles = sorted(articles, key=lambda a: a.get("view_count") or 0, reverse=True)[:5]
+
+    # 2. Content Gaps: searches where results_count == 0
+    search_res = await run_db(lambda: supabase.table("chatty_kb_searches")
+        .select("query, created_at")
+        .eq("bot_id", bot_id)
+        .eq("results_count", 0)
+        .order("created_at", desc=True)
+        .limit(50)
+        .execute())
+    searches = search_res.data or []
+    # Deduplicate / group frequency of search terms
+    query_freq: dict[str, int] = {}
+    for s in searches:
+        q = (s.get("query") or "").strip().lower()
+        if q:
+            query_freq[q] = query_freq.get(q, 0) + 1
+    content_gaps = [{"query": q, "count": cnt} for q, cnt in sorted(query_freq.items(), key=lambda x: x[1], reverse=True)[:10]]
+
+    # 3. Categories count
+    cat_res = await run_db(lambda: supabase.table("chatty_kb_categories").select("id", count="exact").eq("bot_id", bot_id).execute())
+    total_categories = cat_res.count if cat_res.count is not None else len(cat_res.data or [])
+
+    return {
+        "total_articles": total_articles,
+        "published_count": published_count,
+        "draft_count": draft_count,
+        "archived_count": archived_count,
+        "total_categories": total_categories,
+        "total_views": total_views,
+        "total_helpful": total_helpful,
+        "total_not_helpful": total_not_helpful,
+        "csat_percent": csat_percent,
+        "top_articles": top_articles,
+        "content_gaps": content_gaps,
+    }
+

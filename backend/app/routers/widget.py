@@ -7,6 +7,7 @@ import base64
 import json
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
@@ -25,6 +26,7 @@ from app.schemas.widget import (
     WidgetMediaResponse,
     WidgetVerifyOriginRequest,
 )
+from app.schemas.kb import ArticleFeedbackRequest
 from plugins import notifications as notify
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
@@ -734,3 +736,234 @@ async def widget_kb_sources(bot_id: str):
     res = await run_db(lambda: supabase.table("chatty_sources").select(
         "id, name, content, type").eq("bot_id", bot_id).execute())
     return {"sources": res.data or []}
+
+
+# ---------------------------------------------------------------------------
+# PUBLIC KNOWLEDGE BASE & HELP CENTER PORTAL (Zendesk Guide Level)
+# ---------------------------------------------------------------------------
+
+@router.get("/api/widget/kb/portal")
+async def widget_kb_portal(bot_id: str):
+    """Public Help Center portal data: bot branding, categories, promoted and recent articles."""
+    # 1. Fetch bot details
+    res_bot = await run_db(lambda: supabase.table("chatty_bots").select(
+        "id, name, logo_url, avatar_icon, primary_color, color_scheme, bot_role"
+    ).eq("id", bot_id).execute())
+    if not res_bot.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot_info = res_bot.data[0]
+
+    # 2. Fetch categories
+    res_cat = await run_db(lambda: supabase.table("chatty_kb_categories")
+        .select("id, name, slug, description, icon, order_index")
+        .eq("bot_id", bot_id)
+        .order("order_index")
+        .order("created_at")
+        .execute())
+    categories = res_cat.data or []
+
+    # 3. Fetch published public articles
+    res_art = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("id, category_id, title, slug, subtitle, tags, is_promoted, order_index, view_count, helpful_count, not_helpful_count, created_at, updated_at")
+        .eq("bot_id", bot_id)
+        .eq("status", "published")
+        .eq("visibility", "public")
+        .order("order_index")
+        .order("created_at", desc=True)
+        .execute())
+    articles = res_art.data or []
+
+    # Map category article counts
+    cat_counts: dict[str, int] = {}
+    for a in articles:
+        cid = a.get("category_id")
+        if cid:
+            cat_counts[cid] = cat_counts.get(cid, 0) + 1
+    for c in categories:
+        c["article_count"] = cat_counts.get(c["id"], 0)
+
+    # Promoted & recent articles
+    promoted_articles = [a for a in articles if a.get("is_promoted")]
+    recent_articles = articles[:6]
+
+    return {
+        "bot": bot_info,
+        "categories": categories,
+        "promoted_articles": promoted_articles,
+        "recent_articles": recent_articles,
+        "total_articles": len(articles),
+    }
+
+
+@router.get("/api/widget/kb/categories/{slug}")
+async def widget_kb_category_detail(slug: str, bot_id: str):
+    """Fetch public category details and its published articles."""
+    res_cat = await run_db(lambda: supabase.table("chatty_kb_categories")
+        .select("*")
+        .eq("bot_id", bot_id)
+        .eq("slug", slug)
+        .execute())
+    if not res_cat.data:
+        raise HTTPException(status_code=404, detail="Category not found")
+    category = res_cat.data[0]
+
+    res_art = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("id, category_id, title, slug, subtitle, tags, is_promoted, order_index, view_count, helpful_count, not_helpful_count, created_at, updated_at")
+        .eq("bot_id", bot_id)
+        .eq("category_id", category["id"])
+        .eq("status", "published")
+        .eq("visibility", "public")
+        .order("order_index")
+        .order("created_at", desc=True)
+        .execute())
+
+    return {
+        "category": category,
+        "articles": res_art.data or [],
+    }
+
+
+@router.get("/api/widget/kb/articles/{slug}")
+async def widget_kb_article_detail(slug: str, bot_id: str):
+    """Fetch published public article detail, increment view count, and get related articles."""
+    res_art = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("*, category:chatty_kb_categories(id, name, slug, icon)")
+        .eq("bot_id", bot_id)
+        .eq("slug", slug)
+        .eq("status", "published")
+        .eq("visibility", "public")
+        .execute())
+    if not res_art.data:
+        raise HTTPException(status_code=404, detail="Article not found")
+    article = res_art.data[0]
+
+    # Increment view count
+    current_views = article.get("view_count") or 0
+    try:
+        await run_db(lambda: supabase.table("chatty_kb_articles")
+            .update({"view_count": current_views + 1})
+            .eq("id", article["id"])
+            .execute())
+        article["view_count"] = current_views + 1
+    except Exception:
+        logger.exception("Failed to increment article view count")
+
+    # Related articles in same category
+    related = []
+    if article.get("category_id"):
+        res_rel = await run_db(lambda: supabase.table("chatty_kb_articles")
+            .select("id, title, slug, subtitle, view_count")
+            .eq("bot_id", bot_id)
+            .eq("category_id", article["category_id"])
+            .eq("status", "published")
+            .eq("visibility", "public")
+            .neq("id", article["id"])
+            .limit(4)
+            .execute())
+        related = res_rel.data or []
+
+    return {
+        "article": article,
+        "related": related,
+    }
+
+
+@router.post("/api/widget/kb/articles/{article_id}/feedback")
+async def widget_kb_article_feedback(article_id: str, req: ArticleFeedbackRequest, request: Request):
+    """Submit helpful/not helpful CSAT feedback on a knowledge base article."""
+    res_art = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("id, helpful_count, not_helpful_count")
+        .eq("id", article_id)
+        .eq("bot_id", req.bot_id)
+        .execute())
+    if not res_art.data:
+        raise HTTPException(status_code=404, detail="Article not found")
+    article = res_art.data[0]
+
+    ip = _client_ip(request)
+    await run_db(lambda: supabase.table("chatty_kb_feedback").insert({
+        "bot_id": req.bot_id,
+        "article_id": article_id,
+        "is_helpful": req.is_helpful,
+        "comment": (req.comment or "").strip()[:1000],
+        "user_ip": ip,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }).execute())
+
+    field = "helpful_count" if req.is_helpful else "not_helpful_count"
+    new_count = (article.get(field) or 0) + 1
+    await run_db(lambda: supabase.table("chatty_kb_articles").update({field: new_count}).eq("id", article_id).execute())
+
+    return {"success": True}
+
+
+@router.get("/api/widget/kb/search")
+async def widget_kb_search(bot_id: str, q: str = ""):
+    """Instant search across published public articles, logging search queries for content gap analytics."""
+    query = q.strip().lower()
+    if not query:
+        return {"articles": []}
+
+    res = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("id, category_id, title, slug, subtitle, content, tags, category:chatty_kb_categories(name, slug)")
+        .eq("bot_id", bot_id)
+        .eq("status", "published")
+        .eq("visibility", "public")
+        .execute())
+    articles = res.data or []
+
+    matched = []
+    for a in articles:
+        title = (a.get("title") or "").lower()
+        subtitle = (a.get("subtitle") or "").lower()
+        content = (a.get("content") or "").lower()
+        tags = [t.lower() for t in (a.get("tags") or [])]
+
+        score = 0
+        if query in title:
+            score += 10
+        if any(query in t for t in tags):
+            score += 5
+        if query in subtitle:
+            score += 3
+        if query in content:
+            score += 1
+
+        if score > 0:
+            # Generate snippet
+            snippet = ""
+            if query in content:
+                idx = content.find(query)
+                start = max(0, idx - 40)
+                end = min(len(content), idx + len(query) + 80)
+                snippet = "…" + content[start:end].strip() + "…"
+            elif a.get("subtitle"):
+                snippet = a.get("subtitle")
+            else:
+                snippet = (a.get("content") or "")[:120]
+
+            matched.append({
+                "id": a["id"],
+                "title": a["title"],
+                "slug": a["slug"],
+                "subtitle": a.get("subtitle") or "",
+                "snippet": snippet,
+                "category": a.get("category"),
+                "score": score,
+            })
+
+    matched.sort(key=lambda x: x["score"], reverse=True)
+
+    # Log search query for content gap analytics
+    try:
+        await run_db(lambda: supabase.table("chatty_kb_searches").insert({
+            "bot_id": bot_id,
+            "query": query[:200],
+            "results_count": len(matched),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }).execute())
+    except Exception:
+        logger.exception("Failed to log KB search query")
+
+    return {"articles": matched[:20]}
+
