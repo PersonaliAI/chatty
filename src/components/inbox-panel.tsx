@@ -37,6 +37,7 @@ import {
   ExternalLink,
   Users,
   Radio,
+  Mail,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -113,6 +114,9 @@ interface Session {
   sla_status?: "on_track" | "met" | "breached";
   escalation_reason?: string;
   tags?: string[];
+  channel?: "web" | "email" | "slack" | "whatsapp";
+  subject?: string;
+  visitor_email?: string;
 }
 
 interface Note {
@@ -304,6 +308,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [selectedStatusTab, setSelectedStatusTab] = useState<"all" | "unassigned" | "open" | "pending" | "resolved" | "closed">("open");
   const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<string>("all");
   const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<string>("all");
+  const [selectedChannelFilter, setSelectedChannelFilter] = useState<string>("all");
   const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
   const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
@@ -910,6 +915,11 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       return false;
     }
 
+    const sChannel = s.channel || "web";
+    if (selectedChannelFilter !== "all" && sChannel !== selectedChannelFilter) {
+      return false;
+    }
+
     if (selectedAssigneeFilter === "me") {
       if (!currentUserEmail || s.assigned_agent_email?.toLowerCase() !== currentUserEmail.toLowerCase()) {
         return false;
@@ -929,7 +939,9 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       const matchesMsg = (s.last_message || "").toLowerCase().includes(q);
       const matchesId = s.session_id.toLowerCase().includes(q);
       const matchesTags = sessionTags.some((t) => t.toLowerCase().includes(q));
-      return matchesName || matchesMsg || matchesId || matchesTags;
+      const matchesSubject = (s.subject || "").toLowerCase().includes(q);
+      const matchesEmail = (s.visitor_email || "").toLowerCase().includes(q);
+      return matchesName || matchesMsg || matchesId || matchesTags || matchesSubject || matchesEmail;
     }
 
     return true;
@@ -1180,6 +1192,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               <option value="unassigned">Unassigned</option>
             </select>
 
+            {/* Channel Filter */}
+            <select
+              value={selectedChannelFilter}
+              onChange={(e) => setSelectedChannelFilter(e.target.value)}
+              className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-1.5 py-0.5 text-neutral-600 dark:text-neutral-300 focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Channels</option>
+              <option value="web">💬 Chat</option>
+              <option value="email">✉️ Email</option>
+            </select>
+
             {/* Tag Filter Dropdown */}
             <select
               value={selectedTagFilter}
@@ -1224,9 +1247,14 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold truncate flex items-center gap-1.5">
+                    <span className="text-xs font-semibold truncate flex items-center gap-1.5 min-w-0">
                       {s.needs_attention && <span className="size-2 rounded-full bg-red-500 animate-ping shrink-0" />}
-                      {s.visitor_name || `Visitor ${s.session_id.slice(-5)}`}
+                      <span className="truncate">{s.visitor_name || `Visitor ${s.session_id.slice(-5)}`}</span>
+                      {s.channel === "email" && (
+                        <span title="Inbound Email Ticket" className="shrink-0 p-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                          <Mail className="size-2.5" />
+                        </span>
+                      )}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
                       {s.needs_attention ? (
@@ -1252,12 +1280,26 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     </div>
                   </div>
 
+                  {s.subject && (
+                    <p className="text-[11px] font-medium text-neutral-800 dark:text-neutral-200 truncate mt-0.5">
+                      {s.subject}
+                    </p>
+                  )}
+
                   <p className="text-[10px] text-neutral-400 truncate mt-0.5">
                     {s.last_message || "…"}
                   </p>
 
-                  {/* Badges Row: Priority, SLA, Assignee, Tags */}
+                  {/* Badges Row: Priority, SLA, Channel, Assignee, Tags */}
                   <div className="flex flex-wrap items-center gap-1 mt-2">
+                    {/* Channel Badge */}
+                    {s.channel === "email" && (
+                      <span className="text-[8px] px-1.5 py-0.2 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 flex items-center gap-0.5 font-medium">
+                        <Mail className="size-2.5" />
+                        <span>Email</span>
+                      </span>
+                    )}
+
                     {/* Priority Badge */}
                     <span className={`text-[8px] px-1.5 py-0.2 rounded-md flex items-center gap-0.5 ${pConfig.badge}`}>
                       <PriorityIcon className="size-2.5" />
@@ -1317,9 +1359,19 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             {/* Ticket Header Bar */}
             <div className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-40">
+                <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-40 flex items-center gap-1.5">
                   {current?.visitor_name || `Visitor ${selected.slice(-5)}`}
                 </span>
+                {current?.channel === "email" && (
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                    <Mail className="size-2.5" />Email
+                  </span>
+                )}
+                {current?.visitor_email && (
+                  <span className="text-[10px] text-neutral-400 truncate max-w-48 font-mono">
+                    &lt;{current.visitor_email}&gt;
+                  </span>
+                )}
                 <span className="text-[10px] font-mono font-semibold text-neutral-400">
                   #{selected.slice(-6).toUpperCase()}
                 </span>
@@ -1566,6 +1618,22 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 </button>
               </div>
             </div>
+
+            {/* Email Subject Sub-Banner */}
+            {current?.channel === "email" && (
+              <div className="px-3.5 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900/30 flex items-center justify-between text-xs text-blue-900 dark:text-blue-200 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Mail className="size-3.5 text-blue-500 shrink-0" />
+                  <div className="min-w-0 truncate">
+                    <span className="font-bold">Subject: </span>
+                    <span>{current.subject || "Support Inquiry"}</span>
+                  </div>
+                </div>
+                <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/10 font-semibold text-blue-600 dark:text-blue-400 shrink-0 border border-blue-500/20">
+                  Threaded Email
+                </span>
+              </div>
+            )}
 
             {/* Smart Escalation Notice Banner */}
             {current?.needs_attention && (
@@ -1855,6 +1923,18 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* Email Delivery Banner */}
+                {(current?.channel === "email" || current?.visitor_email) && (
+                  <div className="flex items-center justify-between px-2.5 py-1 mb-2 rounded-lg bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-[10px] text-blue-700 dark:text-blue-300">
+                    <span className="flex items-center gap-1.5 font-medium truncate">
+                      <Mail className="size-3 text-blue-500 shrink-0" />
+                      <span>Replying via Email to <strong className="font-semibold">{current.visitor_email || current.visitor_name || "Customer"}</strong></span>
+                    </span>
+                    <span className="text-[9px] opacity-75 shrink-0 hidden sm:inline">Delivered to customer inbox</span>
+                  </div>
+                )}
+
                 <input
                   value={reply}
                   onChange={handleReplyChange}
