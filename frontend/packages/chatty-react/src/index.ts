@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 
 export interface ChattyWidgetProps {
   /**
