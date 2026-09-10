@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Calendar,
   Clock,
@@ -23,8 +23,9 @@ import {
   CalendarPlus,
   AlertCircle,
   RefreshCw,
+  KeyRound,
+  ShieldCheck,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
@@ -61,6 +62,7 @@ export interface ConfirmedMeeting {
   end_time: string;
   attendee_name: string;
   attendee_email: string;
+  assigned_to_email?: string;
 }
 
 export interface InlineBookingCardProps {
@@ -171,7 +173,30 @@ export function InlineBookingCard({
   const [activeTimezone, setActiveTimezone] = useState(detectedTz);
   const [isTzOpen, setIsTzOpen] = useState(false);
   const [tzQuery, setTzQuery] = useState("");
-  const tzDropdownRef = React.useRef<HTMLDivElement>(null);
+  const tzDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Date strip scrolling
+  const dateScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkDateScroll = () => {
+    if (dateScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = dateScrollRef.current;
+      setCanScrollLeft(scrollLeft > 4);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
+    }
+  };
+
+  const scrollDates = (direction: "left" | "right") => {
+    if (dateScrollRef.current) {
+      const amount = 160;
+      dateScrollRef.current.scrollBy({
+        left: direction === "left" ? -amount : amount,
+        behavior: "smooth",
+      });
+    }
+  };
 
   useEffect(() => {
     if (!isTzOpen) return;
@@ -217,7 +242,7 @@ export function InlineBookingCard({
     );
   }, [tzQuery, activeTimezone]);
 
-  // Wizard state: 1: Slot Picker, 2: Lead Form, 3: Confirmed Card
+  // Wizard state: 1: Slot Picker, 2: Lead Form / OTP, 3: Confirmed Card
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
@@ -228,11 +253,24 @@ export function InlineBookingCard({
   const [phone, setPhone] = useState("");
   const [company, setCompany] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Email OTP verification state
+  const [otpSent, setOtpSent] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
+  const [otpCooldown, setOtpCooldown] = useState(0);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
+
+  // OTP cooldown ticker
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setOtpCooldown((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldown]);
 
   // Fetch slots
   const fetchSlots = async (tz: string) => {
@@ -253,6 +291,7 @@ export function InlineBookingCard({
       setError(err?.message || "Failed to load scheduling calendar");
     } finally {
       setLoading(false);
+      setTimeout(checkDateScroll, 100);
     }
   };
 
@@ -281,12 +320,19 @@ export function InlineBookingCard({
     }
   };
 
-  // Submit booking
-  const handleConfirmBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Resend OTP handler
+  const handleResendOtp = async () => {
+    if (otpCooldown > 0 || !selectedSlot) return;
+    setSubmitError(null);
+    setVerificationCode("");
+    await executeBookingSubmission("");
+    setOtpCooldown(45);
+  };
+
+  // Core booking submission call
+  const executeBookingSubmission = async (codeToSubmit?: string) => {
     if (!selectedSlot) return;
 
-    // Client-side validation
     const trimmedName = name.trim();
     if (!trimmedName || trimmedName.length < 2) {
       setSubmitError("Please enter your full name.");
@@ -308,6 +354,17 @@ export function InlineBookingCard({
       }
     }
 
+    // Check required lead fields
+    const reqFields = slotsData?.lead_required_fields || ["name", "email"];
+    if (reqFields.includes("phone") && !phone.trim()) {
+      setSubmitError("Phone number is required.");
+      return;
+    }
+    if (reqFields.includes("company") && !company.trim()) {
+      setSubmitError("Company name is required.");
+      return;
+    }
+
     try {
       setSubmitting(true);
       setSubmitError(null);
@@ -323,7 +380,7 @@ export function InlineBookingCard({
         phone: phone.trim() || undefined,
         company: company.trim() || undefined,
         notes: notes.trim() || undefined,
-        verification_code: verificationCode.trim() || undefined,
+        verification_code: (codeToSubmit ?? verificationCode).trim() || undefined,
       };
 
       const res = await fetch(`${backendUrl}/api/widget/booking/confirm`, {
@@ -333,7 +390,15 @@ export function InlineBookingCard({
       });
 
       const data = await res.json();
+
       if (!res.ok || data.success === false) {
+        // OTP required: transition smoothly to verification step
+        if (data.otp_sent) {
+          setOtpSent(true);
+          setOtpCooldown(45);
+          setSubmitError(data.error || "A 6-digit verification code was sent to your email.");
+          return;
+        }
         throw new Error(data.error || "Booking request failed");
       }
 
@@ -346,6 +411,7 @@ export function InlineBookingCard({
         end_time: data.end_time,
         attendee_name: data.attendee_name || trimmedName,
         attendee_email: data.attendee_email || trimmedEmail,
+        assigned_to_email: data.assigned_to_email,
       };
 
       setConfirmedMeeting(confirmed);
@@ -358,6 +424,11 @@ export function InlineBookingCard({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleConfirmBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeBookingSubmission();
   };
 
   // Google Calendar web URL
@@ -424,6 +495,12 @@ export function InlineBookingCard({
   const availableDates = slotsData.available_dates || [];
   const currentSlots = (selectedDate && slotsData.slots_by_date[selectedDate]) || [];
 
+  // Lead fields configuration
+  const showPhone = !slotsData.lead_fields || slotsData.lead_fields.includes("phone");
+  const showCompany = !slotsData.lead_fields || slotsData.lead_fields.includes("company");
+  const isPhoneRequired = !!slotsData.lead_required_fields?.includes("phone");
+  const isCompanyRequired = !!slotsData.lead_required_fields?.includes("company");
+
   return (
     <div className="w-full my-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden text-neutral-800 dark:text-neutral-200 font-sans transition-all">
       {/* Top Header */}
@@ -439,6 +516,7 @@ export function InlineBookingCard({
             {slotsData.provider === "teams" ? "Teams" : "Google Meet"}
           </span>
         </div>
+
         {/* Modern Cal.com-style Timezone Selector */}
         <div className="relative">
           <button
@@ -447,11 +525,11 @@ export function InlineBookingCard({
               setIsTzOpen(!isTzOpen);
               setTzQuery("");
             }}
-            className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
             title="Click to change timezone"
           >
-            <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200" />
-            <span className="truncate max-w-[95px] font-medium">
+            <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 shrink-0" />
+            <span className="truncate max-w-[130px] sm:max-w-[175px] font-medium">
               {formatTimezoneCity(activeTimezone)}
             </span>
             <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-200 ${isTzOpen ? "rotate-180" : ""}`} />
@@ -486,8 +564,8 @@ export function InlineBookingCard({
                 </div>
               </div>
 
-              {/* Timezone List */}
-              <div className="max-h-56 overflow-y-auto p-1 divide-y divide-neutral-100 dark:divide-neutral-800/50">
+              {/* Timezone List with modern scrollbar */}
+              <div className="max-h-56 overflow-y-auto p-1 divide-y divide-neutral-100 dark:divide-neutral-800/50 chatty-custom-scrollbar">
                 {filteredTimezones.length === 0 ? (
                   <div className="py-5 text-center text-[11px] text-neutral-400">
                     No matching timezone found
@@ -551,42 +629,70 @@ export function InlineBookingCard({
             </div>
           ) : (
             <>
-              {/* Horizontal Date Picker Strip */}
-              <div className="flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
-                {availableDates.map((dStr) => {
-                  const { dayName, monthDay } = formatDateLabel(dStr);
-                  const isSelected = selectedDate === dStr;
-                  const count = slotsData.slots_by_date[dStr]?.length || 0;
+              {/* Horizontal Date Picker Strip with modern scrollbar & navigation */}
+              <div className="relative group/strip">
+                {canScrollLeft && (
+                  <button
+                    type="button"
+                    onClick={() => scrollDates("left")}
+                    className="absolute -left-1.5 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-white/95 dark:bg-neutral-800/95 border border-neutral-200 dark:border-neutral-700 shadow-sm flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white cursor-pointer transition-transform active:scale-95"
+                    title="Previous dates"
+                  >
+                    <ChevronLeft className="size-3.5" />
+                  </button>
+                )}
 
-                  return (
-                    <button
-                      key={dStr}
-                      type="button"
-                      onClick={() => setSelectedDate(dStr)}
-                      className={`shrink-0 flex flex-col items-center justify-center px-2.5 py-1.5 rounded-xl border text-center transition-all cursor-pointer ${
-                        isSelected
-                          ? "border-transparent text-white font-medium shadow-sm"
-                          : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
-                      }`}
-                      style={{
-                        backgroundColor: isSelected ? primaryColor : undefined,
-                      }}
-                    >
-                      <span className={`text-[10px] uppercase tracking-wider ${isSelected ? "opacity-90" : "text-neutral-400 dark:text-neutral-500"}`}>
-                        {dayName}
-                      </span>
-                      <span className="text-xs font-semibold leading-snug">
-                        {monthDay}
-                      </span>
-                      <span className={`text-[9px] mt-0.5 ${isSelected ? "text-white/80" : "text-neutral-400 dark:text-neutral-500"}`}>
-                        {count} {count === 1 ? "slot" : "slots"}
-                      </span>
-                    </button>
-                  );
-                })}
+                <div
+                  ref={dateScrollRef}
+                  onScroll={checkDateScroll}
+                  className="flex gap-1.5 overflow-x-auto pb-2 px-0.5 chatty-custom-scrollbar scroll-smooth"
+                >
+                  {availableDates.map((dStr) => {
+                    const { dayName, monthDay } = formatDateLabel(dStr);
+                    const isSelected = selectedDate === dStr;
+                    const count = slotsData.slots_by_date[dStr]?.length || 0;
+
+                    return (
+                      <button
+                        key={dStr}
+                        type="button"
+                        onClick={() => setSelectedDate(dStr)}
+                        className={`shrink-0 flex flex-col items-center justify-center px-2.5 py-1.5 rounded-xl border text-center transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-transparent text-white font-medium shadow-sm"
+                            : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                        }`}
+                        style={{
+                          backgroundColor: isSelected ? primaryColor : undefined,
+                        }}
+                      >
+                        <span className={`text-[10px] uppercase tracking-wider ${isSelected ? "opacity-90" : "text-neutral-400 dark:text-neutral-500"}`}>
+                          {dayName}
+                        </span>
+                        <span className="text-xs font-semibold leading-snug">
+                          {monthDay}
+                        </span>
+                        <span className={`text-[9px] mt-0.5 ${isSelected ? "text-white/80" : "text-neutral-400 dark:text-neutral-500"}`}>
+                          {count} {count === 1 ? "slot" : "slots"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {canScrollRight && (
+                  <button
+                    type="button"
+                    onClick={() => scrollDates("right")}
+                    className="absolute -right-1.5 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-white/95 dark:bg-neutral-800/95 border border-neutral-200 dark:border-neutral-700 shadow-sm flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white cursor-pointer transition-transform active:scale-95"
+                    title="Next dates"
+                  >
+                    <ChevronRight className="size-3.5" />
+                  </button>
+                )}
               </div>
 
-              {/* Time Slots Grid */}
+              {/* Time Slots Grid with responsive columns & modern scrollbar */}
               <div className="pt-1">
                 <div className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 mb-2">
                   Available Slots ({activeTimezone})
@@ -596,7 +702,7 @@ export function InlineBookingCard({
                     No available times on this date.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-1.5 max-h-[160px] overflow-y-auto pr-0.5">
+                  <div className="grid grid-cols-2 min-[360px]:grid-cols-3 gap-1.5 max-h-[170px] overflow-y-auto pr-1 chatty-custom-scrollbar">
                     {currentSlots.map((slot, idx) => (
                       <button
                         key={idx}
@@ -604,9 +710,11 @@ export function InlineBookingCard({
                         onClick={() => {
                           setSelectedSlot(slot);
                           setSubmitError(null);
+                          setOtpSent(false);
+                          setVerificationCode("");
                           setStep(2);
                         }}
-                        className="px-2.5 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50/50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-medium text-neutral-800 dark:text-neutral-200 transition-all text-center cursor-pointer active:scale-95"
+                        className="px-2 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50/50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-medium text-neutral-800 dark:text-neutral-200 transition-all text-center cursor-pointer active:scale-95"
                       >
                         {slot.time_label}
                       </button>
@@ -619,15 +727,15 @@ export function InlineBookingCard({
         </div>
       )}
 
-      {/* VIEW 2: Attendee & Lead Details Form */}
+      {/* VIEW 2: Attendee Details OR Email OTP Verification */}
       {step === 2 && selectedSlot && (
-        <form onSubmit={handleConfirmBooking} className="p-3.5 space-y-3">
-          {/* Selected Slot Banner */}
+        <div className="p-3.5 space-y-3">
+          {/* Selected Slot Banner (no truncation, natural wrap) */}
           <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
               <Calendar className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <div className="min-w-0">
-                <div className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate">
+                <div className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 leading-snug break-words">
                   {selectedSlot.visitor_local_label}
                 </div>
                 <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
@@ -639,6 +747,7 @@ export function InlineBookingCard({
               type="button"
               onClick={() => {
                 setSubmitError(null);
+                setOtpSent(false);
                 setStep(1);
               }}
               className="text-[11px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 underline cursor-pointer shrink-0 ml-2"
@@ -650,126 +759,214 @@ export function InlineBookingCard({
           {submitError && (
             <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-[11px] flex items-start gap-2">
               <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
-              <span>{submitError}</span>
+              <span className="break-words">{submitError}</span>
             </div>
           )}
 
-          {/* Form Fields */}
-          <div className="space-y-2 text-xs">
-            <div>
-              <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-                Full Name <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <User className="size-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
+          {/* Subview A: Dedicated Email OTP Code Verification */}
+          {otpSent ? (
+            <form onSubmit={handleConfirmBooking} className="space-y-3 py-1">
+              <div className="text-center space-y-1">
+                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                  <ShieldCheck className="size-3" />
+                  Email Verification
+                </div>
+                <div className="text-xs text-neutral-600 dark:text-neutral-300">
+                  Enter the 6-digit passcode sent to:
+                </div>
+                <div className="text-xs font-bold text-neutral-900 dark:text-white break-all">
+                  {email}
+                </div>
+              </div>
+
+              <div>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  autoFocus
                   required
-                  placeholder="e.g. Alex Morgan"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-full text-center tracking-[0.3em] font-mono text-base font-bold py-2 px-3 rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 text-neutral-900 dark:text-white placeholder:text-neutral-300"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-                Email Address <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Mail className="size-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. alex@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                />
+              <div className="flex items-center justify-between text-[11px] pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setOtpSent(false)}
+                  className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 underline cursor-pointer"
+                >
+                  Edit details
+                </button>
+                <button
+                  type="button"
+                  disabled={otpCooldown > 0 || submitting}
+                  onClick={handleResendOtp}
+                  className="text-neutral-600 dark:text-neutral-300 hover:underline cursor-pointer disabled:opacity-50 disabled:no-underline font-medium"
+                >
+                  {otpCooldown > 0 ? `Resend code in ${otpCooldown}s` : "Resend code"}
+                </button>
               </div>
-              {slotsData.booking_require_business_email && (
-                <span className="text-[10px] text-neutral-400 mt-0.5 block">
-                  Corporate work email required
-                </span>
-              )}
-            </div>
 
-            {/* Optional Fields */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-                  Phone (Optional)
-                </label>
-                <div className="relative">
-                  <Phone className="size-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
-                  <input
-                    type="tel"
-                    placeholder="e.g. +1 555-0199"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+              <div className="pt-1 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOtpSent(false)}
+                  className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || verificationCode.trim().length < 6}
+                  className="flex-1 py-2 rounded-xl text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <span>Verify & Confirm</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* Subview B: Attendee Details Form */
+            <form onSubmit={handleConfirmBooking} className="space-y-3">
+              <div className="space-y-2 text-xs">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <User className="size-3.5 text-neutral-400 absolute left-2 top-2.5" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Alex Morgan"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Email Address */}
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                    Email Address <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="size-3.5 text-neutral-400 absolute left-2 top-2.5" />
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. alex@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                    />
+                  </div>
+                  {slotsData.booking_require_business_email && (
+                    <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                      Corporate business email required
+                    </span>
+                  )}
+                </div>
+
+                {/* Phone & Company (Responsive 1-col mobile, 2-col wider) */}
+                {(showPhone || showCompany) && (
+                  <div className={showPhone && showCompany ? "grid grid-cols-1 min-[380px]:grid-cols-2 gap-2" : "space-y-2"}>
+                    {showPhone && (
+                      <div>
+                        <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                          Phone {isPhoneRequired ? <span className="text-red-500">*</span> : "(Optional)"}
+                        </label>
+                        <div className="relative">
+                          <Phone className="size-3.5 text-neutral-400 absolute left-2 top-2.5" />
+                          <input
+                            type="tel"
+                            required={isPhoneRequired}
+                            placeholder="+1 555-0199"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {showCompany && (
+                      <div>
+                        <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                          Company {isCompanyRequired ? <span className="text-red-500">*</span> : "(Optional)"}
+                        </label>
+                        <div className="relative">
+                          <Building className="size-3.5 text-neutral-400 absolute left-2 top-2.5" />
+                          <input
+                            type="text"
+                            required={isCompanyRequired}
+                            placeholder="Acme Corp"
+                            value={company}
+                            onChange={(e) => setCompany(e.target.value)}
+                            className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                    Notes / Discussion Topics (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Share any questions or requirements beforehand..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full p-2 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400 resize-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-                  Company (Optional)
-                </label>
-                <div className="relative">
-                  <Building className="size-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
-                  <input
-                    type="text"
-                    placeholder="e.g. Acme Corp"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                  />
-                </div>
+              {/* Action Buttons */}
+              <div className="pt-1 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 py-2 rounded-xl text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      <span>{slotsData.booking_email_verification ? "Sending code..." : "Reserving slot..."}</span>
+                    </>
+                  ) : (
+                    <span>{slotsData.booking_email_verification ? "Continue to Verify" : "Confirm Booking"}</span>
+                  )}
+                </button>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-                Notes / Discussion Topics (Optional)
-              </label>
-              <textarea
-                rows={2}
-                placeholder="Share any questions or requirements beforehand..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full p-2 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400 resize-none"
-              />
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="pt-1 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-            >
-              Back
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex-1 py-2 rounded-xl text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
-              style={{ backgroundColor: primaryColor }}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  <span>Reserving slot...</span>
-                </>
-              ) : (
-                <span>Confirm Booking</span>
-              )}
-            </button>
-          </div>
-        </form>
+            </form>
+          )}
+        </div>
       )}
 
       {/* VIEW 3: Confirmed Meeting Card */}
@@ -783,7 +980,7 @@ export function InlineBookingCard({
             <div className="text-sm font-bold text-neutral-900 dark:text-white">
               Meeting Confirmed!
             </div>
-            <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 break-words">
               A calendar invitation has been sent to {confirmedMeeting.attendee_email}
             </div>
           </div>
@@ -791,16 +988,24 @@ export function InlineBookingCard({
           <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/70 border border-neutral-200 dark:border-neutral-700 text-left space-y-2 text-xs">
             <div className="flex items-start gap-2">
               <Calendar className="size-3.5 text-neutral-400 mt-0.5 shrink-0" />
-              <div className="font-semibold text-neutral-800 dark:text-neutral-200">
+              <div className="font-semibold text-neutral-800 dark:text-neutral-200 leading-snug">
                 {confirmedMeeting.formatted_time}
               </div>
             </div>
             <div className="flex items-start gap-2">
               <User className="size-3.5 text-neutral-400 mt-0.5 shrink-0" />
-              <div className="text-neutral-600 dark:text-neutral-400">
+              <div className="text-neutral-600 dark:text-neutral-400 break-all">
                 {confirmedMeeting.attendee_name} ({confirmedMeeting.attendee_email})
               </div>
             </div>
+            {confirmedMeeting.assigned_to_email && (
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="size-3.5 text-neutral-400 mt-0.5 shrink-0" />
+                <div className="text-neutral-500 dark:text-neutral-400 text-[11px] break-all">
+                  Host: {confirmedMeeting.assigned_to_email}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Join Call Button */}

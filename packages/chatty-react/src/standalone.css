@@ -33,3 +33,24 @@
 @custom-variant dark (&:is(.dark *));
 
 @import "./widget-presets.css";
+
+/* Sleek, modern scrollbars for booking UI and widget containers */
+.chatty-custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+}
+.chatty-custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.chatty-custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chatty-custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 9999px;
+}
+.chatty-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.7);
+}
+
