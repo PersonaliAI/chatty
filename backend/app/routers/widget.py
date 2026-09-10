@@ -769,7 +769,7 @@ async def widget_kb_portal(bot_id: str):
     """Public Help Center portal data: bot branding, categories, promoted and recent articles."""
     # 1. Fetch bot details
     res_bot = await run_db(lambda: supabase.table("chatty_bots").select(
-        "id, name, logo_url, avatar_icon, primary_color, color_scheme, bot_role"
+        "id, name, logo_url, avatar_icon, primary_color, color_scheme"
     ).eq("id", bot_id).execute())
     if not res_bot.data:
         raise HTTPException(status_code=404, detail="Bot not found")
