@@ -660,3 +660,90 @@ async def is_slot_available(
         time_max=end_utc + buf + timedelta(minutes=1),
     )
     return not _slot_conflicts(start_utc, end_utc, busy, buffer_minutes)
+
+
+def validate_slot_against_business_schedule(
+    *,
+    slot_start_utc: datetime,
+    slot_end_utc: datetime,
+    owner_tz_str: str,
+    business_hours_start: int,
+    business_hours_end: int,
+    working_days: list[str],
+    advance_notice_hours: int = 0,
+    now_utc: Optional[datetime] = None,
+    visitor_tz_str: Optional[str] = None,
+) -> Optional[str]:
+    """Validates that [slot_start_utc, slot_end_utc] strictly obeys the business owner's
+    working schedule in their configured timezone.
+    Returns None if valid, or a clear, descriptive rejection string if invalid.
+    """
+    if now_utc is None:
+        now_utc = datetime.now(tz=dt_timezone.utc)
+
+    # 1. Advance notice check
+    if advance_notice_hours > 0:
+        min_start = now_utc + timedelta(hours=advance_notice_hours)
+        if slot_start_utc < min_start:
+            return f"Cannot book meeting: Bookings require at least {advance_notice_hours} hour(s) advance notice."
+
+    # 2. Timezone conversion to business owner's timezone
+    try:
+        owner_tz = pytz.timezone(owner_tz_str)
+    except Exception:
+        owner_tz = pytz.utc
+
+    owner_local_start = slot_start_utc.astimezone(owner_tz)
+    owner_local_end = slot_end_utc.astimezone(owner_tz)
+
+    # 3. Check working days in owner's timezone
+    clean_working_days = [d.lower()[:3] for d in working_days if d]
+    allowed_day_indices = {_DAY_NUM[d] for d in clean_working_days if d in _DAY_NUM}
+    owner_weekday = owner_local_start.weekday()
+
+    if allowed_day_indices and owner_weekday not in allowed_day_indices:
+        day_name = _DAY_LABEL.get(owner_weekday, "that day")
+        allowed_names = ", ".join(_DAY_LABEL.get(i, "") for i in sorted(allowed_day_indices))
+        return (
+            f"Cannot book meeting: The requested time falls on a {day_name} in the business owner's timezone ({owner_tz_str}), "
+            f"which is not a working day. The business owner only accepts meetings on: {allowed_names}. "
+            "Please call `get_available_slots` to find open slots on allowed working days."
+        )
+
+    # 4. Check business hours in owner's timezone
+    start_hour_frac = owner_local_start.hour + (owner_local_start.minute / 60.0)
+    end_hour_frac = owner_local_end.hour + (owner_local_end.minute / 60.0)
+
+    if owner_local_end.date() != owner_local_start.date():
+        end_hour_frac += 24.0
+
+    bh_start_frac = float(business_hours_start)
+    bh_end_frac = float(business_hours_end)
+
+    if start_hour_frac < bh_start_frac or end_hour_frac > bh_end_frac:
+        def _fmt(h_int: int) -> str:
+            ampm = "AM" if h_int < 12 else "PM"
+            hr = h_int % 12 or 12
+            return f"{hr}:00 {ampm}"
+
+        bh_label = f"{_fmt(business_hours_start)} - {_fmt(business_hours_end)}"
+        owner_time_str = owner_local_start.strftime("%I:%M %p").lstrip("0")
+
+        visitor_info = ""
+        if visitor_tz_str and visitor_tz_str != owner_tz_str:
+            try:
+                v_tz = pytz.timezone(visitor_tz_str)
+                v_local = slot_start_utc.astimezone(v_tz)
+                v_time_str = v_local.strftime("%I:%M %p").lstrip("0")
+                visitor_info = f"Requested time {v_time_str} ({visitor_tz_str}) corresponds to {owner_time_str} ({owner_tz_str}). "
+            except Exception:
+                pass
+
+        return (
+            f"Cannot book meeting: {visitor_info}The requested time is outside the business owner's working hours "
+            f"({bh_label} in {owner_tz_str}). "
+            "Please call `get_available_slots` to find open slots that fall within the business owner's working hours, "
+            "and present them in the visitor's timezone."
+        )
+
+    return None

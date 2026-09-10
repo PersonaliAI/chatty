@@ -1665,32 +1665,30 @@ async def execute(
                 # Ensure args['attendees'] has the clean visitor email
                 args = {**args, "attendees": [visitor_email]}
 
-                bot_cfg = context.get("bot") or {}
-                req_fields = [f.lower() for f in (bot_cfg.get("lead_required_fields") or [])]
-                if "name" in req_fields:
-                    summary = args.get("summary") or args.get("subject") or ""
-                    clean_name = summary.replace("Demo Meeting with ", "").replace("Demo Meeting with", "").replace("Demo Meeting", "").strip()
-                    invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes"}
-                    if not clean_name or clean_name.lower() in invalid_names or "@" in clean_name:
-                        session_id = context.get("session_id")
-                        bot_id = context.get("bot_id")
-                        has_db_name = False
-                        if session_id and bot_id:
-                            try:
-                                lead_res = await run_db(lambda: supabase.table("chatty_leads").select("name").eq("bot_id", bot_id).eq("session_id", session_id).order("created_at", desc=True).limit(1).execute())
-                                if lead_res.data and lead_res.data[0].get("name"):
-                                    if lead_res.data[0]["name"].strip().lower() not in invalid_names:
-                                        has_db_name = True
-                            except Exception:
-                                pass
-                        if not has_db_name:
-                            return {
-                                "error": (
-                                    "Cannot book meeting: Visitor's name is REQUIRED before booking. "
-                                    "Do NOT call this tool yet. Ask the visitor for their name first, "
-                                    "and include it in the summary (e.g. summary='Demo Meeting with <Visitor Name>')."
-                                )
-                            }
+                # Require visitor full name before booking
+                summary = args.get("summary") or args.get("subject") or ""
+                clean_name = summary.replace("Demo Meeting with ", "").replace("Demo Meeting with", "").replace("Demo Meeting", "").strip()
+                invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes"}
+                if not clean_name or clean_name.lower() in invalid_names or "@" in clean_name:
+                    session_id = context.get("session_id")
+                    bot_id = context.get("bot_id")
+                    has_db_name = False
+                    if session_id and bot_id:
+                        try:
+                            lead_res = await run_db(lambda: supabase.table("chatty_leads").select("name").eq("bot_id", bot_id).eq("session_id", session_id).order("created_at", desc=True).limit(1).execute())
+                            if lead_res.data and lead_res.data[0].get("name"):
+                                if lead_res.data[0]["name"].strip().lower() not in invalid_names:
+                                    has_db_name = True
+                        except Exception:
+                            pass
+                    if not has_db_name:
+                        return {
+                            "error": (
+                                "Cannot book meeting: The visitor's full name is REQUIRED before booking. "
+                                "Do NOT call this tool yet. Ask the visitor for their full name first, "
+                                "and include it in the summary (e.g. summary='Demo Meeting with <Visitor Full Name>')."
+                            )
+                        }
 
                 # Defense 1: Block Disposable Email Providers
                 if bot_cfg.get("booking_block_disposable_emails"):
@@ -1841,12 +1839,37 @@ async def execute(
                             end_dt = pytz.timezone(visitor_tz_str).localize(end_dt)
                         except Exception:
                             end_dt = end_dt.replace(tzinfo=timezone.utc)
+
+                    slot_start_utc = start_dt.astimezone(timezone.utc)
+                    slot_end_utc = end_dt.astimezone(timezone.utc)
+
+                    # Industrial-standard cross-timezone business schedule validation:
+                    # Enforces that the requested slot strictly falls within the business owner's
+                    # working hours and working days, converted accurately from the visitor's timezone.
+                    bh_start = int(bot_cfg.get("business_hours_start") if bot_cfg.get("business_hours_start") is not None else 9)
+                    bh_end = int(bot_cfg.get("business_hours_end") if bot_cfg.get("business_hours_end") is not None else 17)
+                    work_days = bot_cfg.get("working_days") or ["mon", "tue", "wed", "thu", "fri"]
+                    adv_hours = int(bot_cfg.get("advance_notice_hours") or 0)
+
+                    sched_err = avail.validate_slot_against_business_schedule(
+                        slot_start_utc=slot_start_utc,
+                        slot_end_utc=slot_end_utc,
+                        owner_tz_str=owner_tz_str,
+                        business_hours_start=bh_start,
+                        business_hours_end=bh_end,
+                        working_days=work_days,
+                        advance_notice_hours=adv_hours,
+                        visitor_tz_str=visitor_tz_str,
+                    )
+                    if sched_err:
+                        return {"error": sched_err}
+
                     buffer_minutes = int(bot_cfg.get("buffer_minutes") or 0)
                     members = await avail.get_bookable_members(supabase, bot_id_for_assign, bot_cfg, user)
                     assignee = await avail.pick_assignee(
                         supabase, bot_id=bot_id_for_assign, members=members, owner_tz_str=owner_tz_str,
                         buffer_minutes=buffer_minutes,
-                        slot_start_utc=start_dt.astimezone(timezone.utc), slot_end_utc=end_dt.astimezone(timezone.utc),
+                        slot_start_utc=slot_start_utc, slot_end_utc=slot_end_utc,
                     )
                     if assignee is None:
                         return {

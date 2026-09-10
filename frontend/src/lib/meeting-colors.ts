@@ -16,3 +16,66 @@ export function colorForAssignee(email?: string): string {
   for (let i = 0; i < email.length; i++) hash = (hash * 31 + email.charCodeAt(i)) >>> 0;
   return PALETTE[hash % PALETTE.length];
 }
+
+export interface MeetingStatusColor {
+  bg: string;
+  text: string;
+  label: string;
+  border: string;
+  dotColor: string;
+}
+
+export function colorForMeetingStatus(status?: string, startTime?: string, endTime?: string): MeetingStatusColor {
+  const s = (status || "scheduled").toLowerCase();
+  if (s === "cancelled") {
+    return {
+      bg: "#ef4444",
+      text: "#ffffff",
+      label: "Cancelled",
+      border: "#dc2626",
+      dotColor: "#ef4444",
+    };
+  }
+  if (s === "rescheduled") {
+    return {
+      bg: "#f59e0b",
+      text: "#ffffff",
+      label: "Rescheduled",
+      border: "#d97706",
+      dotColor: "#f59e0b",
+    };
+  }
+  if (s === "completed") {
+    return {
+      bg: "#64748b",
+      text: "#ffffff",
+      label: "Completed",
+      border: "#475569",
+      dotColor: "#64748b",
+    };
+  }
+
+  // Check if past proceed meeting
+  const checkTime = endTime || startTime;
+  if (checkTime) {
+    const end = new Date(checkTime);
+    if (!isNaN(end.getTime()) && end.getTime() < Date.now()) {
+      return {
+        bg: "#64748b",
+        text: "#ffffff",
+        label: "Completed",
+        border: "#475569",
+        dotColor: "#64748b",
+      };
+    }
+  }
+
+  // Upcoming / Scheduled
+  return {
+    bg: "#10b981",
+    text: "#ffffff",
+    label: "Upcoming",
+    border: "#059669",
+    dotColor: "#10b981",
+  };
+}
