@@ -1665,6 +1665,8 @@ async def execute(
                 # Ensure args['attendees'] has the clean visitor email
                 args = {**args, "attendees": [visitor_email]}
 
+                bot_cfg = (context or {}).get("bot") or {}
+
                 # Require visitor full name before booking
                 summary = args.get("summary") or args.get("subject") or ""
                 clean_name = summary.replace("Demo Meeting with ", "").replace("Demo Meeting with", "").replace("Demo Meeting", "").strip()
@@ -1684,7 +1686,7 @@ async def execute(
                     if not has_db_name:
                         return {
                             "error": (
-                                "Cannot book meeting: The visitor's full name is REQUIRED before booking. "
+                                "Cannot book meeting: Visitor's name is REQUIRED before booking. "
                                 "Do NOT call this tool yet. Ask the visitor for their full name first, "
                                 "and include it in the summary (e.g. summary='Demo Meeting with <Visitor Full Name>')."
                             )
