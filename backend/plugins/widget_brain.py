@@ -864,16 +864,18 @@ async def run_widget_assistant(
                     "Sorry - I wasn't actually able to complete that booking due to a technical "
                     "issue on my end. Could you confirm the date and time again so I can try booking it properly?"
                 )
-            if scheduling_enabled and not booking_tool_succeeded:
+            booking_mode = str(bot.get("booking_mode") or "hybrid").lower()
+            if scheduling_enabled and booking_mode != "conversational_only" and not booking_tool_succeeded:
                 user_msg_str = (text or "") + " " + " ".join([m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"])
                 should_attach = (
-                    "get_available_slots" in called_tools_this_turn
+                    booking_mode == "interactive_only"
+                    or "get_available_slots" in called_tools_this_turn
                     or "check_calendar_availability" in called_tools_this_turn
                     or bool(re.search(r"\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|call)\b", user_msg_str, re.IGNORECASE))
                 )
                 if should_attach and "[BOOKING_WIDGET]" not in reply:
                     reply = reply.rstrip() + "\n\n[BOOKING_WIDGET]"
-            elif booking_tool_succeeded:
+            elif booking_tool_succeeded or booking_mode == "conversational_only":
                 reply = reply.replace("[BOOKING_WIDGET]", "").strip()
 
             if on_token and not stream_live:
@@ -955,16 +957,18 @@ async def run_widget_assistant(
             "Sorry - I wasn't actually able to complete that booking due to a technical "
             "issue on my end. Could you confirm the date and time again so I can try booking it properly?"
         )
-    if scheduling_enabled and not booking_tool_succeeded:
+    booking_mode = str(bot.get("booking_mode") or "hybrid").lower()
+    if scheduling_enabled and booking_mode != "conversational_only" and not booking_tool_succeeded:
         user_msg_str = (text or "") + " " + " ".join([m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"])
         should_attach = (
-            "get_available_slots" in called_tools_this_turn
+            booking_mode == "interactive_only"
+            or "get_available_slots" in called_tools_this_turn
             or "check_calendar_availability" in called_tools_this_turn
             or bool(re.search(r"\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|call)\b", user_msg_str, re.IGNORECASE))
         )
         if should_attach and "[BOOKING_WIDGET]" not in reply:
             reply = reply.rstrip() + "\n\n[BOOKING_WIDGET]"
-    elif booking_tool_succeeded:
+    elif booking_tool_succeeded or booking_mode == "conversational_only":
         reply = reply.replace("[BOOKING_WIDGET]", "").strip()
 
     if on_token and not stream_live:

@@ -173,3 +173,37 @@ async def test_widget_assistant_does_not_inject_booking_widget_for_general_queri
             visitor_timezone="UTC",
         )
         assert "[BOOKING_WIDGET]" not in res["reply"]
+
+
+@pytest.mark.anyio
+async def test_widget_assistant_respects_conversational_only_mode():
+    from plugins.widget_brain import run_widget_assistant
+
+    mock_bot = {
+        "id": "bot-1",
+        "calendar_scheduling_enabled": True,
+        "booking_mode": "conversational_only",
+        "meeting_provider": "google_meet",
+        "name": "Chatty",
+    }
+    mock_owner = {"auth_user_id": "u-1", "email": "owner@acme.com"}
+
+    with patch("plugins.ai_client.chat_stream", new_callable=AsyncMock) as mock_chat, \
+         patch("plugins.widget_brain.run_db") as mock_db:
+
+        mock_db.return_value = MagicMock(data=[])
+        mock_chat.return_value = {
+            "text": "Yes, I can book a demo for you! What time works?",
+            "tool_calls": [],
+        }
+
+        res = await run_widget_assistant(
+            bot_id="bot-1",
+            owner_user=mock_owner,
+            bot=mock_bot,
+            session_id="sess-1",
+            text="Can I book a demo?",
+            visitor_timezone="UTC",
+        )
+        assert "[BOOKING_WIDGET]" not in res["reply"]
+
