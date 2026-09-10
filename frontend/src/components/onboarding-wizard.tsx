@@ -135,7 +135,7 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
         system_instructions: systemInstructions,
         logo_url: logoUrl,
         // "logo" without a logoUrl falls back to the selected design's own
-        // dot mark (see widget.js's buildChatIcon) — a generic bot glyph
+        // dot mark (see widget.js's buildChatIcon) - a generic bot glyph
         // isn't the design's actual default, so never force it here.
         avatar_icon: "logo",
         onboarding_completed: true,
@@ -168,7 +168,7 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
   };
 
   // The X button and step-0's "Skip" both used to call the raw onClose prop
-  // directly — pure local state, no persistence — so the wizard reappeared
+  // directly - pure local state, no persistence - so the wizard reappeared
   // on every single page load/refresh forever, since onboarding_completed
   // never actually got set unless the visitor finished all 4 steps via
   // finish() above. This marks it done (without touching name/color/etc.,
@@ -308,7 +308,7 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
               {step === 1 && (
                 <div className="space-y-4">
                   <div className="p-3 rounded-xl border border-dashed" style={{ borderColor: primaryColor + "66", background: primaryColor + "0d" }}>
-                    <label className="block text-[11px] font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: primaryColor }}><Wand2 className="size-3.5" /> Describe your business — let AI write the rest</label>
+                    <label className="block text-[11px] font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: primaryColor }}><Wand2 className="size-3.5" /> Describe your business - let AI write the rest</label>
                     <div className="flex gap-2">
                       <input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="e.g. Acme sells organic cotton t-shirts in Paris" className="flex-1 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none" />
                       <button onClick={generate} disabled={generating || !hint.trim()} className="px-3 py-2 text-xs font-semibold rounded-lg text-white cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shrink-0" style={{ background: primaryColor }}>
@@ -339,7 +339,7 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
                       </button>
                     ))}
                   </div>
-                  {/* Live preview — reflects the actual per-style CSS (globals.css
+                  {/* Live preview - reflects the actual per-style CSS (globals.css
                       .style-* rules) so switching styles here shows the same
                       look the embedded widget will actually have. */}
                   <div

@@ -164,14 +164,14 @@ body {
  *
  * 10 fully-designed presets, each with its own deliberately-chosen
  * typeface, corner radius, and shadow language, ported 1:1 from a real
- * design gallery — the colors below are each design's own curated
+ * design gallery - the colors below are each design's own curated
  * *fallback*, not fixed: every themeable surface (header, bot bubble,
  * user bubble, starter chip, chat input bar, send button) is driven by
  * the business owner's "Primary Hex Color" picker via var(--primary-color,
  * <curated-fallback>), so unset the var and a preset renders exactly as
  * originally designed.
  *
- * This used to be .send-btn only — an earlier version let primaryColor
+ * This used to be .send-btn only - an earlier version let primaryColor
  * drive every surface directly and caused a real bug: a hardcoded text
  * color paired against an arbitrary chosen background went unreadable the
  * moment someone picked a color from the wrong half of the lightness
@@ -180,20 +180,20 @@ body {
  * hardcoding it:
  *
  * - Header / user bubble / send button take the FULL primaryColor as a
- *   solid fill, with --on-primary (getOnColor(primaryColor) — white or
+ *   solid fill, with --on-primary (getOnColor(primaryColor) - white or
  *   near-black, computed per bg-lightness in lib/color-contrast.ts) as
  *   text. Same mechanism send-btn already proved out.
  * - Bot bubble / starter chip / chat input bar instead blend primaryColor
  *   partially into that surface's own curated color with CSS color-mix()
  *   (background at 15-40%, text at 20%, anchored to the pre-verified
- *   original pairing) — a flat solid fill there would read as an
+ *   original pairing) - a flat solid fill there would read as an
  *   error/alert on a reply bubble, and a fixed "tint toward white" would
  *   break the already-dark presets (Dark Sleek, Glassmorphism); mixing
  *   toward each surface's OWN original color instead keeps every preset's
  *   light/dark character intact while still visibly reflecting the brand
  *   color, with no per-preset special-casing needed.
- * - A few structural monochrome strokes are left alone on purpose —
- *   Neubrutalism's black ink outline, Luxury Editorial's gold rule — where
+ * - A few structural monochrome strokes are left alone on purpose -
+ *   Neubrutalism's black ink outline, Luxury Editorial's gold rule - where
  *   the color is the design's own genre-defining identity, not a swappable
  *   accent (see the comments at each).
  *
@@ -202,16 +202,16 @@ body {
  * Glassmorphism, checked against the raw gradient stops (not just the
  * translucent overlay's nominal alpha value, which understates the
  * effective contrast against a colorful background). A handful of the
- * ported gallery accents originally fell short of this — e.g. Playful's
- * #ff8a5c header/button/chip text was only 2.32:1 against white —
+ * ported gallery accents originally fell short of this - e.g. Playful's
+ * #ff8a5c header/button/chip text was only 2.32:1 against white -
  * darkened in place (same hue, lower lightness) to restore the design's
  * character while actually being readable. An arbitrary primaryColor pick
- * can't be pre-verified the same way — the color-mix() partial-blend
+ * can't be pre-verified the same way - the color-mix() partial-blend
  * approach above is what keeps that case safe in practice, not a formal
  * guarantee for every possible hex value.
  */
 
-/* 1. Minimal — clean SaaS, off-white, DM Sans. */
+/* 1. Minimal - clean SaaS, off-white, DM Sans. */
 .style-minimal {
   background-color: #f3f2ee !important;
   color: #1c1a15 !important;
@@ -231,7 +231,7 @@ body {
 .dark .style-minimal .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #221f1a) 40%, #221f1a) !important; color: color-mix(in srgb, var(--on-primary, #f3f2ee) 20%, #f3f2ee) !important; }
 .dark .style-minimal .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #1e1c18) 15%, #1e1c18) !important; color: #f3f2ee !important; border-color: color-mix(in srgb, var(--primary-color, #2a2822) 40%, #2a2822) !important; }
 
-/* 2. Playful — consumer app, rounded & warm, Quicksand. */
+/* 2. Playful - consumer app, rounded & warm, Quicksand. */
 .style-playful {
   background-color: #fffaf5 !important;
   color: #2a1a10 !important;
@@ -251,7 +251,7 @@ body {
 .dark .style-playful .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #3a2618) 40%, #3a2618) !important; color: color-mix(in srgb, var(--on-primary, #ffe6d9) 20%, #ffe6d9) !important; }
 .dark .style-playful .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #2a1c14) 15%, #2a1c14) !important; color: #ffe6d9 !important; }
 
-/* 3. Corporate — enterprise SaaS, structured navy, Space Grotesk. */
+/* 3. Corporate - enterprise SaaS, structured navy, Space Grotesk. */
 .style-corporate {
   background-color: #eef1f6 !important;
   color: #1c2e4a !important;
@@ -271,7 +271,7 @@ body {
 .dark .style-corporate .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #171e29) 40%, #171e29) !important; color: color-mix(in srgb, var(--on-primary, #dbe2ec) 20%, #dbe2ec) !important; border-color: color-mix(in srgb, var(--primary-color, #232c38) 40%, #232c38) !important; }
 .dark .style-corporate .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #10151d) 15%, #10151d) !important; color: #dbe2ec !important; border-color: color-mix(in srgb, var(--primary-color, #232c38) 40%, #232c38) !important; }
 
-/* 4. Dark Sleek — dev tool, near-black with a teal glow, Space Grotesk. */
+/* 4. Dark Sleek - dev tool, near-black with a teal glow, Space Grotesk. */
 .style-dark-sleek {
   background-color: #111114 !important;
   color: #e4e4e8 !important;
@@ -288,7 +288,7 @@ body {
 .style-dark-sleek .send-btn { background-color: var(--primary-color, #00e5c7) !important; color: var(--on-primary, #05201c) !important; border-radius: 8px !important; }
 .style-dark-sleek ::placeholder { color: #7e7e8b !important; opacity: 1; }
 
-/* 5. Gradient Glow — startup, vivid purple/pink gradient, Space Grotesk. */
+/* 5. Gradient Glow - startup, vivid purple/pink gradient, Space Grotesk. */
 .style-gradient-glow {
   background-color: #ffffff !important;
   color: #2a1245 !important;
@@ -308,7 +308,7 @@ body {
 .dark .style-gradient-glow .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #261a35) 40%, #261a35) !important; color: color-mix(in srgb, var(--on-primary, #f0e5fa) 20%, #f0e5fa) !important; }
 .dark .style-gradient-glow .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #1a1025) 15%, #1a1025) !important; color: #f0e5fa !important; }
 
-/* 6. Glassmorphism — fintech app, frosted glass over a gradient mesh, Space Grotesk. */
+/* 6. Glassmorphism - fintech app, frosted glass over a gradient mesh, Space Grotesk. */
 .style-glassmorphism {
   background: linear-gradient(135deg, #3170eb, #7d58ee 50%, #d127b3) !important;
   color: #ffffff !important;
@@ -325,7 +325,7 @@ body {
 .style-glassmorphism .send-btn { background-color: var(--primary-color, rgba(255, 255, 255, 0.9)) !important; color: var(--on-primary, #39396b) !important; }
 .style-glassmorphism ::placeholder { color: rgba(255, 255, 255, 0.75) !important; opacity: 1; }
 
-/* 7. E-commerce — online shop, teal, order-aware, DM Sans. */
+/* 7. E-commerce - online shop, teal, order-aware, DM Sans. */
 .style-ecommerce {
   background-color: #fdf9f2 !important;
   color: #3a3226 !important;
@@ -345,7 +345,7 @@ body {
 .dark .style-ecommerce .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #241f17) 40%, #241f17) !important; color: color-mix(in srgb, var(--on-primary, #ede6d8) 20%, #ede6d8) !important; }
 .dark .style-ecommerce .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #1a1712) 15%, #1a1712) !important; color: #ede6d8 !important; border-color: color-mix(in srgb, var(--primary-color, #33291d) 40%, #33291d) !important; }
 
-/* 8. Healthcare Calm — clinic, soft sage, serif (Lora). */
+/* 8. Healthcare Calm - clinic, soft sage, serif (Lora). */
 .style-healthcare-calm {
   background-color: #fbfcf9 !important;
   color: #2f4235 !important;
@@ -366,7 +366,7 @@ body {
 .dark .style-healthcare-calm .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #1a2a1e) 40%, #1a2a1e) !important; color: color-mix(in srgb, var(--on-primary, #d9e8dc) 20%, #d9e8dc) !important; }
 .dark .style-healthcare-calm .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #131a15) 15%, #131a15) !important; color: #d9e8dc !important; border-color: color-mix(in srgb, var(--primary-color, #263429) 40%, #263429) !important; }
 
-/* 9. Neubrutalism — bold brand, thick borders, hard offset shadows, DM Sans. */
+/* 9. Neubrutalism - bold brand, thick borders, hard offset shadows, DM Sans. */
 .style-neubrutalism {
   background-color: #ffffff !important;
   color: #111111 !important;
@@ -376,7 +376,7 @@ body {
   font-family: var(--font-dm-sans), sans-serif !important;
 }
 /* Border color stays the signature solid black ink outline throughout
-   (not primaryColor-driven) — brutalism's thick black stroke is the
+   (not primaryColor-driven) - brutalism's thick black stroke is the
    genre-defining structural language here, the same way its 3px root
    border and 10px hard shadow above are, not an arbitrary color choice
    that happens to currently be black. */
@@ -392,7 +392,7 @@ body {
 .dark .style-neubrutalism .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #262626) 40%, #262626) !important; color: color-mix(in srgb, var(--on-primary, #f2f2f2) 20%, #f2f2f2) !important; border-color: #f2f2f2 !important; }
 .dark .style-neubrutalism .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #1a1a1a) 15%, #1a1a1a) !important; color: #f2f2f2 !important; border-color: #f2f2f2 !important; }
 
-/* 10. Luxury Editorial — boutique, serif & gold, Playfair Display. */
+/* 10. Luxury Editorial - boutique, serif & gold, Playfair Display. */
 .style-luxury-editorial {
   background-color: #fbf9f5 !important;
   color: #2a251d !important;
@@ -404,7 +404,7 @@ body {
 .style-luxury-editorial .chat-header { background-color: var(--primary-color, #161412) !important; color: var(--on-primary, #f5efe3) !important; border-bottom: none !important; }
 .style-luxury-editorial .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #f1ebdf) 40%, #f1ebdf) !important; color: color-mix(in srgb, var(--on-primary, #2a251d) 20%, #2a251d) !important; border: none !important; border-radius: 2px !important; }
 .style-luxury-editorial .user-bubble { background-color: var(--primary-color, #161412) !important; color: var(--on-primary, #f5efe3) !important; border: none !important; border-radius: 2px !important; }
-/* Border stays the signature gold rule (not primaryColor-driven) — same
+/* Border stays the signature gold rule (not primaryColor-driven) - same
    reasoning as Neubrutalism's black ink outline: gold is this design's
    own genre-defining structural language, not a swappable color. */
 .style-luxury-editorial .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #fbf9f5) 20%, #fbf9f5) !important; color: color-mix(in srgb, var(--on-primary, #2a251d) 20%, #2a251d) !important; border-color: #c9a86a !important; border-radius: 2px !important; font-weight: 500; }
@@ -417,13 +417,13 @@ body {
 
 /* Active outline on the composer while typing. Every preset above sets
  * .style-X .chat-input-bar's border-color with !important, so a plain
- * `.chat-input-bar:focus-within` rule (fewer selector parts, and — since
- * these preset rules live in the same unlayered stylesheet — no layer
+ * `.chat-input-bar:focus-within` rule (fewer selector parts, and - since
+ * these preset rules live in the same unlayered stylesheet - no layer
  * to win on either) can never beat it. Qualifying with the same
  * `.style-X` prefix matches each preset's own specificity, and coming
  * later in this file wins the tiebreak. The box-shadow ring (not just
  * border-color) is what actually stays visible on presets that set
- * `border: none` above (Playful, Gradient Glow) — border-style:none hides
+ * `border: none` above (Playful, Gradient Glow) - border-style:none hides
  * any border-color regardless of specificity, but a box-shadow doesn't
  * depend on border-style at all. */
 .style-minimal .chat-input-bar:focus-within,
@@ -442,7 +442,7 @@ body {
 
 /* Voice-message player (AudioBubble in the real widget; the Customizer's
  * live preview below mirrors the same classNames on a static demo bubble).
- * One shared, preset-agnostic rule block — it themes itself entirely off
+ * One shared, preset-agnostic rule block - it themes itself entirely off
  * `currentColor`, which every .user-bubble/.bot-bubble rule above already
  * sets per preset, so it automatically matches every design with no extra
  * per-preset CSS. Mirrors packages/chatty-react/src/widget-presets.css. */
@@ -471,7 +471,7 @@ body {
 /* A native <input type="color"> as a clean filled circle. Its default
    rendering (a rectangular swatch inside a bordered box) lives in a
    ::-webkit-color-swatch-wrapper/::-webkit-color-swatch shadow tree that
-   an outer border-radius doesn't clip — a plain `rounded-full` class on
+   an outer border-radius doesn't clip - a plain `rounded-full` class on
    the input itself leaves a rectangle visible inside the rounded frame.
    Every layer needs the radius explicitly. */
 .color-swatch-circle {
@@ -503,7 +503,7 @@ body {
 
 /* Modern range slider (e.g. the Customizer's Text Size control). A bare
    <input type="range"> with only `accent-color` set still renders the
-   browser/OS's own flat, dark, low-contrast track — accent-color only
+   browser/OS's own flat, dark, low-contrast track - accent-color only
    themes the thumb and (on Chromium) the filled portion, not the
    unfilled remainder. This gives it a slim pill track, a soft orange fill
    up to the thumb (driven by the --slider-fill custom property each

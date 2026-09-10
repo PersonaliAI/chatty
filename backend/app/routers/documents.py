@@ -184,7 +184,7 @@ async def documents_upload(
     """Index a file uploaded directly through web chat (PDF/DOCX/TXT/MD).
 
     Returns the indexed document row with chunk_count. Use this from the
-    chat composer's paperclip button — no Drive/OneDrive connection needed.
+    chat composer's paperclip button - no Drive/OneDrive connection needed.
     """
     data = await read_upload_capped(
         file, MAX_UPLOAD_BYTES, detail=f"file too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)"

@@ -14,7 +14,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_user_created_tokens
     ON messages(user_id, created_at) WHERE total_tokens > 0;
 
 -- ---------------------------------------------------------------------------
--- Dedicated account manager (Executive) — assigned by an internal admin call
+-- Dedicated account manager (Executive) - assigned by an internal admin call
 -- (no admin UI exists yet); falls back to a shared support contact via env
 -- vars (EXECUTIVE_SUPPORT_NAME/EMAIL/CALENDLY_URL) when unset per-user, so
 -- an Executive customer never sees an empty card.
@@ -24,12 +24,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS account_manager_email TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS account_manager_calendly_url TEXT;
 
 -- ---------------------------------------------------------------------------
--- Quarterly prompt tuning (Executive) — cooldown tracked per user.
+-- Quarterly prompt tuning (Executive) - cooldown tracked per user.
 -- ---------------------------------------------------------------------------
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_prompt_tuning_at TIMESTAMPTZ;
 
 -- ---------------------------------------------------------------------------
--- Custom API keys (Executive) — same shape/hashing scheme as chatty_api_keys,
+-- Custom API keys (Executive) - same shape/hashing scheme as chatty_api_keys,
 -- scoped to a Kin user instead of a Chatty bot.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS kin_api_keys (
@@ -53,9 +53,9 @@ CREATE POLICY "Users manage their own Kin API keys" ON kin_api_keys
   WITH CHECK (user_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
--- Webhooks (Executive) — mirrors the chatty_webhooks/chatty_webhook_deliveries
+-- Webhooks (Executive) - mirrors the chatty_webhooks/chatty_webhook_deliveries
 -- pattern from 20260720000000_chatty_webhooks.sql, scoped to a Kin user.
--- Single-attempt delivery (logged, not retried) — see kin_webhooks_dispatch()
+-- Single-attempt delivery (logged, not retried) - see kin_webhooks_dispatch()
 -- in main.py; a durable retry queue was judged out of scope for a first cut.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS kin_webhooks (

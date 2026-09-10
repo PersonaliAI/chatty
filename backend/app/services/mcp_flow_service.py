@@ -16,13 +16,13 @@ from plugins.widget_brain import GEMINI_FALLBACK_MODELS
 
 logger = logging.getLogger("chatty")
 
-# The bot flow builder has no dedicated flow_data/flow_active columns —
+# The bot flow builder has no dedicated flow_data/flow_active columns -
 # chatty_bots doesn't have either. The real, and only, storage mechanism
 # (chatty/src/components/chatbot-flow-builder.tsx's saveFlowToBackend) is a
 # JSON blob smuggled inside chatty_bots.custom_js between these comment
 # markers, alongside whatever other custom JS the bot owner has written.
 # The earlier version of get_bot_flow/update_bot_flow read and wrote
-# nonexistent columns instead — silently returning an empty flow for every
+# nonexistent columns instead - silently returning an empty flow for every
 # bot regardless of what's actually configured, and failing (or writing to
 # a column nothing else ever reads) on update. These two functions now use
 # the exact same marker format and strip/replace logic as the frontend, so

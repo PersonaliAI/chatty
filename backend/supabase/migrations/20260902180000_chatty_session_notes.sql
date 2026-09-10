@@ -3,7 +3,7 @@
 -- chatty_conversations.role='assistant' messages: a note is never sent to
 -- the visitor, it's an internal annotation for other human agents working
 -- the same inbox (e.g. "escalated to billing team, waiting on refund
--- approval"). No such table or column existed before this — the earlier
+-- approval"). No such table or column existed before this - the earlier
 -- version of this tool had nothing real to write to.
 create table if not exists chatty_session_notes (
     id         uuid primary key default gen_random_uuid(),

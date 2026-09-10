@@ -22,9 +22,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# env files (.env is a real file self-hosters create from .env.example —
-# LEMONSQUEEZY_API_KEY and other secrets can live in it, unlike backend's
-# split of secrets away from NEXT_PUBLIC_* build args)
+# env files (bare .env is what the public mirror's self-hosting docs have
+# people create from frontend/.env.example - secrets like
+# LEMONSQUEEZY_API_KEY can live in it, so ignore it here too even though
+# this repo's own deploy reads env vars from apphosting.yaml, not a file)
 .env
 .env*.local
 
@@ -33,3 +34,7 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# editor & local tools
+.claude/
+

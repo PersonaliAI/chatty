@@ -7,7 +7,7 @@ Design mirrors chatty_api_keys' existing pattern deliberately: opaque
 random tokens, stored as SHA-256 hashes only, raw value shown to the
 caller exactly once at issuance. Scopes reuse the same chat|read|write|admin
 vocabulary as API keys (see app/core/security.py's check_scope) so a single
-mental model — and a single check_scope() call — covers both auth methods.
+mental model - and a single check_scope() call - covers both auth methods.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ def new_authorization_code() -> str:
 
 
 def verify_pkce(code_verifier: Optional[str], code_challenge: Optional[str], method: Optional[str]) -> bool:
-    """RFC 7636. `method` is "S256" (required in practice — plain is not
+    """RFC 7636. `method` is "S256" (required in practice - plain is not
     accepted here) or absent (no PKCE was used at /authorize time, in which
     case a verifier must not be supplied either)."""
     if not code_challenge:
@@ -70,7 +70,7 @@ def verify_pkce(code_verifier: Optional[str], code_challenge: Optional[str], met
 
 async def issue_tokens(*, client_id: str, user_id: str, scope: str) -> dict[str, Any]:
     """Mint a fresh access+refresh token pair and persist their hashes.
-    Returns the RAW values — the only time they're ever available."""
+    Returns the RAW values - the only time they're ever available."""
     access_token = _new_opaque_token(_ACCESS_TOKEN_PREFIX)
     refresh_token = _new_opaque_token(_REFRESH_TOKEN_PREFIX)
     now = time.time()
@@ -122,7 +122,7 @@ async def resolve_access_token(authorization: Optional[str]) -> dict[str, Any]:
 
 async def resolve_principal(authorization: Optional[str], request: Any = None) -> dict[str, Any]:
     """Unified auth for endpoints that accept EITHER an OAuth access token
-    (chatty_oat_...) or a legacy per-bot API key (chatty_sk_...) — bot
+    (chatty_oat_...) or a legacy per-bot API key (chatty_sk_...) - bot
     listing/creation only makes sense for the former (a user-scoped
     principal spanning every bot they own), while existing single-bot
     endpoints keep working for both by additionally checking bot ownership
@@ -133,12 +133,12 @@ async def resolve_principal(authorization: Optional[str], request: Any = None) -
       {"auth_type": "api_key", "user_id": ..., "scopes": [...], "bot_id": ..., "key_row": {...}}
 
     IMPORTANT: "user_id" here is always the Supabase **auth_user_id**, not
-    the internal `users.id` — matching chatty_bots.user_id and
+    the internal `users.id` - matching chatty_bots.user_id and
     chatty_api_keys.user_id's own convention (see bots.py, admin.py,
     crawl.py, onboarding.py, public_api.py: every one of them compares
     chatty_bots.user_id against user["auth_user_id"]). Both branches below
     already return the right thing (chatty_api_keys.user_id was always
-    written as auth_user_id — see public_api.py's key-creation endpoint);
+    written as auth_user_id - see public_api.py's key-creation endpoint);
     the OAuth token issuance side (oauth.py's authorize_decision) is what
     has to store auth_user_id too, or every downstream require_bot_access
     check silently compares the wrong id space.
@@ -152,7 +152,7 @@ async def resolve_principal(authorization: Optional[str], request: Any = None) -
             "scopes": (token_row.get("scope") or "").split(),
             "client_id": token_row["client_id"],
         }
-    # Legacy API key path — imported lazily to avoid a circular import
+    # Legacy API key path - imported lazily to avoid a circular import
     # (main.py imports several routers, which would import this module).
     from main import _resolve_api_key
 
@@ -179,7 +179,7 @@ def check_principal_scope(principal: dict[str, Any], required: str) -> None:
 async def user_dict_for_principal(principal: dict[str, Any]) -> dict[str, Any]:
     """Bridges an OAuth/API-key principal into the full `users` row shape
     app.core.permissions.verify_bot_permission expects (auth_user_id +
-    email, for its owner-vs-team-member RBAC check) — for endpoints that
+    email, for its owner-vs-team-member RBAC check) - for endpoints that
     need real permission checking beyond simple bot ownership (e.g. team
     member management), not just require_bot_access's ownership check."""
     from app.core.deps import get_user_by_auth_id  # local import avoids a cycle
@@ -193,7 +193,7 @@ async def require_bot_access(principal: dict[str, Any], bot_id: str) -> dict[str
     - api_key principals are only ever scoped to the one bot their key was
       minted for (unrelated to this specific bot_id -> 403, not a lookup).
     - oauth principals may act on any bot they own (chatty_bots.user_id
-      matches the token's user_id) — checked by an actual query, since one
+      matches the token's user_id) - checked by an actual query, since one
       user can own several bots.
     """
     if principal["auth_type"] == "api_key":

@@ -1,5 +1,5 @@
 """Integration tests against the real Supabase schema and the real
-create_lead/conversation-history code paths — the exact class of test that
+create_lead/conversation-history code paths - the exact class of test that
 would have caught this session's two production incidents:
 chatty_conversations was missing its `sender` column and chatty_leads was
 missing `lat`/`lon`, so every write silently 400'd (PGRST204) while the
@@ -9,7 +9,7 @@ schema catches it.
 
 Skipped automatically unless real Supabase credentials are present.
 tests/conftest.py deliberately stubs SUPABASE_URL to a fake host so the
-rest of the suite runs in CI with zero real credentials — these tests
+rest of the suite runs in CI with zero real credentials - these tests
 detect that stub and skip rather than fail on a DNS error. To actually run
 them, export the real SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY from
 env.yaml into the shell *before* pytest starts (conftest's
@@ -41,12 +41,12 @@ pytestmark = pytest.mark.skipif(
 )
 
 # The same bot used for manual runtime verification elsewhere in this
-# project. Any bot works — this one is guaranteed to already exist.
+# project. Any bot works - this one is guaranteed to already exist.
 _TEST_BOT_ID = "c8fa19c8-dd25-43a3-9c55-e8099e6f532e"
 
 # Every column the live code writes on a normal request, per table. A column
-# missing here means a real insert 400s in production — see PGRST204 in
-# postgrest.exceptions.APIError — invisible to any test using a mocked client.
+# missing here means a real insert 400s in production - see PGRST204 in
+# postgrest.exceptions.APIError - invisible to any test using a mocked client.
 REQUIRED_COLUMNS = {
     "chatty_conversations": {"id", "bot_id", "session_id", "role", "content", "sender", "created_at"},
     "chatty_leads": {
@@ -73,7 +73,7 @@ def test_schema_has_every_column_the_code_writes():
         missing = required - actual
         if missing:
             problems.append(f"{table} is missing: {sorted(missing)}")
-    assert not problems, "Schema drift — " + "; ".join(problems)
+    assert not problems, "Schema drift - " + "; ".join(problems)
 
 
 def test_conversation_history_round_trip():
@@ -146,7 +146,7 @@ def test_create_lead_round_trip():
 
 def test_create_lead_collapses_a_doubled_value_before_it_reaches_the_database():
     """Reproduces the exact live incident: the model called create_lead with
-    email="dup@example.comdup@example.com" — the value doubled back-to-back
+    email="dup@example.comdup@example.com" - the value doubled back-to-back
     with no separator, an LLM generation artifact. Confirms the fix holds
     end-to-end through the real tool function and the real database, not
     just in isolation against _dedupe_doubled()."""

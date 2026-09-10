@@ -1,6 +1,6 @@
 -- Link existing users table to Supabase auth + add web/telegram source separation + RLS
 
--- 1. Loosen telegram_id (now optional — users can sign up via web before linking Telegram)
+-- 1. Loosen telegram_id (now optional - users can sign up via web before linking Telegram)
 ALTER TABLE users
   ALTER COLUMN telegram_id DROP NOT NULL;
 

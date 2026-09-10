@@ -12,7 +12,7 @@ Chatty enforces two independent rate limits:
 | **60 requests / minute** | Per API key | 60 seconds |
 | **120 requests / minute** | Per IP address per endpoint | 60 seconds |
 
-Both limits use a **sliding window** algorithm — the window always covers the last 60 seconds, not a fixed clock minute.
+Both limits use a **sliding window** algorithm - the window always covers the last 60 seconds, not a fixed clock minute.
 
 ## Rate limit response
 
@@ -96,7 +96,7 @@ async function chatWithRetry(text, sessionId, maxRetries = 3) {
 
 <AccordionGroup>
   <Accordion title="Use session IDs to batch messages">
-    Don't create a new session for every message. Keep the same `session_id` for an ongoing conversation — the history is stored server-side and costs zero extra requests.
+    Don't create a new session for every message. Keep the same `session_id` for an ongoing conversation - the history is stored server-side and costs zero extra requests.
   </Accordion>
   <Accordion title="Cache analytics and usage responses">
     `/api/v1/analytics` and `/api/v1/usage` are read-heavy endpoints. Cache the response for at least 60 seconds in your app instead of polling every request.

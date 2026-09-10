@@ -71,7 +71,7 @@ SCOPES = [
 
 # Chatty only ever calls the Calendar API (availability checks, event/Meet-
 # link creation) and, if a bot has Drive-sync enabled, the Drive API for
-# reading knowledge-base files — it never touches Gmail, Tasks, Contacts,
+# reading knowledge-base files - it never touches Gmail, Tasks, Contacts,
 # Docs, Sheets, or Slides. Requesting the full Kin bundle put those
 # unrelated permissions on Chatty customers' consent screens for no reason.
 CHATTY_SCOPES = [
@@ -153,7 +153,7 @@ async def _valid_access_token(
 
     `table` is "users" for a person's primary Google connection, or
     "kin_connected_accounts" for one of their extra Pro/Executive accounts
-    (see agent_tools._read_gmail/_read_calendar) — same column names on
+    (see agent_tools._read_gmail/_read_calendar) - same column names on
     both tables, so this needs no other change to work against either.
     """
     token_enc = user.get("google_access_token")
@@ -246,7 +246,7 @@ async def _api(
 
 
 # ---------------------------------------------------------------------------
-# Gmail — header helpers
+# Gmail - header helpers
 # ---------------------------------------------------------------------------
 
 
@@ -317,7 +317,7 @@ def _b64url_decode(s: str) -> str:
 class _TextExtractingHTMLParser(HTMLParser):
     """Extracts visible text from an HTML email body, dropping <script>/<style>
     contents entirely. A real tokenizer (stdlib html.parser) instead of the
-    regex-based tag-stripping this replaced — regexes can't correctly handle
+    regex-based tag-stripping this replaced - regexes can't correctly handle
     malformed/nested tags or attributes containing '>', so a crafted email
     could leave partial <script> content in the "stripped" output."""
 
@@ -347,14 +347,14 @@ def _strip_html(html: str) -> str:
     try:
         parser.feed(html)
         parser.close()
-    except Exception:  # noqa: BLE001 — malformed HTML must not crash extraction
+    except Exception:  # noqa: BLE001 - malformed HTML must not crash extraction
         pass
     text = re.sub(r"\s+", " ", parser.get_text())
     return text.strip()
 
 
 # ---------------------------------------------------------------------------
-# Gmail — operations
+# Gmail - operations
 # ---------------------------------------------------------------------------
 
 
@@ -367,7 +367,7 @@ async def list_gmail_messages(
 ) -> list[dict[str, Any]]:
     """List recent messages (metadata only). `table` lets this run against an
     extra Pro/Executive connected account (kin_connected_accounts) instead of
-    the primary one — see _valid_access_token."""
+    the primary one - see _valid_access_token."""
     out: list[dict[str, Any]] = []
     res = await _api(
         supabase,
@@ -454,7 +454,7 @@ def _build_mime(
 ) -> dict[str, Any]:
     """Build a base64url-encoded raw RFC2822 message body for Gmail.
 
-    `attachments` is a list of {filename, mime_type, data (bytes)} — when
+    `attachments` is a list of {filename, mime_type, data (bytes)} - when
     present the message becomes multipart/mixed (body + attachment parts)
     instead of just multipart/alternative.
     """
@@ -606,7 +606,7 @@ async def list_promotional_senders(
 ) -> dict[str, Any]:
     """Fetch recent promotional/social Gmail and aggregate by sender, so the
     user can see what's cluttering their inbox before deciding what to clean
-    up — a bulk-aggregation server-side, rather than hoping the model
+    up - a bulk-aggregation server-side, rather than hoping the model
     manually tallies 50 individual messages itself."""
     messages = await list_gmail_messages(
         supabase, user, limit=limit, query=f"category:promotions newer_than:{days}d"
@@ -627,7 +627,7 @@ async def declutter_gmail_sender(
 ) -> dict[str, Any]:
     """Bulk-archive or bulk-trash every promotional message from one sender
     in a single call. `sender_query` should be the sender's email address
-    (or domain) as returned by list_promotional_senders — matched via
+    (or domain) as returned by list_promotional_senders - matched via
     Gmail's `from:` search operator."""
     query = f"from:({sender_query}) category:promotions newer_than:{days}d"
     messages = await list_gmail_messages(supabase, user, limit=50, query=query)
@@ -648,12 +648,12 @@ async def find_receipt_emails(
     supabase, user: dict[str, Any], *, days: int = 30, limit: int = 20
 ) -> list[dict[str, Any]]:
     """Find likely receipt/invoice/order-confirmation emails and return each
-    with enough body text to extract vendor/amount/date from — deliberately
+    with enough body text to extract vendor/amount/date from - deliberately
     returns raw text rather than trying to regex-parse amounts here, since
     receipt formats vary too much (ride receipts, SaaS invoices, food
     delivery, subscription charges...) for a fixed parser to handle
     reliably. The model reads the excerpt and extracts the real numbers."""
-    # -category:promotions matters more than it looks — without it this
+    # -category:promotions matters more than it looks - without it this
     # matched marketing email that merely mentions "order" in passing (an
     # Uber Eats "50% off" promo, an Etsy "we miss you" win-back email),
     # confirmed against a real inbox before landing on this query.
@@ -732,7 +732,7 @@ async def create_gmail_label(
 async def delete_gmail_message(
     supabase, user: dict[str, Any], *, message_id: str
 ) -> dict[str, Any]:
-    """Permanently delete (NOT trash) — irreversible."""
+    """Permanently delete (NOT trash) - irreversible."""
     await _api(
         supabase, user, "DELETE", f"{GMAIL_BASE}/messages/{message_id}"
     )
@@ -740,7 +740,7 @@ async def delete_gmail_message(
 
 
 # ---------------------------------------------------------------------------
-# Gmail — drafts
+# Gmail - drafts
 # ---------------------------------------------------------------------------
 
 
@@ -798,7 +798,7 @@ async def delete_gmail_draft(
 
 
 # ---------------------------------------------------------------------------
-# Gmail — threads
+# Gmail - threads
 # ---------------------------------------------------------------------------
 
 
@@ -919,7 +919,7 @@ async def modify_gmail_thread_labels(
 
 
 # ---------------------------------------------------------------------------
-# Calendar — operations
+# Calendar - operations
 # ---------------------------------------------------------------------------
 
 
@@ -938,7 +938,7 @@ def _format_event_row(ev: dict[str, Any]) -> dict[str, Any]:
         "description": ev.get("description") or "",
         "location": ev.get("location"),
         "html_link": ev.get("htmlLink"),
-        # The actual Meet join link — present when the event was created with a conference
+        # The actual Meet join link - present when the event was created with a conference
         # request. This is what a visitor needs to click to join; html_link is just the
         # calendar entry page.
         "hangout_link": hangout_link,
@@ -995,7 +995,7 @@ def _with_explicit_offset(naive_str: str, tz_name: Optional[str]) -> str:
     explicit UTC offset (e.g. '2026-07-13T09:30:00+05:30').
 
     The Google Calendar API accepts a naive dateTime + a separate timeZone
-    field and is documented to use timeZone to resolve the offset — but
+    field and is documented to use timeZone to resolve the offset - but
     relying on that split-field contract has repeatedly produced the wrong
     absolute instant in practice (e.g. a naive '09:30:00' + timeZone
     'Asia/Colombo' landing 5.5 hours later than intended). Attaching the
@@ -1065,7 +1065,7 @@ async def create_calendar_event(
 ) -> dict[str, Any]:
     # timezone_override (the bot's configured bot_timezone) takes priority over
     # the owner's user-profile timezone field, which is frequently left at its
-    # "UTC" default and never actually reflects where the business is — using
+    # "UTC" default and never actually reflects where the business is - using
     # it here silently mistagged every booked event with the wrong offset.
     tz_str = timezone_override or user.get("timezone") or "UTC"
     body = _event_payload(
@@ -1081,7 +1081,7 @@ async def create_calendar_event(
     # Request the Meet conference at creation time so the join link comes back in this same
     # response. Previously this was only attached by a separate follow-up call
     # (add_meet_to_event) made after the tool-calling loop had already returned control to the
-    # model — the model itself never saw a join link to relay to the visitor, only the
+    # model - the model itself never saw a join link to relay to the visitor, only the
     # calendar-entry html_link, so booking confirmations could never include a real invite link.
     body["conferenceData"] = {
         "createRequest": {
@@ -1148,14 +1148,14 @@ async def update_calendar_event(
     calendar_id: str = "primary",
     timezone_override: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Partial update (PATCH) of an existing event — only the fields passed
+    """Partial update (PATCH) of an existing event - only the fields passed
     are touched. Used for reschedule (start/end only) so the event's
     conferenceData/join link, attendee list, and Google-side event id all
     stay intact instead of forcing a fresh confirmation email with a
     brand-new link."""
     # timezone_override (the bot's configured bot_timezone) takes priority
     # over the owner's user-profile timezone field, same reasoning as
-    # create_calendar_event — a reschedule shouldn't silently drift to a
+    # create_calendar_event - a reschedule shouldn't silently drift to a
     # different offset than the event was originally booked with.
     tz_str = timezone_override or user.get("timezone") or "UTC"
     body: dict[str, Any] = {}
@@ -1205,7 +1205,7 @@ async def check_calendar_availability(
     time_max: datetime,
     calendar_ids: Optional[list[str]] = None,
 ) -> dict[str, Any]:
-    """Free/busy query — returns busy intervals for the requested calendars."""
+    """Free/busy query - returns busy intervals for the requested calendars."""
     items = [{"id": c} for c in (calendar_ids or ["primary"])]
     res = await _api(
         supabase,
@@ -1463,7 +1463,7 @@ async def create_google_contact(
 
 
 # ---------------------------------------------------------------------------
-# Drive — listing + downloads + native export
+# Drive - listing + downloads + native export
 # ---------------------------------------------------------------------------
 
 # Google native MIME types and the formats we export them to (best for text RAG).
@@ -1471,7 +1471,7 @@ NATIVE_EXPORT = {
     "application/vnd.google-apps.document": "text/plain",
     "application/vnd.google-apps.spreadsheet": "text/csv",
     "application/vnd.google-apps.presentation": "text/plain",
-    # Drawings, Forms, etc. — skip for now.
+    # Drawings, Forms, etc. - skip for now.
 }
 
 SUPPORTED_BINARY_MIMES = {
@@ -1600,7 +1600,7 @@ async def export_drive_file(
 
 
 # ---------------------------------------------------------------------------
-# Google Docs — read structured content
+# Google Docs - read structured content
 # ---------------------------------------------------------------------------
 
 
@@ -1643,7 +1643,7 @@ async def read_google_doc(
 
 
 # ---------------------------------------------------------------------------
-# Google Sheets — read values
+# Google Sheets - read values
 # ---------------------------------------------------------------------------
 
 
@@ -1702,7 +1702,7 @@ def _sheet_values_to_text(values: list[list[Any]]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Google Slides — read presentation text
+# Google Slides - read presentation text
 # ---------------------------------------------------------------------------
 
 
@@ -1731,7 +1731,7 @@ def _walk_slide_text(elements: list[dict[str, Any]]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Drive — write ops (files + folders)
+# Drive - write ops (files + folders)
 # ---------------------------------------------------------------------------
 
 
@@ -1948,7 +1948,7 @@ async def share_drive_item(
         },
         json_body=body,
     )
-    # The permission response has no file-level fields — fetch the name/link
+    # The permission response has no file-level fields - fetch the name/link
     # too so callers (and the assistant composing a follow-up email) always
     # have something to reference the shared file by.
     try:
@@ -1961,7 +1961,7 @@ async def share_drive_item(
 
 
 # ---------------------------------------------------------------------------
-# Drive — shared drives (Team Drives)
+# Drive - shared drives (Team Drives)
 # ---------------------------------------------------------------------------
 
 
@@ -2014,7 +2014,7 @@ async def update_shared_drive(
 
 
 # ---------------------------------------------------------------------------
-# Docs — write ops
+# Docs - write ops
 # ---------------------------------------------------------------------------
 
 
@@ -2104,7 +2104,7 @@ async def replace_text_in_google_doc(
 
 
 # ---------------------------------------------------------------------------
-# Slides — write + extra reads
+# Slides - write + extra reads
 # ---------------------------------------------------------------------------
 
 
@@ -2176,7 +2176,7 @@ async def replace_text_in_slides(
 
 
 # ---------------------------------------------------------------------------
-# Sheets — write ops
+# Sheets - write ops
 # ---------------------------------------------------------------------------
 
 
@@ -2203,7 +2203,7 @@ async def create_spreadsheet(
 async def delete_spreadsheet(
     supabase, user: dict[str, Any], *, spreadsheet_id: str
 ) -> dict[str, Any]:
-    """Sheets has no native delete — we delete the underlying Drive file."""
+    """Sheets has no native delete - we delete the underlying Drive file."""
     return await delete_drive_item(
         supabase, user, file_id=spreadsheet_id, permanent=False
     )

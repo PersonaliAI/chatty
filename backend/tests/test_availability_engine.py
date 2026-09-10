@@ -1,4 +1,4 @@
-"""Unit tests for plugins/availability_engine.py — the deterministic
+"""Unit tests for plugins/availability_engine.py - the deterministic
 slot-computation engine that replaced LLM-guesswork gap arithmetic for
 calendar booking. `compute_available_slots` is a pure function (no I/O), so
 most of this is tested directly without mocking; `fetch_busy_intervals` /
@@ -84,7 +84,7 @@ def test_merge_intervals_keeps_disjoint_separate():
 
 
 # ---------------------------------------------------------------------------
-# compute_available_slots — the core deterministic engine
+# compute_available_slots - the core deterministic engine
 # ---------------------------------------------------------------------------
 
 
@@ -216,20 +216,20 @@ def test_visitor_local_label_included_when_tz_given():
 
 
 # ---------------------------------------------------------------------------
-# _format_slot_label / _gmt_offset_label — timezone readability
+# _format_slot_label / _gmt_offset_label - timezone readability
 # ---------------------------------------------------------------------------
 
 
 def test_format_slot_label_uses_named_abbreviation_when_available():
     kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "America/New_York"}
     slots = avail.compute_available_slots(busy_intervals=[], now_utc=_MONDAY_9AM_UTC, max_results=1, **kwargs)
-    # America/New_York in January is EST — a real named abbreviation, not a bare offset.
+    # America/New_York in January is EST - a real named abbreviation, not a bare offset.
     assert "EST" in slots[0]["owner_local_label"] or "EDT" in slots[0]["owner_local_label"]
     assert "+" not in slots[0]["owner_local_label"]
 
 
 def test_format_slot_label_omits_gmt_offset_for_unnamed_zone():
-    # Asia/Colombo has no common named abbreviation — do NOT show GMT+5:30 or +0530.
+    # Asia/Colombo has no common named abbreviation - do NOT show GMT+5:30 or +0530.
     kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "Asia/Colombo"}
     now = _utc(2026, 1, 5, 0, 0)
     slots = avail.compute_available_slots(busy_intervals=[], now_utc=now, max_results=1, **kwargs)
@@ -279,8 +279,8 @@ def test_format_slot_label_includes_named_abbrev_without_gmt():
 
 def test_owner_and_visitor_labels_derive_from_the_same_instant():
     """The visitor and owner labels must always agree on the real moment in
-    time — they're two renderings of one start_utc, not independently
-    computed — even though the clock time/date printed differs by zone."""
+    time - they're two renderings of one start_utc, not independently
+    computed - even though the clock time/date printed differs by zone."""
     kwargs = {**DEFAULT_KWARGS, "owner_tz_str": "Asia/Colombo"}
     slots = avail.compute_available_slots(
         busy_intervals=[], now_utc=_utc(2026, 1, 5, 0, 0), max_results=1,
@@ -315,7 +315,7 @@ def test_week_key_is_monday_of_that_week():
 
 
 # ---------------------------------------------------------------------------
-# fetch_busy_intervals — provider-agnostic wrapper
+# fetch_busy_intervals - provider-agnostic wrapper
 # ---------------------------------------------------------------------------
 
 
@@ -343,7 +343,7 @@ def test_fetch_busy_intervals_outlook_ignores_all_day(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# is_slot_available — the hard double-booking guard
+# is_slot_available - the hard double-booking guard
 # ---------------------------------------------------------------------------
 
 
@@ -464,7 +464,7 @@ def test_get_bookable_members_skips_owner_duplicate_row():
 
 def test_get_bookable_members_uses_owner_calendar_when_preference_off():
     """A member with book_on_own_calendar=false is still assigned meetings
-    under their own email, but the calendar checked/booked is the owner's —
+    under their own email, but the calendar checked/booked is the owner's -
     no users-table lookup for the member should even happen."""
     fake = FakeSupabase()
     fake.queue([{"email": "jane@example.com", "book_on_own_calendar": False}])
@@ -475,7 +475,7 @@ def test_get_bookable_members_uses_owner_calendar_when_preference_off():
 
 def test_get_bookable_members_defaults_to_own_calendar_when_preference_null():
     """A pre-existing row from before this column existed (NULL, not a real
-    false) must default to true — never silently reroute existing bookable
+    false) must default to true - never silently reroute existing bookable
     members onto the owner's calendar without an explicit admin choice."""
     fake = FakeSupabase()
     fake.queue([{"email": "jane@example.com", "book_on_own_calendar": None}])
@@ -595,7 +595,7 @@ def test_get_team_available_slots_unions_across_members(monkeypatch):
 
 def test_get_team_available_slots_uses_member_own_rules(monkeypatch):
     """Member has a chatty_availability_rules row restricting them to
-    10am-11am on Monday only — the union should reflect that narrower
+    10am-11am on Monday only - the union should reflect that narrower
     window, not the bot's wider 9-5 default."""
     monkeypatch.setattr(avail, "fetch_busy_intervals", AsyncMock(return_value=[]))
     fake = FakeSupabase()

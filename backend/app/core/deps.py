@@ -1,4 +1,4 @@
-"""FastAPI dependencies — Supabase session-JWT verification and the
+"""FastAPI dependencies - Supabase session-JWT verification and the
 `require_user` dependency routes use to get the authenticated user's row.
 """
 
@@ -44,7 +44,7 @@ def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str
         )
         if claims.get("sub"):
             return claims
-    except Exception as exc:  # noqa: BLE001 — fall through to legacy
+    except Exception as exc:  # noqa: BLE001 - fall through to legacy
         last_err = exc
 
     # 2) Legacy HS256 with shared secret

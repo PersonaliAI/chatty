@@ -1,9 +1,9 @@
-"""Zoom Server-to-Server OAuth — real meeting creation for bots configured
+"""Zoom Server-to-Server OAuth - real meeting creation for bots configured
 with meeting_provider="zoom".
 
 Unlike Google/Microsoft (per-user OAuth, tokens stored per connected
 account), Zoom Server-to-Server OAuth is a single backend-wide credential
-set once via ZOOM_ACCOUNT_ID/ZOOM_CLIENT_ID/ZOOM_CLIENT_SECRET — there's no
+set once via ZOOM_ACCOUNT_ID/ZOOM_CLIENT_ID/ZOOM_CLIENT_SECRET - there's no
 per-user "connect your Zoom account" flow, matching the dashboard's own
 "Zoom has no in-app connect flow (backend-configured credentials)" design.
 Meetings are created under the Zoom account those credentials belong to.
@@ -25,7 +25,7 @@ logger = logging.getLogger("chatty.zoom")
 ZOOM_TOKEN_URL = "https://zoom.us/oauth/token"
 ZOOM_API_BASE = "https://api.zoom.us/v2"
 
-# In-process cache for the S2S access token — Zoom's tokens last ~1hr, and
+# In-process cache for the S2S access token - Zoom's tokens last ~1hr, and
 # minting a fresh one on every meeting-creation call would be wasteful and
 # adds latency to every booking. Refetched whenever expired or on first use.
 _token_cache: dict[str, Any] = {"access_token": None, "expires_at": 0.0}
@@ -76,7 +76,7 @@ async def create_meeting(
     """Creates a real scheduled Zoom meeting and returns its join link.
 
     `start` must be ISO 8601 (e.g. "2026-09-10T15:00:00"). Raises
-    RuntimeError if Zoom isn't configured — callers should check
+    RuntimeError if Zoom isn't configured - callers should check
     zoom_configured() first if they want to degrade gracefully instead.
     """
     if not zoom_configured():

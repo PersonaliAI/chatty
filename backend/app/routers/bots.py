@@ -55,6 +55,19 @@ async def list_shared_bots(user: dict[str, Any] = Depends(require_user)):
     return {"bots": bots}
 
 
+@router.get("/api/bots/{bot_id}/sources")
+async def get_bot_sources(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return knowledge sources for a bot if the caller is the owner or an authorized team member.
+    Allows all team members with bot access to view sources for dashboard stats & playground,
+    bypassing direct Supabase RLS which gates writes on the 'sources' tab permission."""
+    from app.core.permissions import get_bot_role_and_permissions
+    await get_bot_role_and_permissions(bot_id, user)
+    res = await run_db(lambda: supabase.table("chatty_sources").select(
+        "id, type, name, content, status, char_count, crawl_schedule, next_crawl_at, created_at"
+    ).eq("bot_id", bot_id).order("created_at", desc=False).execute())
+    return {"sources": res.data or []}
+
+
 @router.post("/api/bot/logo")
 async def upload_bot_logo(
     bot_id: str = Form(...),
@@ -168,9 +181,9 @@ async def generate_business(
 
 @router.get("/api/bots/{bot_id}/byok")
 async def get_byok_status(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    """Never returns the decrypted key — only whether one is configured.
+    """Never returns the decrypted key - only whether one is configured.
     Owner-only by default; a team member needs the 'byok' permission, which
-    (unlike most tabs) only the owner can grant — see app.core.permissions."""
+    (unlike most tabs) only the owner can grant - see app.core.permissions."""
     await verify_bot_permission(bot_id, user, "byok")
     res = await run_db(lambda: supabase.table("chatty_bots").select("byok_provider, byok_model, byok_api_key_encrypted, user_id") \
         .eq("id", bot_id).execute())
@@ -203,7 +216,7 @@ async def set_byok(bot_id: str, req: BYOKUpdate, user: dict[str, Any] = Depends(
 
 @router.get("/api/bots/{bot_id}/voice-settings")
 async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    """Never returns decrypted BYOK keys — only whether one is configured."""
+    """Never returns decrypted BYOK keys - only whether one is configured."""
     await verify_bot_permission(bot_id, user, "voice")
     try:
         res = await run_db(lambda: supabase.table("chatty_bots").select(
@@ -215,7 +228,7 @@ async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require
         ).eq("id", bot_id).execute())
     except Exception:
         # voice_mode/voice_realtime_*'s migration (20260829030000) may not be
-        # applied to this environment yet — fall back to the columns that
+        # applied to this environment yet - fall back to the columns that
         # are guaranteed to exist rather than 400ing the whole request.
         res = await run_db(lambda: supabase.table("chatty_bots").select(
             "voice_enabled, voice_stt_provider, voice_stt_byok_key_encrypted, "

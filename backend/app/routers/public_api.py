@@ -29,7 +29,7 @@ from app.schemas.widget import WidgetChatResponse
 from plugins import notifications as notify
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
-# avoid a large, risky helper-extraction pass alongside the route split —
+# avoid a large, risky helper-extraction pass alongside the route split -
 # the API-key rate limiter is shared with the widget's rate limiter, and
 # _fetch_url_content is shared with app/routers/crawl.py).
 from main import (
@@ -75,7 +75,7 @@ async def health_check(request: Request):
 
 @router.post(
     "/api/keys",
-    tags=["Dashboard — API Keys"],
+    tags=["Dashboard - API Keys"],
     summary="Create API key",
     description=(
         "Create a new API key for the specified bot. "
@@ -119,7 +119,7 @@ async def create_api_key(
             "scopes": created.get("scopes"),
             "allowed_ips": created.get("allowed_ips"),
             "created_at": created.get("created_at"),
-            "warning": "Save this key now — it will not be shown again.",
+            "warning": "Save this key now - it will not be shown again.",
         }
     except Exception as e:
         logger.exception("Failed to create API key")
@@ -128,7 +128,7 @@ async def create_api_key(
 
 @router.get(
     "/api/keys",
-    tags=["Dashboard — API Keys"],
+    tags=["Dashboard - API Keys"],
     summary="List API keys",
     description="List all API keys for a bot. Key values are never returned.",
 )
@@ -152,7 +152,7 @@ async def list_api_keys(
 
 @router.patch(
     "/api/keys/{key_id}",
-    tags=["Dashboard — API Keys"],
+    tags=["Dashboard - API Keys"],
     summary="Update API key",
     description="Update the name, scopes, or IP allowlist of an existing API key.",
 )
@@ -187,7 +187,7 @@ async def update_api_key(
 
 @router.delete(
     "/api/keys/{key_id}",
-    tags=["Dashboard — API Keys"],
+    tags=["Dashboard - API Keys"],
     summary="Revoke API key",
     description="Permanently revoke an API key. Revoked keys return 401 on all future requests.",
 )
@@ -208,7 +208,7 @@ async def revoke_api_key(
 
 
 # ---------------------------------------------------------------------------
-# Public REST API — v1
+# Public REST API - v1
 # All endpoints require: Authorization: Bearer chatty_sk_<key>
 # ---------------------------------------------------------------------------
 
@@ -216,14 +216,14 @@ async def revoke_api_key(
 @router.post(
     "/api/v1/chat",
     response_model=WidgetChatResponse,
-    tags=["Public API — Chat"],
+    tags=["Public API - Chat"],
     summary="Send a message to the bot",
     description=(
         "Send a text message and receive an AI reply. The bot uses its configured "
         "knowledge base, guardrails, and language settings.\n\n"
         "**Required scope:** `chat`\n\n"
         "A `session_id` groups messages into a conversation. Omit it to start a new "
-        "session — the generated session ID is returned and must be passed in "
+        "session - the generated session ID is returned and must be passed in "
         "subsequent requests to continue the same thread.\n\n"
         "The bot may include lead-capture or meeting-booking intents in its reply "
         "depending on its configuration."
@@ -292,7 +292,7 @@ async def public_api_chat(
 
 @router.get(
     "/api/v1/bot",
-    tags=["Public API — Bot"],
+    tags=["Public API - Bot"],
     summary="Get bot details",
     description=(
         "Return public configuration details about the bot tied to this API key.\n\n"
@@ -320,7 +320,7 @@ async def public_api_bot(request: Request, authorization: Optional[str] = Header
 
 @router.get(
     "/api/v1/leads",
-    tags=["Public API — Leads"],
+    tags=["Public API - Leads"],
     summary="List captured leads",
     description=(
         "Return leads captured by the bot, most recent first.\n\n"
@@ -359,7 +359,7 @@ async def public_api_leads(
 
 @router.get(
     "/api/v1/conversations",
-    tags=["Public API — Conversations"],
+    tags=["Public API - Conversations"],
     summary="List conversation sessions",
     description=(
         "Return recent messages across all sessions for this bot, newest first.\n\n"
@@ -392,7 +392,7 @@ async def public_api_conversations(
 
 @router.get(
     "/api/v1/conversations/{session_id}",
-    tags=["Public API — Conversations"],
+    tags=["Public API - Conversations"],
     summary="Get a specific conversation",
     description=(
         "Return all messages in a single conversation thread identified by `session_id`.\n\n"
@@ -423,7 +423,7 @@ async def public_api_conversation_get(
 
 @router.delete(
     "/api/v1/conversations/{session_id}",
-    tags=["Public API — Conversations"],
+    tags=["Public API - Conversations"],
     summary="Clear a conversation session",
     description=(
         "Delete all messages in the given session. Useful for resetting a chat "
@@ -458,7 +458,7 @@ async def public_api_conversation_delete(
 
 @router.get(
     "/api/v1/knowledge",
-    tags=["Public API — Knowledge"],
+    tags=["Public API - Knowledge"],
     summary="List knowledge sources",
     description=(
         "Return all knowledge sources (text, URL, and file) for the bot.\n\n"
@@ -485,13 +485,13 @@ async def public_api_knowledge_list(
 
 @router.post(
     "/api/v1/knowledge",
-    tags=["Public API — Knowledge"],
+    tags=["Public API - Knowledge"],
     summary="Add a knowledge source",
     description=(
         "Add a text snippet or crawl a URL into the bot's knowledge base.\n\n"
         "**Required scope:** `write`\n\n"
-        "- `type: \"text\"` — provide `content` directly (max 100 KB)\n"
-        "- `type: \"url\"` — provide `url`; the page will be fetched and indexed "
+        "- `type: \"text\"` - provide `content` directly (max 100 KB)\n"
+        "- `type: \"url\"` - provide `url`; the page will be fetched and indexed "
         "immediately. Supports the same Jina-powered crawl as the dashboard."
     ),
     responses={
@@ -557,7 +557,7 @@ async def public_api_knowledge_create(
 
 @router.delete(
     "/api/v1/knowledge/{source_id}",
-    tags=["Public API — Knowledge"],
+    tags=["Public API - Knowledge"],
     summary="Delete a knowledge source",
     description=(
         "Permanently delete a knowledge source from the bot's knowledge base.\n\n"
@@ -589,7 +589,7 @@ async def public_api_knowledge_delete(
 
 @router.get(
     "/api/v1/analytics",
-    tags=["Public API — Analytics"],
+    tags=["Public API - Analytics"],
     summary="Bot analytics summary",
     description=(
         "Return aggregated usage statistics for the bot: message volume, "
@@ -649,7 +649,7 @@ async def public_api_analytics(
 
 @router.get(
     "/api/v1/usage",
-    tags=["Public API — Usage"],
+    tags=["Public API - Usage"],
     summary="API key usage stats",
     description=(
         "Return usage statistics and configuration for the calling API key.\n\n"
@@ -675,11 +675,11 @@ async def public_api_usage(request: Request, authorization: Optional[str] = Head
 
 @router.post(
     "/api/v1/webhooks",
-    tags=["Public API — Webhooks"],
+    tags=["Public API - Webhooks"],
     summary="Register a webhook",
     description=(
         "Subscribe a URL to one or more event types. A signing secret is generated "
-        "and returned once — store it to verify the `X-Chatty-Signature` header on "
+        "and returned once - store it to verify the `X-Chatty-Signature` header on "
         "incoming deliveries.\n\n"
         f"**Required scope:** `write`\n\n"
         f"Valid events: {', '.join(notify.WEBHOOK_EVENTS)}"
@@ -727,7 +727,7 @@ async def public_api_webhook_create(
 
 @router.get(
     "/api/v1/webhooks",
-    tags=["Public API — Webhooks"],
+    tags=["Public API - Webhooks"],
     summary="List webhooks",
     description="List all webhooks registered for this bot.\n\n**Required scope:** `read`",
     responses={
@@ -748,7 +748,7 @@ async def public_api_webhook_list(request: Request, authorization: Optional[str]
 
 @router.delete(
     "/api/v1/webhooks/{webhook_id}",
-    tags=["Public API — Webhooks"],
+    tags=["Public API - Webhooks"],
     summary="Delete a webhook",
     description="Remove a webhook subscription.\n\n**Required scope:** `write`",
     responses={

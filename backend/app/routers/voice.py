@@ -3,7 +3,7 @@
 Mints a short-lived LiveKit access token so the widget's voice UI can join a
 LiveKit room where `voice_worker.py` (a separate long-running process, not
 part of this FastAPI app) picks up the job and runs the actual STT/LLM/TTS
-pipeline. This endpoint does no LiveKit connection itself — it only talks to
+pipeline. This endpoint does no LiveKit connection itself - it only talks to
 the LiveKit HTTP-free JWT signing helper in `livekit.api`.
 """
 
@@ -18,7 +18,7 @@ from app.core.db import run_db
 from app.schemas.voice import VoiceTokenRequest, VoiceTokenResponse
 from app.services import voice_service
 
-# Bridged helpers still living in main.py — same pattern as app/routers/widget.py.
+# Bridged helpers still living in main.py - same pattern as app/routers/widget.py.
 from main import _client_ip, _widget_rate_limit_or_429, chatty_quota_exceeded
 
 logger = logging.getLogger("chatty")

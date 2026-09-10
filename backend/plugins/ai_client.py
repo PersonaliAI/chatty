@@ -1,4 +1,4 @@
-"""Unified LLM/embedding client — every AI-provider call in the codebase
+"""Unified LLM/embedding client - every AI-provider call in the codebase
 (Gemini via Vertex AI/AI Studio, and the BYOK OpenAI/Anthropic/OpenRouter
 paths) routes through here via LiteLLM (https://github.com/BerriAI/litellm)
 instead of calling each provider's SDK directly. One call surface means:
@@ -10,7 +10,7 @@ instead of calling each provider's SDK directly. One call surface means:
 
 Model name convention: callers pass a bare model name (e.g. "gemini-2.5-
 flash", "claude-3-5-sonnet-latest") and resolve_model() prefixes it for
-LiteLLM based on which provider it belongs to — mirrors the GEMINI_API_KEY
+LiteLLM based on which provider it belongs to - mirrors the GEMINI_API_KEY
 (AI Studio) vs Vertex AI dual path app/core/clients.py already had.
 """
 
@@ -28,7 +28,7 @@ from app.core.db import run_db
 
 logger = logging.getLogger("chatty.ai")
 
-# Drop kwargs a given provider doesn't support instead of raising — Gemini,
+# Drop kwargs a given provider doesn't support instead of raising - Gemini,
 # Anthropic, and OpenAI don't all accept the same completion params (e.g.
 # not every provider takes response_schema), and the old per-provider code
 # in llm_providers.py handled this by only ever passing what that provider
@@ -62,7 +62,7 @@ def resolve_byok_model(provider: str, model: str) -> str:
     """Prefix a bare BYOK model name for LiteLLM. `provider` is one of
     "openai" | "anthropic" | "openrouter", matching chatty_bots.byok_provider.
     Note: openrouter model IDs are themselves "vendor/model" (e.g.
-    "mistralai/mistral-large"), so — unlike resolve_gemini_model — a bare
+    "mistralai/mistral-large"), so - unlike resolve_gemini_model - a bare
     slash in `model` doesn't mean it's already a fully-qualified litellm
     string; only an explicit provider prefix does."""
     if model.startswith((f"{provider}/",) + _BYOK_PROVIDER_PREFIXES):
@@ -97,7 +97,7 @@ async def _log_usage(
     if response is not None:
         try:
             cost = litellm.completion_cost(completion_response=response)
-        except Exception:  # noqa: BLE001 — pricing unknown for this model (e.g. an unlisted BYOK model)
+        except Exception:  # noqa: BLE001 - pricing unknown for this model (e.g. an unlisted BYOK model)
             cost = None
     provider, bare_model = _split_provider_model(litellm_model)
     try:
@@ -116,7 +116,7 @@ async def _log_usage(
             "error": (error or "")[:2000] or None,
             "latency_ms": latency_ms,
         }).execute())
-    except Exception:  # noqa: BLE001 — usage logging must never break the actual AI call
+    except Exception:  # noqa: BLE001 - usage logging must never break the actual AI call
         logger.warning("failed to log AI usage for %s", litellm_model, exc_info=True)
 
 
@@ -161,7 +161,7 @@ async def chat(
                 break
             backoff = (2 ** attempt) * (1 + random.uniform(-0.2, 0.2))
             logger.warning(
-                "%s transient error — retry %d/%d in %.1fs: %s",
+                "%s transient error - retry %d/%d in %.1fs: %s",
                 model, attempt + 1, max_attempts, backoff, exc,
             )
             await asyncio.sleep(backoff)
@@ -209,7 +209,7 @@ async def chat_stream(
     **kwargs: Any,
 ) -> dict:
     """Streaming counterpart to chat(). Invokes `await on_token(delta)` per
-    visible text chunk. Returns {"text", "tool_calls", "message", "usage"} —
+    visible text chunk. Returns {"text", "tool_calls", "message", "usage"} -
     "message" is the assistant message dict (with content/tool_calls) ready
     to append to the running `messages` list for a follow-up round. Falls
     back to each fallback model, then to the non-streaming chat() as a last
@@ -219,11 +219,11 @@ async def chat_stream(
         start = time.monotonic()
         # stream_options={"include_usage": True} is required for Gemini (and
         # most providers) to report token usage on a streamed response at
-        # all — without it every chunk's .usage is None, confirmed empirically
+        # all - without it every chunk's .usage is None, confirmed empirically
         # (chatty_ai_usage rows were logging total_tokens=0/cost=None for
         # every streamed call before this was added). Raw chunks are kept so
         # litellm.stream_chunk_builder can reconstruct a usage-bearing
-        # response afterward — the provider only attaches real usage to a
+        # response afterward - the provider only attaches real usage to a
         # rebuilt/final response, not to any individual streamed chunk.
         stream = await litellm.acompletion(
             model=m, messages=messages, stream=True,
@@ -265,7 +265,7 @@ async def chat_stream(
         try:
             rebuilt = litellm.stream_chunk_builder(raw_chunks, messages=messages)
             usage = getattr(rebuilt, "usage", None)
-        except Exception:  # noqa: BLE001 — usage/cost logging must never break the actual reply
+        except Exception:  # noqa: BLE001 - usage/cost logging must never break the actual reply
             logger.warning("stream_chunk_builder failed for %s", m, exc_info=True)
         await _log_usage(
             response=rebuilt, litellm_model=m, call_type=call_type,

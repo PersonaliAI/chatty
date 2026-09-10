@@ -6,7 +6,7 @@ providers (falling back to a server-side shared key, then to Google, if no
 key is configured). The actual "brain" (Gemini tool-calling loop, knowledge
 retrieval, lead capture, etc.) is fully delegated to
 `plugins.widget_brain.run_widget_assistant`, the exact same function the
-text-chat widget endpoints use — this worker's job is purely to bridge
+text-chat widget endpoints use - this worker's job is purely to bridge
 LiveKit's voice pipeline (audio in -> STT -> our brain -> TTS -> audio out)
 to that existing function.
 
@@ -94,7 +94,7 @@ class _NullLLM(llm.LLM):
 
     `llm.LLM` (installed livekit-agents==1.6.10) has exactly one abstract
     method: `chat(...) -> LLMStream` (a *sync* method that returns a stream
-    object, not a coroutine — verified via `inspect.getsource(llm.LLM.chat)`).
+    object, not a coroutine - verified via `inspect.getsource(llm.LLM.chat)`).
     ChattyVoiceAgent overrides `llm_node` completely, so this class's `chat`
     is never actually invoked; it exists only so `Agent(llm=_NullLLM())` type
     checks and constructs cleanly.
@@ -110,7 +110,7 @@ class _NullLLM(llm.LLM):
         tool_choice=None,
         extra_kwargs=None,
     ):
-        raise NotImplementedError("_NullLLM.chat should never be called — llm_node is fully overridden")
+        raise NotImplementedError("_NullLLM.chat should never be called - llm_node is fully overridden")
 
 
 def _latest_user_text(chat_ctx: llm.ChatContext) -> str:
@@ -165,7 +165,7 @@ class ChattyVoiceAgent(Agent):
         queue: asyncio.Queue = asyncio.Queue()
         _SENTINEL = object()
 
-        # widget_brain._gemini_stream does `await on_token(part.text)` — on_token
+        # widget_brain._gemini_stream does `await on_token(part.text)` - on_token
         # MUST be an async callable (a fire-and-forget sync lambda would crash
         # with "object is not awaitable"). asyncio.Queue.put_nowait itself is
         # sync/non-blocking, so this async wrapper just awaits nothing extra.
@@ -208,7 +208,7 @@ def _decrypt_byok(enc: Optional[str]) -> Optional[str]:
     try:
         return llm_providers.decrypt_api_key(enc)
     except Exception:
-        logger.exception("voice worker: failed to decrypt BYOK key — falling back")
+        logger.exception("voice worker: failed to decrypt BYOK key - falling back")
         return None
 
 
@@ -217,10 +217,10 @@ def _build_stt(bot: dict[str, Any]):
 
     Falls back to a server-side shared key (app.core.config) when the bot has
     no BYOK key of its own, and falls back to Google entirely for unknown
-    providers. Azure was dropped from the option set — azure.STT needs
+    providers. Azure was dropped from the option set - azure.STT needs
     speech_key + speech_region, not a single api_key, which didn't fit the
     single-encrypted-key BYOK column; soniox.STT() takes a clean single
-    api_key (verified via source, not import — see _build_tts's fishaudio
+    api_key (verified via source, not import - see _build_tts's fishaudio
     note for why) and is a well-regarded realtime STT provider, so it
     replaced azure as the 5th option.
     """
@@ -241,7 +241,7 @@ def _build_stt(bot: dict[str, Any]):
         if not key:
             logger.warning(
                 "voice worker: soniox STT selected but no BYOK/SONIOX_API_KEY configured "
-                "— falling back to google"
+                "- falling back to google"
             )
             return google.STT(languages="en-US", model="latest_long")
         return soniox.STT(api_key=key)
@@ -249,7 +249,7 @@ def _build_stt(bot: dict[str, Any]):
         key = key or OPENAI_API_KEY or None
         return openai.STT(api_key=key) if key else openai.STT()
 
-    logger.warning("voice worker: unknown voice_stt_provider %r — falling back to google", provider)
+    logger.warning("voice worker: unknown voice_stt_provider %r - falling back to google", provider)
     return google.STT(languages="en-US", model="latest_long")
 
 
@@ -286,10 +286,10 @@ def _build_tts(bot: dict[str, Any]):
         return openai.TTS(**kwargs)
     if provider == "fishaudio":
         # fishaudio.TTS takes a clean single `api_key` (raises ValueError if
-        # neither the kwarg nor FISH_API_KEY env is set — unlike deepgram/
+        # neither the kwarg nor FISH_API_KEY env is set - unlike deepgram/
         # openai/elevenlabs it does NOT silently no-op, so unlike those we
         # must not call it with an empty kwargs dict) plus `voice_id` for the
-        # reference voice — verified via source read (livekit/plugins/
+        # reference voice - verified via source read (livekit/plugins/
         # fishaudio/tts.py), not import: importing any livekit.plugins.*
         # module pulls in the full livekit.agents package init chain, and
         # this environment hit a transient low-memory DLL failure loading
@@ -300,7 +300,7 @@ def _build_tts(bot: dict[str, Any]):
         if not key:
             logger.warning(
                 "voice worker: fishaudio TTS selected but no BYOK/FISH_API_KEY configured "
-                "— falling back to google"
+                "- falling back to google"
             )
             return google.TTS(language="en-US")
         kwargs: dict[str, Any] = {"api_key": key}
@@ -308,28 +308,28 @@ def _build_tts(bot: dict[str, Any]):
             kwargs["voice_id"] = voice
         return fishaudio.TTS(**kwargs)
 
-    logger.warning("voice worker: unknown voice_tts_provider %r — falling back to google", provider)
+    logger.warning("voice worker: unknown voice_tts_provider %r - falling back to google", provider)
     return google.TTS(language="en-US")
 
 
 # Model ids confirmed against the installed livekit-plugins-google/openai
 # versions and litellm's model_cost map (both need to recognize these exact
-# strings — google.realtime.RealtimeModel/openai.realtime.RealtimeModel for
+# strings - google.realtime.RealtimeModel/openai.realtime.RealtimeModel for
 # the actual call, litellm.cost_per_token for _cost_of_realtime_usage below)
-# — check both before assuming a newer model id works, these move fast.
+# - check both before assuming a newer model id works, these move fast.
 REALTIME_DEFAULT_MODEL = {"google": "gemini-3.1-flash-live-preview", "openai": "gpt-realtime"}
 REALTIME_DEFAULT_VOICE = {"google": "Puck", "openai": "marin"}
 # litellm.cost_per_token needs an explicit provider for "gemini-*" model ids
-# (it can't infer one the way it can for "gpt-*") — openai's own model ids
+# (it can't infer one the way it can for "gpt-*") - openai's own model ids
 # already resolve without this.
 _LITELLM_PROVIDER_FOR_REALTIME = {"google": "gemini", "openai": "openai"}
 
 
 def build_realtime(provider: str, model: Optional[str], voice: Optional[str], api_key: Optional[str]):
-    """Speech-to-speech model (audio in, audio out) — used instead of
+    """Speech-to-speech model (audio in, audio out) - used instead of
     _build_stt/_build_tts entirely when a bot's voice_mode is "realtime".
     Passed as AgentSession's implicit llm via ChattyRealtimeAgent's own
-    super().__init__(llm=...) — LiveKit's Agent accepts a RealtimeModel
+    super().__init__(llm=...) - LiveKit's Agent accepts a RealtimeModel
     exactly like a regular LLM. Mirrors kin-voice-worker/worker.py's
     build_realtime() (same two providers, same LiveKit plugin classes)."""
     model = model or REALTIME_DEFAULT_MODEL.get(provider, "")
@@ -354,12 +354,12 @@ def build_realtime(provider: str, model: Optional[str], voice: Optional[str], ap
 def _cost_of_realtime_usage(provider: str, model: str, agg: "_RealtimeUsageTotals") -> Optional[float]:
     """Cost in USD for a realtime-mode call's total token usage, via
     litellm's own pricing data (litellm.model_cost) rather than a
-    hand-maintained rate table — the same mechanism plugins/ai_client.py
+    hand-maintained rate table - the same mechanism plugins/ai_client.py
     uses for text-chat cost tracking (litellm.completion_cost), just called
     through cost_per_token directly since there's no single "completion
     response" object for a whole call's worth of realtime audio turns to
     hand it. Returns None (not 0) when litellm has no pricing entry for this
-    model — a missing price should read as "unknown", not "free"."""
+    model - a missing price should read as "unknown", not "free"."""
     try:
         usage = LitellmUsage(
             prompt_tokens=agg.input_tokens,
@@ -380,7 +380,7 @@ def _cost_of_realtime_usage(provider: str, model: str, agg: "_RealtimeUsageTotal
 
 
 class _RealtimeUsageTotals:
-    """Accumulates RealtimeModelMetrics across every response in a call —
+    """Accumulates RealtimeModelMetrics across every response in a call -
     each `metrics_collected` event covers one response, not the whole
     session."""
     def __init__(self) -> None:
@@ -406,7 +406,7 @@ def _log_voice_call(
     cost_usd: Optional[float] = None,
 ) -> None:
     """Writes the per-call usage/cost row `chatty_voice_calls` didn't have
-    before this — voice usage was previously tracked nowhere at all."""
+    before this - voice usage was previously tracked nowhere at all."""
     try:
         supabase.table("chatty_voice_calls").insert({
             "bot_id": bot_id, "session_id": session_id, "mode": mode,
@@ -420,13 +420,13 @@ def _log_voice_call(
 
 
 def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str, Any]) -> list:
-    """Tools available to a realtime-mode (speech-to-speech) session — the
+    """Tools available to a realtime-mode (speech-to-speech) session - the
     same knowledge-base search and booking/lead-capture actions pipeline
     mode gets for free via widget_brain.run_widget_assistant's own RAG step
     and tool-calling loop. A realtime model has no discrete "build a
     prompt, run RAG, call the LLM" turn of our own to hook that into (it
     manages the whole turn itself over its own audio session), so both are
-    exposed as ordinary function-calling tools instead — which Gemini
+    exposed as ordinary function-calling tools instead - which Gemini
     Live/OpenAI Realtime support natively, same as any other LLM tool call."""
     tools: list = []
 
@@ -435,7 +435,7 @@ def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str
         description=(
             "Search this business's knowledge base (website content, uploaded docs, FAQs) for "
             "information relevant to what the visitor is asking. Call this before answering any "
-            "question about the business, its products/services, pricing, or policies — don't "
+            "question about the business, its products/services, pricing, or policies - don't "
             "guess or rely on general knowledge for anything business-specific."
         ),
     )
@@ -446,7 +446,7 @@ def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str
     tools.append(search_knowledge_base)
 
     # Same tool selection as text/pipeline mode (widget_brain.scheduling_tool_names)
-    # — get_available_slots, Outlook/Teams support, and reschedule_meeting all
+    # - get_available_slots, Outlook/Teams support, and reschedule_meeting all
     # used to be missing here specifically because this list was hand-rolled
     # separately and had quietly drifted out of parity with the text path.
     allowed_tool_names = widget_brain.scheduling_tool_names(bot, owner_user)
@@ -459,7 +459,7 @@ def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str
         async def _run(raw_arguments: dict[str, Any], context: RunContext, _name: str = tool_name) -> Any:
             return await agent_tools.execute(
                 _name, raw_arguments, user=owner_user, supabase=supabase,
-                # "bot" is required here (not just bot_id) — agent_tools.execute's
+                # "bot" is required here (not just bot_id) - agent_tools.execute's
                 # round-robin assignment/conflict-guard and get_available_slots/
                 # reschedule_meeting handlers all key off context["bot"]; without
                 # it those silently no-op back to "always book the owner's own
@@ -473,7 +473,7 @@ def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str
 
 
 class ChattyRealtimeAgent(Agent):
-    """Speech-to-speech counterpart to ChattyVoiceAgent above — used instead
+    """Speech-to-speech counterpart to ChattyVoiceAgent above - used instead
     of it when a bot's voice_mode is "realtime". Unlike ChattyVoiceAgent,
     this doesn't override llm_node at all: a RealtimeModel handles the
     entire turn (listening, thinking, speaking) itself, so there's no
@@ -484,7 +484,7 @@ class ChattyRealtimeAgent(Agent):
         instructions = (
             (system_instructions + "\n\n" if system_instructions else "")
             + "You are having a live voice conversation with a website visitor. Keep replies "
-            "conversational and concise — this is speech, not a chat window. Use the "
+            "conversational and concise - this is speech, not a chat window. Use the "
             "search_knowledge_base tool for any question about this specific business rather "
             "than guessing."
         )
@@ -512,12 +512,12 @@ server = AgentServer(
 
 
 def prewarm_fnc(proc: JobProcess) -> None:
-    # Loaded once per worker process and reused across jobs — model loads are
+    # Loaded once per worker process and reused across jobs - model loads are
     # the expensive part, so this must not happen per-call.
     # min_silence_duration close to Silero's own default: how long the
     # visitor must go quiet before VAD reports speech-end. The previous 0.35s
     # (tuned down for snappier turn-taking) was cutting visitor speech short
-    # on real mobile mics — brief silence blips from network jitter/handling
+    # on real mobile mics - brief silence blips from network jitter/handling
     # noise read as "done talking". inference.TurnDetector (semantic, not
     # just silence-based) remains the primary turn-taking signal below, so
     # this only needs to be conservative enough not to mis-trigger.
@@ -538,20 +538,20 @@ async def entrypoint(ctx: JobContext) -> None:
     visitor_timezone = meta.get("visitor_timezone") or "UTC"
 
     if not bot_id or not session_id:
-        logger.warning("voice worker: job missing bot_id/session_id in metadata (%r) — not connecting", meta)
+        logger.warning("voice worker: job missing bot_id/session_id in metadata (%r) - not connecting", meta)
         return
 
     bot_res = supabase.table("chatty_bots").select("*").eq("id", bot_id).single().execute()
     bot = bot_res.data
     if not bot or not bot.get("voice_enabled"):
-        logger.warning("voice worker: bot %s missing or voice_enabled=false — not connecting", bot_id)
+        logger.warning("voice worker: bot %s missing or voice_enabled=false - not connecting", bot_id)
         return
 
     # Same owner-lookup pattern as app/routers/widget.py's widget_chat handler.
     owner_id = bot["user_id"]
     owner_res = supabase.table("users").select("*").eq("auth_user_id", owner_id).execute()
     if not owner_res.data:
-        logger.warning("voice worker: bot owner not found for bot %s — not connecting", bot_id)
+        logger.warning("voice worker: bot owner not found for bot %s - not connecting", bot_id)
         return
     owner_user = owner_res.data[0]
 
@@ -566,7 +566,7 @@ async def entrypoint(ctx: JobContext) -> None:
     call_start = time.monotonic()
 
     if voice_mode == "realtime":
-        # No stt/tts/vad/turn_detection at all — the RealtimeModel handles
+        # No stt/tts/vad/turn_detection at all - the RealtimeModel handles
         # listening, thinking, and speaking as one speech-to-speech session
         # (set on the Agent itself below, not here).
         session = AgentSession()
@@ -583,7 +583,7 @@ async def entrypoint(ctx: JobContext) -> None:
             stt=_build_stt(bot),
             tts=_build_tts(bot),
             vad=vad,
-            # Semantic turn detection (LiveKit's hosted inference — no local
+            # Semantic turn detection (LiveKit's hosted inference - no local
             # model to load, keeps this worker's cold-start light) rather than
             # relying on VAD silence-timeout alone: distinguishes "visitor
             # paused mid-thought" from "visitor is actually done talking", so
@@ -594,7 +594,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # Targeted diagnostics (INFO level, so these survive without the earlier
     # DEBUG-dump noise): confirms exactly where a real call's audio pipeline
-    # is versus isn't producing signal — was previously impossible to tell
+    # is versus isn't producing signal - was previously impossible to tell
     # apart "visitor never spoke" from "VAD/STT saw speech but no transcript
     # resulted" from "agent speech got falsely interrupted and auto-resumed".
     session.on(
@@ -609,11 +609,11 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     session.on(
         "user_transcription_timeout",
-        lambda ev: logger.warning("voice worker: user_transcription_timeout — speech detected, no transcript"),
+        lambda ev: logger.warning("voice worker: user_transcription_timeout - speech detected, no transcript"),
     )
     session.on(
         "agent_false_interruption",
-        lambda ev: logger.warning("voice worker: agent_false_interruption — resuming agent speech"),
+        lambda ev: logger.warning("voice worker: agent_false_interruption - resuming agent speech"),
     )
 
     if voice_mode == "realtime":
@@ -646,7 +646,7 @@ async def entrypoint(ctx: JobContext) -> None:
         else:
             # STT/TTS providers here (Deepgram, ElevenLabs, etc.) aren't
             # priced in litellm's model_cost the way LLM/realtime-audio
-            # tokens are — the pipeline mode's own LLM cost is already
+            # tokens are - the pipeline mode's own LLM cost is already
             # tracked separately via ai_client.chat_stream's existing
             # litellm.completion_cost call (call_type="widget_chat"), so
             # this just logs call duration/provider; cost_usd stays null
@@ -662,10 +662,10 @@ async def entrypoint(ctx: JobContext) -> None:
         agent=agent,
         room=ctx.room,
         # sync_transcription=True (the default) paces the transcription
-        # stream to match TTS audio playback — real-time-feeling speech, but
+        # stream to match TTS audio playback - real-time-feeling speech, but
         # "chunky" as chat text (whole sentences appear only once spoken).
         # False publishes each text chunk to the room as soon as the LLM
-        # actually produces it, decoupled from how fast TTS is speaking it —
+        # actually produces it, decoupled from how fast TTS is speaking it -
         # what the widget's transcript view actually wants: fast, ChatGPT-
         # style token streaming, not audio-paced reveal.
         room_output_options=room_io.RoomOutputOptions(sync_transcription=False),
@@ -675,27 +675,27 @@ async def entrypoint(ctx: JobContext) -> None:
         # Greet with the bot's own configured welcome message (same field text
         # chat already shows via GET /api/widget/theme) rather than a generic
         # line, so voice matches the bot's actual branding/tone. session.say
-        # (not generate_reply) since there's no user turn yet — this doesn't
+        # (not generate_reply) since there's no user turn yet - this doesn't
         # route through llm_node/run_widget_assistant at all. Realtime mode's
         # own ChattyRealtimeAgent.on_enter already does this greeting itself.
         greeting = (bot.get("welcome_message") or "").strip() or "Hi! How can I help you today?"
         await session.say(greeting)
 
     # Cost/abuse circuit-breaker: no per-minute quota exists yet (a known,
-    # explicitly-accepted gap — usage is tracked, not gated), but an
+    # explicitly-accepted gap - usage is tracked, not gated), but an
     # abandoned open call (visitor closes the tab without hanging up) must
     # not run/bill indefinitely. Runs as a background task (not awaited
     # inline) so it doesn't hold up normal job completion/cleanup when the
-    # call ends naturally well before the limit — ctx.shutdown() cancels
+    # call ends naturally well before the limit - ctx.shutdown() cancels
     # this along with everything else once the job is done either way.
     max_minutes = bot.get("voice_max_duration_minutes") or 15
 
     async def _enforce_max_duration() -> None:
         try:
             await asyncio.sleep(max_minutes * 60)
-            logger.info("voice worker: call for bot %s hit the %d-minute limit — ending", bot_id, max_minutes)
+            logger.info("voice worker: call for bot %s hit the %d-minute limit - ending", bot_id, max_minutes)
             await session.say(
-                "We're at the time limit for this call — thanks for chatting! "
+                "We're at the time limit for this call - thanks for chatting! "
                 "Feel free to reach out again anytime."
             )
             ctx.shutdown(reason="voice_max_duration_minutes reached")

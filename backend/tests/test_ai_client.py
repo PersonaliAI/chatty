@@ -1,5 +1,5 @@
 """Pure unit tests for plugins/ai_client.py's model-name resolution and
-plugins/memory.py's embedding model default — no network calls (see
+plugins/memory.py's embedding model default - no network calls (see
 tests/test_integration_live.py for the real-API smoke tests)."""
 from plugins import ai_client, memory
 
@@ -33,6 +33,6 @@ def test_split_provider_model():
 
 def test_embed_model_default_is_not_the_retired_text_embedding_004():
     # text-embedding-004 was retired from the Gemini API (404s on
-    # embedContent) — regression guard against reintroducing it as the
+    # embedContent) - regression guard against reintroducing it as the
     # default and silently breaking RAG/knowledge-base search again.
     assert memory.EMBED_MODEL != "text-embedding-004"

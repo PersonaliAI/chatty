@@ -1,5 +1,5 @@
 """OAuth2 authorization server for third-party developer / MCP client
-access to a Chatty user's account (spans every bot they own — unlike
+access to a Chatty user's account (spans every bot they own - unlike
 chatty_api_keys, which are minted for exactly one bot).
 
 Flow (authorization-code + mandatory PKCE, matching the MCP spec's current
@@ -7,7 +7,7 @@ auth recommendation):
   1. MCP client discovers this AS via GET /.well-known/oauth-protected-resource
      (served by the MCP endpoint itself) or /.well-known/oauth-authorization-server.
   2. MCP client registers itself: POST /oauth/register (RFC 7591).
-  3. MCP client opens the user's browser to GET /oauth/authorize?... — this
+  3. MCP client opens the user's browser to GET /oauth/authorize?... - this
      backend has no HTML of its own, so it redirects to Chatty's frontend
      consent page, which is what actually calls consent-info / authorize
      below (authenticated as the logged-in dashboard user).
@@ -86,11 +86,11 @@ def _protected_resource_metadata() -> dict[str, Any]:
 
 # RFC 9728 (oauth-protected-resource) is ALSO auto-served by the MCP mount
 # itself (app/routers/mcp.py, via FastMCP's AuthSettings.resource_server_url)
-# — in theory at /.well-known/oauth-protected-resource/mcp per the spec's
+# - in theory at /.well-known/oauth-protected-resource/mcp per the spec's
 # path-scoped convention. In practice this repo's local TestClient and the
 # real deployed Cloud Run service disagreed about which of
 # /.well-known/oauth-protected-resource and its /mcp-suffixed sibling
-# FastMCP actually serves (a discrepancy not worth chasing further — root
+# FastMCP actually serves (a discrepancy not worth chasing further - root
 # cause unconfirmed). These two explicit routes, registered ahead of the
 # MCP mount in main.py's app.mount("/", ...) call, make both paths work
 # deterministically regardless of environment, rather than depending on
@@ -145,7 +145,7 @@ async def register_client(body: ClientRegistrationRequest):
 
 
 # ---------------------------------------------------------------------------
-# Authorization endpoint — this backend has no HTML pages, so GET /oauth/authorize
+# Authorization endpoint - this backend has no HTML pages, so GET /oauth/authorize
 # just forwards the request to Chatty's own frontend, which renders the real
 # consent screen and calls the two authenticated endpoints below.
 # ---------------------------------------------------------------------------
@@ -190,7 +190,7 @@ async def consent_info(
     scope: str = "chat read",
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Authenticated as the logged-in dashboard user — the frontend calls
+    """Authenticated as the logged-in dashboard user - the frontend calls
     this to render "<App> wants to: ...". Requires login first, same as
     every other /api/* route in this backend; the frontend consent page is
     responsible for redirecting to /login if there's no session yet."""
@@ -223,11 +223,11 @@ async def authorize_decision(
     row = {
         "code": code,
         "client_id": body.client_id,
-        # auth_user_id, not the internal users.id — chatty_bots.user_id (and
+        # auth_user_id, not the internal users.id - chatty_bots.user_id (and
         # every other bot-ownership check in this codebase: bots.py, admin.py,
         # crawl.py, onboarding.py, public_api.py) is keyed on auth_user_id.
         # Storing the internal id here would make OAuth-created bots invisible
-        # to the dashboard and vice versa — every downstream principal["user_id"]
+        # to the dashboard and vice versa - every downstream principal["user_id"]
         # comparison (require_bot_access, bots_service.create_bot/list_bots)
         # depends on this being the same id space.
         "user_id": user["auth_user_id"],
@@ -247,7 +247,7 @@ async def authorize_decision(
 
 
 # ---------------------------------------------------------------------------
-# Token endpoint — RFC 6749 §3.2 requires application/x-www-form-urlencoded,
+# Token endpoint - RFC 6749 §3.2 requires application/x-www-form-urlencoded,
 # not JSON. Off-the-shelf OAuth2 client libraries (which is what real MCP
 # clients use) send exactly this and nothing else, so this has to be Form(...)
 # fields for actual interoperability, not a Pydantic JSON body.
@@ -313,7 +313,7 @@ async def _grant_authorization_code(body: TokenRequest):
     if not _oauth.verify_pkce(body.code_verifier, code_row.get("code_challenge"), code_row.get("code_challenge_method")):
         raise HTTPException(status_code=400, detail="PKCE verification failed")
 
-    # Single-use: mark consumed before issuing tokens, not after — a crash
+    # Single-use: mark consumed before issuing tokens, not after - a crash
     # between issuing and marking would otherwise let the same code be
     # replayed to mint a second token pair.
     await run_db(lambda: supabase.table("chatty_oauth_codes").update({"used": True}).eq("code", body.code).execute())
@@ -340,7 +340,7 @@ async def _grant_refresh_token(body: TokenRequest):
         if refresh_expires < datetime.datetime.now(datetime.timezone.utc):
             raise HTTPException(status_code=400, detail="Refresh token expired")
 
-    # Rotate: revoke the old pair, issue a fresh one — standard practice so a
+    # Rotate: revoke the old pair, issue a fresh one - standard practice so a
     # leaked refresh token has a bounded, single-use lifetime.
     await run_db(lambda: supabase.table("chatty_oauth_tokens").update({"revoked": True}).eq("id", old["id"]).execute())
     return await _oauth.issue_tokens(client_id=client["client_id"], user_id=old["user_id"], scope=old["scope"])
@@ -356,7 +356,7 @@ async def revoke_token(
     token: str = Form(...),
     token_type_hint: Optional[str] = Form(None),
 ):
-    # Revoking is idempotent — an unknown token is still a 200, not an
+    # Revoking is idempotent - an unknown token is still a 200, not an
     # error (RFC 7009 §2.2), so a client can't probe token validity via
     # this endpoint's response code.
     digest = _oauth.hash_token(token)

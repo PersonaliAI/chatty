@@ -1,11 +1,11 @@
-"""Pure unit tests for plugins/google_integrations.py — OAuth token exchange
+"""Pure unit tests for plugins/google_integrations.py - OAuth token exchange
 and refresh, the generic Google API request/error-handling helper, and the
 pure data-transformation helpers (header decoding, body extraction, MIME
 building, event/contact formatting). All HTTP is mocked; nothing here
 touches the network or a real DB (see test_integration_live.py for that).
 
 Note: auth_url() and the CHATTY_SCOPES/SCOPES coverage already live in
-tests/test_unit.py — not duplicated here.
+tests/test_unit.py - not duplicated here.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from plugins import google_integrations as g
 
 
 # ---------------------------------------------------------------------------
-# Fake httpx.AsyncClient — records every request, replays queued responses
+# Fake httpx.AsyncClient - records every request, replays queued responses
 # ---------------------------------------------------------------------------
 
 
@@ -135,7 +135,7 @@ def test_userinfo_sends_bearer_token(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# _valid_access_token — the token-refresh decision logic
+# _valid_access_token - the token-refresh decision logic
 # ---------------------------------------------------------------------------
 
 
@@ -187,7 +187,7 @@ def test_valid_access_token_returns_none_when_never_connected():
 
 
 def test_valid_access_token_treats_missing_expiry_as_needing_refresh(monkeypatch):
-    # No stored expiry at all — must refresh rather than trust an absent value.
+    # No stored expiry at all - must refresh rather than trust an absent value.
     monkeypatch.setattr(
         g, "refresh_access_token", AsyncMock(return_value={"access_token": "fresh2", "expires_in": 3600})
     )
@@ -208,7 +208,7 @@ def test_valid_access_token_writes_to_the_requested_table(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# _api — the generic request wrapper's error handling
+# _api - the generic request wrapper's error handling
 # ---------------------------------------------------------------------------
 
 
@@ -368,7 +368,7 @@ def test_b64url_decode_roundtrip():
 def test_b64url_decode_returns_empty_on_malformed_input():
     # base64.urlsafe_b64decode silently discards characters outside its
     # alphabet (default validate=False) rather than raising, so garbage
-    # input decodes to garbage text instead of erroring — the try/except
+    # input decodes to garbage text instead of erroring - the try/except
     # in _b64url_decode only catches genuinely undecodable byte sequences
     # (e.g. bad padding after stripping non-alphabet chars).
     assert g._b64url_decode("!!!") == ""
@@ -387,7 +387,7 @@ def test_strip_html_collapses_whitespace_after_tag_removal():
 def test_strip_html_drops_script_content_even_with_attribute_containing_gt():
     # A regex-based `<script[^>]*>...</script>` stripper's opening-tag match
     # breaks on a '>' inside an attribute value, leaving the script body in
-    # the "stripped" output — a real HTML parser handles this correctly.
+    # the "stripped" output - a real HTML parser handles this correctly.
     html = '<script data-x="a>b">alert(1)</script><p>Real text</p>'
     result = g._strip_html(html)
     assert "alert" not in result
@@ -503,7 +503,7 @@ def test_format_event_row_defaults_missing_summary():
 
 
 # ---------------------------------------------------------------------------
-# _with_explicit_offset — timezone localization
+# _with_explicit_offset - timezone localization
 # ---------------------------------------------------------------------------
 
 
@@ -518,7 +518,7 @@ def test_with_explicit_offset_leaves_already_offset_string_unchanged():
 
 def test_with_explicit_offset_localizes_naive_datetime():
     result = g._with_explicit_offset("2026-09-01T09:30:00", "Asia/Colombo")
-    # Asia/Colombo is UTC+05:30 — the naive time must carry that explicit offset.
+    # Asia/Colombo is UTC+05:30 - the naive time must carry that explicit offset.
     assert result.startswith("2026-09-01T09:30:00")
     assert "+05:30" in result
 
@@ -666,7 +666,7 @@ def test_walk_slide_text_extracts_shape_and_table_text():
 
 
 # ---------------------------------------------------------------------------
-# update_calendar_event — reschedule (PATCH, not delete+recreate)
+# update_calendar_event - reschedule (PATCH, not delete+recreate)
 # ---------------------------------------------------------------------------
 
 
@@ -685,6 +685,6 @@ def test_update_calendar_event_patches_existing_event(monkeypatch):
     body = kwargs["json_body"]
     assert body["start"]["timeZone"] == "America/New_York"
     assert body["end"]["timeZone"] == "America/New_York"
-    # No conferenceData/summary in a reschedule PATCH — only the time moves.
+    # No conferenceData/summary in a reschedule PATCH - only the time moves.
     assert "conferenceData" not in body
     assert "summary" not in body

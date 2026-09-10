@@ -1,0 +1,56 @@
+# Firebase App Hosting Configuration
+# See https://firebase.google.com/docs/app-hosting/configure for schema details
+
+env:
+  - variable: NEXT_PUBLIC_SUPABASE_URL
+    value: "https://dckjbkcormifiuwfpahj.supabase.co"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRja2pia2Nvcm1pZml1d2ZwYWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMzc2MTMsImV4cCI6MjEwMjYxMzYxM30.mPaBNSOIXSbyIjgz169ID5h5SQXlBWCCwK6nECHflHY"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_BACKEND_URL
+    value: "https://api.chatty.personaliai.com"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_LEMON_PORTAL_URL
+    value: "https://priceshield.lemonsqueezy.com/billing"
+    availability:
+      - BUILD
+      - RUNTIME
+  # Server-only - used by src/app/api/billing/checkout/route.ts. Same store
+  # (161795) and API key as kin-frontend; only the variant IDs are Chatty's own.
+  # Backed by Google Secret Manager (firebase apphosting:secrets:set), not a
+  # literal value - this file is otherwise safe to make public.
+  - variable: LEMONSQUEEZY_API_KEY
+    secret: chatty-lemonsqueezy-api-key
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_HOBBY
+    value: "1925005"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_STANDARD
+    value: "1925006"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS
+    value: "1925009"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_HOBBY_YEARLY
+    value: "1925015"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_STANDARD_YEARLY
+    value: "1925018"
+    availability:
+      - RUNTIME
+  - variable: LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS_YEARLY
+    value: "1925020"
+    availability:
+      - RUNTIME

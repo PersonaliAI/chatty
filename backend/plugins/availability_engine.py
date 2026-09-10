@@ -4,7 +4,7 @@ Before this module existed, "what times are open?" was entirely LLM
 arithmetic: `check_calendar_availability`/`list_outlook_events` handed the
 model a bag of raw busy intervals (or raw events, for Outlook) and a prompt
 instruction to "look at the free gaps... and proactively recommend 2 to 3
-guaranteed open slots" — the model was doing interval subtraction in its
+guaranteed open slots" - the model was doing interval subtraction in its
 head, which is exactly the kind of arithmetic LLMs are unreliable at (missed
 a same-day Friday, invented slots that weren't actually free, ignored
 business hours). This module does that computation in real code instead:
@@ -13,7 +13,7 @@ them (padded by the configured buffer) from the bot's configured business
 hours/working days, skip anything inside the minimum-notice window or on a
 day/week that's already at its meeting cap, and hand back exact, guaranteed-
 bookable slots. The LLM's job becomes "call this, present exactly what it
-returns" — not "do the math yourself".
+returns" - not "do the math yourself".
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ _DAY_LABEL = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday",
 
 def resolve_owner_timezone(bot: dict[str, Any], owner_user: dict[str, Any]) -> str:
     """Canonical timezone-resolution chain for "what timezone is the
-    business/calendar owner in" — `widget_brain.py` and `agent_tools.py` each
+    business/calendar owner in" - `widget_brain.py` and `agent_tools.py` each
     grew their own slightly different version of this fallback chain
     (one falls back to `owner_user["timezone"]`, the other doesn't); this is
     the one both should use going forward so they can't drift out of sync."""
@@ -83,8 +83,8 @@ async def fetch_busy_intervals(
 ) -> list[tuple[datetime, datetime]]:
     """Provider-agnostic busy-interval fetch, normalized to a merged, sorted
     list of (start_utc, end_utc) tuples regardless of whether the connected
-    calendar is Google (native freeBusy — already busy blocks) or Outlook
-    (raw events — each one is itself a busy block; all-day events are
+    calendar is Google (native freeBusy - already busy blocks) or Outlook
+    (raw events - each one is itself a busy block; all-day events are
     ignored since they don't actually occupy a specific meeting-length
     window)."""
     intervals: list[tuple[datetime, datetime]] = []
@@ -129,7 +129,7 @@ def _slot_conflicts(
 
 
 def _week_key(d: date) -> str:
-    """Monday of d's ISO week, as a string — the grouping key both
+    """Monday of d's ISO week, as a string - the grouping key both
     `get_meeting_counts` and `compute_available_slots` use so a week's count
     and a week's capacity check are always looking at the same 7-day bucket."""
     monday = d - timedelta(days=d.weekday())
@@ -143,7 +143,7 @@ async def get_meeting_counts(
     window_start_utc: datetime,
     window_end_utc: datetime,
 ) -> tuple[dict[str, int], dict[str, int]]:
-    """Per-day and per-week (Monday-start, in the OWNER's own timezone —
+    """Per-day and per-week (Monday-start, in the OWNER's own timezone -
     unlike the existing `agent_tools.check_bot_meeting_quota`, which buckets
     in UTC and can miscount a booking into the wrong local day/week for a
     non-UTC business) meeting counts across the window, in a single query."""
@@ -172,7 +172,7 @@ async def get_meeting_counts(
             weekly[wk] = weekly.get(wk, 0) + 1
     except Exception:
         # Same fail-open posture as the existing quota check elsewhere in
-        # this codebase — a counting-query failure shouldn't take booking
+        # this codebase - a counting-query failure shouldn't take booking
         # down entirely, it just means caps aren't enforced for this call.
         pass
     return daily, weekly
@@ -187,7 +187,7 @@ class AvailableSlot:
 
     def to_dict(self) -> dict[str, Any]:
         # owner_local_label and visitor_local_label are both derived from
-        # this SAME start_utc instant — they're two displays of one real
+        # this SAME start_utc instant - they're two displays of one real
         # moment in time, not independently computed, so they can never
         # disagree with each other; only the zone each is rendered in differs.
         owner_local = self.start_utc.astimezone(pytz.timezone(self.owner_tz_str))
@@ -224,7 +224,7 @@ def _format_slot_label(dt: datetime, tz_name: Optional[str] = None) -> str:
 
 def _tz_place_name(tz_name: Optional[str]) -> Optional[str]:
     """"Asia/Colombo" -> "Colombo", "America/Argentina/Buenos_Aires" ->
-    "Buenos Aires" — the last IANA path segment, underscores as spaces.
+    "Buenos Aires" - the last IANA path segment, underscores as spaces.
     None for a bare offset string (no "/") or no zone given at all."""
     if not tz_name or "/" not in tz_name:
         return None
@@ -232,7 +232,7 @@ def _tz_place_name(tz_name: Optional[str]) -> Optional[str]:
 
 
 def _gmt_offset_label(dt: datetime) -> str:
-    """"GMT+5:30" / "GMT-8" / "GMT" — from a tz-aware datetime's UTC offset,
+    """"GMT+5:30" / "GMT-8" / "GMT" - from a tz-aware datetime's UTC offset,
     for zones `%Z` can't name."""
     offset = dt.utcoffset()
     if offset is None:
@@ -251,7 +251,7 @@ def _day_ranges_from_business_hours(
     """Converts the bot-level single business_hours_start/end + working_days
     into the more general day-of-week -> [(start_minute, end_minute), ...]
     shape a per-member schedule (multiple ranges per day, e.g. split hours)
-    also uses — so both the single-calendar and team paths walk through the
+    also uses - so both the single-calendar and team paths walk through the
     exact same slot-generation core below."""
     start_min, end_min = business_hours_start * 60, business_hours_end * 60
     return {_DAY_NUM[d]: [(start_min, end_min)] for d in working_days if d in _DAY_NUM}
@@ -358,7 +358,7 @@ def compute_available_slots(
     `buffer_minutes`), not inside the `advance_notice_hours` window, and not
     on a day/week already at its meeting cap. Returns up to `max_results`
     slots, nearest to `near_utc` first if given (use this when the visitor
-    asked for a specific time that turned out to be unavailable — the
+    asked for a specific time that turned out to be unavailable - the
     alternatives should be close to what they wanted, not just
     chronologically first), otherwise soonest-first."""
     tz = pytz.timezone(owner_tz_str)
@@ -451,13 +451,13 @@ async def get_bookable_members(
     configured keeps working exactly as before), plus any
     chatty_team_members row with bookable=true. Each such member has a
     book_on_own_calendar preference (admin-set, defaults true):
-      - true: their OWN `users` account's connected calendar is used —
+      - true: their OWN `users` account's connected calendar is used -
         every logged-in Chatty user already has their own
         google_access_token/microsoft_access_token columns from the
         existing Settings -> Integrations connect flow, no new OAuth
         plumbing needed here.
       - false: the OWNER's calendar is used instead (for a member who
-        hasn't, or can't, connect their own) — they're still the one a
+        hasn't, or can't, connect their own) - they're still the one a
         meeting gets *assigned to* for fairness-counting/notifications
         (see caller sites' use of a member's "email"), only which calendar
         the event physically lands on changes. Two members both set to
@@ -465,8 +465,8 @@ async def get_bookable_members(
         calendar, same as any two people genuinely sharing one calendar
         would.
     A bookable member with no matching connected calendar available (their
-    own, or the owner's, whichever applies) is silently excluded — nothing
-    to check availability against — not an error."""
+    own, or the owner's, whichever applies) is silently excluded - nothing
+    to check availability against - not an error."""
     use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
     owner_email = (owner_user.get("email") or "").strip().lower()
     owner_has_token = bool(owner_user.get("microsoft_access_token")) if use_ms_calendar else bool(owner_user.get("google_access_token"))
@@ -520,10 +520,10 @@ async def get_team_available_slots(
     search_days: int = 21,
 ) -> list[dict[str, Any]]:
     """Unions every bookable member's own individually-computed available
-    slots (their own calendar, their own chatty_availability_rules — falling
+    slots (their own calendar, their own chatty_availability_rules - falling
     back to the bot's business hours when a member has none) into a single
     list: a time is offered to the visitor if ANY member could take it,
-    without revealing which one — the visitor never picks a specific person,
+    without revealing which one - the visitor never picks a specific person,
     `pick_assignee` decides that at actual booking time. With a single
     member (the common case: no team configured, or nobody bookable), this
     produces identical results to `get_available_slots`."""
@@ -594,10 +594,10 @@ async def pick_assignee(
 ) -> Optional[dict[str, Any]]:
     """Who should this specific, already-chosen slot be assigned to? The
     listing step (`get_team_available_slots`) only unions availability, it
-    never attributes a slot to a person — so this re-checks fresh, right at
+    never attributes a slot to a person - so this re-checks fresh, right at
     booking time, which of the bookable members are actually free for
     [slot_start_utc, slot_end_utc], then picks whoever has the fewest
-    meetings already booked this week (ties keep `members` list order —
+    meetings already booked this week (ties keep `members` list order -
     owner first, then team members in whatever order the roster query
     returned). Returns None if nobody is actually free (a race: the slot was
     open when listed, taken by the time of booking)."""
@@ -648,7 +648,7 @@ async def is_slot_available(
 ) -> bool:
     """Hard server-side guard against double-booking. Neither
     `create_calendar_event` nor `create_outlook_event` did any conflict
-    checking before this — they trusted the LLM to have called an
+    checking before this - they trusted the LLM to have called an
     availability check first and to have gotten it right, so a model that
     skipped the check (or hallucinated a slot) could double-book. Call this
     right before actually creating the event."""

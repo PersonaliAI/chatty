@@ -1,4 +1,4 @@
-"""Pure unit tests for plugins/microsoft_integrations.py — OAuth token
+"""Pure unit tests for plugins/microsoft_integrations.py - OAuth token
 exchange/refresh, the generic Graph API request/error-handling helper, and
 the pure data-transformation helpers (message/event/contact/OneDrive-item
 formatting, body-preview truncation). All HTTP is mocked; nothing here
@@ -37,7 +37,7 @@ def test_auth_url_includes_state_and_scopes(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# _valid_access_token — the token-refresh decision logic
+# _valid_access_token - the token-refresh decision logic
 # ---------------------------------------------------------------------------
 
 
@@ -94,7 +94,7 @@ def test_valid_access_token_refreshes_when_expired(monkeypatch):
 
 
 def test_valid_access_token_refreshes_when_no_expiry_recorded(monkeypatch):
-    # No stored expiry at all — must not assume the token is still good.
+    # No stored expiry at all - must not assume the token is still good.
     user = {
         "id": "u1",
         "microsoft_access_token": "unknown-age",
@@ -112,7 +112,7 @@ def test_valid_access_token_refreshes_when_no_expiry_recorded(monkeypatch):
 
 
 def test_valid_access_token_keeps_old_refresh_token_if_none_returned(monkeypatch):
-    # Microsoft doesn't always rotate the refresh token — must not drop it.
+    # Microsoft doesn't always rotate the refresh token - must not drop it.
     past = (datetime.now(tz=timezone.utc) - timedelta(hours=1)).isoformat()
     user = {
         "id": "u1",
@@ -130,7 +130,7 @@ def test_valid_access_token_keeps_old_refresh_token_if_none_returned(monkeypatch
 
 
 # ---------------------------------------------------------------------------
-# _api — error handling
+# _api - error handling
 # ---------------------------------------------------------------------------
 
 
@@ -186,7 +186,7 @@ def test_api_raises_runtime_error_on_http_error_with_json_body(monkeypatch):
 
 
 def test_api_raises_runtime_error_on_http_error_with_non_json_body(monkeypatch):
-    # Graph occasionally returns a plain-text/HTML error body — must not crash
+    # Graph occasionally returns a plain-text/HTML error body - must not crash
     # trying to parse it as JSON.
     monkeypatch.setattr(m, "_valid_access_token", AsyncMock(return_value="tok"))
     resp = _FakeResponse(status_code=500, text="Internal Server Error")
@@ -419,7 +419,7 @@ def test_format_outlook_contact_no_mobile_phone_not_included_as_none():
 
 
 # ---------------------------------------------------------------------------
-# update_outlook_event — reschedule (PATCH, not delete+recreate)
+# update_outlook_event - reschedule (PATCH, not delete+recreate)
 # ---------------------------------------------------------------------------
 
 

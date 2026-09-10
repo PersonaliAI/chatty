@@ -5,7 +5,7 @@ The original version of this file invented a `chatty_messages` table (real
 messages live in `chatty_conversations`) and wrote `status`/`ai_paused`
 directly onto `chatty_conversations`, which has neither column. The real
 per-visitor conversation state (ai_paused, needs_attention, last_message*)
-lives on `chatty_sessions`, one row per (bot_id, session_id) — exactly the
+lives on `chatty_sessions`, one row per (bot_id, session_id) - exactly the
 table app/routers/admin.py's dashboard inbox endpoints already use. These
 functions now mirror that same table/column usage instead of inventing a
 parallel, nonexistent schema.
@@ -14,7 +14,7 @@ discover_knowledge_gaps and analyze_sentiment were 100% fabricated (fixed
 fake entries / fixed fake percentages, identical for every bot). They now
 read chatty_unanswered (the real unanswered-question queue already surfaced
 in the dashboard) and the same real thumbs/CSAT tables bots_service.py's
-get_feedback_summary uses, respectively — both honestly limited compared to
+get_feedback_summary uses, respectively - both honestly limited compared to
 real NLP, but built from data that actually exists for the bot in question.
 """
 
@@ -34,7 +34,7 @@ from app.core.db import run_db
 async def list_conversations(
     principal: dict[str, Any], bot_id: str, status: str = "all", limit: int = 50
 ) -> list[dict[str, Any]]:
-    """Lists chatty_sessions rows for a bot — the same table/columns the
+    """Lists chatty_sessions rows for a bot - the same table/columns the
     dashboard inbox (GET /api/admin/inbox) lists. `status` is one of
     "all", "needs_attention", or "paused" (there's no free-form session
     status field in the real schema to filter on beyond these two flags)."""
@@ -99,7 +99,7 @@ async def send_agent_message(principal: dict[str, Any], bot_id: str, session_id:
 
 
 async def add_conversation_internal_note(principal: dict[str, Any], bot_id: str, session_id: str, note: str) -> dict[str, Any]:
-    """Private agent note on a conversation — chatty_session_notes (see
+    """Private agent note on a conversation - chatty_session_notes (see
     that migration's comment). Never sent to the visitor, unlike
     send_agent_message; purely for other human agents working the inbox."""
     await _oauth.require_bot_access(principal, bot_id)
@@ -123,8 +123,8 @@ async def list_conversation_notes(principal: dict[str, Any], bot_id: str, sessio
 
 
 async def discover_knowledge_gaps(principal: dict[str, Any], bot_id: str) -> list[dict[str, Any]]:
-    """Real, unresolved entries from chatty_unanswered — the same queue the
-    dashboard's unanswered-questions view surfaces — grouped by exact
+    """Real, unresolved entries from chatty_unanswered - the same queue the
+    dashboard's unanswered-questions view surfaces - grouped by exact
     question text so a question asked by several visitors shows a real
     frequency count instead of an invented one. No suggested FAQ title or
     content is fabricated; that's for generate_flow_with_ai-style AI calls
@@ -161,7 +161,7 @@ async def discover_knowledge_gaps(principal: dict[str, Any], bot_id: str) -> lis
 
 
 async def analyze_sentiment(principal: dict[str, Any], bot_id: str, sample_size: int = 50) -> dict[str, Any]:
-    """Not NLP sentiment analysis — there's no sentiment-classification
+    """Not NLP sentiment analysis - there's no sentiment-classification
     pipeline in this codebase. This reuses the same two real feedback
     mechanisms bots_service.get_feedback_summary is built on (per-message
     thumbs and post-chat CSAT) and reports them honestly labeled as a

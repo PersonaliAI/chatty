@@ -24,11 +24,11 @@ create index if not exists chatty_availability_rules_bot_member_idx
 
 alter table public.chatty_availability_rules enable row level security;
 
--- Anyone with access to the bot (owner or team member — chatty_has_bot_access
+-- Anyone with access to the bot (owner or team member - chatty_has_bot_access
 -- is the existing SECURITY DEFINER helper from 20260709010000/20260830020000,
 -- reused here rather than a raw chatty_bots subquery so this can't hit the
 -- same cross-table RLS recursion that migration had to fix) can read
--- everyone's rules — the dashboard's team/availability view needs that to
+-- everyone's rules - the dashboard's team/availability view needs that to
 -- show each member's schedule. Writes are restricted to the bot owner or the
 -- member themselves, matching chatty_team_members' own access shape.
 create policy "Bot access can view availability rules" on public.chatty_availability_rules

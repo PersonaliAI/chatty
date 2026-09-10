@@ -2,7 +2,7 @@
  * WCAG-based "what text color goes on this background" helper. Used
  * anywhere a widget preset paints an element's background with the
  * business owner's arbitrary primaryColor (chat header, user bubble, the
- * "Bold" preset) — a hardcoded text color there goes invisible the moment
+ * "Bold" preset) - a hardcoded text color there goes invisible the moment
  * someone picks a color from the wrong half of the lightness spectrum.
  */
 
@@ -31,13 +31,13 @@ function contrastRatio(l1: number, l2: number): number {
  * Returns white / near-black text for a given background hex.
  *
  * Deliberately NOT "whichever of white/black has the higher literal WCAG
- * ratio" — that maximization picks black for nearly every saturated brand
+ * ratio" - that maximization picks black for nearly every saturated brand
  * color (orange #f97316, green #10b981/#22c55e, blue #3b82f6, red #ef4444
  * all land here: mid-lightness luminance means black's ratio against it
  * edges out white's, even though white is the near-universal design-system
  * choice for buttons/badges in these colors). Instead, favor white unless
  * the background is light enough that white would actually wash out
- * (pastels, near-white) — matching how colored UI chrome reads in practice.
+ * (pastels, near-white) - matching how colored UI chrome reads in practice.
  */
 export function getOnColor(backgroundHex: string): "#ffffff" | "#111827" {
   const [r, g, b] = hexToRgb(backgroundHex);
@@ -47,14 +47,14 @@ export function getOnColor(backgroundHex: string): "#ffffff" | "#111827" {
 
 /**
  * --primary-color / --on-primary, the pair every widget preset
- * (globals.css's .style-*) reads for its primaryColor-driven surfaces —
+ * (globals.css's .style-*) reads for its primaryColor-driven surfaces -
  * one computation shared by every place that renders a preset (the real
  * embedded widget, and the Customizer/Playground's non-iframe mock
  * previews), so it can't drift between them.
  *
  * Surfaces that can't take the full saturated color without hurting
  * legibility (a bot reply bubble, an input field) don't get a separate
- * JS-precomputed tint — globals.css blends var(--primary-color) toward
+ * JS-precomputed tint - globals.css blends var(--primary-color) toward
  * that surface's own curated color with CSS color-mix() instead, at a
  * partial ratio. That keeps each preset's own light/dark character (a
  * dark preset's bot-bubble tints toward primaryColor while staying dark;
@@ -72,7 +72,7 @@ export function primaryColorCssVars(primaryColor: string): Record<string, string
 // Section-by-section colors (header, bubbles, input bar, send button,
 // launcher), each independently overridable in the Customizer, with a
 // color-theory generator that fills in a full, harmonious set from one
-// seed color — same hue throughout, only lightness/saturation shifted per
+// seed color - same hue throughout, only lightness/saturation shifted per
 // surface, so "Auto-generate" never needs an actual model call.
 
 function hexToHsl(hex: string): [number, number, number] {
@@ -126,7 +126,7 @@ export interface WidgetColorScheme {
 }
 
 /**
- * Derives a full 6-section color scheme from one seed color — same hue
+ * Derives a full 6-section color scheme from one seed color - same hue
  * throughout (color theory, not per-section arbitrary picks), lightness
  * and saturation shifted per surface so bot-bubble/input-bar stay soft
  * and legible instead of a jarring flat fill of the seed itself, and
@@ -138,7 +138,7 @@ export function generateColorScheme(seedHex: string): WidgetColorScheme {
   const solid = seedHex;
   const solidText = getOnColor(solid);
   // Soft, slightly desaturated tint of the same hue for message/input
-  // surfaces — light enough to read as neutral chrome, still visibly
+  // surfaces - light enough to read as neutral chrome, still visibly
   // tinted toward the brand hue rather than generic gray.
   const softBg = hslToHex(h, Math.min(s, 45) * 0.5, 95);
   const softText = hslToHex(h, Math.min(s, 45) * 0.6, 22);
@@ -162,8 +162,8 @@ function safeHex(h?: string): string | null {
  * under `scopeSelector` (an id or class on the widget's root element) so
  * it reliably beats globals.css's .style-* !important rules regardless of
  * which design preset is active. Shared by every place that renders a
- * scheme — the real embedded widget (EmbedClient.tsx) and the dashboard's
- * Customizer/Playground non-iframe mock previews — so they can't drift.
+ * scheme - the real embedded widget (EmbedClient.tsx) and the dashboard's
+ * Customizer/Playground non-iframe mock previews - so they can't drift.
  * Launcher isn't included: it lives outside this DOM tree entirely
  * (widget.js/page.tsx own that separately).
  */

@@ -57,8 +57,8 @@ async def crawl_discover(
     urls: set[str] = set()
     candidates = [urljoin(origin, "/sitemap.xml"), urljoin(origin, "/sitemap_index.xml")]
 
-    # Manual redirect handling (not httpx's follow_redirects) so every hop —
-    # not just the URL the caller supplied — gets SSRF-checked. A redirect
+    # Manual redirect handling (not httpx's follow_redirects) so every hop -
+    # not just the URL the caller supplied - gets SSRF-checked. A redirect
     # to an internal address would otherwise bypass the check on the
     # original URL entirely. ssrf.request_async resolves+validates+connects
     # to a single pinned IP per hop, so DNS can't rebind between the check
@@ -112,7 +112,7 @@ async def crawl_discover(
         u for u in urls if urlparse(u).netloc == parsed.netloc
     )[:500]
     if not same_domain:
-        same_domain = [base]  # no sitemap — fall back to the single page
+        same_domain = [base]  # no sitemap - fall back to the single page
         return {"urls": same_domain, "count": 1, "sitemap_found": False}
     return {"urls": same_domain, "count": len(same_domain), "sitemap_found": True}
 
@@ -209,7 +209,7 @@ async def execute_scheduled_crawls(x_function_secret: Optional[str] = Header(def
             try:
                 content = await _fetch_url_content(src["name"])
                 if not content.strip():
-                    # Don't clear the schedule on a transient fetch failure — try again next cycle.
+                    # Don't clear the schedule on a transient fetch failure - try again next cycle.
                     return {"id": src["id"], "ok": False, "error": "no content or rate limited"}
                 await run_db(lambda: supabase.table("chatty_sources").update({
                     "content": content,

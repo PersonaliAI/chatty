@@ -2,7 +2,7 @@
 
 Deliberately small: the widget only ever offers a hard-restricted allowlist
 of tool names (see main.py's `allowed_tool_names` construction), so this
-file only implements those — calendar booking (Google + Outlook), lead
+file only implements those - calendar booking (Google + Outlook), lead
 capture, and web search. It used to be a full copy of Kin's much larger
 tool-calling module (Gmail, Tasks, Contacts, MCP, memory, scheduling,
 social posting, etc.); all of that was dead code here since the widget can
@@ -174,7 +174,7 @@ async def _increment_booking_otp_attempts(bot_id: str, session_id: str, email: s
 def _meeting_reply_to(meeting_id: str) -> Optional[str]:
     """A unique Reply-To address for a meeting's confirmation/reschedule
     emails, so a visitor's reply lands on the right chatty_meetings row
-    instead of nowhere — see app/routers/webhooks.py::resend_inbound. None
+    instead of nowhere - see app/routers/webhooks.py::resend_inbound. None
     (no Reply-To header) when RESEND_INBOUND_DOMAIN isn't configured, which
     just means replies aren't captured, not that sending fails."""
     if not RESEND_INBOUND_DOMAIN or not meeting_id:
@@ -196,7 +196,7 @@ async def _log_meeting_message(supabase, meeting_id: str, *, direction: str, fro
 
 
 # ---------------------------------------------------------------------------
-# Function declarations — plain OpenAI tool-schema dicts (LiteLLM translates
+# Function declarations - plain OpenAI tool-schema dicts (LiteLLM translates
 # these into each provider's own native function-calling format, including
 # Gemini's), not google-genai's Schema/FunctionDeclaration types.
 # ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ DECLARATIONS: list[dict] = [
     ),
     _tool(
         "check_calendar_availability",
-        "Free/busy query — returns intervals when the user is busy in a "
+        "Free/busy query - returns intervals when the user is busy in a "
         "given window. Useful for 'am I free Tuesday at 3pm?'.",
         {
             "start": {"type": "string", "description": "ISO 8601 start of the window."},
@@ -246,7 +246,7 @@ DECLARATIONS: list[dict] = [
     ),
     _tool(
         "get_available_slots",
-        "Returns real, guaranteed-bookable meeting slots — already computed to respect "
+        "Returns real, guaranteed-bookable meeting slots - already computed to respect "
         "business hours, working days, buffer time, minimum notice, and daily/weekly "
         "meeting caps. ALWAYS call this to find open times or alternatives; NEVER compute "
         "or guess available times yourself from raw calendar data.",
@@ -309,7 +309,7 @@ DECLARATIONS: list[dict] = [
         "reschedule_meeting",
         "Move an existing booked meeting to a new time. Use when a visitor with an existing "
         "booking asks to reschedule. Call get_available_slots first to find a real open time, "
-        "then call this with that exact time — never guess a new time yourself.",
+        "then call this with that exact time - never guess a new time yourself.",
         {
             "visitor_email": {"type": "string", "description": "The email address the original meeting was booked under."},
             "new_start": {"type": "string", "description": "ISO 8601 new start datetime, from get_available_slots."},
@@ -320,7 +320,7 @@ DECLARATIONS: list[dict] = [
     _tool(
         "cancel_meeting",
         "Cancel an existing booked meeting entirely. Use only when a visitor with an existing "
-        "booking clearly wants to cancel — not reschedule. Confirm that intent before calling this; "
+        "booking clearly wants to cancel - not reschedule. Confirm that intent before calling this; "
         "it can't be undone from the chat.",
         {
             "visitor_email": {"type": "string", "description": "The email address the original meeting was booked under."},
@@ -352,7 +352,7 @@ def _need_microsoft(
     what the user must do.  When `required_scope` is given (e.g.
     "Calendars.ReadWrite"), checks the granted scope set stored at connect
     time. If the scope wasn't granted, Graph would return either 403 or
-    a silent empty result — neither is useful to the user. Surface the real
+    a silent empty result - neither is useful to the user. Surface the real
     fix instead: "reconnect Microsoft."
     """
     if not user.get("microsoft_access_token"):
@@ -370,7 +370,7 @@ def _need_microsoft(
                     "Microsoft connection is missing calendar/contacts "
                     "permission. Please go to /dashboard/integrations, "
                     "click Disconnect Microsoft, then Connect Microsoft "
-                    "again — the new consent screen will ask for the "
+                    "again - the new consent screen will ask for the "
                     "calendar and contacts permissions.'"
                 ),
             }
@@ -553,7 +553,7 @@ async def _check_calendar_availability(args: dict, user: dict, supabase, context
             "datetimes INCLUDING the timezone offset, e.g. '2026-06-25T09:00:00+05:30'."
         )}
     if time_max <= time_min:
-        return {"error": "'end' must be after 'start' — use a 30-minute window."}
+        return {"error": "'end' must be after 'start' - use a 30-minute window."}
 
     # Quota check if bot configuration is available in context
     if context and context.get("bot_id") and context.get("bot"):
@@ -604,7 +604,7 @@ async def _get_available_slots(args: dict, user: dict, supabase, context: Option
     try:
         # get_bookable_members always includes the owner (if their own
         # calendar is connected) plus any teammate opted into round-robin
-        # for this bot — with zero team members configured this is just the
+        # for this bot - with zero team members configured this is just the
         # owner, and get_team_available_slots then behaves identically to
         # the old single-calendar path.
         members = await avail.get_bookable_members(supabase, bot_id, bot, user)
@@ -625,14 +625,14 @@ async def _get_available_slots(args: dict, user: dict, supabase, context: Option
     if not slots:
         return {
             "slots": [],
-            "message": "No open slots found in the next few weeks — the calendar is fully booked "
+            "message": "No open slots found in the next few weeks - the calendar is fully booked "
                        "within business hours. Let the visitor know and offer to have someone follow up.",
         }
     return {"slots": slots}
 
 
 async def _resolve_meeting_host(supabase, meeting: dict, caller_user: dict) -> dict:
-    """Whoever's calendar the meeting actually lives on — the round-robin
+    """Whoever's calendar the meeting actually lives on - the round-robin
     assignee (Phase 2) if this meeting has one and it isn't already the
     caller, otherwise the caller (the bot owner, for solo/legacy bookings
     made before assigned_to_email existed)."""
@@ -679,7 +679,7 @@ async def _reschedule_meeting(args: dict, user: dict, supabase, context: Optiona
         new_start = _parse_iso(args.get("new_start") or "")
         new_end = _parse_iso(args.get("new_end") or "")
     except ValueError:
-        return {"error": "Invalid new_start/new_end — use ISO 8601 datetimes with a timezone offset."}
+        return {"error": "Invalid new_start/new_end - use ISO 8601 datetimes with a timezone offset."}
     fallback_tz_str = (context or {}).get("visitor_timezone") or "UTC"
     if new_start.tzinfo is None:
         try:
@@ -722,13 +722,13 @@ async def reschedule_meeting_core(
     meeting: dict, new_start: datetime, new_end: datetime,
     bot: dict, bot_id: str, user: dict, supabase, *, performed_by: str = "assistant",
 ) -> dict:
-    """The actual reschedule action, given an already-resolved meeting row —
+    """The actual reschedule action, given an already-resolved meeting row -
     shared by the widget tool (_reschedule_meeting, which looks the meeting
     up by visitor email first) and the admin dashboard's reschedule endpoint
     (app/routers/admin.py, which already has the meeting_id)."""
     attendee_email = (meeting.get("attendee_email") or "").strip().lower()
     if not meeting.get("provider_event_id"):
-        return {"error": "This booking can't be rescheduled automatically — ask the visitor to contact the team directly."}
+        return {"error": "This booking can't be rescheduled automatically - ask the visitor to contact the team directly."}
 
     host_user = await _resolve_meeting_host(supabase, meeting, user)
     use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
@@ -737,7 +737,7 @@ async def reschedule_meeting_core(
     try:
         # Doesn't exclude the meeting's own current slot from the busy check
         # (Google/Outlook's free-busy responses don't carry event ids to
-        # match against) — only matters if the new time overlaps the old
+        # match against) - only matters if the new time overlaps the old
         # one, a rare case, and it fails safe (rejects) rather than unsafe.
         available = await avail.is_slot_available(
             supabase, host_user, bot=bot, use_ms_calendar=use_ms_calendar,
@@ -914,7 +914,7 @@ async def cancel_meeting_core(
         except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
             raise
         except Exception:
-            logger.exception("cancel_meeting failed to delete the calendar event — cancelling anyway")
+            logger.exception("cancel_meeting failed to delete the calendar event - cancelling anyway")
 
     try:
         await run_db(lambda: supabase.table("chatty_meetings").update({
@@ -928,10 +928,10 @@ async def cancel_meeting_core(
         }).execute())
     except Exception:
         logger.exception("Failed to update chatty_meetings row after cancellation")
-        return {"error": "Couldn't cancel the meeting — try again in a moment."}
+        return {"error": "Couldn't cancel the meeting - try again in a moment."}
 
     # Meeting fields are ultimately visitor-supplied (via the chat booking
-    # flow) — escape before embedding in HTML sent by email.
+    # flow) - escape before embedding in HTML sent by email.
     title = html.escape(meeting.get("title") or "your meeting")
     start = html.escape(meeting.get("start_time") or "")
     tz_label = html.escape(bot.get("bot_timezone") or "UTC")
@@ -969,7 +969,7 @@ async def cancel_meeting_core(
                 logger.exception("Failed to resolve bot owner's email for cancellation admin notification")
         await notify.deliver_email(
             supabase=supabase, owner_user=user, to=owner_email,
-            subject=f"Meeting cancelled — {meeting.get('attendee_name') or attendee_email}", html=cancel_html,
+            subject=f"Meeting cancelled - {meeting.get('attendee_name') or attendee_email}", html=cancel_html,
             reply_to=reply_to,
         )
     except Exception:
@@ -979,7 +979,7 @@ async def cancel_meeting_core(
 
 
 # ---------------------------------------------------------------------------
-# Email reschedule conversation — auto-reply to a visitor's inbound email
+# Email reschedule conversation - auto-reply to a visitor's inbound email
 # reply about an existing booking (app/routers/webhooks.py::resend_inbound
 # calls this right after recording the inbound message). Same "call the
 # real tools, never guess a time" discipline as the widget's own booking
@@ -992,7 +992,7 @@ _EMAIL_AGENT_TOOLS: list[dict] = [
     _tool(
         "confirm_reschedule",
         "Finalize rescheduling the meeting to a specific NEW time the visitor has clearly confirmed in "
-        "this email thread. Call this ONLY once — never on a vague or ambiguous reply, and never with a "
+        "this email thread. Call this ONLY once - never on a vague or ambiguous reply, and never with a "
         "guessed time; only a time get_available_slots actually returned.",
         {
             "new_start": {"type": "string", "description": "ISO 8601 confirmed new start datetime, from get_available_slots."},
@@ -1003,7 +1003,7 @@ _EMAIL_AGENT_TOOLS: list[dict] = [
     _tool(
         "confirm_cancel",
         "Cancel the meeting entirely. Call this ONLY once the visitor has clearly confirmed in this "
-        "email thread that they want to cancel — not reschedule.",
+        "email thread that they want to cancel - not reschedule.",
         {},
         [],
     ),
@@ -1018,7 +1018,7 @@ _MAX_EMAIL_TOOL_ROUNDS = 4
 
 
 async def handle_meeting_email_reply(supabase, meeting: dict, inbound_from_email: str) -> None:
-    """Best-effort: any failure here is logged, never raised — a broken
+    """Best-effort: any failure here is logged, never raised - a broken
     auto-reply must not break inbound capture itself, which already
     succeeded by the time this is called."""
     bot_id = meeting.get("bot_id")
@@ -1035,13 +1035,13 @@ async def handle_meeting_email_reply(supabase, meeting: dict, inbound_from_email
             return
         bot = res_bot.data[0]
         if not bot.get("calendar_scheduling_enabled"):
-            return  # scheduling turned off since this meeting was booked — don't offer to reschedule
+            return  # scheduling turned off since this meeting was booked - don't offer to reschedule
 
         res_thread = await run_db(lambda: supabase.table("chatty_meeting_messages").select("*").eq(
             "meeting_id", meeting_id).order("created_at", desc=False).execute())
         thread = res_thread.data or []
         if len(thread) > _MAX_EMAIL_THREAD_MESSAGES:
-            logger.info("Meeting %s email thread exceeded %d messages — skipping auto-reply.", meeting_id, _MAX_EMAIL_THREAD_MESSAGES)
+            logger.info("Meeting %s email thread exceeded %d messages - skipping auto-reply.", meeting_id, _MAX_EMAIL_THREAD_MESSAGES)
             return
 
         res_owner = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot["user_id"]).execute())
@@ -1071,11 +1071,11 @@ async def handle_meeting_email_reply(supabase, meeting: dict, inbound_from_email
             "- NEVER invent or guess a time yourself. Call get_available_slots (with `near` set to whatever "
             "time they proposed, in the business's own timezone above) to get REAL options, and only offer "
             "times it actually returned.\n"
-            "- Only call confirm_reschedule once they've clearly confirmed ONE specific time — never on a "
+            "- Only call confirm_reschedule once they've clearly confirmed ONE specific time - never on a "
             "vague reply; ask a clarifying question instead.\n"
-            "- Only call confirm_cancel once they've clearly said they want to cancel (not reschedule) — "
+            "- Only call confirm_cancel once they've clearly said they want to cancel (not reschedule) - "
             "if it's ambiguous, ask which they'd prefer instead of guessing.\n"
-            "- Keep the reply a short, plain, professional email body — no subject line, no signature block.\n"
+            "- Keep the reply a short, plain, professional email body - no subject line, no signature block.\n"
             "- If this isn't about scheduling at all, write a brief reply saying a team member will follow "
             "up, and don't call any tool."
         )
@@ -1121,7 +1121,7 @@ async def handle_meeting_email_reply(supabase, meeting: dict, inbound_from_email
                             performed_by="visitor_email",
                         )
                     except ValueError:
-                        result = {"error": "Invalid new_start/new_end — use ISO 8601 with a timezone offset."}
+                        result = {"error": "Invalid new_start/new_end - use ISO 8601 with a timezone offset."}
                 elif fn_name == "confirm_cancel":
                     result = await cancel_meeting_core(
                         meeting, bot, bot_id, owner_user, supabase, performed_by="visitor_email",
@@ -1131,7 +1131,7 @@ async def handle_meeting_email_reply(supabase, meeting: dict, inbound_from_email
                 messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps({"result": result})})
 
         if not reply_text.strip():
-            reply_text = "Thanks for your message — someone from our team will follow up shortly to confirm."
+            reply_text = "Thanks for your message - someone from our team will follow up shortly to confirm."
 
         reply_to = _meeting_reply_to(meeting_id)
         subject = f"Re: {meeting.get('title') or 'Meeting'}"
@@ -1198,7 +1198,7 @@ async def _create_outlook_event(args: dict, user: dict, supabase, context: Optio
 
 def _dedupe_doubled(v):
     """Occasionally the model emits a field value as itself repeated twice
-    back-to-back with no separator (e.g. "da@g.comda@g.com") — an LLM
+    back-to-back with no separator (e.g. "da@g.comda@g.com") - an LLM
     generation artifact, not anything the visitor typed. Collapse it back
     to the single value when the string is cleanly halvable that way."""
     if not isinstance(v, str) or len(v) < 2 or len(v) % 2 != 0:
@@ -1409,7 +1409,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             # Zoom meetings aren't attached to the calendar event we just
             # created (Server-to-Server OAuth is a separate, backend-wide
             # credential, not tied to the owner's connected Google/Microsoft
-            # account) — mint one directly from the same start/end args.
+            # account) - mint one directly from the same start/end args.
             meeting_link = None
             try:
                 duration_minutes = 30
@@ -1462,7 +1462,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
             # failed open) rather than leaving this column empty.
             "assigned_to_email": args.get("_assigned_to_email") or (user.get("email") or "").strip().lower() or None,
             # Needed to reschedule (PATCH the same event) instead of
-            # delete+recreate — see reschedule_meeting.
+            # delete+recreate - see reschedule_meeting.
             "provider_event_id": result.get("id"),
         }).execute())
 
@@ -1471,7 +1471,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         # 6. Send real notifications (beautiful HTML email + push) and record them
         # `user` here may be the round-robin ASSIGNEE, not necessarily the
         # bot's actual owner (it's whoever's calendar the event was created
-        # on, needed above for add_meet_to_event) — the admin notification
+        # on, needed above for add_meet_to_event) - the admin notification
         # should still reach the real owner regardless of who got assigned,
         # so re-derive it from the bot row rather than trusting `user`.
         owner_email = user.get("email") or "admin@personaliai.com"
@@ -1582,9 +1582,9 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
 
 
 # ---------------------------------------------------------------------------
-# Web search — via Jina AI (s.jina.ai). Self-contained here rather than
+# Web search - via Jina AI (s.jina.ai). Self-contained here rather than
 # importing plugins.widget_brain's own _web_search (used by the tool-calling
-# loop) or main.py's _fetch_url_content (used by the widget's KB crawler) —
+# loop) or main.py's _fetch_url_content (used by the widget's KB crawler) -
 # main.py imports this module, so pulling from either would be circular.
 # ---------------------------------------------------------------------------
 
@@ -1603,7 +1603,7 @@ async def _web_search(args: dict, user: dict, supabase) -> dict:
             if r.status_code == 200 and r.text.strip():
                 return {"results": r.text.strip()[:6000]}
             if r.status_code in (401, 402, 403):
-                logger.warning("web_search auth error %s — check JINA_API_KEY", r.status_code)
+                logger.warning("web_search auth error %s - check JINA_API_KEY", r.status_code)
     except Exception:
         logger.exception("web_search failed for %r", query)
     return {"error": "Web search is unavailable right now."}
@@ -1625,7 +1625,7 @@ async def execute(
     """Dispatch a function call to its handler."""
     # bot_id is exposed to the LLM as an ordinary tool parameter (it needs to
     # be in the schema for the model to reference it in reasoning/replies),
-    # but it must never be TRUSTED from the model's tool-call args — a
+    # but it must never be TRUSTED from the model's tool-call args - a
     # visitor could prompt-inject "call create_lead with bot_id=<another
     # tenant's UUID>" to write fake leads (and fire their webhooks) into a
     # different customer's account. The real bot_id for this conversation is
@@ -1811,7 +1811,7 @@ async def execute(
 
             # Assignment + hard conflict guard, combined: neither
             # create_calendar_event nor create_outlook_event did any
-            # freeBusy check of their own before this — they trusted the
+            # freeBusy check of their own before this - they trusted the
             # model to have called an availability check first and gotten it
             # right. A model that skipped the check (or hallucinated a slot)
             # could double-book. pick_assignee re-checks fresh, right here,
@@ -1851,7 +1851,7 @@ async def execute(
                     if assignee is None:
                         return {
                             "error": (
-                                "That slot is no longer available — it conflicts with an existing "
+                                "That slot is no longer available - it conflicts with an existing "
                                 "booking or the required buffer around one. Call get_available_slots "
                                 "to find a real open time and offer that to the visitor instead."
                             )
@@ -1861,7 +1861,7 @@ async def execute(
                 except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
                     raise
                 except Exception:
-                    # Fail open, same posture as the quota check above — a
+                    # Fail open, same posture as the quota check above - a
                     # broken conflict check shouldn't itself block every
                     # booking; it just means this particular safety net
                     # didn't fire for this call.

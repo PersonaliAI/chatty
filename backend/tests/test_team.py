@@ -1,4 +1,4 @@
-"""Unit tests for app/routers/team.py — team-member invite/update and the
+"""Unit tests for app/routers/team.py - team-member invite/update and the
 new per-member availability-rules endpoints. `team.py` calls the
 module-level `supabase` singleton directly (not passed as a parameter, the
 way plugins/agent_tools.py's handlers are), so these tests monkeypatch
@@ -22,7 +22,7 @@ class _FakeQuery:
     """Mimics supabase-py's fluent query builder: every chained method
     (select/eq/order/limit/upsert/update/delete/insert) returns self, and
     `.execute()` pops the next queued result (a SimpleNamespace with a
-    `.data` attribute) — set via `FakeSupabase.queue(...)` in call order."""
+    `.data` attribute) - set via `FakeSupabase.queue(...)` in call order."""
 
     def __init__(self, results: list[Any]):
         self._results = results
@@ -58,7 +58,7 @@ def _patch_owner(monkeypatch, bot_id="bot-1"):
 
 
 # ---------------------------------------------------------------------------
-# invite_team — name now required
+# invite_team - name now required
 # ---------------------------------------------------------------------------
 
 
@@ -115,7 +115,7 @@ def test_invite_team_rejects_bad_email(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# update_team — bookable / name / phone
+# update_team - bookable / name / phone
 # ---------------------------------------------------------------------------
 
 
@@ -168,7 +168,7 @@ def test_update_team_404_for_missing_member(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# availability rules — authorization
+# availability rules - authorization
 # ---------------------------------------------------------------------------
 
 
@@ -177,7 +177,7 @@ def test_get_availability_allows_self(monkeypatch):
     fake.queue([{"id": "member-1", "email": "jane@example.com", "bot_id": "bot-1"}])
     fake.queue([{"day_of_week": 0, "start_minute": 540, "end_minute": 1020}])
     monkeypatch.setattr(team, "supabase", fake)
-    # verify_bot_permission would raise if called for a non-owner — make sure
+    # verify_bot_permission would raise if called for a non-owner - make sure
     # the self-service path never reaches it.
     monkeypatch.setattr(team, "verify_bot_permission", AsyncMock(side_effect=AssertionError("should not be called")))
 
@@ -208,7 +208,7 @@ def test_get_availability_404_for_missing_member(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# availability rules — validation + replace-all semantics
+# availability rules - validation + replace-all semantics
 # ---------------------------------------------------------------------------
 
 

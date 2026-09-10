@@ -1,15 +1,15 @@
-"""Embedding utility for document RAG (plugins/doc_rag.py) — every embedding
+"""Embedding utility for document RAG (plugins/doc_rag.py) - every embedding
 call in the codebase goes through here, routed to LiteLLM.
 
 This module used to be a full copy of Kin's long-term conversational memory
 system (extract facts from a conversation, dedupe, store, retrieve by
-semantic similarity) — none of that is reachable from Chatty (confirmed via
+semantic similarity) - none of that is reachable from Chatty (confirmed via
 grep: nothing calls retrieve/extract_facts/extract_and_store/store/forget
 anywhere in this codebase), so it's been removed rather than carried as
 dead weight. Only the embedding pipeline doc_rag.py actually uses remains.
 
 Runs against `gemini-embedding-001` (768-d, matches the existing pgvector
-column) — text-embedding-004 was retired from the Gemini API.
+column) - text-embedding-004 was retired from the Gemini API.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def _build_call(
 ) -> tuple[list[str], dict]:
     """Returns (formatted_texts, extra_kwargs) for the active embedding model."""
     if IS_EMBED_V2:
-        # Format each text with its task prefix — gemini-embedding-2 doesn't
+        # Format each text with its task prefix - gemini-embedding-2 doesn't
         # take a separate task_type param, unlike gemini-embedding-001.
         if is_query:
             formatted = [_format_query(t) for t in texts]
@@ -95,7 +95,7 @@ async def _embed_with_retry(
                 raise
             backoff = 2 ** attempt  # 1s, 2s, 4s, 8s
             logger.warning(
-                "embed transient error — backing off %ds (attempt %d/%d): %s",
+                "embed transient error - backing off %ds (attempt %d/%d): %s",
                 backoff, attempt + 1, max_attempts, exc,
             )
             await asyncio.sleep(backoff)

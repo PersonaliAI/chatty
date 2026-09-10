@@ -1,5 +1,5 @@
 -- Migration: RLS was never enabled on 5 tables added after the original
--- 20260708000000_chatty_rls_lockdown.sql pass — Supabase's Security Advisor
+-- 20260708000000_chatty_rls_lockdown.sql pass - Supabase's Security Advisor
 -- flagged them as exposed to PostgREST with no RLS. All backend writes go
 -- through the service role (bypasses RLS), so these only need owner-scoped
 -- read/write for the dashboard, or no policy at all for pure internal tables.
@@ -37,11 +37,11 @@ CREATE POLICY "Users view their own subscription" ON user_subscriptions
   USING (user_id = auth.uid());
 
 -- ── lemon_events ─────────────────────────────────────────────────────────
--- Pure internal webhook-event log (billing), no user-facing access at all —
+-- Pure internal webhook-event log (billing), no user-facing access at all -
 -- enable RLS with zero policies so only the service role can touch it.
 ALTER TABLE lemon_events ENABLE ROW LEVEL SECURITY;
 
 -- ── _manual_migrations_log ───────────────────────────────────────────────
--- Internal migration-tracking table (not part of the app schema) — same
+-- Internal migration-tracking table (not part of the app schema) - same
 -- treatment, service role only.
 ALTER TABLE _manual_migrations_log ENABLE ROW LEVEL SECURITY;

@@ -45,7 +45,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login`)
   }
 
-  // Don't show signed-in users the auth pages — unless they're in the middle
+  // Don't show signed-in users the auth pages - unless they're in the middle
   // of password recovery (handled inside /reset-password).
   if (user && AUTH_PAGES.includes(path)) {
     return NextResponse.redirect(`${origin}/dashboard`)

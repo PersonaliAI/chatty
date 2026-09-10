@@ -1,4 +1,4 @@
-"""Symmetric encryption for sensitive values stored at rest — OAuth access/
+"""Symmetric encryption for sensitive values stored at rest - OAuth access/
 refresh tokens (Google, Microsoft) alongside the existing BYOK LLM-key use in
 plugins/llm_providers.py. Shares BYOK_ENCRYPTION_KEY rather than adding a
 second secret to rotate/deploy.
@@ -6,7 +6,7 @@ second secret to rotate/deploy.
 decrypt_secret() falls back to returning its input unchanged when it isn't a
 valid Fernet token, rather than raising. This lets already-connected OAuth
 accounts (stored as plaintext before this module existed) keep working
-without a data migration — each token re-encrypts itself the next time it's
+without a data migration - each token re-encrypts itself the next time it's
 refreshed and written back.
 """
 from __future__ import annotations

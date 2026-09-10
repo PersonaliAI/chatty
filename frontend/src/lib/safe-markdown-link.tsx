@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 /**
- * react-markdown (v6+) does not sanitize link URI schemes on its own — a
+ * react-markdown (v6+) does not sanitize link URI schemes on its own - a
  * `[click me](javascript:...)` link in assistant/bot output (LLM-generated,
  * or sourced from a crawled page / uploaded document) would otherwise
  * render as a clickable `javascript:` href. Only allow schemes that can't

@@ -1,7 +1,7 @@
-"""Document RAG — index Google Drive files into pgvector and search them.
+"""Document RAG - index Google Drive files into pgvector and search them.
 
 Pipeline:
-  1. extract_text(file) — pulls plain text from a Drive file:
+  1. extract_text(file) - pulls plain text from a Drive file:
        Google Doc      → export text/plain
        Google Sheet    → export text/csv (or sheets API)
        Google Slides   → export text/plain
@@ -9,10 +9,10 @@ Pipeline:
        DOCX            → download bytes + python-docx
        XLSX            → download bytes + openpyxl
        PPTX            → download bytes + MarkItDown (only format we don't have a
-                          direct extractor for — everything else stays on its existing,
+                          direct extractor for - everything else stays on its existing,
                           more specialized path rather than routing through MarkItDown)
        text/markdown   → download as-is
-  2. chunk_text(text) — recursive split on paragraphs/sentences/words
+  2. chunk_text(text) - recursive split on paragraphs/sentences/words
        Target ~2000 chars per chunk, 200 char overlap.
   3. embed each chunk (gemini-embedding-001, 768-d)
   4. UPSERT into drive_documents + document_chunks
@@ -41,11 +41,11 @@ logger = logging.getLogger("kin.doc_rag")
 
 CHUNK_SIZE = 2000
 CHUNK_OVERLAP = 200
-MAX_CHARS_PER_DOC = 200_000  # ~50k tokens — hard cap to avoid runaway costs
+MAX_CHARS_PER_DOC = 200_000  # ~50k tokens - hard cap to avoid runaway costs
 
 # OCR: Gemini accepts PDFs natively up to ~3600 pages, but we cap so we don't
 # burn the user's tokens on a 1000-page scan. 100 pages * 258 input tokens =
-# ~26k tokens — well within free-tier budget.
+# ~26k tokens - well within free-tier budget.
 OCR_MAX_PAGES = int(os.environ.get("KIN_OCR_MAX_PAGES", "100"))
 OCR_MODEL = os.environ.get("KIN_OCR_MODEL", "gemini-2.5-flash")
 
@@ -70,7 +70,7 @@ def _extract_pdf_text(data: bytes) -> str:
         text = "\n\n".join(p.extract_text() or "" for p in reader.pages)
         if reader.pages and len(text.strip()) < 20:
             logger.info(
-                "PDF parsed (%d pages) but contains no extractable text — "
+                "PDF parsed (%d pages) but contains no extractable text - "
                 "likely scanned/image-only.",
                 len(reader.pages),
             )
@@ -108,7 +108,7 @@ def _split_pdf_pages(data: bytes, max_pages: int) -> list[bytes]:
         logger.info("PDF split into %d chunks of <=%d pages each", len(chunks), max_pages)
         return chunks
     except Exception as exc:  # noqa: BLE001
-        logger.warning("PDF page-split failed: %s — sending whole PDF", exc)
+        logger.warning("PDF page-split failed: %s - sending whole PDF", exc)
         return [data]
 
 
@@ -117,13 +117,13 @@ async def _ocr_pdf_with_gemini(
 ) -> str:
     """Run OCR on a scanned PDF via Gemini's multimodal vision.
 
-    Sends PDF bytes directly as a Part — Gemini natively handles PDF input
+    Sends PDF bytes directly as a Part - Gemini natively handles PDF input
     and reads text from page images. Cheaper and more accurate than running
     Tesseract on rendered images.
     """
     OCR_PROMPT = (
         "Extract ALL readable text from this PDF, in reading order. "
-        "Output plain text only — no commentary, no markdown, no JSON. "
+        "Output plain text only - no commentary, no markdown, no JSON. "
         "Preserve paragraph breaks. If a page has tables, render them as "
         "tab-separated rows. Do NOT skip pages."
     )
@@ -163,12 +163,12 @@ async def _ocr_pdf_with_gemini(
 
 async def ocr_image(client: genai.Client, data: bytes, *, mime_type: str, label: str = "image") -> str:
     """Extract readable text from a single standalone photo (not a PDF page)
-    via Gemini vision — e.g. a job ad, whiteboard, receipt, or screenshot
+    via Gemini vision - e.g. a job ad, whiteboard, receipt, or screenshot
     someone sends directly in web chat, as opposed to a scanned PDF.
     """
     OCR_PROMPT = (
         "Extract ALL readable text from this image, in reading order. "
-        "Output plain text only — no commentary, no markdown, no JSON. "
+        "Output plain text only - no commentary, no markdown, no JSON. "
         "Preserve paragraph/line breaks. If it's a table, render it as "
         "tab-separated rows. If there is no readable text at all, output "
         "nothing."
@@ -201,7 +201,7 @@ async def ocr_image(client: genai.Client, data: bytes, *, mime_type: str, label:
 async def extract_pdf_text_with_ocr(
     client: genai.Client, data: bytes, *, label: str = "pdf"
 ) -> str:
-    """Get text from a PDF — pypdf first, OCR fallback for scanned PDFs.
+    """Get text from a PDF - pypdf first, OCR fallback for scanned PDFs.
 
     Use this instead of `_extract_pdf_text` whenever you have a genai client
     available. Returns the extracted text, capped at MAX_CHARS_PER_DOC.
@@ -209,7 +209,7 @@ async def extract_pdf_text_with_ocr(
     fast = _extract_pdf_text(data)
     if fast.strip():
         return fast[:MAX_CHARS_PER_DOC]
-    # Scanned PDF — fall back to Gemini OCR.
+    # Scanned PDF - fall back to Gemini OCR.
     logger.info("Falling back to Gemini OCR for %s", label)
     ocred = await _ocr_pdf_with_gemini(client, data, label=label)
     return ocred[:MAX_CHARS_PER_DOC]
@@ -231,7 +231,7 @@ def _extract_docx_text(data: bytes) -> str:
 
 def _extract_xlsx_text(data: bytes) -> str:
     """Pull a plain-text table dump from an uploaded .xlsx (not a native
-    Google Sheet — those go through NATIVE_EXPORT as CSV instead)."""
+    Google Sheet - those go through NATIVE_EXPORT as CSV instead)."""
     try:
         from openpyxl import load_workbook
     except ImportError:
@@ -261,7 +261,7 @@ def _extract_pptx_text(data: bytes) -> str:
     """Pull slide text (+ speaker notes) from an uploaded .pptx via MarkItDown.
 
     Uses convert_stream (not convert()/convert_local()) per MarkItDown's own security
-    guidance — it's the narrowest API for converting in-memory bytes we already
+    guidance - it's the narrowest API for converting in-memory bytes we already
     downloaded, with no local-path or URL handling to worry about. Plugins stay off;
     we don't want 3rd-party converters running against untrusted uploads.
     """
@@ -329,7 +329,7 @@ async def extract_text(
     genai_client: Optional[genai.Client] = None,
 ) -> str:
     """Pull plain text from any supported Drive file. Returns empty string if unsupported."""
-    # Google-native types — export via Drive API.
+    # Google-native types - export via Drive API.
     if mime_type in g.NATIVE_EXPORT:
         try:
             data = await g.export_drive_file(
@@ -392,7 +392,7 @@ _SPLIT_PATTERNS = [
 def chunk_text(
     text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP
 ) -> list[str]:
-    """Recursive character splitter — tries to break on paragraph/sentence boundaries."""
+    """Recursive character splitter - tries to break on paragraph/sentence boundaries."""
     text = (text or "").strip()
     if not text:
         return []
@@ -474,7 +474,7 @@ async def index_file(
     ))
     doc_row = row_res.data[0] if row_res.data else None
     if not doc_row:
-        # Race — fetch it
+        # Race - fetch it
         existing = await run_db(lambda: (
             supabase.table("drive_documents")
             .select("*")
@@ -487,7 +487,7 @@ async def index_file(
 
     document_id = doc_row["id"]
 
-    # Wipe any prior chunks for this document — we reindex from scratch.
+    # Wipe any prior chunks for this document - we reindex from scratch.
     await run_db(lambda: supabase.table("document_chunks").delete().eq(
         "document_id", document_id
     ).execute())
@@ -523,7 +523,7 @@ async def index_file(
         chunks = chunk_text(text)
         rows: list[dict[str, Any]] = []
         if chunks:
-            # Filename becomes the "title" prefix for v2 — improves retrieval.
+            # Filename becomes the "title" prefix for v2 - improves retrieval.
             titles = [name] * len(chunks)
             try:
                 vectors = await mem.embed_documents_batch(
@@ -531,7 +531,7 @@ async def index_file(
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
-                    "batch embed failed for %s: %s — falling back to per-chunk", name, exc
+                    "batch embed failed for %s: %s - falling back to per-chunk", name, exc
                 )
                 vectors = []
                 for idx, c in enumerate(chunks):
@@ -566,7 +566,7 @@ async def index_file(
             final_status = "indexed"
             err_msg = None
         else:
-            # We extracted text but no chunks survived embedding — mark failed
+            # We extracted text but no chunks survived embedding - mark failed
             # so the UI shows the problem instead of silently saying 0 chunks.
             final_status = "failed"
             err_msg = "embeddings failed for all chunks (check model availability)"
@@ -596,7 +596,7 @@ async def _extract_text_from_blob(
     *,
     genai_client: Optional[genai.Client] = None,
 ) -> str:
-    """Pull plain text from raw bytes — handles uploads (no Drive backing).
+    """Pull plain text from raw bytes - handles uploads (no Drive backing).
 
     PDFs get OCR fallback when `genai_client` is provided.
     """
@@ -651,7 +651,7 @@ _DOCS_BUCKET = "kin-documents"
 
 def _store_original_bytes(supabase, *, user_id: str, document_id: str, data: bytes) -> Optional[str]:
     """Best-effort upload of the raw file bytes so it can be attached to an
-    email later. Never raises — a storage hiccup shouldn't fail indexing,
+    email later. Never raises - a storage hiccup shouldn't fail indexing,
     it just means this particular file won't be attachable afterward."""
     try:
         try:
@@ -702,7 +702,7 @@ async def get_document_bytes(supabase, user: dict[str, Any], file_name: str) -> 
         return {"file_name": doc["file_name"], "mime_type": doc.get("mime_type"), "data": data}
 
     return {
-        "error": f"'{doc['file_name']}' was indexed before attachment support was added — "
+        "error": f"'{doc['file_name']}' was indexed before attachment support was added - "
         "re-upload or re-index it to attach it to an email."
     }
 
@@ -766,13 +766,13 @@ async def index_blob(
         doc_row = existing.data
     document_id = doc_row["id"]
 
-    # Wipe any previous chunks for this doc — full reindex.
+    # Wipe any previous chunks for this doc - full reindex.
     await run_db(lambda: supabase.table("document_chunks").delete().eq(
         "document_id", document_id
     ).execute())
 
     # Keep the original bytes so this file can later be attached to an email
-    # (see send_followup helpers in agent_tools.py) — Telegram file URLs
+    # (see send_followup helpers in agent_tools.py) - Telegram file URLs
     # expire and web uploads have no other persistent copy, unlike Drive/
     # OneDrive files which get re-downloaded live via drive_file_id instead.
     storage_path = await run_db(lambda: _store_original_bytes(supabase, user_id=user_id, document_id=document_id, data=data))
@@ -800,7 +800,7 @@ async def index_blob(
                 )
             elif is_image:
                 err = (
-                    "OCR ran on this image but found no readable text — it may "
+                    "OCR ran on this image but found no readable text - it may "
                     "be a photo with no text in it (a face, a scene, etc.), "
                     "rather than a document/screenshot."
                 )

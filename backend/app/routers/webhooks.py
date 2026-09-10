@@ -228,9 +228,9 @@ async def webhook_lemonsqueezy(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# Resend inbound email — captures a visitor's reply to a meeting
+# Resend inbound email - captures a visitor's reply to a meeting
 # confirmation/reschedule email (team scheduling Phase 4). Resend signs
-# these with Svix, not a plain HMAC hex digest like Lemon Squeezy above —
+# these with Svix, not a plain HMAC hex digest like Lemon Squeezy above -
 # svix-id/svix-timestamp/svix-signature headers, secret prefixed "whsec_".
 # ---------------------------------------------------------------------------
 
@@ -246,7 +246,7 @@ def _verify_svix_signature(svix_id: str, svix_timestamp: str, raw_body: bytes,
     signed_content = f"{svix_id}.{svix_timestamp}.".encode() + raw_body
     expected = base64.b64encode(hmac.new(secret_bytes, signed_content, hashlib.sha256).digest()).decode()
     # The header can carry multiple space-separated "v1,<sig>" candidates
-    # (e.g. during a Svix secret rotation) — any matching one is valid.
+    # (e.g. during a Svix secret rotation) - any matching one is valid.
     for part in svix_signature_header.split():
         if "," not in part:
             continue
@@ -266,7 +266,7 @@ async def resend_inbound(request: Request):
     part plugins/agent_tools.py::_meeting_reply_to put in the Reply-To
     header of the original email. Fails closed (rejects unverified
     requests) rather than the softer "skip verification if unconfigured"
-    pattern Lemon Squeezy's webhook above uses — this endpoint writes into
+    pattern Lemon Squeezy's webhook above uses - this endpoint writes into
     real customer meeting records from a payload anyone can POST, so an
     unconfigured secret should block it, not silently accept anything."""
     raw_body = await request.body()
@@ -301,7 +301,7 @@ async def resend_inbound(request: Request):
             break
 
     if not meeting_id:
-        # Not addressed to a meeting-reply alias — nothing to do, but still
+        # Not addressed to a meeting-reply alias - nothing to do, but still
         # 200 so Resend doesn't keep retrying a delivery we'll never use.
         return {"ok": True, "matched": False}
 
@@ -326,7 +326,7 @@ async def resend_inbound(request: Request):
         raise HTTPException(status_code=500, detail="Failed to record message")
 
     # Auto-reply using the same scheduling tools the widget uses (real
-    # availability, real reschedule) — best-effort, logged not raised, so a
+    # availability, real reschedule) - best-effort, logged not raised, so a
     # broken auto-reply never turns into a failed webhook delivery/retry.
     from plugins.agent_tools import handle_meeting_email_reply
     await handle_meeting_email_reply(supabase, meeting, from_email)

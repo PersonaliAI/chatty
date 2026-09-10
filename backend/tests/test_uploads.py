@@ -1,5 +1,5 @@
 """read_upload_capped must reject an oversized upload while still streaming
-it in — never buffering the whole body before the size check runs (the bug:
+it in - never buffering the whole body before the size check runs (the bug:
 `await file.read()` followed by a length check still lets a client force
 full buffering of an arbitrarily large body first)."""
 import asyncio

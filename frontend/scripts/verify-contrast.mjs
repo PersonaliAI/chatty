@@ -1,6 +1,6 @@
 // Regression guard: fails fast if any widget design preset's text/background
 // pair in src/app/globals.css drops below WCAG AA (4.5:1) for normal-size
-// text. Written after a real incident — the "Playful" preset's header/
+// text. Written after a real incident - the "Playful" preset's header/
 // button/chip used #ff8a5c (orange) text-on-white and white-on-orange at
 // only 2.32:1, visibly hard to read in production. Run via
 // `node scripts/verify-contrast.mjs`; wired into CI.
@@ -26,17 +26,17 @@ const TEXT_ELEMENTS = [
 ];
 
 // Presets whose header/send-btn use a two-stop linear-gradient background
-// instead of a solid color — both stops need checking against the
+// instead of a solid color - both stops need checking against the
 // foreground text color.
 const GRADIENT_ELEMENTS = new Set(["gradient-glow .chat-header", "gradient-glow .send-btn"]);
 
 // Presets that paint text-bearing elements with an rgba(...) translucent
 // background over a colorful gradient (glassmorphism) rather than a solid
-// hex — this script can't resolve the true composited color, so the
+// hex - this script can't resolve the true composited color, so the
 // underlying raw gradient stops are checked instead (as a worst-case floor:
 // the translucent white overlay only ever pushes the effective background
 // closer to white, i.e. more contrast against white/near-white text, never
-// less) — see the container-level check below, which still runs for these.
+// less) - see the container-level check below, which still runs for these.
 const SKIP_TRANSLUCENT = new Set([
   "glassmorphism .chat-header",
   "glassmorphism .bot-bubble",
@@ -66,7 +66,7 @@ function gradientStops(value) {
 // send-btn intentionally uses var(--primary-color, <curated-fallback>) so the
 // dashboard's color picker has one safe place to show through (see the
 // comment above the preset block in globals.css). The fallback is the
-// no-primary-color-set case — the one this static script can actually
+// no-primary-color-set case - the one this static script can actually
 // verify, since --primary-color is only known at runtime. Resolves to the
 // fallback text with any wrapping "!important" stripped.
 function resolveVarFallback(value) {
@@ -85,7 +85,7 @@ for (const id of DESIGN_IDS) {
     if (SKIP_TRANSLUCENT.has(`${id}${suffix}`)) continue;
 
     const block = extractBlock(css, selector);
-    if (!block) continue; // element doesn't set its own bg/color for this preset — inherits, nothing to check here
+    if (!block) continue; // element doesn't set its own bg/color for this preset - inherits, nothing to check here
     const color = resolveVarFallback(extractProp(block, "color") || "");
     if (!color || !color.startsWith("#")) continue; // no text color set on this element, or not a plain hex
 
@@ -94,7 +94,7 @@ for (const id of DESIGN_IDS) {
 
     const bgHexes = GRADIENT_ELEMENTS.has(`${id}${suffix}`) ? gradientStops(rawBg)
       : rawBg.startsWith("#") ? [rawBg]
-      : []; // rgba()/unresolvable — skip, not our failure mode here
+      : []; // rgba()/unresolvable - skip, not our failure mode here
 
     for (const bgHex of bgHexes) {
       if (!hexToRgb(bgHex) || !hexToRgb(color)) continue;
@@ -123,7 +123,7 @@ for (const id of DESIGN_IDS) {
 }
 
 if (checked.length === 0) {
-  console.error("verify-contrast.mjs found nothing to check — the CSS structure probably changed; update this script's selectors.");
+  console.error("verify-contrast.mjs found nothing to check - the CSS structure probably changed; update this script's selectors.");
   process.exit(1);
 }
 

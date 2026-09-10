@@ -1,4 +1,4 @@
-"""Microsoft 365 (Graph API) helpers — Outlook + OneDrive + ToDo.
+"""Microsoft 365 (Graph API) helpers - Outlook + OneDrive + ToDo.
 
 Mirrors google_integrations.py structure:
   * OAuth via Microsoft identity platform (v2 endpoint, common tenant).
@@ -181,7 +181,7 @@ async def _api(
     if headers:
         req_headers.update(headers)
     # Graph endpoints like /me/drive/items/{id}/content respond with a 302
-    # to a short-lived download URL — httpx does NOT follow redirects by
+    # to a short-lived download URL - httpx does NOT follow redirects by
     # default, so without this raw bytes downloads come back empty.
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as c:
         r = await c.request(
@@ -213,7 +213,7 @@ async def _api(
 
 
 # ---------------------------------------------------------------------------
-# Outlook — messages
+# Outlook - messages
 # ---------------------------------------------------------------------------
 
 
@@ -425,7 +425,7 @@ async def mark_outlook_read(
 async def delete_outlook_message(
     supabase, user: dict[str, Any], *, message_id: str
 ) -> dict[str, Any]:
-    """Soft delete — moves to Deleted Items."""
+    """Soft delete - moves to Deleted Items."""
     await _api(
         supabase, user, "DELETE", f"{GRAPH_BASE}/me/messages/{message_id}"
     )
@@ -655,7 +655,7 @@ async def copy_onedrive_item(
         body["name"] = new_name
     if parent_folder_id:
         body["parentReference"] = {"id": parent_folder_id}
-    # Returns 202 Accepted with a monitor URL — we just confirm it was accepted.
+    # Returns 202 Accepted with a monitor URL - we just confirm it was accepted.
     await _api(
         supabase,
         user,
@@ -709,7 +709,7 @@ async def share_onedrive_item(
             },
         )
         result = {"shared_with": email, "role": role, "raw": res}
-        # The invite response has no item-level fields — fetch the name/link
+        # The invite response has no item-level fields - fetch the name/link
         # too so callers (and the assistant composing a follow-up email)
         # always have something to reference the shared file by.
         try:
@@ -719,7 +719,7 @@ async def share_onedrive_item(
         except Exception:  # noqa: BLE001
             pass
         return result
-    # No email — create a sharing link
+    # No email - create a sharing link
     res = await _api(
         supabase,
         user,
@@ -732,7 +732,7 @@ async def share_onedrive_item(
 
 
 # ---------------------------------------------------------------------------
-# Outlook — drafts (create, get, update, send)
+# Outlook - drafts (create, get, update, send)
 # ---------------------------------------------------------------------------
 
 
@@ -875,7 +875,7 @@ async def get_outlook_folder(
 
 
 # ---------------------------------------------------------------------------
-# Outlook — calendars + events
+# Outlook - calendars + events
 # ---------------------------------------------------------------------------
 
 
@@ -1016,7 +1016,7 @@ async def create_outlook_event(
 ) -> dict[str, Any]:
     # timezone_override (the bot's configured bot_timezone) takes priority over
     # the owner's user-profile timezone field, which is frequently left at its
-    # "UTC" default and never actually reflects where the business is — using
+    # "UTC" default and never actually reflects where the business is - using
     # it here silently mistagged every booked event with the wrong offset.
     tz_str = timezone_override or user.get("timezone") or "UTC"
     payload = _event_payload(
@@ -1053,7 +1053,7 @@ async def update_outlook_event(
     calendar_id: Optional[str] = None,
     timezone_override: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Partial update (PATCH) of an existing event — only the fields passed
+    """Partial update (PATCH) of an existing event - only the fields passed
     are touched. Used for reschedule (start/end only) so the event's Teams
     join link, attendee list, and Graph event id all stay intact."""
     tz_str = timezone_override or user.get("timezone") or "UTC"
@@ -1089,7 +1089,7 @@ async def delete_outlook_event(
 
 
 # ---------------------------------------------------------------------------
-# Outlook — contacts
+# Outlook - contacts
 # ---------------------------------------------------------------------------
 
 
@@ -1163,7 +1163,7 @@ async def delete_outlook_contact(
 
 
 # ---------------------------------------------------------------------------
-# Outlook — attachments
+# Outlook - attachments
 # ---------------------------------------------------------------------------
 
 
@@ -1205,7 +1205,7 @@ async def get_outlook_attachment(
 
 
 # ---------------------------------------------------------------------------
-# ToDo — list create
+# ToDo - list create
 # ---------------------------------------------------------------------------
 
 

@@ -1,4 +1,4 @@
-"""Pure unit tests for plugins/zoom_integration.py — Server-to-Server OAuth
+"""Pure unit tests for plugins/zoom_integration.py - Server-to-Server OAuth
 token minting (with the in-process cache), meeting creation, and the
 zoom_configured() capability check. All HTTP is mocked; nothing here
 touches the network.
@@ -13,7 +13,7 @@ from plugins import zoom_integration as z
 
 
 # ---------------------------------------------------------------------------
-# Fake httpx.AsyncClient — records every request, replays queued responses
+# Fake httpx.AsyncClient - records every request, replays queued responses
 # ---------------------------------------------------------------------------
 
 

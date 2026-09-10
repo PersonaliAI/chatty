@@ -15,7 +15,7 @@ export default async function EmbedPage({
   // Exchange the real Referer (only genuinely available here, on the
   // iframe's own document load) for a short-lived signed token the client
   // then attaches to every chat/media call. Never let this block the widget
-  // — a failed/errored call just means the token comes back null and the
+  // - a failed/errored call just means the token comes back null and the
   // backend falls into its stricter unverified-origin rate tier.
   let originToken: string | null = null;
   try {
@@ -30,7 +30,7 @@ export default async function EmbedPage({
       originToken = data.token ?? null;
     }
   } catch {
-    // graceful degradation — see comment above
+    // graceful degradation - see comment above
   }
 
   return <EmbedClient botId={botId} originToken={originToken} />;

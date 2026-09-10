@@ -1,44 +1,67 @@
 {
-  "name": "@personaliai/chatty-widget",
-  "version": "0.3.0",
-  "private": true,
-  "description": "Standalone Shadow DOM chat widget bundle for Chatty — builds chatty-app.js and chatty-app.css",
+  "name": "@personaliai/react-widget",
+  "version": "0.2.1",
+  "description": "Official React SDK for Chatty AI chatbots - loads the chat assistant in an isolated Shadow DOM container via the script method",
   "license": "MIT",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/index.js",
+    "dist/index.cjs",
+    "dist/index.d.ts",
+    "dist/index.js.map",
+    "dist/index.cjs.map",
+    "README.md",
+    "LICENSE"
+  ],
   "keywords": [
     "chatty",
     "chatbot",
     "chat-widget",
+    "react",
+    "nextjs",
     "ai",
     "customer-support"
   ],
   "homepage": "https://chatty.personaliai.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/PersonaliAI/chatty.git",
+    "url": "git+https://github.com/PersonaliAI/chatty.git",
     "directory": "packages/chatty-react"
   },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
   },
-  "dependencies": {
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "emoji-picker-react": "^4.19.1",
     "framer-motion": "^12.38.0",
     "katex": "^0.16.45",
     "livekit-client": "^2.22.0",
     "lucide-react": "^1.14.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
-    "remark-math": "^6.0.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "remark-math": "^6.0.0",
     "tailwindcss": "^4.3.3",
     "tsup": "^8.3.5",
     "typescript": "^5"

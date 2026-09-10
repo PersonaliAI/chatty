@@ -1,7 +1,7 @@
 -- Email follow-ups: Kin currently finds a reply only when explicitly asked
--- ("any replies for that?") — it never proactively tells the user one
+-- ("any replies for that?") - it never proactively tells the user one
 -- arrived, and never offers to nudge a contact who's gone quiet. This closes
--- both gaps for Gmail threads Kin itself sent (scope: Gmail only for v1 —
+-- both gaps for Gmail threads Kin itself sent (scope: Gmail only for v1 -
 -- Outlook's sendMail doesn't return a conversationId to track, unlike
 -- Gmail's threadId).
 
@@ -25,6 +25,6 @@ CREATE INDEX IF NOT EXISTS idx_kin_email_watches_pending
     WHERE replied_at IS NULL AND dismissed = false;
 
 -- Managed entirely by the backend's service-role key (created on send/reply,
--- checked and updated by the /cron/check-email-followups job) — no direct
+-- checked and updated by the /cron/check-email-followups job) - no direct
 -- user-facing CRUD, so RLS stays enabled with no policy.
 ALTER TABLE kin_email_watches ENABLE ROW LEVEL SECURITY;

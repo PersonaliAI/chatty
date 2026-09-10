@@ -261,7 +261,7 @@ def test_flow_update_and_simulation():
     }
     # The real storage mechanism is a JSON blob smuggled inside
     # chatty_bots.custom_js between CHATTY_FLOW_DATA markers (see
-    # mcp_flow_service._extract_flow_from_custom_js) — there's no
+    # mcp_flow_service._extract_flow_from_custom_js) - there's no
     # dedicated flow_data/flow_active column.
     import json as _json
     flow_custom_js = "\n/* CHATTY_FLOW_DATA\n" + _json.dumps(
@@ -299,7 +299,7 @@ def test_campaign_lifecycle():
         "name": "Summer Sale",
         "type": "chat_bubble",
         "message": "Get 20% off!",
-        # Real, persisted counters (see chatty_campaigns migration) — nonzero
+        # Real, persisted counters (see chatty_campaigns migration) - nonzero
         # here only to exercise the ctr/conversion-rate math in the service.
         "impressions": 100,
         "clicks": 10,
@@ -339,7 +339,7 @@ def test_configure_voice_agent_and_token():
         with patch("app.services.mcp_voice_service.supabase.table") as mock_table:
             mock_table.return_value = _mock_query_result([bot_data])
 
-            # Config — real chatty_bots columns only (voice_tts_provider/voice_tts_voice,
+            # Config - real chatty_bots columns only (voice_tts_provider/voice_tts_voice,
             # not the fictional tts_provider/voice_id fields the old schema had).
             mock_table.return_value = _mock_query_result([{
                 "id": "bot-abc-123", "voice_enabled": True, "voice_mode": "pipeline",
@@ -351,7 +351,7 @@ def test_configure_voice_agent_and_token():
             assert config["voice_tts_provider"] == "elevenlabs"
             assert config["voice_tts_voice"] == "rachel"
 
-            # Token — mint_voice_token delegates to the real LiveKit dispatch
+            # Token - mint_voice_token delegates to the real LiveKit dispatch
             # logic in voice_service, which isn't configured in unit tests;
             # mock that boundary rather than the DB layer.
             with patch(
@@ -371,7 +371,7 @@ def test_configure_voice_agent_and_token():
 def test_inbox_transcripts_and_human_takeover():
     principal = _mock_principal()
     # Real chatty_conversations shape (role/content/sender/feedback_rating/
-    # correction/created_at) — no "citations" column exists.
+    # correction/created_at) - no "citations" column exists.
     msgs = [
         {"id": "msg-1", "role": "user", "content": "Hello", "sender": None, "feedback_rating": None, "correction": None, "created_at": "2026-09-02T10:00:00Z"},
         {"id": "msg-2", "role": "assistant", "content": "Hi! How can I help?", "sender": None, "feedback_rating": None, "correction": None, "created_at": "2026-09-02T10:00:01Z"},
@@ -385,13 +385,13 @@ def test_inbox_transcripts_and_human_takeover():
             transcript = asyncio.run(mcp_inbox_service.get_conversation_transcript(principal, "bot-abc-123", "sess-1"))
             assert transcript["message_count"] == 2
 
-            # Takeover (writes chatty_sessions.ai_paused — the real column
+            # Takeover (writes chatty_sessions.ai_paused - the real column
             # the dashboard's own human-takeover toggle uses)
             mock_table.return_value = _mock_query_result([{"id": "sess-1", "bot_id": "bot-abc-123", "session_id": "sess-1", "ai_paused": True, "needs_attention": False}])
             takeover = asyncio.run(mcp_inbox_service.human_agent_takeover(principal, "bot-abc-123", "sess-1", True))
             assert takeover["ai_paused"] is True
 
-            # Knowledge gaps (reads chatty_unanswered — the real
+            # Knowledge gaps (reads chatty_unanswered - the real
             # unanswered-question queue, not a fabricated fixed list)
             mock_table.return_value = _mock_query_result([
                 {"question": "Do you offer refunds?", "session_id": "sess-1", "created_at": "2026-09-02T10:00:00Z"},

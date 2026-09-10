@@ -72,7 +72,7 @@ mcp = FastMCP(
         "analytics, and design audits."
     ),
     # NOTE: website_url/icons (for connector-UI branding) aren't supported
-    # by the pinned mcp==1.12.4 SDK version — FastMCP.__init__ doesn't
+    # by the pinned mcp==1.12.4 SDK version - FastMCP.__init__ doesn't
     # accept either kwarg, which crashed the container on startup
     # (ImportError: cannot import name 'Icon' from 'mcp.types') the one
     # time this was tried. Revisit after bumping the mcp package version,
@@ -87,12 +87,12 @@ mcp = FastMCP(
     # Cloud Run scales this service to zero and recycles instances under
     # normal idle traffic. FastMCP's default (stateful) mode keeps each MCP
     # session's state in that one process's memory and requires every
-    # request in the session to land back on it — the moment Cloud Run
+    # request in the session to land back on it - the moment Cloud Run
     # kills or replaces the instance (which it does within about a minute
     # of idling, confirmed via `gcloud run services logs read`: a fresh
     # "Started server process" immediately followed by "Shutting down"
     # 26s later), the client's Mcp-Session-Id points at a session that no
-    # longer exists anywhere, and every subsequent call 400s — this is
+    # longer exists anywhere, and every subsequent call 400s - this is
     # exactly what broke every tool call right after the previous fix.
     # stateless_http=True makes each HTTP request fully self-contained
     # (no server-side session to lose), which is the documented setting
@@ -227,12 +227,12 @@ async def customize_widget_styling(
 ) -> dict:
     """Customize widget appearance: colors, avatar/logo, teaser bubble message, conversation-starter chips, custom CSS, and white-label branding.
 
-    Per-section colors (independent of primary_color/widget_style — these are the dashboard Customizer's advanced color pickers):
-    - auto_generate_color_scheme: pass a seed hex (e.g. "#c67139") to derive a full, harmonious 6-section scheme (header, botBubble, userBubble, inputBar, sendBtn, launcher) — same algorithm as the dashboard's own Auto-generate button.
-    - color_scheme: set/override individual sections directly, e.g. {"header": {"bg": "#111827", "text": "#ffffff"}} — only the sections/fields given are touched, everything else (existing or just auto-generated) is left as-is. Combine both in one call: auto-generate a base scheme, then override just the header.
+    Per-section colors (independent of primary_color/widget_style - these are the dashboard Customizer's advanced color pickers):
+    - auto_generate_color_scheme: pass a seed hex (e.g. "#c67139") to derive a full, harmonious 6-section scheme (header, botBubble, userBubble, inputBar, sendBtn, launcher) - same algorithm as the dashboard's own Auto-generate button.
+    - color_scheme: set/override individual sections directly, e.g. {"header": {"bg": "#111827", "text": "#ffffff"}} - only the sections/fields given are touched, everything else (existing or just auto-generated) is left as-is. Combine both in one call: auto-generate a base scheme, then override just the header.
     - clear_color_scheme=true removes it entirely so primary_color/widget_style fully take over again.
 
-    If a primary_color/widget_style change doesn't seem to take effect, check the returned color_scheme field — it takes priority over them wherever it's set.
+    If a primary_color/widget_style change doesn't seem to take effect, check the returned color_scheme field - it takes priority over them wherever it's set.
     """
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
@@ -543,7 +543,7 @@ async def send_agent_message(bot_id: str, session_id: str, message: str) -> dict
 
 @mcp.tool()
 async def add_conversation_internal_note(bot_id: str, session_id: str, note: str) -> dict:
-    """Add a private agent note to a conversation. Never sent to the visitor — for other human agents working the inbox."""
+    """Add a private agent note to a conversation. Never sent to the visitor - for other human agents working the inbox."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     return await mcp_inbox_service.add_conversation_internal_note(principal, bot_id, session_id, note)

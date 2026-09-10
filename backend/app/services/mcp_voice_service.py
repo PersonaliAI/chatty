@@ -1,7 +1,7 @@
 """Voice-agent configuration + token minting for the Developer API / MCP
-tools. Token minting reuses app/services/voice_service.py — the exact same
+tools. Token minting reuses app/services/voice_service.py - the exact same
 LiveKit dispatch logic the public widget endpoint (app/routers/voice.py)
-uses — rather than a second, separate implementation.
+uses - rather than a second, separate implementation.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ async def configure_voice_agent(principal: dict[str, Any], bot_id: str, body: Vo
 
 
 async def mint_voice_token(principal: dict[str, Any], bot_id: str, visitor_timezone: str = "UTC") -> dict[str, Any]:
-    """Mints a real LiveKit token via the shared voice_service — the
+    """Mints a real LiveKit token via the shared voice_service - the
     original version of this function returned a fabricated
     "mock-livekit-jwt-<random>" string (with a normal success response)
     whenever LiveKit wasn't configured, which a caller has no way to

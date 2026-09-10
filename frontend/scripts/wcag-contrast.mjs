@@ -1,5 +1,5 @@
 // WCAG 2.1 contrast-ratio math shared by verify-contrast.mjs and (in spirit)
-// src/lib/color-contrast.ts — kept as a separate plain-Node copy since this
+// src/lib/color-contrast.ts - kept as a separate plain-Node copy since this
 // one runs at CI/lint time outside the Next.js/React toolchain.
 export function hexToRgb(hex) {
   const clean = hex.replace("#", "").trim();

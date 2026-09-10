@@ -1,8 +1,8 @@
 """Security middleware and helpers for the Chatty backend.
 
 Provides:
-  * RequestIDMiddleware  — attaches X-Request-ID to every request/response
-  * SecurityHeadersMiddleware — browser-hardening headers on every response
+  * RequestIDMiddleware  - attaches X-Request-ID to every request/response
+  * SecurityHeadersMiddleware - browser-hardening headers on every response
   * IP-based rate limiting (separate from per-API-key limiting)
   * API key IP-allowlist enforcement (CIDR or exact IP)
   * API key scope enforcement (chat / read / write / admin)
@@ -35,10 +35,10 @@ logger = logging.getLogger("chatty.security")
 def verify_function_secret(secret: Optional[str], configured_secret: str) -> None:
     """Raise 403 unless `secret` matches `configured_secret`.
 
-    Fails CLOSED: if configured_secret isn't set, every request is rejected —
+    Fails CLOSED: if configured_secret isn't set, every request is rejected -
     the previous `if configured_secret and secret != configured_secret` check
     did the opposite (skipped the check entirely when unconfigured), which
-    left these internal endpoints — including one that deletes data —
+    left these internal endpoints - including one that deletes data -
     completely open to anyone who found the URL in any environment where the
     env var wasn't set. Uses hmac.compare_digest instead of `!=` so a valid
     secret can't be brute-forced via response-timing differences.
@@ -70,7 +70,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add browser-hardening response headers to every response.
 
-    Safe to apply globally — headers are set with setdefault so they don't
+    Safe to apply globally - headers are set with setdefault so they don't
     override any already-set values (e.g. CORS headers from widget middleware).
     """
 
@@ -81,7 +81,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         "x-permitted-cross-domain-policies": "none",
         # Cloud Run is always HTTPS so we can safely set HSTS
         "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
-        # The API only serves JSON — block everything else
+        # The API only serves JSON - block everything else
         "content-security-policy": "default-src 'none'",
         "permissions-policy": "geolocation=(), camera=(), microphone=()",
     }
@@ -96,7 +96,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 # ---------------------------------------------------------------------------
 # IP-based rate limiter
 #
-# Shared, cross-instance limiter backed by Upstash Redis (REST API) — same
+# Shared, cross-instance limiter backed by Upstash Redis (REST API) - same
 # fixed-window-counter mechanism main.py's per-API-key and widget-message
 # limiters use, so a multi-instance Cloud Run deploy enforces the advertised
 # limit across all instances instead of N times over (once per instance).
@@ -161,7 +161,7 @@ async def ip_rate_limited(bucket: str, limit: int, window: int) -> bool:
         resp.raise_for_status()
         count = int(resp.json()[0]["result"])
         return count > limit
-    except Exception:  # noqa: BLE001 — never let the limiter take down a request
+    except Exception:  # noqa: BLE001 - never let the limiter take down a request
         logger.warning("Upstash rate limiter unavailable; using in-memory fallback", exc_info=True)
         return _ip_rate_limited_in_memory(bucket, limit, window)
 
@@ -196,7 +196,7 @@ def check_ip_allowlist(key_row: dict[str, Any], request: Request) -> None:
     try:
         parsed_client = ipaddress.ip_address(client_ip)
     except ValueError:
-        # Unparseable IP — deny by default
+        # Unparseable IP - deny by default
         raise HTTPException(
             status_code=403,
             detail="Could not determine request IP address for allowlist check.",
@@ -228,10 +228,10 @@ def check_ip_allowlist(key_row: dict[str, Any], request: Request) -> None:
 # ---------------------------------------------------------------------------
 
 # Available scopes and what they grant:
-#   chat   — call /api/v1/chat (send messages to the bot)
-#   read   — read leads, conversations, usage, bot metadata, knowledge sources
-#   write  — add/delete knowledge sources, manage conversation sessions
-#   admin  — all of the above (super-scope; granted to dashboard-created keys)
+#   chat   - call /api/v1/chat (send messages to the bot)
+#   read   - read leads, conversations, usage, bot metadata, knowledge sources
+#   write  - add/delete knowledge sources, manage conversation sessions
+#   admin  - all of the above (super-scope; granted to dashboard-created keys)
 VALID_SCOPES = {"chat", "read", "write", "admin"}
 _DEFAULT_SCOPES = ["chat", "read"]
 
@@ -285,7 +285,7 @@ def log_api_access(
     status_code: int = 200,
     duration_ms: int = 0,
 ) -> None:
-    """Write one row to chatty_api_audit_log. Failures are swallowed — never
+    """Write one row to chatty_api_audit_log. Failures are swallowed - never
     let audit logging break a live request."""
     try:
         supabase_client.table("chatty_api_audit_log").insert({

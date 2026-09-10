@@ -76,7 +76,7 @@ export function ModernSelect({
     if (!open) {
       // Resets search/highlight state whenever the dropdown closes. `open`
       // is toggled from several places (outside-click, Escape, the trigger
-      // button) — consolidating this into each of those call sites would be
+      // button) - consolidating this into each of those call sites would be
       // a larger refactor than this warning justifies.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("");

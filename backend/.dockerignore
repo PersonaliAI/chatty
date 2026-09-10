@@ -9,3 +9,5 @@ __pycache__
 .gitignore
 supabase/
 node_modules/
+frontend/
+load_testing/

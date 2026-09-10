@@ -17,7 +17,7 @@ create index if not exists chatty_meeting_messages_meeting_idx
 alter table public.chatty_meeting_messages enable row level security;
 
 -- Same bot-access shape as chatty_meetings itself (owner or team member via
--- the existing SECURITY DEFINER helper) — read-only via the API, all writes
+-- the existing SECURITY DEFINER helper) - read-only via the API, all writes
 -- go through the backend's service-role key, never directly from a client.
 create policy "Bot access can view meeting messages" on public.chatty_meeting_messages
   for select using (

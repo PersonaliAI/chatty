@@ -1,4 +1,4 @@
--- Voice agent config for a bot (Phase A of the voice-agent feature — this
+-- Voice agent config for a bot (Phase A of the voice-agent feature - this
 -- migration just adds the columns; nothing reads/writes them yet).
 ALTER TABLE chatty_bots
   ADD COLUMN IF NOT EXISTS voice_enabled boolean NOT NULL DEFAULT false,

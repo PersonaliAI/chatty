@@ -86,7 +86,7 @@ export interface StandaloneMountOptions {
   soundEnabled?: boolean;
   onOpen?: () => void;
   onClose?: () => void;
-  // widget.js's documented `window.Chatty.open()/.close()/.toggle()` API —
+  // widget.js's documented `window.Chatty.open()/.close()/.toggle()` API -
   // wired through here since the open/closed state lives inside this
   // component, not in widget.js itself.
   onApiReady?: (api: ChattyWidgetApi) => void;
@@ -113,7 +113,7 @@ export function ChattyStandaloneApp({
 
   // The bot owner's saved default (from the Customizer's "Chat Window Size"
   // setting); customSize overrides it once a visitor drags the resize
-  // handle, for this browser tab's lifetime only — not persisted, so the
+  // handle, for this browser tab's lifetime only - not persisted, so the
   // widget starts back at the owner's default on the visitor's next visit.
   const [panelSize, setPanelSize] = useState("default");
   const [customSize, setCustomSize] = useState<{ width: number; height: number } | null>(null);
@@ -129,7 +129,7 @@ export function ChattyStandaloneApp({
   const [customLogoBgColor, setCustomLogoBgColor] = useState("");
 
   // Launcher stays invisible (but already mounted, so no layout jump once it
-  // fades in) until the theme fetch below settles, one way or another — the
+  // fades in) until the theme fetch below settles, one way or another - the
   // button's own initial state defaults to LAUNCHER_STYLES.minimal / the
   // "#f97316" fallback, and rendering that opaque immediately produced a
   // visible flash of the wrong color/icon that then swapped to the bot's
@@ -257,7 +257,7 @@ export function ChattyStandaloneApp({
   };
 
   // Expose imperative open/close/toggle once, matching widget.js's
-  // documented `window.Chatty.open()/.close()/.toggle()` API — these
+  // documented `window.Chatty.open()/.close()/.toggle()` API - these
   // close over the latest `open` value via the ref below rather than
   // re-firing onApiReady on every open/close toggle.
   const openRef = useRef(open);
@@ -282,7 +282,7 @@ export function ChattyStandaloneApp({
 
   // The panel is anchored by `bottom` + `[side]` (never top/left directly),
   // so growing width/height alone already extends it away from whichever
-  // corner is pinned — no need to also reposition the panel while dragging.
+  // corner is pinned - no need to also reposition the panel while dragging.
   // Only the sign of each delta flips with `side`, since dragging toward the
   // panel's open interior always means "grow" regardless of which edge that
   // is on screen.
@@ -361,7 +361,7 @@ export function ChattyStandaloneApp({
         >
           {/* A real <button>, not a bare <span>, and sized as an actual
               28x28 tap target rather than tight to the "×" glyph (which was
-              only ~12x18px — below any usable touch-target size, easy to
+              only ~12x18px - below any usable touch-target size, easy to
               miss on a real click/tap even though the handler itself was
               always correct). */}
           <button
@@ -430,7 +430,7 @@ export function ChattyStandaloneApp({
               }),
         }}
       >
-        {/* Resize handle — sits at the corner opposite the panel's anchored
+        {/* Resize handle - sits at the corner opposite the panel's anchored
             corner (bottom+[side]), so dragging it always grows the panel
             away from wherever it's pinned. Skipped on mobile fullscreen,
             where the panel already fills the viewport. */}
@@ -586,7 +586,7 @@ export function mountChatty(
 }
 
 // Just the chat panel (header, messages, composer) with no launcher button
-// or teaser bubble of its own — for a host page that already has its own
+// or teaser bubble of its own - for a host page that already has its own
 // launcher chrome and only wants the panel itself. Same component and same
 // zero-iframe rendering as mountChatty above, just without
 // ChattyStandaloneApp's own launcher/teaser wrapped around it. Props mirror

@@ -1,18 +1,18 @@
 """Real delivery of meeting notifications: beautiful HTML email + push.
 
 Email channels, in priority order (EMAIL_PROVIDER_PREFERRED env var swaps which of
-the first two goes first — default is "onesignal", set to "resend" to prefer that
+the first two goes first - default is "onesignal", set to "resend" to prefer that
 instead; whichever isn't preferred still runs as a fallback, neither is ever removed):
   1. OneSignal Email API (if ONESIGNAL_APP_ID + ONESIGNAL_REST_API_KEY set)
   1. Resend (if RESEND_API_KEY set)
-  2. Owner's connected Gmail (if the bot owner has Google linked) — html=True
+  2. Owner's connected Gmail (if the bot owner has Google linked) - html=True
   3. Logged only (no credentials / not connected) -> status "logged"
 
 OneSignal push is sent when ONESIGNAL_* is configured and a target
 external_id / subscription is available; otherwise it degrades to "logged".
 
 Everything degrades gracefully so a booking never fails because a channel
-is unconfigured — the side-effects are best-effort.
+is unconfigured - the side-effects are best-effort.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def onesignal_configured() -> bool:
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
 RESEND_EMAIL_FROM = os.environ.get("RESEND_EMAIL_FROM", "Chatty Team <chatty@personaliai.com>").strip()
 # Which email channel to try first when both OneSignal and Resend are configured.
-# Neither is ever skipped entirely — whichever isn't preferred still runs as the
+# Neither is ever skipped entirely - whichever isn't preferred still runs as the
 # fallback before Gmail. Defaults to "onesignal" to keep existing behavior unchanged
 # for anyone who hasn't set this.
 EMAIL_PROVIDER_PREFERRED = os.environ.get("EMAIL_PROVIDER_PREFERRED", "onesignal").strip().lower()
@@ -131,7 +131,7 @@ def build_client_email_html(*, visitor_name: str, summary: str, start: str,
     provider_label = {"google_meet": "Google Meet", "zoom": "Zoom",
                       "teams": "Microsoft Teams"}.get(provider, provider)
     # visitor_name/summary/start/timezone_label are visitor- or LLM-supplied
-    # (chat booking flow) — escape before embedding in HTML sent by email.
+    # (chat booking flow) - escape before embedding in HTML sent by email.
     visitor_name_e = _html.escape(visitor_name)
     summary_e = _html.escape(summary)
     start_e = _html.escape(start)
@@ -139,7 +139,7 @@ def build_client_email_html(*, visitor_name: str, summary: str, start: str,
     return _email_shell(
         title=f"You're booked, {visitor_name_e}! 🎉",
         intro=f"Your meeting <strong>“{summary_e}”</strong> is confirmed. "
-              "We've added the details below — see you there!",
+              "We've added the details below - see you there!",
         rows=[
             ("Date &amp; Time", start_e),
             ("Timezone", timezone_label_e),
@@ -189,7 +189,7 @@ def build_team_invite_email_html(*, bot_name: str, inviter_email: str, role: str
         intro=f"<strong>{inviter_email_e}</strong> gave you {('admin' if role == 'admin' else 'agent')} "
               f"access to the <strong>{bot_name_e}</strong> chatbot on Chatty. "
               f"<strong>No account yet?</strong> Create one at chatty.personaliai.com using this exact "
-              f"email address — this chatbot will appear in your dashboard automatically, no separate "
+              f"email address - this chatbot will appear in your dashboard automatically, no separate "
               f"invite link needed.",
         rows=[
             ("Chatbot", bot_name_e),
@@ -281,7 +281,7 @@ async def _send_resend_email(*, to: str, subject: str, html: str, reply_to: Opti
         return False
 
 
-# Ordered (label, sender) pairs — EMAIL_PROVIDER_PREFERRED controls which goes first,
+# Ordered (label, sender) pairs - EMAIL_PROVIDER_PREFERRED controls which goes first,
 # but both always run; the non-preferred one is the fallback, never removed.
 def _email_channels() -> list[tuple[str, Any]]:
     channels = [("sent", _send_onesignal_email), ("sent_resend", _send_resend_email)]
@@ -294,7 +294,7 @@ ADMIN_ALERT_EMAIL = os.environ.get("ADMIN_ALERT_EMAIL", "").strip()
 
 
 async def send_admin_alert_email(*, subject: str, html: str) -> bool:
-    """System-level alert, not tied to any particular Kin user — for things
+    """System-level alert, not tied to any particular Kin user - for things
     like critical system failures, where there's no per-user context to hang
     the notification off of. Tries every configured email channel (OneSignal,
     Resend) before falling back to a log line (visible in Cloud Logging), so
@@ -323,13 +323,13 @@ async def _send_gmail_html(*, supabase, owner_user: dict, to: str,
 async def deliver_email(*, supabase, owner_user: dict, to: str, subject: str,
                         html: str, reply_to: Optional[str] = None) -> str:
     """Best-effort email delivery. Tries OneSignal and Resend in whichever order
-    EMAIL_PROVIDER_PREFERRED specifies (both run regardless — the non-preferred
+    EMAIL_PROVIDER_PREFERRED specifies (both run regardless - the non-preferred
     one is the fallback), then the owner's connected Gmail, before giving up.
     Returns the resulting status string: 'sent' (OneSignal), 'sent_resend',
     'sent_gmail', or 'logged'.
 
     `reply_to` (used by meeting notifications to route a visitor's reply
-    into that meeting's thread — see plugins/agent_tools.py's
+    into that meeting's thread - see plugins/agent_tools.py's
     _meeting_reply_to) is honored by both OneSignal and Resend regardless of
     which one actually ends up sending, since either could be the preferred
     channel; the Gmail fallback doesn't support it (rare path, Gmail's own
@@ -390,7 +390,7 @@ async def deliver_push(*, headings: str, contents: str,
 async def deliver_webhook(*, url: str, event: str, bot_id: str, data: dict) -> bool:
     """Best-effort POST of `{event, bot_id, data, timestamp}` to a customer-configured
     webhook URL (e.g. Zapier, Slack incoming webhook, or their own backend). Fire-and-
-    forget — failures are logged, never raised, so a broken customer endpoint can't
+    forget - failures are logged, never raised, so a broken customer endpoint can't
     break the conversation/lead flow that triggered it."""
     if not url:
         return False
@@ -402,7 +402,7 @@ async def deliver_webhook(*, url: str, event: str, bot_id: str, data: dict) -> b
     }
     # Re-checked here, not just at registration (this field has no registration
     # endpoint of its own in this codebase, but even where a URL IS validated at
-    # registration, deliveries can happen well after — DNS could point somewhere
+    # registration, deliveries can happen well after - DNS could point somewhere
     # else by then). ssrf.request_async resolves and validates the host once
     # and connects to that exact IP, so there's no second, attacker-controlled
     # DNS lookup between the check and the connection (DNS rebinding).
@@ -452,7 +452,7 @@ async def _post_signed_webhook(url: str, secret: str, payload: dict) -> tuple[bo
     """Returns (success, error_message)."""
     body = json.dumps(payload, default=str).encode()
     signature = sign_webhook_body(secret, body)
-    # Re-checked here, not just at registration — retries can happen up to
+    # Re-checked here, not just at registration - retries can happen up to
     # WEBHOOK_BACKOFF_SCHEDULE's full 8h window after the URL was validated,
     # long enough for DNS to point somewhere else by delivery time.
     # ssrf.request_async pins the connection to the IP it just validated, so
@@ -480,7 +480,7 @@ async def enqueue_webhook_event(
     """Fan out `event` to every active chatty_webhooks subscription for this
     bot that's subscribed to it. First attempt happens inline; on failure the
     delivery is queued for retry (see process_due_webhook_retries). Never
-    raises — a broken/slow customer endpoint must never affect the chat flow
+    raises - a broken/slow customer endpoint must never affect the chat flow
     that triggered the event."""
     try:
         res = await run_db(lambda: (

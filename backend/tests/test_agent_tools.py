@@ -1,4 +1,4 @@
-"""Pure unit tests for plugins/agent_tools.py — the tool implementations the
+"""Pure unit tests for plugins/agent_tools.py - the tool implementations the
 widget's tool-calling loop dispatches to: calendar booking (Google + Outlook),
 availability checks, lead capture, web search, and the `execute` dispatcher.
 
@@ -7,7 +7,7 @@ All Google/Microsoft/HTTP calls are mocked at the module boundary
 convention in test_google_integrations.py/test_microsoft_integrations.py
 (which already cover the HTTP layer beneath those modules).
 
-`_dedupe_doubled` already has coverage in tests/test_unit.py — not repeated
+`_dedupe_doubled` already has coverage in tests/test_unit.py - not repeated
 here. `_process_widget_booking` is a ~200-line orchestration function; only
 its main success/failure branches are covered, not every branch.
 """
@@ -220,7 +220,7 @@ def test_check_calendar_availability_wraps_other_exceptions(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# _get_available_slots — delegates to the team-aware engine functions
+# _get_available_slots - delegates to the team-aware engine functions
 # ---------------------------------------------------------------------------
 
 
@@ -297,7 +297,7 @@ def _reschedule_supabase(meeting_row, users_row=None):
             t.update.return_value.eq.return_value.execute.return_value = MagicMock()
         elif name == "users":
             # _resolve_meeting_host uses .ilike("email", ...); the admin
-            # owner-email lookup uses .eq("auth_user_id", ...) — support both.
+            # owner-email lookup uses .eq("auth_user_id", ...) - support both.
             t.select.return_value.ilike.return_value.limit.return_value.execute.return_value = MagicMock(
                 data=[users_row] if users_row else [])
             t.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[])
@@ -466,7 +466,7 @@ def test_reschedule_meeting_uses_assigned_host_credentials(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# handle_meeting_email_reply — email-based reschedule conversation
+# handle_meeting_email_reply - email-based reschedule conversation
 # ---------------------------------------------------------------------------
 
 
@@ -541,7 +541,7 @@ def test_handle_meeting_email_reply_sends_reply_when_no_tool_call(monkeypatch):
     from plugins import ai_client
     supabase = _email_agent_supabase(_BOT, [], owner=_OWNER)
     monkeypatch.setattr(ai_client, "chat_stream", AsyncMock(return_value={
-        "text": "Sure, 3pm works — you're all set to keep the original time.",
+        "text": "Sure, 3pm works - you're all set to keep the original time.",
         "tool_calls": [], "message": {"role": "assistant", "content": "..."},
     }))
     deliver_mock = AsyncMock(return_value="sent")
@@ -677,7 +677,7 @@ def test_create_outlook_event_delegates_to_microsoft_integrations(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# _create_lead — mocked at the supabase boundary
+# _create_lead - mocked at the supabase boundary
 # ---------------------------------------------------------------------------
 
 
@@ -718,7 +718,7 @@ def test_create_lead_inserts_new_lead_and_returns_success(monkeypatch):
     monkeypatch.setattr(at.notify, "deliver_webhook", AsyncMock())
     monkeypatch.setattr(at.notify, "enqueue_webhook_event", AsyncMock())
     supabase = _supabase_for_insert([{"id": "lead-123"}])
-    # bot webhook lookup (chatty_bots select) — reuse a plain empty result.
+    # bot webhook lookup (chatty_bots select) - reuse a plain empty result.
     bots_result = MagicMock()
     bots_result.data = [{"webhook_url": None}]
 
@@ -888,7 +888,7 @@ def test_web_search_returns_error_on_failure(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# execute — the tool-name dispatcher
+# execute - the tool-name dispatcher
 # ---------------------------------------------------------------------------
 
 
@@ -902,7 +902,7 @@ def test_execute_dispatches_to_create_lead(monkeypatch):
 
 def test_execute_overrides_llm_supplied_bot_id_with_trusted_context_bot_id(monkeypatch):
     # A visitor could prompt-inject the model into calling create_lead with
-    # someone else's bot_id — the real bot_id for this conversation is known
+    # someone else's bot_id - the real bot_id for this conversation is known
     # server-side (context, set from the actual widget session) and must
     # always win over whatever the model put in its tool-call args.
     create_lead_mock = AsyncMock(return_value={"success": True})
@@ -1085,12 +1085,12 @@ def test_execute_catches_unexpected_exceptions(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# _process_widget_booking — high-value success/failure branches only
+# _process_widget_booking - high-value success/failure branches only
 # ---------------------------------------------------------------------------
 
 
 def test_process_widget_booking_noop_without_bot_id():
-    # No bot_id in context — should return without touching supabase at all.
+    # No bot_id in context - should return without touching supabase at all.
     supabase = MagicMock()
     asyncio.run(at._process_widget_booking({}, {}, supabase, {}, {}))
     supabase.table.assert_not_called()
@@ -1189,7 +1189,7 @@ def test_process_widget_booking_stores_assigned_to_email(monkeypatch):
         "_assigned_to_email": "jane-assignee@example.com",
     }
     result = {"id": "evt1", "hangoutLink": "https://meet.google.com/abc"}
-    # `user` is the ASSIGNEE (whose credentials created the event) — deliberately
+    # `user` is the ASSIGNEE (whose credentials created the event) - deliberately
     # different from the bot's real owner (user_id "owner-auth-1").
     assignee_user = {"email": "jane-assignee@example.com", "auth_user_id": "assignee-auth-2"}
     context = {"bot_id": "bot1", "session_id": "sess1"}
@@ -1204,7 +1204,7 @@ def test_process_widget_booking_stores_assigned_to_email(monkeypatch):
 def test_process_widget_booking_swallows_exceptions_and_does_not_raise(monkeypatch):
     supabase = MagicMock()
     supabase.table.side_effect = RuntimeError("db exploded")
-    # Must not propagate — booking side effects are best-effort.
+    # Must not propagate - booking side effects are best-effort.
     asyncio.run(at._process_widget_booking(
         {"summary": "x", "start": "a", "end": "b"}, {}, supabase, {}, {"bot_id": "bot1"},
     ))

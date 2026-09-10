@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
 
-# Neither job needs to write to the repo (checkout + test/build only) — the
+# Neither job needs to write to the repo (checkout + test/build only) - the
 # default GITHUB_TOKEN grants broad write access unless scoped down.
 permissions:
   contents: read
@@ -38,7 +38,7 @@ jobs:
       - name: Run smoke + unit tests
         run: python -m pytest tests/ -q
         env:
-          # Test-only dummy key (not a real secret) — app/core/crypto.py's
+          # Test-only dummy key (not a real secret) - app/core/crypto.py's
           # _fernet() raises RuntimeError without one, which was failing
           # every BYOK/OAuth-token encryption test (test_crypto.py,
           # test_google_integrations.py, test_microsoft_integrations.py -
@@ -48,7 +48,7 @@ jobs:
           BYOK_ENCRYPTION_KEY: kLaaohqu72wbf-6sqsj4_yNq2MYBEREBnQ42qEtwRIk=
 
       # Non-blocking: surfaces known CVEs in dependencies without failing the
-      # build outright — a build shouldn't go red over an advisory in a
+      # build outright - a build shouldn't go red over an advisory in a
       # transitive dep with no available fix yet.
       - name: Dependency vulnerability audit (pip-audit)
         run: |

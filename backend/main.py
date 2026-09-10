@@ -49,7 +49,7 @@ from plugins import google_integrations as g
 from plugins import llm_providers
 from plugins import microsoft_integrations as ms
 from plugins import notifications as notify
-from plugins.widget_brain import run_widget_assistant, GEMINI_FALLBACK_MODELS, MAX_TOOL_ROUNDS  # noqa: F401 — back-compat re-export
+from plugins.widget_brain import run_widget_assistant, GEMINI_FALLBACK_MODELS, MAX_TOOL_ROUNDS  # noqa: F401 - back-compat re-export
 
 from app.core import security as _sec
 from app.core.app_factory import create_app
@@ -75,7 +75,7 @@ app = create_app()
 
 
 # ---------------------------------------------------------------------------
-# Plans / quotas — monthly message count enforced on /api/chat + telegram.
+# Plans / quotas - monthly message count enforced on /api/chat + telegram.
 # Free covers evaluation; paid tiers cover real use.
 # ---------------------------------------------------------------------------
 
@@ -83,15 +83,15 @@ PLAN_QUOTAS: dict[str, int] = {
     # Kept for plan_for()'s key-membership check and for
     # chatty_quota_exceeded()'s combined Kin+Chatty message count (an edge
     # case: a single account that's both a Kin subscriber and a Chatty bot
-    # owner) — Kin's own quota gate uses KIN_TOKEN_QUOTAS below instead;
+    # owner) - Kin's own quota gate uses KIN_TOKEN_QUOTAS below instead;
     # these numbers are not enforced anywhere for Kin's own chat/API.
     "free": 100,
     "basic": 500,
     "pro": 3000,
     "executive": 15000,
-    # Chatty-specific tiers — quotas match what's advertised on chatty's own
+    # Chatty-specific tiers - quotas match what's advertised on chatty's own
     # pricing page (src/app/page.tsx): $19/$99/$399 for 1k/10k/40k msgs/mo.
-    # Chatty still bills by message count — token tracking doesn't exist yet
+    # Chatty still bills by message count - token tracking doesn't exist yet
     # for its separate widget conversation pipeline (run_widget_assistant).
     "chatty_hobby": 1000,
     "chatty_standard": 10000,
@@ -101,11 +101,11 @@ PLAN_QUOTAS: dict[str, int] = {
 # Real Kin quota gate, replacing the message-count model above (found
 # 2026-07-20 to be structurally loss-making: a "message" can trigger 1-6
 # internal Gemini calls depending on tool-calling complexity, so message
-# count has near-zero correlation with actual LLM cost — a user asking
+# count has near-zero correlation with actual LLM cost - a user asking
 # simple questions and a user running multi-step agentic tasks paid the
 # same price for wildly different cost). Token counts are billed at Gemini
 # 3.5 Flash's real rates ($1.50/1M input, $9.00/1M output, ~$0.15/1M for
-# cache-hit input — Gemini's automatic implicit caching already covers
+# cache-hit input - Gemini's automatic implicit caching already covers
 # 65-96% of input tokens in production since the tool manifest + system
 # prompt form a stable repeated prefix). These numbers target ~75% gross
 # margin on LLM cost alone at FULL quota utilization, not just on average.
@@ -120,14 +120,14 @@ KIN_TOKEN_QUOTAS: dict[str, int] = {
 WHITELABEL_PLANS = {"pro", "executive", "chatty_business"}
 
 # Kin plan-gated features. These used to be advertised on pricing but only
-# the message quota was actually enforced anywhere — audited and fixed.
+# the message quota was actually enforced anywhere - audited and fixed.
 PAID_PLANS = {"basic", "pro", "executive"}       # daily briefing, voice
 PRO_PLUS_PLANS = {"pro", "executive"}             # custom system prompt
 PRIORITY_PLANS = {"pro", "executive"}             # more retries before
 # falling back to the weaker model under capacity contention
 
 # Retry attempts on the primary model before falling back to the lite one
-# (see _gemini_generate) — Executive gets a real edge over Pro here, not
+# (see _gemini_generate) - Executive gets a real edge over Pro here, not
 # just a bigger quota number.
 _PRIORITY_ATTEMPTS = {"executive": 8, "pro": 6}
 
@@ -143,7 +143,7 @@ def _month_start_iso() -> str:
 
 async def get_monthly_usage(user_id: str) -> int:
     """Count user-role messages persisted since the first of the current
-    month. No longer used for Kin's own quota gate (see quota_state) —
+    month. No longer used for Kin's own quota gate (see quota_state) -
     kept for chatty_quota_exceeded()'s combined Kin+Chatty message count."""
     try:
         res = await run_db(lambda: (
@@ -169,7 +169,7 @@ def plan_for(user: dict[str, Any]) -> str:
 
 
 def _fmt_tokens(n: int) -> str:
-    """1000000 -> '1M', 3500000 -> '3.5M' — for user-facing quota messages."""
+    """1000000 -> '1M', 3500000 -> '3.5M' - for user-facing quota messages."""
     if n >= 1_000_000:
         v = n / 1_000_000
         return f"{v:.1f}M".replace(".0M", "M")
@@ -332,7 +332,7 @@ async def geoip_lookup(ip: str) -> dict[str, Any]:
     info: dict[str, Any] = {}
     try:
         # ipapi.co over HTTPS (ip-api.com's HTTPS endpoint requires a paid
-        # plan) — avoids sending visitor IPs over plaintext HTTP.
+        # plan) - avoids sending visitor IPs over plaintext HTTP.
         async with httpx.AsyncClient(timeout=4) as c:
             r = await c.get(f"https://ipapi.co/{ip}/json/")
         if r.status_code < 300:
@@ -400,7 +400,7 @@ def _detect_sentiment_escalation(text: str) -> Optional[str]:
     return None
 
 
-# Phrases the assistant uses when it lacks the answer — used to detect
+# Phrases the assistant uses when it lacks the answer - used to detect
 # knowledge gaps worth surfacing to the owner for retraining.
 _UNANSWERED_MARKERS = (
     "i don't have", "i do not have", "don't have that information",
@@ -467,12 +467,12 @@ async def _resolve_api_key(
     key_row = key_res.data[0]
     if key_row.get("revoked"):
         raise HTTPException(status_code=401, detail="API key revoked")
-    # IP allowlist (optional — only enforced when the key has entries)
+    # IP allowlist (optional - only enforced when the key has entries)
     if request is not None:
         _sec.check_ip_allowlist(key_row, request)
         await _sec.check_ip_rate(request)
     # Shared, cross-instance limiter (Upstash-backed, falls back to
-    # in-memory) — same mechanism the widget path uses, so a key's 60/min
+    # in-memory) - same mechanism the widget path uses, so a key's 60/min
     # budget is enforced across all Cloud Run instances, not per-instance.
     if await _rate_limited_async(key_row["id"]):
         raise HTTPException(
@@ -488,7 +488,7 @@ _LAST_RATE_CLEANUP = 0.0
 
 
 def _rate_limited(key_id: str, limit: int = _RATE_LIMIT, window: int = _RATE_WINDOW) -> bool:
-    """In-memory sliding window. Per-process only — used as the fallback when
+    """In-memory sliding window. Per-process only - used as the fallback when
     the shared Upstash limiter is unconfigured or unreachable."""
     global _LAST_RATE_CLEANUP
     now = time.time()
@@ -544,7 +544,7 @@ async def _rate_limited_async(
         resp.raise_for_status()
         count = int(resp.json()[0]["result"])
         return count > limit
-    except Exception:  # noqa: BLE001 — never let the limiter take down a request
+    except Exception:  # noqa: BLE001 - never let the limiter take down a request
         logger.warning("Upstash rate limiter unavailable; using in-memory fallback", exc_info=True)
         return _rate_limited(key_id, limit, window)
 
@@ -579,8 +579,8 @@ def _normalize_host(value: str) -> str:
 # for domain restriction: those requests run from JS *inside* the embed
 # iframe (served from chatty.personaliai.com), so their Origin is always
 # chatty.personaliai.com, never the customer's site. The customer's real
-# page URL is only genuinely visible to a browser once — on the iframe's own
-# initial document load — so the frontend captures it there (server-side,
+# page URL is only genuinely visible to a browser once - on the iframe's own
+# initial document load - so the frontend captures it there (server-side,
 # via next/headers) and exchanges it for a short-lived signed token via
 # POST /api/widget/verify-origin. That token then rides along on every
 # chat/media call instead of a re-trusted host field.
@@ -604,7 +604,7 @@ def _widget_token_verified(token: Optional[str], bot_id: str) -> bool:
         return False
     try:
         claims = jwt.decode(token, FUNCTION_SECRET, algorithms=["HS256"])
-    except Exception:  # noqa: BLE001 — expired/invalid/tampered = unverified
+    except Exception:  # noqa: BLE001 - expired/invalid/tampered = unverified
         return False
     return claims.get("bot_id") == bot_id and bool(claims.get("verified"))
 
@@ -613,14 +613,14 @@ def _widget_token_verified(token: Optional[str], bot_id: str) -> bool:
 WIDGET_RATE_LIMIT = 30          # messages
 WIDGET_RATE_WINDOW = 60         # seconds, per bot+IP
 WIDGET_RATE_LIMIT_UNVERIFIED = 5   # messages
-WIDGET_RATE_WINDOW_UNVERIFIED = 120  # seconds, per bot+IP — origin not verified
+WIDGET_RATE_WINDOW_UNVERIFIED = 120  # seconds, per bot+IP - origin not verified
 WIDGET_MAX_CHARS = 4000
 
 
 async def _widget_rate_limit_or_429(bot: dict, bot_id: str, ip: str, token: Optional[str]) -> None:
     """Rate-limit a widget request. Bots with allowed_domains configured get a
     much tighter tier when the caller's origin token isn't verified, instead
-    of the old hard 403 — see the "Widget origin verification" block above."""
+    of the old hard 403 - see the "Widget origin verification" block above."""
     if bot.get("allowed_domains") and not _widget_token_verified(token, bot_id):
         if await _rate_limited_async(
             f"widget-unverified:{bot_id}:{ip}", WIDGET_RATE_LIMIT_UNVERIFIED, WIDGET_RATE_WINDOW_UNVERIFIED
@@ -670,7 +670,7 @@ def _next_crawl_at(schedule: str, now: Optional[datetime] = None) -> Optional[st
 
 
 # ---------------------------------------------------------------------------
-# Public REST API — v1
+# Public REST API - v1
 # All endpoints require: Authorization: Bearer chatty_sk_<key>
 # ---------------------------------------------------------------------------
 
@@ -698,7 +698,7 @@ def _update_key_usage(key_row: dict[str, Any]) -> None:
 
 # ---------------------------------------------------------------------------
 # Routers (Phase 2 modularization). Imported here, at the bottom of the file,
-# rather than right after `app = create_app()` — each router module bridges
+# rather than right after `app = create_app()` - each router module bridges
 # back into main.py for shared helpers/constants via `from main import ...`,
 # and importing them earlier (while those names don't exist on the
 # partially-initialized `main` module yet) would raise a circular ImportError.
@@ -737,7 +737,7 @@ app.include_router(_router_flow.router)
 app.include_router(_router_cron.router)
 app.include_router(_router_public_api.router)
 app.include_router(_router_oauth.router)
-# Full ASGI sub-app (not a FastAPI router — the MCP SDK builds its own
+# Full ASGI sub-app (not a FastAPI router - the MCP SDK builds its own
 # Starlette app with its own auth middleware), mounted at root so its
 # internal route (streamable_http_path, "/mcp") becomes the final path.
 # Registered last: Starlette tries specific routes/routers above first and
@@ -748,11 +748,11 @@ app.mount("/", _router_mcp.mcp_asgi_app)
 
 # mcp_asgi_app carries its own internal lifespan (it's a separate Starlette
 # app), but Starlette/FastAPI never runs a mounted sub-app's lifespan on its
-# own — only the ROOT app's lifespan fires. Without this, FastMCP's
+# own - only the ROOT app's lifespan fires. Without this, FastMCP's
 # StreamableHTTPSessionManager.run() (which sets up the task group every
 # session depends on) never executes, and every real MCP client connection
 # fails after OAuth succeeds with "RuntimeError: Task group is not
-# initialized. Make sure to use run()." — this had no test coverage because
+# initialized. Make sure to use run()." - this had no test coverage because
 # TestClient's `with` context and the app never being exercised as a
 # long-lived ASGI server both papered over it locally.
 @contextlib.asynccontextmanager

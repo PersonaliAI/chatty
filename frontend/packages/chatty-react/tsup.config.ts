@@ -3,19 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 export default defineConfig([
+  // 1. Standalone bundle for widget.js Shadow DOM
   {
     entry: {
       "chatty-app": "src/standalone.tsx",
     },
-    // No `globalName` here: esbuild's IIFE globalName wrapper assigns the
-    // module's *entire export namespace* (ChattyStandaloneApp, mountChatty,
-    // mountChattyPanel — the raw, unaliased names) to `window.ChattyDOM` as
-    // the very last thing the bundle does, which silently overwrote the
-    // real `window.ChattyDOM = { mount, mountPanel }` assignment standalone.tsx
-    // makes itself lower in the same file (evaluation order: esbuild's own
-    // assignment is the IIFE's completion value, so it always runs last and
-    // wins). widget.js calls `window.ChattyDOM.mount(...)`, which the
-    // clobbered shape doesn't have — the widget silently never mounted.
     format: ["iife"],
     sourcemap: false,
     minify: true,
@@ -37,5 +29,16 @@ export default defineConfig([
       }
     },
   },
+  // 2. Official React library package (Script Method)
+  {
+    entry: {
+      index: "src/index.ts",
+    },
+    format: ["esm", "cjs"],
+    dts: true,
+    sourcemap: true,
+    clean: false,
+    minify: false,
+    external: ["react", "react-dom"],
+  },
 ]);
-

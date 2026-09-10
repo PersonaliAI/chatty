@@ -1,4 +1,4 @@
--- Long-term memory (RAG) — extends the existing memory_embeddings table.
+-- Long-term memory (RAG) - extends the existing memory_embeddings table.
 
 -- 1. Per-user toggle.
 ALTER TABLE users

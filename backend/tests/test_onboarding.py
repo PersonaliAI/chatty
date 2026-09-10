@@ -1,4 +1,4 @@
-"""Unit tests for app/routers/onboarding.py's add_lead_column() — the
+"""Unit tests for app/routers/onboarding.py's add_lead_column() - the
 dynamic-column-name sanitization and safe SQL construction. No real DB
 connection; psycopg2.connect is mocked.
 """
@@ -28,7 +28,7 @@ def test_add_lead_column_strips_invalid_characters(monkeypatch):
 
     assert cursor.execute.called
     executed_sql = cursor.execute.call_args[0][0]
-    # Built via psycopg2.sql, not a raw f-string — the identifier is safely
+    # Built via psycopg2.sql, not a raw f-string - the identifier is safely
     # composed rather than string-interpolated directly into the SQL text.
     assert isinstance(executed_sql, pg_sql.Composed)
 
@@ -36,7 +36,7 @@ def test_add_lead_column_strips_invalid_characters(monkeypatch):
 def test_add_lead_column_builds_a_safely_quoted_identifier_not_raw_interpolation(monkeypatch):
     # Regression guard for the original implementation, which built the SQL
     # via an f-string: `f"ALTER TABLE ... ADD COLUMN IF NOT EXISTS {clean_name} TEXT;"`.
-    # That happened to be safe only because of the regex allowlist upstream —
+    # That happened to be safe only because of the regex allowlist upstream -
     # this asserts the safety property directly (a real Identifier object),
     # so it can't silently regress if the allowlist is ever loosened.
     monkeypatch.setenv("SUPABASE_DB_PASSWORD", "secret")

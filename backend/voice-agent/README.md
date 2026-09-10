@@ -1,8 +1,8 @@
-# Chatty Voice Stack — Self-Hosted VPS Deployment
+# Chatty Voice Stack - Self-Hosted VPS Deployment
 
 Fully self-hosted **LiveKit Server + Redis + Caddy + Chatty Voice Worker** stack designed to run on a single **Contabo VPS 4** (4 vCPU / 8 GB RAM / €4.40/mo) or any Ubuntu VPS.
 
-Zero LiveKit Cloud dependency — all API keys and JWT signing are self-hosted and self-generated.
+Zero LiveKit Cloud dependency - all API keys and JWT signing are self-hosted and self-generated.
 
 ---
 

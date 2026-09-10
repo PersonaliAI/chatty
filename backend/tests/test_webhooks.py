@@ -1,5 +1,5 @@
 """Unit tests for app/routers/webhooks.py's Resend inbound-email handler
-(team scheduling Phase 4 — captures a visitor's reply to a meeting email
+(team scheduling Phase 4 - captures a visitor's reply to a meeting email
 into that meeting's thread). Lemon Squeezy / WhatsApp / Slack webhooks in
 this same router already had no test coverage before this file; not
 backfilled here, out of scope for this change.
@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import main  # noqa: F401 — see tests/test_admin.py for why this must come first
+import main  # noqa: F401 - see tests/test_admin.py for why this must come first
 from app.routers import webhooks
 from fastapi import HTTPException
 from plugins import agent_tools

@@ -1,7 +1,7 @@
 -- Real backend for the Developer API's campaign tools (app/services/
 -- mcp_campaign_service.py). "Campaigns" in the dashboard today is a
 -- purely client-side, localStorage-only popup-trigger feature (chatty's
--- campaigns-ui.tsx) with no server persistence at all — this table gives
+-- campaigns-ui.tsx) with no server persistence at all - this table gives
 -- the Developer API/MCP path a genuine, separate, server-persisted
 -- campaign store rather than pretending to write to a table that never
 -- existed (the previous version of these tools inserted into a
@@ -10,7 +10,7 @@
 --
 -- impressions/clicks/conversions start at 0 and stay there honestly:
 -- there is no event-recording pipeline yet (the widget doesn't call any
--- endpoint to report an impression/click/conversion) — building that is
+-- endpoint to report an impression/click/conversion) - building that is
 -- a real, separate feature (widget-side instrumentation + an ingest
 -- endpoint), not something to fake with plausible-looking numbers.
 create table if not exists chatty_campaigns (

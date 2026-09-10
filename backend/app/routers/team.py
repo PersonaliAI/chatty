@@ -162,7 +162,7 @@ async def set_availability(member_id: str, req: AvailabilityRulesRequest, user: 
             raise HTTPException(status_code=400, detail="Invalid start_minute/end_minute range")
 
     # Replace-all semantics: simplest correct behavior for "here is my full
-    # weekly schedule" — the caller always sends the complete set, not a diff.
+    # weekly schedule" - the caller always sends the complete set, not a diff.
     await run_db(lambda: supabase.table("chatty_availability_rules").delete().eq(
         "bot_id", req.bot_id).eq("member_email", member["email"]).execute())
     if req.rules:

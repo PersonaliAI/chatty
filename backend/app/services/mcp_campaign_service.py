@@ -1,7 +1,7 @@
 """Proactive on-page campaign tools for the Developer API / MCP server.
 
 chatty_campaigns (supabase/migrations/20260902164515_chatty_campaigns.sql)
-is a real, newly-created table — see that migration's own comment for why
+is a real, newly-created table - see that migration's own comment for why
 it's separate from the dashboard's existing client-side-only campaigns
 feature. impressions/clicks/conversions are real, persisted counters that
 currently only ever read 0: there is no event-recording pipeline yet (the
@@ -56,7 +56,7 @@ _UPDATE_FIELD_TO_COLUMN = {"campaign_type": "type", "message_content": "message"
 async def update_campaign(principal: dict[str, Any], bot_id: str, campaign_id: str, body: CampaignUpdateRequest) -> dict[str, Any]:
     """CampaignUpdateRequest field names don't all match chatty_campaigns
     column names (campaign_type/message_content vs. the real type/message
-    columns, same mapping create_campaign already applies) — dumping the
+    columns, same mapping create_campaign already applies) - dumping the
     model straight into an update() would silently write to nonexistent
     column names and 400 from PostgREST, or (worse) succeed at renaming a
     campaign's `campaign_type`/`message_content` keys into row data that no
@@ -98,5 +98,5 @@ async def get_campaign_analytics(principal: dict[str, Any], bot_id: str, campaig
         "conversions": conversions,
         "ctr_percent": round(clicks / impressions * 100, 2) if impressions else None,
         "conversion_rate_percent": round(conversions / clicks * 100, 2) if clicks else None,
-        "note": "Tracking pipeline not wired up yet — these are real, persisted counters, currently 0 until widget-side impression/click/conversion reporting is built.",
+        "note": "Tracking pipeline not wired up yet - these are real, persisted counters, currently 0 until widget-side impression/click/conversion reporting is built.",
     }

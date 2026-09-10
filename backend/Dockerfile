@@ -22,7 +22,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # libpq5 is the runtime lib psycopg2 needs; libpq-dev/build-essential above
-# were only needed to compile it, not to run it — keeping them out of this
+# were only needed to compile it, not to run it - keeping them out of this
 # stage is most of what makes multi-stage worth doing here.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \

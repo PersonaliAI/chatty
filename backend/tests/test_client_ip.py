@@ -1,5 +1,5 @@
 """_client_ip must trust the LAST X-Forwarded-For hop (Cloud Run's own
-append), not the first (attacker-controlled) — see app/core/security.py and
+append), not the first (attacker-controlled) - see app/core/security.py and
 main.py. security.py's _client_ip previously trusted the first hop, which
 let an API-key IP allowlist be bypassed by spoofing the header.
 """

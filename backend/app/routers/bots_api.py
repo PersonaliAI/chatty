@@ -1,7 +1,7 @@
 """HTTP plumbing (auth resolution, scope checks, status codes) for bot
 create/list/get/update/analytics. The actual logic lives in
 app/services/bots_service.py, shared with the MCP tools in
-app/routers/mcp.py — see that module's docstring for why.
+app/routers/mcp.py - see that module's docstring for why.
 """
 
 from __future__ import annotations
@@ -22,9 +22,9 @@ router = APIRouter()
 
 @router.post(
     "/api/v1/bots",
-    tags=["Public API — Bots"],
+    tags=["Public API - Bots"],
     summary="Create a bot",
-    description="Create a new chatbot under the authenticated developer's account.\n\n**Required scope:** `write` (OAuth2 access token only — a single-bot API key cannot create additional bots)",
+    description="Create a new chatbot under the authenticated developer's account.\n\n**Required scope:** `write` (OAuth2 access token only - a single-bot API key cannot create additional bots)",
     status_code=201,
 )
 async def create_bot(body: BotCreateRequest, authorization: Optional[str] = Header(None)):
@@ -35,7 +35,7 @@ async def create_bot(body: BotCreateRequest, authorization: Optional[str] = Head
 
 @router.get(
     "/api/v1/bots",
-    tags=["Public API — Bots"],
+    tags=["Public API - Bots"],
     summary="List your bots",
     description="List every bot owned by the authenticated developer's account.\n\n**Required scope:** `read` (OAuth2 access token only)",
 )
@@ -47,7 +47,7 @@ async def list_bots(authorization: Optional[str] = Header(None)):
 
 @router.get(
     "/api/v1/bots/{bot_id}",
-    tags=["Public API — Bots"],
+    tags=["Public API - Bots"],
     summary="Get a bot",
     description="Get one bot's configuration.\n\n**Required scope:** `read`",
 )
@@ -59,7 +59,7 @@ async def get_bot(bot_id: str, authorization: Optional[str] = Header(None)):
 
 @router.patch(
     "/api/v1/bots/{bot_id}",
-    tags=["Public API — Bots"],
+    tags=["Public API - Bots"],
     summary="Customize a bot",
     description="Update a bot's configuration.\n\n**Required scope:** `write`",
 )
@@ -71,7 +71,7 @@ async def update_bot(bot_id: str, body: BotUpdateRequest, authorization: Optiona
 
 @router.post(
     "/api/v1/bots/{bot_id}/knowledge",
-    tags=["Public API — Bots"],
+    tags=["Public API - Bots"],
     summary="Add a text knowledge source",
     description="Add a text snippet to a bot's knowledge base.\n\n**Required scope:** `write`",
     status_code=201,
@@ -84,7 +84,7 @@ async def add_bot_knowledge(bot_id: str, body: KnowledgeTextCreateRequest, autho
 
 @router.get(
     "/api/v1/bots/{bot_id}/analytics",
-    tags=["Public API — Bots"],
+    tags=["Public API - Bots"],
     summary="Analyze a bot",
     description="Aggregate usage stats (messages, leads, sessions) for one bot.\n\n**Required scope:** `read`",
 )

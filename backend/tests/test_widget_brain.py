@@ -1,4 +1,4 @@
-"""Pure unit tests for plugins/widget_brain.py — the booking-claim guard, the
+"""Pure unit tests for plugins/widget_brain.py - the booking-claim guard, the
 RAG-translation helper, the web-search helper, and the source-ranking/citation
 logic that feeds the widget's system prompt and citation UI.
 
@@ -33,7 +33,7 @@ def test_claims_booking_success_detects_meeting_is_booked_phrasing():
 
 
 def test_claims_booking_success_ignores_offer_language():
-    # "Would you like to schedule" is an offer, not a claim — must not match.
+    # "Would you like to schedule" is an offer, not a claim - must not match.
     assert wb._claims_booking_success("Would you like to schedule a meeting?") is False
     assert wb._claims_booking_success("I can check availability for you.") is False
 
@@ -215,7 +215,7 @@ def test_ranked_source_refs_dedupes_by_name_and_respects_limit():
 
 
 # ---------------------------------------------------------------------------
-# _web_search (widget_brain's own copy — httpx.AsyncClient mocked)
+# _web_search (widget_brain's own copy - httpx.AsyncClient mocked)
 # ---------------------------------------------------------------------------
 
 
@@ -280,7 +280,7 @@ def test_web_search_returns_fallback_on_auth_error(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# _translate_to_english_for_rag — mocks ai_client.chat
+# _translate_to_english_for_rag - mocks ai_client.chat
 # ---------------------------------------------------------------------------
 
 

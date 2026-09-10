@@ -1,9 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // E2E smoke suite for the golden path (see the Chatty Test Strategy
-// artifact, Phase 3). Runs against the real production site by default —
+// artifact, Phase 3). Runs against the real production site by default -
 // this project's Supabase project IS the only environment, staging and
-// prod aren't separated — so tests must be read-only or self-cleaning
+// prod aren't separated - so tests must be read-only or self-cleaning
 // against real data. Override BASE_URL to point at a preview deploy.
 export default defineConfig({
   testDir: "./e2e",

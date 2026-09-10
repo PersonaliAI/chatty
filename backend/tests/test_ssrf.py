@@ -1,4 +1,4 @@
-"""Unit tests for app/core/ssrf.py's SSRF guard — no real DNS lookups,
+"""Unit tests for app/core/ssrf.py's SSRF guard - no real DNS lookups,
 socket.getaddrinfo is mocked.
 """
 from __future__ import annotations
@@ -52,7 +52,7 @@ def test_rejects_private_rfc1918_ranges():
 
 
 def test_rejects_link_local_including_cloud_metadata_address():
-    # 169.254.169.254 is the GCP/AWS/Azure cloud metadata endpoint — falls
+    # 169.254.169.254 is the GCP/AWS/Azure cloud metadata endpoint - falls
     # inside the link-local range, which is exactly why it must be blocked.
     with patch.object(socket, "getaddrinfo", return_value=_addrinfo_for("169.254.169.254")):
         with pytest.raises(ssrf.UnsafeURLError, match="non-public"):
@@ -60,7 +60,7 @@ def test_rejects_link_local_including_cloud_metadata_address():
 
 
 def test_rejects_if_any_resolved_address_is_private():
-    # A hostname with multiple A records — reject if even one is unsafe,
+    # A hostname with multiple A records - reject if even one is unsafe,
     # since the client could connect to any of them.
     with patch.object(socket, "getaddrinfo", return_value=_addrinfo_for("93.184.216.34", "10.0.0.1")):
         with pytest.raises(ssrf.UnsafeURLError, match="non-public"):
@@ -99,7 +99,7 @@ def test_async_wrapper_delegates_to_sync_check():
 
 def test_build_pinned_request_targets_resolved_ip_not_hostname():
     """A hostname that resolves to a public IP at check-time should produce a
-    pinned URL whose host IS that IP — so even if the attacker's DNS record
+    pinned URL whose host IS that IP - so even if the attacker's DNS record
     is flipped to a private address a moment later, nothing re-resolves the
     hostname to pick that up."""
     with patch.object(socket, "getaddrinfo", return_value=_addrinfo_for("93.184.216.34")):
@@ -143,7 +143,7 @@ def test_request_async_never_lets_the_http_client_resolve_the_hostname():
     assert resp.status_code == 200
     assert len(client.calls) == 1
     method, url, headers, extensions = client.calls[0]
-    # The client was handed the literal validated IP, never the hostname —
+    # The client was handed the literal validated IP, never the hostname -
     # so even if "rebind.example" now resolves to 10.0.0.5, this request
     # can't reach it, because nothing asks DNS about it again.
     assert url == "https://93.184.216.34/hook"
@@ -155,7 +155,7 @@ def test_request_async_never_lets_the_http_client_resolve_the_hostname():
 def test_request_async_rejects_url_that_rebinds_to_private_before_connect():
     """Even though this models an attacker whose hostname is *about* to
     rebind to a private IP, validation happens against the single resolution
-    result we get here — so if that resolution itself is already private
+    result we get here - so if that resolution itself is already private
     (e.g. the attacker won the race, or simply pointed the domain at a
     private IP from the start), the request must never reach the client."""
 

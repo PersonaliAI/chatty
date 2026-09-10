@@ -1,7 +1,7 @@
 // Shared parser for the 10 widget designs' key visual tokens, read directly
 // out of src/app/globals.css. Used by both generate-design-snapshot.mjs
 // (to freeze the current values) and verify-design-snapshot.mjs (to catch
-// any future edit that silently changes them) — one parser, so the two
+// any future edit that silently changes them) - one parser, so the two
 // scripts can never disagree about what a "value" means.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -25,7 +25,7 @@ function extractBlock(css, selector) {
 
 function extractProp(block, prop) {
   if (!block) return null;
-  // Matches `prop: value !important;` or `prop: value;` — value may itself
+  // Matches `prop: value !important;` or `prop: value;` - value may itself
   // contain commas/parens (rgba(), linear-gradient()), so match up to the
   // first `!important` or `;` that isn't inside parens.
   const re = new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+?)\\s*(?:!important)?\\s*;`);

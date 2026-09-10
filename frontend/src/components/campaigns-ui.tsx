@@ -29,7 +29,7 @@ export function CampaignsUI({ botId, color = "#f97316" }: Props) {
     { value: "url", label: "URL Match (Path/Regexp)" },
   ];
 
-  // Hydrate rules from localStorage once botId is known — a one-time
+  // Hydrate rules from localStorage once botId is known - a one-time
   // default-hydration effect reading from a browser-only API, not
   // something computable at render time.
   useEffect(() => {

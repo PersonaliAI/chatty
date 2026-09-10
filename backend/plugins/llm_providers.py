@@ -1,13 +1,13 @@
 """BYOK (bring your own key) support for non-Gemini AI Models.
 
 Agentic tool-calling (lead capture, calendar booking, Gmail, memory) stays
-Gemini-only — these providers' tool/function-call schemas differ enough that
+Gemini-only - these providers' tool/function-call schemas differ enough that
 wiring them in is a separate, larger effort. BYOK replies here are still
 knowledge-base-grounded: the caller passes the same RAG-augmented system
 prompt used for Gemini, just without function declarations.
 
 Routes through plugins/ai_client.py (LiteLLM) rather than each provider's
-own SDK — LiteLLM already normalizes the system-prompt-as-a-message vs.
+own SDK - LiteLLM already normalizes the system-prompt-as-a-message vs.
 system-prompt-as-a-separate-param difference between OpenAI/OpenRouter and
 Anthropic, so this no longer needs a per-provider branch the way the old
 direct-SDK version did.

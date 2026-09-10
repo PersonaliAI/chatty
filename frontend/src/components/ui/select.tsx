@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export type SelectOption = {
   value: string;
   label: string;
-  /** Leading visual — emoji string or icon element */
+  /** Leading visual - emoji string or icon element */
   leading?: React.ReactNode;
   /** Trailing label, e.g. timezone offset */
   trailing?: string;
@@ -64,7 +64,7 @@ export function SearchSelect({
   }, []);
 
   // Focus search on open + scroll highlighted into view. `open` is toggled
-  // from several places (outside-click, the trigger button) — consolidating
+  // from several places (outside-click, the trigger button) - consolidating
   // this reset into each of those call sites would be a larger refactor
   // than this warning justifies.
   useEffect(() => {

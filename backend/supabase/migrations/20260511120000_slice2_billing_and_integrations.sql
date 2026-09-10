@@ -8,7 +8,7 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS google_email TEXT,
   ADD COLUMN IF NOT EXISTS google_scopes TEXT;
 
--- 2. Webhook idempotency — Lemon Squeezy can retry; we dedupe on event_id.
+-- 2. Webhook idempotency - Lemon Squeezy can retry; we dedupe on event_id.
 CREATE TABLE IF NOT EXISTS lemon_events (
   event_id TEXT PRIMARY KEY,
   event_name TEXT,

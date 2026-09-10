@@ -1,5 +1,5 @@
 """Pure unit tests for plugins/doc_rag.py's search-ranking and chunking
-logic — no network, no live DB. embed_query and the supabase.rpc() call are
+logic - no network, no live DB. embed_query and the supabase.rpc() call are
 mocked; see tests/test_integration_live.py for the real-embedding smoke test.
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ from plugins import doc_rag
 
 
 # ---------------------------------------------------------------------------
-# search() — ranking/filtering pipeline
+# search() - ranking/filtering pipeline
 # ---------------------------------------------------------------------------
 
 
@@ -112,7 +112,7 @@ def test_format_for_prompt_joins_multiple_chunks():
 
 
 # ---------------------------------------------------------------------------
-# chunk_text() — recursive character splitter
+# chunk_text() - recursive character splitter
 # ---------------------------------------------------------------------------
 
 

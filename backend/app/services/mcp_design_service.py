@@ -187,9 +187,9 @@ Bot ID: {bot_id}
 <script src="https://chatty.personaliai.com/widget.js" data-id="{bot_id}" defer></script>"""
     elif "ios" in fw or "swift" in fw:
         # The real chatty-ios-sdk renders natively (SwiftUI, zero WebView/JS
-        # bridge) — a WKWebView pointed at /embed/{bot_id} works but throws
+        # bridge) - a WKWebView pointed at /embed/{bot_id} works but throws
         # away exactly what the native SDK exists to provide.
-        code = f"""// Swift / iOS — native SDK (github.com/PersonaliAI/chatty-ios-sdk)
+        code = f"""// Swift / iOS - native SDK (github.com/PersonaliAI/chatty-ios-sdk)
 // Add via Swift Package Manager or CocoaPods, then:
 import ChattySDK
 
@@ -197,7 +197,7 @@ ChattyChatView(botId: "{bot_id}")"""
     elif "android" in fw or "kotlin" in fw:
         # Same reasoning: chatty-android-sdk (Jetpack Compose) is the real
         # native integration, not a WebView loading the iframe embed page.
-        code = f"""// Android Kotlin — native SDK (github.com/PersonaliAI/chatty-android-sdk)
+        code = f"""// Android Kotlin - native SDK (github.com/PersonaliAI/chatty-android-sdk)
 // Add the Maven Central dependency, then:
 ChattyChatScreen(botId = "{bot_id}")"""
     else:

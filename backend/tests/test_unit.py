@@ -1,11 +1,11 @@
-"""Pure unit tests — no network, no database, always run. Complements
+"""Pure unit tests - no network, no database, always run. Complements
 test_integration_live.py and test_security_live.py, which verify the same
 class of behavior end-to-end against the real schema/database when real
 credentials are available."""
 from plugins.agent_tools import _dedupe_doubled
 from plugins.google_integrations import CHATTY_SCOPES, SCOPES, auth_url
 
-# Scopes Kin uses that Chatty's tools never touch — Gmail, Tasks, Contacts,
+# Scopes Kin uses that Chatty's tools never touch - Gmail, Tasks, Contacts,
 # Docs, Sheets, Slides. A Chatty-initiated OAuth connection should never
 # request any of these; that was the actual incident (a Chatty customer's
 # Google consent screen asked for full inbox/Docs/Sheets/Slides access to
@@ -27,13 +27,13 @@ def test_chatty_scopes_exclude_everything_kin_only_uses():
 
 
 def test_chatty_scopes_is_a_subset_of_the_full_bundle():
-    # Sanity: every Chatty scope should be a real, recognized scope — not a
+    # Sanity: every Chatty scope should be a real, recognized scope - not a
     # typo that would silently no-op in the OAuth request.
     assert set(CHATTY_SCOPES) <= set(SCOPES)
 
 
 def test_chatty_scopes_still_covers_calendar_and_drive():
-    # The two things Chatty's tools actually use — regression guard against
+    # The two things Chatty's tools actually use - regression guard against
     # someone trimming this list too far in the other direction.
     assert "https://www.googleapis.com/auth/calendar" in CHATTY_SCOPES
     assert "https://www.googleapis.com/auth/calendar.events" in CHATTY_SCOPES
@@ -68,9 +68,9 @@ def test_dedupe_doubled_leaves_normal_values_alone():
 
 
 def test_dedupe_doubled_ignores_odd_length_and_coincidental_halves():
-    # Odd length can never split into two identical halves — left untouched.
+    # Odd length can never split into two identical halves - left untouched.
     assert _dedupe_doubled("abc") == "abc"
-    # Even length, but the two halves genuinely differ — left untouched.
+    # Even length, but the two halves genuinely differ - left untouched.
     assert _dedupe_doubled("abcd") == "abcd"
 
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
@@ -13,7 +13,7 @@ import VoiceCallWidget from "./voice-call-widget";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
 import { normalizeWidgetStyle } from "./widget-style";
 // CSS is shipped separately (dist/styles.css, plus katex's own CSS) instead
-// of side-effect-imported here — a library bundling its own CSS import
+// of side-effect-imported here - a library bundling its own CSS import
 // requires the CONSUMER's bundler to understand raw CSS imports the exact
 // way this package's own build does, which isn't a safe assumption across
 // arbitrary React setups (Next.js, CRA, Vite, etc. all differ). See this
@@ -23,12 +23,13 @@ import {
   Paperclip, Smile, Mic, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
+  BookOpen, HelpCircle, Folder,
   type LucideIcon,
 } from "lucide-react";
 
 // The default placeholder content a voice message gets when the visitor
 // didn't type an accompanying caption (set where the message is created,
-// below) — used here to skip rendering it as redundant text under the
+// below) - used here to skip rendering it as redundant text under the
 // player itself.
 const VOICE_MESSAGE_PLACEHOLDER = "🎤 Voice message";
 
@@ -36,7 +37,7 @@ const VOICE_MESSAGE_PLACEHOLDER = "🎤 Voice message";
 // waveform + elapsed/duration, themed entirely through `currentColor` and
 // `color-mix()` (see .audio-bubble-* rules in widget-presets.css) so it
 // automatically matches whichever design preset (and primaryColor) the
-// surrounding .user-bubble/.bot-bubble is already using — no per-preset
+// surrounding .user-bubble/.bot-bubble is already using - no per-preset
 // styling needed here.
 function AudioBubble({ src }: { src: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -45,7 +46,7 @@ function AudioBubble({ src }: { src: string }) {
   const [currentTime, setCurrentTime] = useState(0);
 
   // There's no real peak/amplitude data for a recorded clip, so the bars are
-  // a deterministic pseudo-waveform hashed from the src URL — the same
+  // a deterministic pseudo-waveform hashed from the src URL - the same
   // message always renders the same bar pattern (rather than a fresh random
   // shape on every re-render, which would look broken/flickery).
   const bars = useMemo(() => {
@@ -90,7 +91,7 @@ function AudioBubble({ src }: { src: string }) {
         onLoadedMetadata={(e) => {
           const el = e.currentTarget;
           // Chrome reports Infinity for a MediaRecorder-produced blob's
-          // duration until forced to seek past the end — without this, every
+          // duration until forced to seek past the end - without this, every
           // voice message we record ourselves shows "0:00" regardless of its
           // real length (fmt() below maps non-finite durations to 0).
           if (isFinite(el.duration)) setDuration(el.duration);
@@ -138,7 +139,7 @@ const AVATAR_ICONS: Record<string, LucideIcon> = {
   bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User,
 };
 
-// process.env.NEXT_PUBLIC_BACKEND_URL is a Next.js/webpack-only convention —
+// process.env.NEXT_PUBLIC_BACKEND_URL is a Next.js/webpack-only convention -
 // consumers of this package may be on Vite, CRA, plain esbuild, etc., where
 // `process` isn't defined as a global at all, so a bare `process.env.X`
 // reference throws ReferenceError before this module even finishes loading.
@@ -167,7 +168,7 @@ async function audioBlobToWav(blob: Blob): Promise<Blob> {
   const audioBuf = await ctx.decodeAudioData(await blob.arrayBuffer());
   ctx.close();
   const len = audioBuf.length;
-  // A near-instant tap-to-stop can decode to an AudioBuffer with ~0 samples —
+  // A near-instant tap-to-stop can decode to an AudioBuffer with ~0 samples -
   // that still produces a "valid" (44-byte-header) WAV with no audio content,
   // which Gemini silently treats as empty. Require a minimum of ~150ms.
   if (len < audioBuf.sampleRate * 0.15) {
@@ -202,7 +203,7 @@ interface Message {
   // Only set on assistant messages, and only meaningful when the customizer's
   // "show AI / Human tag" setting is on. /api/widget/poll and /api/widget/live
   // only ever return human-agent replies (server-side filtered), so any
-  // message arriving through those two paths is unambiguously "human" —
+  // message arriving through those two paths is unambiguously "human" -
   // everything else assistant-role is a direct AI reply.
   sender?: "ai" | "human";
 }
@@ -228,6 +229,30 @@ interface FlowConfig {
 }
 
 type Tab = "home" | "messages" | "articles" | "search";
+
+export interface WidgetKbArticle {
+  id: string;
+  category_id?: string;
+  title: string;
+  slug: string;
+  subtitle?: string;
+  content?: string;
+  tags?: string[];
+  is_promoted?: boolean;
+  view_count?: number;
+  helpful_count?: number;
+  created_at?: string;
+  category?: { id: string; name: string; slug: string; icon?: string };
+}
+
+export interface WidgetKbCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  article_count?: number;
+}
 
 function CodeBlock({ lang, text }: { lang: string; text: string }) {
   const [copied, setCopied] = useState(false);
@@ -284,7 +309,7 @@ export interface ChatWidgetCoreProps {
   paramFont?: string | null;
   paramFontSizePercent?: string | null;
   // The following are only ever passed by widget-entry.tsx (the standalone
-  // Shadow DOM mount) — EmbedClient.tsx (the Next.js iframe route) never
+  // Shadow DOM mount) - EmbedClient.tsx (the Next.js iframe route) never
   // passes them, so every branch below that checks one of these falls back
   // to exactly the postMessage-based behavior this component always had,
   // unchanged, for the iframe path. These bridge props exist for a
@@ -306,7 +331,7 @@ export interface ChatWidgetCoreProps {
   // load and the periodic refresh). Lets a host app that renders its own
   // chrome around this widget (e.g. a custom floating launcher button)
   // reuse this data instead of independently re-fetching
-  // /api/widget/theme itself — see the README's "Custom launcher" section.
+  // /api/widget/theme itself - see the README's "Custom launcher" section.
   onThemeLoaded?: (theme: WidgetThemeData) => void;
 }
 
@@ -454,13 +479,13 @@ export default function ChatWidgetCore({
   const [customCss, setCustomCss] = useState("");
   const [customJs, setCustomJs] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#f97316");
-  // Guaranteed-legible text color for anything painted with primaryColor —
+  // Guaranteed-legible text color for anything painted with primaryColor -
   // the business owner picks that color freely, so a hardcoded white/black
   // text class goes invisible the moment they pick the "wrong" half of the
   // lightness spectrum. Computed via WCAG contrast, not assumed.
   const onPrimary = getOnColor(primaryColor);
   const [widgetStyle, setWidgetStyle] = useState("minimal");
-  // Per-section colors (header/bot-bubble/user-bubble/input-bar/send-btn) —
+  // Per-section colors (header/bot-bubble/user-bubble/input-bar/send-btn) -
   // null until the owner sets at least one in the Customizer, at which
   // point it takes over from the preset's own primaryColor-driven CSS
   // entirely (applied via an injected !important stylesheet below, the
@@ -475,22 +500,104 @@ export default function ChatWidgetCore({
   const [logoBgColor, setLogoBgColor] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [voiceCallOpen, setVoiceCallOpen] = useState(false);
-  // What a finished in-chat voice recording turns into — set on
+  // What a finished in-chat voice recording turns into - set on
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
 
-  const [tab, setTab] = useState<Tab>("messages");
+  const [tab, setTab] = useState<Tab>("home");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
 
-  // setSources is currently unused: the Articles tab renders from this list but
-  // nothing yet populates it from the backend (help-articles feed isn't wired up).
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [sources, setSources] = useState<Source[]>([]);
-  const [openArticle, setOpenArticle] = useState<Source | null>(null);
+  // ── Knowledge Base Articles & Categories (Crisp Style) ──
+  const [kbArticles, setKbArticles] = useState<WidgetKbArticle[]>([]);
+  const [kbCategories, setKbCategories] = useState<WidgetKbCategory[]>([]);
+  const [kbPromoted, setKbPromoted] = useState<WidgetKbArticle[]>([]);
+  const [kbLoading, setKbLoading] = useState(false);
+  const [selectedKbCat, setSelectedKbCat] = useState<string>("all");
+  const [activeArticle, setActiveArticle] = useState<WidgetKbArticle | null>(null);
+  const [loadingArticleDetail, setLoadingArticleDetail] = useState(false);
+  const [articleFeedbackGiven, setArticleFeedbackGiven] = useState<Record<string, "yes" | "no">>({});
+  const [articleFilterQuery, setArticleFilterQuery] = useState("");
+  const [searchKbResults, setSearchKbResults] = useState<WidgetKbArticle[]>([]);
+
+  const sources: Source[] = useMemo(() => {
+    return kbArticles.map((a) => ({ id: a.id, name: a.title, content: a.content || a.subtitle || "" }));
+  }, [kbArticles]);
+  const openArticle: Source | null = activeArticle
+    ? { id: activeArticle.id, name: activeArticle.title, content: activeArticle.content || activeArticle.subtitle || "" }
+    : null;
+  const setOpenArticle = (s: Source | null) => {
+    if (!s) setActiveArticle(null);
+    else {
+      const match = kbArticles.find((a) => a.id === s.id);
+      if (match) openKbArticle(match);
+      else setActiveArticle({ id: s.id, title: s.name, slug: s.id, content: s.content });
+    }
+  };
+
+  const loadKnowledgeBase = useCallback(async () => {
+    if (!botId) return;
+    setKbLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/widget/kb/portal?bot_id=${encodeURIComponent(String(botId))}`);
+      if (res.ok) {
+        const d = await res.json();
+        setKbCategories(d.categories || []);
+        setKbPromoted(d.promoted_articles || []);
+        const allArts: WidgetKbArticle[] = d.articles || [
+          ...(d.promoted_articles || []),
+          ...(d.recent_articles || []),
+        ];
+        const map = new Map<string, WidgetKbArticle>();
+        for (const a of allArts) map.set(a.id, a);
+        setKbArticles(Array.from(map.values()));
+      }
+    } catch {
+    } finally {
+      setKbLoading(false);
+    }
+  }, [botId]);
+
+  useEffect(() => {
+    loadKnowledgeBase();
+  }, [loadKnowledgeBase]);
+
+  const openKbArticle = async (art: WidgetKbArticle) => {
+    setActiveArticle(art);
+    if (!art.content) {
+      setLoadingArticleDetail(true);
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/widget/kb/articles/${encodeURIComponent(art.slug)}?bot_id=${encodeURIComponent(String(botId))}`);
+        if (res.ok) {
+          const detail = await res.json();
+          setActiveArticle(detail);
+        }
+      } catch {
+      } finally {
+        setLoadingArticleDetail(false);
+      }
+    }
+  };
+
+  const rateArticleFeedback = async (articleId: string, helpful: boolean) => {
+    setArticleFeedbackGiven((prev) => ({ ...prev, [articleId]: helpful ? "yes" : "no" }));
+    try {
+      await fetch(`${BACKEND_URL}/api/widget/kb/articles/${articleId}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_helpful: helpful }),
+      });
+    } catch {}
+  };
+
+  const askAboutArticle = (art: WidgetKbArticle) => {
+    setActiveArticle(null);
+    setTab("messages");
+    setInputValue(`I have a question about the guide "${art.title}": `);
+  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchAnswer, setSearchAnswer] = useState<string | null>(null);
@@ -509,7 +616,7 @@ export default function ChatWidgetCore({
 
   const [agentTyping, setAgentTyping] = useState(false);
   // Told by widget.js (postMessage) whenever it switches the panel between
-  // the fixed-size desktop popup and mobile-fullscreen — see the message
+  // the fixed-size desktop popup and mobile-fullscreen - see the message
   // listener below. Defaults to false (rounded), which is also correct for
   // the dashboard's own preview iframe, which never goes through widget.js
   // and so never sends this message.
@@ -525,14 +632,14 @@ export default function ChatWidgetCore({
   });
   const pushGranted = notificationGranted !== undefined ? notificationGranted : internalPushGranted;
   // Browsers don't let a site programmatically revoke Notification
-  // permission — only the user can do that via browser/site settings. So
+  // permission - only the user can do that via browser/site settings. So
   // "turning off" notifications from the bell, once granted, is our own
   // in-widget mute flag rather than an actual permission change; it just
-  // gates triggerPush below. Persisted per bot so it survives reloads —
+  // gates triggerPush below. Persisted per bot so it survives reloads -
   // same pattern (and same reasoning) as EmbedClient.tsx's identical
   // pushMuted, just keyed by botId alone here since this mount path
   // (widget.js Shadow DOM / React SDK) already lives on exactly one host
-  // page, so localStorage is naturally scoped to that host already —
+  // page, so localStorage is naturally scoped to that host already -
   // EmbedClient's iframe additionally needs a hostKey because one bot's
   // /embed/[botId] iframe can be reused across different embedding sites.
   const [pushMuted, setPushMuted] = useState(() => {
@@ -547,15 +654,15 @@ export default function ChatWidgetCore({
   // Root mount element. The two "transparent background" effects further
   // down (and the global html/body rule in the injected <style> below) are
   // only safe when `document` here is a document ChatWidgetCore fully owns
-  // — i.e. it's the sole content of a real /embed/[botId] iframe. That is
+  // - i.e. it's the sole content of a real /embed/[botId] iframe. That is
   // NOT the case for either of this component's actual current mount
   // paths: the React SDK mounts it directly into the host app's own
-  // document (ChatWidgetCore.tsx docs/README — e.g. PriceShield's
+  // document (ChatWidgetCore.tsx docs/README - e.g. PriceShield's
   // ChatClient.tsx), and standalone.tsx mounts it into a Shadow Root that
   // still lives in the host page's own document. Both share `document`
-  // with the host, so mutating document.body/documentElement — or
+  // with the host, so mutating document.body/documentElement - or
   // injecting an unscoped `html, body {}` rule that a Shadow Root doesn't
-  // even contain to begin with — would corrupt the host page itself
+  // even contain to begin with - would corrupt the host page itself
   // (previously happened: forced the host's <body> transparent and,
   // via the <style> block, forced `overflow: hidden` / `animation: none`
   // on the host's own html/body). `window.self !== window.top` is true
@@ -565,7 +672,7 @@ export default function ChatWidgetCore({
   const rootRef = useRef<HTMLDivElement>(null);
   const ownsDocument = typeof window !== "undefined" && window.self !== window.top;
 
-  // #chatty-root's own real, unscaled pixel size — needed to compensate
+  // #chatty-root's own real, unscaled pixel size - needed to compensate
   // the font-size-% wrapper below correctly. `zoom` does NOT scale a
   // *percentage* width/height the way it scales content: `width: 76.9%;
   // zoom: 130%` still lays out (and reports via getBoundingClientRect) as
@@ -581,7 +688,7 @@ export default function ChatWidgetCore({
   useEffect(() => {
     const el = rootRef.current;
     // While `loading` is true, the early return below renders a spinner
-    // instead of the real #chatty-root div — rootRef.current is null on
+    // instead of the real #chatty-root div - rootRef.current is null on
     // that first commit, so with an empty deps array this effect would bail
     // out via the guard below and never run again, permanently leaving
     // containerSize null (and the font-size zoom below permanently
@@ -598,12 +705,12 @@ export default function ChatWidgetCore({
 
   useEffect(() => {
     // Only the iframe path (EmbedClient.tsx never passes forceFullscreen/
-    // notificationGranted) still needs this listener — the standalone
+    // notificationGranted) still needs this listener - the standalone
     // Shadow DOM path drives both directly via those props instead.
     if (typeof window === "undefined" || forceFullscreen !== undefined || notificationGranted !== undefined) return;
     const handleMessage = (e: MessageEvent) => {
       // The embed can be hosted on any customer domain, so the parent's
-      // origin isn't known ahead of time — restrict to messages that
+      // origin isn't known ahead of time - restrict to messages that
       // actually came from our own parent frame instead.
       if (e.source !== window.parent) return;
       if (e.data && e.data.type === "chatty-notification-status") {
@@ -718,7 +825,7 @@ export default function ChatWidgetCore({
     if (!node || !currentConfig) return;
     const label = node.data?.label || "";
 
-    // Tag node — run silently, auto-advance
+    // Tag node - run silently, auto-advance
     if (label.startsWith("🏷️") || node.id?.startsWith("tag-")) {
       const tagValue = label.replace(/^🏷️\s*(Tag session:\s*)?/, "").replace(/['",]/g, "").trim();
       fetch(`${BACKEND_URL}/api/widget/chat`, {
@@ -744,14 +851,14 @@ export default function ChatWidgetCore({
         body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: "[Visitor requested live agent via flow]", ai_paused: true })
       }).catch(() => {});
     }
-    // Question node — display question, wait for typed user input (no branch buttons)
+    // Question node - display question, wait for typed user input (no branch buttons)
     else if (isQuestionNode(node)) {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
     }
-    // Message node — display, then auto-advance if single unlabeled edge, or show choice buttons
+    // Message node - display, then auto-advance if single unlabeled edge, or show choice buttons
     else {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(false);
@@ -759,7 +866,7 @@ export default function ChatWidgetCore({
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
       const outgoing = currentConfig.edges.filter((e) => e.source === node.id);
       if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
-        // Linear — auto-advance after short delay
+        // Linear - auto-advance after short delay
         setTimeout(() => {
           const nextNode = currentConfig.nodes.find((n) => n.id === outgoing[0].target);
           if (nextNode) executeFlowNode(nextNode, currentConfig);
@@ -769,7 +876,7 @@ export default function ChatWidgetCore({
     }
   };
 
-  // React Flow stores edge labels in edge.label OR edge.data?.label — resolve both.
+  // React Flow stores edge labels in edge.label OR edge.data?.label - resolve both.
   const getEdgeLabel = (edge: FlowEdge): string => edge.label || edge.data?.label || "";
 
   const handleFlowChoice = (edge: FlowEdge) => {
@@ -780,7 +887,7 @@ export default function ChatWidgetCore({
     if (targetNode) {
       executeFlowNode(targetNode, flowConfig);
     } else {
-      // Flow ended — hand off to real AI
+      // Flow ended - hand off to real AI
       setActiveNodeId(null);
       setFlowAwaitingInput(false);
     }
@@ -855,7 +962,7 @@ export default function ChatWidgetCore({
   const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Set by cancelRecording() right before stopping the recorder, so
   // mr.onstop knows to discard the take silently instead of transcribing/
-  // sending it — MediaRecorder only has one stop event, not a separate
+  // sending it - MediaRecorder only has one stop event, not a separate
   // cancel one.
   const recordingCancelledRef = useRef(false);
 
@@ -883,7 +990,7 @@ export default function ChatWidgetCore({
     return () => {
       pendingFiles.forEach(pf => { if (pf.preview) URL.revokeObjectURL(pf.preview); });
     };
-    // Intentionally runs only on true unmount — revokes whatever files are
+    // Intentionally runs only on true unmount - revokes whatever files are
     // pending at that point via closure, not meant to re-run per pendingFiles change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -912,7 +1019,7 @@ export default function ChatWidgetCore({
 
   // Reset html and body backgrounds to transparent to prevent white corners
   // in rounded iframe borders. Only when we actually own `document` (see
-  // ownsDocument above) — otherwise this is the host page's own body.
+  // ownsDocument above) - otherwise this is the host page's own body.
   useEffect(() => {
     if (ownsDocument) {
       document.documentElement.style.setProperty("background-color", "transparent", "important");
@@ -991,7 +1098,7 @@ export default function ChatWidgetCore({
               try { applyEvent(JSON.parse(line.slice(5).trim())); } catch {}
             }
           }
-          // Server closed the stream (~4 min) — loop reconnects immediately.
+          // Server closed the stream (~4 min) - loop reconnects immediately.
         } catch {
           if (stopped || ctrl.signal.aborted) return;
           await pollOnce();
@@ -1001,7 +1108,7 @@ export default function ChatWidgetCore({
     };
     run();
     return () => { stopped = true; ctrl.abort(); };
-    // notifyParent intentionally excluded — it's a plain function (not
+    // notifyParent intentionally excluded - it's a plain function (not
     // memoized) whose identity is only stable because onAssistantMessage
     // itself is stable per mount; including it would restart this
     // long-lived SSE connection any time a caller re-renders with a new
@@ -1009,7 +1116,7 @@ export default function ChatWidgetCore({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId, sessionId]);
 
-  // One-shot manual refetch of any new messages since the last poll — used
+  // One-shot manual refetch of any new messages since the last poll - used
   // right after a voice call ends so the transcript (written server-side by
   // the voice worker) shows up promptly instead of waiting for the next
   // SSE/poll cycle.
@@ -1022,7 +1129,7 @@ export default function ChatWidgetCore({
       setLiveAgent(!!d.ai_paused);
       if (Array.isArray(d.messages) && d.messages.length) {
         lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-        // Same endpoint as pollOnce above — human-agent replies only.
+        // Same endpoint as pollOnce above - human-agent replies only.
         const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content, sender: "human" as const }));
         setMessages((p) => [...p, ...newMsgs]);
         notifyParent();
@@ -1046,7 +1153,7 @@ export default function ChatWidgetCore({
     async function loadBot() {
       if (!botId) return;
       try {
-        // Load config from the backend (service role) — works inside third-party
+        // Load config from the backend (service role) - works inside third-party
         // iframes where the browser Supabase client is blocked by storage partitioning.
         const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}&t=${Date.now()}`);
         if (res.ok) {
@@ -1114,7 +1221,7 @@ export default function ChatWidgetCore({
     }
     loadBot();
     // onWidgetReady intentionally excluded, same reasoning as notifyParent
-    // above — it only needs to fire once per successful/failed load, not
+    // above - it only needs to fire once per successful/failed load, not
     // whenever the caller happens to re-render with a fresh function ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag, paramCsatEnabled, paramColorScheme, paramFont, paramFontSizePercent]);
@@ -1123,7 +1230,7 @@ export default function ChatWidgetCore({
   // Executed inside a sandboxed, srcdoc iframe (allow-scripts only, no
   // allow-same-origin) rather than a bare `new Function` in this
   // component's own realm. `new Function` here would run with full access
-  // to whatever document ChatWidgetCore happens to be mounted into — for
+  // to whatever document ChatWidgetCore happens to be mounted into - for
   // the real /embed/[botId] iframe that's an isolated cross-origin
   // document (fine), but for the React SDK and the widget.js Shadow DOM
   // mount it's the *host app's own* document: a malicious or compromised
@@ -1141,7 +1248,7 @@ export default function ChatWidgetCore({
         const flow = JSON.parse(match[1].trim()) as FlowConfig;
         if (flow && flow.status === "active" && flow.nodes && flow.edges) {
           // Deriving flowConfig from customJs (an external string, not React
-          // state) once per load — not a cascading-render risk.
+          // state) once per load - not a cascading-render risk.
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setFlowConfig(flow);
           const startEdge = flow.edges.find((e) => e.source === "start");
@@ -1159,7 +1266,7 @@ export default function ChatWidgetCore({
             }
           }
         } else {
-          // Flow is paused or removed — clear any existing flow state
+          // Flow is paused or removed - clear any existing flow state
           setFlowConfig(null);
           setActiveNodeId(null);
         }
@@ -1187,7 +1294,7 @@ export default function ChatWidgetCore({
     } catch (err) {
       console.error("Chatty custom JS execution error:", err);
     }
-    // Deliberately scoped to customJs only — flowConfig/messages state derived
+    // Deliberately scoped to customJs only - flowConfig/messages state derived
     // from this external string, and executeFlowNode is a stable closure over
     // the fresh `flow` parsed above, not the outer flowConfig state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1231,7 +1338,7 @@ export default function ChatWidgetCore({
   // Grow the composer with its content (up to max-h-[108px] on the textarea
   // itself, ~4 lines, after which it scrolls). Keyed on inputValue rather
   // than done only in the textarea's own onChange so it also re-measures
-  // after non-typing changes to the value — an emoji insert, or the field
+  // after non-typing changes to the value - an emoji insert, or the field
   // clearing itself back to one line after a message sends.
   useEffect(() => {
     const el = composerRef.current;
@@ -1240,7 +1347,7 @@ export default function ChatWidgetCore({
     el.style.height = `${el.scrollHeight}px`;
   }, [inputValue]);
 
-  // Load the owner's chosen Google Font at runtime — a <link> to Google's
+  // Load the owner's chosen Google Font at runtime - a <link> to Google's
   // own CSS, not next/font/google (which only ever works inside this app's
   // own root layout; the standalone Shadow DOM bundle and third-party
   // iframes never render that layout, so its font-loading mechanism can't
@@ -1328,14 +1435,14 @@ export default function ChatWidgetCore({
             executeFlowNode(targetNode, flowConfig);
             return; // Stay in flow, do not trigger streaming AI response
           } else {
-            // Flow done — fall through to AI below
+            // Flow done - fall through to AI below
             setActiveNodeId(null);
             setFlowAwaitingInput(false);
           }
         }
 
       } else if (!flowAwaitingInput && outgoingEdges.length > 1) {
-        // Message node with labeled choice buttons — don't send to AI, just route
+        // Message node with labeled choice buttons - don't send to AI, just route
         const resolved = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
         const matchedEdge = resolved.find((e) => e._label.toLowerCase() === text.toLowerCase()) || resolved[0];
         const targetNode = flowConfig.nodes.find((n) => n.id === matchedEdge.target);
@@ -1347,7 +1454,7 @@ export default function ChatWidgetCore({
         }
         return; // Don't send to AI for menu choices
       } else if (!flowAwaitingInput && outgoingEdges.length === 0) {
-        // Flow is at terminal node — clear flow, hand off to AI
+        // Flow is at terminal node - clear flow, hand off to AI
         setActiveNodeId(null);
         setFlowAwaitingInput(false);
       }
@@ -1514,7 +1621,7 @@ export default function ChatWidgetCore({
   // rather than the browser's Web Speech API: webkitSpeechRecognition is
   // well known to be unreliable inside cross-origin iframes (unlike
   // getUserMedia, which properly honors the iframe allow="microphone"
-  // attribute) — the widget always runs embedded in one, so client-side
+  // attribute) - the widget always runs embedded in one, so client-side
   // live transcription silently failed for most visitors.
   const toggleRecord = async () => {
     if (recording) {
@@ -1525,7 +1632,7 @@ export default function ChatWidgetCore({
       recordingCancelledRef.current = false;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Live amplitude animation while recording — each bar samples a
+      // Live amplitude animation while recording - each bar samples a
       // distinct slice of the real-time frequency spectrum (not one
       // averaged number replayed across fixed per-bar multipliers), so
       // they genuinely fluctuate independently with the actual audio.
@@ -1538,7 +1645,7 @@ export default function ChatWidgetCore({
       source.connect(analyser);
       audioContextRef.current = audioCtx;
       const freqData = new Uint8Array(analyser.frequencyBinCount);
-      const USABLE_BINS = 64; // lower half of the spectrum — where voice energy actually lives
+      const USABLE_BINS = 64; // lower half of the spectrum - where voice energy actually lives
       const binsPerBar = Math.max(1, Math.floor(USABLE_BINS / RECORD_BAR_COUNT));
       const tick = () => {
         analyser.getByteFrequencyData(freqData);
@@ -1572,7 +1679,7 @@ export default function ChatWidgetCore({
         try {
           wav = await audioBlobToWav(blob);
         } catch {
-          showToast("Couldn't process that recording — try again.", "error");
+          showToast("Couldn't process that recording - try again.", "error");
           return;
         }
 
@@ -1585,7 +1692,7 @@ export default function ChatWidgetCore({
         }
 
         setTranscribing(true);
-        // A cold backend instance can take 20-30s+ to spin up — without a
+        // A cold backend instance can take 20-30s+ to spin up - without a
         // client-side cap, a stalled request left "Transcribing…" spinning
         // indefinitely with no feedback, indistinguishable from a hang.
         const timeoutController = new AbortController();
@@ -1600,17 +1707,17 @@ export default function ChatWidgetCore({
           const body = await res.json().catch(() => ({}));
           const text = (body.text || "").trim();
           if (res.ok && text) {
-            // Land the transcript in the input box — the visitor reviews/
+            // Land the transcript in the input box - the visitor reviews/
             // edits and presses send themselves, same as typing.
             setInputValue((v) => (v ? `${v} ${text}` : text));
           } else {
-            // No speech detected, or transcription failed — fall back to
+            // No speech detected, or transcription failed - fall back to
             // sending the raw audio so the message isn't just lost.
             sendMedia(wav, "voice-message.wav");
           }
         } catch (err) {
           if ((err as Error)?.name === "AbortError") {
-            showToast("Transcription is taking longer than usual — sending your voice message instead.", "error");
+            showToast("Transcription is taking longer than usual - sending your voice message instead.", "error");
           }
           sendMedia(wav, "voice-message.wav");
         } finally {
@@ -1628,7 +1735,7 @@ export default function ChatWidgetCore({
     }
   };
 
-  // Discards the in-progress recording instead of transcribing/sending it —
+  // Discards the in-progress recording instead of transcribing/sending it -
   // stopping is the only event MediaRecorder gives us, so this just flags
   // the take as cancelled for mr.onstop (above) to skip processing.
   const cancelRecording = () => {
@@ -1636,12 +1743,22 @@ export default function ChatWidgetCore({
     mediaRecorderRef.current?.stop();
   };
 
-  // ---- AI search ----
+  // ---- AI search & Knowledge Base ----
   const runSearch = async (q: string) => {
     if (!q.trim() || searching) return;
     setSearching(true);
     setSearchAnswer(null);
+    setSearchKbResults([]);
     try {
+      // 1. Search knowledge base articles
+      fetch(`${BACKEND_URL}/api/widget/kb/search?bot_id=${encodeURIComponent(String(botId))}&q=${encodeURIComponent(q)}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (d?.articles) setSearchKbResults(d.articles);
+        })
+        .catch(() => {});
+
+      // 2. Query AI assistant
       const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST", headers: { "Content-Type": "application/json", ...widgetTokenHeader },
         body: JSON.stringify({ bot_id: botId, session_id: `${sessionId}-search`, text: q, visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, host: getHost() }),
@@ -1682,13 +1799,13 @@ export default function ChatWidgetCore({
   // injected the same way the box-shadow strip above already is. #chatty-root
   // gives them ID-level specificity so they win regardless of which design
   // preset is active. buildColorSchemeCss validates hex values before
-  // interpolating them — not a security boundary (custom_css already lets
+  // interpolating them - not a security boundary (custom_css already lets
   // the bot owner inject arbitrary CSS here), just guarding against a
   // malformed stored value breaking the whole stylesheet.
   const colorSchemeCss = buildColorSchemeCss(colorScheme, "#chatty-root");
   // Same reasoning as colorSchemeCss above: each preset's own font-family
   // rule in widget-presets.css is !important, so only an equally-specific
-  // injected !important rule can override it — a plain inline style
+  // injected !important rule can override it - a plain inline style
   // attribute never would. Restricted to letters/digits/spaces/hyphen
   // (every real Google Font name fits that), not a security boundary
   // (custom_css already lets the owner inject arbitrary CSS) so much as a
@@ -1712,7 +1829,7 @@ export default function ChatWidgetCore({
       <style dangerouslySetInnerHTML={{ __html: `
         ${ownsDocument ? `
         /* html/body targeting only applies when this document is a real
-           /embed iframe we fully own (see ownsDocument above) — as a plain
+           /embed iframe we fully own (see ownsDocument above) - as a plain
            <style> tag it is NOT scoped to #chatty-root, so on the React SDK's
            direct host-page mount this used to force overflow:hidden and
            animation:none onto the *host app's* own html/body. Inside a
@@ -1726,7 +1843,7 @@ export default function ChatWidgetCore({
           animation: none !important;
           overflow: hidden !important;
           /* The root layout's "antialiased" Tailwind class (-webkit-font-smoothing:
-             antialiased) applies globally, including here — it's a Mac-oriented
+             antialiased) applies globally, including here - it's a Mac-oriented
              hint that thins glyphs toward macOS's grayscale AA look. On Windows
              Chrome it overrides the OS's own ClearType subpixel rendering, which
              is tuned for Windows displays, making small chat text read noticeably
@@ -1739,16 +1856,16 @@ export default function ChatWidgetCore({
         }` : ""}
         /* Strip only box-shadow inside the iframe: the container fills the iframe
            edge-to-edge with zero margin, so any shadow has no room to render and
-           gets hard-clipped by the iframe's own overflow:hidden (ugly) — this is
+           gets hard-clipped by the iframe's own overflow:hidden (ugly) - this is
            an iframe limitation, not a CSS bug, since content can never bleed past
            an iframe's own rectangle. Each design's border and border-radius are
-           safe to keep — a border draws flush at the box edge with zero bleed, and
+           safe to keep - a border draws flush at the box edge with zero bleed, and
            the outer host (widget.js, page.tsx) now applies no radius/border/shadow
            of its own, so there's no double-corner artifact either. This keeps each
            design's signature frame (e.g. Luxury Editorial's gold border,
            Neubrutalism's thick black border) visible on the live widget instead of
            only in previews. Restoring the shadow too would require insetting this
-           panel inside a larger host box to give it room — deliberately not done,
+           panel inside a larger host box to give it room - deliberately not done,
            to keep the full iframe as usable chat area. */
         .style-minimal,
         .style-playful,
@@ -1765,14 +1882,20 @@ export default function ChatWidgetCore({
         ${colorSchemeCss}
         ${fontFamilyCss}
       ` }} />
-      {customCss && <style dangerouslySetInnerHTML={{ __html: customCss }} />}
+      {customCss && (
+        <style
+          dangerouslySetInnerHTML={{
+            __html: customCss.replace(/<\/style/gi, '<\\/style').replace(/<script/gi, '<\\/script'),
+          }}
+        />
+      )}
       {/* Text-size scaling lives on this inner wrapper, not #chatty-root
-          itself — #chatty-root's own w-full/h-full defines the widget's
+          itself - #chatty-root's own w-full/h-full defines the widget's
           real footprint (the iframe/host container it's actually given).
           Compensating the wrapper's size has to be done in real PIXELS
           (containerSize, from the ResizeObserver above), not percentages:
-          `width: 76.9%; zoom: 130%` still lays out — and reports via
-          getBoundingClientRect — as literally 76.9% of the parent's real
+          `width: 76.9%; zoom: 130%` still lays out - and reports via
+          getBoundingClientRect - as literally 76.9% of the parent's real
           size, not 100%; zoom does not scale how a *percentage* resolves.
           Pixel lengths behave differently: `width: 292px; zoom: 130%` DOES
           render as 380px (292 × 1.3). So this only compensates once
@@ -1789,6 +1912,22 @@ export default function ChatWidgetCore({
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
+          {tab !== "home" && (
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.85 }}
+              onClick={() => {
+                if (activeArticle) setActiveArticle(null);
+                else setTab("home");
+              }}
+              className="p-1 -ml-1 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
+              style={{ opacity: 0.9 }}
+              aria-label="Back to home"
+              title="Back"
+            >
+              <ArrowLeft className="size-4" />
+            </motion.button>
+          )}
           <div
             className="size-11 rounded-full flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
             style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: "color-mix(in srgb, currentColor 25%, transparent)" }}
@@ -1826,11 +1965,11 @@ export default function ChatWidgetCore({
               !pushGranted
                 ? "Enable browser notifications"
                 : pushMuted
-                  ? "Notifications muted — tap to unmute"
-                  : "Browser notifications enabled — tap to mute"
+                  ? "Notifications muted - tap to unmute"
+                  : "Browser notifications enabled - tap to mute"
             }
           >
-            {/* "Granted" state shown via a solid fill, not a fixed color — a
+            {/* "Granted" state shown via a solid fill, not a fixed color - a
                 hardcoded amber here was nearly invisible against presets
                 with a yellow header (e.g. Neubrutalism's #ffde59). Filling
                 with currentColor keeps it legible against every preset.
@@ -1878,7 +2017,7 @@ export default function ChatWidgetCore({
           // `dark:` variant tracks whichever style preset is actually
           // active, but presets can be dark on their own (dark-sleek etc,
           // no `.dark` ancestor needed) or light, independent of the
-          // visitor's OS color scheme — so a fixed `text-neutral-800
+          // visitor's OS color scheme - so a fixed `text-neutral-800
           // dark:text-neutral-200` pairs correctly with the active preset
           // only by coincidence. currentColor already IS the active
           // preset's own forced text color at this point in the tree
@@ -2000,21 +2139,74 @@ export default function ChatWidgetCore({
                   <h3 className="text-sm font-bold flex items-center gap-1.5"><Sparkles className="size-4" style={{ color: primaryColor }} />Hi there 👋</h3>
                   <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{welcomeMsg}</p>
                 </div>
-                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-                  <span className="flex items-center gap-2 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
-                  <ChevronRight className="size-4 text-neutral-400" />
+
+                {/* Instant Search Bar (Crisp Style) */}
+                <div className="relative">
+                  <Search className="size-3.5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={articleFilterQuery}
+                    onChange={(e) => {
+                      setArticleFilterQuery(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setTab("articles");
+                    }}
+                    placeholder="Search for answers and guides..."
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl pl-9 pr-4 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50 shadow-xs"
+                  />
+                </div>
+
+                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
+                  <span className="flex items-center gap-2.5 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
+                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-                <button onClick={() => setShowOfflineForm(true)} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-                  <span className="flex items-center gap-2 text-xs font-semibold"><Mail className="size-4" style={{ color: primaryColor }} />Leave us a message</span>
-                  <ChevronRight className="size-4 text-neutral-400" />
+                <button onClick={() => setShowOfflineForm(true)} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
+                  <span className="flex items-center gap-2.5 text-xs font-semibold"><Mail className="size-4" style={{ color: primaryColor }} />Leave us a message</span>
+                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-                <button onClick={() => setTab("articles")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-                  <span className="flex items-center gap-2 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
-                  <ChevronRight className="size-4 text-neutral-400" />
+
+                {/* Featured Help Articles Section (Crisp Style) */}
+                {kbArticles.length > 0 && (
+                  <div className="p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+                        <BookOpen className="size-3.5" style={{ color: primaryColor }} />Help articles
+                      </span>
+                      <button
+                        onClick={() => setTab("articles")}
+                        className="text-[10px] font-bold text-[#f97316] hover:underline cursor-pointer"
+                      >
+                        View all ({kbArticles.length})
+                      </button>
+                    </div>
+                    <div className="divide-y divide-neutral-100 dark:divide-neutral-850">
+                      {(kbPromoted.length > 0 ? kbPromoted.slice(0, 3) : kbArticles.slice(0, 3)).map((art) => (
+                        <button
+                          key={art.id}
+                          onClick={() => {
+                            openKbArticle(art);
+                            setTab("articles");
+                          }}
+                          className="w-full flex items-center justify-between py-2 text-left group cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                          <span className="text-xs text-neutral-700 dark:text-neutral-300 font-medium truncate pr-2 group-hover:text-[#f97316]">
+                            {art.title}
+                          </span>
+                          <ChevronRight className="size-3 text-neutral-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={() => setTab("articles")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
+                  <span className="flex items-center gap-2.5 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
+                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-                <button onClick={() => setTab("search")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left">
-                  <span className="flex items-center gap-2 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Search for answers</span>
-                  <ChevronRight className="size-4 text-neutral-400" />
+                <button onClick={() => setTab("search")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
+                  <span className="flex items-center gap-2.5 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Ask AI assistant</span>
+                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
             )}
@@ -2034,13 +2226,13 @@ export default function ChatWidgetCore({
                         </span>
                       )}
                       {/* .user-bubble's background/color come entirely from the
-                          design preset's own CSS (globals.css, !important) — an
+                          design preset's own CSS (globals.css, !important) - an
                           inline style here computed from primaryColor would be
                           silently overridden for the background but NOT
                           recomputed for the text color, producing the same
                           invisible-text bug the header had. */}
                       <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
-                        {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL — neither works with next/image's optimizer */}
+                        {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL - neither works with next/image's optimizer */}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                         {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
@@ -2099,7 +2291,7 @@ export default function ChatWidgetCore({
                 {flowConfig && activeNodeId && !isBotResponding && !flowAwaitingInput && (
                   (() => {
                     const activeNode = flowConfig.nodes.find((n) => n.id === activeNodeId);
-                    // Never show buttons on question nodes — user must type their answer
+                    // Never show buttons on question nodes - user must type their answer
                     if (isQuestionNode(activeNode)) return null;
                     const outgoingEdges = flowConfig.edges.filter((e) => e.source === activeNodeId);
                     const resolvedEdges = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
@@ -2127,29 +2319,209 @@ export default function ChatWidgetCore({
               </div>
             )}
 
-            {/* ARTICLES */}
+            {/* ARTICLES (Crisp Style In-Widget Help Center) */}
             {tab === "articles" && (
-              <div className="p-4">
-                {openArticle ? (
-                  <div>
-                    <button onClick={() => setOpenArticle(null)} className="flex items-center gap-1 text-[11px] font-semibold text-neutral-500 mb-3"><ArrowLeft className="size-3.5" />All articles</button>
-                    <h3 className="text-sm font-bold mb-2">{openArticle.name}</h3>
-                    <div className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap">{openArticle.content}</div>
-                  </div>
-                ) : sources.length === 0 ? (
-                  <div className="text-center py-10"><FileText className="size-8 text-neutral-300 mx-auto" /><p className="text-xs text-neutral-400 mt-2">No articles yet.</p></div>
-                ) : (
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-400 mb-1">Help articles</h3>
-                    {sources.map((s) => (
-                      <button key={s.id} onClick={() => setOpenArticle(s)} className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 text-left">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold truncate">{s.name}</p>
-                          <p className="text-[10px] text-neutral-400 truncate">{s.content.slice(0, 60)}</p>
+              <div className="p-4 space-y-3">
+                {activeArticle ? (
+                  /* ── In-Widget Article Reader ── */
+                  <div className="space-y-3 animate-in fade-in duration-150">
+                    <button
+                      onClick={() => setActiveArticle(null)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+                    >
+                      <ArrowLeft className="size-3.5" />
+                      Back to help articles
+                    </button>
+
+                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-sm space-y-3">
+                      {activeArticle.category && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                          {activeArticle.category.name}
+                        </span>
+                      )}
+                      <h2 className="text-base font-bold text-neutral-900 dark:text-white leading-snug">
+                        {activeArticle.title}
+                      </h2>
+                      {activeArticle.subtitle && (
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                          {activeArticle.subtitle}
+                        </p>
+                      )}
+
+                      <div className="border-t border-neutral-100 dark:border-neutral-850 pt-3">
+                        {loadingArticleDetail ? (
+                          <div className="flex items-center gap-2 py-8 justify-center text-neutral-400 text-xs">
+                            <Loader2 className="size-4 animate-spin" /> Loading article content...
+                          </div>
+                        ) : (
+                          <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed space-y-2 prose prose-xs dark:prose-invert max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                              {activeArticle.content || activeArticle.subtitle || "No additional content."}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CSAT Article Rating */}
+                      <div className="border-t border-neutral-100 dark:border-neutral-850 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                          Was this article helpful?
+                        </span>
+                        {articleFeedbackGiven[activeArticle.id] ? (
+                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <Check className="size-3" /> Thank you for your feedback!
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => rateArticleFeedback(activeArticle.id, true)}
+                              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <ThumbsUp className="size-3 text-emerald-500" /> Yes
+                            </button>
+                            <button
+                              onClick={() => rateArticleFeedback(activeArticle.id, false)}
+                              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <ThumbsDown className="size-3 text-red-500" /> No
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Escalation to Chat Action */}
+                      <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 flex items-center justify-between gap-2">
+                        <div className="text-[11px]">
+                          <span className="font-semibold text-neutral-900 dark:text-white block">Still need help?</span>
+                          <span className="text-neutral-400 text-[10px]">Chat directly with our support team</span>
                         </div>
-                        <ChevronRight className="size-4 text-neutral-400 shrink-0" />
-                      </button>
-                    ))}
+                        <button
+                          onClick={() => askAboutArticle(activeArticle)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                          style={{ background: primaryColor }}
+                        >
+                          Chat with us
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Articles List & Category Filters ── */
+                  <div className="space-y-3">
+                    {/* Search Bar */}
+                    <div className="relative">
+                      <Search className="size-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={articleFilterQuery}
+                        onChange={(e) => setArticleFilterQuery(e.target.value)}
+                        placeholder="Search help articles..."
+                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-8.5 pr-8 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50 shadow-xs"
+                      />
+                      {articleFilterQuery && (
+                        <button
+                          onClick={() => setArticleFilterQuery("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Category Filter Pills */}
+                    {kbCategories.length > 0 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[10px] font-semibold">
+                        <button
+                          onClick={() => setSelectedKbCat("all")}
+                          className={`px-2.5 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer ${
+                            selectedKbCat === "all"
+                              ? "bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-bold"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                          }`}
+                        >
+                          All ({kbArticles.length})
+                        </button>
+                        {kbCategories.map((c) => (
+                          <button
+                            key={c.id}
+                            onClick={() => setSelectedKbCat(c.id)}
+                            className={`px-2.5 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer ${
+                              selectedKbCat === c.id
+                                ? "bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-bold"
+                                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                            }`}
+                          >
+                            {c.name} {c.article_count ? `(${c.article_count})` : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Articles Feed */}
+                    {kbLoading ? (
+                      <div className="py-12 flex flex-col items-center justify-center text-xs text-neutral-400 space-y-2">
+                        <Loader2 className="size-5 animate-spin" />
+                        <p>Loading help center...</p>
+                      </div>
+                    ) : (() => {
+                      const filtered = kbArticles.filter((a) => {
+                        if (selectedKbCat !== "all" && a.category_id !== selectedKbCat) {
+                          return false;
+                        }
+                        if (articleFilterQuery.trim()) {
+                          const q = articleFilterQuery.toLowerCase();
+                          const matchTitle = a.title.toLowerCase().includes(q);
+                          const matchSub = (a.subtitle || "").toLowerCase().includes(q);
+                          const matchTags = (a.tags || []).some((t) => t.toLowerCase().includes(q));
+                          return matchTitle || matchSub || matchTags;
+                        }
+                        return true;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="text-center py-10 space-y-2">
+                            <FileText className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
+                            <p className="text-xs text-neutral-500 font-medium">
+                              {articleFilterQuery ? `No articles matching "${articleFilterQuery}"` : "No help articles found."}
+                            </p>
+                            <button
+                              onClick={() => {
+                                setTab("messages");
+                                if (articleFilterQuery) setInputValue(articleFilterQuery);
+                              }}
+                              className="text-xs font-bold text-[#f97316] hover:underline cursor-pointer"
+                            >
+                              Ask our team directly →
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-2">
+                          {filtered.map((a) => (
+                            <button
+                              key={a.id}
+                              onClick={() => openKbArticle(a)}
+                              className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors text-left group cursor-pointer shadow-2xs"
+                            >
+                              <div className="min-w-0 flex-1 pr-2">
+                                <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-[#f97316] transition-colors truncate">
+                                  {a.title}
+                                </p>
+                                {a.subtitle && (
+                                  <p className="text-[11px] text-neutral-400 line-clamp-1 mt-0.5">
+                                    {a.subtitle}
+                                  </p>
+                                )}
+                              </div>
+                              <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -2157,7 +2529,7 @@ export default function ChatWidgetCore({
 
             {/* SEARCH */}
             {tab === "search" && (
-              <div className="p-4">
+              <div className="p-4 space-y-3">
                 <form onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery); }} className="relative">
                   <Search className="size-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search our help center…"
@@ -2170,7 +2542,30 @@ export default function ChatWidgetCore({
                     <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{searchAnswer}</ReactMarkdown>
                     </div>
-                    <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg" style={{ background: primaryColor, color: onPrimary }}>Still have questions? Message us</button>
+                    <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: primaryColor, color: onPrimary }}>Still have questions? Message us</button>
+                  </div>
+                )}
+                {/* Related Help Center Articles */}
+                {searchKbResults.length > 0 && !searching && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      Relevant Help Articles
+                    </p>
+                    {searchKbResults.slice(0, 3).map((art) => (
+                      <button
+                        key={art.id}
+                        onClick={() => {
+                          openKbArticle(art);
+                          setTab("articles");
+                        }}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 text-left group cursor-pointer"
+                      >
+                        <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200 group-hover:text-[#f97316] truncate">
+                          {art.title}
+                        </span>
+                        <ChevronRight className="size-3.5 text-neutral-400 shrink-0" />
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -2190,12 +2585,12 @@ export default function ChatWidgetCore({
                 animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
                 exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
                 transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                // Height was `min(64vh, 440px)` — sized against the *browser
+                // Height was `min(64vh, 440px)` - sized against the *browser
                 // viewport*, not this panel. Fine for a real iframe/full-page
                 // embed (roughly viewport-sized already), but the standalone
                 // floating widget's panel is a fixed ~560px regardless of how
                 // tall the host page's viewport is, so on any normal-height
-                // page 440px left only ~30-40px above it for the header —
+                // page 440px left only ~30-40px above it for the header -
                 // just enough to graze/tuck behind it (reported bug). Caps
                 // tightened to fit that fixed panel with real margin to
                 // spare; isFullscreen (mobile/iframe, panel ≈ viewport-sized)
@@ -2302,7 +2697,7 @@ export default function ChatWidgetCore({
                 {pendingFiles.map((pf, idx) => (
                   <div key={idx} className="relative group">
                     {pf.file.type.startsWith("image/") ? (
-                      // pf.preview is a local blob: URL (URL.createObjectURL) — next/image can't optimize it
+                      // pf.preview is a local blob: URL (URL.createObjectURL) - next/image can't optimize it
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={pf.preview} alt="preview" className="h-14 w-14 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700" />
                     ) : (
@@ -2333,7 +2728,7 @@ export default function ChatWidgetCore({
               onKeyDown={(e) => {
                 // Enter sends (matching the old <input>'s default form-submit
                 // behavior); Shift+Enter inserts a real newline instead, which
-                // a plain <input> can never do — this is the whole reason for
+                // a plain <input> can never do - this is the whole reason for
                 // switching to a <textarea>. requestSubmit() (not a manual
                 // sendText() call here) so this stays wired to the exact same
                 // submit handler as clicking the send button, pendingFiles
@@ -2370,19 +2765,57 @@ export default function ChatWidgetCore({
             </>
             )}
           </form>
-          {!isOfficialWebsite && !hideBranding && (
-            <div className="text-center pt-2 pb-0.5 text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide">
-              Powered by{" "}
-              <a
-                href="https://chatty.personaliai.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
+        </div>
+      )}
+
+      {/* ── Crisp-style persistent bottom tab nav bar ── */}
+      {!voiceCallOpen && !showCsat && !showOfflineForm && (
+        <div className="border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch shrink-0 relative">
+          {(
+            [
+              { id: "home",     label: "Home",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+              { id: "messages", label: "Chat",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+              { id: "articles", label: "Articles", icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
+              { id: "search",   label: "Search",   icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> },
+            ] as { id: Tab; label: string; icon: React.ReactNode }[]
+          ).map(({ id, label, icon }) => {
+            const isActive = tab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setActiveArticle(null);
+                  setTab(id);
+                }}
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative"
+                style={isActive ? { color: primaryColor } : undefined}
               >
-                Chatty
-              </a>
-            </div>
-          )}
+                <span style={isActive ? undefined : { opacity: 0.4 }}>{icon}</span>
+                <span style={isActive ? undefined : { opacity: 0.4 }}>{label}</span>
+                {isActive && (
+                  <span
+                    className="absolute top-0 left-3 right-3 h-[2px] rounded-b-full"
+                    style={{ backgroundColor: primaryColor }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {!isOfficialWebsite && !hideBranding && (
+        <div className="text-center pt-1 pb-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50">
+          Powered by{" "}
+          <a
+            href="https://chatty.personaliai.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
+          >
+            Chatty
+          </a>
         </div>
       )}
 
@@ -2400,7 +2833,7 @@ export default function ChatWidgetCore({
           )}
           <span className="flex-1 truncate">{toast.message}</span>
           {/* p-1.5 -m-1.5: same "pad the tap target, not the icon" fix as
-              the teaser bubble's dismiss button — this one had zero padding
+              the teaser bubble's dismiss button - this one had zero padding
               at all, so its clickable area was exactly the bare 12px icon
               (size-3), easy to miss on a real click even aiming right at
               it. Negative margin keeps the toast's own visual padding/

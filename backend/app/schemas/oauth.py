@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class ClientRegistrationRequest(BaseModel):
-    """RFC 7591 Dynamic Client Registration — the subset MCP clients (e.g.
+    """RFC 7591 Dynamic Client Registration - the subset MCP clients (e.g.
     Claude Desktop) actually send. Unrecognized fields are accepted and
     ignored rather than rejected, per the RFC's own extensibility guidance."""
     client_name: str

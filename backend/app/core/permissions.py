@@ -3,7 +3,7 @@
 A `chatty_team_members` row's `role` ('admin' | 'agent') sets the DEFAULT
 permission set on invite; `permissions` is the actual, editable source of
 truth an owner/admin can adjust per member afterward. The owner always has
-every permission implicitly — there's no chatty_team_members row for the
+every permission implicitly - there's no chatty_team_members row for the
 owner, so checks short-circuit on bot ownership first.
 """
 
@@ -24,7 +24,7 @@ ALL_TABS = ("inbox", "sources", "design", "settings", "voice", "team", "meetings
 # roster but can't hand out billing/API-key/webhook access).
 OWNER_ONLY_TABS = frozenset({"billing", "byok", "webhooks"})
 
-# 'meetings' is deliberately NOT in an agent's default set — an agent only
+# 'meetings' is deliberately NOT in an agent's default set - an agent only
 # gets visibility once they're actually bookable/assigned meetings exist for
 # them (see plugins/availability_engine.py's round-robin); an admin manages
 # scheduling for the whole team by default, same as the other admin tabs.
@@ -51,7 +51,7 @@ async def get_bot_role_and_permissions(bot_id: str, user: dict[str, Any]) -> tup
     email = (user.get("email") or "").strip().lower()
     if email:
         m = await run_db(lambda: supabase.table("chatty_team_members").select("role, permissions").eq(
-            "bot_id", bot_id).eq("email", email).limit(1).execute())
+            "bot_id", bot_id).ilike("email", email).limit(1).execute())
         if m.data:
             row = m.data[0]
             return row.get("role") or "agent", list(row.get("permissions") or [])

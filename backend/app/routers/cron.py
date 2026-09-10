@@ -3,7 +3,7 @@ group (/cron/purge-old-conversations, /cron/process-webhook-retries,
 /cron/detect-ended-sessions). Protected by FUNCTION_SECRET, same convention
 as the other /cron/* routes scattered across the other router modules.
 
-The secret travels as an X-Function-Secret header, not a query param — query
+The secret travels as an X-Function-Secret header, not a query param - query
 strings end up in access logs, proxy logs, and browser history verbatim.
 """
 

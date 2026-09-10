@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Mirrors a commit range from backend-service (root-level layout) onto
 # personaliai-main (backend/ monorepo layout), verifies it, commits, and
-# pushes to PersonaliAI/chatty — replacing the manual diff+sed+apply dance
+# pushes to PersonaliAI/chatty - replacing the manual diff+sed+apply dance
 # documented in AGENTS.md with one command.
 #
 # Usage:
 #   scripts/mirror-to-personaliai.sh [<commit-range>]
 #
 # <commit-range> defaults to HEAD~1..HEAD (the last commit). Pass an
-# explicit range (e.g. abc123..HEAD) to mirror several commits at once —
+# explicit range (e.g. abc123..HEAD) to mirror several commits at once -
 # they'll land as a single squashed commit on personaliai-main, since the
 # two branches' histories are unrelated anyway and don't need a 1:1 commit
 # mapping.
@@ -22,12 +22,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+PYTHON_BIN="$(command -v python3 || command -v python)"
+
 RANGE="${1:-HEAD~1..HEAD}"
 TMP_DIFF="$(mktemp)"
 trap 'rm -f "$TMP_DIFF"' EXIT
 
 if [[ -n "$(git status --porcelain)" ]]; then
-  echo "error: working tree is dirty on $(git branch --show-current) — commit or stash first." >&2
+  echo "error: working tree is dirty on $(git branch --show-current) - commit or stash first." >&2
   exit 1
 fi
 
@@ -37,7 +39,7 @@ if [[ "$CURRENT_BRANCH" != "backend-service" ]]; then
   exit 1
 fi
 
-# Captured now, while still on backend-service — resolving this after the
+# Captured now, while still on backend-service - resolving this after the
 # `git checkout personaliai-main` below would resolve "HEAD" (or any other
 # backend-service-relative ref in $RANGE) against personaliai-main instead,
 # silently reusing whatever commit message personaliai-main's HEAD already
@@ -56,10 +58,10 @@ fi
 
 # Path rewrite: every top-level dir/file that exists at repo root here moves
 # under backend/ on personaliai-main. Add new entries here if the root-level
-# layout ever grows a new top-level path. Done in Python, not sed — git's
+# layout ever grows a new top-level path. Done in Python, not sed - git's
 # "diff --git a/X b/X" line puts both paths on one line, which a
 # line-oriented sed substitution can't rewrite independently and correctly.
-python - "$TMP_DIFF" <<'PYEOF'
+"$PYTHON_BIN" - "$TMP_DIFF" <<'PYEOF'
 import re, sys
 path = sys.argv[1]
 MIRRORED_PREFIXES = (
@@ -99,11 +101,11 @@ echo "==> Switching to personaliai-main"
 git checkout personaliai-main
 
 # Clean up untracked leftovers from the backend-service layout switch (a
-# known gotcha — see AGENTS.md).
+# known gotcha - see AGENTS.md).
 git clean -fdx -- app plugins tests __pycache__ frontend >/dev/null 2>&1 || true
 
 if [[ -n "$(git status --porcelain)" ]]; then
-  echo "error: personaliai-main working tree is dirty — aborting before it gets touched." >&2
+  echo "error: personaliai-main working tree is dirty - aborting before it gets touched." >&2
   git checkout backend-service
   exit 1
 fi
@@ -118,8 +120,8 @@ fi
 git apply "$TMP_DIFF"
 
 echo "==> Verifying: compile-check + pytest"
-python -m compileall -q backend/main.py backend/app backend/plugins
-(cd backend && python -m pytest tests/ -q)
+"$PYTHON_BIN" -m compileall -q backend/main.py backend/app backend/plugins
+(cd backend && "$PYTHON_BIN" -m pytest tests/ -q)
 
 echo "==> Committing"
 git add -A -- backend/

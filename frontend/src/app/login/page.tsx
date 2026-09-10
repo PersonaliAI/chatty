@@ -48,7 +48,7 @@ function LoginPageInner() {
       setError(humanizeAuthError(error.message));
       return;
     }
-    // Successful — let middleware route us. We trigger a hard navigation so
+    // Successful - let middleware route us. We trigger a hard navigation so
     // the layout + server components re-fetch the new session.
     window.location.href = dest;
   }
@@ -199,7 +199,7 @@ function humanizeAuthError(msg: string): string {
     return "Wrong email or password. Try again or reset your password.";
   }
   if (m.includes("email not confirmed")) {
-    return "Please verify your email first — check your inbox for the confirmation link.";
+    return "Please verify your email first - check your inbox for the confirmation link.";
   }
   if (m.includes("rate limit")) {
     return "Too many attempts. Wait a minute, then try again.";

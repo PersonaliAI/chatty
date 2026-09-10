@@ -18,7 +18,7 @@ from app.core.config import ALLOWED_ORIGINS, SENTRY_DSN, SENTRY_ENV, SENTRY_TRAC
 logger = logging.getLogger("chatty")
 
 _API_DESCRIPTION = """
-## Chatty Public API — v1
+## Chatty Public API - v1
 
 Build custom integrations on top of your Chatty bots.
 
@@ -35,7 +35,7 @@ which endpoints they can call:
 
 | Scope   | Grants access to |
 |---------|-----------------|
-| `chat`  | `POST /api/v1/chat` — send messages |
+| `chat`  | `POST /api/v1/chat` - send messages |
 | `read`  | leads, conversations, analytics, knowledge list, usage stats |
 | `write` | add / delete knowledge sources, clear conversation sessions |
 | `admin` | all scopes combined |
@@ -63,51 +63,51 @@ a new version prefix.
 
 _OPENAPI_TAGS = [
     {
-        "name": "Public API — Chat",
+        "name": "Public API - Chat",
         "description": "Send messages to your bot programmatically.",
     },
     {
-        "name": "Public API — Bot",
+        "name": "Public API - Bot",
         "description": "Read public metadata about the bot tied to your API key.",
     },
     {
-        "name": "Public API — Leads",
+        "name": "Public API - Leads",
         "description": "Access leads captured by the bot.",
     },
     {
-        "name": "Public API — Conversations",
+        "name": "Public API - Conversations",
         "description": "Browse and manage conversation sessions.",
     },
     {
-        "name": "Public API — Knowledge",
+        "name": "Public API - Knowledge",
         "description": "Add and manage knowledge sources for the bot (requires `write` scope).",
     },
     {
-        "name": "Public API — Analytics",
+        "name": "Public API - Analytics",
         "description": "Usage and performance statistics for the bot.",
     },
     {
-        "name": "Public API — Usage",
+        "name": "Public API - Usage",
         "description": "API key usage statistics.",
     },
     {
-        "name": "Dashboard — Bots",
+        "name": "Dashboard - Bots",
         "description": "Bot management endpoints (Supabase session auth).",
     },
     {
-        "name": "Dashboard — Inbox",
+        "name": "Dashboard - Inbox",
         "description": "Inbox / human handoff management (Supabase session auth).",
     },
     {
-        "name": "Dashboard — Knowledge Base",
+        "name": "Dashboard - Knowledge Base",
         "description": "Crawl and source management (Supabase session auth).",
     },
     {
-        "name": "Dashboard — API Keys",
+        "name": "Dashboard - API Keys",
         "description": "Create, list, and revoke API keys (Supabase session auth).",
     },
     {
-        "name": "Dashboard — Integrations",
+        "name": "Dashboard - Integrations",
         "description": "Google / Microsoft OAuth and integration management (Supabase session auth).",
     },
     {
@@ -116,7 +116,7 @@ _OPENAPI_TAGS = [
     },
     {
         "name": "Cron",
-        "description": "Internal cron endpoints — called by Cloud Scheduler, protected by FUNCTION_SECRET.",
+        "description": "Internal cron endpoints - called by Cloud Scheduler, protected by FUNCTION_SECRET.",
     },
     {
         "name": "Health",
@@ -139,7 +139,7 @@ def _init_sentry() -> None:
         )
         logger.info("Sentry error monitoring enabled")
     except Exception:  # noqa: BLE001
-        logger.exception("Sentry init failed — continuing without it")
+        logger.exception("Sentry init failed - continuing without it")
 
 
 def create_app() -> FastAPI:
@@ -179,7 +179,7 @@ def create_app() -> FastAPI:
     async def _widget_open_cors(request: _StarletteRequest, call_next):
         """Public widget endpoints are embedded on ANY customer domain, so they
         can't use the fixed origin allowlist. Reflect the request Origin (no
-        credentials) for /api/widget/* — widget.js fetches these from the host page."""
+        credentials) for /api/widget/* - widget.js fetches these from the host page."""
         if request.url.path.startswith("/api/widget/"):
             origin = request.headers.get("origin", "*")
             if request.method == "OPTIONS":
@@ -196,14 +196,14 @@ def create_app() -> FastAPI:
             return resp
         return await call_next(request)
 
-    # Global exception handler — ensure CORS headers are present on 500 responses.
+    # Global exception handler - ensure CORS headers are present on 500 responses.
     # Starlette's CORSMiddleware only wraps SUCCESSFUL responses by default; when
     # an unhandled exception escapes, the response has no CORS headers and the
     # browser reports "blocked by CORS policy" hiding the real 500.
     @app.exception_handler(Exception)
     async def _global_exception_handler(request: _StarletteRequest, exc: Exception):
         # Full details (exception type, message, traceback) go to server-side
-        # logging (and Sentry, if configured — it auto-captures unhandled
+        # logging (and Sentry, if configured - it auto-captures unhandled
         # exceptions once sentry_sdk.init() has run). Only a generic message
         # plus the request ID go back over the wire: the detailed text used
         # to be echoed straight into the HTTP response body, which could leak

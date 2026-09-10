@@ -30,7 +30,7 @@ logger = logging.getLogger("chatty")
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# Google OAuth — Calendar + Gmail read-only
+# Google OAuth - Calendar + Gmail read-only
 # ---------------------------------------------------------------------------
 
 
@@ -52,7 +52,7 @@ def _mint_state(
 
 
 def _decode_state_claim(state: str, key: str) -> Optional[str]:
-    """Reads one extra (non-standard) claim out of an OAuth state JWT — used
+    """Reads one extra (non-standard) claim out of an OAuth state JWT - used
     for PKCE's code_verifier, which has to survive the redirect round-trip
     statelessly."""
     try:
@@ -77,7 +77,7 @@ def _decode_state(state: str) -> tuple[Optional[str], str, str, str]:
 
 
 # Pro/Executive can connect this many EXTRA Google accounts on top of their
-# primary one (real version of the old "up to 3 connected accounts" claim —
+# primary one (real version of the old "up to 3 connected accounts" claim -
 # see kin_connected_accounts migration).
 MAX_EXTRA_GOOGLE_ACCOUNTS: dict[str, int] = {"pro": 2, "executive": 2}
 
@@ -115,9 +115,9 @@ async def google_start(
         redirect_path = "/dashboard" if is_chatty else "/dashboard/integrations"
     state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=redirect_path, mode=mode)
     # g.auth_url already sets prompt=consent, so Google always reissues a
-    # refresh token here — needed so "add another account" doesn't end up
+    # refresh token here - needed so "add another account" doesn't end up
     # depending on a token minted for a different connection.
-    # Chatty only uses Calendar/Meet/Drive — asking for Kin's full bundle
+    # Chatty only uses Calendar/Meet/Drive - asking for Kin's full bundle
     # (Gmail, Tasks, Contacts, Docs, Sheets, Slides) put unrelated
     # permissions on Chatty customers' consent screens for no reason.
     scopes = g.CHATTY_SCOPES if is_chatty else None
@@ -270,7 +270,7 @@ async def calendar_events(user: dict[str, Any] = Depends(require_user)):
 
 
 # ---------------------------------------------------------------------------
-# Microsoft 365 — OAuth flow + integration endpoints
+# Microsoft 365 - OAuth flow + integration endpoints
 # ---------------------------------------------------------------------------
 
 

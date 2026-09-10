@@ -9,14 +9,14 @@ create table if not exists chatty_oauth_clients (
     id                  uuid primary key default gen_random_uuid(),
     client_id           text not null unique,
     -- Public clients (desktop/CLI MCP clients using PKCE, e.g. Claude
-    -- Desktop) register with no secret — null here, PKCE is mandatory for
+    -- Desktop) register with no secret - null here, PKCE is mandatory for
     -- them instead. Confidential clients (server-side apps) get a hashed
     -- secret, never stored/returned in plaintext after creation.
     client_secret_hash  text,
     is_confidential     boolean not null default false,
     client_name         text not null,
     redirect_uris       text[] not null,
-    -- RFC 7591 registration_client_uri/registration_access_token support —
+    -- RFC 7591 registration_client_uri/registration_access_token support -
     -- lets a client that dynamically registered itself later read back its
     -- own registration. Nullable: clients created any other way don't need it.
     registration_access_token_hash text,
@@ -41,7 +41,7 @@ create table if not exists chatty_oauth_codes (
 create index if not exists idx_chatty_oauth_codes_expires on chatty_oauth_codes(expires_at);
 
 -- Access + refresh tokens. Both stored as hashes only (same pattern as
--- chatty_api_keys.key_hash) — the raw token is shown to the client exactly
+-- chatty_api_keys.key_hash) - the raw token is shown to the client exactly
 -- once, at issuance.
 create table if not exists chatty_oauth_tokens (
     id                   uuid primary key default gen_random_uuid(),

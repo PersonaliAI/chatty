@@ -32,7 +32,7 @@ def add_lead_column(column_name: str):
         return
 
     # clean_name is already regex-restricted to [a-zA-Z0-9_] above, so f-string
-    # interpolation here couldn't actually be broken out of by any payload —
+    # interpolation here couldn't actually be broken out of by any payload -
     # but psycopg2.sql.Identifier() makes that provably true instead of just
     # argued, and correctly quotes reserved-word-shaped names PostgreSQL
     # would otherwise reject with a syntax error (e.g. a column literally

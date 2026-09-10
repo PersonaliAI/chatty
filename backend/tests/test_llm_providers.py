@@ -1,9 +1,9 @@
-"""plugins/llm_providers.py (BYOK) tests — verifies the LiteLLM request shape
+"""plugins/llm_providers.py (BYOK) tests - verifies the LiteLLM request shape
 per provider without hitting a real API. Usage logging is stubbed out since
 it talks to Supabase (see test_ai_client.py / test_integration_live.py for
 paths that exercise real network calls).
 
-Uses asyncio.run() rather than a pytest-async plugin — the rest of this
+Uses asyncio.run() rather than a pytest-async plugin - the rest of this
 suite is plain sync pytest, and this is the only place that needs to await
 anything, so a wrapper is simpler than adding a new test dependency."""
 import asyncio

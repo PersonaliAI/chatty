@@ -7,8 +7,8 @@ description: "Add a text snippet or crawl a URL into the bot's knowledge base"
 ## Overview
 
 Add content to the bot's knowledge base. Supports two types:
-- **text** — provide content directly (FAQ entries, policies, product descriptions)
-- **url** — provide a URL that Chatty will fetch and index immediately
+- **text** - provide content directly (FAQ entries, policies, product descriptions)
+- **url** - provide a URL that Chatty will fetch and index immediately
 
 **Required scope:** `write`
 
@@ -44,7 +44,7 @@ Add content to the bot's knowledge base. Supports two types:
 
 <RequestExample>
 
-```bash cURL — Add text
+```bash cURL - Add text
 curl -X POST "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge" \
   -H "Authorization: Bearer chatty_sk_your_key" \
   -H "Content-Type: application/json" \
@@ -55,18 +55,18 @@ curl -X POST "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowled
   }'
 ```
 
-```bash cURL — Crawl URL
+```bash cURL - Crawl URL
 curl -X POST "https://chatty-api-376030619262.us-central1.run.app/api/v1/knowledge" \
   -H "Authorization: Bearer chatty_sk_your_key" \
   -H "Content-Type: application/json" \
   -d '{
     "type": "url",
-    "name": "Help Center — Getting Started",
+    "name": "Help Center - Getting Started",
     "url": "https://help.example.com/getting-started"
   }'
 ```
 
-```python Python — Sync docs from CMS
+```python Python - Sync docs from CMS
 import httpx
 
 client = httpx.Client(
@@ -84,10 +84,10 @@ for article in articles:
         "content": article["body"],
     })
     data = res.json()
-    print(f"Indexed '{article['title']}' — {data['source']['char_count']} chars")
+    print(f"Indexed '{article['title']}' - {data['source']['char_count']} chars")
 ```
 
-```javascript Node.js — Crawl a list of URLs
+```javascript Node.js - Crawl a list of URLs
 const urls = [
   "https://example.com/pricing",
   "https://example.com/features",
@@ -115,7 +115,7 @@ for (const url of urls) {
 
 <ResponseExample>
 
-```json 200 OK — Text source
+```json 200 OK - Text source
 {
   "success": true,
   "source": {
@@ -131,14 +131,14 @@ for (const url of urls) {
 }
 ```
 
-```json 200 OK — URL source
+```json 200 OK - URL source
 {
   "success": true,
   "chars": 6203,
   "source": {
     "id": "src-uuid-004",
     "type": "url",
-    "name": "Help Center — Getting Started",
+    "name": "Help Center - Getting Started",
     "status": "trained",
     "char_count": 6203,
     "crawl_schedule": "off",
@@ -163,5 +163,5 @@ for (const url of urls) {
 </ResponseExample>
 
 <Note>
-  URL crawling uses the Jina Reader service under the hood and typically completes in 2–5 seconds. If the URL is behind a login wall or is a JavaScript SPA, it may return no content — use `type: "text"` and paste the content manually instead.
+  URL crawling uses the Jina Reader service under the hood and typically completes in 2–5 seconds. If the URL is behind a login wall or is a JavaScript SPA, it may return no content - use `type: "text"` and paste the content manually instead.
 </Note>

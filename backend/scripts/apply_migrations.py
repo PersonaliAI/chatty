@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Apply every file in supabase/migrations/ (in order) to your Supabase
-project's Postgres database. Safe to re-run — already-applied migrations
+project's Postgres database. Safe to re-run - already-applied migrations
 are tracked in a `_migrations_log` table and skipped.
 
 Usage:
@@ -8,7 +8,7 @@ Usage:
 
 Find your connection string in Supabase → Project Settings → Database →
 Connection string → URI (use the "Session pooler" or direct connection,
-not the transaction pooler — migrations need a persistent session).
+not the transaction pooler - migrations need a persistent session).
 """
 import os
 import sys
@@ -59,7 +59,7 @@ def main() -> None:
 
     cur.close()
     conn.close()
-    print(f"\nDone — applied {applied} new, skipped {skipped} already-applied.")
+    print(f"\nDone - applied {applied} new, skipped {skipped} already-applied.")
 
 
 if __name__ == "__main__":

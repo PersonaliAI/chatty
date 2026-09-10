@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Caddy reverse proxy — auto-SSL for LiveKit WebSocket
+# Caddy reverse proxy - auto-SSL for LiveKit WebSocket
 # ─────────────────────────────────────────────────────────────────────────────
 # Provisions a Let's Encrypt certificate automatically for the domain.
 # Proxies HTTPS/WSS traffic to LiveKit's internal WebSocket port.
@@ -10,7 +10,7 @@
 
 {$DOMAIN} {
     # Reverse proxy to LiveKit server's WebSocket port.
-    # LiveKit uses WebSocket for signalling — Caddy upgrades HTTP → WS
+    # LiveKit uses WebSocket for signalling - Caddy upgrades HTTP → WS
     # automatically when the client sends an Upgrade header.
     reverse_proxy livekit:7880
 }

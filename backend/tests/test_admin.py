@@ -1,4 +1,4 @@
-"""Unit tests for app/routers/admin.py's reschedule endpoint — the
+"""Unit tests for app/routers/admin.py's reschedule endpoint - the
 owner-driven counterpart to plugins/agent_tools.py's widget-driven
 reschedule_meeting tool. Both share reschedule_meeting_core; this file only
 covers the endpoint's own lookup/auth/validation wrapper around it, not the
@@ -13,9 +13,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
 
-import main  # noqa: F401 — must import before app.routers.admin: admin.py does
+import main  # noqa: F401 - must import before app.routers.admin: admin.py does
 # `from main import _verify_bot_access, _verify_bot_owner`, and main.py in
-# turn imports and registers admin's own router at module load — importing
+# turn imports and registers admin's own router at module load - importing
 # main first here avoids a circular partial-import when this test file is
 # collected on its own (same reasoning as test_smoke.py's `import main`).
 from app.routers import admin
@@ -118,7 +118,7 @@ def test_admin_reschedule_meeting_translates_core_error(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# admin_get_meetings — owner/admin see all, agent sees only their own
+# admin_get_meetings - owner/admin see all, agent sees only their own
 # ---------------------------------------------------------------------------
 
 

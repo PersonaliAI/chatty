@@ -1,7 +1,7 @@
-"""Unit tests for app/core/oauth.py — PKCE verification, token hashing, and
+"""Unit tests for app/core/oauth.py - PKCE verification, token hashing, and
 the resolve_access_token / require_bot_access security checks. Supabase
 calls are mocked (MagicMock chains), matching test_onboarding.py's pattern
-for DB-touching code — no real network/DB access. Async functions are
+for DB-touching code - no real network/DB access. Async functions are
 driven with asyncio.run(...), matching test_widget_brain.py/test_uploads.py
 rather than pytest-asyncio (not installed/configured in this repo).
 """
@@ -48,14 +48,14 @@ def test_pkce_rejects_missing_verifier_when_challenge_was_used():
 
 
 def test_pkce_rejects_plain_method():
-    # Only S256 is accepted — "plain" is a downgrade that defeats PKCE's point.
+    # Only S256 is accepted - "plain" is a downgrade that defeats PKCE's point.
     verifier = "a" * 43
     assert oauth.verify_pkce(verifier, verifier, "plain") is False
 
 
 def test_pkce_ok_when_no_challenge_and_no_verifier():
     # A client that didn't use PKCE at /authorize time must not supply a
-    # verifier at /token time either — anything else is a mismatch.
+    # verifier at /token time either - anything else is a mismatch.
     assert oauth.verify_pkce(None, None, None) is True
 
 
@@ -89,7 +89,7 @@ def test_hash_token_is_deterministic_and_not_reversible_length():
 
 
 def _mock_select_result(rows):
-    """Mocks supabase.table(...).select(...).eq(...).execute() — the exact
+    """Mocks supabase.table(...).select(...).eq(...).execute() - the exact
     chain both resolve_access_token and require_bot_access use."""
     result = MagicMock()
     result.data = rows
@@ -106,7 +106,7 @@ def test_resolve_access_token_rejects_missing_header():
 
 def test_resolve_access_token_rejects_non_oauth_token_shape():
     # A chatty_sk_ API key (or anything else) handed to the OAuth resolver
-    # specifically, not the unified resolve_principal — must not validate.
+    # specifically, not the unified resolve_principal - must not validate.
     with pytest.raises(HTTPException) as exc:
         asyncio.run(oauth.resolve_access_token("Bearer chatty_sk_notanoauthtoken"))
     assert exc.value.status_code == 401
@@ -173,7 +173,7 @@ def test_check_principal_scope_rejects_missing_scope():
 
 
 # ---------------------------------------------------------------------------
-# require_bot_access — the actual multi-tenancy boundary: an OAuth token for
+# require_bot_access - the actual multi-tenancy boundary: an OAuth token for
 # user A must never be able to read/write user B's bot, and an API key must
 # never reach any bot but the one it was minted for.
 # ---------------------------------------------------------------------------
@@ -200,7 +200,7 @@ def test_require_bot_access_oauth_rejects_other_users_bot():
     with patch.object(oauth.supabase, "table", return_value=query):
         with pytest.raises(HTTPException) as exc:
             asyncio.run(oauth.require_bot_access(principal, "bot-X"))
-    assert exc.value.status_code == 404  # not 403 — don't confirm the bot exists to a non-owner
+    assert exc.value.status_code == 404  # not 403 - don't confirm the bot exists to a non-owner
 
 
 def test_require_bot_access_oauth_allows_own_bot():
@@ -221,7 +221,7 @@ def test_require_bot_access_rejects_nonexistent_bot():
 
 
 # ---------------------------------------------------------------------------
-# Route wiring — real HTTP requests through the actual FastAPI app, catching
+# Route wiring - real HTTP requests through the actual FastAPI app, catching
 # the class of bug unit tests can't (wrong path, Form() vs JSON body
 # mismatch, response model errors) without needing a full DB-backed flow.
 # ---------------------------------------------------------------------------
@@ -247,7 +247,7 @@ def test_well_known_authorization_server_metadata_is_served():
 
 def test_well_known_protected_resource_metadata_is_served_at_both_paths():
     # Explicit routes in oauth.py, not just FastMCP's own auto-registration
-    # (see oauth.py's comment on this pair) — TestClient and the real
+    # (see oauth.py's comment on this pair) - TestClient and the real
     # deployed service disagreed about which of these FastMCP alone would
     # serve, so both are covered explicitly rather than depending on either.
     client = TestClient(main.app)
@@ -278,7 +278,7 @@ def test_register_client_accepts_loopback_redirect_uri_for_native_clients():
     body = r.json()
     assert body["client_id"].startswith(oauth._CLIENT_ID_PREFIX)
     assert body["token_endpoint_auth_method"] == "none"
-    assert body["client_secret"] is None  # public/PKCE client — no secret issued
+    assert body["client_secret"] is None  # public/PKCE client - no secret issued
 
 
 def test_token_endpoint_rejects_unsupported_grant_type():
@@ -297,7 +297,7 @@ def test_token_endpoint_requires_form_encoding_not_json():
 
 
 def test_create_bot_requires_oauth_not_api_key():
-    # A single-bot API key must never be able to create additional bots —
+    # A single-bot API key must never be able to create additional bots -
     # bot creation only makes sense for a user-scoped OAuth principal.
     async def fake_resolve_api_key(*_args, **_kwargs):
         return {"id": "key-1", "bot_id": "bot-1", "user_id": "user-1", "revoked": False, "scopes": ["admin"]}

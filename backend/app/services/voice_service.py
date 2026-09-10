@@ -1,10 +1,10 @@
 """Core LiveKit token-minting + agent-dispatch logic, shared by the public
 widget voice endpoint (app/routers/voice.py) and the Developer API / MCP
-voice tool (app/services/bots_service.py, app/routers/mcp.py) — one
+voice tool (app/services/bots_service.py, app/routers/mcp.py) - one
 implementation of "start a voice session", not two.
 
 The explicit agent_dispatch.create_dispatch() call (rather than relying
-solely on the token's embedded RoomConfiguration) is load-bearing — see the
+solely on the token's embedded RoomConfiguration) is load-bearing - see the
 comment on mint_voice_session below for why, preserved from the original
 widget-only implementation.
 """
@@ -46,13 +46,13 @@ async def mint_voice_session(
         "visitor_timezone": visitor_timezone or "UTC",
     })
 
-    # Explicit dispatch — call agent_dispatch.create_dispatch() server-side
+    # Explicit dispatch - call agent_dispatch.create_dispatch() server-side
     # rather than relying solely on the token's embedded RoomConfiguration.
     # Both mechanisms exist in the API and the token-embedded one LOOKS
     # correct (room_config.agents does show up in the decoded JWT), but
     # empirically verified against the real LiveKit Cloud project: a client
     # connecting with only a room_config-carrying token never gets a worker
-    # assigned (job sits at JS_PENDING indefinitely) — whereas an explicit
+    # assigned (job sits at JS_PENDING indefinitely) - whereas an explicit
     # create_dispatch() call reliably gets picked up within a few seconds
     # every time. Keeping the token's room_config too (harmless, and some
     # LiveKit deployments may rely on it) but the explicit call below is
@@ -66,7 +66,7 @@ async def mint_voice_session(
         )
     except Exception:
         logger.exception("voice token: explicit agent dispatch failed for room %s", room_name)
-        raise HTTPException(status_code=502, detail="Could not start the voice agent — please try again")
+        raise HTTPException(status_code=502, detail="Could not start the voice agent - please try again")
     finally:
         await lkapi.aclose()
 

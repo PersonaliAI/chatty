@@ -41,7 +41,7 @@ class SectionColorsInput(BaseModel):
 class WidgetColorSchemeInput(BaseModel):
     """Mirrors WidgetColorScheme in chatty/src/lib/color-contrast.ts. Every
     section is optional so a caller can set just one (e.g. only `header`)
-    without needing to also restate the other five — update_widget_styling
+    without needing to also restate the other five - update_widget_styling
     merges whatever's given here on top of the bot's existing color_scheme,
     section by section, field by field."""
     header: Optional[SectionColorsInput] = None
@@ -55,10 +55,10 @@ class WidgetColorSchemeInput(BaseModel):
 class WidgetStylingUpdateRequest(BaseModel):
     # Matches app/routers/widget.py's real theme columns exactly. The
     # earlier version of this schema had position/teaser_enabled/
-    # sound_enabled/mobile_fullscreen/teaser_delay_seconds — none of which
+    # sound_enabled/mobile_fullscreen/teaser_delay_seconds - none of which
     # exist on chatty_bots or are read anywhere in the live widget (teaser
     # on/off is actually a per-embed <script data-teaser> attribute, not a
-    # bot setting) — plus starter_questions and remove_branding, which are
+    # bot setting) - plus starter_questions and remove_branding, which are
     # real features under different column names (conversation_starters,
     # hide_branding).
     primary_color: Optional[str] = None
@@ -71,7 +71,7 @@ class WidgetStylingUpdateRequest(BaseModel):
     custom_css: Optional[str] = None
     hide_branding: Optional[bool] = None
     # chatty_bots.color_scheme is a separate, per-element hex override (set
-    # by the dashboard Customizer's advanced color pickers — header/
+    # by the dashboard Customizer's advanced color pickers - header/
     # sendBtn/inputBar/launcher/botBubble/userBubble). GET /api/widget/theme
     # (app/routers/widget.py) passes it straight through as-is; the actual
     # CSS-injection that makes it win over primary_color/widget_style for
@@ -79,10 +79,10 @@ class WidgetStylingUpdateRequest(BaseModel):
     # embed and the standalone chatty-app.js bundle. A bot customized this
     # way before, then simplified back to a plain primary_color/widget_style
     # change, keeps the old per-element colors fighting the new ones with no
-    # way to see or undo it through this API — clear_color_scheme=True
+    # way to see or undo it through this API - clear_color_scheme=True
     # resets it to null so primary_color/widget_style fully take over again.
     clear_color_scheme: Optional[bool] = None
-    # Seed hex for plugins.color_scheme.generate_color_scheme — a direct
+    # Seed hex for plugins.color_scheme.generate_color_scheme - a direct
     # Python port of generateColorScheme in color-contrast.ts (verified
     # byte-identical output against the real TS source for the same seed),
     # so "auto-generate from this color" gives the same result whether
@@ -126,7 +126,7 @@ class CampaignUpdateRequest(BaseModel):
 
 
 class VoiceAgentConfigRequest(BaseModel):
-    # Matches app/routers/bots.py's real voice-settings columns exactly —
+    # Matches app/routers/bots.py's real voice-settings columns exactly -
     # the earlier version of this schema (tts_provider/voice_id/
     # voice_temperature/vad_sensitivity/endpointing_delay_ms/...) named
     # columns that don't exist on chatty_bots at all.
@@ -139,10 +139,10 @@ class VoiceAgentConfigRequest(BaseModel):
 
 class LeadCaptureConfigRequest(BaseModel):
     # chatty_bots only has lead_capture_enabled (bool) and lead_required_fields
-    # (text[], default {name,email} — the fields plugins/widget_brain.py
+    # (text[], default {name,email} - the fields plugins/widget_brain.py
     # actually requires before capturing a lead). There's no trigger_timing,
     # custom_fields, or crm_destination column or consumer anywhere in this
-    # codebase — the earlier version of this schema declared them but
+    # codebase - the earlier version of this schema declared them but
     # bots_service.configure_lead_capture silently dropped them on write.
     enabled: bool = True
     collect_name: bool = True
@@ -154,7 +154,7 @@ class CalendarIntegrationRequest(BaseModel):
     # chatty_bots has calendar_scheduling_enabled, scheduling_duration_minutes,
     # bot_timezone, sync_google_calendar, sync_outlook_calendar/
     # sync_office365_calendar, and meeting_provider (the video-call link
-    # generator, e.g. google_meet/zoom) — there's no available_days/
+    # generator, e.g. google_meet/zoom) - there's no available_days/
     # working_hours_start/working_hours_end column or business-hours check
     # anywhere in the booking flow (plugins/agent_tools.py books whatever
     # time is requested); the earlier version of this schema declared those
@@ -180,17 +180,17 @@ class GuardrailsConfigRequest(BaseModel):
 
 class BYOKConfigRequest(BaseModel):
     provider: str = Field(..., description="openai, openrouter, anthropic")
-    api_key: Optional[str] = Field(None, min_length=1, description="Plaintext in the request only — stored encrypted, never returned")
+    api_key: Optional[str] = Field(None, min_length=1, description="Plaintext in the request only - stored encrypted, never returned")
     model: Optional[str] = None
 
 
 class TeamMemberRequest(BaseModel):
     email: str = Field(..., min_length=3)
-    role: str = Field("agent", description="admin or agent — an invite can never grant owner")
+    role: str = Field("agent", description="admin or agent - an invite can never grant owner")
 
 
 class NotificationsConfigRequest(BaseModel):
-    # chatty_bots.notification_emails is the only real column here — Slack/
+    # chatty_bots.notification_emails is the only real column here - Slack/
     # Discord/custom alerting is the separate chatty_webhooks subscription
     # system (see bots_service.create_webhook_subscription), not a per-bot
     # webhook URL field.

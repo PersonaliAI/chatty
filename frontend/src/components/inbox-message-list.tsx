@@ -23,7 +23,7 @@ export interface Msg {
  * Message content is free text a visitor fully controls, so only render a
  * URL as an img/audio src or link if it genuinely points at our own upload
  * bucket (or a same-session blob: URL from the composer preview, which a
- * remote visitor can't forge) — not any arbitrary http(s) URL a visitor
+ * remote visitor can't forge) - not any arbitrary http(s) URL a visitor
  * could type to get rendered as a trusted-looking attachment. */
 function isTrustedAttachmentUrl(url: string): boolean {
   if (url.startsWith("blob:")) return true;
@@ -56,7 +56,7 @@ interface MessageListProps {
 /**
  * Split out of InboxPanel and memoized so that unrelated input-bar state
  * (emoji picker, attach menu, canned-response popover, etc.) toggling
- * doesn't force every message in a long conversation to re-render —
+ * doesn't force every message in a long conversation to re-render -
  * each one runs a full ReactMarkdown/KaTeX parse, which was making the
  * emoji picker (and anything else next to the composer) feel stuck/slow
  * to open on conversations with many messages.

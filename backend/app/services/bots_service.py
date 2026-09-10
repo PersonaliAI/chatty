@@ -1,4 +1,4 @@
-"""Bot create/list/get/update/analytics/delete/knowledge/settings — the single
+"""Bot create/list/get/update/analytics/delete/knowledge/settings - the single
 implementation shared by the REST API (app/routers/bots_api.py) and the MCP tools
 (app/routers/mcp.py).
 """
@@ -35,7 +35,7 @@ logger = logging.getLogger("chatty")
 _BOT_LIST_COLUMNS = "id, name, welcome_message, primary_color, selected_model, created_at"
 _BOT_DETAIL_FIELDS = [
     # teaser_enabled/teaser_text/sound_enabled/mobile_fullscreen never
-    # existed on chatty_bots (see the customize_widget_styling fix) — the
+    # existed on chatty_bots (see the customize_widget_styling fix) - the
     # `if k in row` guard in _project_bot meant they silently vanished from
     # every response instead of erroring, which is also why real fields
     # like conversation_starters and hide_branding were invisible here even
@@ -45,7 +45,7 @@ _BOT_DETAIL_FIELDS = [
     "avatar_url", "avatar_icon", "logo_url", "teaser_message", "conversation_starters",
     "custom_css", "hide_branding", "allowed_domains", "created_at", "updated_at",
     "max_daily_meetings", "max_weekly_meetings",
-    # Included so a caller can actually SEE this — it silently overrides
+    # Included so a caller can actually SEE this - it silently overrides
     # primary_color/widget_style per-element wherever it's set (see
     # WidgetStylingUpdateRequest.clear_color_scheme's comment) and was
     # otherwise invisible here, making a real color change look like it
@@ -63,7 +63,7 @@ async def _write_audit_log(bot_id: str, action: str, details: str, performed_by:
 
     Every one of these tools is reachable via the MCP server and the
     Developer API with only ownership-level gating (see require_bot_access/
-    verify_bot_permission above) — get_audit_logs advertises itself as "the"
+    verify_bot_permission above) - get_audit_logs advertises itself as "the"
     record of administrative actions and configuration changes for a bot,
     but until this, nothing in this module ever wrote to that table, so it
     was always empty for anything done outside the dashboard's admin.py/
@@ -129,7 +129,7 @@ async def update_bot(principal: dict[str, Any], bot_id: str, body: BotUpdateRequ
 async def delete_bot(principal: dict[str, Any], bot_id: str) -> dict[str, Any]:
     # No _write_audit_log call here: chatty_audit_logs.bot_id is a NOT NULL
     # FK to chatty_bots(id) ON DELETE CASCADE, so any row logged against this
-    # bot_id — written before or after the delete — is gone the instant the
+    # bot_id - written before or after the delete - is gone the instant the
     # bot is deleted. Recording a bot's deletion durably needs an
     # account-scoped log table, not this bot-scoped one; out of scope here.
     bot = await _oauth.require_bot_access(principal, bot_id)
@@ -189,7 +189,7 @@ async def update_widget_styling(principal: dict[str, Any], bot_id: str, body: Wi
                 raise HTTPException(status_code=400, detail="auto_generate_color_scheme must be a hex color like #c67139")
             scheme: dict[str, Any] = color_scheme_mod.generate_color_scheme(body.auto_generate_color_scheme)
         else:
-            # No seed given — start from whatever's already stored (or
+            # No seed given - start from whatever's already stored (or
             # empty) so a single-section override doesn't wipe the rest.
             scheme = dict(bot.get("color_scheme") or {})
         if body.color_scheme is not None:
@@ -232,7 +232,7 @@ async def add_knowledge_text(principal: dict[str, Any], bot_id: str, name: str, 
 
 
 async def crawl_website_knowledge(principal: dict[str, Any], bot_id: str, url: str) -> dict[str, Any]:
-    """Fetches and indexes a URL as a knowledge source — the same
+    """Fetches and indexes a URL as a knowledge source - the same
     Jina-powered fetch used by the dashboard's URL-crawl flow and the
     per-key Developer API's POST /api/v1/knowledge (type=url)."""
     await _oauth.require_bot_access(principal, bot_id)
@@ -268,8 +268,8 @@ async def upload_knowledge_document(
 ) -> dict[str, Any]:
     """Indexes a PDF/DOCX/XLSX/PPTX/image/text file as a knowledge source.
     Reuses plugins.doc_rag's real text-extraction (OCR-backed for PDFs and
-    images via genai_client) — the same code path POST /api/documents/upload
-    uses for the web chat paperclip button — but stores the extracted text
+    images via genai_client) - the same code path POST /api/documents/upload
+    uses for the web chat paperclip button - but stores the extracted text
     in chatty_sources like the bot's other knowledge tools, rather than the
     separate account-level drive_documents table, so it works regardless of
     whether the bot has sync_google_drive enabled."""
@@ -310,7 +310,7 @@ async def upload_knowledge_document(
 
 
 def _drive_folder_id_from(s: str) -> str:
-    """Accept either a raw folder ID or a Drive folder URL — same parsing
+    """Accept either a raw folder ID or a Drive folder URL - same parsing
     app/routers/documents.py's dashboard endpoint uses."""
     s = (s or "").strip()
     if "/folders/" in s:
@@ -322,11 +322,11 @@ async def sync_cloud_storage(
     principal: dict[str, Any], bot_id: str, provider: str, folder_id_or_url: str, max_files: int = 50
 ) -> dict[str, Any]:
     """Indexes a Google Drive/OneDrive folder via plugins.doc_rag.index_folder
-    — the same pipeline POST /api/documents/index-folder uses. Indexing is
+    - the same pipeline POST /api/documents/index-folder uses. Indexing is
     account-scoped (drive_documents is keyed by user_id, not bot_id): once
     indexed, every bot on this account with sync_google_drive=true draws on
     the same documents, not just this bot_id. Requires the account to have
-    already connected Google/Microsoft from the dashboard — there's no
+    already connected Google/Microsoft from the dashboard - there's no
     OAuth-connect flow reachable through this API."""
     await _oauth.require_bot_access(principal, bot_id)
     user = await _oauth.user_dict_for_principal(principal)
@@ -339,11 +339,11 @@ async def sync_cloud_storage(
         raise HTTPException(status_code=400, detail="provider must be 'gdrive' or 'onedrive'")
     if provider == "onedrive":
         if not user.get("microsoft_access_token"):
-            raise HTTPException(status_code=400, detail="Microsoft account is not connected — connect it from the dashboard first")
+            raise HTTPException(status_code=400, detail="Microsoft account is not connected - connect it from the dashboard first")
         folder_id = (folder_id_or_url or "").strip()
     else:
         if not user.get("google_access_token"):
-            raise HTTPException(status_code=400, detail="Google account is not connected — connect it from the dashboard first")
+            raise HTTPException(status_code=400, detail="Google account is not connected - connect it from the dashboard first")
         folder_id = _drive_folder_id_from(folder_id_or_url)
     if not folder_id:
         raise HTTPException(status_code=400, detail="folder_id_or_url is required")
@@ -353,7 +353,7 @@ async def sync_cloud_storage(
         supabase, genai_client, user=user, folder_id=folder_id, max_files=max_files, source=provider,
     )
     # sync_google_drive is the one real flag plugins/widget_brain.py checks
-    # to decide whether a bot's RAG draws on drive_documents at all — it
+    # to decide whether a bot's RAG draws on drive_documents at all - it
     # gates both sources despite the name (see that file's search_knowledge).
     await run_db(lambda: supabase.table("chatty_bots").update({"sync_google_drive": True}).eq("id", bot_id).execute())
     return {
@@ -381,11 +381,11 @@ async def delete_knowledge_source(principal: dict[str, Any], bot_id: str, source
 
 async def test_rag_retrieval(principal: dict[str, Any], bot_id: str, query: str, top_k: int = 4) -> dict[str, Any]:
     """Runs the bot's *actual* knowledge-source ranking (widget_brain's
-    _ranked_source_refs — real keyword-overlap scoring against chatty_sources,
+    _ranked_source_refs - real keyword-overlap scoring against chatty_sources,
     the same function run_widget_assistant calls on every real chat turn),
     not fabricated similarity scores. The original version of this function
     made up decreasing scores (0.92, 0.87, 0.82...) regardless of the query
-    or the bot's actual knowledge base — this now reflects genuinely what
+    or the bot's actual knowledge base - this now reflects genuinely what
     the bot would retrieve and cite for this query."""
     bot = await _oauth.require_bot_access(principal, bot_id)
     res_sources = await run_db(lambda: supabase.table("chatty_sources").select("*").eq(
@@ -452,7 +452,7 @@ async def export_leads(principal: dict[str, Any], bot_id: str, limit: int = 100,
 
 
 async def get_mailbox_logs(principal: dict[str, Any], bot_id: str, limit: int = 50) -> list[dict[str, Any]]:
-    """Real outgoing-email/push log — chatty_notifications, already
+    """Real outgoing-email/push log - chatty_notifications, already
     populated by plugins/agent_tools.py for every meeting-confirmation
     email/push it sends (client + admin copies). There's no separate
     'mailbox' feature or table; this is that same real log, exposed for the
@@ -466,11 +466,11 @@ async def get_mailbox_logs(principal: dict[str, Any], bot_id: str, limit: int = 
 
 async def export_visitor_data(principal: dict[str, Any], bot_id: str) -> dict[str, Any]:
     """Right to data portability (GDPR): every visitor record held for a
-    bot — conversations, sessions, leads — as one JSON payload. Same query
+    bot - conversations, sessions, leads - as one JSON payload. Same query
     shape as GET /api/admin/gdpr/export. require_bot_access already implies
     ownership here: an OAuth principal only passes it for a bot it owns, and
     an API key can only ever have been minted by the bot's owner in the
-    first place (see POST /api/keys) — so this needs no extra owner check
+    first place (see POST /api/keys) - so this needs no extra owner check
     beyond what every other tool in this file already relies on."""
     await _oauth.require_bot_access(principal, bot_id)
 
@@ -550,12 +550,12 @@ async def configure_guardrails(principal: dict[str, Any], bot_id: str, body: Gua
 
 async def configure_byok(principal: dict[str, Any], bot_id: str, body: BYOKConfigRequest) -> dict[str, Any]:
     # The original version of this function wrote body.api_key straight into
-    # a plaintext column (byok_openai_key/byok_key — neither of which even
+    # a plaintext column (byok_openai_key/byok_key - neither of which even
     # exists on chatty_bots). The real column is byok_api_key_encrypted,
-    # written through llm_providers.encrypt_api_key() and never read back —
+    # written through llm_providers.encrypt_api_key() and never read back -
     # see app/routers/bots.py's set_byok/get_byok_status, which this now
     # matches exactly. BYOK is also owner-only (app.core.permissions.
-    # OWNER_ONLY_TABS), same as team.py's dashboard endpoint enforces —
+    # OWNER_ONLY_TABS), same as team.py's dashboard endpoint enforces -
     # require_bot_access alone doesn't check that, verify_bot_permission does.
     await _oauth.require_bot_access(principal, bot_id)
     user = await _oauth.user_dict_for_principal(principal)
@@ -572,7 +572,7 @@ async def configure_byok(principal: dict[str, Any], bot_id: str, body: BYOKConfi
         bot_id, "byok_configured",
         f"BYOK provider set to '{body.provider}'" + (" (API key rotated)" if body.api_key else " (key unchanged)"),
     )
-    # Never return the key (raw or encrypted) — same contract as
+    # Never return the key (raw or encrypted) - same contract as
     # GET /api/bots/{bot_id}/byok: only confirm it's configured.
     return {"bot_id": bot_id, "provider": body.provider, "model": body.model, "byok_configured": True}
 
@@ -580,12 +580,12 @@ async def configure_byok(principal: dict[str, Any], bot_id: str, body: BYOKConfi
 async def manage_team_members(principal: dict[str, Any], bot_id: str, action: str, body: TeamMemberRequest) -> dict[str, Any]:
     # require_bot_access alone isn't enough here: it only proves the caller
     # owns (or holds an API key for) this bot, not that they're allowed to
-    # manage its team — that's a separate, real RBAC check (verify_bot_permission,
+    # manage its team - that's a separate, real RBAC check (verify_bot_permission,
     # the same one app/routers/team.py's dashboard endpoints use), and
     # _sanitize_permissions below is what stops a non-owner admin from
     # granting themselves/others owner-only tabs (billing/byok/webhooks)
     # through this path. The original version of this function skipped both
-    # checks entirely — any caller with bot access could upsert any role.
+    # checks entirely - any caller with bot access could upsert any role.
     await _oauth.require_bot_access(principal, bot_id)
     user = await _oauth.user_dict_for_principal(principal)
     caller_role = await verify_bot_permission(bot_id, user, "team")
@@ -600,7 +600,7 @@ async def manage_team_members(principal: dict[str, Any], bot_id: str, action: st
         return {"action": "remove", "email": email, "bot_id": bot_id}
 
     # Same two rules as team.py's invite/update endpoints: role can only ever
-    # be "admin" or "agent" via this path (never "owner" — no self/other
+    # be "admin" or "agent" via this path (never "owner" - no self/other
     # escalation to ownership), and a non-owner caller can never grant an
     # owner-only tab (billing/byok/webhooks) to anyone, including themselves.
     role = body.role if body.role in ("admin", "agent") else "agent"
@@ -624,12 +624,12 @@ async def configure_domain_allowlist(principal: dict[str, Any], bot_id: str, dom
 
 
 async def configure_notifications(principal: dict[str, Any], bot_id: str, body: NotificationsConfigRequest) -> dict[str, Any]:
-    """chatty_bots only has a real notification_emails column — there's no
+    """chatty_bots only has a real notification_emails column - there's no
     per-bot slack_webhook_url/discord_webhook_url/notify_on_lead/
     notify_on_escalation (the earlier version of this function wrote those
     four straight to a table that doesn't have them). Slack/Discord/custom
     alerting is the real chatty_webhooks subscription system instead (see
-    create_webhook_subscription/list_webhook_subscriptions below) — the
+    create_webhook_subscription/list_webhook_subscriptions below) - the
     same table/permission-gated tab app/routers/bots.py's dashboard
     Webhooks settings already use."""
     await _oauth.require_bot_access(principal, bot_id)
@@ -640,7 +640,7 @@ async def configure_notifications(principal: dict[str, Any], bot_id: str, body: 
 
 
 async def create_webhook_subscription(principal: dict[str, Any], bot_id: str, url: str, events: list[str]) -> dict[str, Any]:
-    """Real event-webhook subscription (chatty_webhooks) — same table and
+    """Real event-webhook subscription (chatty_webhooks) - same table and
     validation the dashboard's owner-only Webhooks tab uses. Covers Slack/
     Discord/custom alerting: point `url` at a Slack/Discord incoming
     webhook (or any HTTPS endpoint) and pick from plugins.notifications.
@@ -668,7 +668,7 @@ async def create_webhook_subscription(principal: dict[str, Any], bot_id: str, ur
         "bot_id": bot_id, "url": url, "events": valid_events, "secret": secret, "active": True,
     }).execute())
     # Deliberately logs the destination URL and events, never the signing
-    # secret — this is the single tool that can point bot events (which can
+    # secret - this is the single tool that can point bot events (which can
     # include lead/visitor PII) at an arbitrary external endpoint, so it's
     # the one place a later audit most needs a durable record of where data
     # started flowing and when.
@@ -700,7 +700,7 @@ async def get_audit_logs(principal: dict[str, Any], bot_id: str, limit: int = 50
     """chatty_audit_logs is a real table (see supabase/migrations/
     20260620000000_wizard_tables.sql), but the original version of this
     function fabricated a fake "audit-1 / bot_updated" row whenever the
-    real query came back empty — a genuinely empty audit log (nothing has
+    real query came back empty - a genuinely empty audit log (nothing has
     happened yet) is a legitimate, honest answer and must not be
     disguised as a fake past event."""
     await _oauth.require_bot_access(principal, bot_id)
@@ -710,7 +710,7 @@ async def get_audit_logs(principal: dict[str, Any], bot_id: str, limit: int = 50
 
 
 async def get_feedback_summary(principal: dict[str, Any], bot_id: str) -> dict[str, Any]:
-    """Real numbers from the two actual feedback mechanisms — the original
+    """Real numbers from the two actual feedback mechanisms - the original
     version of this function was entirely hardcoded (86/78/8/90.7%, fixed
     regardless of bot_id) and never touched a table.
     - Per-message thumbs: chatty_conversations.feedback_rating ("up"/"down").
@@ -744,7 +744,7 @@ async def get_feedback_summary(principal: dict[str, Any], bot_id: str) -> dict[s
 
 async def get_account_billing(principal: dict[str, Any]) -> dict[str, Any]:
     """Real plan/usage/quota numbers from main.py's own billing logic (the
-    same functions the widget's quota gate uses) — the original version of
+    same functions the widget's quota gate uses) - the original version of
     this function was entirely hardcoded ("Standard", 10000/1420/8580,
     byok_active always True) regardless of the account's real plan or usage."""
     # Lazy import: main.py imports every router at the bottom of the file
@@ -768,7 +768,7 @@ async def get_account_billing(principal: dict[str, Any]) -> dict[str, Any]:
 
 async def bot_analytics(principal: dict[str, Any], bot_id: str, since: Optional[str] = None) -> dict[str, Any]:
     """`since` (ISO 8601 datetime) filters to messages/leads created at or
-    after that time — same param and semantics as the per-key Developer
+    after that time - same param and semantics as the per-key Developer
     API's GET /api/v1/analytics."""
     await _oauth.require_bot_access(principal, bot_id)
     q_conv = supabase.table("chatty_conversations").select("id, role, session_id", count="exact").eq("bot_id", bot_id)

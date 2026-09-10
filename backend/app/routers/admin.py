@@ -50,7 +50,7 @@ logger = logging.getLogger("chatty")
 
 router = APIRouter()
 
-_MEDIA_MAX_BYTES = 20 * 1024 * 1024  # 20MB — matches app/routers/widget.py
+_MEDIA_MAX_BYTES = 20 * 1024 * 1024  # 20MB - matches app/routers/widget.py
 
 
 @router.get("/api/admin/inbox")
@@ -356,7 +356,7 @@ async def admin_inbox_ai(req: InboxAIToggle, user: dict[str, Any] = Depends(requ
 @router.post("/api/admin/inbox/delete")
 async def admin_inbox_delete(req: InboxDeleteRequest, user: dict[str, Any] = Depends(require_user)):
     """Delete a conversation (its messages + session row). Destructive, so
-    (unlike reading/replying) it's owner/admin only — an 'agent' role can
+    (unlike reading/replying) it's owner/admin only - an 'agent' role can
     work the inbox but not erase history from it."""
     role = await _verify_bot_access(req.bot_id, user)
     if role == "agent":
@@ -411,7 +411,7 @@ async def admin_get_meetings(
     user: dict[str, Any] = Depends(require_user),
 ):
     # Owner/admin see every meeting for the bot; an agent sees only meetings
-    # assigned to them (Phase 2's round-robin assignment) — matches the
+    # assigned to them (Phase 2's round-robin assignment) - matches the
     # dashboard's per-role calendar view (no member selector for agents).
     role = await verify_bot_permission(bot_id, user, "meetings")
 
@@ -436,7 +436,7 @@ async def admin_get_meeting_messages(
 ):
     """The email thread for one meeting (confirmation/reschedule/cancellation
     emails sent, plus any visitor replies captured via the Resend inbound
-    webhook — see app/routers/webhooks.py::resend_inbound)."""
+    webhook - see app/routers/webhooks.py::resend_inbound)."""
     res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("bot_id, assigned_to_email").eq(
         "id", meeting_id).execute())
     if not res_meet.data:
@@ -524,8 +524,8 @@ async def admin_update_meeting_status(
 
         # Cancelling goes through the shared core (agent_tools.cancel_meeting_core)
         # so the dashboard's Cancel button does the same thing the widget/email
-        # cancel_meeting tool does — deletes the real calendar event, not just
-        # the DB row — instead of duplicating that logic here.
+        # cancel_meeting tool does - deletes the real calendar event, not just
+        # the DB row - instead of duplicating that logic here.
         if status.lower() in ("cancelled", "canceled"):
             res_bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
             if not res_bot.data:
@@ -560,7 +560,7 @@ async def admin_reschedule_meeting(
     req: RescheduleMeetingRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Owner/admin-initiated reschedule from the dashboard — reuses the same
+    """Owner/admin-initiated reschedule from the dashboard - reuses the same
     core logic (agent_tools.reschedule_meeting_core) the widget's
     reschedule_meeting tool uses, just starting from a meeting_id already in
     hand instead of looking one up by visitor email."""
@@ -582,7 +582,7 @@ async def admin_reschedule_meeting(
         new_start = _parse_iso(req.new_start)
         new_end = _parse_iso(req.new_end)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid new_start/new_end — use ISO 8601 with a timezone offset.")
+        raise HTTPException(status_code=400, detail="Invalid new_start/new_end - use ISO 8601 with a timezone offset.")
     if new_start.tzinfo is None:
         new_start = new_start.replace(tzinfo=timezone.utc)
     if new_end.tzinfo is None:
@@ -857,7 +857,7 @@ async def admin_update_kb_article(article_id: str, req: ArticleUpdateRequest, us
             if src_res.data:
                 updates["source_id"] = src_res.data[0]["id"]
     else:
-        # Article is unpublished/internal/empty — unlink from RAG sources so bot doesn't expose it
+        # Article is unpublished/internal/empty - unlink from RAG sources so bot doesn't expose it
         if source_id:
             await run_db(lambda: supabase.table("chatty_sources").delete().eq("id", source_id).execute())
             updates["source_id"] = None

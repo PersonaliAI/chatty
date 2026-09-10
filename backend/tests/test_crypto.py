@@ -1,4 +1,4 @@
-"""encrypt_secret/decrypt_secret — used to encrypt Google/Microsoft OAuth
+"""encrypt_secret/decrypt_secret - used to encrypt Google/Microsoft OAuth
 tokens at rest (previously stored plaintext in the users / kin_connected_accounts
 tables). decrypt_secret's pass-through-on-InvalidToken fallback is what lets
 already-connected accounts (stored as plaintext before this existed) keep

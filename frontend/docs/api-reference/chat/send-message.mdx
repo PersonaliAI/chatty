@@ -21,7 +21,7 @@ Send a message to your bot and get a response based on its knowledge base, guard
 </ParamField>
 
 <ParamField body="session_id" type="string">
-  Conversation thread identifier. Omit to start a new session — the generated ID is returned in the response. Reuse the same ID to continue an existing conversation.
+  Conversation thread identifier. Omit to start a new session - the generated ID is returned in the response. Reuse the same ID to continue an existing conversation.
 
   We recommend using a stable identifier from your system: a user ID, visitor UUID, or database row ID.
 </ParamField>
@@ -116,7 +116,7 @@ echo $response['reply'];
 
 ```json 200 OK
 {
-  "reply": "Yes! We offer a 14-day free trial on all paid plans — no credit card required. You can start a trial directly from our pricing page. Would you like me to walk you through what's included?",
+  "reply": "Yes! We offer a 14-day free trial on all paid plans - no credit card required. You can start a trial directly from our pricing page. Would you like me to walk you through what's included?",
   "session_id": "visitor-xyz-789"
 }
 ```
@@ -155,7 +155,7 @@ echo $response['reply'];
 
 ## Managing sessions
 
-Sessions are lightweight — there's no explicit "create session" call. Start a conversation by picking any unique ID:
+Sessions are lightweight - there's no explicit "create session" call. Start a conversation by picking any unique ID:
 
 ```python
 import uuid

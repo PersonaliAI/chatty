@@ -1,11 +1,11 @@
-"""Widget chat brain — the Gemini tool-calling loop that powers Chatty's
+"""Widget chat brain - the Gemini tool-calling loop that powers Chatty's
 embedded website widget (/api/widget/*).
 
 Extracted out of main.py (pure refactor, no behavior change) so a separate
-process — e.g. the voice worker — can import `run_widget_assistant` without
+process - e.g. the voice worker - can import `run_widget_assistant` without
 importing the whole FastAPI app (main.py builds the ASGI app, mounts every
 router, and inits Sentry at module load; none of that belongs in a
-long-running worker process). Fully self-contained — nothing here imports
+long-running worker process). Fully self-contained - nothing here imports
 from main.py.
 """
 
@@ -38,7 +38,7 @@ MAX_TOOL_ROUNDS = 6
 # Guards against the model confidently telling a visitor their meeting is
 # booked when it never actually called the booking tool this turn (observed
 # live: model checks availability, then fabricates a confirmation instead of
-# calling create_calendar_event/create_outlook_event). Deliberately narrow —
+# calling create_calendar_event/create_outlook_event). Deliberately narrow -
 # matches past-tense/confirmation phrasing, not the earlier "would you like
 # to schedule" offer language.
 _BOOKING_CLAIM_RE = re.compile(
@@ -56,7 +56,7 @@ def _claims_booking_success(text: str) -> bool:
 
 # Moved to app/core/config.py so modules that don't otherwise depend on
 # widget_brain.py (e.g. doc_rag.py, to avoid a circular import) can use the
-# same fallback chain — re-exported here for existing call sites/imports.
+# same fallback chain - re-exported here for existing call sites/imports.
 from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS  # noqa: E402
 
 # Model tried first for voice-mode requests (run_widget_assistant(voice_mode=True))
@@ -64,27 +64,27 @@ from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS  # noq
 GEMINI_VOICE_MODEL = os.environ.get("GEMINI_VOICE_MODEL", "gemini-3.1-flash-lite")
 
 # Dashboard-configured persona/focus lean for voice calls (chatty_bots.
-# voice_agent_role) — shapes tone/emphasis only, does NOT gate which tools
+# voice_agent_role) - shapes tone/emphasis only, does NOT gate which tools
 # are available (that stays controlled by calendar_scheduling_enabled etc.
 # regardless of role, so e.g. "Info & FAQ" can still politely offer to book
 # a meeting if the visitor explicitly asks, it just doesn't lead with it).
 _VOICE_ROLE_INSTRUCTIONS: dict[str, str] = {
     "booking": (
-        "VOICE CALL FOCUS — Order & Booking: your primary job on this call is "
+        "VOICE CALL FOCUS - Order & Booking: your primary job on this call is "
         "to help the visitor book a meeting or place an order. Once you "
         "understand what they need, proactively offer available times or "
         "next steps rather than waiting to be asked. Still answer general "
         "questions if raised, but steer back toward getting the booking done.\n\n"
     ),
     "info": (
-        "VOICE CALL FOCUS — Information & FAQ: your primary job on this call "
+        "VOICE CALL FOCUS - Information & FAQ: your primary job on this call "
         "is answering questions accurately from the business knowledge base. "
-        "Don't proactively push booking or lead capture — only do those if "
+        "Don't proactively push booking or lead capture - only do those if "
         "the visitor explicitly asks. Prioritize being thorough and correct "
         "over being brief.\n\n"
     ),
     "lead": (
-        "VOICE CALL FOCUS — Lead Qualification: your primary job on this call "
+        "VOICE CALL FOCUS - Lead Qualification: your primary job on this call "
         "is understanding the visitor's needs and capturing their contact "
         "details so the team can follow up. Ask clarifying questions about "
         "what they're looking for, and once you have enough context, "
@@ -95,7 +95,7 @@ _VOICE_ROLE_INSTRUCTIONS: dict[str, str] = {
 
 # Tool calls with a lasting real-world side effect (sends something, creates
 # a recurring automation, deletes something) that we refuse to let the
-# weaker fallback model execute unsupervised — see the fallback-model write
+# weaker fallback model execute unsupervised - see the fallback-model write
 # guard in run_assistant. A bad read is annoying; a bad write persists.
 SENSITIVE_WRITE_TOOLS = frozenset({
     "create_scheduled_task",
@@ -139,7 +139,7 @@ async def _web_search(query: str) -> str:
             if r.status_code == 200 and r.text.strip():
                 return r.text.strip()[:6000]
             if r.status_code in (401, 402, 403):
-                logger.warning("web_search auth error %s — set JINA_API_KEY", r.status_code)
+                logger.warning("web_search auth error %s - set JINA_API_KEY", r.status_code)
     except Exception:
         logger.exception("web_search failed for %r", query)
     return "Web search is unavailable right now; answer from what you already know."
@@ -175,7 +175,7 @@ async def _translate_to_english_for_rag(text: str) -> str:
 async def search_knowledge(
     bot_id: str, owner_user: dict[str, Any], bot: dict[str, Any], query: str
 ) -> tuple[str, list[dict]]:
-    """The RAG step run_widget_assistant does at the start of every turn —
+    """The RAG step run_widget_assistant does at the start of every turn -
     extracted so it's reusable outside the text-chat tool-calling loop, e.g.
     as a callable tool for a voice_mode="realtime" (Gemini Live/OpenAI
     Realtime) session, which has no discrete "build a prompt, call the LLM
@@ -216,7 +216,7 @@ def scheduling_tool_names(bot: dict[str, Any], owner_user: dict[str, Any]) -> li
     session should get, given this bot's scheduling config and the owner's
     connected calendar. Single source of truth for both the text/pipeline
     tool-calling loop below and the realtime voice agent
-    (voice-agent/voice_worker.py::_build_realtime_tools) — they previously
+    (voice-agent/voice_worker.py::_build_realtime_tools) - they previously
     each hand-rolled their own version of this list and had drifted out of
     parity (realtime never got Outlook/Teams support, reschedule_meeting,
     or the newer get_available_slots-based flow)."""
@@ -279,17 +279,17 @@ async def run_widget_assistant(
         if media_mime.startswith("audio/"):
             media_instruction = (
                 "The visitor sent a VOICE MESSAGE and the audio is attached below. "
-                "You ARE able to hear and understand audio — listen to it, interpret what "
+                "You ARE able to hear and understand audio - listen to it, interpret what "
                 "the visitor is asking, and answer their question normally. Don't refuse to "
                 "engage with it or claim you can't process audio in general. "
                 "However, if the recording is silent, too quiet, or has no discernible "
-                "speech, say so plainly — e.g. \"I couldn't quite catch that — could you "
-                "try recording again, or type your message instead?\" — instead of "
+                "speech, say so plainly - e.g. \"I couldn't quite catch that - could you "
+                "try recording again, or type your message instead?\" - instead of "
                 "guessing or answering a question they never actually asked."
             )
         elif media_mime.startswith("image/"):
             media_instruction = (
-                "The visitor sent an IMAGE, attached below. You can see images — "
+                "The visitor sent an IMAGE, attached below. You can see images - "
                 "look at it and respond helpfully."
             )
         else:
@@ -382,7 +382,7 @@ async def run_widget_assistant(
     provider_label = {"google_meet": "Google Meet", "zoom": "Zoom",
                       "teams": "Microsoft Teams"}.get(provider, "Google Meet")
     # Teams bookings run through Outlook/Graph; everything else uses Google Calendar.
-    # meeting_provider alone decides this — NOT also requiring sync_outlook_calendar,
+    # meeting_provider alone decides this - NOT also requiring sync_outlook_calendar,
     # which is a separate DB flag the dashboard's "Calendar" dropdown writes but whose
     # displayed value is entirely derived from meeting_provider (shows "Outlook"
     # whenever provider is "teams", "Google" otherwise) rather than from its own
@@ -394,9 +394,9 @@ async def run_widget_assistant(
     avail_instruction = (
         "Availability Check: Once you have the visitor's preferred date/time, call `get_available_slots` with "
         "near=<the ISO datetime the visitor asked for in the visitor's timezone, including the timezone offset e.g. 2026-09-10T10:00:00+05:30>. It already accounts for "
-        "business hours, working days, buffer time, minimum notice, and daily/weekly caps — it returns REAL, "
+        "business hours, working days, buffer time, minimum notice, and daily/weekly caps - it returns REAL, "
         "guaranteed-bookable slots, nearest to what the visitor asked for first. NEVER compute availability "
-        "yourself from raw calendar data, and never invent or guess a slot — only offer times `get_available_slots` "
+        "yourself from raw calendar data, and never invent or guess a slot - only offer times `get_available_slots` "
         "actually returned. If the visitor's exact requested time isn't the first slot returned, that means it "
         "wasn't available; present the returned slots as alternatives instead."
     )
@@ -406,7 +406,7 @@ async def run_widget_assistant(
             "start=start_iso_time, end=end_iso_time, attendees=[visitor_real_email], body=description_details, "
             "online_meeting=true (this generates the Microsoft Teams join link). Booking automatically emails "
             "the client and admin and records the meeting. The server independently re-verifies the slot is still "
-            "open right before booking and will reject it if it isn't — if that happens, call `get_available_slots` "
+            "open right before booking and will reject it if it isn't - if that happens, call `get_available_slots` "
             "again and offer the visitor a fresh alternative rather than retrying the same time."
         )
     else:
@@ -414,12 +414,12 @@ async def run_widget_assistant(
             "To book, call `create_calendar_event` with: summary='Demo Meeting with <Visitor Full Name>', "
             "start=start_iso_time, end=end_iso_time, attendees=[visitor_real_email], description=description_details. "
             "Booking automatically emails the client and admin and records the meeting. The server independently "
-            "re-verifies the slot is still open right before booking and will reject it if it isn't — if that "
+            "re-verifies the slot is still open right before booking and will reject it if it isn't - if that "
             "happens, call `get_available_slots` again and offer the visitor a fresh alternative rather than "
             "retrying the same time."
         )
 
-    # 4. Prompt compilation — only include scheduling guidance when booking is enabled
+    # 4. Prompt compilation - only include scheduling guidance when booking is enabled
     scheduling_enabled = bool(bot.get("calendar_scheduling_enabled"))
     if scheduling_enabled:
         defense_lines: list[str] = []
@@ -448,14 +448,14 @@ async def run_widget_assistant(
             f"{max_weekly_line}"
             f"{defense_rules_str}"
             f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking.\n\n"
-            f"MANDATORY 4-STEP BOOKING WORKFLOW (Follow in strict chronological order — DO NOT skip steps):\n"
+            f"MANDATORY 4-STEP BOOKING WORKFLOW (Follow in strict chronological order - DO NOT skip steps):\n"
             f"1. DATE & TIME SELECTION:\n"
             f"   - The visitor's timezone is ALREADY known as {visitor_timezone or 'UTC'}. NEVER ask the visitor for their timezone under any circumstances (never say 'please include timezone' or ask what timezone they are in).\n"
             f"   - When asking for their preferred time, simply ask: 'What day and time works best for you?'\n"
-            f"   - RELATIVE DATES: When the visitor gives a relative date (such as 'tomorrow', 'tomorrow at 10 am', 'next Monday', 'day after tomorrow'), you MUST resolve it to the exact calendar date immediately using 'Current Time in Visitor's Location' ({current_time_visitor}). NEVER ask the visitor to confirm what date tomorrow is — calculate it yourself!\n\n"
+            f"   - RELATIVE DATES: When the visitor gives a relative date (such as 'tomorrow', 'tomorrow at 10 am', 'next Monday', 'day after tomorrow'), you MUST resolve it to the exact calendar date immediately using 'Current Time in Visitor's Location' ({current_time_visitor}). NEVER ask the visitor to confirm what date tomorrow is - calculate it yourself!\n\n"
             f"2. AVAILABILITY CHECK & CONTACT DETAILS REQUEST:\n"
             f"   - {avail_instruction}\n"
-            f"   - Present 2 to 3 of the returned slots to the visitor using their `visitor_local_label` (which is already computed in the visitor's local timezone). State times cleanly and naturally, showing simple time aligned with the visitor's timezone and inside brackets show the timezone (e.g. 'Thursday, September 10th at 10:00 AM ({visitor_timezone or 'UTC'})' or '10:00 AM ({visitor_timezone or 'UTC'})'). NEVER output 'GMT', 'GMT+...', or technical timezone offset strings like 'GMT+5:30 (Colombo)' in your responses — always show all times based on the visitor's timezone with the timezone in brackets without robotic clutter.\n"
+            f"   - Present 2 to 3 of the returned slots to the visitor using their `visitor_local_label` (which is already computed in the visitor's local timezone). State times cleanly and naturally, showing simple time aligned with the visitor's timezone and inside brackets show the timezone (e.g. 'Thursday, September 10th at 10:00 AM ({visitor_timezone or 'UTC'})' or '10:00 AM ({visitor_timezone or 'UTC'})'). NEVER output 'GMT', 'GMT+...', or technical timezone offset strings like 'GMT+5:30 (Colombo)' in your responses - always show all times based on the visitor's timezone with the timezone in brackets without robotic clutter.\n"
             f"   - If the requested slot IS AVAILABLE:\n"
             f"     * Check if you already have the visitor's verified name and real email address from earlier in the conversation.\n"
             f"     * If you do NOT have their name or email yet: DO NOT CALL the booking tool! Confirm that the slot is open, and IMMEDIATELY ask for their required contact details ({required_fields_str}) and optional details ({optional_fields_str}) in this same reply.\n"
@@ -476,10 +476,10 @@ async def run_widget_assistant(
             f"RESCHEDULING AN EXISTING MEETING:\n"
             f"   - If a visitor with an existing booking asks to move it, first ask for the email address it was booked under (if not already known), then call `get_available_slots` "
             f"with `near` set to their new preferred time, present the returned options exactly as before, and once they confirm one, call `reschedule_meeting` with that visitor_email and the confirmed new_start/new_end. "
-            f"Never guess a new time yourself — only offer times `get_available_slots` actually returned.\n\n"
+            f"Never guess a new time yourself - only offer times `get_available_slots` actually returned.\n\n"
             f"CANCELLING AN EXISTING MEETING:\n"
             f"   - If a visitor with an existing booking asks to cancel (not reschedule), first ask for the email address it was booked under (if not already known), confirm they really want to cancel "
-            f"(not move it to a new time), and then call `cancel_meeting` with that visitor_email. It cannot be undone — never call it on an ambiguous request; ask a clarifying question instead.\n\n"
+            f"(not move it to a new time), and then call `cancel_meeting` with that visitor_email. It cannot be undone - never call it on an ambiguous request; ask a clarifying question instead.\n\n"
         )
     else:
         scheduling_block = (
@@ -488,13 +488,13 @@ async def run_widget_assistant(
             "If asked, politely say booking isn't available and offer to help another way.\n\n"
         )
 
-    # Lead-capture instructions (proactive — not only at booking).
+    # Lead-capture instructions (proactive - not only at booking).
     if lead_capture_enabled:
         lead_capture_block = (
             "LEAD CAPTURE (be proactive):\n"
             "- Whenever you answer a question about features, pricing, capabilities, or 'how it works' AND you have not yet collected the visitor's contact details in this conversation, warmly offer to have the team follow up and ASK for their name and email. Don't wait for them to ask.\n"
-            f"- REQUIRED fields to collect: {required_fields_str}. Also ASK once for each of these optional fields (don't require them, but do ask): {optional_fields_str}. Ask one field at a time, conversationally — never interrogate.\n"
-            "- As SOON as you have at least a name or an email, call the `create_lead` tool to save what you have (no meeting needed) — but saving early does NOT mean the conversation is done: you still owe the visitor one question per remaining optional field above before treating contact info as fully collected. After they answer, call `create_lead` again to add it — it updates the same lead, it doesn't duplicate.\n"
+            f"- REQUIRED fields to collect: {required_fields_str}. Also ASK once for each of these optional fields (don't require them, but do ask): {optional_fields_str}. Ask one field at a time, conversationally - never interrogate.\n"
+            "- As SOON as you have at least a name or an email, call the `create_lead` tool to save what you have (no meeting needed) - but saving early does NOT mean the conversation is done: you still owe the visitor one question per remaining optional field above before treating contact info as fully collected. After they answer, call `create_lead` again to add it - it updates the same lead, it doesn't duplicate.\n"
             "- If the visitor declines to share a detail, respect it, move on, and don't ask again.\n"
             + (f"- The visitor's country is auto-detected as '{visitor_country}'. Do NOT ask for their country.\n" if visitor_country else "")
             + "\n"
@@ -506,7 +506,7 @@ async def run_widget_assistant(
     has_knowledge = bool(knowledge_context.strip())
 
     _LANGUAGE_NAMES = {
-        # Major world languages — sorted by ISO code
+        # Major world languages - sorted by ISO code
         "af": "Afrikaans",
         "sq": "Albanian",
         "am": "Amharic",
@@ -610,7 +610,7 @@ async def run_widget_assistant(
         knowledge_line = (
             "- Answer primarily from the business knowledge below. If it doesn't cover the question, "
             "you MAY use your own general knowledge to help. Never invent specifics about THIS business "
-            "(prices, policies, features, contact details) — only state those if they're in the knowledge.\n"
+            "(prices, policies, features, contact details) - only state those if they're in the knowledge.\n"
             "- If the answer isn't in your knowledge, be upfront that it's general information, then offer to "
             "capture the visitor's name + email so the team can follow up"
             + (", or offer to book a call" if scheduling_enabled else "")
@@ -621,12 +621,12 @@ async def run_widget_assistant(
             "- Answer primarily from the business knowledge below. If it doesn't cover the question, use the "
             "`web_search` tool to look up current information on the web, then answer citing what you found. "
             "You may also use your general knowledge. Never invent specifics about THIS business (prices, "
-            "policies, features) — only state those if they're in the knowledge or a credible web result.\n"
+            "policies, features) - only state those if they're in the knowledge or a credible web result.\n"
         )
     else:  # strict
         knowledge_line = (
             "- Answer using ONLY the business knowledge provided below. Do NOT invent facts, prices, policies, or features.\n"
-            "- If the answer isn't in your knowledge, say so honestly and helpfully — never guess. Then offer to help another way "
+            "- If the answer isn't in your knowledge, say so honestly and helpfully - never guess. Then offer to help another way "
             "(capture the visitor's name + email so the team can follow up"
             + (", or offer to book a call" if scheduling_enabled else "")
             + ").\n"
@@ -643,11 +643,11 @@ async def run_widget_assistant(
         + ("- LEAD CAPTURE IS ON: whenever you answer a question about the product, features, pricing or capabilities AND "
            "you have not yet collected the visitor's name and email in this conversation, append a short friendly sentence "
            "offering to have the team follow up and ASK for their name (then their email). Call the create_lead tool as soon "
-           "as you have a name or email. Once captured — or if they decline — don't ask again.\n"
+           "as you have a name or email. Once captured - or if they decline - don't ask again.\n"
            if lead_capture_enabled else "")
         + "- If the visitor attaches an image, screenshot, document, or voice message, USE its contents to understand and help "
         "with their support request (e.g. read an error screenshot, an invoice, or a photo; transcribe and act on a voice note). "
-        "Don't refuse attachments — interpret them in the context of helping this customer.\n"
+        "Don't refuse attachments - interpret them in the context of helping this customer.\n"
         + ("- Stay strictly on-topic for this business. Politely decline off-topic, unsafe, or abusive requests.\n"
            if answer_mode == "strict" else
            "- Keep the focus on this business, but you may answer reasonable general questions too. Politely decline unsafe or abusive requests.\n")
@@ -663,7 +663,7 @@ async def run_widget_assistant(
         if guardrail_topics:
             persona += f"- NEVER discuss or give an opinion on these topics, even tangentially: {guardrail_topics}.\n"
         if guardrail_block_profanity:
-            persona += "- If the visitor is abusive, profane, or hostile, do not engage with the tone — stay calm and redirect to how you can help, or end the conversation politely if it continues.\n"
+            persona += "- If the visitor is abusive, profane, or hostile, do not engage with the tone - stay calm and redirect to how you can help, or end the conversation politely if it continues.\n"
         if guardrail_refusal_message:
             persona += f"- When declining for any guardrail reason above, use this exact message: \"{guardrail_refusal_message}\"\n"
         persona += "\n"
@@ -674,7 +674,7 @@ async def run_widget_assistant(
             "collect the visitor's name and email so the team can follow up, and keep it friendly.\n\n"
         )
 
-    # Voice-only persona/focus hint — a dashboard-configured lean, not a
+    # Voice-only persona/focus hint - a dashboard-configured lean, not a
     # capability gate (booking/lead-capture tools stay controlled by the
     # bot's normal calendar_scheduling_enabled/etc. settings regardless of
     # role; this only shapes tone/emphasis on what the agent leads with).
@@ -691,11 +691,11 @@ async def run_widget_assistant(
         f"=== END KNOWLEDGE ===\n\n"
         f"{scheduling_block}"
         f"{lead_capture_block}"
-        f"(Internal — never share: Bot ID {bot_id})"
+        f"(Internal - never share: Bot ID {bot_id})"
     )
 
     # 4b. Non-Gemini models route through the owner's own BYOK key. Agentic tool-calling
-    # (lead capture, calendar booking) is Gemini-only for now — a BYOK reply is still
+    # (lead capture, calendar booking) is Gemini-only for now - a BYOK reply is still
     # knowledge-grounded since `knowledge_context` is already baked into system_instruction
     # as plain text above. Falls through to Gemini on any failure or missing key.
     selected_model = bot.get("selected_model") or "gemini"
@@ -717,9 +717,9 @@ async def run_widget_assistant(
             )
             if byok_reply:
                 return {"reply": byok_reply, "thinking": "", "sources": _refs_grounded_in_reply(source_refs, byok_reply)}
-            logger.warning("BYOK provider %s returned an empty reply for bot %s — falling back to Gemini", byok_provider, bot_id)
+            logger.warning("BYOK provider %s returned an empty reply for bot %s - falling back to Gemini", byok_provider, bot_id)
         except Exception as exc:
-            # api_key is a customer's own third-party LLM credential — some
+            # api_key is a customer's own third-party LLM credential - some
             # provider SDKs (including litellm, depending on version/error
             # type) echo request details, including auth headers, into their
             # exception message on an auth failure. logger.exception() logs
@@ -727,7 +727,7 @@ async def run_widget_assistant(
             # rather than trusting the SDK never reflects it back.
             safe_msg = str(exc).replace(api_key, "[REDACTED]") if api_key else str(exc)
             logger.error(
-                "BYOK generation failed for bot %s — falling back to Gemini: %s",
+                "BYOK generation failed for bot %s - falling back to Gemini: %s",
                 bot_id, safe_msg, exc_info=False,
             )
 
@@ -757,8 +757,8 @@ async def run_widget_assistant(
     booking_tool_succeeded = False
     booking_correction_attempted = False
 
-    # Model to try first — GEMINI_VOICE_MODEL for voice-mode requests, MODEL_NAME
-    # (today's default) otherwise — falling through to the same fallback chain
+    # Model to try first - GEMINI_VOICE_MODEL for voice-mode requests, MODEL_NAME
+    # (today's default) otherwise - falling through to the same fallback chain
     # unchanged either way. voice_mode=False is byte-for-byte identical to before.
     primary_model = ai_client.resolve_gemini_model(GEMINI_VOICE_MODEL if voice_mode else MODEL_NAME)
     fallback_models = [ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS]
@@ -767,11 +767,11 @@ async def run_widget_assistant(
     # Every model call goes through ai_client.chat_stream. When on_token is
     # provided (streaming endpoint) the FINAL text answer is emitted
     # token-by-token; tool rounds normally emit no visible text so nothing is
-    # streamed prematurely. With on_token=None the same code just aggregates —
+    # streamed prematurely. With on_token=None the same code just aggregates -
     # identical output to the old non-streaming loop.
     #
     # Exception: when this bot can book meetings, we can't stream the final
-    # round live — a round can turn out to be a fabricated booking claim (model
+    # round live - a round can turn out to be a fabricated booking claim (model
     # checks availability, then confidently lies that it booked the slot
     # without ever calling create_calendar_event/create_outlook_event; observed
     # live, not hypothetical). Once tokens hit on_token they're already on the
@@ -815,18 +815,18 @@ async def run_widget_assistant(
                             "but you have not actually called the booking tool this conversation. "
                             "If the requested slot is still available, call the booking tool now "
                             "before saying anything else to the visitor. If it can't be booked, "
-                            "tell them honestly that it didn't go through and why — do not repeat "
+                            "tell them honestly that it didn't go through and why - do not repeat "
                             "the claim that it's booked."
                         ),
                     })
                     continue
-                # Second offense in the same turn — stop trusting the model's claim.
+                # Second offense in the same turn - stop trusting the model's claim.
                 reply = (
-                    "Sorry — I wasn't actually able to complete that booking due to a technical "
+                    "Sorry - I wasn't actually able to complete that booking due to a technical "
                     "issue on my end. Could you confirm the date and time again so I can try booking it properly?"
                 )
             if on_token and not stream_live:
-                # Held back for validation above — release it now as one chunk.
+                # Held back for validation above - release it now as one chunk.
                 await on_token(reply)
             return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply)}
 
@@ -860,7 +860,7 @@ async def run_widget_assistant(
                     args["lat"] = geo["lat"]
                 if args.get("lon") is None and geo.get("lon") is not None:
                     args["lon"] = geo["lon"]
-            # Force the actual timezone the event gets tagged with — never
+            # Force the actual timezone the event gets tagged with - never
             # trust the model to have supplied or converted this itself (the
             # owner's user-profile timezone field defaults to "UTC" and is
             # frequently stale, which silently mistagged bookings by whatever
@@ -883,7 +883,7 @@ async def run_widget_assistant(
                 booking_tool_succeeded = True
             messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps({"result": result})})
 
-    # Exceeded tool rounds — force a final, tool-free answer (streamed too).
+    # Exceeded tool rounds - force a final, tool-free answer (streamed too).
     final_system_instruction = (
         system_instruction
         + "\n\nYou've already gathered enough data. Reply to the user now with a final answer; do not call any more tools."
@@ -900,7 +900,7 @@ async def run_widget_assistant(
     reply = final["text"] or "I'm sorry, I wasn't able to complete that request."
     if not booking_tool_succeeded and _claims_booking_success(reply):
         reply = (
-            "Sorry — I wasn't actually able to complete that booking due to a technical "
+            "Sorry - I wasn't actually able to complete that booking due to a technical "
             "issue on my end. Could you confirm the date and time again so I can try booking it properly?"
         )
     if on_token and not stream_live:
@@ -1081,7 +1081,7 @@ def _choose_sources(query: str, sources: list[dict], max_sources: int = 6) -> tu
 def _rank_sources(query: str, sources: list[dict], max_sources: int = 6,
                   max_chars: int = 14000) -> str:
     """Score sources by query-token overlap and return only the most relevant,
-    capped in length — so large knowledge bases stay focused and within context."""
+    capped in length - so large knowledge bases stay focused and within context."""
     chosen, q_tokens = _choose_sources(query, sources, max_sources)
     lines, total = [], 0
     for s in chosen:
@@ -1101,7 +1101,7 @@ def _refs_grounded_in_reply(refs: list[dict], reply: str) -> list[dict]:
     Zoom integration doc, etc.) even when the actual reply is a plain
     scheduling question that used none of that content. Keep only the refs
     whose own name shares a real token with what the assistant actually said
-    — a cheap proxy for "this citation reflects the reply", not just "this
+    - a cheap proxy for "this citation reflects the reply", not just "this
     document matched the question"."""
     reply_tokens = _query_tokens(reply)
     if not reply_tokens:

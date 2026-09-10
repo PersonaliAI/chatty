@@ -12,7 +12,7 @@ class WidgetChatRequest(BaseModel):
     session_id: str
     text: str
     visitor_timezone: Optional[str] = "UTC"
-    host: Optional[str] = None  # parent page host, sent by widget.js — advisory only, not trusted
+    host: Optional[str] = None  # parent page host, sent by widget.js - advisory only, not trusted
 
 
 class WidgetVerifyOriginRequest(BaseModel):

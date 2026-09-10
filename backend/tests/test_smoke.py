@@ -1,6 +1,6 @@
 """Smoke + pure-logic tests for the Chatty/Kin backend.
 
-These import the whole app (catching syntax/import breaks — the backend
+These import the whole app (catching syntax/import breaks - the backend
 equivalent of a failed build) and exercise the security- and billing-critical
 pure helpers that must never silently regress.
 """

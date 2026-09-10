@@ -115,7 +115,7 @@ interface Lead {
 }
 
 // Fields the dashboard actually reads/writes off a chatty_bots row (see
-// switchActiveBot below, which is the exhaustive source for this list) —
+// switchActiveBot below, which is the exhaustive source for this list) -
 // the index signature covers everything else the table has that this file
 // doesn't touch by name.
 interface Bot {
@@ -284,14 +284,14 @@ interface KnowledgeProgress {
 // (no separate typed text on a button or a launcher circle).
 const ICON_ONLY_SECTIONS = new Set(["sendBtn", "launcher"]);
 
-// Dashboard-tab permission keys — keep in sync with the backend's
+// Dashboard-tab permission keys - keep in sync with the backend's
 // app/core/permissions.py ALL_TABS. A team member's `permissions` array
 // (chatty_team_members.permissions) lists which of these they hold; the
 // owner implicitly holds all of them.
 const CHATTY_TEAM_TABS = ["inbox", "sources", "design", "settings", "voice", "team", "meetings", "billing", "byok", "webhooks"] as const;
 type ChattyTeamTab = (typeof CHATTY_TEAM_TABS)[number];
 // Only the owner may grant/revoke these for anyone, including an admin
-// managing the roster — mirrors OWNER_ONLY_TABS in app/core/permissions.py.
+// managing the roster - mirrors OWNER_ONLY_TABS in app/core/permissions.py.
 const OWNER_ONLY_TABS = new Set<ChattyTeamTab>(["billing", "byok", "webhooks"]);
 const DEFAULT_ADMIN_TABS: ChattyTeamTab[] = ["inbox", "sources", "design", "settings", "voice", "team", "meetings"];
 const DEFAULT_AGENT_TABS: ChattyTeamTab[] = ["inbox"];
@@ -302,7 +302,7 @@ const TAB_LABELS: Record<ChattyTeamTab, string> = {
 
 // Which permission tab (if any) gates each sidebar nav item. `null` means
 // every team member can see it regardless of permissions (read-only/low-risk
-// sections). Real enforcement lives in the backend/RLS — this only hides
+// sections). Real enforcement lives in the backend/RLS - this only hides
 // the nav entry so a member doesn't land on a tab whose actions will 403.
 const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   home: null, customizer: "design", knowledge: "sources", playground: null,
@@ -316,7 +316,7 @@ const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
 /** Quick Connect's Google/Microsoft buttons, as a modern dropdown instead of
  * a single toggle. One OAuth connection unlocks several services (Google:
  * Drive + Calendar; Microsoft: OneDrive + Outlook Calendar + Teams), so the
- * button always reads the provider's own name/icon ("Google"/"Microsoft" —
+ * button always reads the provider's own name/icon ("Google"/"Microsoft" -
  * never "Google Drive", which wrongly implied Drive was the only thing
  * connecting bought you) and the dropdown lists what it unlocks. Each
  * service row starts the OAuth flow itself if not yet connected. */
@@ -385,7 +385,7 @@ function CloudProviderMenu({
   );
 }
 
-/** A custom checkbox for the Team section's per-tab permission grants —
+/** A custom checkbox for the Team section's per-tab permission grants -
  * native checkboxes render the browser/OS's own check glyph (often a flat
  * black tick on whatever accent-color background), which doesn't match this
  * app's rounded, white-on-orange button styling used everywhere else. */
@@ -416,7 +416,7 @@ const _TIME_PICKER_HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
 const _TIME_PICKER_MINUTES = ["00", "15", "30", "45"];
 
 /** A compact 3-part time picker (hour / minute / AM-PM) built from
- * ModernSelect, replacing a bare native `<input type="time">` — the latter
+ * ModernSelect, replacing a bare native `<input type="time">` - the latter
  * renders as unstyled browser chrome (a plain clock-icon field) that looks
  * out of place next to the rest of this dashboard's styled controls.
  * `minutes` is minutes-since-midnight (0-1439), matching
@@ -507,7 +507,7 @@ const AVAILABILITY_DAYS = [
 ] as const;
 
 
-/** Per-day recurring availability for one team member — matches
+/** Per-day recurring availability for one team member - matches
  * chatty_availability_rules (day_of_week 0=Mon..6=Sun, start_minute/
  * end_minute). Round-robin only considers a member "free" within these
  * windows; a member with no rows falls back to the bot's own business
@@ -587,7 +587,7 @@ function MemberAvailabilityEditor({ memberId, botId, showToast, fetchWithFallbac
   );
 }
 
-/** A styled dropdown for Section Colors' property picker — a native
+/** A styled dropdown for Section Colors' property picker - a native
  * <select>'s CLOSED box can be restyled with appearance:none, but its
  * OPENED option list is OS/browser chrome in every browser with no CSS
  * hook at all, so a real custom listbox is the only way to actually look
@@ -645,7 +645,7 @@ const MeetingsCalendar = dynamic(
   { ssr: false }
 );
 
-// A curated subset of Google Fonts (not the full ~1800-font catalog — a
+// A curated subset of Google Fonts (not the full ~1800-font catalog - a
 // dropdown that size stops being a picker) spanning the categories a chat
 // widget's body text realistically wants: readable sans-serifs, a few
 // serifs for the more editorial presets, one monospace, one rounded/
@@ -1196,17 +1196,17 @@ export default function Dashboard() {
   const [teaserMessage, setTeaserMessage] = useState("👋 Need help? Chat with us.");
   const [primaryColor, setPrimaryColor] = useState("#f97316"); // default
   // Per-section colors (header/bot-bubble/user-bubble/input-bar/send-btn/
-  // launcher) — null until the owner saves at least one, at which point it
+  // launcher) - null until the owner saves at least one, at which point it
   // takes over from primaryColor-driven presets entirely (see globals.css's
   // .has-color-scheme override block). "Auto-generate" fills this from
   // primaryColor via generateColorScheme(); each section stays individually
   // editable after that.
   const [colorScheme, setColorScheme] = useState<WidgetColorScheme | null>(null);
   // Which property (bg/text/icon) each Section Colors row's dropdown is
-  // currently showing — transient UI state, not saved with the bot.
+  // currently showing - transient UI state, not saved with the bot.
   const [sectionColorProp, setSectionColorProp] = useState<Record<string, "bg" | "text" | "icon">>({});
   const [widgetStyle, setWidgetStyle] = useState<string>("minimal");
-  // Which view the Customizer's live preview shows — a static mockup of the
+  // Which view the Customizer's live preview shows - a static mockup of the
   // in-chat text conversation, or of the voice-call screen (orb, live
   // transcript bubbles, mute/hangup). Both are hand-built mockups (like the
   // rest of #customizer-live-preview), not the real ChatWidgetCore/
@@ -1216,7 +1216,7 @@ export default function Dashboard() {
   // text size; the scale is a percentage of that, not an absolute px value.
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [fontSizePercent, setFontSizePercent] = useState(100);
-  // Default chat panel size on desktop — a preset name, not raw pixels, so
+  // Default chat panel size on desktop - a preset name, not raw pixels, so
   // adding a new size later never needs a schema change. Visitors can still
   // drag-resize their own window from whichever size this sets as the start.
   const [panelSize, setPanelSize] = useState("default");
@@ -1230,7 +1230,7 @@ export default function Dashboard() {
   const [avatarIcon, setAvatarIcon] = useState("logo");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   // Set only when the current avatarUrl came from the icon library (not a
-  // real uploaded file) — lets clicking the avatar slot reopen the picker
+  // real uploaded file) - lets clicking the avatar slot reopen the picker
   // pre-filled on the same icon/color instead of a native file dialog, and
   // lets "change its color after picking" actually mean something (the
   // baked SVG file itself has no color memory once uploaded).
@@ -1260,7 +1260,7 @@ export default function Dashboard() {
   const logoFileRef = useRef<HTMLInputElement>(null);
 
   // Extract colors when logoUrl changes. Resets suggestedColors whenever
-  // logoUrl is cleared — logoUrl is set from several places (upload,
+  // logoUrl is cleared - logoUrl is set from several places (upload,
   // fetched bot settings, reset), so consolidating this reset into each of
   // those call sites would be a larger refactor than this warning justifies.
   useEffect(() => {
@@ -1275,14 +1275,14 @@ export default function Dashboard() {
   }, [logoUrl]);
   const [showWizard, setShowWizard] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini");
-  // BYOK — bring-your-own-key for non-Gemini models. The key itself is never
+  // BYOK - bring-your-own-key for non-Gemini models. The key itself is never
   // round-tripped to the client; only `byokConfigured` reflects whether one is set.
   const [byokProvider, setByokProvider] = useState("");
   const [byokModel, setByokModel] = useState("");
   const [byokApiKeyInput, setByokApiKeyInput] = useState("");
   const [byokConfigured, setByokConfigured] = useState(false);
   const [savingByok, setSavingByok] = useState(false);
-  // Voice agent — STT/TTS provider selection + optional BYOK keys, mirrors the
+  // Voice agent - STT/TTS provider selection + optional BYOK keys, mirrors the
   // LLM BYOK pattern above; keys are never round-tripped, only *_configured is.
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [voiceSttProvider, setVoiceSttProvider] = useState("google");
@@ -1296,7 +1296,7 @@ export default function Dashboard() {
   const [savingVoiceTts, setSavingVoiceTts] = useState(false);
   const [voiceAgentRole, setVoiceAgentRole] = useState("general");
   const [voiceMaxDurationMinutes, setVoiceMaxDurationMinutes] = useState(15);
-  // Realtime mode (Gemini Live / OpenAI Realtime — speech-to-speech, no
+  // Realtime mode (Gemini Live / OpenAI Realtime - speech-to-speech, no
   // separate STT/TTS stage). voiceTtsVoice above is reused as the realtime
   // voice when this mode is active, same as the backend column reuse.
   const [voiceMode, setVoiceMode] = useState<"pipeline" | "realtime">("pipeline");
@@ -1324,7 +1324,7 @@ export default function Dashboard() {
   const [guardrailBlockProfanity, setGuardrailBlockProfanity] = useState(false);
   const [guardrailRefusalMessage, setGuardrailRefusalMessage] = useState("");
 
-  // Unsaved Changes Tracking — setters are wired into the save flow below;
+  // Unsaved Changes Tracking - setters are wired into the save flow below;
   // no UI currently reads these values (no "unsaved changes"/"saving..."
   // indicator is rendered), so both are write-only for now.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1334,7 +1334,7 @@ export default function Dashboard() {
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // handleSaveChanges is redefined every render, closing over that render's
   // state. The debounce timer below is scheduled once and fires 1200ms
-  // later — without this ref it would call whatever (now-stale) version of
+  // later - without this ref it would call whatever (now-stale) version of
   // handleSaveChanges existed at the moment the timer was armed, silently
   // persisting the state from BEFORE the very change that armed it. Always
   // dereferencing through the ref at fire time guarantees the latest state.
@@ -1440,10 +1440,10 @@ export default function Dashboard() {
   const [totalQueries, setTotalQueries] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);
   const [conversionRate, setConversionRate] = useState("0.0");
-  const [resolutionRate, setResolutionRate] = useState("—");
-  const [csatScore, setCsatScore] = useState("—");
+  const [resolutionRate, setResolutionRate] = useState("-");
+  const [csatScore, setCsatScore] = useState("-");
   const [csatFeedback, setCsatFeedback] = useState<Array<{ id: string; rating: number; comment: string | null; session_id: string | null; created_at: string }>>([]);
-  const [busiestHour, setBusiestHour] = useState("—");
+  const [busiestHour, setBusiestHour] = useState("-");
   const [analyticsChartData, setAnalyticsChartData] = useState<Array<{ day: string; count: number; height: string }>>([]);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [aiUsageTotalCost, setAiUsageTotalCost] = useState(0);
@@ -1675,7 +1675,7 @@ export default function Dashboard() {
         if (botId) await loadAdminData(botId);
       } else {
         const d = await res.json().catch(() => ({}));
-        showToast(d.detail || "Couldn't reschedule — that time may not be available.", "error");
+        showToast(d.detail || "Couldn't reschedule - that time may not be available.", "error");
       }
     } catch { showToast("Couldn't reschedule. Try again.", "error"); } finally { setReschedulingBusy(false); }
   }
@@ -1851,7 +1851,7 @@ export default function Dashboard() {
     // Deliberately run-once-on-mount: checkCloudConnections/loadBotSettings/
     // fetchWithFallback are stable for the component's lifetime and this
     // effect must only fire once, not on every re-render one of them is
-    // re-created — adding them to the deps array would do exactly that.
+    // re-created - adding them to the deps array would do exactly that.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1969,7 +1969,7 @@ export default function Dashboard() {
       }));
       setAnalyticsChartData(chart);
 
-      // 5. AI resolution rate — sessions the bot handled without needing a human.
+      // 5. AI resolution rate - sessions the bot handled without needing a human.
       const { data: sessRows } = await supabase
         .from("chatty_sessions")
         .select("needs_attention")
@@ -1978,10 +1978,10 @@ export default function Dashboard() {
         const resolved = sessRows.filter(s => !s.needs_attention).length;
         setResolutionRate(`${((resolved / sessRows.length) * 100).toFixed(0)}%`);
       } else {
-        setResolutionRate("—");
+        setResolutionRate("-");
       }
 
-      // 6. CSAT — visitor thumbs up / (up + down).
+      // 6. CSAT - visitor thumbs up / (up + down).
       const { data: fbRows } = await supabase
         .from("chatty_conversations")
         .select("feedback_rating")
@@ -1991,7 +1991,7 @@ export default function Dashboard() {
         const ups = fbRows.filter(f => f.feedback_rating === "up").length;
         setCsatScore(`${((ups / fbRows.length) * 100).toFixed(0)}%`);
       } else {
-        setCsatScore("—");
+        setCsatScore("-");
       }
 
       // 6b. Post-chat star ratings + comments (the CSAT popup), most recent
@@ -2016,10 +2016,10 @@ export default function Dashboard() {
         const h12 = peak % 12 || 12;
         setBusiestHour(`${h12} ${ampm}`);
       } else {
-        setBusiestHour("—");
+        setBusiestHour("-");
       }
 
-      // 8. AI usage & cost (last 30 days) — every LiteLLM call this bot made,
+      // 8. AI usage & cost (last 30 days) - every LiteLLM call this bot made,
       // logged by the backend's plugins/ai_client.py to chatty_ai_usage.
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -2064,7 +2064,7 @@ export default function Dashboard() {
   async function loadBotSettings(userId: string) {
     setLoadingLists(true);
     try {
-      // No .eq("user_id", userId) filter — RLS itself now returns exactly
+      // No .eq("user_id", userId) filter - RLS itself now returns exactly
       // the right set (bots this user owns, OR-ed with bots they're a team
       // member of, per the "Team members can view bots they're added to"
       // policy), so an explicit owner-only filter here would silently hide
@@ -2077,8 +2077,8 @@ export default function Dashboard() {
       if (error) throw error;
 
       setUserBots(bots || []);
-      // chatty_bots.updated_at has no update trigger — it only ever reflects
-      // creation time — so ordering by it and taking [0] really means "most
+      // chatty_bots.updated_at has no update trigger - it only ever reflects
+      // creation time - so ordering by it and taking [0] really means "most
       // recently created bot," not "currently active bot." Reloading after
       // any save (e.g. saveOnboardingStep, called right after the lead
       // capture toggle) would silently snap the whole panel back to a
@@ -2129,7 +2129,7 @@ export default function Dashboard() {
         setSendButtonStyle(activeBot.send_button_style || "plane");
         setAvatarIcon(activeBot.avatar_icon || "logo");
         setAvatarUrl(activeBot.avatar_url || null);
-        setAvatarIconLibrarySelection(null); // not persisted — a freshly-loaded bot has no known icon/color to resume editing
+        setAvatarIconLibrarySelection(null); // not persisted - a freshly-loaded bot has no known icon/color to resume editing
         setLogoUrl(activeBot.logo_url || null);
         setSelectedModel(activeBot.selected_model);
         setSystemInstructions(activeBot.system_instructions);
@@ -2279,7 +2279,7 @@ export default function Dashboard() {
       setSendButtonStyle(selected.send_button_style || "plane");
       setAvatarIcon(selected.avatar_icon || "logo");
       setAvatarUrl(selected.avatar_url || null);
-      setAvatarIconLibrarySelection(null); // not persisted — a freshly-loaded bot has no known icon/color to resume editing
+      setAvatarIconLibrarySelection(null); // not persisted - a freshly-loaded bot has no known icon/color to resume editing
       setLogoUrl(selected.logo_url || null);
       setSelectedModel(selected.selected_model || "gemini");
       setSystemInstructions(selected.system_instructions || "");
@@ -2586,7 +2586,7 @@ export default function Dashboard() {
   );
 
   // Auto-detect timezone + country once the session is ready, if not already
-  // set — a one-time default-hydration effect, not something computable at
+  // set - a one-time default-hydration effect, not something computable at
   // render time (detectTimezone/detectCountryCode read the browser's Intl/
   // geo APIs, which can't run during SSR or the render pass itself).
   useEffect(() => {
@@ -2598,12 +2598,12 @@ export default function Dashboard() {
   }, [loadingSession]);
 
   // Load the selected Google Font at runtime for the Customizer's own live
-  // preview (see #customizer-live-preview below) — same technique the
+  // preview (see #customizer-live-preview below) - same technique the
   // actual widget uses (ChatWidgetCore.tsx / EmbedClient.tsx), since a
   // font picked from an open-ended catalog can't be a build-time
   // next/font/google import. Keyed by name so switching fonts doesn't
   // insert a duplicate <link>, and picking "Design default" (null) again
-  // just leaves whichever ones were already loaded — a rare case a stale
+  // just leaves whichever ones were already loaded - a rare case a stale
   // unused <link> isn't worth cleaning up for.
   useEffect(() => {
     if (!fontFamily) return;
@@ -2676,7 +2676,7 @@ export default function Dashboard() {
     }
     // The Voice Agent tab reads/writes the same voiceEnabled/voiceStt.../
     // voiceTts... state as the Settings tab's voice section, but is its own
-    // separate tab — this was never in the list of tabs that trigger
+    // separate tab - this was never in the list of tabs that trigger
     // loadVoiceSettings, so opening it always showed the untouched default
     // state (voiceEnabled=false) regardless of what's actually saved,
     // making the toggle look broken/unsaved even though writes were fine.
@@ -2688,12 +2688,12 @@ export default function Dashboard() {
       loadUnanswered();
     }
     // The load* functions are plain closures re-created every render, not
-    // memoized — adding them here would refetch on every render instead of
+    // memoized - adding them here would refetch on every render instead of
     // only on an actual tab/bot change, which is what this effect is for.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, botId]);
 
-  // The caller's own role + dashboard-tab permissions for the active bot —
+  // The caller's own role + dashboard-tab permissions for the active bot -
   // drives which sidebar tabs/actions are shown. Fetched whenever the active
   // bot changes (not just when the Settings tab opens), since sidebar
   // visibility needs it from first paint.
@@ -2711,7 +2711,7 @@ export default function Dashboard() {
           // If the active bot switched to one where this tab isn't granted
           // (e.g. switching from an owned bot to a shared bot as an agent),
           // the sidebar link disappears but the content pane wouldn't
-          // otherwise notice — bounce back to the always-visible Overview.
+          // otherwise notice - bounce back to the always-visible Overview.
           const requiredTab = NAV_TAB_PERMISSION[activeTab];
           if (requiredTab && role !== "owner" && !permissions.includes(requiredTab)) {
             setActiveTab("home");
@@ -2719,7 +2719,7 @@ export default function Dashboard() {
         }
       } catch { /* keep the owner-level default on failure */ }
     })();
-    // Deliberately excludes activeTab — this should only re-check on a bot
+    // Deliberately excludes activeTab - this should only re-check on a bot
     // switch, not refire on every tab click.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId]);
@@ -2754,7 +2754,7 @@ export default function Dashboard() {
         await loadTeam();
         showToast(
           data.email_status === "logged"
-            ? `${email} added. We couldn't email them — ask them to sign in with this address directly.`
+            ? `${email} added. We couldn't email them - ask them to sign in with this address directly.`
             : `${email} added and notified by email.`,
           data.email_status === "logged" ? "info" : "success"
         );
@@ -2919,7 +2919,7 @@ export default function Dashboard() {
       case 2:
         return {
           role: "assistant",
-          content: "📂 Great! Please **send your documents** — PDF, TXT, DOCX, images, or CSV files.\n\nYou can also connect optional drives:",
+          content: "📂 Great! Please **send your documents** - PDF, TXT, DOCX, images, or CSV files.\n\nYou can also connect optional drives:",
           connectorButtons: true,
           quickReplies: [
             { label: "I've uploaded all my docs", value: "docs_done", icon: "✅" }
@@ -2931,7 +2931,7 @@ export default function Dashboard() {
           role: "assistant",
           content: "📋 **Do you have any custom instructions, rules, or policies** for the assistant?\n\nFor example: *Always be polite. Don't offer discounts. Refer inquiries outside North America to partners.*",
           quickReplies: [
-            { label: "Skip — no custom rules", value: "skip_instructions", icon: "⏭️" }
+            { label: "Skip - no custom rules", value: "skip_instructions", icon: "⏭️" }
           ],
           isSetup: true
         };
@@ -2968,12 +2968,12 @@ export default function Dashboard() {
       case 7:
         return {
           role: "assistant",
-          content: "🌍 **Confirm your country & timezone, pick a meeting provider, then connect a calendar.**\n\nWe auto-detected these from your browser — adjust if needed. The assistant will collect all required lead details *before* booking, then sync times to the visitor's timezone.",
+          content: "🌍 **Confirm your country & timezone, pick a meeting provider, then connect a calendar.**\n\nWe auto-detected these from your browser - adjust if needed. The assistant will collect all required lead details *before* booking, then sync times to the visitor's timezone.",
           tzPicker: true,
           providerPicker: true,
           calendarButtons: true,
           quickReplies: [
-            { label: "Calendar connected — continue", value: "calendar_done", icon: "✅" },
+            { label: "Calendar connected - continue", value: "calendar_done", icon: "✅" },
             { label: "Continue without calendar", value: "skip_calendar", icon: "⏭️" }
           ],
           isSetup: true
@@ -2996,7 +2996,7 @@ export default function Dashboard() {
   }
 
   // Initialize the agentic setup chat when the step changes. agenticSetupStep
-  // advances from several places across the onboarding flow — consolidating
+  // advances from several places across the onboarding flow - consolidating
   // this reaction into each of those call sites would be a larger refactor
   // than this warning justifies.
   useEffect(() => {
@@ -3021,14 +3021,14 @@ export default function Dashboard() {
       yes_setup: "Yes, let's set it up",
       skip_setup: "Skip for now",
       docs_done: "I've uploaded all my docs",
-      skip_instructions: "Skip — no custom rules",
+      skip_instructions: "Skip - no custom rules",
       yes_leads: "Yes, enable lead capture",
       skip_leads: "No, skip this",
       confirm_lead_fields: "Confirm these fields",
       yes_meetings: "Yes, enable scheduling",
       skip_meetings: "No, skip",
       skip_calendar: "Continue without calendar",
-      calendar_done: "Calendar connected — continue",
+      calendar_done: "Calendar connected - continue",
       goto_admin: "Open Admin Panel",
     };
     const displayLabel = displayMap[value] || value;
@@ -3253,7 +3253,7 @@ export default function Dashboard() {
       let { error } = await supabase.from("chatty_bots").update(payload).eq("id", botId);
       let missingColWarning: string | null = null;
       // A column this build knows about (e.g. color_scheme) can lag behind
-      // its migration being applied — PostgREST rejects the WHOLE update
+      // its migration being applied - PostgREST rejects the WHOLE update
       // with a 400 in that case, silently breaking every other field too.
       // Retry once without the field PostgREST names, so a pending
       // migration degrades to "that one setting didn't save" instead of
@@ -3349,7 +3349,7 @@ export default function Dashboard() {
   }
   handleSaveChangesRef.current = handleSaveChanges;
 
-  // Handle Input Changes — debounced auto-save instead of a manual
+  // Handle Input Changes - debounced auto-save instead of a manual
   // "unsaved changes" banner: every change re-arms a short timer, and
   // handleSaveChanges fires once input settles, same pattern already used
   // for voice settings (handleAutoSaveVoiceField).
@@ -3374,14 +3374,14 @@ export default function Dashboard() {
           session_id: `__gen_instructions_${Date.now()}`,
           text:
             "Based solely on your knowledge base, generate your own configuration. " +
-            "Respond in EXACTLY this format, with no preamble or extra commentary — " +
+            "Respond in EXACTLY this format, with no preamble or extra commentary - " +
             "three sections, each starting on its own line with the exact header shown:\n\n" +
             "SYSTEM_INSTRUCTIONS:\n" +
             "A concise system prompt for yourself (2-4 sentences): 1) what you are and what business/product you represent, 2) what topics you help with, 3) your tone and response style.\n\n" +
             "GUARDRAIL_TOPICS:\n" +
-            "A comma-separated list of topics you should always decline to discuss — infer these from what's actually OUT of scope given your knowledge base (e.g. if you're a support bot for a SaaS product, likely topics are: competitor products, medical advice, legal advice, unrelated general knowledge). Leave blank if nothing obvious applies.\n\n" +
+            "A comma-separated list of topics you should always decline to discuss - infer these from what's actually OUT of scope given your knowledge base (e.g. if you're a support bot for a SaaS product, likely topics are: competitor products, medical advice, legal advice, unrelated general knowledge). Leave blank if nothing obvious applies.\n\n" +
             "REFUSAL_MESSAGE:\n" +
-            "One short, on-brand sentence to say when declining an off-topic question — match the tone of your knowledge base.",
+            "One short, on-brand sentence to say when declining an off-topic question - match the tone of your knowledge base.",
           visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
@@ -3578,7 +3578,7 @@ export default function Dashboard() {
   // Picking "Google Meet"/"Teams" as the meeting provider, or "Google/Outlook
   // Calendar" as the sync target, while that account isn't connected used to
   // just silently no-op (the option was disabled, so clicking it did
-  // nothing — confusing, since nothing told the visitor why). Now it starts
+  // nothing - confusing, since nothing told the visitor why). Now it starts
   // the same OAuth connect flow as the Quick Connect buttons instead.
   const handleMeetingProviderChange = (v: string) => {
     if (v === "google_meet" && !googleConnected) { handleConnectCloud("google"); return; }
@@ -3617,8 +3617,8 @@ export default function Dashboard() {
         setDiscoveredUrls(urls);
         setSelectedUrls(new Set(urls));
         if (!d.sitemap_found) {
-          setCrawlSummary("No sitemap found — only this single page is available.");
-          completeKnowledgeProgress("Scan Complete", "No sitemap found — single page detected.");
+          setCrawlSummary("No sitemap found - only this single page is available.");
+          completeKnowledgeProgress("Scan Complete", "No sitemap found - single page detected.");
         } else {
           completeKnowledgeProgress("Sitemap Scanned", `Found ${urls.length} pages ready to crawl.`);
         }
@@ -4006,7 +4006,7 @@ export default function Dashboard() {
   };
 
   // The refresh icon next to a URL source's re-crawl schedule dropdown
-  // — that dropdown only sets the auto re-crawl cadence, it never actually
+  // - that dropdown only sets the auto re-crawl cadence, it never actually
   // triggers a crawl. This does: same /api/crawl/pages endpoint the initial
   // crawl uses, which upserts by (bot_id, type=url, name=url) so re-crawling
   // an existing source updates its row in place rather than duplicating it.
@@ -4032,7 +4032,7 @@ export default function Dashboard() {
       const result = body.results?.[0];
       if (res.ok && result?.ok) {
         setSources((prev) => prev.map((s) => (s.id === sourceId ? { ...s, charCount: result.chars ?? s.charCount, status: "trained" } : s)));
-        showToast("Re-crawled — knowledge base updated.", "success");
+        showToast("Re-crawled - knowledge base updated.", "success");
         completeKnowledgeProgress("Re-crawl Complete", `Updated ${url} (${(result?.chars || 0).toLocaleString()} chars).`);
       } else {
         const failMsg = result?.error ? `Re-crawl failed: ${result.error}` : "Re-crawl failed.";
@@ -4050,7 +4050,7 @@ export default function Dashboard() {
 
   // Re-crawls every URL source at once (up to the API's 100-per-call cap)
   // via the same /api/crawl/pages endpoint handleRecrawlNow uses for a
-  // single source — one request, results mapped back per-source by URL.
+  // single source - one request, results mapped back per-source by URL.
   const handleCrawlAll = async () => {
     if (!botId || crawlingAll) return;
     const urlSources = sources.filter((s) => s.type === "url");
@@ -4241,7 +4241,7 @@ export default function Dashboard() {
   // Auto-saves voice_enabled / voice_stt_provider / voice_tts_provider /
   // voice_tts_voice / voice_agent_role / voice_max_duration_minutes
   // immediately on change, instead of requiring the user to notice the
-  // floating "Save Changes" banner and click it separately — these are
+  // floating "Save Changes" banner and click it separately - these are
   // simple non-secret fields (same direct-Supabase-write pattern
   // handleSaveChanges uses), so there's no reason to make the user hunt for
   // a save button just for a toggle/dropdown.
@@ -4551,7 +4551,7 @@ export default function Dashboard() {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    await uploadAvatarFile(file); // real upload from disk — clears any icon-library link
+    await uploadAvatarFile(file); // real upload from disk - clears any icon-library link
     if (avatarFileRef.current) avatarFileRef.current.value = "";
   };
 
@@ -4580,7 +4580,7 @@ export default function Dashboard() {
   const dashAvatar = (iconCls: string) => {
     const ICONS: Record<string, LucideIcon> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
     // avatarUrl/logoUrl are uploaded-file URLs (arbitrary storage domain, not
-    // in next.config's image allowlist) — next/image would refuse to load them.
+    // in next.config's image allowlist) - next/image would refuse to load them.
     // eslint-disable-next-line @next/next/no-img-element
     if (avatarIcon === "custom" && avatarUrl) return <img src={avatarUrl} alt="" className="size-full object-cover" />;
     if (avatarIcon && avatarIcon !== "logo" && ICONS[avatarIcon]) {
@@ -4996,7 +4996,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Performance Row — the ROI metrics */}
+              {/* Performance Row - the ROI metrics */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
                   <div>
@@ -5032,7 +5032,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Recent Feedback — the post-chat star rating + comment popup
+              {/* Recent Feedback - the post-chat star rating + comment popup
                   (EmbedClient.tsx's CSAT modal). Kept separate from the CSAT
                   % tile above, which is the per-message thumbs up/down ratio. */}
               <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
@@ -5214,7 +5214,7 @@ export default function Dashboard() {
                       </div>
                       <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
                         {voiceMessageMode === "audio"
-                          ? "Recordings are sent as-is, styled to match this design — see the preview."
+                          ? "Recordings are sent as-is, styled to match this design - see the preview."
                           : "Recordings are transcribed to text the visitor can review before sending."}
                       </p>
                     </div>
@@ -5355,7 +5355,7 @@ export default function Dashboard() {
                               <input
                                 type="color"
                                 value={currentValue}
-                                title={`${section.label} — ${propLabel}`}
+                                title={`${section.label} - ${propLabel}`}
                                 onChange={(e) => {
                                   const next = { ...scheme, [section.key]: { ...scheme[section.key], [selectedProp]: e.target.value } };
                                   handleInputChange(setColorScheme, next);
@@ -5429,7 +5429,7 @@ export default function Dashboard() {
                         <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
                         {/* When the current avatar came from the icon library, clicking it
                             reopens that picker (pre-filled on the same icon/color) instead
-                            of a native file dialog — a file dialog can't "replace" a library
+                            of a native file dialog - a file dialog can't "replace" a library
                             icon the way clicking an icon-shaped thumbnail suggests it should. */}
                         <button type="button" onClick={() => avatarIconLibrarySelection ? setIconPickerOpen(true) : avatarFileRef.current?.click()} title={avatarIconLibrarySelection ? "Edit this icon" : "Upload custom image"}
                           className={`size-9 rounded-xl border flex items-center justify-center cursor-pointer transition-colors overflow-hidden ${avatarIcon === "custom" ? "border-[#f97316] ring-2 ring-[#f97316]/20" : "border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-[#f97316]/50"}`}>
@@ -5566,14 +5566,14 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Live visual mockup preview — rendered from local component state
+                {/* Live visual mockup preview - rendered from local component state
                     (not an iframe) so every keystroke reflects instantly with zero
                     reload lag. Mirrors EmbedClient.tsx's header chrome (bell/refresh/
                     close) and input-bar icons (emoji/paperclip/mic) exactly so it
                     can't visually drift from the real widget. */}
                 <div className="lg:col-span-5 flex flex-col items-center">
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
-                  {/* Chat/Call preview chip — same horizontal pill-tab pattern
+                  {/* Chat/Call preview chip - same horizontal pill-tab pattern
                       as the Mailbox filter and the Voice Agent tab's Pipeline/
                       Realtime tabs elsewhere on this page. Always shown (not
                       just when voiceEnabled) so switching it on can be
@@ -5597,7 +5597,7 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
-                  {/* box-shadow stripped to match the real embedded widget exactly —
+                  {/* box-shadow stripped to match the real embedded widget exactly -
                       EmbedClient.tsx strips it too, since the iframe there has zero
                       margin and clips any shadow off. An id selector is used (not a
                       Tailwind class) so it reliably beats globals.css's !important
@@ -5612,7 +5612,7 @@ export default function Dashboard() {
                     className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
                     style={{ ...primaryColorCssVars(primaryColor), zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined } as React.CSSProperties}
                   >
-                    {/* Header — background always the brand color, same as the real
+                    {/* Header - background always the brand color, same as the real
                         embedded widget; per-style CSS (globals.css) overrides it where a
                         preset wants a different treatment (frosted/contrast). */}
                     <div
@@ -5637,7 +5637,7 @@ export default function Dashboard() {
                     </div>
 
                     {previewView === "call" ? (
-                      /* Static mockup of VoiceCallWidget.tsx's call screen —
+                      /* Static mockup of VoiceCallWidget.tsx's call screen -
                          compact status row, a couple of fake transcript
                          turns using the same .bot-bubble/.user-bubble
                          classes the real one now uses, and mute/hangup
@@ -5709,7 +5709,7 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* Static demo of the voice-message player — same
+                      {/* Static demo of the voice-message player - same
                           classNames as the real AudioBubble in
                           ChatWidgetCore.tsx, so it picks up this design's
                           .user-bubble theming (and .audio-bubble-* rules,
@@ -5745,7 +5745,7 @@ export default function Dashboard() {
                       </div>
                     )}
 
-                    {/* Footer input form — same two-row layout as EmbedClient.tsx:
+                    {/* Footer input form - same two-row layout as EmbedClient.tsx:
                         text field on top, icon row (emoji/paperclip/mic + send) below. */}
                     <div className="p-3">
                       <div className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5">
@@ -5788,7 +5788,7 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  {/* Floating Launcher preview in Customizer — mirrors the real
+                  {/* Floating Launcher preview in Customizer - mirrors the real
                       launcher (page.tsx/widget.js) exactly: background and shadow
                       come from the selected design's own LAUNCHER_STYLES, not the
                       bot's Primary Hex Color, so this preview can't visually drift
@@ -5836,7 +5836,7 @@ export default function Dashboard() {
                               </div>
                             );
                           }
-                          // True default (no logo uploaded yet) — the selected
+                          // True default (no logo uploaded yet) - the selected
                           // design's own dot mark (or the Section Colors
                           // launcher icon color, if set), matching the real
                           // launcher (page.tsx/widget.js) exactly.
@@ -5876,7 +5876,7 @@ export default function Dashboard() {
                     {t("knowledge_base")}
                   </h3>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
-                    Everything your assistant knows. Add text, crawl websites, upload documents, or sync a Google Drive folder — all sources are chunked and embedded into RAG memory.
+                    Everything your assistant knows. Add text, crawl websites, upload documents, or sync a Google Drive folder - all sources are chunked and embedded into RAG memory.
                   </p>
                 </div>
                 <button
@@ -6290,7 +6290,7 @@ export default function Dashboard() {
                           <>
                             <FileUp className="size-6 text-neutral-400" />
                             <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Click to upload a document</span>
-                            <span className="text-[10px] text-neutral-400">PDF, DOCX, TXT, MD — up to 20MB</span>
+                            <span className="text-[10px] text-neutral-400">PDF, DOCX, TXT, MD - up to 20MB</span>
                           </>
                         )}
                       </button>
@@ -6421,7 +6421,7 @@ export default function Dashboard() {
                       Unanswered questions
                     </h4>
                     <span className="text-amber-400 text-[11px]">({unanswered.length})</span>
-                    <span className="text-[11px] text-amber-500/70 dark:text-amber-500/60 normal-case ml-1">— visitors asked these but the bot didn&apos;t know. Answer to retrain.</span>
+                    <span className="text-[11px] text-amber-500/70 dark:text-amber-500/60 normal-case ml-1">- visitors asked these but the bot didn&apos;t know. Answer to retrain.</span>
                   </div>
                   <div className="divide-y divide-amber-100 dark:divide-amber-900/50">
                     {unanswered.map((u) => (
@@ -6448,7 +6448,7 @@ export default function Dashboard() {
                             <textarea
                               value={answerText}
                               onChange={(e) => setAnswerText(e.target.value)}
-                              placeholder="Write the answer — it'll be saved to your knowledge base and the bot will use it next time."
+                              placeholder="Write the answer - it'll be saved to your knowledge base and the bot will use it next time."
                               rows={3}
                               className="w-full text-xs bg-white dark:bg-neutral-900 border border-amber-200 dark:border-amber-900 rounded-lg p-2.5 focus:outline-none focus:border-amber-400 resize-y"
                             />
@@ -6679,7 +6679,7 @@ export default function Dashboard() {
                       src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}&color_scheme=${encodeURIComponent(colorScheme ? JSON.stringify(colorScheme) : "")}&font=${encodeURIComponent(fontFamily || "")}&font_size_percent=${fontSizePercent}`}
                       title="Live widget preview"
                       // Deliberately no border/radius/shadow/background of its
-                      // own — every design preset already draws a complete
+                      // own - every design preset already draws a complete
                       // background+border+radius+shadow inside the iframe
                       // (globals.css's .style-* rules), so decorating the
                       // iframe element too doubled up on borders and clipped
@@ -6689,7 +6689,7 @@ export default function Dashboard() {
                       // already applied to widget.js and the marketing page.
                       className="w-full max-w-lg h-[500px] border-0"
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Live preview — reflects your <span className="font-semibold">current</span> customizer settings in real time.</p>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Live preview - reflects your <span className="font-semibold">current</span> customizer settings in real time.</p>
                   </>
                 ) : (
                   <div className="w-full max-w-lg h-[500px] rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-xs text-neutral-400">Save your bot to preview the live widget.</div>
@@ -6702,7 +6702,7 @@ export default function Dashboard() {
                 style={primaryColorCssVars(primaryColor) as React.CSSProperties}
               >
 
-                {/* Playground Header — background always the brand color, same as
+                {/* Playground Header - background always the brand color, same as
                     the real embedded widget; per-style CSS overrides where needed. */}
                 <div
                   style={{ backgroundColor: primaryColor }}
@@ -7174,7 +7174,7 @@ export default function Dashboard() {
                           <button
                             type="button"
                             onClick={() => setActiveTab("leads")}
-                            title="Captured during this conversation — view in Leads"
+                            title="Captured during this conversation - view in Leads"
                             className="mt-3 w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 hover:border-[#f97316]/40 cursor-pointer transition-colors text-left"
                           >
                             <div className="size-7 rounded-full bg-[#f97316]/10 text-[#f97316] flex items-center justify-center shrink-0">
@@ -7207,7 +7207,7 @@ export default function Dashboard() {
                   <Inbox className="size-4 text-[#f97316]" /> Shared Inbox
                 </h3>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
-                  Every visitor conversation, live. Jump in any time — replying takes over from the AI; toggle back to let the assistant continue.
+                  Every visitor conversation, live. Jump in any time - replying takes over from the AI; toggle back to let the assistant continue.
                 </p>
               </div>
               {botId && <InboxPanel botId={botId} fetchBackend={fetchWithFallback} formatDateTime={formatDateTime} color={primaryColor} />}
@@ -7223,7 +7223,7 @@ export default function Dashboard() {
                     <MapPin className="size-4 text-[#f97316]" /> Client Map
                   </h3>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
-                    Where your leads are coming from. Each bubble is a country — bigger means more leads. Click a bubble for details.
+                    Where your leads are coming from. Each bubble is a country - bigger means more leads. Click a bubble for details.
                   </p>
                 </div>
                 <button
@@ -7377,7 +7377,7 @@ export default function Dashboard() {
                       steps: [
                         { label: "Add the script tag to your root layout (e.g. app/layout.tsx):", code: `import Script from "next/script";\n\n// Inside your <body>:\n<Script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  strategy="afterInteractive"\n/>` },
                         { label: "For plain React (Vite / CRA), add to your index.html before </body>:", code: embedScriptCode },
-                        { label: "Renders as native vector DOM elements inside an isolated Shadow Root — zero iframes, 100% sharp at any zoom level." },
+                        { label: "Renders as native vector DOM elements inside an isolated Shadow Root - zero iframes, 100% sharp at any zoom level." },
                       ],
                     },
                     wordpress: {
@@ -7406,7 +7406,7 @@ export default function Dashboard() {
                     woocommerce: {
                       title: "Add to WooCommerce (WordPress)",
                       steps: [
-                        { label: "WooCommerce runs on WordPress — follow the WordPress steps above, or add to Appearance → Theme File Editor → functions.php:", code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');` },
+                        { label: "WooCommerce runs on WordPress - follow the WordPress steps above, or add to Appearance → Theme File Editor → functions.php:", code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');` },
                         { label: "The widget appears on all WooCommerce product and checkout pages automatically.", note: "No WooCommerce-specific plugin needed." },
                       ],
                     },
@@ -7506,7 +7506,7 @@ export default function Dashboard() {
                 <h3 className="text-sm font-bold">Embed the widget within your mobile app</h3>
                 <p className="text-xs text-neutral-400 mt-1 leading-relaxed max-w-xl">
                   Enhance and personalize your user experience by integrating the Chatty SDK into your app. Whether you&apos;re using
-                  iOS, Android, or React Native, the Chatty SDK renders a fully native chat UI — no WebView — talking directly to
+                  iOS, Android, or React Native, the Chatty SDK renders a fully native chat UI - no WebView - talking directly to
                   your bot&apos;s API.
                 </p>
                 <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mt-5 mb-2.5">Select your option:</p>
@@ -7537,7 +7537,7 @@ export default function Dashboard() {
                         { label: "In Xcode: File → Add Package Dependencies, paste the URL below and select version 1.0.8:", code: `https://github.com/PersonaliAI/chatty-ios-sdk` },
                         { label: "Add a floating launcher anywhere in your view hierarchy:", code: `import ChattySDK\n\nstruct RootView: View {\n    var body: some View {\n        ContentView()\n            .overlay(ChattyLauncher(botId: "${botId || "YOUR_BOT_ID"}"))\n    }\n}` },
                         { label: "Or embed a full-screen chat screen directly:", code: `ChattyChatView(botId: "${botId || "YOUR_BOT_ID"}")` },
-                        { label: "Renders a fully native SwiftUI chat UI — no WebView.", note: "Requires iOS 15+." },
+                        { label: "Renders a fully native SwiftUI chat UI - no WebView.", note: "Requires iOS 15+." },
                       ],
                     },
                     android: {
@@ -7546,7 +7546,7 @@ export default function Dashboard() {
                         { label: "Add JitPack as a repository, then the dependency (Maven Central also has it, but lags behind at 1.0.0):", code: `// settings.gradle.kts\ndependencyResolutionManagement {\n    repositories {\n        maven { url = uri("https://jitpack.io") }\n    }\n}\n\n// app/build.gradle.kts\ndependencies {\n    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.8")\n}` },
                         { label: "Add a floating launcher to your root composable:", code: `@Composable\nfun AppRoot() {\n    Box(Modifier.fillMaxSize()) {\n        // your app content\n        ChattyLauncher(botId = "${botId || "YOUR_BOT_ID"}")\n    }\n}` },
                         { label: "Or embed a full-screen chat composable directly:", code: `ChattyChatScreen(botId = "${botId || "YOUR_BOT_ID"}", modifier = Modifier.fillMaxSize())` },
-                        { label: "Renders a fully native Jetpack Compose chat UI — no WebView.", note: "Requires minSdk 24+." },
+                        { label: "Renders a fully native Jetpack Compose chat UI - no WebView.", note: "Requires minSdk 24+." },
                       ],
                     },
                     "react-native": {
@@ -7555,7 +7555,7 @@ export default function Dashboard() {
                         { label: "Install the SDK and its peer dependency:", code: `npm install @personaliai/react-native @react-native-async-storage/async-storage` },
                         { label: "Add a floating launcher anywhere in your app:", code: `import { ChattyLauncher } from "@personaliai/react-native";\n\nexport default function App() {\n  return (\n    <>\n      {/* ...your app... */}\n      <ChattyLauncher botId="${botId || "YOUR_BOT_ID"}" position="right" />\n    </>\n  );\n}` },
                         { label: "Or embed a full-screen chat view directly:", code: `import { ChattyChatView } from "@personaliai/react-native";\n\nfunction SupportScreen() {\n  return <ChattyChatView botId="${botId || "YOUR_BOT_ID"}" />;\n}` },
-                        { label: "Renders real React Native components — no WebView — on both iOS and Android.", note: "Requires React Native 0.72+." },
+                        { label: "Renders real React Native components - no WebView - on both iOS and Android.", note: "Requires React Native 0.72+." },
                       ],
                     },
                   };
@@ -7631,7 +7631,7 @@ export default function Dashboard() {
                 </h3>
                 <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
                   Restrict where this widget can run. Leave empty to allow <b>any</b> website. Add domains to lock the
-                  assistant to only your sites — requests from other domains are rejected.
+                  assistant to only your sites - requests from other domains are rejected.
                 </p>
 
                 <form
@@ -7697,7 +7697,7 @@ export default function Dashboard() {
                 </h3>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
                   Connect Claude, ChatGPT, or any Model Context Protocol client to run this entire dashboard
-                  from a conversation — bots, flows, campaigns, voice, knowledge, inbox, leads, calendar,
+                  from a conversation - bots, flows, campaigns, voice, knowledge, inbox, leads, calendar,
                   guardrails, team, billing, and GDPR export, all as callable tools. Authenticated with a
                   standard OAuth 2.0 + PKCE flow, not a pasted API key.
                 </p>
@@ -7707,7 +7707,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="flex items-start gap-2">
                     <Lock className="size-3.5 text-[#f97316] mt-0.5 shrink-0" />
-                    <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">OAuth 2.0 + PKCE — no shared secret to paste into a config file.</p>
+                    <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">OAuth 2.0 + PKCE - no shared secret to paste into a config file.</p>
                   </div>
                   <div className="flex items-start gap-2">
                     <Shield className="size-3.5 text-[#f97316] mt-0.5 shrink-0" />
@@ -7726,7 +7726,7 @@ export default function Dashboard() {
     }
   }
 }`}</pre>
-                <p className="text-[10px] text-neutral-400">Add this to your MCP client&apos;s config (e.g. Claude Desktop&apos;s <code className="font-mono">claude_desktop_config.json</code>), or paste the URL into claude.ai&apos;s Connectors settings directly. The client opens a normal OAuth consent screen on first connect — approve it once per account.</p>
+                <p className="text-[10px] text-neutral-400">Add this to your MCP client&apos;s config (e.g. Claude Desktop&apos;s <code className="font-mono">claude_desktop_config.json</code>), or paste the URL into claude.ai&apos;s Connectors settings directly. The client opens a normal OAuth consent screen on first connect - approve it once per account.</p>
               </div>
 
               {/* Tool catalog */}
@@ -7788,7 +7788,7 @@ export default function Dashboard() {
                 </div>
                 <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
                   <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Last Activity</p>
-                  <p className="text-sm font-semibold mt-2 text-neutral-700 dark:text-neutral-300">{(() => { const t = apiKeys.map((k) => k.last_used_at).filter((v): v is string => Boolean(v)).sort(); return t.length ? formatDateTime(t[t.length - 1]) : "—"; })()}</p>
+                  <p className="text-sm font-semibold mt-2 text-neutral-700 dark:text-neutral-300">{(() => { const t = apiKeys.map((k) => k.last_used_at).filter((v): v is string => Boolean(v)).sort(); return t.length ? formatDateTime(t[t.length - 1]) : "-"; })()}</p>
                 </div>
               </div>
 
@@ -7796,7 +7796,7 @@ export default function Dashboard() {
               {newApiKey && (
                 <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-2xl">
                   <p className="text-[11px] font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                    <Check className="size-3.5" /> New key created — copy it now, it won&apos;t be shown again.
+                    <Check className="size-3.5" /> New key created - copy it now, it won&apos;t be shown again.
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <code className="flex-1 text-[11px] font-mono bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 truncate">{newApiKey}</code>
@@ -7869,7 +7869,7 @@ export default function Dashboard() {
                     <div key={e.p} className="flex items-center gap-2 text-xs">
                       <span className={`px-2 py-0.5 rounded font-bold text-[10px] w-12 text-center ${e.m === "POST" ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400" : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"}`}>{e.m}</span>
                       <code className="font-mono text-neutral-700 dark:text-neutral-300">{e.p}</code>
-                      <span className="text-[10px] text-neutral-400 truncate">— {e.d}</span>
+                      <span className="text-[10px] text-neutral-400 truncate">- {e.d}</span>
                     </div>
                   ))}
                 </div>
@@ -7893,7 +7893,7 @@ const { reply, session_id } = await res.json();`}</pre>
               </div>
 
               {/* MCP now has its own dedicated tab (55 tools, full catalog,
-                  connect snippet) — this REST API tab just points there
+                  connect snippet) - this REST API tab just points there
                   instead of duplicating that content. */}
               <button
                 type="button"
@@ -7904,7 +7904,7 @@ const { reply, session_id } = await res.json();`}</pre>
                   <Cpu className="size-5 text-[#f97316] shrink-0" />
                   <div>
                     <p className="text-xs font-bold text-neutral-900 dark:text-white">Prefer an AI agent instead of raw HTTP calls?</p>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Connect Claude or any MCP client — see the MCP tab</p>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Connect Claude or any MCP client - see the MCP tab</p>
                   </div>
                 </div>
                 <ArrowRight className="size-4 text-neutral-400 shrink-0" />
@@ -7916,14 +7916,14 @@ const { reply, session_id } = await res.json();`}</pre>
                   <Link2 className="size-4 text-[#f97316]" /> Webhooks
                 </h3>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
-                  Get a signed HTTP POST to your own server whenever a lead is captured or a message is sent, instead of polling. Every request includes an <code className="font-mono">X-Chatty-Signature</code> header (HMAC-SHA256) — verify it with the secret shown below before trusting the payload.
+                  Get a signed HTTP POST to your own server whenever a lead is captured or a message is sent, instead of polling. Every request includes an <code className="font-mono">X-Chatty-Signature</code> header (HMAC-SHA256) - verify it with the secret shown below before trusting the payload.
                 </p>
               </div>
 
               {newWebhookSecret && (
                 <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-2xl">
                   <p className="text-[11px] font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                    <Check className="size-3.5" /> Webhook registered — copy the signing secret now, it won&apos;t be shown again.
+                    <Check className="size-3.5" /> Webhook registered - copy the signing secret now, it won&apos;t be shown again.
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <code className="flex-1 text-[11px] font-mono bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 truncate">{newWebhookSecret}</code>
@@ -8204,7 +8204,7 @@ const { reply, session_id } = await res.json();`}</pre>
 
                 {/* SECTION 0: TEAM */}
                 {canAccessTab("team") && (() => {
-                  // What THIS caller may grant to someone else — an admin
+                  // What THIS caller may grant to someone else - an admin
                   // managing the roster can hand out any tab except the
                   // owner-only ones (billing/BYOK/webhooks), matching the
                   // backend's OWNER_ONLY_TABS enforcement.
@@ -8217,9 +8217,9 @@ const { reply, session_id } = await res.json();`}</pre>
                     </div>
                     <p className="text-[11px] text-neutral-400 -mt-2">
                       Invite teammates to help manage this bot. We&apos;ll email them, but this doesn&apos;t create an
-                      account for them — they need their own: if they don&apos;t have one yet, they sign up at
+                      account for them - they need their own: if they don&apos;t have one yet, they sign up at
                       chatty.personaliai.com with the exact email below, and this bot appears in their dashboard
-                      automatically. Access is limited to this bot only, and to the tabs checked below — pick which
+                      automatically. Access is limited to this bot only, and to the tabs checked below - pick which
                       dashboard sections they can reach.
                     </p>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -8349,7 +8349,7 @@ const { reply, session_id } = await res.json();`}</pre>
                       value={selectedModel}
                       onChange={(v) => handleInputChange(setSelectedModel, v)}
                       options={[
-                        { value: "gemini", label: "Gemini 3.5 Flash", hint: "Default — included, no setup" },
+                        { value: "gemini", label: "Gemini 3.5 Flash", hint: "Default - included, no setup" },
                         { value: "gpt5", label: "GPT-5.3 Turbo", hint: "Requires your OpenAI key below" },
                         { value: "claude", label: "Claude Opus", hint: "Requires your Anthropic key below" },
                         { value: "mistral", label: "Mistral Large", hint: "Requires your OpenRouter key below" },
@@ -8365,19 +8365,19 @@ const { reply, session_id } = await res.json();`}</pre>
                       value={answerMode}
                       onChange={(v) => handleInputChange(setAnswerMode, v as "strict" | "hybrid" | "web")}
                       options={[
-                        { value: "strict", label: "Knowledge base only", hint: "Safest — answers strictly from your trained sources" },
+                        { value: "strict", label: "Knowledge base only", hint: "Safest - answers strictly from your trained sources" },
                         { value: "hybrid", label: "Knowledge base + AI knowledge", hint: "Falls back to the model's general knowledge" },
                         { value: "web", label: "Knowledge base + web search", hint: "Looks up live info on the web when needed" },
                       ]}
                     />
                     <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
-                      {answerMode === "strict" && "Only answers from your trained knowledge — best for accuracy and avoiding made-up info."}
+                      {answerMode === "strict" && "Only answers from your trained knowledge - best for accuracy and avoiding made-up info."}
                       {answerMode === "hybrid" && "Answers from your knowledge first, then the model's own general knowledge if needed."}
                       {answerMode === "web" && "Adds a live web-search tool so the bot can pull current information beyond your knowledge base."}
                     </p>
                   </div>
 
-                  {/* BYOK — required for any non-Gemini model */}
+                  {/* BYOK - required for any non-Gemini model */}
                   {selectedModel !== "gemini" && (() => {
                     const providerForModel: Record<string, { provider: string; label: string; placeholder: string }> = {
                       gpt5: { provider: "openai", label: "OpenAI API key", placeholder: "sk-..." },
@@ -8396,13 +8396,13 @@ const { reply, session_id } = await res.json();`}</pre>
                           )}
                         </div>
                         <p className="text-[10px] text-neutral-400 leading-relaxed">
-                          This model runs on your own {expected?.label.replace(" API key", "")} key — Chatty doesn&apos;t supply one. Note: lead capture and meeting booking tools currently only work on Gemini; BYOK models still answer from your knowledge base.
+                          This model runs on your own {expected?.label.replace(" API key", "")} key - Chatty doesn&apos;t supply one. Note: lead capture and meeting booking tools currently only work on Gemini; BYOK models still answer from your knowledge base.
                         </p>
                         <input
                           type="password"
                           value={byokApiKeyInput}
                           onChange={(e) => setByokApiKeyInput(e.target.value)}
-                          placeholder={byokConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : expected?.placeholder}
+                          placeholder={byokConfigured ? "•••••••••••••••• (saved - enter a new key to replace)" : expected?.placeholder}
                           className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                         />
                         <input
@@ -8576,7 +8576,7 @@ const { reply, session_id } = await res.json();`}</pre>
                       type="text"
                       value={guardrailRefusalMessage}
                       onChange={(e) => handleInputChange(setGuardrailRefusalMessage, e.target.value)}
-                      placeholder="Sorry, I can't help with that — but I'm happy to answer questions about our product!"
+                      placeholder="Sorry, I can't help with that - but I'm happy to answer questions about our product!"
                       className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                     />
                   </div>
@@ -8603,7 +8603,7 @@ const { reply, session_id } = await res.json();`}</pre>
                       onChange={(v) => handleInputChange(setResponseLanguage, v)}
                       options={[
                         { value: "", label: "🌐 Mirror visitor's language (default)" },
-                        // — Most common —
+                        // - Most common -
                         { value: "en",    label: "🇬🇧 English" },
                         { value: "es",    label: "🇪🇸 Spanish" },
                         { value: "es-MX", label: "🇲🇽 Spanish (Mexico)" },
@@ -8642,7 +8642,7 @@ const { reply, session_id } = await res.json();`}</pre>
                         { value: "pa",    label: "🇮🇳 Punjabi" },
                         { value: "ne",    label: "🇳🇵 Nepali" },
                         { value: "si",    label: "🇱🇰 Sinhala" },
-                        // — European —
+                        // - European -
                         { value: "da",    label: "🇩🇰 Danish" },
                         { value: "fi",    label: "🇫🇮 Finnish" },
                         { value: "no",    label: "🇳🇴 Norwegian" },
@@ -8670,7 +8670,7 @@ const { reply, session_id } = await res.json();`}</pre>
                         { value: "mt",    label: "🇲🇹 Maltese" },
                         { value: "lb",    label: "🇱🇺 Luxembourgish" },
                         { value: "yi",    label: "🕍 Yiddish" },
-                        // — Central & Eastern Asia —
+                        // - Central & Eastern Asia -
                         { value: "mn",    label: "🇲🇳 Mongolian" },
                         { value: "my",    label: "🇲🇲 Burmese (Myanmar)" },
                         { value: "km",    label: "🇰🇭 Khmer" },
@@ -8684,7 +8684,7 @@ const { reply, session_id } = await res.json();`}</pre>
                         { value: "tg",    label: "🇹🇯 Tajik" },
                         { value: "tk",    label: "🇹🇲 Turkmen" },
                         { value: "tt",    label: "🇷🇺 Tatar" },
-                        // — Middle East & Africa —
+                        // - Middle East & Africa -
                         { value: "he",    label: "🇮🇱 Hebrew" },
                         { value: "ku",    label: "🏳️ Kurdish" },
                         { value: "am",    label: "🇪🇹 Amharic" },
@@ -8694,7 +8694,7 @@ const { reply, session_id } = await res.json();`}</pre>
                         { value: "ig",    label: "🇳🇬 Igbo" },
                         { value: "xh",    label: "🇿🇦 Xhosa" },
                         { value: "zu",    label: "🇿🇦 Zulu" },
-                        // — Pacific & Other —
+                        // - Pacific & Other -
                         { value: "mi",    label: "🇳🇿 Māori" },
                         { value: "ht",    label: "🇭🇹 Haitian Creole" },
                       ]}
@@ -8712,7 +8712,7 @@ const { reply, session_id } = await res.json();`}</pre>
                       spellCheck={false}
                       className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Injected into the widget iframe. Advanced — invalid CSS is ignored by the browser, won&apos;t break the widget.</p>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Injected into the widget iframe. Advanced - invalid CSS is ignored by the browser, won&apos;t break the widget.</p>
                   </div>
 
                   <div>
@@ -8725,7 +8725,7 @@ const { reply, session_id } = await res.json();`}</pre>
                       spellCheck={false}
                       className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Runs once inside the widget iframe after it loads. Advanced — a script error here only affects the widget, not your site.</p>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Runs once inside the widget iframe after it loads. Advanced - a script error here only affects the widget, not your site.</p>
                   </div>
                 </div>
 
@@ -8775,7 +8775,7 @@ const { reply, session_id } = await res.json();`}</pre>
                           Microsoft 365 Account
                         </span>
                         <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                          {microsoftConnected ? "Connected — enables Teams, Outlook Calendar & OneDrive." : "Connect for Teams meetings, Outlook calendar & OneDrive."}
+                          {microsoftConnected ? "Connected - enables Teams, Outlook Calendar & OneDrive." : "Connect for Teams meetings, Outlook calendar & OneDrive."}
                         </p>
                       </div>
                       {microsoftConnected ? (
@@ -8805,7 +8805,7 @@ const { reply, session_id } = await res.json();`}</pre>
                           Zoom Meetings
                         </span>
                         <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                          {zoomConfigured ? "Ready — bookings create real Zoom links automatically." : "Zoom is not configured on the server yet."}
+                          {zoomConfigured ? "Ready - bookings create real Zoom links automatically." : "Zoom is not configured on the server yet."}
                         </p>
                       </div>
                       <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${zoomConfigured ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400" : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"}`}>
@@ -8899,7 +8899,7 @@ const { reply, session_id } = await res.json();`}</pre>
                             ? "Real Meet links are generated automatically on the connected Google Calendar."
                             : meetingProvider === "zoom"
                             ? "Real Zoom links require Zoom credentials configured on the backend (else a placeholder is used)."
-                            : "Real Microsoft Teams links are generated on booking — requires the owner to connect Microsoft/Outlook."}
+                            : "Real Microsoft Teams links are generated on booking - requires the owner to connect Microsoft/Outlook."}
                         </p>
                       </div>
 
@@ -9280,7 +9280,7 @@ const { reply, session_id } = await res.json();`}</pre>
                 </div>
               )}
 
-              {/* Original list view — kept alongside the calendar above, not replaced by it. */}
+              {/* Original list view - kept alongside the calendar above, not replaced by it. */}
               <div className="space-y-8 pt-4">
                 <div className="space-y-4">
                   <h5 className="text-xs font-bold text-neutral-750 dark:text-neutral-300 flex items-center gap-2">
@@ -9417,7 +9417,7 @@ const { reply, session_id } = await res.json();`}</pre>
                     <Phone className="size-4 text-[#f97316]" /> Voice Agent
                   </h2>
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                    Let visitors talk to your bot instead of typing — configure speech recognition, voice
+                    Let visitors talk to your bot instead of typing - configure speech recognition, voice
                     synthesis, the agent&apos;s call persona, and call safety limits.
                   </p>
                 </div>
@@ -9477,7 +9477,7 @@ const { reply, session_id } = await res.json();`}</pre>
 
                         {/* Booking / lead-capture context note */}
                         <p className="text-[10px] text-neutral-400 dark:text-neutral-500 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3 leading-relaxed">
-                          The persona above only shapes what the agent leads with on a call — it doesn&apos;t
+                          The persona above only shapes what the agent leads with on a call - it doesn&apos;t
                           unlock new capabilities. Booking and lead-capture on calls use the same settings as
                           your text chat:{" "}
                           <button
@@ -9498,9 +9498,9 @@ const { reply, session_id } = await res.json();`}</pre>
                           configures knowledge base behavior.
                         </p>
 
-                        {/* Mode tabs — Pipeline (STT -> LLM -> TTS, today's
+                        {/* Mode tabs - Pipeline (STT -> LLM -> TTS, today's
                             default) vs Realtime (Gemini Live / OpenAI
-                            Realtime speech-to-speech — faster & more
+                            Realtime speech-to-speech - faster & more
                             natural, no separate STT/TTS provider choice).
                             Same horizontal pill-tab pattern as the Mailbox
                             tab's client/admin filter elsewhere on this page. */}
@@ -9529,8 +9529,8 @@ const { reply, session_id } = await res.json();`}</pre>
                           </div>
                           <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1">
                             {voiceMode === "realtime"
-                              ? "Speech-to-speech — the model listens and speaks directly, no separate transcription/synthesis step. Faster and more natural, still uses your knowledge base and booking/lead-capture tools."
-                              : "Classic pipeline — pick a speech-to-text and text-to-speech provider independently."}
+                              ? "Speech-to-speech - the model listens and speaks directly, no separate transcription/synthesis step. Faster and more natural, still uses your knowledge base and booking/lead-capture tools."
+                              : "Classic pipeline - pick a speech-to-text and text-to-speech provider independently."}
                           </p>
                         </div>
 
@@ -9593,7 +9593,7 @@ const { reply, session_id } = await res.json();`}</pre>
                                 type="password"
                                 value={voiceRealtimeApiKeyInput}
                                 onChange={(e) => setVoiceRealtimeApiKeyInput(e.target.value)}
-                                placeholder={voiceRealtimeConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : "API key (optional)"}
+                                placeholder={voiceRealtimeConfigured ? "•••••••••••••••• (saved - enter a new key to replace)" : "API key (optional)"}
                                 className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                               />
                               <div className="flex gap-2">
@@ -9656,7 +9656,7 @@ const { reply, session_id } = await res.json();`}</pre>
                               type="password"
                               value={voiceSttApiKeyInput}
                               onChange={(e) => setVoiceSttApiKeyInput(e.target.value)}
-                              placeholder={voiceSttConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : "API key"}
+                              placeholder={voiceSttConfigured ? "•••••••••••••••• (saved - enter a new key to replace)" : "API key"}
                               className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                             />
                             <div className="flex gap-2">
@@ -9733,7 +9733,7 @@ const { reply, session_id } = await res.json();`}</pre>
                               type="password"
                               value={voiceTtsApiKeyInput}
                               onChange={(e) => setVoiceTtsApiKeyInput(e.target.value)}
-                              placeholder={voiceTtsConfigured ? "•••••••••••••••• (saved — enter a new key to replace)" : "API key"}
+                              placeholder={voiceTtsConfigured ? "•••••••••••••••• (saved - enter a new key to replace)" : "API key"}
                               className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                             />
                             <div className="flex gap-2">
@@ -9939,7 +9939,7 @@ const { reply, session_id } = await res.json();`}</pre>
                   <Link2 className="size-4 text-[#f97316]" /> Outbound Webhook
                 </h3>
                 <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  Get a POST request whenever this bot starts a new conversation or captures a new lead — wire it into Zapier, Slack, or your own backend.
+                  Get a POST request whenever this bot starts a new conversation or captures a new lead - wire it into Zapier, Slack, or your own backend.
                 </p>
                 <input
                   type="url"
@@ -10135,13 +10135,13 @@ const { reply, session_id } = await res.json();`}</pre>
             <div>
               <h4 className="text-sm font-bold">Link Telegram</h4>
               <p className="text-[10px] text-neutral-400 mt-1 leading-normal">
-                Get your chat ID from @KinByPersonaliAI_bot — send /start to it.
+                Get your chat ID from @KinByPersonaliAI_bot - send /start to it.
               </p>
             </div>
             <ol className="text-[10px] text-neutral-550 dark:text-neutral-400 space-y-1.5 list-decimal pl-4 leading-relaxed">
               <li>Open <a href="https://t.me/KinByPersonaliAI_bot" target="_blank" rel="noreferrer" className="text-[#f97316] underline">@KinByPersonaliAI_bot</a> on Telegram and tap <b>Start</b>.</li>
               <li>The bot will reply with your numeric chat ID.</li>
-              <li>Paste that ID below — we&apos;ll send a confirmation message to verify.</li>
+              <li>Paste that ID below - we&apos;ll send a confirmation message to verify.</li>
             </ol>
             <form
               onSubmit={async (e) => {

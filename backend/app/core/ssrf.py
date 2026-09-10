@@ -1,21 +1,21 @@
-"""SSRF guard — resolve a URL's hostname and reject it if it points at a
+"""SSRF guard - resolve a URL's hostname and reject it if it points at a
 private, link-local, loopback, or other non-public IP range (including the
 cloud metadata address, which falls in link-local space).
 
 Used anywhere the backend makes an outbound request to a URL an
-authenticated user supplies (site crawling, webhook registration) — without
+authenticated user supplies (site crawling, webhook registration) - without
 this, a user could point the backend at internal infrastructure (Cloud Run's
 own metadata server, other internal services on the VPC, localhost) that
 isn't otherwise reachable from outside the deployment.
 
 `assert_safe_url[_async]` alone only checks the IP at validation time, not
-connection time — a DNS-rebinding attacker can have their hostname resolve
+connection time - a DNS-rebinding attacker can have their hostname resolve
 to a public IP during this check and a private IP moments later, at actual
 connection time, if the caller re-resolves DNS itself (e.g. by handing the
 original URL straight to httpx). `request()` / `request_async()` below close
 that window: they resolve the hostname exactly once, validate every
 resolved address, and then connect directly to the validated IP (with the
-original Host header, and — for https — the original hostname pinned as the
+original Host header, and - for https - the original hostname pinned as the
 TLS SNI/cert-verification target via httpcore's `sni_hostname` request
 extension) so there is no second, attacker-controllable DNS lookup between
 check and connect. Prefer these over calling `assert_safe_url*` and then
@@ -54,7 +54,7 @@ def assert_safe_url(url: str) -> None:
     """Raise UnsafeURLError if `url` isn't a public http(s) URL.
 
     Resolves the hostname via DNS and checks every resolved address (a
-    hostname can have multiple A/AAAA records) — rejects if the scheme isn't
+    hostname can have multiple A/AAAA records) - rejects if the scheme isn't
     http/https, if the host is missing, or if ANY resolved address is
     private/loopback/link-local/reserved.
     """
@@ -79,7 +79,7 @@ def assert_safe_url(url: str) -> None:
 
 
 async def assert_safe_url_async(url: str) -> None:
-    """Async wrapper — DNS resolution is blocking, so this offloads it to a
+    """Async wrapper - DNS resolution is blocking, so this offloads it to a
     worker thread instead of blocking the event loop."""
     await asyncio.to_thread(assert_safe_url, url)
 
@@ -88,7 +88,7 @@ def _resolve_pinned_ip(host: str) -> str:
     """Resolve `host` once and return a single validated public IP.
 
     Raises UnsafeURLError if resolution fails or every resolved address is
-    unsafe. Prefers an IPv4 result (simplifies building the pinned URL —
+    unsafe. Prefers an IPv4 result (simplifies building the pinned URL -
     IPv6 literals need bracket syntax) but falls back to IPv6 if that's all
     there is.
     """
@@ -152,7 +152,7 @@ def _build_pinned_request(url: str) -> tuple[str, dict[str, str], dict[str, obje
 def request(
     client: httpx.Client, method: str, url: str, **kwargs: object
 ) -> httpx.Response:
-    """Sync equivalent of `request_async` — issue `method` `url` through
+    """Sync equivalent of `request_async` - issue `method` `url` through
     `client`, pinned to a single validated IP so DNS can't rebind between
     validation and connection. Raises UnsafeURLError if the URL is unsafe."""
     pinned_url, host_header, extensions = _build_pinned_request(url)
@@ -167,8 +167,8 @@ async def request_async(
     client: httpx.AsyncClient, method: str, url: str, **kwargs: object
 ) -> httpx.Response:
     """Issue `method` `url` through `client` (an httpx.AsyncClient), pinned to
-    a single IP resolved and validated right here — not re-resolved by the
-    client — so a DNS record can't be flipped to a private address between
+    a single IP resolved and validated right here - not re-resolved by the
+    client - so a DNS record can't be flipped to a private address between
     the SSRF check and the actual connection (DNS rebinding).
 
     Sets the `Host` header to the original hostname and, for https, pins

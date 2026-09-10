@@ -1,7 +1,7 @@
-"""Pure unit tests for plugins/notifications.py — webhook signing, retry
+"""Pure unit tests for plugins/notifications.py - webhook signing, retry
 schedule, config-driven channel selection, and HTML-escaping in the email
 templates (visitor-supplied fields flow unescaped into HTML sent by email if
-this regresses — see the fix that added the escaping)."""
+this regresses - see the fix that added the escaping)."""
 import asyncio
 import hashlib
 import hmac
@@ -57,7 +57,7 @@ def test_webhook_events_are_all_dot_namespaced():
 
 
 # ---------------------------------------------------------------------------
-# SSRF guard applied at delivery time (not just registration) — deliveries
+# SSRF guard applied at delivery time (not just registration) - deliveries
 # can happen up to WEBHOOK_BACKOFF_SCHEDULE's full 8h window after a URL was
 # last validated, long enough for DNS to point somewhere else by then.
 # ---------------------------------------------------------------------------
@@ -127,7 +127,7 @@ def test_email_channels_never_drops_a_channel(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# reply_to threading (team scheduling Phase 4 — meeting reply capture)
+# reply_to threading (team scheduling Phase 4 - meeting reply capture)
 # ---------------------------------------------------------------------------
 
 

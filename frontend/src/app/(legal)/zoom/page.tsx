@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function ZoomDocsPage() {
   return (
     <>
-      <PageTitle updated="June 22, 2026">Chatty Bookings for Zoom — Setup &amp; Usage Guide</PageTitle>
+      <PageTitle updated="June 22, 2026">Chatty Bookings for Zoom - Setup &amp; Usage Guide</PageTitle>
 
       <P>
         Chatty is an AI customer-support assistant that businesses embed on their website. When a visitor
