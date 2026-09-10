@@ -48,6 +48,14 @@ jobs:
       - name: Verify widget preset text/background contrast (WCAG AA)
         run: node scripts/verify-contrast.mjs
 
+      - name: Install browser for deterministic E2E checks
+        run: npx playwright install --with-deps chromium
+
+      - name: Run deterministic browser checks
+        run: npm run test:e2e
+        env:
+          E2E_MODE: deterministic
+
       - name: Build
         run: npm run build
         env:
