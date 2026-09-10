@@ -11,6 +11,9 @@ import {
   Video,
   ExternalLink,
   Globe,
+  ChevronDown,
+  Search,
+  X,
   User,
   Mail,
   Phone,
@@ -68,6 +71,80 @@ export interface InlineBookingCardProps {
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
 }
 
+interface TzOption {
+  id: string;
+  city: string;
+  label: string;
+  countryOrRegion: string;
+}
+
+const WORLD_TIMEZONES: TzOption[] = [
+  { id: "Pacific/Honolulu", city: "Honolulu", label: "HST (GMT-10)", countryOrRegion: "United States, Hawaii" },
+  { id: "America/Anchorage", city: "Anchorage", label: "AKDT/AKST (GMT-8)", countryOrRegion: "United States, Alaska" },
+  { id: "America/Los_Angeles", city: "Los Angeles", label: "Pacific Time (PT, GMT-7)", countryOrRegion: "United States, SF, Seattle, California" },
+  { id: "America/Vancouver", city: "Vancouver", label: "Pacific Time (PT, GMT-7)", countryOrRegion: "Canada, British Columbia" },
+  { id: "America/Denver", city: "Denver", label: "Mountain Time (MT, GMT-6)", countryOrRegion: "United States, Colorado, Utah" },
+  { id: "America/Phoenix", city: "Phoenix", label: "Mountain Standard (MST, GMT-7)", countryOrRegion: "United States, Arizona" },
+  { id: "America/Chicago", city: "Chicago", label: "Central Time (CT, GMT-5)", countryOrRegion: "United States, Dallas, Houston, Texas" },
+  { id: "America/Mexico_City", city: "Mexico City", label: "CST (GMT-6)", countryOrRegion: "Mexico" },
+  { id: "America/New_York", city: "New York", label: "Eastern Time (ET, GMT-4)", countryOrRegion: "United States, Boston, Miami, DC" },
+  { id: "America/Toronto", city: "Toronto", label: "Eastern Time (ET, GMT-4)", countryOrRegion: "Canada, Ontario, Montreal" },
+  { id: "America/Sao_Paulo", city: "Sao Paulo", label: "BRT (GMT-3)", countryOrRegion: "Brazil, Rio" },
+  { id: "America/Buenos_Aires", city: "Buenos Aires", label: "ART (GMT-3)", countryOrRegion: "Argentina" },
+  { id: "Atlantic/Reykjavik", city: "Reykjavik", label: "GMT (GMT+0)", countryOrRegion: "Iceland" },
+  { id: "UTC", city: "UTC", label: "Coordinated Universal Time", countryOrRegion: "Global" },
+  { id: "Europe/London", city: "London", label: "BST / GMT (GMT+1)", countryOrRegion: "United Kingdom, England, Ireland, Dublin" },
+  { id: "Europe/Paris", city: "Paris", label: "CEST / CET (GMT+2)", countryOrRegion: "France" },
+  { id: "Europe/Berlin", city: "Berlin", label: "CEST / CET (GMT+2)", countryOrRegion: "Germany, Munich, Frankfurt" },
+  { id: "Europe/Amsterdam", city: "Amsterdam", label: "CEST / CET (GMT+2)", countryOrRegion: "Netherlands" },
+  { id: "Europe/Rome", city: "Rome", label: "CEST / CET (GMT+2)", countryOrRegion: "Italy, Milan" },
+  { id: "Europe/Madrid", city: "Madrid", label: "CEST / CET (GMT+2)", countryOrRegion: "Spain, Barcelona" },
+  { id: "Europe/Zurich", city: "Zurich", label: "CEST / CET (GMT+2)", countryOrRegion: "Switzerland, Geneva" },
+  { id: "Europe/Athens", city: "Athens", label: "EEST (GMT+3)", countryOrRegion: "Greece" },
+  { id: "Europe/Istanbul", city: "Istanbul", label: "TRT (GMT+3)", countryOrRegion: "Turkey" },
+  { id: "Africa/Cairo", city: "Cairo", label: "EEST (GMT+3)", countryOrRegion: "Egypt" },
+  { id: "Africa/Johannesburg", city: "Johannesburg", label: "SAST (GMT+2)", countryOrRegion: "South Africa, Cape Town" },
+  { id: "Africa/Lagos", city: "Lagos", label: "WAT (GMT+1)", countryOrRegion: "Nigeria" },
+  { id: "Asia/Dubai", city: "Dubai", label: "GST (GMT+4)", countryOrRegion: "United Arab Emirates, UAE, Abu Dhabi" },
+  { id: "Asia/Riyadh", city: "Riyadh", label: "AST (GMT+3)", countryOrRegion: "Saudi Arabia" },
+  { id: "Asia/Karachi", city: "Karachi", label: "PKT (GMT+5)", countryOrRegion: "Pakistan, Islamabad, Lahore" },
+  { id: "Asia/Kolkata", city: "Mumbai / New Delhi", label: "IST (GMT+5:30)", countryOrRegion: "India, Bengaluru, Bangalore, Hyderabad" },
+  { id: "Asia/Colombo", city: "Colombo", label: "SLST (GMT+5:30)", countryOrRegion: "Sri Lanka" },
+  { id: "Asia/Dhaka", city: "Dhaka", label: "BST (GMT+6)", countryOrRegion: "Bangladesh" },
+  { id: "Asia/Bangkok", city: "Bangkok", label: "ICT (GMT+7)", countryOrRegion: "Thailand, Vietnam, Hanoi, Jakarta" },
+  { id: "Asia/Singapore", city: "Singapore", label: "SGT (GMT+8)", countryOrRegion: "Singapore, Malaysia, Kuala Lumpur" },
+  { id: "Asia/Hong_Kong", city: "Hong Kong", label: "HKT (GMT+8)", countryOrRegion: "Hong Kong" },
+  { id: "Asia/Shanghai", city: "Shanghai / Beijing", label: "CST (GMT+8)", countryOrRegion: "China, Shenzhen, Guangzhou" },
+  { id: "Asia/Taipei", city: "Taipei", label: "CST (GMT+8)", countryOrRegion: "Taiwan" },
+  { id: "Asia/Seoul", city: "Seoul", label: "KST (GMT+9)", countryOrRegion: "South Korea" },
+  { id: "Asia/Tokyo", city: "Tokyo", label: "JST (GMT+9)", countryOrRegion: "Japan, Osaka" },
+  { id: "Australia/Perth", city: "Perth", label: "AWST (GMT+8)", countryOrRegion: "Australia, Western Australia" },
+  { id: "Australia/Adelaide", city: "Adelaide", label: "ACST (GMT+9:30)", countryOrRegion: "Australia, South Australia" },
+  { id: "Australia/Sydney", city: "Sydney", label: "AEST (GMT+10)", countryOrRegion: "Australia, Melbourne, Brisbane, Canberra" },
+  { id: "Pacific/Auckland", city: "Auckland", label: "NZST (GMT+12)", countryOrRegion: "New Zealand, Wellington" },
+];
+
+function formatTimezoneCity(tzStr: string): string {
+  if (!tzStr) return "Timezone";
+  if (tzStr === "UTC") return "UTC";
+  const parts = tzStr.split("/");
+  const cityPart = parts[parts.length - 1];
+  return cityPart.replace(/_/g, " ");
+}
+
+function getTimeInTimezone(tzStr: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: tzStr,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date());
+  } catch {
+    return "";
+  }
+}
+
 export function InlineBookingCard({
   botId,
   sessionId,
@@ -91,6 +168,53 @@ export function InlineBookingCard({
   }, [visitorTimezone]);
 
   const [activeTimezone, setActiveTimezone] = useState(detectedTz);
+  const [isTzOpen, setIsTzOpen] = useState(false);
+  const [tzQuery, setTzQuery] = useState("");
+  const tzDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isTzOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tzDropdownRef.current && !tzDropdownRef.current.contains(e.target as Node)) {
+        setIsTzOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsTzOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isTzOpen]);
+
+  const filteredTimezones = useMemo(() => {
+    let list = WORLD_TIMEZONES;
+    if (activeTimezone && !list.some((t) => t.id === activeTimezone)) {
+      list = [
+        {
+          id: activeTimezone,
+          city: formatTimezoneCity(activeTimezone),
+          label: activeTimezone,
+          countryOrRegion: "Current",
+        },
+        ...list,
+      ];
+    }
+    if (!tzQuery.trim()) return list;
+    const q = tzQuery.toLowerCase().trim();
+    return list.filter(
+      (t) =>
+        t.city.toLowerCase().includes(q) ||
+        t.id.toLowerCase().includes(q) ||
+        t.label.toLowerCase().includes(q) ||
+        t.countryOrRegion.toLowerCase().includes(q)
+    );
+  }, [tzQuery, activeTimezone]);
 
   // Wizard state: 1: Slot Picker, 2: Lead Form, 3: Confirmed Card
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -314,11 +438,102 @@ export function InlineBookingCard({
             {slotsData.provider === "teams" ? "Teams" : "Google Meet"}
           </span>
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-neutral-500 dark:text-neutral-400">
-          <Globe className="size-3" />
-          <span className="truncate max-w-[130px]" title={activeTimezone}>
-            {activeTimezone.replace("_", " ")}
-          </span>
+        {/* Modern Cal.com-style Timezone Selector */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setIsTzOpen(!isTzOpen);
+              setTzQuery("");
+            }}
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
+            title="Click to change timezone"
+          >
+            <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200" />
+            <span className="truncate max-w-[95px] font-medium">
+              {formatTimezoneCity(activeTimezone)}
+            </span>
+            <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-200 ${isTzOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {isTzOpen && (
+            <div
+              ref={tzDropdownRef}
+              className="absolute right-0 top-full mt-1.5 w-64 max-w-[calc(100vw-40px)] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col"
+            >
+              {/* Popover Search Bar */}
+              <div className="p-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-800/50">
+                <div className="relative">
+                  <Search className="size-3 text-neutral-400 absolute left-2.5 top-2.5" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Search city or timezone..."
+                    value={tzQuery}
+                    onChange={(e) => setTzQuery(e.target.value)}
+                    className="w-full pl-7 pr-6 py-1 text-[11px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md focus:outline-none focus:ring-1 focus:ring-neutral-400 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400"
+                  />
+                  {tzQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setTzQuery("")}
+                      className="absolute right-1.5 top-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Timezone List */}
+              <div className="max-h-56 overflow-y-auto p-1 divide-y divide-neutral-100 dark:divide-neutral-800/50">
+                {filteredTimezones.length === 0 ? (
+                  <div className="py-5 text-center text-[11px] text-neutral-400">
+                    No matching timezone found
+                  </div>
+                ) : (
+                  filteredTimezones.map((tz) => {
+                    const isSelected = tz.id === activeTimezone;
+                    const currentTime = getTimeInTimezone(tz.id);
+                    return (
+                      <button
+                        key={tz.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTimezone(tz.id);
+                          setIsTzOpen(false);
+                          setTzQuery("");
+                          setSelectedSlot(null);
+                        }}
+                        className={`w-full px-2 py-1.5 flex items-center justify-between text-left rounded-md transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-neutral-100 dark:bg-neutral-800 font-medium text-neutral-900 dark:text-neutral-100"
+                            : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300"
+                        }`}
+                      >
+                        <div className="min-w-0 pr-1.5">
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs truncate">{tz.city}</span>
+                            {isSelected && (
+                              <Check className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            )}
+                          </div>
+                          <div className="text-[9px] text-neutral-400 truncate">
+                            {tz.label}
+                          </div>
+                        </div>
+                        {currentTime && (
+                          <div className="text-[10px] tabular-nums text-neutral-500 dark:text-neutral-400 shrink-0 font-medium">
+                            {currentTime}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
