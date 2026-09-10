@@ -23,7 +23,7 @@ import {
   Paperclip, Smile, Mic, ChevronRight, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
-  BookOpen, HelpCircle, Folder,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -523,20 +523,6 @@ export default function ChatWidgetCore({
   const [articleFilterQuery, setArticleFilterQuery] = useState("");
   const [searchKbResults, setSearchKbResults] = useState<WidgetKbArticle[]>([]);
 
-  const sources: Source[] = useMemo(() => {
-    return kbArticles.map((a) => ({ id: a.id, name: a.title, content: a.content || a.subtitle || "" }));
-  }, [kbArticles]);
-  const openArticle: Source | null = activeArticle
-    ? { id: activeArticle.id, name: activeArticle.title, content: activeArticle.content || activeArticle.subtitle || "" }
-    : null;
-  const setOpenArticle = (s: Source | null) => {
-    if (!s) setActiveArticle(null);
-    else {
-      const match = kbArticles.find((a) => a.id === s.id);
-      if (match) openKbArticle(match);
-      else setActiveArticle({ id: s.id, title: s.name, slug: s.id, content: s.content });
-    }
-  };
 
   const loadKnowledgeBase = useCallback(async () => {
     if (!botId) return;
