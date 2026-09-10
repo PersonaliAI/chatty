@@ -220,19 +220,21 @@ def _tool(name: str, description: str, properties: dict, required: list[str]) ->
 DECLARATIONS: list[dict] = [
     _tool(
         "create_calendar_event",
-        "Create a new Google Calendar event. Times should be ISO 8601 in the "
-        "user's local timezone (e.g. '2026-05-12T15:00:00').",
+        "Create and confirm a Google Calendar event. STRICT RULE: DO NOT CALL this tool when the visitor only confirms or selects a time slot! "
+        "You must FIRST reply in chat confirming the time is held, ask for the visitor's full name and real email address, and wait for their reply. "
+        "Call this tool ONLY after the visitor has provided their real full name and real email address in the chat conversation. "
+        "Times should be ISO 8601 in the user's local timezone (e.g. '2026-05-12T15:00:00').",
         {
-            "summary": {"type": "string", "description": "Event title."},
+            "summary": {"type": "string", "description": "Event title, formatted as 'Demo Meeting with <Visitor Full Name>'."},
             "start": {"type": "string", "description": "ISO 8601 start datetime."},
             "end": {"type": "string", "description": "ISO 8601 end datetime."},
             "description": {"type": "string", "description": "Optional event description."},
             "location": {"type": "string", "description": "Optional physical/virtual location."},
-            "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee email addresses. For widget demo bookings, the visitor's real email address is required here before booking."},
+            "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee email addresses. Must contain the visitor's verified email address provided in chat."},
             "verification_code": {"type": "string", "description": "6-digit email OTP verification code provided by the visitor (required if email verification is enabled on the chatbot)."},
             "all_day": {"type": "boolean", "description": "True for all-day events; start/end then become dates."},
         },
-        ["summary", "start", "end"],
+        ["summary", "start", "end", "attendees"],
     ),
     _tool(
         "check_calendar_availability",
@@ -273,20 +275,23 @@ DECLARATIONS: list[dict] = [
     ),
     _tool(
         "create_outlook_event",
-        "Create an Outlook calendar event. Times in ISO 8601 in user's local timezone.",
+        "Create and confirm an Outlook/Teams calendar event. STRICT RULE: DO NOT CALL this tool when the visitor only confirms or selects a time slot! "
+        "You must FIRST reply in chat confirming the time is held, ask for the visitor's full name and real email address, and wait for their reply. "
+        "Call this tool ONLY after the visitor has provided their real full name and real email address in the chat conversation. "
+        "Times in ISO 8601 in user's local timezone.",
         {
-            "subject": {"type": "string", "description": "Event title."},
+            "subject": {"type": "string", "description": "Event title, formatted as 'Demo Meeting with <Visitor Full Name>'."},
             "start": {"type": "string", "description": "ISO 8601 start datetime."},
             "end": {"type": "string", "description": "ISO 8601 end datetime."},
             "body": {"type": "string", "description": "Optional description."},
             "location": {"type": "string", "description": "Optional location."},
-            "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee emails. For widget demo bookings, the visitor's real email address is required here before booking."},
+            "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee emails. Must contain the visitor's verified email address provided in chat."},
             "verification_code": {"type": "string", "description": "6-digit email OTP verification code provided by the visitor (required if email verification is enabled on the chatbot)."},
             "is_all_day": {"type": "boolean", "description": "All-day event."},
             "calendar_id": {"type": "string", "description": "Optional non-default calendar."},
             "online_meeting": {"type": "boolean", "description": "Set true to create a Microsoft Teams online meeting and generate a join link."},
         },
-        ["subject", "start", "end"],
+        ["subject", "start", "end", "attendees"],
     ),
     _tool(
         "create_lead",
@@ -1657,8 +1662,11 @@ async def execute(
                     return {
                         "error": (
                             "Cannot book meeting: A valid visitor email address is REQUIRED in 'attendees' before booking can be completed. "
-                            "Do NOT call this tool yet. Ask the visitor for their name and email address first, "
-                            "and call this tool only after they provide their real email address."
+                            "INSTRUCTION FOR YOUR ASSISTANT REPLY: "
+                            "1. DO NOT apologize and NEVER say 'I am sorry' or 'Unfortunately'! There is no error to apologize for. "
+                            "2. Enthusiastically confirm allocating the chosen slot (e.g. 'Great! [Selected Time] is reserved for you.'). "
+                            "3. In the exact same message, ask the visitor for their full name and email address, and invite optional details (phone number, company name) to complete the reservation and send the calendar invite. "
+                            "4. STOP and wait for the visitor to reply with their contact details before calling this tool again."
                         )
                     }
 
@@ -1687,8 +1695,9 @@ async def execute(
                         return {
                             "error": (
                                 "Cannot book meeting: Visitor's name is REQUIRED before booking. "
-                                "Do NOT call this tool yet. Ask the visitor for their full name first, "
-                                "and include it in the summary (e.g. summary='Demo Meeting with <Visitor Full Name>')."
+                                "INSTRUCTION FOR YOUR ASSISTANT REPLY: "
+                                "DO NOT apologize and NEVER say 'I am sorry'. "
+                                "Politely ask the visitor for their full name so their calendar invite can be addressed properly."
                             )
                         }
 

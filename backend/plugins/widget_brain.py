@@ -461,20 +461,19 @@ async def run_widget_assistant(
             f"   - If the requested time is NOT AVAILABLE or was general:\n"
             f"     * Explain politely that the requested time is not available or outside business hours, and list the alternative available slots returned by `get_available_slots`.\n"
             f"     * STRICT RULE: DO NOT ask for contact details (name/email) yet when presenting alternatives! Ask which of the offered slots works best for them, and WAIT for the visitor to choose a slot first!\n\n"
-            f"3. SLOT CONFIRMED -> REQUEST CONTACT DETAILS (Required & Optional):\n"
-            f"   - As soon as the visitor confirms or picks a specific slot (e.g. '10:30 am is good' or 'let's do 10:00 AM'):\n"
-            f"     * Acknowledge the slot: 'Great! [Date and Time] ({visitor_timezone or 'UTC'}) is reserved for you.'\n"
-            f"     * Check which contact fields you already have from earlier messages in this conversation.\n"
-            f"     * REQUIRED fields: {required_fields_str} (Full Name and Email Address).\n"
-            f"     * OPTIONAL fields: {optional_fields_str} (e.g. Phone number, Company name, Job title).\n"
-            f"     * Ask for the missing required fields and invite the optional ones in a single friendly message:\n"
-            f"       'To reserve your slot and send you the calendar invite, could you please share your {required_fields_str}?' (and ask once for {optional_fields_str} e.g. 'Optionally, feel free to also share your company name or phone number if you would like.').\n"
-            f"     * STRICT RULE: You MUST STOP and wait for the visitor's response. NEVER attempt to call the booking tool without both the visitor's real name and real email address!\n\n"
+            f"3. SLOT CONFIRMED -> ALLOCATE TIME & REQUEST DETAILS (Required & Optional):\n"
+            f"   - As soon as the visitor confirms or picks a specific slot (e.g. 'yes 9.30 am ok', '10:30 am is good', 'let's do 10:00 AM'):\n"
+            f"     * NEVER APOLOGIZE, NEVER say 'I am sorry', and NEVER say 'Unfortunately'! The visitor just selected a valid slot, which is great!\n"
+            f"     * FIRST: Enthusiastically confirm allocating and holding the chosen time. State: 'Great! [Date and Time] ({visitor_timezone or 'UTC'}) is reserved for you.'\n"
+            f"     * SECOND: In the exact same message, request their required contact fields ({required_fields_str}) and invite optional fields ({optional_fields_str}):\n"
+            f"       'To confirm your booking and send your calendar invite, could you please share your {required_fields_str}?' (and ask once for {optional_fields_str} e.g. 'Optionally, feel free to also share your company name or phone number if you would like.').\n"
+            f"     * STRICT RULE: DO NOT CALL `create_calendar_event` or `create_outlook_event` yet! You DO NOT have the visitor's real name and real email address yet. Calling the booking tool without their contact details is strictly forbidden. Simply reply with the text message above and wait for the visitor to respond!\n\n"
             f"4. VALIDATE GATHERED DATA & RE-PROMPT MISSING REQUIRED FIELDS:\n"
+            f"   - NEVER apologize or say 'I am sorry' when gathering details.\n"
             f"   - When the visitor replies with contact information:\n"
             f"     * Check if ANY required field ({required_fields_str}) is still missing.\n"
-            f"       - If they provided an email but NO name: Acknowledge the email, and politely ask for their full name before booking: 'Thank you! Could you also share your full name so we can address your calendar invite?'\n"
-            f"       - If they provided a name but NO email: Acknowledge the name, and politely ask for their email: 'Thank you! Could you also share your email address so we can send you the calendar invite and meeting link?'\n"
+            f"       - If they provided an email but NO name: Acknowledge the email, keep the slot reserved, and politely ask for their full name before booking: 'Thank you! Could you also share your full name so we can address your calendar invite?'\n"
+            f"       - If they provided a name but NO email: Acknowledge the name, keep the slot reserved, and politely ask for their email: 'Thank you! Could you also share your email address so we can send you the calendar invite and meeting link?'\n"
             f"       - If they provided all required fields but skipped optional fields: That is completely fine! Proceed directly to Step 5 (do not nag for optional fields).\n"
             f"     * As soon as you have the visitor's name and email, call `create_lead` with bot_id='{bot_id}' and all gathered fields ({lead_fields_str}) to record the lead in the system.\n\n"
             f"5. FINALIZE BOOKING & DELIVER MEETING LINK:\n"
@@ -651,6 +650,7 @@ async def run_widget_assistant(
         "BEHAVIOUR:\n"
         f"{knowledge_line}"
         "- Be concise and natural: short paragraphs, bullet points when listing. Avoid walls of text.\n"
+        "- Professional and confident tone: NEVER say 'I am sorry', 'My apologies', or 'Unfortunately' when gathering contact details, confirming dates or times, or asking for email or name. There is nothing to apologize for. Always be positive, welcoming, and helpful.\n"
         f"{language_line}"
         "- Be proactive: ask a brief clarifying question when the request is ambiguous.\n"
         + ("- LEAD CAPTURE IS ON: whenever you answer a question about the product, features, pricing or capabilities AND "
@@ -746,6 +746,28 @@ async def run_widget_assistant(
 
     # 5. Build Tools list
     allowed_tool_names = scheduling_tool_names(bot, owner_user)
+
+    # Gate create_calendar_event / create_outlook_event until visitor email is present:
+    # A booking cannot succeed without the attendee's real email address. Removing the
+    # final booking tool until an email has been shared prevents LLMs from prematurely
+    # calling the booking tool when a user simply picks a time (e.g. "yes 9.30 am ok")
+    # before contact details have been collected.
+    has_visitor_email = False
+    email_regex = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
+    if text and email_regex.search(text):
+        has_visitor_email = True
+    elif any(isinstance(h.get("content"), str) and email_regex.search(h["content"]) for h in history):
+        has_visitor_email = True
+    elif session_id and bot_id:
+        try:
+            lead_res = await run_db(lambda: supabase.table("chatty_leads").select("email").eq("bot_id", bot_id).eq("session_id", session_id).limit(1).execute())
+            if lead_res.data and lead_res.data[0].get("email"):
+                has_visitor_email = True
+        except Exception:
+            pass
+
+    if not has_visitor_email:
+        allowed_tool_names = [n for n in allowed_tool_names if n not in ("create_calendar_event", "create_outlook_event")]
 
     widget_decls = [d for d in agent_tools.DECLARATIONS if d["function"]["name"] in allowed_tool_names]
     if answer_mode == "web":
