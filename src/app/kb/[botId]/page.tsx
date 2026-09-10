@@ -531,35 +531,36 @@ export default function KnowledgeBasePortal() {
       <main className="max-w-6xl mx-auto w-full px-4 py-8 flex-1">
         {/* VIEW A: ARTICLE READING VIEW */}
         {selectedArticle ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Article Main Body */}
-            <div className="lg:col-span-8 space-y-6">
-              {/* Breadcrumb Navigation */}
-              <nav className="flex items-center gap-2 text-xs text-neutral-500 flex-wrap">
+          <div className="space-y-6">
+            {/* Breadcrumb Navigation */}
+            <nav className="flex items-center gap-2 text-xs text-neutral-500 flex-wrap">
+              <button
+                onClick={handleGoHome}
+                className="hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                Home
+              </button>
+              <ChevronRight className="size-3 text-neutral-400" />
+              {selectedCategory ? (
                 <button
-                  onClick={handleGoHome}
+                  onClick={() => loadCategory(selectedCategory)}
                   className="hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
                 >
-                  Home
+                  {selectedCategory.name}
                 </button>
-                <ChevronRight className="size-3 text-neutral-400" />
-                {selectedCategory ? (
-                  <button
-                    onClick={() => loadCategory(selectedCategory)}
-                    className="hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
-                  >
-                    {selectedCategory.name}
-                  </button>
-                ) : (
-                  <span>Articles</span>
-                )}
-                <ChevronRight className="size-3 text-neutral-400" />
-                <span className="font-semibold text-neutral-900 dark:text-white truncate max-w-xs">
-                  {selectedArticle.title}
-                </span>
-              </nav>
+              ) : (
+                <span>Articles</span>
+              )}
+              <ChevronRight className="size-3 text-neutral-400" />
+              <span className="font-semibold text-neutral-900 dark:text-white truncate max-w-xs">
+                {selectedArticle.title}
+              </span>
+            </nav>
 
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-10 shadow-xs space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* Article Main Body */}
+              <div className="lg:col-span-8 space-y-6">
+                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-10 shadow-xs space-y-6">
                 {/* Article Header */}
                 <div className="space-y-3 pb-6 border-b border-neutral-100 dark:border-neutral-800">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -737,6 +738,7 @@ export default function KnowledgeBasePortal() {
                   <span>Chat with Assistant</span>
                 </a>
               </div>
+            </div>
             </div>
           </div>
         ) : selectedCategory ? (
