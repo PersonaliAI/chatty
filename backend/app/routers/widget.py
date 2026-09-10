@@ -8,7 +8,7 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import pytz
@@ -46,6 +46,7 @@ from main import (
     _needs_human,
     _normalize_host,
     _notify_new_conversation,
+    _rate_limited_async,
     _upsert_session,
     _widget_rate_limit_or_429,
     chatty_quota_exceeded,
@@ -1002,11 +1003,24 @@ async def widget_kb_search(bot_id: str, q: str = ""):
 # ---------------------------------------------------------------------------
 
 
+def _sanitize_booking_field(text: Optional[str], max_len: int = 100) -> str:
+    if not text:
+        return ""
+    # Strip script and style blocks completely including inner text
+    clean = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", str(text), flags=re.IGNORECASE | re.DOTALL)
+    # Strip any remaining HTML tags
+    clean = re.sub(r"<[^>]*>", "", clean).strip()
+    # Strip control characters
+    clean = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", clean)
+    return clean[:max_len].strip()
+
+
 @router.get("/api/widget/booking/slots")
 async def widget_booking_slots(
     bot_id: str,
     visitor_timezone: Optional[str] = None,
     days: int = 14,
+    request: Request = None,
 ):
     """Fetches real guaranteed available booking slots for the widget's inline
     calendar view, grouped by date in the visitor's local timezone.
@@ -1015,6 +1029,13 @@ async def widget_booking_slots(
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
+
+    # Domain origin check and baseline rate limiting (when called via HTTP)
+    if request:
+        ip = _client_ip(request)
+        await _widget_rate_limit_or_429(bot, bot_id, ip, request.headers.get("x-widget-token"))
+        if await _rate_limited_async(f"booking_slots:{bot_id}:{ip}", limit=40, window=60):
+            raise HTTPException(status_code=429, detail="Too many slot inquiries. Please slow down.")
 
     if not bot.get("calendar_scheduling_enabled"):
         return {
@@ -1100,7 +1121,10 @@ async def widget_booking_slots(
 
 
 @router.post("/api/widget/booking/confirm")
-async def widget_booking_confirm(body: WidgetBookingConfirmRequest):
+async def widget_booking_confirm(
+    body: WidgetBookingConfirmRequest,
+    request: Request = None,
+):
     """Direct booking confirmation from the widget's interactive calendar UI.
     Validates attendee inputs, invokes server-side scheduling tools, creates/updates
     lead in chatty_leads, and stores the confirmed meeting in chatty_meetings."""
@@ -1112,20 +1136,35 @@ async def widget_booking_confirm(body: WidgetBookingConfirmRequest):
     if not bot.get("calendar_scheduling_enabled"):
         raise HTTPException(status_code=400, detail="Scheduling is disabled for this assistant.")
 
+    # 1. Origin verification and rate limiting (per bot + IP, when called via HTTP)
+    if request:
+        ip = _client_ip(request)
+        await _widget_rate_limit_or_429(bot, body.bot_id, ip, request.headers.get("x-widget-token"))
+
+        # Dedicated booking attempts rate limit per IP: max 5 bookings per 5 minutes
+        if await _rate_limited_async(f"booking_confirm:{body.bot_id}:{ip}", limit=5, window=300):
+            raise HTTPException(status_code=429, detail="Too many booking attempts. Please wait a few minutes before trying again.")
+
     owner_res = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot.get("user_id")).execute())
     if not owner_res.data:
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = owner_res.data[0]
 
-    visitor_name = (body.name or "").strip()
-    invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes"}
-    if not visitor_name or visitor_name.lower() in invalid_names or "@" in visitor_name:
+    # 2. Input Sanitization & Validation
+    visitor_name = _sanitize_booking_field(body.name, max_len=80)
+    invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes", "test", "asdf", "admin", "bot"}
+    if len(visitor_name) < 2 or visitor_name.lower() in invalid_names or "@" in visitor_name:
         raise HTTPException(status_code=400, detail="Please enter your full name.")
 
     visitor_email = (body.email or "").strip().lower()
-    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", visitor_email):
+    if len(visitor_email) > 100 or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", visitor_email):
         raise HTTPException(status_code=400, detail="Please enter a valid email address.")
 
+    # Dedicated booking attempts rate limit per email: max 3 bookings per 10 minutes
+    if await _rate_limited_async(f"booking_confirm_email:{body.bot_id}:{visitor_email}", limit=3, window=600):
+        raise HTTPException(status_code=429, detail="Too many booking attempts for this email address. Please wait a few minutes.")
+
+    # 3. Abuse Protection Defenses: Disposable / Business Email Checks
     from plugins.agent_tools import CONSUMER_EMAIL_DOMAINS, DISPOSABLE_EMAIL_DOMAINS
     domain = visitor_email.split("@")[-1].lower() if "@" in visitor_email else ""
 
@@ -1134,6 +1173,66 @@ async def widget_booking_confirm(body: WidgetBookingConfirmRequest):
 
     if bot.get("booking_require_business_email") and domain in CONSUMER_EMAIL_DOMAINS:
         raise HTTPException(status_code=400, detail=f"Personal email addresses (@{domain}) are not accepted. Please use a corporate or business email.")
+
+    # 4. Optional / Lead Fields Sanitization & Required Checks
+    visitor_phone = _sanitize_booking_field(body.phone, max_len=35) if body.phone else None
+    visitor_company = _sanitize_booking_field(body.company, max_len=100) if body.company else None
+    visitor_notes = _sanitize_booking_field(body.notes, max_len=500) if body.notes else None
+
+    lead_required = bot.get("lead_required_fields") or ["name", "email"]
+    if "phone" in lead_required and not visitor_phone:
+        raise HTTPException(status_code=400, detail="Phone number is required.")
+    if "company" in lead_required and not visitor_company:
+        raise HTTPException(status_code=400, detail="Company name is required.")
+
+    # 5. Booking Limit: 1 Active Booking Per Email
+    if bot.get("booking_limit_one_active"):
+        try:
+            active_res = await run_db(
+                lambda: supabase.table("chatty_meetings")
+                .select("id, start_time, status")
+                .eq("bot_id", body.bot_id)
+                .eq("attendee_email", visitor_email)
+                .gte("start_time", datetime.now(timezone.utc).isoformat())
+                .neq("status", "cancelled")
+                .limit(1)
+                .execute()
+            )
+            if active_res.data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="You already have an upcoming scheduled meeting. Please reschedule or cancel your existing meeting first.",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Failed checking active booking limit for %s", visitor_email)
+
+    # 6. Slot Timing & Integrity Validation
+    try:
+        dt_start = datetime.fromisoformat(body.start_time.replace("Z", "+00:00"))
+        dt_end = datetime.fromisoformat(body.end_time.replace("Z", "+00:00"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid start or end time format. Expected ISO-8601 timestamps.")
+
+    if dt_end <= dt_start:
+        raise HTTPException(status_code=400, detail="Invalid meeting slot: end time must be after start time.")
+
+    now_utc = datetime.now(timezone.utc)
+    if dt_start.tzinfo is None:
+        dt_start = dt_start.replace(tzinfo=timezone.utc)
+    if dt_end.tzinfo is None:
+        dt_end = dt_end.replace(tzinfo=timezone.utc)
+
+    if dt_start < (now_utc - timedelta(minutes=5)):
+        raise HTTPException(status_code=400, detail="Cannot schedule meetings in the past. Please select an upcoming slot.")
+
+    if dt_start > (now_utc + timedelta(days=90)):
+        raise HTTPException(status_code=400, detail="Cannot schedule meetings more than 90 days in advance.")
+
+    duration_mins = (dt_end - dt_start).total_seconds() / 60
+    if duration_mins < 10 or duration_mins > 240:
+        raise HTTPException(status_code=400, detail="Invalid meeting duration.")
 
     provider = bot.get("meeting_provider") or "google_meet"
     use_ms = provider == "teams"
@@ -1144,12 +1243,12 @@ async def widget_booking_confirm(body: WidgetBookingConfirmRequest):
         f"Attendee: {visitor_name} ({visitor_email})",
         f"Timezone: {body.visitor_timezone or 'UTC'}",
     ]
-    if body.phone and body.phone.strip():
-        desc_lines.append(f"Phone: {body.phone.strip()}")
-    if body.company and body.company.strip():
-        desc_lines.append(f"Company: {body.company.strip()}")
-    if body.notes and body.notes.strip():
-        desc_lines.append(f"Notes: {body.notes.strip()}")
+    if visitor_phone:
+        desc_lines.append(f"Phone: {visitor_phone}")
+    if visitor_company:
+        desc_lines.append(f"Company: {visitor_company}")
+    if visitor_notes:
+        desc_lines.append(f"Notes: {visitor_notes}")
     description = "\n".join(desc_lines)
 
     tool_args: dict[str, Any] = {
@@ -1163,7 +1262,7 @@ async def widget_booking_confirm(body: WidgetBookingConfirmRequest):
         "online_meeting": True,
     }
     if body.verification_code:
-        tool_args["verification_code"] = body.verification_code
+        tool_args["verification_code"] = body.verification_code.strip()
 
     context = {
         "bot_id": body.bot_id,
@@ -1192,13 +1291,13 @@ async def widget_booking_confirm(body: WidgetBookingConfirmRequest):
     # Update phone / company / notes in chatty_leads if provided
     try:
         lead_update: dict[str, Any] = {}
-        if body.phone and body.phone.strip():
-            lead_update["phone"] = body.phone.strip()
+        if visitor_phone:
+            lead_update["phone"] = visitor_phone
         custom_fields: dict[str, Any] = {}
-        if body.company and body.company.strip():
-            custom_fields["company"] = body.company.strip()
-        if body.notes and body.notes.strip():
-            custom_fields["notes"] = body.notes.strip()
+        if visitor_company:
+            custom_fields["company"] = visitor_company
+        if visitor_notes:
+            custom_fields["notes"] = visitor_notes
         if custom_fields:
             lead_update["custom_fields"] = custom_fields
 
@@ -1234,6 +1333,8 @@ async def widget_booking_confirm(body: WidgetBookingConfirmRequest):
         except Exception:
             logger.exception("Failed to record booking confirmation in chatty_conversations")
 
+    assigned_email = exec_res.get("assigned_to_email") or (owner_user.get("email") or "").strip().lower()
+
     return {
         "success": True,
         "meeting_id": exec_res.get("id"),
@@ -1244,5 +1345,6 @@ async def widget_booking_confirm(body: WidgetBookingConfirmRequest):
         "end_time": body.end_time,
         "attendee_name": visitor_name,
         "attendee_email": visitor_email,
+        "assigned_to_email": assigned_email,
     }
 

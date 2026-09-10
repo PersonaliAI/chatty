@@ -1905,6 +1905,8 @@ async def execute(
             res = await _create_calendar_event(args, booking_user, supabase, context=context)
             if context and context.get("source") == "widget" and "error" not in res:
                 await _process_widget_booking(args, booking_user, supabase, res, context)
+            if args.get("_assigned_to_email") and isinstance(res, dict):
+                res["assigned_to_email"] = args["_assigned_to_email"]
             return res
         if name == "check_calendar_availability":
             return await _check_calendar_availability(args, user, supabase, context=context)
@@ -1924,6 +1926,8 @@ async def execute(
             res = await _create_outlook_event(args, booking_user, supabase, context=context)
             if context and context.get("source") == "widget" and "error" not in res:
                 await _process_widget_booking(args, booking_user, supabase, res, context)
+            if args.get("_assigned_to_email") and isinstance(res, dict):
+                res["assigned_to_email"] = args["_assigned_to_email"]
             return res
         return {"error": f"unknown tool: {name}"}
     except ms.MicrosoftNotConnected:
