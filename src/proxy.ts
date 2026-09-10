@@ -10,7 +10,7 @@ function publicOrigin(request: NextRequest): string {
   return `${proto}://${host}`
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // FAIL-SAFE: if Supabase ever redirects an auth code to the root path,
   // forward it to /auth/callback on the public origin (not the container's
   // internal 0.0.0.0:8080 host).
