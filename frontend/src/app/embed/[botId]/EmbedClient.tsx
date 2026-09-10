@@ -292,6 +292,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const paramColorScheme = searchParams.get("color_scheme");
   const paramFont = searchParams.get("font");
   const paramFontSizePercent = searchParams.get("font_size_percent");
+  const paramTab = searchParams.get("tab") as Tab | null;
 
   // Scope stored session + history per embedding site, so different host sites
   // (and the dashboard playground) don't share one conversation.
@@ -386,7 +387,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [voiceCallOpen, setVoiceCallOpen] = useState(false);
 
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>(paramTab === "messages" || paramTab === "articles" ? paramTab : "home");
+
+  useEffect(() => {
+    const qTab = searchParams.get("tab") as Tab | null;
+    if (qTab === "messages" || qTab === "articles" || qTab === "home") {
+      setTab(qTab);
+    }
+  }, [searchParams]);
+
   const [bottomNavVisible, setBottomNavVisible] = useState(true);
   const [chatNavExpanded, setChatNavExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
