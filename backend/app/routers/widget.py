@@ -6,9 +6,12 @@ import asyncio
 import base64
 import json
 import logging
+import re
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
+
+import pytz
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -19,6 +22,7 @@ from app.core.db import run_db
 from app.core.uploads import read_upload_capped
 from plugins import ai_client
 from app.schemas.widget import (
+    WidgetBookingConfirmRequest,
     WidgetChatRequest,
     WidgetChatResponse,
     WidgetCsatRequest,
@@ -682,7 +686,7 @@ async def widget_theme(bot_id: str):
         "user_id, name, primary_color, widget_style, logo_url, welcome_message, "
         "send_button_style, conversation_starters, teaser_message, avatar_icon, avatar_url, "
         "hide_branding, custom_css, custom_js, voice_enabled, show_sender_tag, csat_enabled, "
-        "color_scheme"
+        "color_scheme, calendar_scheduling_enabled, meeting_provider"
     )
     try:
         res = await run_db(lambda: supabase.table("chatty_bots").select(
@@ -744,6 +748,8 @@ async def widget_theme(bot_id: str):
         "font_size_percent": b.get("font_size_percent") or 100,
         "voice_message_mode": b.get("voice_message_mode") or "transcribe",
         "panel_size": b.get("panel_size") or "default",
+        "calendar_scheduling_enabled": bool(b.get("calendar_scheduling_enabled")),
+        "meeting_provider": b.get("meeting_provider") or "google_meet",
     }
 
 
@@ -989,4 +995,254 @@ async def widget_kb_search(bot_id: str, q: str = ""):
         logger.exception("Failed to log KB search query")
 
     return {"articles": matched[:20]}
+
+
+# ---------------------------------------------------------------------------
+# INTERACTIVE CALENDAR BOOKING ENDPOINTS (SELF-HOSTED)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/widget/booking/slots")
+async def widget_booking_slots(
+    bot_id: str,
+    visitor_timezone: Optional[str] = None,
+    days: int = 14,
+):
+    """Fetches real guaranteed available booking slots for the widget's inline
+    calendar view, grouped by date in the visitor's local timezone.
+    Self-hosted, deterministic, zero third-party subscription cost."""
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = res.data[0]
+
+    if not bot.get("calendar_scheduling_enabled"):
+        return {
+            "enabled": False,
+            "message": "Scheduling is not enabled for this assistant.",
+        }
+
+    owner_res = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot.get("user_id")).execute())
+    if not owner_res.data:
+        raise HTTPException(status_code=404, detail="Bot owner not found")
+    owner_user = owner_res.data[0]
+
+    from plugins import availability_engine as avail
+
+    owner_tz_str = avail.resolve_owner_timezone(bot, owner_user)
+    visitor_tz_str = visitor_timezone or owner_tz_str
+    try:
+        pytz.timezone(visitor_tz_str)
+    except Exception:
+        visitor_tz_str = owner_tz_str
+
+    now_utc = datetime.now(timezone.utc)
+    members = await avail.get_bookable_members(supabase, bot_id, bot, owner_user)
+    if not members:
+        return {
+            "enabled": False,
+            "message": "No calendar connected for booking.",
+        }
+
+    slots = await avail.get_team_available_slots(
+        supabase,
+        bot_id=bot_id,
+        bot=bot,
+        members=members,
+        owner_tz_str=owner_tz_str,
+        now_utc=now_utc,
+        visitor_tz_str=visitor_tz_str,
+        near_utc=None,
+        max_results=100,
+        search_days=max(min(days, 30), 7),
+    )
+
+    slots_by_date: dict[str, list[dict[str, Any]]] = {}
+    v_tz = pytz.timezone(visitor_tz_str)
+
+    for s in slots:
+        start_iso = s.get("start")
+        if not start_iso:
+            continue
+        try:
+            dt_utc = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+            dt_visitor = dt_utc.astimezone(v_tz)
+            date_key = dt_visitor.strftime("%Y-%m-%d")
+            time_label = dt_visitor.strftime("%I:%M %p").lstrip("0")
+
+            slots_by_date.setdefault(date_key, []).append({
+                "start": s["start"],
+                "end": s["end"],
+                "time_label": time_label,
+                "visitor_local_label": s.get("visitor_local_label") or f"{date_key} at {time_label}",
+            })
+        except Exception:
+            continue
+
+    lead_fields = bot.get("lead_fields") or ["name", "email", "phone"]
+    lead_required_fields = bot.get("lead_required_fields") or ["name", "email"]
+
+    return {
+        "enabled": True,
+        "bot_id": bot_id,
+        "duration_minutes": int(bot.get("scheduling_duration_minutes") or 30),
+        "visitor_timezone": visitor_tz_str,
+        "owner_timezone": owner_tz_str,
+        "provider": bot.get("meeting_provider") or "google_meet",
+        "available_dates": sorted(slots_by_date.keys()),
+        "slots_by_date": slots_by_date,
+        "lead_fields": lead_fields,
+        "lead_required_fields": lead_required_fields,
+        "booking_require_business_email": bool(bot.get("booking_require_business_email")),
+        "booking_block_disposable_emails": bool(bot.get("booking_block_disposable_emails")),
+        "booking_email_verification": bool(bot.get("booking_email_verification")),
+    }
+
+
+@router.post("/api/widget/booking/confirm")
+async def widget_booking_confirm(body: WidgetBookingConfirmRequest):
+    """Direct booking confirmation from the widget's interactive calendar UI.
+    Validates attendee inputs, invokes server-side scheduling tools, creates/updates
+    lead in chatty_leads, and stores the confirmed meeting in chatty_meetings."""
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", body.bot_id).execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = res.data[0]
+
+    if not bot.get("calendar_scheduling_enabled"):
+        raise HTTPException(status_code=400, detail="Scheduling is disabled for this assistant.")
+
+    owner_res = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot.get("user_id")).execute())
+    if not owner_res.data:
+        raise HTTPException(status_code=404, detail="Bot owner not found")
+    owner_user = owner_res.data[0]
+
+    visitor_name = (body.name or "").strip()
+    invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes"}
+    if not visitor_name or visitor_name.lower() in invalid_names or "@" in visitor_name:
+        raise HTTPException(status_code=400, detail="Please enter your full name.")
+
+    visitor_email = (body.email or "").strip().lower()
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", visitor_email):
+        raise HTTPException(status_code=400, detail="Please enter a valid email address.")
+
+    from plugins.agent_tools import CONSUMER_EMAIL_DOMAINS, DISPOSABLE_EMAIL_DOMAINS
+    domain = visitor_email.split("@")[-1].lower() if "@" in visitor_email else ""
+
+    if bot.get("booking_block_disposable_emails") and domain in DISPOSABLE_EMAIL_DOMAINS:
+        raise HTTPException(status_code=400, detail=f"Disposable email addresses (@{domain}) are not accepted. Please use a permanent email address.")
+
+    if bot.get("booking_require_business_email") and domain in CONSUMER_EMAIL_DOMAINS:
+        raise HTTPException(status_code=400, detail=f"Personal email addresses (@{domain}) are not accepted. Please use a corporate or business email.")
+
+    provider = bot.get("meeting_provider") or "google_meet"
+    use_ms = provider == "teams"
+    tool_name = "create_outlook_event" if use_ms else "create_calendar_event"
+
+    summary = f"Demo Meeting with {visitor_name}"
+    desc_lines = [
+        f"Attendee: {visitor_name} ({visitor_email})",
+        f"Timezone: {body.visitor_timezone or 'UTC'}",
+    ]
+    if body.phone and body.phone.strip():
+        desc_lines.append(f"Phone: {body.phone.strip()}")
+    if body.company and body.company.strip():
+        desc_lines.append(f"Company: {body.company.strip()}")
+    if body.notes and body.notes.strip():
+        desc_lines.append(f"Notes: {body.notes.strip()}")
+    description = "\n".join(desc_lines)
+
+    tool_args: dict[str, Any] = {
+        "summary": summary,
+        "subject": summary,
+        "start": body.start_time,
+        "end": body.end_time,
+        "attendees": [visitor_email],
+        "description": description,
+        "body": description,
+        "online_meeting": True,
+    }
+    if body.verification_code:
+        tool_args["verification_code"] = body.verification_code
+
+    context = {
+        "bot_id": body.bot_id,
+        "bot": bot,
+        "session_id": body.session_id,
+        "visitor_timezone": body.visitor_timezone,
+        "source": "widget",
+    }
+
+    from plugins import agent_tools
+    exec_res = await agent_tools.execute(
+        tool_name,
+        tool_args,
+        user=owner_user,
+        supabase=supabase,
+        context=context,
+    )
+
+    if "error" in exec_res:
+        return {
+            "success": False,
+            "error": exec_res["error"],
+            "otp_sent": bool(exec_res.get("otp_sent")),
+        }
+
+    # Update phone / company / notes in chatty_leads if provided
+    try:
+        lead_update: dict[str, Any] = {}
+        if body.phone and body.phone.strip():
+            lead_update["phone"] = body.phone.strip()
+        custom_fields: dict[str, Any] = {}
+        if body.company and body.company.strip():
+            custom_fields["company"] = body.company.strip()
+        if body.notes and body.notes.strip():
+            custom_fields["notes"] = body.notes.strip()
+        if custom_fields:
+            lead_update["custom_fields"] = custom_fields
+
+        if lead_update:
+            await run_db(lambda: supabase.table("chatty_leads").update(lead_update).eq("bot_id", body.bot_id).eq("email", visitor_email).execute())
+    except Exception:
+        logger.exception("Failed to update extra lead details after booking")
+
+    formatted_time = agent_tools._format_invitation_time(body.start_time, body.visitor_timezone)
+    meeting_link = (
+        exec_res.get("hangout_link")
+        or exec_res.get("online_meeting_url")
+        or exec_res.get("meeting_link")
+        or exec_res.get("html_link")
+        or "https://meet.google.com/"
+    )
+
+    # Append confirmation to chatty_conversations so the chat history records the scheduled event
+    confirmation_msg = (
+        f"Your demo is scheduled for {formatted_time}.\n\n"
+        f"Meeting Link: {meeting_link}\n\n"
+        f"A calendar invitation has been sent to {visitor_email}. See you there!"
+    )
+    if body.session_id:
+        try:
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": body.bot_id,
+                "session_id": body.session_id,
+                "role": "assistant",
+                "content": confirmation_msg,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }).execute())
+        except Exception:
+            logger.exception("Failed to record booking confirmation in chatty_conversations")
+
+    return {
+        "success": True,
+        "meeting_id": exec_res.get("id"),
+        "meeting_link": meeting_link,
+        "formatted_time": formatted_time,
+        "summary": summary,
+        "start_time": body.start_time,
+        "end_time": body.end_time,
+        "attendee_name": visitor_name,
+        "attendee_email": visitor_email,
+    }
 

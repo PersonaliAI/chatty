@@ -43,3 +43,17 @@ class WidgetCsatRequest(BaseModel):
     session_id: str
     rating: int  # 1-5 stars
     comment: Optional[str] = None
+
+
+class WidgetBookingConfirmRequest(BaseModel):
+    bot_id: str
+    session_id: Optional[str] = None
+    start_time: str
+    end_time: str
+    visitor_timezone: Optional[str] = "UTC"
+    name: str
+    email: str
+    phone: Optional[str] = ""
+    company: Optional[str] = ""
+    notes: Optional[str] = ""
+    verification_code: Optional[str] = None

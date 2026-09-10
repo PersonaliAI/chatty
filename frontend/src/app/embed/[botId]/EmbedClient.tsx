@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import VoiceCallWidget from "@/components/voice-call-widget";
+import { InlineBookingCard } from "@/components/inline-booking-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle } from "@/lib/widget-style";
 import {
@@ -2031,9 +2032,23 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                         {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
-                        {msg.role === "assistant"
-                          ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>{msg.content}</ReactMarkdown>
-                          : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
+                        {msg.role === "assistant" ? (
+                          <>
+                            {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim() && (
+                              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                                {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
+                              </ReactMarkdown>
+                            )}
+                            {msg.content.includes("[BOOKING_WIDGET]") && (
+                              <InlineBookingCard
+                                botId={String(botId)}
+                                sessionId={sessionId}
+                                visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+                                primaryColor={primaryColor}
+                              />
+                            )}
+                          </>
+                        ) : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
                         {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
                           <div className="mt-1.5 flex items-center gap-1">
                             <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
