@@ -24,6 +24,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check out public mirror
+        uses: actions/checkout@v4
+        with:
+          repository: PersonaliAI/chatty
+          ref: main
+          path: ../chatty-public
+
+      - name: Verify changed frontend files are mirrored publicly
+        run: npm run test:public-mirror
+        env:
+          PUBLIC_MIRROR_DIR: ../chatty-public
+
       - name: Typecheck
         run: npx tsc --noEmit
 
