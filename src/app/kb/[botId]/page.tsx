@@ -156,6 +156,35 @@ export default function KnowledgeBasePortal() {
   const [feedbackComment, setFeedbackComment] = useState("");
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  // In-page Assistant Slide-over Navigation Drawer
+  const [isAssistantDrawerOpen, setIsAssistantDrawerOpen] = useState(false);
+
+  // Close drawer on Escape key, handle body scroll locking, and listen for chatty:close message from iframe
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsAssistantDrawerOpen(false);
+    };
+    const handleWindowMessage = (e: MessageEvent) => {
+      if (e.data?.type === "chatty:close") {
+        setIsAssistantDrawerOpen(false);
+      }
+    };
+    window.addEventListener("message", handleWindowMessage);
+
+    if (isAssistantDrawerOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+      const originalStyle = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("message", handleWindowMessage);
+        document.body.style.overflow = originalStyle;
+      };
+    }
+    return () => {
+      window.removeEventListener("message", handleWindowMessage);
+    };
+  }, [isAssistantDrawerOpen]);
 
   const primaryColor = botInfo?.primary_color || "#f97316";
 
@@ -429,15 +458,15 @@ export default function KnowledgeBasePortal() {
           </button>
 
           <div className="flex items-center gap-3">
-            <a
-              href={`/embed/${botId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            <button
+              type="button"
+              onClick={() => setIsAssistantDrawerOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 sm:px-3.5 sm:py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
             >
               <MessageSquare className="size-3.5" style={{ color: primaryColor }} />
-              <span>Ask AI Assistant</span>
-            </a>
+              <span className="hidden sm:inline">Ask AI Assistant</span>
+              <span className="sm:hidden text-[11px]">Ask AI</span>
+            </button>
           </div>
         </div>
       </header>
@@ -728,15 +757,14 @@ export default function KnowledgeBasePortal() {
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
                   Our AI assistant can answer your custom questions instantly 24/7.
                 </p>
-                <a
-                  href={`/embed/${botId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#f97316] text-white text-xs font-semibold hover:opacity-90 transition-opacity"
+                <button
+                  type="button"
+                  onClick={() => setIsAssistantDrawerOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#f97316] text-white text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   <MessageSquare className="size-3.5" />
                   <span>Chat with Assistant</span>
-                </a>
+                </button>
               </div>
             </div>
             </div>
@@ -938,15 +966,14 @@ export default function KnowledgeBasePortal() {
                 </p>
               </div>
 
-              <a
-                href={`/embed/${botId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 flex items-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white px-5 py-3 rounded-2xl text-xs font-bold shadow-md transition-colors"
+              <button
+                type="button"
+                onClick={() => setIsAssistantDrawerOpen(true)}
+                className="shrink-0 flex items-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white px-5 py-3 rounded-2xl text-xs font-bold shadow-md transition-colors cursor-pointer"
               >
                 <MessageSquare className="size-4" />
                 <span>Ask AI Assistant</span>
-              </a>
+              </button>
             </section>
           </div>
         )}
@@ -961,6 +988,92 @@ export default function KnowledgeBasePortal() {
           </span>
         </div>
       </footer>
+
+      {/* Floating AI Assistant Launcher Button */}
+      {!isAssistantDrawerOpen && (
+        <button
+          type="button"
+          onClick={() => setIsAssistantDrawerOpen(true)}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-4 py-3 rounded-full text-white font-semibold text-xs shadow-xl hover:shadow-2xl transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 group"
+          style={{ backgroundColor: primaryColor }}
+          aria-label="Open AI Assistant"
+        >
+          <MessageSquare className="size-4 group-hover:rotate-12 transition-transform duration-200" />
+          <span className="hidden sm:inline">Ask AI Assistant</span>
+        </button>
+      )}
+
+      {/* Slide-over AI Assistant Navigation Drawer */}
+      {isAssistantDrawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
+          {/* Backdrop Overlay */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in cursor-pointer"
+            onClick={() => setIsAssistantDrawerOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer Panel */}
+          <div className="relative w-full sm:w-[460px] max-w-full h-full bg-white dark:bg-neutral-900 shadow-2xl flex flex-col border-l border-neutral-200 dark:border-neutral-800 animate-in slide-in-from-right duration-300 z-10">
+            {/* Drawer Header */}
+            <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between bg-neutral-50/90 dark:bg-neutral-950/90 backdrop-blur-sm shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {botInfo?.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={botInfo.logo_url} alt="" className="size-7 rounded-lg object-contain shrink-0" />
+                ) : (
+                  <div
+                    className="size-7 rounded-lg flex items-center justify-center text-white shrink-0"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    <Sparkles className="size-3.5" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                      {botInfo?.name || "AI Assistant"}
+                    </span>
+                    <span className="inline-block size-2 rounded-full bg-emerald-500 shrink-0" title="Online" />
+                  </div>
+                  <span className="text-[10px] text-neutral-400 block -mt-0.5">Online - replies instantly</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <a
+                  href={`/embed/${botId}?tab=messages`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                  title="Open in new window"
+                >
+                  <ExternalLink className="size-4" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setIsAssistantDrawerOpen(false)}
+                  className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                  title="Close drawer"
+                  aria-label="Close assistant drawer"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Iframe Content */}
+            <div className="flex-1 w-full h-full min-h-0 bg-neutral-50 dark:bg-neutral-950">
+              <iframe
+                src={`/embed/${botId}?tab=messages`}
+                className="w-full h-full border-0"
+                title={`${botInfo?.name || "AI"} Assistant`}
+                allow="microphone; camera; clipboard-write"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
