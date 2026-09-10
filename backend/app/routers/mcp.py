@@ -42,6 +42,7 @@ from app.services import (
     mcp_campaign_service,
     mcp_voice_service,
     mcp_inbox_service,
+    mcp_kb_service,
 )
 
 logger = logging.getLogger("chatty")
@@ -505,6 +506,167 @@ async def test_rag_retrieval(bot_id: str, query: str, top_k: int = 4) -> dict:
 
 
 # ===========================================================================
+# 6b. HELP CENTER & KNOWLEDGE BASE ARTICLES
+# ===========================================================================
+
+
+@mcp.tool()
+async def list_help_center_categories(bot_id: str) -> list:
+    """List all Help Center categories for a chatbot, including article counts and icons."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_kb_service.list_kb_categories(principal, bot_id)
+
+
+@mcp.tool()
+async def create_help_center_category(
+    bot_id: str,
+    name: str,
+    slug: Optional[str] = None,
+    description: str = "",
+    icon: str = "Folder",
+    order_index: int = 0,
+) -> dict:
+    """Create a new category in the bot's Help Center / Knowledge Base."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_kb_service.create_kb_category(
+        principal, bot_id, name, slug=slug, description=description, icon=icon, order_index=order_index
+    )
+
+
+@mcp.tool()
+async def update_help_center_category(
+    bot_id: str,
+    category_id: str,
+    name: Optional[str] = None,
+    slug: Optional[str] = None,
+    description: Optional[str] = None,
+    icon: Optional[str] = None,
+    order_index: Optional[int] = None,
+) -> dict:
+    """Update an existing Help Center category."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_kb_service.update_kb_category(
+        principal, bot_id, category_id, name=name, slug=slug, description=description, icon=icon, order_index=order_index
+    )
+
+
+@mcp.tool()
+async def delete_help_center_category(bot_id: str, category_id: str) -> dict:
+    """Delete a Help Center category."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_kb_service.delete_kb_category(principal, bot_id, category_id)
+
+
+@mcp.tool()
+async def list_help_center_articles(
+    bot_id: str,
+    category_id: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+) -> list:
+    """List all Help Center articles with metrics (views, helpful votes), category details, and optional filters."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_kb_service.list_kb_articles(principal, bot_id, category_id=category_id, status=status, search=search)
+
+
+@mcp.tool()
+async def get_help_center_article(bot_id: str, article_id: str) -> dict:
+    """Fetch complete article details including full markdown/HTML content, category, and CSAT metrics."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_kb_service.get_kb_article(principal, bot_id, article_id)
+
+
+@mcp.tool()
+async def create_help_center_article(
+    bot_id: str,
+    title: str,
+    content: str,
+    category_id: Optional[str] = None,
+    subtitle: str = "",
+    slug: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    is_promoted: bool = False,
+    order_index: int = 0,
+    status: str = "published",
+    visibility: str = "public",
+) -> dict:
+    """Create and publish a Help Center article. Automatically trains the bot's RAG memory so the AI assistant can reference it in chat."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_kb_service.create_kb_article(
+        principal,
+        bot_id,
+        title,
+        content,
+        category_id=category_id,
+        subtitle=subtitle,
+        slug=slug,
+        tags=tags,
+        is_promoted=is_promoted,
+        order_index=order_index,
+        status=status,
+        visibility=visibility,
+    )
+
+
+@mcp.tool()
+async def update_help_center_article(
+    bot_id: str,
+    article_id: str,
+    title: Optional[str] = None,
+    content: Optional[str] = None,
+    subtitle: Optional[str] = None,
+    category_id: Optional[str] = None,
+    slug: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    is_promoted: Optional[bool] = None,
+    order_index: Optional[int] = None,
+    status: Optional[str] = None,
+    visibility: Optional[str] = None,
+) -> dict:
+    """Update a Help Center article, synchronizing changes to the bot's RAG vector memory."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_kb_service.update_kb_article(
+        principal,
+        bot_id,
+        article_id,
+        title=title,
+        content=content,
+        subtitle=subtitle,
+        category_id=category_id,
+        slug=slug,
+        tags=tags,
+        is_promoted=is_promoted,
+        order_index=order_index,
+        status=status,
+        visibility=visibility,
+    )
+
+
+@mcp.tool()
+async def delete_help_center_article(bot_id: str, article_id: str) -> dict:
+    """Delete a Help Center article and remove its vector embeddings."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_kb_service.delete_kb_article(principal, bot_id, article_id)
+
+
+@mcp.tool()
+async def get_help_center_analytics(bot_id: str) -> dict:
+    """Fetch Help Center performance analytics: total views, CSAT helpfulness rating, top articles, and unanswered search content gaps."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_kb_service.get_kb_analytics(principal, bot_id)
+
+
+# ===========================================================================
 # 7. INBOX, LIVE CHAT & HUMAN TAKEOVER
 # ===========================================================================
 
@@ -814,6 +976,14 @@ async def resource_bot_knowledge_gaps(bot_id: str) -> str:
     principal = await _current_principal()
     gaps = await mcp_inbox_service.discover_knowledge_gaps(principal, bot_id)
     return json.dumps(gaps, indent=2)
+
+
+@mcp.resource("chatty://bots/{bot_id}/help-center/articles")
+async def resource_help_center_articles(bot_id: str) -> str:
+    """Live JSON catalog of all published Help Center articles and metrics for a chatbot."""
+    principal = await _current_principal()
+    articles = await mcp_kb_service.list_kb_articles(principal, bot_id)
+    return json.dumps(articles, indent=2)
 
 
 # ===========================================================================
