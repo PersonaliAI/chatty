@@ -1,7 +1,7 @@
 fastapi==0.136.1
 uvicorn==0.46.0
 google-genai==2.18.0
-supabase==2.30.0
+supabase==2.31.0
 python-dotenv==1.2.2
 httpx==0.28.1
 pydantic==2.12.5
