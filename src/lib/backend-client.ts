@@ -4,6 +4,10 @@ export const PRODUCTION_BACKEND_URL = "https://api.chatty.personaliai.com";
 
 export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? PRODUCTION_BACKEND_URL;
 
+export function backendUrl(path: string): string {
+  return `${BACKEND_URL}${path}`;
+}
+
 /**
  * Authenticated dashboard-to-API transport.
  *

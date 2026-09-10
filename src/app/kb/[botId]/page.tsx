@@ -29,8 +29,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
+import { BACKEND_URL } from "@/lib/backend-client";
 
 interface BotInfo {
   id: string;
@@ -74,6 +73,14 @@ interface FullArticle extends ArticleSummary {
   content: string;
   author_name?: string;
   category?: Category;
+}
+
+interface ArticleSearchResult {
+  id: string;
+  title: string;
+  slug: string;
+  snippet?: string;
+  category?: Pick<Category, "name"> | null;
 }
 
 interface LegacySource {
@@ -145,7 +152,7 @@ export default function KnowledgeBasePortal() {
 
   // Search & Autocomplete
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<ArticleSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -277,9 +284,11 @@ export default function KnowledgeBasePortal() {
   // Live search debounced
   useEffect(() => {
     if (!searchQuery.trim() || !botId) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
+      const resetTimer = setTimeout(() => {
+        setSearchResults([]);
+        setIsSearching(false);
+      }, 0);
+      return () => clearTimeout(resetTimer);
     }
 
     const timer = setTimeout(async () => {

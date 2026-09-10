@@ -22,14 +22,13 @@ import {
   BookOpen,
   type LucideIcon,
 } from "lucide-react";
+import { BACKEND_URL } from "@/lib/backend-client";
 
 // Preset assistant avatar icons (selectable in the customizer).
 const AVATAR_ICONS: Record<string, LucideIcon> = {
   bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User,
 };
 import { useSearchParams } from "next/navigation";
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
 const RECORD_BAR_COUNT = 14;
 

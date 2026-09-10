@@ -250,6 +250,35 @@ interface Source {
   nextCrawlAt?: string | null;
 }
 
+type SourceRecord = {
+  id: string;
+  type: Source["type"];
+  name: string;
+  content?: string;
+  status: Source["status"];
+  char_count?: number;
+  charCount?: number;
+  crawl_schedule?: Source["crawlSchedule"];
+  next_crawl_at?: string | null;
+};
+
+type ErrorDetails = {
+  message?: string;
+  error_description?: string;
+  detail?: string;
+  hint?: string;
+};
+
+function errorMessageFromUnknown(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object") {
+    const details = err as ErrorDetails;
+    return details.message || details.error_description || details.detail || details.hint || JSON.stringify(err);
+  }
+  return "An unexpected error occurred.";
+}
+
 interface QuickReply {
   label: string;
   value: string;
@@ -2164,7 +2193,7 @@ export default function Dashboard() {
         }
 
         // Fetch sources
-        let srcList: any[] | null = null;
+        let srcList: SourceRecord[] | null = null;
         const { data: dbSources } = await supabase
           .from("chatty_sources")
           .select("*")
@@ -2178,7 +2207,7 @@ export default function Dashboard() {
             if (resp.ok) {
               const json = await resp.json();
               if (json.sources && json.sources.length > 0) {
-                srcList = json.sources;
+                srcList = json.sources as SourceRecord[];
               }
             }
           } catch (e) {
@@ -2194,9 +2223,9 @@ export default function Dashboard() {
             id: s.id,
             type: s.type,
             name: s.name,
-            content: s.content,
+            content: s.content ?? "",
             status: s.status,
-            charCount: s.char_count,
+            charCount: s.char_count ?? s.charCount ?? 0,
             crawlSchedule: s.crawl_schedule || "off",
             nextCrawlAt: s.next_crawl_at
           })));
@@ -2309,7 +2338,7 @@ export default function Dashboard() {
       setBookingRequireBusinessEmail(selected.booking_require_business_email || false);
 
       // Fetch sources
-      let srcList: any[] | null = null;
+      let srcList: SourceRecord[] | null = null;
       const { data: dbSources } = await supabase
         .from("chatty_sources")
         .select("*")
@@ -2323,7 +2352,7 @@ export default function Dashboard() {
           if (resp.ok) {
             const json = await resp.json();
             if (json.sources && json.sources.length > 0) {
-              srcList = json.sources;
+              srcList = json.sources as SourceRecord[];
             }
           }
         } catch (e) {
@@ -2339,9 +2368,9 @@ export default function Dashboard() {
           id: s.id,
           type: s.type,
           name: s.name,
-          content: s.content,
+          content: s.content ?? "",
           status: s.status,
-          charCount: s.char_count,
+          charCount: s.char_count ?? s.charCount ?? 0,
           crawlSchedule: s.crawl_schedule || "off",
           nextCrawlAt: s.next_crawl_at
         })));
@@ -2433,17 +2462,7 @@ export default function Dashboard() {
       }
     } catch (err: unknown) {
       console.error("Error creating bot:", err);
-      let errMsg = "An unexpected error occurred.";
-      if (err && typeof err === "object") {
-        errMsg =
-          (err as any).message ||
-          (err as any).error_description ||
-          (err as any).detail ||
-          (err as any).hint ||
-          (err instanceof Error ? err.message : JSON.stringify(err));
-      } else if (typeof err === "string") {
-        errMsg = err;
-      }
+      const errMsg = errorMessageFromUnknown(err);
 
       if (
         errMsg.toLowerCase().includes("limit reached") ||

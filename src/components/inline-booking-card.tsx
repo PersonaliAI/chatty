@@ -26,8 +26,7 @@ import {
   KeyRound,
   ShieldCheck,
 } from "lucide-react";
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
+import { BACKEND_URL } from "@/lib/backend-client";
 
 interface TimeSlot {
   start: string;
