@@ -34,7 +34,7 @@ const RECORD_BAR_COUNT = 14;
 
 // The default placeholder content a voice message gets when the visitor
 // didn't type an accompanying caption (set where the message is created,
-// below) — used to skip rendering it as redundant text under the player.
+// below) - used to skip rendering it as redundant text under the player.
 const VOICE_MESSAGE_PLACEHOLDER = "🎤 Voice message";
 
 // A WhatsApp/Telegram-style voice-message player: play/pause + a seekable
@@ -42,7 +42,7 @@ const VOICE_MESSAGE_PLACEHOLDER = "🎤 Voice message";
 // `color-mix()` (see .audio-bubble-* rules in globals.css) so it
 // automatically matches whichever design preset (and primaryColor) the
 // surrounding .user-bubble/.bot-bubble is already using. Mirrors
-// packages/chatty-react/src/ChatWidgetCore.tsx's AudioBubble exactly — this
+// packages/chatty-react/src/ChatWidgetCore.tsx's AudioBubble exactly - this
 // route is a separate, parallel widget implementation, not a consumer of
 // that package.
 function AudioBubble({ src }: { src: string }) {
@@ -52,7 +52,7 @@ function AudioBubble({ src }: { src: string }) {
   const [currentTime, setCurrentTime] = useState(0);
 
   // There's no real peak/amplitude data for a recorded clip, so the bars are
-  // a deterministic pseudo-waveform hashed from the src URL — the same
+  // a deterministic pseudo-waveform hashed from the src URL - the same
   // message always renders the same bar pattern (rather than a fresh random
   // shape on every re-render, which would look broken/flickery).
   const bars = useMemo(() => {
@@ -97,7 +97,7 @@ function AudioBubble({ src }: { src: string }) {
         onLoadedMetadata={(e) => {
           const el = e.currentTarget;
           // Chrome reports Infinity for a MediaRecorder-produced blob's
-          // duration until forced to seek past the end — without this, every
+          // duration until forced to seek past the end - without this, every
           // voice message we record ourselves shows "0:00" regardless of its
           // real length (fmt() below maps non-finite durations to 0).
           if (isFinite(el.duration)) setDuration(el.duration);
@@ -157,7 +157,7 @@ async function audioBlobToWav(blob: Blob): Promise<Blob> {
   const audioBuf = await ctx.decodeAudioData(await blob.arrayBuffer());
   ctx.close();
   const len = audioBuf.length;
-  // A near-instant tap-to-stop can decode to an AudioBuffer with ~0 samples —
+  // A near-instant tap-to-stop can decode to an AudioBuffer with ~0 samples -
   // that still produces a "valid" (44-byte-header) WAV with no audio content,
   // which Gemini silently treats as empty. Require a minimum of ~150ms.
   if (len < audioBuf.sampleRate * 0.15) {
@@ -192,7 +192,7 @@ interface Message {
   // Only set on assistant messages, and only meaningful when the customizer's
   // "show AI / Human tag" setting is on. /api/widget/poll and /api/widget/live
   // only ever return human-agent replies (server-side filtered), so any
-  // message arriving through those two paths is unambiguously "human" —
+  // message arriving through those two paths is unambiguously "human" -
   // everything else assistant-role is a direct AI reply.
   sender?: "ai" | "human";
 }
@@ -363,13 +363,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [customCss, setCustomCss] = useState("");
   const [customJs, setCustomJs] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#f97316");
-  // Guaranteed-legible text color for anything painted with primaryColor —
+  // Guaranteed-legible text color for anything painted with primaryColor -
   // the business owner picks that color freely, so a hardcoded white/black
   // text class goes invisible the moment they pick the "wrong" half of the
   // lightness spectrum. Computed via WCAG contrast, not assumed.
   const onPrimary = getOnColor(primaryColor);
   const [widgetStyle, setWidgetStyle] = useState("minimal");
-  // Per-section colors (header/bot-bubble/user-bubble/input-bar/send-btn) —
+  // Per-section colors (header/bot-bubble/user-bubble/input-bar/send-btn) -
   // null until the owner sets at least one in the Customizer, at which
   // point it takes over from the preset's own primaryColor-driven CSS
   // entirely (applied via an injected !important stylesheet below, the
@@ -381,7 +381,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(false);
-  // What a finished in-chat voice recording turns into — set on
+  // What a finished in-chat voice recording turns into - set on
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [voiceCallOpen, setVoiceCallOpen] = useState(false);
@@ -400,7 +400,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // Closes the emoji/attach popovers on any tap outside them. The trigger
   // buttons are excluded from the "outside" check (rather than just letting
   // this close them too) because mousedown fires before the button's own
-  // onClick — closing here first would flip emojiOpen/attachOpen to false,
+  // onClick - closing here first would flip emojiOpen/attachOpen to false,
   // then the button's setEmojiOpen(o => !o) would read that just-updated
   // false and immediately reopen it instead of toggling closed.
   useEffect(() => {
@@ -531,7 +531,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   const [agentTyping, setAgentTyping] = useState(false);
   // Told by widget.js (postMessage) whenever it switches the panel between
-  // the fixed-size desktop popup and mobile-fullscreen — see the message
+  // the fixed-size desktop popup and mobile-fullscreen - see the message
   // listener below. Defaults to false (rounded), which is also correct for
   // the dashboard's own preview iframe, which never goes through widget.js
   // and so never sends this message.
@@ -545,7 +545,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     return "Notification" in window && Notification.permission === "granted";
   });
   // Browsers don't let a site programmatically revoke Notification
-  // permission — only the user can do that via browser/site settings. So
+  // permission - only the user can do that via browser/site settings. So
   // "turning off" notifications from the bell, once granted, is our own
   // in-widget mute flag rather than an actual permission change; it just
   // gates triggerPush below. Persisted per bot+host so it survives reloads,
@@ -559,7 +559,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     if (typeof window === "undefined") return;
     const handleMessage = (e: MessageEvent) => {
       // The embed can be hosted on any customer domain, so the parent's
-      // origin isn't known ahead of time — restrict to messages that
+      // origin isn't known ahead of time - restrict to messages that
       // actually came from our own parent frame instead.
       if (e.source !== window.parent) return;
       if (e.data && e.data.type === "chatty-notification-status") {
@@ -683,7 +683,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     if (!node || !currentConfig) return;
     const label = node.data?.label || "";
 
-    // Tag node — run silently, auto-advance
+    // Tag node - run silently, auto-advance
     if (label.startsWith("🏷️") || node.id?.startsWith("tag-")) {
       const tagValue = label.replace(/^🏷️\s*(Tag session:\s*)?/, "").replace(/['",]/g, "").trim();
       fetch(`${BACKEND_URL}/api/widget/chat`, {
@@ -709,14 +709,14 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: "[Visitor requested live agent via flow]", ai_paused: true })
       }).catch(() => {});
     }
-    // Question node — display question, wait for typed user input (no branch buttons)
+    // Question node - display question, wait for typed user input (no branch buttons)
     else if (isQuestionNode(node)) {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
     }
-    // Message node — display, then auto-advance if single unlabeled edge, or show choice buttons
+    // Message node - display, then auto-advance if single unlabeled edge, or show choice buttons
     else {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(false);
@@ -724,7 +724,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
       const outgoing = currentConfig.edges.filter((e) => e.source === node.id);
       if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
-        // Linear — auto-advance after short delay
+        // Linear - auto-advance after short delay
         setTimeout(() => {
           const nextNode = currentConfig.nodes.find((n) => n.id === outgoing[0].target);
           if (nextNode) executeFlowNode(nextNode, currentConfig);
@@ -734,7 +734,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     }
   };
 
-  // React Flow stores edge labels in edge.label OR edge.data?.label — resolve both.
+  // React Flow stores edge labels in edge.label OR edge.data?.label - resolve both.
   const getEdgeLabel = (edge: FlowEdge): string => edge.label || edge.data?.label || "";
 
   const handleFlowChoice = (edge: FlowEdge) => {
@@ -745,7 +745,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     if (targetNode) {
       executeFlowNode(targetNode, flowConfig);
     } else {
-      // Flow ended — hand off to real AI
+      // Flow ended - hand off to real AI
       setActiveNodeId(null);
       setFlowAwaitingInput(false);
     }
@@ -820,7 +820,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Set by cancelRecording() right before stopping the recorder, so
   // mr.onstop knows to discard the take silently instead of transcribing/
-  // sending it — MediaRecorder only has one stop event, not a separate
+  // sending it - MediaRecorder only has one stop event, not a separate
   // cancel one.
   const recordingCancelledRef = useRef(false);
 
@@ -848,7 +848,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     return () => {
       pendingFiles.forEach(pf => { if (pf.preview) URL.revokeObjectURL(pf.preview); });
     };
-    // Intentionally runs only on true unmount — revokes whatever files are
+    // Intentionally runs only on true unmount - revokes whatever files are
     // pending at that point via closure, not meant to re-run per pendingFiles change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -954,7 +954,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               try { applyEvent(JSON.parse(line.slice(5).trim())); } catch {}
             }
           }
-          // Server closed the stream (~4 min) — loop reconnects immediately.
+          // Server closed the stream (~4 min) - loop reconnects immediately.
         } catch {
           if (stopped || ctrl.signal.aborted) return;
           await pollOnce();
@@ -966,7 +966,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     return () => { stopped = true; ctrl.abort(); };
   }, [botId, sessionId]);
 
-  // One-shot manual refetch of any new messages since the last poll — used
+  // One-shot manual refetch of any new messages since the last poll - used
   // right after a voice call ends so the transcript (written server-side by
   // the voice worker) shows up promptly instead of waiting for the next
   // SSE/poll cycle.
@@ -979,7 +979,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setLiveAgent(!!d.ai_paused);
       if (Array.isArray(d.messages) && d.messages.length) {
         lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-        // Same endpoint as pollOnce above — human-agent replies only.
+        // Same endpoint as pollOnce above - human-agent replies only.
         const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content, sender: "human" as const }));
         setMessages((p) => [...p, ...newMsgs]);
         notifyParent();
@@ -1002,7 +1002,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     async function loadBot() {
       if (!botId) return;
       try {
-        // Load config from the backend (service role) — works inside third-party
+        // Load config from the backend (service role) - works inside third-party
         // iframes where the browser Supabase client is blocked by storage partitioning.
         const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}&t=${Date.now()}`);
         if (res.ok) {
@@ -1055,7 +1055,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   }, [botId, paramColor, paramStyle, isPreview, paramName, paramWelcome, paramAvatarIcon, paramAvatarUrl, paramLogoUrl, paramLogoBgColor, paramShowSenderTag, paramCsatEnabled, paramColorScheme, paramFont, paramFontSizePercent]);
 
   // Run the bot owner's custom JS once, after the widget config has loaded. Scoped to
-  // this embed iframe only — same trust model as the owner's own custom CSS.
+  // this embed iframe only - same trust model as the owner's own custom CSS.
   useEffect(() => {
     if (!customJs) return;
 
@@ -1066,7 +1066,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         const flow = JSON.parse(match[1].trim()) as FlowConfig;
         if (flow && flow.status === "active" && flow.nodes && flow.edges) {
           // Deriving flowConfig from customJs (an external string, not React
-          // state) once per load — not a cascading-render risk.
+          // state) once per load - not a cascading-render risk.
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setFlowConfig(flow);
           const startEdge = flow.edges.find((e) => e.source === "start");
@@ -1084,7 +1084,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             }
           }
         } else {
-          // Flow is paused or removed — clear any existing flow state
+          // Flow is paused or removed - clear any existing flow state
           setFlowConfig(null);
           setActiveNodeId(null);
         }
@@ -1103,7 +1103,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     } catch (err) {
       console.error("Chatty custom JS execution error:", err);
     }
-    // Deliberately scoped to customJs only — flowConfig/messages state derived
+    // Deliberately scoped to customJs only - flowConfig/messages state derived
     // from this external string, and executeFlowNode is a stable closure over
     // the fresh `flow` parsed above, not the outer flowConfig state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1140,7 +1140,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotResponding, tab]);
 
-  // Load the owner's chosen Google Font at runtime — this route has no
+  // Load the owner's chosen Google Font at runtime - this route has no
   // static next/font/google import for arbitrary owner-picked fonts (those
   // are build-time only), so a plain <link> to Google's own CSS is the only
   // way to load one by name. Keyed by font name so re-renders with the
@@ -1156,7 +1156,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     document.head.appendChild(link);
   }, [fontFamily]);
 
-  // #chatty-root's own real, unscaled pixel size — needed to compensate
+  // #chatty-root's own real, unscaled pixel size - needed to compensate
   // the font-size-% wrapper below correctly. `zoom` does NOT scale a
   // *percentage* width/height the way it scales content: `width: 76.9%;
   // zoom: 130%` still lays out (and reports via getBoundingClientRect) as
@@ -1172,7 +1172,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   useEffect(() => {
     const el = rootRef.current;
     // While `loading` is true, the component's early return above renders a
-    // spinner instead of the real #chatty-root div — rootRef.current is null
+    // spinner instead of the real #chatty-root div - rootRef.current is null
     // on that first commit, so with an empty deps array this effect would
     // bail out via the guard below and never run again, permanently leaving
     // containerSize null (and therefore the font-size zoom below permanently
@@ -1252,14 +1252,14 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             executeFlowNode(targetNode, flowConfig);
             return; // Stay in flow, do not trigger streaming AI response
           } else {
-            // Flow done — fall through to AI below
+            // Flow done - fall through to AI below
             setActiveNodeId(null);
             setFlowAwaitingInput(false);
           }
         }
 
       } else if (!flowAwaitingInput && outgoingEdges.length > 1) {
-        // Message node with labeled choice buttons — don't send to AI, just route
+        // Message node with labeled choice buttons - don't send to AI, just route
         const resolved = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
         const matchedEdge = resolved.find((e) => e._label.toLowerCase() === text.toLowerCase()) || resolved[0];
         const targetNode = flowConfig.nodes.find((n) => n.id === matchedEdge.target);
@@ -1271,7 +1271,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         }
         return; // Don't send to AI for menu choices
       } else if (!flowAwaitingInput && outgoingEdges.length === 0) {
-        // Flow is at terminal node — clear flow, hand off to AI
+        // Flow is at terminal node - clear flow, hand off to AI
         setActiveNodeId(null);
         setFlowAwaitingInput(false);
       }
@@ -1438,7 +1438,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // rather than the browser's Web Speech API: webkitSpeechRecognition is
   // well known to be unreliable inside cross-origin iframes (unlike
   // getUserMedia, which properly honors the iframe allow="microphone"
-  // attribute) — the widget always runs embedded in one, so client-side
+  // attribute) - the widget always runs embedded in one, so client-side
   // live transcription silently failed for most visitors.
   const toggleRecord = async () => {
     if (recording) {
@@ -1449,7 +1449,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       recordingCancelledRef.current = false;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Live amplitude animation while recording — each bar samples a
+      // Live amplitude animation while recording - each bar samples a
       // distinct slice of the real-time frequency spectrum (not one
       // averaged number replayed across fixed per-bar multipliers), so
       // they genuinely fluctuate independently with the actual audio.
@@ -1462,7 +1462,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       source.connect(analyser);
       audioContextRef.current = audioCtx;
       const freqData = new Uint8Array(analyser.frequencyBinCount);
-      const USABLE_BINS = 64; // lower half of the spectrum — where voice energy actually lives
+      const USABLE_BINS = 64; // lower half of the spectrum - where voice energy actually lives
       const binsPerBar = Math.max(1, Math.floor(USABLE_BINS / RECORD_BAR_COUNT));
       const tick = () => {
         analyser.getByteFrequencyData(freqData);
@@ -1496,7 +1496,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         try {
           wav = await audioBlobToWav(blob);
         } catch {
-          showToast("Couldn't process that recording — try again.", "error");
+          showToast("Couldn't process that recording - try again.", "error");
           return;
         }
 
@@ -1509,7 +1509,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         }
 
         setTranscribing(true);
-        // A cold backend instance can take 20-30s+ to spin up — without a
+        // A cold backend instance can take 20-30s+ to spin up - without a
         // client-side cap, a stalled request left "Transcribing…" spinning
         // indefinitely with no feedback, indistinguishable from a hang.
         const timeoutController = new AbortController();
@@ -1524,17 +1524,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           const body = await res.json().catch(() => ({}));
           const text = (body.text || "").trim();
           if (res.ok && text) {
-            // Land the transcript in the input box — the visitor reviews/
+            // Land the transcript in the input box - the visitor reviews/
             // edits and presses send themselves, same as typing.
             setInputValue((v) => (v ? `${v} ${text}` : text));
           } else {
-            // No speech detected, or transcription failed — fall back to
+            // No speech detected, or transcription failed - fall back to
             // sending the raw audio so the message isn't just lost.
             sendMedia(wav, "voice-message.wav");
           }
         } catch (err) {
           if ((err as Error)?.name === "AbortError") {
-            showToast("Transcription is taking longer than usual — sending your voice message instead.", "error");
+            showToast("Transcription is taking longer than usual - sending your voice message instead.", "error");
           }
           sendMedia(wav, "voice-message.wav");
         } finally {
@@ -1552,7 +1552,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     }
   };
 
-  // Discards the in-progress recording instead of transcribing/sending it —
+  // Discards the in-progress recording instead of transcribing/sending it -
   // stopping is the only event MediaRecorder gives us, so this just flags
   // the take as cancelled for mr.onstop (above) to skip processing.
   const cancelRecording = () => {
@@ -1616,11 +1616,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // injected the same way the box-shadow strip above already is. #chatty-root
   // gives them ID-level specificity so they win regardless of which design
   // preset is active. buildColorSchemeCss validates hex values before
-  // interpolating them — not a security boundary (custom_css already lets
+  // interpolating them - not a security boundary (custom_css already lets
   // the bot owner inject arbitrary CSS here), just guarding against a
   // malformed stored value breaking the whole stylesheet.
   const colorSchemeCss = buildColorSchemeCss(colorScheme, "#chatty-root");
-  // Same reasoning as colorSchemeCss above — only an equally-specific
+  // Same reasoning as colorSchemeCss above - only an equally-specific
   // injected !important rule can beat each preset's own font-family
   // !important rule.
   const fontFamilyCss = fontFamily && /^[a-zA-Z0-9 -]+$/.test(fontFamily)
@@ -1646,7 +1646,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           animation: none !important;
           overflow: hidden !important;
           /* The root layout's "antialiased" Tailwind class (-webkit-font-smoothing:
-             antialiased) applies globally, including here — it's a Mac-oriented
+             antialiased) applies globally, including here - it's a Mac-oriented
              hint that thins glyphs toward macOS's grayscale AA look. On Windows
              Chrome it overrides the OS's own ClearType subpixel rendering, which
              is tuned for Windows displays, making small chat text read noticeably
@@ -1659,16 +1659,16 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         }
         /* Strip only box-shadow inside the iframe: the container fills the iframe
            edge-to-edge with zero margin, so any shadow has no room to render and
-           gets hard-clipped by the iframe's own overflow:hidden (ugly) — this is
+           gets hard-clipped by the iframe's own overflow:hidden (ugly) - this is
            an iframe limitation, not a CSS bug, since content can never bleed past
            an iframe's own rectangle. Each design's border and border-radius are
-           safe to keep — a border draws flush at the box edge with zero bleed, and
+           safe to keep - a border draws flush at the box edge with zero bleed, and
            the outer host (widget.js, page.tsx) now applies no radius/border/shadow
            of its own, so there's no double-corner artifact either. This keeps each
            design's signature frame (e.g. Luxury Editorial's gold border,
            Neubrutalism's thick black border) visible on the live widget instead of
            only in previews. Restoring the shadow too would require insetting this
-           panel inside a larger host box to give it room — deliberately not done,
+           panel inside a larger host box to give it room - deliberately not done,
            to keep the full iframe as usable chat area. */
         .style-minimal,
         .style-playful,
@@ -1693,7 +1693,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         />
       )}
       {/* Text-size scaling lives on this inner wrapper, not #chatty-root
-          itself — see ChatWidgetCore.tsx's identical wrapper for the full
+          itself - see ChatWidgetCore.tsx's identical wrapper for the full
           reasoning: zoom does not scale a *percentage* width/height the
           way it scales absolute (px) ones, so the compensation has to be
           computed in real pixels from containerSize (ResizeObserver
@@ -1762,11 +1762,11 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               !pushGranted
                 ? "Enable browser notifications"
                 : pushMuted
-                  ? "Notifications muted — tap to unmute"
-                  : "Browser notifications enabled — tap to mute"
+                  ? "Notifications muted - tap to unmute"
+                  : "Browser notifications enabled - tap to mute"
             }
           >
-            {/* "Granted" state shown via a solid fill, not a fixed color — a
+            {/* "Granted" state shown via a solid fill, not a fixed color - a
                 hardcoded amber here was nearly invisible against presets
                 with a yellow header (e.g. Neubrutalism's #ffde59). Filling
                 with currentColor keeps it legible against every preset.
@@ -2007,13 +2007,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                         </span>
                       )}
                       {/* .user-bubble's background/color come entirely from the
-                          design preset's own CSS (globals.css, !important) — an
+                          design preset's own CSS (globals.css, !important) - an
                           inline style here computed from primaryColor would be
                           silently overridden for the background but NOT
                           recomputed for the text color, producing the same
                           invisible-text bug the header had. */}
                       <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
-                        {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL — neither works with next/image's optimizer */}
+                        {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL - neither works with next/image's optimizer */}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                         {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
@@ -2072,7 +2072,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 {flowConfig && activeNodeId && !isBotResponding && !flowAwaitingInput && (
                   (() => {
                     const activeNode = flowConfig.nodes.find((n) => n.id === activeNodeId);
-                    // Never show buttons on question nodes — user must type their answer
+                    // Never show buttons on question nodes - user must type their answer
                     if (isQuestionNode(activeNode)) return null;
                     const outgoingEdges = flowConfig.edges.filter((e) => e.source === activeNodeId);
                     const resolvedEdges = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
@@ -2469,7 +2469,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 {pendingFiles.map((pf, idx) => (
                   <div key={idx} className="relative group">
                     {pf.file.type.startsWith("image/") ? (
-                      // pf.preview is a local blob: URL (URL.createObjectURL) — next/image can't optimize it
+                      // pf.preview is a local blob: URL (URL.createObjectURL) - next/image can't optimize it
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={pf.preview} alt="preview" className="h-14 w-14 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700" />
                     ) : (

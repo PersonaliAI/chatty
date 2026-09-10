@@ -836,7 +836,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         body: JSON.stringify({ bot_id: botId, rating, correction: correction ?? null }),
       });
       if (res.ok && correction) {
-        showToast("Correction saved — added to the knowledge base.", "success");
+        showToast("Correction saved - added to the knowledge base.", "success");
         setCorrectingId(null);
         setCorrectionDraft("");
       }
@@ -937,7 +937,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           const wav = await audioBlobToWav(blob);
           sendMedia(wav, "voice-message.wav");
         } catch {
-          showToast("Couldn't process that recording — try again.", "error");
+          showToast("Couldn't process that recording - try again.", "error");
         }
       };
       mediaRecorderRef.current = mr;

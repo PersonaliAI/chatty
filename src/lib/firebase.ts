@@ -1,6 +1,6 @@
-// Firebase app init — analytics only, for now. All values below are the public
+// Firebase app init - analytics only, for now. All values below are the public
 // web app config Firebase issues for client-side use (not secrets; they identify
-// the project, they don't authenticate as it — access is enforced by Firebase
+// the project, they don't authenticate as it - access is enforced by Firebase
 // Security Rules and API key restrictions in the console, same as any Firebase
 // web app). Still sourced from env vars rather than hardcoded, so this file is
 // safe to keep in git and the actual project identifiers stay out of source.
@@ -17,6 +17,6 @@ export const firebaseConfig: FirebaseOptions = {
 };
 
 // getApps() guard: Next.js can re-evaluate this module (Fast Refresh, multiple
-// client components importing it) — initializeApp() throws if called twice
+// client components importing it) - initializeApp() throws if called twice
 // for the same app.
 export const firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);

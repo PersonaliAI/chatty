@@ -62,7 +62,7 @@ export default function VoiceCallWidget({
   const localLevelFrameRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
-  // Real mic analyser (not a fake random waveform) — lets us tell, just by
+  // Real mic analyser (not a fake random waveform) - lets us tell, just by
   // watching the bars while talking, whether the browser is actually
   // capturing audio from the mic at all, independent of whether the voice
   // pipeline downstream (VAD/STT) picks it up.
@@ -92,7 +92,7 @@ export default function VoiceCallWidget({
           let detail = "Couldn't start the call, please try again.";
           if (res.status === 403) detail = "Voice chat isn't available right now.";
           else if (res.status === 402) detail = "This assistant has reached its usage limit.";
-          else if (res.status === 429) detail = "Too many requests — please wait a moment and try again.";
+          else if (res.status === 429) detail = "Too many requests - please wait a moment and try again.";
           else {
             try {
               const b = await res.json();
@@ -137,7 +137,7 @@ export default function VoiceCallWidget({
           track.detach().forEach((el) => el.remove());
         });
 
-        // Live transcript — the agent worker already publishes STT/reply text
+        // Live transcript - the agent worker already publishes STT/reply text
         // over LiveKit's built-in transcription stream; each segment updates
         // in place (by id) while interim, then locks in once `final`. Segments
         // carry no explicit role, so attribute by participant: no `participant`
@@ -192,7 +192,7 @@ export default function VoiceCallWidget({
         }
         // getUserMedia can sit pending for a while if the visitor hasn't
         // noticed/responded to the browser's permission prompt yet (easy to
-        // miss inside an embedded iframe) — show an explicit state for this
+        // miss inside an embedded iframe) - show an explicit state for this
         // rather than a generic "Connecting…" that looks stuck.
         if (!cancelled && mountedRef.current) setStatus("requesting-mic");
         try {
@@ -278,11 +278,11 @@ export default function VoiceCallWidget({
     };
   }, [status]);
 
-  // Local mic level animation for the 14-bar "listening" waveform — now
+  // Local mic level animation for the 14-bar "listening" waveform - now
   // driven by a real AnalyserNode on the mic track (see analyserRef above)
   // instead of a fake random animation. The "listening" transition itself
   // comes from LiveKit's client-side local audioLevel (ActiveSpeakersChanged
-  // below), computed in-browser independent of the server VAD/STT pipeline —
+  // below), computed in-browser independent of the server VAD/STT pipeline -
   // so whether this state is ever reached at all is itself diagnostic: if it
   // never fires while you're actually talking, the browser isn't capturing
   // usable mic audio in the first place.
@@ -299,7 +299,7 @@ export default function VoiceCallWidget({
       const analyser = analyserRef.current;
       if (analyser) {
         analyser.getByteTimeDomainData(bins);
-        // RMS of the time-domain signal around its 128 midpoint — a real
+        // RMS of the time-domain signal around its 128 midpoint - a real
         // amplitude reading, not a synthetic animation.
         let sumSquares = 0;
         for (let i = 0; i < bins.length; i++) {
@@ -430,7 +430,7 @@ export default function VoiceCallWidget({
         </motion.div>
       ) : (
         <>
-          {/* Compact status row — small orb + state text, replacing what used
+          {/* Compact status row - small orb + state text, replacing what used
               to be a full-height centered orb, since the transcript below is
               now the primary focus of the call view. */}
           <div className="flex items-center gap-3 w-full pb-3 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
@@ -457,7 +457,7 @@ export default function VoiceCallWidget({
             </div>
           </div>
 
-          {/* Live transcript — auto-scrolls to the newest line; interim
+          {/* Live transcript - auto-scrolls to the newest line; interim
               (not-yet-final) segments render with a bouncy typing indicator
               instead of raw text jitter, then settle into place once final. */}
           <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-thin py-3 space-y-2.5">
@@ -465,7 +465,7 @@ export default function VoiceCallWidget({
               <div className="h-full flex items-center justify-center">
                 <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center px-6">
                   {status === "agent-speaking" || status === "listening" || status === "connected"
-                    ? "Say something — your conversation will appear here."
+                    ? "Say something - your conversation will appear here."
                     : ""}
                 </p>
               </div>

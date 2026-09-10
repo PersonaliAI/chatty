@@ -1,10 +1,10 @@
 /* CSS entry point for the standalone Shadow DOM bundle (chatty-app.css)
- * ONLY — not shipped to React SDK consumers. Tailwind's own reset/
+ * ONLY - not shipped to React SDK consumers. Tailwind's own reset/
  * preflight only belongs here because this bundle always mounts inside a
  * Shadow Root: Shadow DOM naturally scopes it away from the host page,
  * the same way a real iframe used to. widget-presets.css itself stays
  * plain, un-Tailwind-processed CSS (see tsup.config.ts's separate copy
- * of it to dist/styles.css) — dumping Tailwind's global preflight into
+ * of it to dist/styles.css) - dumping Tailwind's global preflight into
  * that copy would leak margin/font resets into every React SDK
  * consumer's own page, since that mount path has no Shadow Root to
  * contain it.
@@ -13,19 +13,19 @@
 @source "./";
 
 /* Tailwind v4's default `dark:` variant follows the visitor's OS
- * prefers-color-scheme — but every `.style-*` preset's own dark variant
+ * prefers-color-scheme - but every `.style-*` preset's own dark variant
  * (widget-presets.css's `.dark .style-minimal { ... !important }` etc.)
  * needs an actual `.dark` *class* ancestor to match, and nothing here
  * ever adds one inside this Shadow Root (class inheritance from the host
- * page's <html class="dark"> stops dead at the shadow boundary — a
+ * page's <html class="dark"> stops dead at the shadow boundary - a
  * Shadow Root doesn't inherit ancestor classes the way normal DOM does).
  * Left at the default, any visitor with OS dark mode on got `dark:`
  * utility classes (bg-neutral-950 etc.) firing on their own while the
- * preset's forced text color stayed pinned to its light-mode value —
+ * preset's forced text color stayed pinned to its light-mode value -
  * dark text on a dark background, invisible (CSAT/offline-form/KB-search
  * boxes, all of which set only their own background via `dark:bg-*` and
  * rely on inheriting color from the preset). Matching globals.css's own
- * class-based strategy makes `dark:` inert here instead of wrong — since
+ * class-based strategy makes `dark:` inert here instead of wrong - since
  * nothing ever sets `.dark` inside the shadow tree, no `dark:` utility
  * fires at all, and the preset's own (light-variant) forced color always
  * wins consistently, matching what actually renders visually either way.

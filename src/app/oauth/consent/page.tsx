@@ -16,7 +16,7 @@ type ConsentInfo = {
 };
 
 // The OAuth2 consent screen an MCP client (or any third-party app) sends a
-// user's browser to after GET /oauth/authorize on the backend — that
+// user's browser to after GET /oauth/authorize on the backend - that
 // endpoint has no HTML of its own, so it redirects here with the same
 // query params. See chatty-backend/app/routers/oauth.py's module docstring
 // for the full flow this page is step 3 of.
@@ -46,7 +46,7 @@ function OAuthConsentInner() {
   useEffect(() => {
     (async () => {
       if (!clientId || !redirectUri) {
-        setError("This link is missing required parameters — go back to the app you were connecting and try again.");
+        setError("This link is missing required parameters - go back to the app you were connecting and try again.");
         setLoading(false);
         return;
       }
@@ -80,7 +80,7 @@ function OAuthConsentInner() {
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      if (!token) throw new Error("Your session expired — please log in again.");
+      if (!token) throw new Error("Your session expired - please log in again.");
       const res = await fetch(`${BACKEND_URL}/api/oauth/authorize`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -99,7 +99,7 @@ function OAuthConsentInner() {
       window.location.href = redirect_url;
     } catch (err) {
       setDeciding(null);
-      setError(err instanceof Error ? err.message : "Something went wrong — please try again.");
+      setError(err instanceof Error ? err.message : "Something went wrong - please try again.");
     }
   }
 
@@ -174,7 +174,7 @@ async function friendlyError(res: Response): Promise<string> {
     const parsed = JSON.parse(raw);
     if (typeof parsed?.detail === "string") return parsed.detail;
   } catch {
-    // not JSON — fall through to raw text
+    // not JSON - fall through to raw text
   }
   return raw || `Request failed (${res.status})`;
 }

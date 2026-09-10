@@ -1,7 +1,7 @@
 {
   "name": "@personaliai/react-widget",
   "version": "0.2.1",
-  "description": "Official React SDK for Chatty AI chatbots — loads the chat assistant in an isolated Shadow DOM container via the script method",
+  "description": "Official React SDK for Chatty AI chatbots - loads the chat assistant in an isolated Shadow DOM container via the script method",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.cjs",

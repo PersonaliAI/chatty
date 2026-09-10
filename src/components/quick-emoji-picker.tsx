@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-// Types/enums only (erased at compile time) — must NOT import any runtime
+// Types/enums only (erased at compile time) - must NOT import any runtime
 // value from "emoji-picker-react" here, or its whole (large) module gets
 // pulled into the eagerly-loaded parts of the bundle, defeating the point
 // of dynamically importing the actual <EmojiPicker> component below.
@@ -12,13 +12,13 @@ import type { EmojiClickData, Theme, SuggestionMode, EmojiStyle } from "emoji-pi
 // Code-split: emoji-picker-react's full Unicode dataset has no business
 // being in the main bundle for a component that opens on a click. Its own
 // `lazyLoadEmojis` further defers per-category emoji images until scrolled
-// into view — this is what "efficient, fast opening" actually looks like
+// into view - this is what "efficient, fast opening" actually looks like
 // for a *complete* emoji set (as opposed to the old hand-picked ~100-emoji
 // list this file used to ship, which only felt fast because it was tiny).
 //
 // emojiStyle below is set to native rather than the library's APPLE
 // default: the image styles (apple/twitter/facebook/google) render every
-// emoji as its own separate PNG fetched from a jsdelivr CDN — dozens of
+// emoji as its own separate PNG fetched from a jsdelivr CDN - dozens of
 // individual network requests just to fill one category's visible grid,
 // which is what actually showed up as a slow, empty-looking picker.
 // Native emoji use the browser/OS's own emoji font: zero network requests,
@@ -39,7 +39,7 @@ interface QuickEmojiPickerProps {
 
 export function QuickEmojiPicker({ onSelect, accentColor = "#f97316" }: QuickEmojiPickerProps) {
   // Matches the picker to the page's actual light/dark state (not just a
-  // media query) — same "dark" class toggling the rest of the dashboard uses.
+  // media query) - same "dark" class toggling the rest of the dashboard uses.
   const [isDark, setIsDark] = useState(false);
   useEffect(() => {
     const root = document.documentElement;

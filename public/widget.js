@@ -49,7 +49,7 @@
     return;
   }
 
-  // window.Chatty.open()/.close()/.toggle() — queued until the widget has
+  // window.Chatty.open()/.close()/.toggle() - queued until the widget has
   // actually mounted and reported its API back via onApiReady below
   var chattyApi = null;
   var pendingCalls = [];
@@ -84,10 +84,10 @@
   // to a stale disk-cache entry). Whenever chatty-app.js's exported API
   // shape changes (e.g. window.ChattyDOM's methods), a visitor with an old
   // cached copy silently gets an app that doesn't match what this file
-  // expects — doMount()'s `window.ChattyDOM.mount` check just no-ops with
+  // expects - doMount()'s `window.ChattyDOM.mount` check just no-ops with
   // no error, so the widget never appears. Bump this on every release that
   // changes chatty-app.js/css in a way that matters (not just cosmetic).
-  var ASSET_VERSION = "2026-09-09.1";
+  var ASSET_VERSION = "2026-09-10.1";
 
   // Preconnect to origin for fast asset loading
   try {

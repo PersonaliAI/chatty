@@ -1,7 +1,7 @@
 name: E2E Smoke Suite
 
 # Runs the golden-path Playwright suite against the real production site
-# (chatty.personaliai.com) — this project has no separate staging
+# (chatty.personaliai.com) - this project has no separate staging
 # environment. Deliberately NOT wired into the on-push CI: hitting
 # production on every commit would slow down the fast feedback loop and
 # risk flakiness from a live Gemini call blocking merges. Trigger manually
@@ -11,7 +11,7 @@ on:
   schedule:
     - cron: "0 6 * * 1" # Mondays 06:00 UTC
 
-# Checkout + test run + artifact upload only — none of it needs write access
+# Checkout + test run + artifact upload only - none of it needs write access
 # to the repo (upload-artifact uses its own storage, not the GITHUB_TOKEN).
 permissions:
   contents: read

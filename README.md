@@ -4,7 +4,7 @@
 
 # Chatty Frontend
 
-**Next.js 15 frontend for Chatty — Dashboard, embeddable chat widget, and widget.js loader.**
+**Next.js 15 frontend for Chatty - Dashboard, embeddable chat widget, and widget.js loader.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
@@ -35,7 +35,7 @@ Add a single `<script>` tag before `</body>` on any website:
         data-id="YOUR_BOT_UUID" defer></script>
 ```
 
-The script mounts directly into an isolated **Shadow DOM** container, rendering native vector DOM elements — zero iframes, 100% sharp text at all zoom levels.
+The script mounts directly into an isolated **Shadow DOM** container, rendering native vector DOM elements - zero iframes, 100% sharp text at all zoom levels.
 
 ### Next.js / React
 
@@ -80,4 +80,4 @@ This compiles `chatty-app.js` and `chatty-app.css` directly into `../../public/`
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

@@ -34,7 +34,7 @@ function CheckoutPageInner() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        // Not signed in — route through signup, then straight back here once
+        // Not signed in - route through signup, then straight back here once
         // auth completes, so the plan never gets lost along the way.
         const self = `/checkout?plan=${encodeURIComponent(plan)}&interval=${interval}`;
         window.location.href = `/signup?next=${encodeURIComponent(self)}`;

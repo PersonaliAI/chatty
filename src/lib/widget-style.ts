@@ -7,7 +7,7 @@
  *   3. The current 10-preset set, ported 1:1 from a real design gallery
  *      (minimal, playful, corporate, dark-sleek, gradient-glow,
  *      glassmorphism, ecommerce, healthcare-calm, neubrutalism,
- *      luxury-editorial) — see globals.css for the full rationale.
+ *      luxury-editorial) - see globals.css for the full rationale.
  * Existing bots in the database may still have any of the older IDs stored
  * in widget_style; without this mapping they'd render with no matching CSS
  * class at all (unstyled).
@@ -50,7 +50,7 @@ export function normalizeWidgetStyle(id: string | null | undefined): string {
 
 /**
  * Each design's default launcher-button look. Mirrors LAUNCHER_STYLES in
- * public/widget.js exactly — kept in sync by hand since widget.js is a
+ * public/widget.js exactly - kept in sync by hand since widget.js is a
  * separate unbundled script that can't import from this file.
  */
 export const LAUNCHER_STYLES: Record<string, { bg: string; shadow: string; dot: string }> = {
@@ -68,7 +68,7 @@ export const LAUNCHER_STYLES: Record<string, { bg: string; shadow: string; dot: 
 
 /**
  * Each design's own chat-panel corner radius (its .style-X { border-radius }
- * in globals.css). Mirrors PANEL_RADIUS in public/widget.js exactly — kept
+ * in globals.css). Mirrors PANEL_RADIUS in public/widget.js exactly - kept
  * in sync by hand for the same reason LAUNCHER_STYLES above is. The outer
  * host div/iframe around the embedded panel matches this exactly (instead
  * of a flat 0px "always smaller" safety net) so there's no radius mismatch

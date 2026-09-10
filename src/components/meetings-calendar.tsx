@@ -18,7 +18,7 @@ export interface MeetingsCalendarMeeting {
 
 /** Calendar-grid view of booked meetings, color-coded by whichever team
  * member the round-robin engine assigned each one to (plugins/agent_tools.py
- * -> chatty_meetings.assigned_to_email) — replaces the old plain-table
+ * -> chatty_meetings.assigned_to_email) - replaces the old plain-table
  * Meetings tab. Loaded via next/dynamic with ssr:false from page.tsx since
  * FullCalendar needs the DOM. */
 export function MeetingsCalendar({
@@ -43,7 +43,7 @@ export function MeetingsCalendar({
     <div className="chatty-fc-theme bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-4">
       <style jsx global>{`
         .chatty-fc-cancelled { opacity: 0.55; text-decoration: line-through; }
-        /* Explicit concrete colors throughout (no "inherit") — FullCalendar's
+        /* Explicit concrete colors throughout (no "inherit") - FullCalendar's
            own buttons/icons/labels don't reliably pick up ambient page text
            color through the custom-property indirection, which previously
            left toolbar buttons and view-switcher labels rendering
@@ -78,11 +78,11 @@ export function MeetingsCalendar({
           color: #ffffff !important;
         }
         /* Disabled (e.g. "today" when the calendar already shows the
-           current range) keeps the normal text color — only its own
+           current range) keeps the normal text color - only its own
            background changes (dims via opacity), unlike the active-view
            button which gets a real orange fill. Matching disabled's color
            to active's white text left it invisible against its own
-           unchanged transparent background — this is that fix. */
+           unchanged transparent background - this is that fix. */
         .chatty-fc-theme .fc-button:disabled {
           opacity: 0.4;
         }

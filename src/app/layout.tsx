@@ -3,7 +3,7 @@ import { Inter, DM_Sans, Quicksand, Space_Grotesk, Lora, Playfair_Display } from
 import { FirebaseAnalytics } from "@/components/firebase-analytics";
 import "./globals.css";
 // NOTE: the "Chatty on Chatty" support widget (eating our own dog food) is
-// mounted on the marketing landing page only (src/app/page.tsx), not here —
+// mounted on the marketing landing page only (src/app/page.tsx), not here -
 // it doesn't belong on authenticated app pages like /dashboard.
 
 export const viewport: Viewport = {
@@ -21,7 +21,7 @@ const inter = Inter({
 });
 
 // One additional font per widget design preset (see globals.css's "Assistant
-// Design Presets" section) — each design in the source gallery used a
+// Design Presets" section) - each design in the source gallery used a
 // distinct typeface as part of its identity, not just color/shape.
 const dmSans = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin"], display: "swap" });
 const quicksand = Quicksand({ variable: "--font-quicksand", subsets: ["latin"], display: "swap" });
@@ -32,7 +32,7 @@ const playfair = Playfair_Display({ variable: "--font-playfair", subsets: ["lati
 export const metadata: Metadata = {
   metadataBase: new URL('https://personaliai.com'),
   title: {
-    default: "PersonaliAI | Chatty — Custom AI Chatbots that Convert",
+    default: "PersonaliAI | Chatty - Custom AI Chatbots that Convert",
     template: "%s | PersonaliAI"
   },
   description: "Create a custom AI chatbot trained on your files, websites, and data sources. Integrate with your apps, capture leads, and convert visitors in minutes. Zero coding required.",
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: "PersonaliAI | Chatty — Custom AI Chatbots that Convert",
+    title: "PersonaliAI | Chatty - Custom AI Chatbots that Convert",
     description: "Plug in your content. Create a custom AI chatbot that not only chats but converts. Zero coding, on your website in minutes.",
     url: 'https://personaliai.com/chatty',
     siteName: 'PersonaliAI',
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: "PersonaliAI | Chatty — Custom AI Chatbots that Convert",
+    title: "PersonaliAI | Chatty - Custom AI Chatbots that Convert",
     description: "Plug in your content. Create a custom AI chatbot that not only chats but converts. Zero coding, on your website in minutes.",
     creator: '@personaliai',
   },

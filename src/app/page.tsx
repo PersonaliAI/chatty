@@ -21,7 +21,7 @@ import {
 const caprasimo = Caprasimo({ weight: "400", subsets: ["latin"], variable: "--font-heading", display: "swap" });
 const figtree = Figtree({ weight: ["400", "600", "700"], subsets: ["latin"], variable: "--font-body", display: "swap" });
 
-// Color tokens — a single warm, organic palette (this design has no dark
+// Color tokens - a single warm, organic palette (this design has no dark
 // mode, matching the reference it was redesigned from).
 const colorVars = {
   "--color-bg": "#f5ead8",
@@ -52,7 +52,7 @@ function GithubIcon({ className }: { className?: string }) {
   );
 }
 
-// Stand-in for a real product screenshot — labeled, accessible, and SEO-friendly.
+// Stand-in for a real product screenshot - labeled, accessible, and SEO-friendly.
 function ShowcasePlaceholder({ label, className = "" }: { label: string; className?: string }) {
   return (
     <div
@@ -82,7 +82,7 @@ const featuresList: Feature[] = [
   { title: "Inbox", desc: "Access conversations between your chatbot and page visitors." },
   { title: "AI Models", desc: "GPT-5.3, Claude Opus, Mistral, Gemini... Switch between AI models at any time." },
   { title: "Chatbot API", desc: "Use our powerful API and access your chatbot from other apps." },
-  { title: "BYOK Option", desc: "Provide your own OpenAI, Anthropic, or OpenRouter API key to manage your costs — on every plan." },
+  { title: "BYOK (Free Forever)", desc: "Provide your own OpenAI, Anthropic, Gemini, or OpenRouter API key. 100% free option - no paid plan required." },
   { title: "Multilingual", desc: "Our chatbots can use over 95 languages out of the box." },
   { title: "Customizable", desc: "Change name, icon, theme, position, color, CSS, JS... make it yours." },
   { title: "Guardrails", desc: "Prevent abuse. Get a reliable and assertive chatbot, not 'ChatGPT for free'." },
@@ -94,18 +94,32 @@ const featuresList: Feature[] = [
 ];
 
 const faqs = [
-  { question: "How do I train my chatbot?", answer: "Point Chatty at your website, upload files (PDF, DOCX, CSV), or paste in text — it crawls and indexes everything automatically. Auto Train keeps it in sync on a daily, weekly, or monthly schedule so answers never go stale." },
-  { question: "Can I use my own API keys?", answer: "Yes. BYOK is available on every plan — plug in your own OpenAI, Anthropic, or OpenRouter key and manage your own model costs directly with the provider." },
+  { question: "How do I train my chatbot?", answer: "Point Chatty at your website, upload files (PDF, DOCX, CSV), or paste in text - it crawls and indexes everything automatically. Auto Train keeps it in sync on a daily, weekly, or monthly schedule so answers never go stale." },
+  { question: "Can I use my own API keys?", answer: "Yes! BYOK (Bring Your Own Key) is 100% free forever - there is no need to buy a plan for BYOK. Simply plug in your own OpenAI, Anthropic, Gemini, or OpenRouter key and pay only your model provider directly with zero platform markup." },
   { question: "What counts as a 'message credit'?", answer: "Each reply your chatbot sends to a visitor uses one message credit. Credits reset every billing cycle, and unused credits don't roll over." },
   { question: "How does lead collection work?", answer: "Chatty can ask for a visitor's name, email, and phone number mid-conversation, save it automatically to your dashboard, and push it to your CRM or inbox via webhook or API." },
-  { question: "Can I embed the chatbot on multiple sites?", answer: "Yes — each chatbot can be embedded anywhere, and the Allow List lets you restrict it to run only on domains you control." },
+  { question: "Can I embed the chatbot on multiple sites?", answer: "Yes - each chatbot can be embedded anywhere, and the Allow List lets you restrict it to run only on domains you control." },
 ];
 
 const plans = [
   {
+    key: "byok", tag: "FREE FOREVER", name: "Free (BYOK)", monthly: 0, popular: false,
+    desc: "Bring your own API key. 100% free forever - zero subscription fee.",
+    features: [
+      "100% Free - No paid plan needed",
+      "BYOK (Bring-Your-Own-Key)",
+      "OpenAI, Anthropic, Gemini, OpenRouter",
+      "1 chatbot",
+      "Unlimited chats (pay LLM directly)",
+      "Knowledge base training (5M chars)",
+      "Lead collection & Contact forms",
+      "No credit card required",
+    ],
+  },
+  {
     key: "hobby", tag: "HOBBY", name: "Hobby", monthly: 19, popular: false,
     desc: "Perfect for individuals, developers, and side projects.",
-    features: ["1,000 message credits/mo", "10M training characters", "1 chatbot", "Fast & Advanced AI models", "AI Actions & Analytics", "Guardrails & Notifications", "Lead collection & API", "BYOK (Bring-Your-Own-Key)"],
+    features: ["1,000 message credits/mo", "10M training characters", "1 chatbot", "Fast & Advanced AI models", "AI Actions & Analytics", "Guardrails & Notifications", "Lead collection & API", "Included AI credits"],
   },
   {
     key: "standard", tag: "STANDARD", name: "Standard", monthly: 99, popular: true,
@@ -121,7 +135,7 @@ const plans = [
 
 const chips: { icon: LucideIcon; title: string; desc: string; bg: string; fg: string }[] = [
   { icon: Zap, title: "Zero-Code, Full Control", desc: "Or drive it all through MCP", bg: "var(--color-accent-100)", fg: "var(--color-accent-700)" },
-  { icon: UserCheck, title: "Captures Every Lead", desc: "Name, email, phone — automatically", bg: "var(--color-accent-2-100)", fg: "var(--color-accent-2-800)" },
+  { icon: UserCheck, title: "Captures Every Lead", desc: "Name, email, phone - automatically", bg: "var(--color-accent-2-100)", fg: "var(--color-accent-2-800)" },
   { icon: CalendarCheck, title: "Books Its Own Meetings", desc: "Straight onto your calendar", bg: "#eee7db", fg: "#474238" },
 ];
 
@@ -137,7 +151,7 @@ const showcases = [
   {
     kicker: "Actions",
     kickerColor: "var(--color-accent-2-800)",
-    title: 'Beyond Q&A — it gets things done.',
+    title: 'Beyond Q&A - it gets things done.',
     desc: 'Let it use any of your apps, book meetings straight onto your calendar, and route conversations through guardrails so it stays reliable, never "ChatGPT for free."',
     label: "Calendar meeting scheduling & integrations preview",
     imageFirst: true,
@@ -153,9 +167,9 @@ const showcases = [
 ];
 
 const mcpPoints = [
-  { title: "OAuth 2.0 + PKCE", desc: "RFC 7591/8414-compliant dynamic client registration — no shared secrets pasted into a config file." },
+  { title: "OAuth 2.0 + PKCE", desc: "RFC 7591/8414-compliant dynamic client registration - no shared secrets pasted into a config file." },
   { title: "55 real tools", desc: "Bots, flows, campaigns, voice, knowledge, inbox, leads, calendar, guardrails, team, billing, GDPR export." },
-  { title: "Same data, same rules", desc: "Every tool reads and writes the exact tables the dashboard does — nothing simulated, nothing mocked." },
+  { title: "Same data, same rules", desc: "Every tool reads and writes the exact tables the dashboard does - nothing simulated, nothing mocked." },
   { title: "Scoped access", desc: "read / write / knowledge / voice / actions / admin scopes, so an agent only gets what it needs." },
 ];
 
@@ -166,14 +180,14 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // widget.js (loaded below via <Script>) mounts itself by appending a
-  // #chatty-widget-host div straight to document.body — outside React's
+  // #chatty-widget-host div straight to document.body - outside React's
   // tree, and guarded by a one-time window.__chattyWidgetLoaded flag so it
   // never re-runs. Next's client-side router only unmounts this page's own
   // React tree on navigation; it has no way to know about (or undo)
   // widget.js's direct DOM/window side effects. Without this cleanup, a
   // visitor who clicks a <Link> from this landing page straight into
   // /dashboard (or any other authenticated route) keeps seeing the support
-  // bubble until a full page reload — this effect's cleanup tears it down
+  // bubble until a full page reload - this effect's cleanup tears it down
   // the moment this page unmounts, so it never follows the visitor in.
   useEffect(() => {
     return () => {
@@ -196,8 +210,8 @@ export default function Home() {
       {/* Announcement bar */}
       <div className="text-center px-5 py-2.5 text-[13px] sm:text-[13.5px]" style={{ background: "var(--color-accent-2-100)" }}>
         <span className="font-semibold" style={{ color: "var(--color-accent-2-800)" }}>NEW</span>
-        <span className="hidden sm:inline" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Chatty now ships a full MCP server: run your whole dashboard from a conversation.</span>
-        <span className="sm:hidden" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Chatty now ships a full MCP server.</span>
+        <span className="hidden sm:inline" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> - Chatty now ships a full MCP server: run your whole dashboard from a conversation.</span>
+        <span className="sm:hidden" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> - Chatty now ships a full MCP server.</span>
         <a href="#mcp" className="ml-1.5 font-semibold whitespace-nowrap" style={{ color: "var(--color-accent)" }}>Learn more →</a>
       </div>
 
@@ -328,7 +342,7 @@ export default function Home() {
           <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 01 / Transparent Fees ]</span>
           <h2 className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Pricing plans</h2>
           <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[56ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
-            All plans include a 14-day free trial. Scale up or down as your traffic changes.
+            Start with our 100% free BYOK option (no credit card required), or choose a tier with bundled AI credits and a 14-day free trial.
           </p>
 
           <div className="inline-flex rounded-full overflow-hidden border mt-7" style={{ borderColor: "var(--color-divider)" }}>
@@ -351,11 +365,11 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-9">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-9">
             {plans.map((plan) => (
               <div
                 key={plan.key}
-                className="flex flex-col p-7 sm:p-8 rounded-[28px]"
+                className="flex flex-col p-6 rounded-[28px]"
                 style={
                   plan.popular
                     ? { background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", border: "2px solid var(--color-accent)" }
@@ -367,27 +381,47 @@ export default function Home() {
                     Popular choice
                   </span>
                 )}
+                {plan.monthly === 0 && (
+                  <span className="self-start rounded-full text-[11px] font-semibold px-3 py-1 mb-1.5" style={{ background: "var(--color-accent-2-100)", color: "var(--color-accent-2-800)" }}>
+                    100% Free Forever
+                  </span>
+                )}
                 <span className="text-xs tracking-wide uppercase mt-1.5" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>[ PLAN: {plan.tag} ]</span>
                 <h3 className="text-2xl mt-2" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{plan.name}</h3>
-                <p className="mt-2.5 text-[32px]" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent-700)" }}>
-                  {isYearly ? `$${plan.monthly * 10}/yr` : `$${plan.monthly}/mo`}
-                </p>
-                <p className="mt-2.5 text-sm leading-relaxed min-h-[44px]" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{plan.desc}</p>
-                <ul className="list-none m-0 p-0 mt-4.5 flex flex-col gap-3.5 flex-1">
+                <div className="mt-2.5 flex items-baseline gap-1.5">
+                  <p className="text-[32px]" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent-700)" }}>
+                    {plan.monthly === 0 ? "$0" : (isYearly ? `$${plan.monthly * 10}/yr` : `$${plan.monthly}/mo`)}
+                  </p>
+                  <span className="text-xs" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>
+                    {plan.monthly === 0 ? "forever" : (isYearly ? "billed annually" : "billed monthly")}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed min-h-[44px]" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{plan.desc}</p>
+                <ul className="list-none m-0 p-0 mt-4.5 flex flex-col gap-3 flex-1">
                   {plan.features.map((feat) => (
-                    <li key={feat} className="flex gap-2 items-start text-[13.5px] leading-snug">
+                    <li key={feat} className="flex gap-2 items-start text-[13px] leading-snug">
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-600)" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5"><polyline points="20 6 9 17 4 12" /></svg>
                       <span>{feat}</span>
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href={`/checkout?plan=${plan.key}&interval=${isYearly ? "yearly" : "monthly"}`}
-                  className="mt-5 w-full text-center rounded-full px-6 py-3 text-sm font-medium"
-                  style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
-                >
-                  Start 14-day trial
-                </Link>
+                {plan.monthly === 0 ? (
+                  <Link
+                    href="/signup"
+                    className="mt-5 w-full text-center rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90"
+                    style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
+                  >
+                    Start Free (No Card)
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/checkout?plan=${plan.key}&interval=${isYearly ? "yearly" : "monthly"}`}
+                    className="mt-5 w-full text-center rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90"
+                    style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
+                  >
+                    Start 14-day trial
+                  </Link>
+                )}
               </div>
             ))}
           </div>
@@ -431,7 +465,7 @@ export default function Home() {
             <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-2-800)" }}>[ 03 / Agent Control ]</span>
             <h2 className="max-w-[22ch] text-[26px] sm:text-[30px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Start with MCP</h2>
             <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[62ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
-              Chatty ships a full Model Context Protocol server. Point Claude, ChatGPT, or any MCP-compatible client at your account and run the entire dashboard — every bot, flow, campaign, and integration — from a conversation instead of clicking through screens.
+              Chatty ships a full Model Context Protocol server. Point Claude, ChatGPT, or any MCP-compatible client at your account and run the entire dashboard - every bot, flow, campaign, and integration - from a conversation instead of clicking through screens.
             </p>
             <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-full px-6.5 py-3.5 text-sm font-medium mt-6" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}>
               Connect your agent
@@ -458,7 +492,7 @@ export default function Home() {
 }`}
               </pre>
               <p className="text-[13px] leading-snug mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 72%, transparent)" }}>
-                The client opens a standard OAuth 2.0 authorization flow on first connect — approve it once, no API key to copy anywhere.
+                The client opens a standard OAuth 2.0 authorization flow on first connect - approve it once, no API key to copy anywhere.
               </p>
             </div>
           </div>
@@ -577,7 +611,7 @@ export default function Home() {
             <h3 className="mt-4 text-xl" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{selectedFeature.title}</h3>
             <p className="mt-3 text-sm leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 80%, transparent)" }}>{selectedFeature.desc}</p>
             <div className="mt-5 p-4 rounded-2xl text-[13px] leading-relaxed" style={{ background: "var(--color-surface)", color: "color-mix(in srgb, var(--color-text) 75%, transparent)" }}>
-              Configure this from the dashboard — no code, no server-side setup.
+              Configure this from the dashboard - no code, no server-side setup.
             </div>
             <div className="mt-6 flex justify-end gap-2.5">
               <button
@@ -600,7 +634,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Chatty on Chatty — the landing page runs its own product as its
+      {/* Chatty on Chatty - the landing page runs its own product as its
           support widget. */}
       <Script
         src="https://chatty.personaliai.com/widget.js"

@@ -17,7 +17,7 @@ const MAX_RESULTS = 120;
 
 /** Renders `name` (kebab-case, per lucide-react/dynamic's IconName) at `color`
  * into a detached DOM node and serializes the result to a File. Handed to
- * the same upload endpoint a real file picked from disk would go through —
+ * the same upload endpoint a real file picked from disk would go through -
  * widget.js and EmbedClient.tsx only ever deal with the resulting storage
  * URL, so neither needs to know arbitrary icon libraries exist. */
 async function iconToFile(name: string, color: string): Promise<File> {
@@ -40,11 +40,11 @@ interface IconLibraryPickerProps {
   onSelect: (file: File, name: string, color: string) => void;
   /** Re-opening on an existing selection (see avatarIconLibrarySelection in
    * dashboard/page.tsx) pre-fills the same icon/color instead of resetting
-   * to defaults — this is what makes "change the color" actually work,
+   * to defaults - this is what makes "change the color" actually work,
    * since the uploaded SVG file itself has no memory of its own color. */
   initialSelection?: { name: string; color: string } | null;
   /** Where the icon will actually be displayed (the avatar circle's
-   * background) — used to default the color swatch to something that's
+   * background) - used to default the color swatch to something that's
    * guaranteed visible there, instead of an arbitrary black that can go
    * invisible against a dark background the business owner already chose. */
   backgroundHex?: string;
@@ -76,7 +76,7 @@ export function IconLibraryPicker({ onClose, onSelect, initialSelection, backgro
   const pick = (name: string) => pickWithColor(name, color);
 
   // Changing the color swatch re-bakes and re-uploads the CURRENTLY
-  // selected icon at the new color immediately — this is what makes
+  // selected icon at the new color immediately - this is what makes
   // "change its color after picking" actually possible, since the
   // uploaded SVG file has no live color to just tweak otherwise.
   const changeColor = (c: string) => {
@@ -92,7 +92,7 @@ export function IconLibraryPicker({ onClose, onSelect, initialSelection, backgro
           <div>
             <h3 className="text-sm font-semibold">Choose an icon</h3>
             {selectedName && (
-              <p className="text-[10px] text-neutral-400 mt-0.5">Editing <span className="font-medium text-neutral-500 dark:text-neutral-400">{selectedName}</span> — pick a color to update it, or click another icon.</p>
+              <p className="text-[10px] text-neutral-400 mt-0.5">Editing <span className="font-medium text-neutral-500 dark:text-neutral-400">{selectedName}</span> - pick a color to update it, or click another icon.</p>
             )}
           </div>
           <button onClick={onClose} aria-label="Close" className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer">
@@ -101,7 +101,7 @@ export function IconLibraryPicker({ onClose, onSelect, initialSelection, backgro
         </div>
         {backgroundHex && color.toLowerCase() === backgroundHex.toLowerCase() && (
           <p className="px-4 pt-2 text-[10px] text-amber-600 dark:text-amber-500 font-medium">
-            This color matches the avatar background exactly — the icon will be invisible. Pick a different color.
+            This color matches the avatar background exactly - the icon will be invisible. Pick a different color.
           </p>
         )}
 
@@ -171,7 +171,7 @@ export function IconLibraryPicker({ onClose, onSelect, initialSelection, backgro
             </div>
           )}
           {results.length === MAX_RESULTS && (
-            <p className="text-[10px] text-neutral-400 text-center pt-3">Showing the first {MAX_RESULTS} matches — keep typing to narrow it down.</p>
+            <p className="text-[10px] text-neutral-400 text-center pt-3">Showing the first {MAX_RESULTS} matches - keep typing to narrow it down.</p>
           )}
         </div>
       </div>

@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/auth/auth-code-error`)
   }
 
-  // Chatty has no separate /onboarding route (unlike Kin) — onboarding is
+  // Chatty has no separate /onboarding route (unlike Kin) - onboarding is
   // per-bot and handled inline in the dashboard, so just honor `next`.
   const target = requestedNext.startsWith('/') ? requestedNext : '/dashboard'
 
