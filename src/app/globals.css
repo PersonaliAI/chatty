@@ -582,7 +582,7 @@ body {
   animation: shimmer 2s infinite linear;
 }
 
-/* TipTap Editor */
+/* TipTap Editor - Matching Simple Editor Template */
 .tiptap p.is-editor-empty:first-child::before {
   color: #a3a3a3;
   content: attr(data-placeholder);
@@ -592,6 +592,96 @@ body {
 }
 .tiptap:focus {
   outline: none;
+}
+.tiptap mark,
+.article-html-body mark {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: inherit;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-weight: 500;
+}
+.tiptap pre,
+.article-html-body pre {
+  background-color: #121316;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8125rem;
+  color: #f4f4f5;
+  overflow-x: auto;
+  margin: 14px 0;
+}
+.tiptap code:not(pre code),
+.article-html-body code:not(pre code) {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.825em;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background-color: rgba(120, 120, 128, 0.15);
+  border: 1px solid rgba(120, 120, 128, 0.25);
+}
+.tiptap blockquote,
+.article-html-body blockquote {
+  border-left: 3px solid #f97316;
+  padding-left: 14px;
+  font-style: italic;
+  color: #a1a1aa;
+  margin: 14px 0;
+}
+.tiptap ul,
+.article-html-body ul {
+  list-style-type: disc;
+  padding-left: 22px;
+  margin: 10px 0;
+}
+.tiptap ol,
+.article-html-body ol {
+  list-style-type: decimal;
+  padding-left: 22px;
+  margin: 10px 0;
+}
+.tiptap li,
+.article-html-body li {
+  margin-bottom: 4px;
+}
+.tiptap hr,
+.article-html-body hr {
+  border-top: 1px solid #27272a;
+  margin: 20px 0;
+}
+.tiptap h1,
+.article-html-body h1 {
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1.25;
+  margin-top: 22px;
+  margin-bottom: 10px;
+  letter-spacing: -0.025em;
+}
+.tiptap h2,
+.article-html-body h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 18px;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+.tiptap h3,
+.article-html-body h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 14px;
+  margin-bottom: 6px;
+}
+.tiptap p,
+.article-html-body p {
+  margin-bottom: 10px;
+  line-height: 1.65;
 }
 
 
