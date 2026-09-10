@@ -786,7 +786,7 @@ async def widget_kb_portal(bot_id: str):
 
     # 3. Fetch published public articles
     res_art = await run_db(lambda: supabase.table("chatty_kb_articles")
-        .select("id, category_id, title, slug, subtitle, tags, is_promoted, order_index, view_count, helpful_count, not_helpful_count, created_at, updated_at")
+        .select("id, category_id, title, slug, subtitle, content, tags, is_promoted, order_index, view_count, helpful_count, not_helpful_count, created_at, updated_at")
         .eq("bot_id", bot_id)
         .eq("status", "published")
         .eq("visibility", "public")

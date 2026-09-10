@@ -18,12 +18,12 @@ By default Chatty uses Google Gemini to power your bot. With BYOK you can switch
 
 1. Go to **Dashboard → Agent Settings → AI Models**
 2. Select your provider (OpenAI, Anthropic, or OpenRouter)
-3. Enter your API key - it's encrypted with AES-256 (Fernet) before storage
+3. Enter your API key — it's encrypted with AES-256 (Fernet) before storage
 4. Optionally override the model (e.g. `gpt-4o-mini` instead of `gpt-4o`)
 5. Click **Save key**
 
 <Warning>
-  Your API key is **write-only** - it cannot be retrieved after saving. Only a masked indicator ("•••• saved") is shown. If you need to rotate the key, simply paste the new one and save again.
+  Your API key is **write-only** — it cannot be retrieved after saving. Only a masked indicator ("•••• saved") is shown. If you need to rotate the key, simply paste the new one and save again.
 </Warning>
 
 ## Supported providers
@@ -63,7 +63,7 @@ When a visitor sends a message, Chatty:
 The knowledge base, guardrails, lead capture forms, and language settings all work identically regardless of provider. The only difference is which model generates the final text.
 
 <Note>
-  **Agentic tools** (calendar booking, lead capture form) remain Gemini-only. If your bot uses these features, Chatty automatically falls back to Gemini for those specific interactions - your BYOK key is used for everything else.
+  **Agentic tools** (calendar booking, lead capture form) remain Gemini-only. If your bot uses these features, Chatty automatically falls back to Gemini for those specific interactions — your BYOK key is used for everything else.
 </Note>
 
 ## Removing BYOK
@@ -73,5 +73,5 @@ To revert to Gemini, click **Remove key** in Agent Settings → AI Models. Your 
 ## Security
 
 - Keys are encrypted with **Fernet symmetric encryption** (AES-128 in CBC mode with HMAC-SHA256 authentication) before being stored in the database.
-- The encryption key (`BYOK_ENCRYPTION_KEY`) is held in the server environment - separate from the database.
+- The encryption key (`BYOK_ENCRYPTION_KEY`) is held in the server environment — separate from the database.
 - The decrypted key is only used in-memory during a request and is never logged or returned to the client.

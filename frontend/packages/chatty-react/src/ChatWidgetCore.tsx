@@ -20,7 +20,7 @@ import { normalizeWidgetStyle } from "./widget-style";
 // package's README for the two imports a consumer needs to add once.
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
-  Paperclip, Smile, Mic, ChevronRight, ArrowLeft, X,
+  Paperclip, Smile, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
   BookOpen,
@@ -228,7 +228,7 @@ interface FlowConfig {
   edges: FlowEdge[];
 }
 
-type Tab = "home" | "messages" | "articles" | "search";
+type Tab = "home" | "messages" | "articles";
 
 export interface WidgetKbArticle {
   id: string;
@@ -505,6 +505,8 @@ export default function ChatWidgetCore({
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
 
   const [tab, setTab] = useState<Tab>("home");
+  const [bottomNavVisible, setBottomNavVisible] = useState(true);
+  const [chatNavExpanded, setChatNavExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
@@ -553,18 +555,21 @@ export default function ChatWidgetCore({
 
   const openKbArticle = async (art: WidgetKbArticle) => {
     setActiveArticle(art);
-    if (!art.content) {
-      setLoadingArticleDetail(true);
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/widget/kb/articles/${encodeURIComponent(art.slug)}?bot_id=${encodeURIComponent(String(botId))}`);
-        if (res.ok) {
-          const detail = await res.json();
-          setActiveArticle(detail);
-        }
-      } catch {
-      } finally {
-        setLoadingArticleDetail(false);
+    setLoadingArticleDetail(!art.content);
+    try {
+      const slugOrId = art.slug || art.id;
+      const res = await fetch(`${BACKEND_URL}/api/widget/kb/articles/${encodeURIComponent(slugOrId)}?bot_id=${encodeURIComponent(String(botId))}`);
+      if (res.ok) {
+        const detail = await res.json();
+        const articleData = detail.article || detail;
+        setActiveArticle((prev) => ({
+          ...(prev || art),
+          ...articleData,
+        }));
       }
+    } catch {
+    } finally {
+      setLoadingArticleDetail(false);
     }
   };
 
@@ -2190,7 +2195,7 @@ export default function ChatWidgetCore({
                   <span className="flex items-center gap-2.5 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
                   <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
-                <button onClick={() => setTab("search")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
+                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
                   <span className="flex items-center gap-2.5 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Ask AI assistant</span>
                   <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
@@ -2335,15 +2340,22 @@ export default function ChatWidgetCore({
                       )}
 
                       <div className="border-t border-neutral-100 dark:border-neutral-850 pt-3">
-                        {loadingArticleDetail ? (
+                        {loadingArticleDetail && !activeArticle.content ? (
                           <div className="flex items-center gap-2 py-8 justify-center text-neutral-400 text-xs">
                             <Loader2 className="size-4 animate-spin" /> Loading article content...
                           </div>
                         ) : (
                           <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed space-y-2 prose prose-xs dark:prose-invert max-w-none">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-                              {activeArticle.content || activeArticle.subtitle || "No additional content."}
-                            </ReactMarkdown>
+                            {activeArticle.content?.trim().startsWith("<") ? (
+                              <div
+                                className="article-html-body space-y-2"
+                                dangerouslySetInnerHTML={{ __html: activeArticle.content }}
+                              />
+                            ) : (
+                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                                {activeArticle.content || activeArticle.subtitle || "No additional content."}
+                              </ReactMarkdown>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2513,49 +2525,6 @@ export default function ChatWidgetCore({
               </div>
             )}
 
-            {/* SEARCH */}
-            {tab === "search" && (
-              <div className="p-4 space-y-3">
-                <form onSubmit={(e) => { e.preventDefault(); runSearch(searchQuery); }} className="relative">
-                  <Search className="size-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search our help center…"
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-9 pr-3 py-2.5 text-xs focus:outline-none" />
-                </form>
-                {searching && <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4"><Loader2 className="size-4 animate-spin" />Generating answer…</div>}
-                {searchAnswer && !searching && (
-                  <div className="mt-4 p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
-                    <p className="text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 mb-1.5" style={{ color: primaryColor }}><Sparkles className="size-3" />AI-generated answer</p>
-                    <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{searchAnswer}</ReactMarkdown>
-                    </div>
-                    <button onClick={() => { setTab("messages"); }} className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: primaryColor, color: onPrimary }}>Still have questions? Message us</button>
-                  </div>
-                )}
-                {/* Related Help Center Articles */}
-                {searchKbResults.length > 0 && !searching && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                      Relevant Help Articles
-                    </p>
-                    {searchKbResults.slice(0, 3).map((art) => (
-                      <button
-                        key={art.id}
-                        onClick={() => {
-                          openKbArticle(art);
-                          setTab("articles");
-                        }}
-                        className="w-full flex items-center justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 text-left group cursor-pointer"
-                      >
-                        <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200 group-hover:text-[#f97316] truncate">
-                          {art.title}
-                        </span>
-                        <ChevronRight className="size-3.5 text-neutral-400 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </>
         )}
       </div>
@@ -2756,39 +2725,75 @@ export default function ChatWidgetCore({
 
       {/* ── Crisp-style persistent bottom tab nav bar ── */}
       {!voiceCallOpen && !showCsat && !showOfflineForm && (
-        <div className="border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch shrink-0 relative">
-          {(
-            [
-              { id: "home",     label: "Home",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-              { id: "messages", label: "Chat",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
-              { id: "articles", label: "Articles", icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
-              { id: "search",   label: "Search",   icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> },
-            ] as { id: Tab; label: string; icon: React.ReactNode }[]
-          ).map(({ id, label, icon }) => {
-            const isActive = tab === id;
-            return (
+        <>
+          {((tab === "messages" && chatNavExpanded) || (tab !== "messages" && bottomNavVisible)) && (
+            <div className="border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch shrink-0 relative">
+              {(
+                [
+                  { id: "home",     label: "Home",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+                  { id: "messages", label: "Chat",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+                  { id: "articles", label: "Articles", icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
+                ] as { id: Tab; label: string; icon: React.ReactNode }[]
+              ).map(({ id, label, icon }) => {
+                const isActive = tab === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setActiveArticle(null);
+                      setTab(id);
+                      if (id === "messages") setChatNavExpanded(false);
+                    }}
+                    className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative"
+                    style={isActive ? { color: primaryColor } : undefined}
+                  >
+                    <span style={isActive ? undefined : { opacity: 0.4 }}>{icon}</span>
+                    <span style={isActive ? undefined : { opacity: 0.4 }}>{label}</span>
+                    {isActive && (
+                      <span
+                        className="absolute top-0 left-3 right-3 h-[2px] rounded-b-full"
+                        style={{ backgroundColor: primaryColor }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+              {/* Small toggle icon button to hide the bottom nav bar */}
               <button
-                key={id}
                 type="button"
                 onClick={() => {
-                  setActiveArticle(null);
-                  setTab(id);
+                  if (tab === "messages") setChatNavExpanded(false);
+                  else setBottomNavVisible(false);
                 }}
-                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative"
-                style={isActive ? { color: primaryColor } : undefined}
+                className="px-2.5 flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors cursor-pointer border-l border-neutral-100 dark:border-neutral-850"
+                title="Hide navigation"
+                aria-label="Hide navigation"
               >
-                <span style={isActive ? undefined : { opacity: 0.4 }}>{icon}</span>
-                <span style={isActive ? undefined : { opacity: 0.4 }}>{label}</span>
-                {isActive && (
-                  <span
-                    className="absolute top-0 left-3 right-3 h-[2px] rounded-b-full"
-                    style={{ backgroundColor: primaryColor }}
-                  />
-                )}
+                <ChevronDown className="size-3.5" />
               </button>
-            );
-          })}
-        </div>
+            </div>
+          )}
+
+          {/* Small icon button to reveal bottom nav when hidden or in chat tab */}
+          {((tab === "messages" && !chatNavExpanded) || (tab !== "messages" && !bottomNavVisible)) && (
+            <div className="flex justify-center py-1 bg-card border-t border-neutral-100/50 dark:border-neutral-850/50">
+              <button
+                type="button"
+                onClick={() => {
+                  if (tab === "messages") setChatNavExpanded(true);
+                  else setBottomNavVisible(true);
+                }}
+                className="inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 px-2 py-0.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                title="Show navigation"
+                aria-label="Show navigation"
+              >
+                <ChevronUp className="size-3" />
+                <span className="font-medium text-[9px] uppercase tracking-wider">Show Tabs</span>
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {!isOfficialWebsite && !hideBranding && (

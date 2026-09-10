@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# Chatty Voice Stack - One-time VPS Setup Script
+# Chatty Voice Stack — One-time VPS Setup Script
 # ─────────────────────────────────────────────────────────────────────────────
 # Run this once on a fresh Contabo VPS (Ubuntu 22.04/24.04).
 # It installs Docker, configures the firewall, generates LiveKit API keys,
@@ -8,7 +8,7 @@
 #
 # Usage (as root on the VPS):
 #   curl -sSL https://raw.githubusercontent.com/PersonaliAI/chatty/main/deploy/vps/setup.sh | bash
-#   - or -
+#   — or —
 #   git clone https://github.com/PersonaliAI/chatty-backend.git
 #   cd chatty-backend/voice-agent
 #   chmod +x setup.sh && ./setup.sh
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 echo "═══════════════════════════════════════════════════════════════"
-echo "  Chatty Voice Stack - VPS Setup"
+echo "  Chatty Voice Stack — VPS Setup"
 echo "═══════════════════════════════════════════════════════════════"
 
 # ── 1. System updates ─────────────────────────────────────────────────────
@@ -55,10 +55,10 @@ ufw allow 22/tcp comment "SSH"
 ufw allow 80/tcp comment "HTTP (ACME challenge)"
 ufw allow 443/tcp comment "HTTPS / WSS (Caddy)"
 
-# LiveKit TURN fallback (TCP) - for clients behind strict UDP firewalls
+# LiveKit TURN fallback (TCP) — for clients behind strict UDP firewalls
 ufw allow 7881/tcp comment "LiveKit TURN/TCP fallback"
 
-# LiveKit RTP media (UDP) - the actual audio/video packets
+# LiveKit RTP media (UDP) — the actual audio/video packets
 ufw allow 50000:50200/udp comment "LiveKit RTP media (UDP)"
 
 # Enable UFW (non-interactive)
@@ -91,7 +91,7 @@ echo "  ║  LIVEKIT_API_KEY:    $LIVEKIT_API_KEY"
 echo "  ║  LIVEKIT_API_SECRET: $LIVEKIT_API_SECRET"
 echo "  ╚═══════════════════════════════════════════════════════════╝"
 echo ""
-echo "  ⚠️  SAVE THESE - you need them in .env AND in livekit.yaml"
+echo "  ⚠️  SAVE THESE — you need them in .env AND in livekit.yaml"
 echo "      AND in the Chatty API's Cloud Run env vars."
 
 # ── 5. Detect public IP ──────────────────────────────────────────────────
@@ -114,7 +114,7 @@ if [ ! -f "$SCRIPT_DIR/.env" ]; then
     sed -i "s|LIVEKIT_API_SECRET=CHATTY_VOICE_SECRET_REPLACE_ME|LIVEKIT_API_SECRET=$LIVEKIT_API_SECRET|" "$SCRIPT_DIR/.env"
     echo "  Created .env with generated keys"
 else
-    echo "  .env already exists - skipping (delete it to regenerate)"
+    echo "  .env already exists — skipping (delete it to regenerate)"
 fi
 
 # Update livekit.yaml with the generated key/secret

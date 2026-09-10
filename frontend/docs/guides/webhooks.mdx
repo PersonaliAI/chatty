@@ -109,7 +109,7 @@ echo json_encode(['ok' => true]);
 
 ## Reliability
 
-- Webhooks are **fire-and-forget** - Chatty sends one POST with a 10-second timeout and does not retry on failure.
+- Webhooks are **fire-and-forget** — Chatty sends one POST with a 10-second timeout and does not retry on failure.
 - Always return a `2xx` status quickly. Do heavy processing asynchronously (queue it, then return 200).
 - If your endpoint is down, events are lost. For critical integrations, use polling via [`GET /api/v1/leads`](/api-reference/leads/list) as a fallback.
 

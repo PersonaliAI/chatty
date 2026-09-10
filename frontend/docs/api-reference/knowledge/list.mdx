@@ -43,7 +43,7 @@ res = httpx.get(
     headers={"Authorization": "Bearer chatty_sk_your_key"},
 )
 for src in res.json()["sources"]:
-    print(f"[{src['type']}] {src['name']} - {src['char_count']} chars")
+    print(f"[{src['type']}] {src['name']} — {src['char_count']} chars")
 ```
 
 </RequestExample>

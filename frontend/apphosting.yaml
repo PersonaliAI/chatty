@@ -22,10 +22,10 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  # Server-only - used by src/app/api/billing/checkout/route.ts. Same store
+  # Server-only — used by src/app/api/billing/checkout/route.ts. Same store
   # (161795) and API key as kin-frontend; only the variant IDs are Chatty's own.
   # Backed by Google Secret Manager (firebase apphosting:secrets:set), not a
-  # literal value - this file is otherwise safe to make public.
+  # literal value — this file is otherwise safe to make public.
   - variable: LEMONSQUEEZY_API_KEY
     secret: chatty-lemonsqueezy-api-key
     availability:

@@ -23,7 +23,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # env files (bare .env is what the public mirror's self-hosting docs have
-# people create from frontend/.env.example - secrets like
+# people create from frontend/.env.example — secrets like
 # LEMONSQUEEZY_API_KEY can live in it, so ignore it here too even though
 # this repo's own deploy reads env vars from apphosting.yaml, not a file)
 .env

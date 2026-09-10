@@ -30,17 +30,17 @@ Returns lifetime (or time-filtered) usage statistics: message volume, unique ses
 
 <RequestExample>
 
-```bash cURL - Lifetime stats
+```bash cURL — Lifetime stats
 curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/analytics" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
-```bash cURL - Last 30 days
+```bash cURL — Last 30 days
 curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/analytics?since=2026-06-07T00:00:00Z" \
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
-```python Python - Build a weekly report
+```python Python — Build a weekly report
 import httpx
 from datetime import datetime, timedelta, timezone
 
@@ -59,7 +59,7 @@ print(f"  Messages:  {stats['user_messages']} from visitors")
 print(f"  Leads:     {stats['total_leads']}")
 ```
 
-```javascript Node.js - Dashboard widget
+```javascript Node.js — Dashboard widget
 async function getWeeklyStats() {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const res = await fetch(
@@ -74,7 +74,7 @@ async function getWeeklyStats() {
 
 <ResponseExample>
 
-```json 200 OK - Lifetime stats
+```json 200 OK — Lifetime stats
 {
   "bot_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "since": null,
@@ -88,7 +88,7 @@ async function getWeeklyStats() {
 }
 ```
 
-```json 200 OK - Filtered to last 30 days
+```json 200 OK — Filtered to last 30 days
 {
   "bot_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "since": "2026-06-07T00:00:00Z",

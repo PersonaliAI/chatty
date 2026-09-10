@@ -13,7 +13,7 @@ All errors return a JSON body with a single `detail` field:
 }
 ```
 
-Every response also includes an `X-Request-ID` header. Include this ID when contacting support - it lets us locate the exact request in our logs.
+Every response also includes an `X-Request-ID` header. Include this ID when contacting support — it lets us locate the exact request in our logs.
 
 ## HTTP status codes
 
@@ -24,7 +24,7 @@ Every response also includes an `X-Request-ID` header. Include this ID when cont
 | `403` | Forbidden | Key lacks required scope, or request IP not on allowlist |
 | `404` | Not Found | Resource doesn't exist or belongs to a different bot |
 | `422` | Unprocessable Entity | The request was valid but the operation couldn't complete (e.g. URL returned no content) |
-| `429` | Too Many Requests | Rate limit exceeded - see [Rate Limits](/rate-limits) |
+| `429` | Too Many Requests | Rate limit exceeded — see [Rate Limits](/rate-limits) |
 | `500` | Internal Server Error | Unexpected server error |
 | `502` | Bad Gateway | Upstream AI provider error or timeout |
 
@@ -32,7 +32,7 @@ Every response also includes an `X-Request-ID` header. Include this ID when cont
 
 <AccordionGroup>
 
-  <Accordion title="401 - Missing Bearer API key">
+  <Accordion title="401 — Missing Bearer API key">
     ```json
     { "detail": "Missing Bearer API key" }
     ```
@@ -41,7 +41,7 @@ Every response also includes an `X-Request-ID` header. Include this ID when cont
     **Fix:** Add `Authorization: Bearer chatty_sk_your_key` to your request headers.
   </Accordion>
 
-  <Accordion title="401 - Invalid API key">
+  <Accordion title="401 — Invalid API key">
     ```json
     { "detail": "Invalid API key" }
     ```
@@ -50,7 +50,7 @@ Every response also includes an `X-Request-ID` header. Include this ID when cont
     **Fix:** Check for typos or trailing whitespace. Regenerate the key if needed.
   </Accordion>
 
-  <Accordion title="401 - API key revoked">
+  <Accordion title="401 — API key revoked">
     ```json
     { "detail": "API key revoked" }
     ```
@@ -59,7 +59,7 @@ Every response also includes an `X-Request-ID` header. Include this ID when cont
     **Fix:** Create a new key in Dashboard → API Keys.
   </Accordion>
 
-  <Accordion title="403 - Missing scope">
+  <Accordion title="403 — Missing scope">
     ```json
     {
       "detail": "This API key is missing the 'write' scope. Current scopes: ['chat', 'read']. Update your key's scopes in the Chatty dashboard → API Keys."
@@ -68,7 +68,7 @@ Every response also includes an `X-Request-ID` header. Include this ID when cont
     **Fix:** Edit the key in the dashboard and add the required scope.
   </Accordion>
 
-  <Accordion title="403 - IP not on allowlist">
+  <Accordion title="403 — IP not on allowlist">
     ```json
     {
       "detail": "IP address '203.0.113.42' is not permitted for this API key. Update the allowlist in your Chatty dashboard → API Keys."
@@ -77,14 +77,14 @@ Every response also includes an `X-Request-ID` header. Include this ID when cont
     **Fix:** Add your IP to the allowlist, or remove the allowlist restriction entirely.
   </Accordion>
 
-  <Accordion title="400 - Empty message text">
+  <Accordion title="400 — Empty message text">
     ```json
     { "detail": "text is required and must not be empty" }
     ```
     **Fix:** Make sure the `text` field in your request body is a non-empty string.
   </Accordion>
 
-  <Accordion title="422 - URL returned no content">
+  <Accordion title="422 — URL returned no content">
     ```json
     { "detail": "URL returned no usable content" }
     ```
@@ -93,7 +93,7 @@ Every response also includes an `X-Request-ID` header. Include this ID when cont
     **Fix:** Try a different URL, or use `type: "text"` to add the content manually.
   </Accordion>
 
-  <Accordion title="502 - AI provider error">
+  <Accordion title="502 — AI provider error">
     ```json
     { "detail": "assistant error: ..." }
     ```
@@ -107,6 +107,6 @@ Every response also includes an `X-Request-ID` header. Include this ID when cont
 ## Debugging tips
 
 1. **Always log `X-Request-ID`** from the response header. This is your trace ID.
-2. **Check the `detail` message** - it's designed to tell you exactly what to fix.
+2. **Check the `detail` message** — it's designed to tell you exactly what to fix.
 3. **Test with cURL first** to rule out client library issues.
 4. **Use `/api/v1/usage`** to confirm your key is valid and hasn't been revoked.

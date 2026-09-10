@@ -5,7 +5,7 @@ description: New features, improvements, and fixes
 
 ## July 2026
 
-### API v1 - Security & New Endpoints
+### API v1 — Security & New Endpoints
 
 **Released 2026-07-07**
 
@@ -14,17 +14,17 @@ description: New features, improvements, and fixes
 - Security headers on all responses: CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy
 - Per-IP rate limiting (120 req/min) independent of per-key limits
 - API key **IP allowlist**: restrict a key to specific IPs or CIDR ranges
-- API key **scopes**: `chat` / `read` / `write` / `admin` - assign minimum permissions per key
+- API key **scopes**: `chat` / `read` / `write` / `admin` — assign minimum permissions per key
 - Audit log: every public API call recorded to `chatty_api_audit_log`
 
 **New endpoints**
-- `GET /api/v1/conversations/{session_id}` - fetch a specific conversation thread
-- `DELETE /api/v1/conversations/{session_id}` - clear a session (GDPR compliance)
-- `GET /api/v1/knowledge` - list all knowledge sources
-- `POST /api/v1/knowledge` - add text or crawl a URL programmatically
-- `DELETE /api/v1/knowledge/{id}` - remove a knowledge source
-- `GET /api/v1/analytics` - message/session/lead/KB stats with optional `since` filter
-- `PATCH /api/keys/{id}` - update scopes and IP allowlist without revoking the key
+- `GET /api/v1/conversations/{session_id}` — fetch a specific conversation thread
+- `DELETE /api/v1/conversations/{session_id}` — clear a session (GDPR compliance)
+- `GET /api/v1/knowledge` — list all knowledge sources
+- `POST /api/v1/knowledge` — add text or crawl a URL programmatically
+- `DELETE /api/v1/knowledge/{id}` — remove a knowledge source
+- `GET /api/v1/analytics` — message/session/lead/KB stats with optional `since` filter
+- `PATCH /api/keys/{id}` — update scopes and IP allowlist without revoking the key
 
 **Documentation**
 - Full Mintlify documentation site at [docs.chatty.ai](https://docs.chatty.ai)
@@ -50,7 +50,7 @@ description: New features, improvements, and fixes
 
 **AI Models & BYOK**
 - Multi-provider AI support: OpenAI, Anthropic Claude, and OpenRouter alongside Gemini
-- Bring Your Own Key (BYOK) with Fernet encryption - keys are write-only
+- Bring Your Own Key (BYOK) with Fernet encryption — keys are write-only
 - `ModernSelect` dropdown for model selection with per-model hints
 
 **White-label & Customisation**

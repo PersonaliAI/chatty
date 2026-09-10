@@ -1,10 +1,10 @@
 version: "3.8"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Chatty Voice Stack - Self-hosted LiveKit + Voice Worker
+# Chatty Voice Stack — Self-hosted LiveKit + Voice Worker
 # ─────────────────────────────────────────────────────────────────────────────
 # Runs on a single Contabo VPS 4 (4 vCPU / 8 GB / €4.40/mo).
-# No LiveKit Cloud dependency - all API keys are self-generated.
+# No LiveKit Cloud dependency — all API keys are self-generated.
 #
 # Usage:
 #   cp .env.example .env   # fill in real values
@@ -33,7 +33,7 @@ services:
 
   # ── LiveKit Server (SFU) ─────────────────────────────────────────────────
   # Open-source media server. Forwards audio/video packets between
-  # participants - no transcoding, very lightweight for audio-only calls.
+  # participants — no transcoding, very lightweight for audio-only calls.
   livekit:
     image: livekit/livekit-server:latest
     restart: unless-stopped
@@ -42,7 +42,7 @@ services:
       - "7880:7880"             # WebSocket signalling (proxied by Caddy)
       - "7881:7881"             # TURN/TCP fallback
       - "50000-50200:50000-50200/udp"   # RTP media (narrowed from 50000-60000
-                                         # to avoid Docker iptables overhead -
+                                         # to avoid Docker iptables overhead —
                                          # 200 ports = 200 concurrent streams,
                                          # more than enough for VPS 4)
     volumes:
@@ -55,7 +55,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # Internal only - not exposed to host network.
+    # Internal only — not exposed to host network.
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -63,7 +63,7 @@ services:
       retries: 3
 
   # ── Voice Worker ─────────────────────────────────────────────────────────
-  # Chatty's LiveKit agent - bridges STT → Brain → TTS.
+  # Chatty's LiveKit agent — bridges STT → Brain → TTS.
   # Connects to the local LiveKit server via ws://livekit:7880.
   voice-worker:
     build:
@@ -71,7 +71,7 @@ services:
       dockerfile: voice-agent/Dockerfile
     restart: unless-stopped
     environment:
-      # LiveKit connection - points to the co-located server (internal Docker
+      # LiveKit connection — points to the co-located server (internal Docker
       # network), not LiveKit Cloud. ws:// (not wss://) because TLS terminates
       # at Caddy; inside Docker network, plaintext is fine.
       - LIVEKIT_URL=ws://livekit:7880
@@ -85,7 +85,7 @@ services:
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:?Set SUPABASE_SERVICE_KEY}
       # LLM
       - GEMINI_API_KEY=${GEMINI_API_KEY:?Set GEMINI_API_KEY}
-      # STT/TTS provider keys (optional - falls back to Google)
+      # STT/TTS provider keys (optional — falls back to Google)
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
       - ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY:-}

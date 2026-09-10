@@ -6,7 +6,7 @@ description: "Return leads captured by the bot, most recent first"
 
 ## Overview
 
-Returns visitor leads captured through the bot's lead collection flow - typically name, email, phone, and any custom fields you configured.
+Returns visitor leads captured through the bot's lead collection flow — typically name, email, phone, and any custom fields you configured.
 
 **Required scope:** `read`
 
@@ -57,7 +57,7 @@ curl "https://chatty-api-376030619262.us-central1.run.app/api/v1/leads?limit=20&
   -H "Authorization: Bearer chatty_sk_your_key"
 ```
 
-```python Python - paginate all leads
+```python Python — paginate all leads
 import httpx
 
 client = httpx.Client(
@@ -80,7 +80,7 @@ while True:
 print(f"Fetched {len(all_leads)} leads")
 ```
 
-```javascript Node.js - sync to CRM
+```javascript Node.js — sync to CRM
 async function syncLeadsToCRM() {
   let offset = 0;
   const limit = 100;
