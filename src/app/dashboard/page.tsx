@@ -20,6 +20,7 @@ import { CampaignsUI } from "@/components/campaigns-ui";
 import { KBManager } from "@/components/kb-manager";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
+import { BACKEND_URL, fetchBackend } from "@/lib/backend-client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { getOnColor, primaryColorCssVars, generateColorScheme, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
@@ -1806,9 +1807,6 @@ export default function Dashboard() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- set for a "Copied!" indicator that isn't rendered yet
   const [copiedIframe, setCopiedIframe] = useState(false);
 
-  // Backend Integration URL
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
-
   // Authenticate user and fetch configuration from Supabase
   useEffect(() => {
     async function checkSession() {
@@ -1855,22 +1853,7 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Helper for resilient fetch calls with fallback to production backend
-  const fetchWithFallback = async (path: string, options: RequestInit = {}) => {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    const headers = {
-      ...options.headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    };
-    try {
-      return await fetch(`${BACKEND_URL}${path}`, { ...options, headers });
-    } catch {
-      console.warn(`Local backend down for ${path}, retrying with production fallback...`);
-      const fallbackUrl = "https://api.chatty.personaliai.com";
-      return await fetch(`${fallbackUrl}${path}`, { ...options, headers });
-    }
-  };
+  const fetchWithFallback = (path: string, options: RequestInit = {}) => fetchBackend(supabase, path, options);
 
   // Check backend integration state & query email accounts
   async function checkCloudConnections(userId: string) {
