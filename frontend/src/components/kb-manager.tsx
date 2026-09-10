@@ -31,19 +31,12 @@ import {
   Rocket,
   Heart,
   Tag,
-  Code,
-  Bold,
-  Italic,
-  List,
-  ListOrdered,
-  Quote,
-  Table as TableIcon,
-  Info,
   ChevronRight,
   X,
 } from "lucide-react";
 import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 import { ModernSelect } from "@/components/ui/modern-select";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 
 export interface KBArticle {
   id: string;
@@ -176,7 +169,7 @@ export function KBManager({
   const [editorTags, setEditorTags] = useState<string[]>([]);
   const [editorTagInput, setEditorTagInput] = useState("");
   const [editorPromoted, setEditorPromoted] = useState(false);
-  const [editorTab, setEditorTab] = useState<"write" | "preview">("write");
+  const [editorTab, setEditorTab] = useState<"rich" | "raw" | "preview">("rich");
   const [savingArticle, setSavingArticle] = useState(false);
 
   // Category Modal state
@@ -256,7 +249,7 @@ export function KBManager({
       setEditorTags([]);
       setEditorPromoted(false);
     }
-    setEditorTab("write");
+    setEditorTab("rich");
     setEditorOpen(true);
   };
 
@@ -405,24 +398,7 @@ export function KBManager({
     }
   };
 
-  // Formatting insert helpers for WYSIWYG markdown toolbar
-  const insertFormatting = (prefix: string, suffix: string = "") => {
-    const textarea = document.getElementById("kb-article-textarea") as HTMLTextAreaElement | null;
-    if (!textarea) {
-      setEditorContent((prev) => prev + prefix + suffix);
-      return;
-    }
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = editorContent.slice(start, end);
-    const replacement = prefix + (selected || "text") + suffix;
-    const newContent = editorContent.slice(0, start) + replacement + editorContent.slice(end);
-    setEditorContent(newContent);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + prefix.length, start + replacement.length - suffix.length);
-    }, 0);
-  };
+
 
   // Filtered articles
   const filteredArticles = useMemo(() => {
@@ -1124,127 +1100,42 @@ export function KBManager({
                 </label>
               </div>
 
-              {/* Editor Tabs & Markdown Formatting Toolbar */}
-              <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col flex-1">
-                <div className="bg-neutral-50 dark:bg-neutral-950 p-2 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-2 flex-wrap">
-                  {/* Formatting Buttons */}
-                  <div className="flex items-center gap-1">
+              {/* Standard Rich Text Editor / Markdown / Preview Toggle */}
+              <div className="flex flex-col flex-1 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Article Body
+                  </span>
+                  <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-xl border border-neutral-200 dark:border-neutral-700 select-none">
                     <button
                       type="button"
-                      onClick={() => insertFormatting("# ")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300 text-xs font-bold"
-                      title="Heading 1"
-                    >
-                      H1
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertFormatting("## ")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300 text-xs font-bold"
-                      title="Heading 2"
-                    >
-                      H2
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertFormatting("### ")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300 text-xs font-bold"
-                      title="Heading 3"
-                    >
-                      H3
-                    </button>
-                    <div className="h-4 w-px bg-neutral-300 dark:bg-neutral-700 mx-1" />
-                    <button
-                      type="button"
-                      onClick={() => insertFormatting("**", "**")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300"
-                      title="Bold"
-                    >
-                      <Bold className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertFormatting("*", "*")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300"
-                      title="Italic"
-                    >
-                      <Italic className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertFormatting("`", "`")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300"
-                      title="Code inline"
-                    >
-                      <Code className="size-3.5" />
-                    </button>
-                    <div className="h-4 w-px bg-neutral-300 dark:bg-neutral-700 mx-1" />
-                    <button
-                      type="button"
-                      onClick={() => insertFormatting("- ")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300"
-                      title="Bullet list"
-                    >
-                      <List className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertFormatting("1. ")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300"
-                      title="Numbered list"
-                    >
-                      <ListOrdered className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertFormatting("> ")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300"
-                      title="Quote"
-                    >
-                      <Quote className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        insertFormatting(
-                          "\n| Feature | Description |\n|---|---|\n| Item 1 | Description 1 |\n"
-                        )
-                      }
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300"
-                      title="Insert Table"
-                    >
-                      <TableIcon className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertFormatting("\n> [!NOTE]\n> ")}
-                      className="p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded text-neutral-600 dark:text-neutral-300"
-                      title="Note Callout"
-                    >
-                      <Info className="size-3.5 text-blue-500" />
-                    </button>
-                  </div>
-
-                  {/* Write vs Preview toggle */}
-                  <div className="flex items-center gap-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setEditorTab("write")}
-                      className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-                        editorTab === "write"
-                          ? "bg-[#f97316] text-white"
-                          : "text-neutral-500 hover:text-neutral-800"
+                      onClick={() => setEditorTab("rich")}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                        editorTab === "rich"
+                          ? "bg-[#f97316] text-white shadow-xs"
+                          : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
                       }`}
                     >
-                      Write
+                      Rich Text Editor
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditorTab("raw")}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                        editorTab === "raw"
+                          ? "bg-[#f97316] text-white shadow-xs"
+                          : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                      }`}
+                    >
+                      Markdown Source
                     </button>
                     <button
                       type="button"
                       onClick={() => setEditorTab("preview")}
-                      className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                         editorTab === "preview"
-                          ? "bg-[#f97316] text-white"
-                          : "text-neutral-500 hover:text-neutral-800"
+                          ? "bg-[#f97316] text-white shadow-xs"
+                          : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
                       }`}
                     >
                       Preview
@@ -1252,18 +1143,29 @@ export function KBManager({
                   </div>
                 </div>
 
-                {/* Main Content Area */}
-                {editorTab === "write" ? (
-                  <textarea
-                    id="kb-article-textarea"
-                    rows={14}
-                    value={editorContent}
-                    onChange={(e) => setEditorContent(e.target.value)}
-                    placeholder="Write detailed guide in markdown... Markdown tables, code blocks, images, and links are supported."
-                    className="w-full p-4 bg-white dark:bg-neutral-900 text-xs font-mono focus:outline-none resize-y leading-relaxed"
+                {editorTab === "rich" && (
+                  <RichTextEditor
+                    content={editorContent}
+                    onChange={setEditorContent}
+                    placeholder="Write detailed documentation, instructions, code snippets, and guides..."
+                    className="min-h-[360px]"
                   />
-                ) : (
-                  <div className="p-6 bg-white dark:bg-neutral-900 overflow-y-auto max-h-[400px]">
+                )}
+
+                {editorTab === "raw" && (
+                  <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden bg-white dark:bg-neutral-900 p-2">
+                    <textarea
+                      rows={14}
+                      value={editorContent}
+                      onChange={(e) => setEditorContent(e.target.value)}
+                      placeholder="Write markdown directly..."
+                      className="w-full p-2 bg-transparent text-xs font-mono focus:outline-none resize-y leading-relaxed text-neutral-800 dark:text-neutral-200"
+                    />
+                  </div>
+                )}
+
+                {editorTab === "preview" && (
+                  <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden bg-white dark:bg-neutral-900 p-6 max-h-[460px] overflow-y-auto">
                     <article className="prose dark:prose-invert prose-xs text-neutral-700 dark:text-neutral-300 max-w-none leading-relaxed space-y-3">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: SafeMarkdownLink }}>
                         {editorContent || "*No content written yet.*"}
