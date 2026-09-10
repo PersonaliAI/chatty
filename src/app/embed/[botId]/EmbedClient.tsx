@@ -387,6 +387,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [voiceCallOpen, setVoiceCallOpen] = useState(false);
+  const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
   const [tab, setTab] = useState<Tab>(paramTab === "messages" || paramTab === "articles" ? paramTab : "home");
 
@@ -400,6 +401,34 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [bottomNavVisible, setBottomNavVisible] = useState(true);
   const [chatNavExpanded, setChatNavExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+
+  const isBookingMessage = useCallback((content: string) => {
+    if (!content) return false;
+    if (content.includes("[BOOKING_WIDGET]")) return true;
+    if (!calendarSchedulingEnabled) return false;
+    const lower = content.toLowerCase();
+    if (
+      lower.includes("your demo is scheduled") ||
+      lower.includes("your meeting is scheduled") ||
+      lower.includes("meet.google.com") ||
+      lower.includes("teams.microsoft.com")
+    ) {
+      return false;
+    }
+    const hasBookingWords = /\b(book|booking|demo|schedule|appointment|meeting|calendar|slots?)\b/i.test(lower);
+    const mentionsTimesOrSlots = /\b(available slots?|earliest slot|available times?|what day and time|works best for you|reserve your slot|reserve your spot)\b/i.test(lower);
+    return hasBookingWords && mentionsTimesOrSlots;
+  }, [calendarSchedulingEnabled]);
+
+  const lastBookingMsgIdx = useMemo(() => {
+    for (let idx = messages.length - 1; idx >= 0; idx--) {
+      const m = messages[idx];
+      if (m.role === "assistant" && isBookingMessage(m.content)) {
+        return idx;
+      }
+    }
+    return -1;
+  }, [messages, isBookingMessage]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -1047,6 +1076,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
           setVoiceEnabled(!!bot.voice_enabled);
           setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
+          setCalendarSchedulingEnabled(!!bot.calendar_scheduling_enabled);
           try {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
             setColorScheme(rawScheme ? JSON.parse(rawScheme) : null);
@@ -2039,12 +2069,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                                 {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
                               </ReactMarkdown>
                             )}
-                            {msg.content.includes("[BOOKING_WIDGET]") && (
+                            {i === lastBookingMsgIdx && (
                               <InlineBookingCard
                                 botId={String(botId)}
                                 sessionId={sessionId}
                                 visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
                                 primaryColor={primaryColor}
+                                backendUrl={BACKEND_URL}
                               />
                             )}
                           </>
