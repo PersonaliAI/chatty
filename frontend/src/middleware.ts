@@ -26,6 +26,10 @@ export async function middleware(request: NextRequest) {
   if (embedMatch) {
     const frameAncestors = await embedFrameAncestors(embedMatch[1])
     response.headers.set('Content-Security-Policy', `frame-ancestors ${frameAncestors}`)
+  } else {
+    // Non-embed routes (dashboard, settings, auth) must never be iframed
+    response.headers.set('X-Frame-Options', 'DENY')
+    response.headers.set('Content-Security-Policy', "frame-ancestors 'none'")
   }
 
   return response

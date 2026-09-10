@@ -595,7 +595,7 @@ export default function KnowledgeBasePortal() {
 
                   <div className="flex items-center gap-2 pt-2 text-[11px] text-neutral-400">
                     <span>By {selectedArticle.author_name || "Support Team"}</span>
-                    <span>G«Û</span>
+                    <span>&bull;</span>
                     <span>Last updated {new Date(selectedArticle.updated_at).toLocaleDateString()}</span>
                   </div>
                 </div>
@@ -832,7 +832,7 @@ export default function KnowledgeBasePortal() {
                       <div className="flex items-center justify-between text-[10px] text-neutral-400 pt-3 border-t border-neutral-100 dark:border-neutral-800">
                         <span>{(art.view_count || 0).toLocaleString()} reads</span>
                         <span className="font-semibold text-[#f97316] flex items-center gap-1">
-                          Read Guide GÂ∆
+                          Read Guide <ChevronRight className="size-3" />
                         </span>
                       </div>
                     </button>
@@ -881,7 +881,7 @@ export default function KnowledgeBasePortal() {
                           {cat.article_count || 0} articles
                         </span>
                         <span className="text-[#f97316] font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                          Browse GÂ∆
+                          Browse <ChevronRight className="size-3" />
                         </span>
                       </div>
                     </button>
@@ -953,7 +953,7 @@ export default function KnowledgeBasePortal() {
       {/* 4. FOOTER */}
       <footer className="border-t border-neutral-200 dark:border-neutral-850 py-6 text-center text-xs text-neutral-400 bg-white dark:bg-neutral-900">
         <div className="max-w-6xl mx-auto px-4 flex items-center justify-between flex-wrap gap-3">
-          <p>-¨ {new Date().getFullYear()} {botInfo?.name || "Chatty"}. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} {botInfo?.name || "Chatty"}. All rights reserved.</p>
           <span className="text-[10px] text-neutral-400 flex items-center gap-1">
             Powered by <strong className="text-neutral-600 dark:text-neutral-300 font-semibold">Chatty Help Center</strong>
           </span>
