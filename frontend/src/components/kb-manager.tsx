@@ -43,6 +43,7 @@ import {
   X,
 } from "lucide-react";
 import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
+import { ModernSelect } from "@/components/ui/modern-select";
 
 export interface KBArticle {
   id: string;
@@ -579,31 +580,33 @@ export function KBManager({
               </div>
 
               {/* Category Filter */}
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none"
-              >
-                <option value="all">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-                <option value="none">Uncategorized</option>
-              </select>
+              <div className="w-44 shrink-0">
+                <ModernSelect
+                  value={categoryFilter}
+                  options={[
+                    { value: "all", label: "All Categories" },
+                    ...categories.map((c) => ({ value: c.id, label: c.name })),
+                    { value: "none", label: "Uncategorized" },
+                  ]}
+                  onChange={(v) => setCategoryFilter(v)}
+                  size="sm"
+                />
+              </div>
 
               {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none"
-              >
-                <option value="all">All Statuses</option>
-                <option value="published">Published</option>
-                <option value="draft">Draft</option>
-                <option value="archived">Archived</option>
-              </select>
+              <div className="w-36 shrink-0">
+                <ModernSelect
+                  value={statusFilter}
+                  options={[
+                    { value: "all", label: "All Statuses" },
+                    { value: "published", label: "Published" },
+                    { value: "draft", label: "Draft" },
+                    { value: "archived", label: "Archived" },
+                  ]}
+                  onChange={(v) => setStatusFilter(v)}
+                  size="sm"
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1013,47 +1016,46 @@ export function KBManager({
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
                     Category
                   </label>
-                  <select
+                  <ModernSelect
                     value={editorCategoryId}
-                    onChange={(e) => setEditorCategoryId(e.target.value)}
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs focus:outline-none"
-                  >
-                    <option value="">Uncategorized</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: "", label: "Uncategorized" },
+                      ...categories.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
+                    onChange={(v) => setEditorCategoryId(v)}
+                    size="sm"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
                     Status
                   </label>
-                  <select
+                  <ModernSelect
                     value={editorStatus}
-                    onChange={(e) => setEditorStatus(e.target.value as any)}
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs focus:outline-none"
-                  >
-                    <option value="published">Published (Public)</option>
-                    <option value="draft">Draft (Private)</option>
-                    <option value="archived">Archived</option>
-                  </select>
+                    options={[
+                      { value: "published", label: "Published (Public)" },
+                      { value: "draft", label: "Draft (Private)" },
+                      { value: "archived", label: "Archived" },
+                    ]}
+                    onChange={(v) => setEditorStatus(v as any)}
+                    size="sm"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
                     Visibility
                   </label>
-                  <select
+                  <ModernSelect
                     value={editorVisibility}
-                    onChange={(e) => setEditorVisibility(e.target.value as any)}
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs focus:outline-none"
-                  >
-                    <option value="public">Public (Help Center)</option>
-                    <option value="internal_only">Internal (Team Only)</option>
-                  </select>
+                    options={[
+                      { value: "public", label: "Public (Help Center)" },
+                      { value: "internal_only", label: "Internal (Team Only)" },
+                    ]}
+                    onChange={(v) => setEditorVisibility(v as any)}
+                    size="sm"
+                  />
                 </div>
               </div>
 

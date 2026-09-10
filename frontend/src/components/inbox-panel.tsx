@@ -299,11 +299,13 @@ function ModernFilterDropdown<T extends string>({
   onChange,
   options,
   title,
+  align = "left",
 }: {
   value: T;
   onChange: (v: T) => void;
   options: FilterOption<T>[];
   title?: string;
+  align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -314,29 +316,36 @@ function ModernFilterDropdown<T extends string>({
         setOpen(false);
       }
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     if (open) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", onKey);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("keydown", onKey);
+      };
     }
   }, [open]);
 
   const selectedOpt = options.find((o) => o.value === value) || options[0];
 
   return (
-    <div ref={ref} className="relative inline-block text-left">
+    <div ref={ref} className="relative inline-block text-left shrink-0">
       <button
         type="button"
         title={title}
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2 py-1 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-950 dark:hover:bg-neutral-850 border border-neutral-200/90 dark:border-neutral-800 rounded-lg text-neutral-700 dark:text-neutral-300 transition-colors text-[10px] font-semibold cursor-pointer shadow-xs focus:outline-none focus:ring-1 focus:ring-[#f97316]/40"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-950 dark:hover:bg-neutral-850 border border-neutral-200/90 dark:border-neutral-800 rounded-lg text-neutral-700 dark:text-neutral-300 transition-colors text-[10px] font-semibold cursor-pointer shadow-xs focus:outline-none focus:ring-1 focus:ring-[#f97316]/40 whitespace-nowrap"
       >
         {selectedOpt?.icon}
-        <span className="truncate max-w-[70px]">{selectedOpt?.label}</span>
-        <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-150 ${open ? "rotate-180 text-neutral-700 dark:text-neutral-200" : ""}`} />
+        <span className="whitespace-nowrap font-medium">{selectedOpt?.label}</span>
+        <ChevronDown className={`size-3 text-neutral-400 transition-transform duration-150 shrink-0 ${open ? "rotate-180 text-neutral-700 dark:text-neutral-200" : ""}`} />
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1.5 left-0 z-50 min-w-[135px] max-h-56 overflow-y-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+        <div className={`absolute top-full mt-1.5 ${align === "right" ? "right-0" : "left-0"} z-[9999] min-w-[145px] w-max max-w-[260px] max-h-56 overflow-y-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100`}>
           {options.map((opt) => {
             const isSelected = opt.value === value;
             return (
@@ -347,15 +356,15 @@ function ModernFilterDropdown<T extends string>({
                   onChange(opt.value);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2 py-1.5 rounded-lg text-[10px] font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between gap-3 transition-colors cursor-pointer whitespace-nowrap ${
                   isSelected
                     ? "bg-[#f97316]/10 text-[#f97316] font-bold"
                     : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 }`}
               >
-                <span className="flex items-center gap-1.5 truncate">
+                <span className="flex items-center gap-2 whitespace-nowrap">
                   {opt.icon}
-                  <span className="truncate">{opt.label}</span>
+                  <span className="whitespace-nowrap">{opt.label}</span>
                 </span>
                 {isSelected && <Check className="size-3 text-[#f97316] shrink-0" />}
               </button>
@@ -1056,7 +1065,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
             {/* Presence Dropdown Popover */}
             {presenceMenuOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-52 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 p-1.5 space-y-1">
+              <div className="absolute left-0 top-full mt-1.5 w-56 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl z-[9999] p-1.5 space-y-1">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 py-1">Set Your Status</div>
                 {(["online", "away", "busy", "offline"] as const).map((st) => {
                   const cfg = PRESENCE_STATUS_CONFIG[st];
@@ -1097,7 +1106,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </div>
 
           {/* Capacity Meter */}
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl text-xs">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl text-xs whitespace-nowrap">
             <span className="text-neutral-500 dark:text-neutral-400">Capacity:</span>
             <span className="font-mono font-bold text-neutral-800 dark:text-neutral-200">
               {myPresence.active_tickets_count} / {myPresence.max_capacity}
@@ -1123,7 +1132,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         <div className="relative flex items-center gap-2">
           <button
             onClick={() => setShowRoster(!showRoster)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors text-xs font-medium cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors text-xs font-medium cursor-pointer whitespace-nowrap"
           >
             <Users className="size-3.5 text-neutral-400" />
             <span>Team Roster</span>
@@ -1134,7 +1143,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
           {/* Roster Popover */}
           {showRoster && (
-            <div className="absolute right-0 sm:left-0 top-full mt-1.5 w-72 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 p-2 space-y-1.5">
+            <div className="absolute right-0 sm:left-0 top-full mt-1.5 w-72 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl z-[9999] p-2 space-y-1.5">
               <div className="flex items-center justify-between text-[11px] font-bold text-neutral-500 dark:text-neutral-400 px-1 border-b border-neutral-100 dark:border-neutral-800 pb-1.5">
                 <span>Agent Presence & Load</span>
                 <span>Active / Max</span>
@@ -1195,9 +1204,9 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* ── Sessions / Tickets List Pane ── */}
-        <div className="lg:col-span-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col max-h-[640px]">
+        <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex flex-col max-h-[680px]">
           {/* Ticket Lifecycle Status Tabs */}
-          <div className="flex border-b border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/40 text-[11px] font-semibold select-none">
+          <div className="flex items-center border-b border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/40 text-[11px] font-semibold select-none overflow-x-auto scrollbar-none rounded-t-2xl">
             {[
               { key: "all", label: "All", count: ticketCounts.all },
               { key: "unassigned", label: "Queue", count: ticketCounts.unassigned, dot: "bg-rose-500" },
@@ -1209,15 +1218,15 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               <button
                 key={tab.key}
                 onClick={() => setSelectedStatusTab(tab.key as any)}
-                className={`flex-1 py-2 px-1 flex items-center justify-center gap-1 border-b-2 transition-all cursor-pointer ${
+                className={`shrink-0 py-2.5 px-3 flex items-center justify-center gap-1.5 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                   selectedStatusTab === tab.key
                     ? "border-[#f97316] text-neutral-900 dark:text-neutral-100 font-bold bg-white dark:bg-neutral-900"
                     : "border-transparent text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                 }`}
               >
                 {tab.dot && <span className={`size-1.5 rounded-full shrink-0 ${tab.dot}`} />}
-                <span className="truncate">{tab.label}</span>
-                <span className={`text-[9px] px-1 py-0.2 rounded-full font-mono shrink-0 ${
+                <span className="whitespace-nowrap">{tab.label}</span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono shrink-0 ${
                   selectedStatusTab === tab.key
                     ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 font-bold"
                     : "bg-neutral-200/50 dark:bg-neutral-800/40 text-neutral-400"
@@ -1241,19 +1250,20 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <button
               onClick={loadSessions}
               title="Refresh tickets"
-              className="p-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+              className="p-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer shrink-0"
             >
               <RefreshCw className={`size-3.5 ${loadingSessions ? "animate-spin" : ""}`} />
             </button>
           </div>
 
           {/* Secondary Filters: Priority, Assignee, Channel & Tags */}
-          <div className="flex items-center justify-between gap-1 text-[10px] flex-wrap">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
             {/* Priority Filter */}
             <ModernFilterDropdown
               title="Filter by priority"
               value={selectedPriorityFilter}
               onChange={setSelectedPriorityFilter}
+              align="left"
               options={[
                 { value: "all", label: "All Priorities" },
                 { value: "urgent", label: "Urgent", icon: <span className="size-1.5 rounded-full bg-red-500 shrink-0" /> },
@@ -1268,6 +1278,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               title="Filter by assignee"
               value={selectedAssigneeFilter}
               onChange={setSelectedAssigneeFilter}
+              align="left"
               options={[
                 { value: "all", label: "All Assignees" },
                 { value: "me", label: "Mine", icon: <User className="size-2.5 text-neutral-400 shrink-0" /> },
@@ -1280,6 +1291,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               title="Filter by channel"
               value={selectedChannelFilter}
               onChange={setSelectedChannelFilter}
+              align="right"
               options={[
                 { value: "all", label: "Channels" },
                 { value: "web", label: "Chat", icon: <MessageSquare className="size-2.5 text-emerald-500 shrink-0" /> },
@@ -1292,6 +1304,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               title="Filter by tag"
               value={selectedTagFilter}
               onChange={setSelectedTagFilter}
+              align="right"
               options={[
                 { value: "all", label: "Tags" },
                 ...PREDEFINED_TAGS.map((t) => ({
@@ -1305,7 +1318,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
 
         {/* Ticket List Items */}
-        <div className="overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-850 flex-1">
+        <div className="overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-850 flex-1 rounded-b-2xl">
           {filteredSessions.length === 0 ? (
             <div className="p-8 text-center">
               <InboxIcon className="size-7 text-neutral-300 mx-auto" />
@@ -1435,7 +1448,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       </div>
 
       {/* ── Ticket Detail & Workspace Pane ── */}
-      <div className="lg:col-span-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col max-h-[640px]">
+      <div className="lg:col-span-7 xl:col-span-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col max-h-[680px]">
         {!selected ? (
           <div className="flex-1 flex flex-col items-center justify-center text-xs text-neutral-400 p-8 space-y-2">
             <InboxIcon className="size-10 text-neutral-300 stroke-1" />
