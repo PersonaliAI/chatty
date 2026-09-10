@@ -108,3 +108,68 @@ async def test_widget_booking_confirm_success():
         assert res["meeting_link"] == "https://meet.google.com/abc-defg-hij"
         assert res["attendee_name"] == "Alice Smith"
         assert res["attendee_email"] == "alice@company.com"
+
+
+@pytest.mark.anyio
+async def test_widget_assistant_injects_booking_widget():
+    from plugins.widget_brain import run_widget_assistant
+
+    mock_bot = {
+        "id": "bot-1",
+        "calendar_scheduling_enabled": True,
+        "meeting_provider": "google_meet",
+        "name": "Chatty",
+    }
+    mock_owner = {"auth_user_id": "u-1", "email": "owner@acme.com"}
+
+    with patch("plugins.ai_client.chat_stream", new_callable=AsyncMock) as mock_chat, \
+         patch("plugins.widget_brain.run_db") as mock_db:
+
+        mock_db.return_value = MagicMock(data=[])
+        mock_chat.return_value = {
+            "text": "Yes, you can book a demo! What day and time works best for you?",
+            "tool_calls": [],
+        }
+
+        res = await run_widget_assistant(
+            bot_id="bot-1",
+            owner_user=mock_owner,
+            bot=mock_bot,
+            session_id="sess-1",
+            text="Can I book a demo?",
+            visitor_timezone="UTC",
+        )
+        assert "[BOOKING_WIDGET]" in res["reply"]
+        assert res["reply"].endswith("[BOOKING_WIDGET]")
+
+
+@pytest.mark.anyio
+async def test_widget_assistant_does_not_inject_booking_widget_for_general_queries():
+    from plugins.widget_brain import run_widget_assistant
+
+    mock_bot = {
+        "id": "bot-1",
+        "calendar_scheduling_enabled": True,
+        "meeting_provider": "google_meet",
+        "name": "Chatty",
+    }
+    mock_owner = {"auth_user_id": "u-1", "email": "owner@acme.com"}
+
+    with patch("plugins.ai_client.chat_stream", new_callable=AsyncMock) as mock_chat, \
+         patch("plugins.widget_brain.run_db") as mock_db:
+
+        mock_db.return_value = MagicMock(data=[])
+        mock_chat.return_value = {
+            "text": "Our pricing starts at $29/mo.",
+            "tool_calls": [],
+        }
+
+        res = await run_widget_assistant(
+            bot_id="bot-1",
+            owner_user=mock_owner,
+            bot=mock_bot,
+            session_id="sess-1",
+            text="How much does it cost?",
+            visitor_timezone="UTC",
+        )
+        assert "[BOOKING_WIDGET]" not in res["reply"]

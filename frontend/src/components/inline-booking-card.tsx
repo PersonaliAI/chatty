@@ -280,13 +280,18 @@ export function InlineBookingCard({
     );
   }
 
-  // Error state or scheduling disabled
-  if (error || !slotsData || !slotsData.enabled) {
+  // Scheduling disabled on bot: hide widget completely
+  if (slotsData && !slotsData.enabled) {
+    return null;
+  }
+
+  // Error state
+  if (error || !slotsData) {
     return (
       <div className="w-full my-2 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-sm text-xs">
         <div className="flex items-center gap-2 text-neutral-600 dark:text-neutral-400">
           <AlertCircle className="size-4 text-amber-500 shrink-0" />
-          <span>{slotsData?.message || error || "Scheduling is temporarily unavailable."}</span>
+          <span>{error || "Scheduling is temporarily unavailable."}</span>
         </div>
       </div>
     );

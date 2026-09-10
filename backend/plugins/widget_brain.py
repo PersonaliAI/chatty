@@ -794,6 +794,7 @@ async def run_widget_assistant(
     thinking_parts: list[str] = []
     booking_tool_succeeded = False
     booking_correction_attempted = False
+    called_tools_this_turn: set[str] = set()
 
     # Model to try first - GEMINI_VOICE_MODEL for voice-mode requests, MODEL_NAME
     # (today's default) otherwise - falling through to the same fallback chain
@@ -863,6 +864,18 @@ async def run_widget_assistant(
                     "Sorry - I wasn't actually able to complete that booking due to a technical "
                     "issue on my end. Could you confirm the date and time again so I can try booking it properly?"
                 )
+            if scheduling_enabled and not booking_tool_succeeded:
+                user_msg_str = (text or "") + " " + " ".join([m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"])
+                should_attach = (
+                    "get_available_slots" in called_tools_this_turn
+                    or "check_calendar_availability" in called_tools_this_turn
+                    or bool(re.search(r"\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|call)\b", user_msg_str, re.IGNORECASE))
+                )
+                if should_attach and "[BOOKING_WIDGET]" not in reply:
+                    reply = reply.rstrip() + "\n\n[BOOKING_WIDGET]"
+            elif booking_tool_succeeded:
+                reply = reply.replace("[BOOKING_WIDGET]", "").strip()
+
             if on_token and not stream_live:
                 # Held back for validation above - release it now as one chunk.
                 await on_token(reply)
@@ -872,6 +885,7 @@ async def run_widget_assistant(
 
         for tc in tool_calls:
             fn_name = tc["function"]["name"]
+            called_tools_this_turn.add(fn_name)
             try:
                 args = json.loads(tc["function"]["arguments"] or "{}")
             except (json.JSONDecodeError, TypeError):
@@ -941,6 +955,18 @@ async def run_widget_assistant(
             "Sorry - I wasn't actually able to complete that booking due to a technical "
             "issue on my end. Could you confirm the date and time again so I can try booking it properly?"
         )
+    if scheduling_enabled and not booking_tool_succeeded:
+        user_msg_str = (text or "") + " " + " ".join([m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"])
+        should_attach = (
+            "get_available_slots" in called_tools_this_turn
+            or "check_calendar_availability" in called_tools_this_turn
+            or bool(re.search(r"\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|call)\b", user_msg_str, re.IGNORECASE))
+        )
+        if should_attach and "[BOOKING_WIDGET]" not in reply:
+            reply = reply.rstrip() + "\n\n[BOOKING_WIDGET]"
+    elif booking_tool_succeeded:
+        reply = reply.replace("[BOOKING_WIDGET]", "").strip()
+
     if on_token and not stream_live:
         await on_token(reply)
     return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply)}
