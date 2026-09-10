@@ -4,7 +4,7 @@ google-genai==2.18.0
 supabase==2.30.0
 python-dotenv==1.2.2
 httpx==0.28.1
-pydantic==2.12.5
+pydantic==2.13.5
 psycopg2-binary==2.9.12
 pytz==2025.2
 PyJWT[crypto]==2.13.0
