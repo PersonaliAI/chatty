@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   ImageIcon,
+  BookOpen,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -99,6 +100,45 @@ const faqs = [
   { question: "What counts as a 'message credit'?", answer: "Each reply your chatbot sends to a visitor uses one message credit. Credits reset every billing cycle, and unused credits don't roll over." },
   { question: "How does lead collection work?", answer: "Chatty can ask for a visitor's name, email, and phone number mid-conversation, save it automatically to your dashboard, and push it to your CRM or inbox via webhook or API." },
   { question: "Can I embed the chatbot on multiple sites?", answer: "Yes - each chatbot can be embedded anywhere, and the Allow List lets you restrict it to run only on domains you control." },
+];
+
+const helpArticles = [
+  {
+    category: "Getting started",
+    title: "Launch your first Chatty bot",
+    summary: "Create a bot, give it an identity, train it, and add it to a live page in one focused setup session.",
+    steps: ["Create a bot from the Dashboard and set its name, welcome message, and audience.", "Add a website, document, or pasted text source and wait for indexing to finish.", "Copy the generated script from the Embed tab and place it immediately before your site’s closing body tag."],
+  },
+  {
+    category: "Knowledge",
+    title: "Keep answers accurate with a healthy knowledge base",
+    summary: "Train on authoritative pages and documents, then use unanswered questions to close real customer knowledge gaps.",
+    steps: ["Prefer canonical help, pricing, policy, and product pages over broad home-page crawls.", "Review failed or stale sources after significant website changes.", "Use the Unanswered view to add a direct source for questions the bot could not confidently resolve."],
+  },
+  {
+    category: "Safety",
+    title: "Secure a bot before publishing",
+    summary: "Limit where the widget runs, use least-privilege keys, and define a clear route to a human when the situation requires one.",
+    steps: ["Add every production domain to the Allow List before sharing the embed code.", "Use a separate API key per integration and grant only the scopes it needs.", "Enable handoff rules and make your team’s response path clear for sensitive, urgent, or unresolved requests."],
+  },
+  {
+    category: "Conversions",
+    title: "Turn useful conversations into qualified leads",
+    summary: "Ask for contact details at the moment of intent, preserve context, and deliver the lead to the team that can act on it.",
+    steps: ["Keep the lead form short: ask only for details needed for the next step.", "Use booking when a conversation reaches sales or support escalation intent.", "Connect email or webhooks so a qualified conversation gets a timely follow-up."],
+  },
+  {
+    category: "Operations",
+    title: "Run the inbox and human handoff well",
+    summary: "The bot should accelerate your team, not hide conversations from it. Use ownership, status, and feedback consistently.",
+    steps: ["Assign conversations deliberately and keep availability current for routing.", "Pause AI responses when a teammate takes ownership of a live conversation.", "Capture corrections as knowledge improvements so the next visitor receives a better answer."],
+  },
+  {
+    category: "Integrations",
+    title: "Connect Chatty to your existing workflow",
+    summary: "Use webhooks, the REST API, or MCP to move leads, conversation context, and bot management into the tools your team already uses.",
+    steps: ["Start with a test destination and validate the payload before enabling production automation.", "Protect API keys with scopes and IP restrictions where possible.", "Use MCP for conversational bot administration; use the REST API for repeatable application integrations."],
+  },
 ];
 
 const plans = [
@@ -201,6 +241,7 @@ export default function Home() {
     <>
       <Link href="#features" className="hover:opacity-70 transition-opacity">Features</Link>
       <Link href="#pricing" className="hover:opacity-70 transition-opacity">Pricing</Link>
+      <Link href="#help-center" className="hover:opacity-70 transition-opacity">Help center</Link>
       <Link href="#faq" className="hover:opacity-70 transition-opacity">FAQ</Link>
     </>
   );
@@ -248,6 +289,7 @@ export default function Home() {
           >
             <Link href="#features" onClick={() => setMobileMenuOpen(false)}>Features</Link>
             <Link href="#pricing" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
+            <Link href="#help-center" onClick={() => setMobileMenuOpen(false)}>Help center</Link>
             <Link href="#faq" onClick={() => setMobileMenuOpen(false)}>FAQ</Link>
             <a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
               <GithubIcon className="size-[18px]" /> GitHub
@@ -498,9 +540,41 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Help center */}
+        <section id="help-center" className="py-8 sm:py-10 pb-14 sm:pb-16" aria-labelledby="help-center-heading">
+          <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 04 / Help Center ]</span>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 id="help-center-heading" className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Build a bot people trust</h2>
+              <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[64ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
+                Practical operating guides for a useful, safe, and conversion-ready Chatty deployment. Each guide is written for the person responsible for the customer experience—not just the installation.
+              </p>
+            </div>
+            <a href="https://docs.chatty.personaliai.com" target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium" style={{ borderColor: "var(--color-divider)", color: "var(--color-accent-800)" }}>
+              <BookOpen className="size-4" aria-hidden="true" /> Browse documentation
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-8">
+            {helpArticles.map((article, index) => (
+              <article key={article.title} className="rounded-[24px] p-5 sm:p-6" style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-sm)" }}>
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex size-8 items-center justify-center rounded-full text-xs" style={{ fontFamily: "var(--font-heading)", background: index % 2 === 0 ? "var(--color-accent-100)" : "var(--color-accent-2-100)", color: index % 2 === 0 ? "var(--color-accent-700)" : "var(--color-accent-2-800)" }}>{String(index + 1).padStart(2, "0")}</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "color-mix(in srgb, var(--color-text) 58%, transparent)" }}>{article.category}</span>
+                </div>
+                <h3 className="mt-4 text-[20px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{article.title}</h3>
+                <p className="mt-2.5 text-sm leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{article.summary}</p>
+                <ol className="mt-5 space-y-3 pl-5 text-[13.5px] leading-relaxed marker:font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
+                  {article.steps.map((step) => <li key={step} className="pl-1">{step}</li>)}
+                </ol>
+              </article>
+            ))}
+          </div>
+        </section>
+
         {/* FAQ */}
         <section id="faq" className="py-8 sm:py-10 pb-14 sm:pb-16">
-          <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 04 / Common Inquiries ]</span>
+          <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 05 / Common Inquiries ]</span>
           <h2 className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Questions</h2>
           <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[60ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
             Everything you need to know about Chatty&apos;s training mechanics, costs, safety layers, and white-label setups.
@@ -566,6 +640,7 @@ export default function Home() {
             <div className="flex flex-col gap-2.5 text-sm">
               <Link href="#features">Features</Link>
               <Link href="#pricing">Pricing</Link>
+              <Link href="#help-center">Help center</Link>
               <Link href="#faq">FAQ</Link>
               <Link href="#mcp">MCP server</Link>
             </div>
