@@ -697,10 +697,10 @@ export default function KnowledgeBasePortal() {
             </div>
 
             {/* Article Sticky Sidebar (TOC & Related Articles) */}
-            <div className="lg:col-span-4 space-y-6">
+            <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-20">
               {/* Table of Contents */}
               {tocHeadings.length > 0 && (
-                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-5 space-y-3 sticky top-20 shadow-xs">
+                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-5 space-y-3 shadow-xs">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
                     On this page
                   </h4>
