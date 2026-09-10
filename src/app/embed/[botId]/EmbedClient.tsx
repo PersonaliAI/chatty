@@ -386,7 +386,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [voiceCallOpen, setVoiceCallOpen] = useState(false);
 
-  const [tab, setTab] = useState<Tab>("messages");
+  const [tab, setTab] = useState<Tab>("home");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
@@ -1709,6 +1709,22 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       {/* Header */}
       <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
+          {tab !== "home" && (
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.85 }}
+              onClick={() => {
+                if (activeArticle) setActiveArticle(null);
+                else setTab("home");
+              }}
+              className="p-1 -ml-1 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
+              style={{ opacity: 0.9 }}
+              aria-label="Back to home"
+              title="Back"
+            >
+              <ArrowLeft className="size-4" />
+            </motion.button>
+          )}
           <div
             className="size-11 rounded-full flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
             style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: "color-mix(in srgb, currentColor 25%, transparent)" }}
@@ -2502,19 +2518,57 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             </>
             )}
           </form>
-          {!isOfficialWebsite && !hideBranding && (
-            <div className="text-center pt-2 pb-0.5 text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide">
-              Powered by{" "}
-              <a
-                href="https://chatty.personaliai.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
+        </div>
+      )}
+
+      {/* ── Crisp-style persistent bottom tab nav bar ── */}
+      {!voiceCallOpen && !showCsat && !showOfflineForm && (
+        <div className="border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch shrink-0 relative">
+          {(
+            [
+              { id: "home",     label: "Home",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+              { id: "messages", label: "Chat",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+              { id: "articles", label: "Articles", icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
+              { id: "search",   label: "Search",   icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> },
+            ] as { id: Tab; label: string; icon: React.ReactNode }[]
+          ).map(({ id, label, icon }) => {
+            const isActive = tab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setActiveArticle(null);
+                  setTab(id);
+                }}
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative"
+                style={isActive ? { color: primaryColor } : undefined}
               >
-                Chatty
-              </a>
-            </div>
-          )}
+                <span style={isActive ? undefined : { opacity: 0.4 }}>{icon}</span>
+                <span style={isActive ? undefined : { opacity: 0.4 }}>{label}</span>
+                {isActive && (
+                  <span
+                    className="absolute top-0 left-3 right-3 h-[2px] rounded-b-full"
+                    style={{ backgroundColor: primaryColor }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {!isOfficialWebsite && !hideBranding && (
+        <div className="text-center pt-1 pb-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50">
+          Powered by{" "}
+          <a
+            href="https://chatty.personaliai.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
+          >
+            Chatty
+          </a>
         </div>
       )}
 
