@@ -50,6 +50,14 @@ from plugins import llm_providers
 from plugins import microsoft_integrations as ms
 from plugins import notifications as notify
 from plugins.widget_brain import run_widget_assistant, GEMINI_FALLBACK_MODELS, MAX_TOOL_ROUNDS  # noqa: F401 - back-compat re-export
+from app.services.widget_session_service import (
+    _detect_sentiment_escalation,
+    _log_unanswered_if_needed,
+    _needs_human,
+    _notify_new_conversation,
+    _upsert_session,
+    geoip_lookup,
+)
 
 from app.core import security as _sec
 from app.core.app_factory import create_app
@@ -246,108 +254,6 @@ def _extract_usage(response) -> tuple[int, int]:
 
 
 
-# ---------------------------------------------------------------------------
-# Chatty Widget & Flow Endpoints
-# ---------------------------------------------------------------------------
-
-
-async def _upsert_session(bot_id: str, session_id: str, last_message: str,
-                          visitor_name: Optional[str] = None) -> tuple[dict, bool]:
-    """Create or update a conversation session. Returns (row, is_new)."""
-    try:
-        existing = await run_db(lambda: supabase.table("chatty_sessions").select("*").eq(
-            "bot_id", bot_id).eq("session_id", session_id).execute())
-        if existing.data:
-            row = existing.data[0]
-            upd = {"last_message": last_message[:300],
-                   "last_message_at": datetime.now(timezone.utc).isoformat()}
-            if visitor_name and not row.get("visitor_name"):
-                upd["visitor_name"] = visitor_name
-            await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("id", row["id"]).execute())
-            return row, False
-        now_dt = datetime.now(timezone.utc)
-        ins = await run_db(lambda: supabase.table("chatty_sessions").insert({
-            "bot_id": bot_id, "session_id": session_id, "status": "open",
-            "priority": "normal",
-            "first_response_due_at": (now_dt + timedelta(minutes=15)).isoformat(),
-            "resolution_due_at": (now_dt + timedelta(hours=4)).isoformat(),
-            "sla_status": "on_track",
-            "tags": [],
-            "ai_paused": False, "visitor_name": visitor_name,
-            "last_message": last_message[:300],
-        }).execute())
-        return (ins.data[0] if ins.data else {}), True
-    except Exception:
-        logger.exception("session upsert failed")
-        return {}, False
-
-
-async def _notify_new_conversation(bot: dict, owner_user: dict, first_message: str, session_id: str = ""):
-    """Email the owner + fire their webhook (if configured) when a brand-new visitor conversation starts."""
-    bot_name = bot.get("name") or "your assistant"
-    try:
-        recipients = []
-        if owner_user.get("email"):
-            recipients.append(owner_user["email"])
-        if bot.get("notification_emails"):
-            extra = [e.strip() for e in str(bot["notification_emails"]).split(",") if e.strip()]
-            recipients.extend(extra)
-        # Deduplicate
-        recipients = list(dict.fromkeys(recipients))
-
-        for to in recipients:
-            try:
-                html = notify._email_shell(
-                    title="New conversation started 💬",
-                    intro=f"A visitor just started chatting with <strong>{bot_name}</strong> on your website.",
-                    rows=[("First message", (first_message or "")[:200] or "(attachment)")],
-                    cta_label="Open your inbox", cta_url="https://chatty.personaliai.com/dashboard",
-                    footer="Reply from the Inbox tab in your Chatty dashboard.",
-                )
-                await notify.deliver_email(supabase=supabase, owner_user=owner_user, to=to,
-                                           subject=f"New chat on {bot_name}", html=html)
-            except Exception:
-                logger.exception("new-conversation email failed for %s", to)
-    except Exception:
-        logger.exception("new-conversation notification block failed")
-
-    if bot.get("webhook_url"):
-        await notify.deliver_webhook(
-            url=bot["webhook_url"], event="new_conversation", bot_id=bot["id"],
-            data={"session_id": session_id, "bot_name": bot_name, "first_message": (first_message or "")[:500]},
-        )
-
-
-# Auto-detect visitor location from IP (free geo-IP, cached per process).
-_geoip_cache: dict[str, dict[str, Any]] = {}
-
-
-async def geoip_lookup(ip: str) -> dict[str, Any]:
-    """Return {country, region, city} for an IP (empty dict if private/unknown)."""
-    if (not ip or ip in ("unknown", "127.0.0.1", "::1")
-            or ip.startswith(("10.", "192.168.", "169.254.", "172.16."))):
-        return {}
-    if ip in _geoip_cache:
-        return _geoip_cache[ip]
-    info: dict[str, Any] = {}
-    try:
-        # ipapi.co over HTTPS (ip-api.com's HTTPS endpoint requires a paid
-        # plan) - avoids sending visitor IPs over plaintext HTTP.
-        async with httpx.AsyncClient(timeout=4) as c:
-            r = await c.get(f"https://ipapi.co/{ip}/json/")
-        if r.status_code < 300:
-            d = r.json()
-            if not d.get("error"):
-                info = {
-                    "country": d.get("country_name"), "region": d.get("region"),
-                    "city": d.get("city"), "lat": d.get("latitude"), "lon": d.get("longitude"),
-                }
-    except Exception:
-        logger.exception("geoip lookup failed for %s", ip)
-    _geoip_cache[ip] = info
-    return info
-
-
 async def _verify_bot_owner(bot_id: str, user: dict):
     res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
         "user_id", user["auth_user_id"]).execute())
@@ -370,71 +276,6 @@ async def _verify_bot_access(bot_id: str, user: dict) -> str:
         if m.data:
             return m.data[0].get("role") or "agent"
     raise HTTPException(status_code=403, detail="Unauthorized")
-
-
-_HANDOFF_PATTERNS = (
-    "human", "real person", "real human", "speak to someone", "speak with someone",
-    "speak to a person", "speak to an agent", "talk to someone", "talk to a person",
-    "talk to an agent", "live agent", "customer service", "representative",
-    "contact a person", "call me", "phone me",
-)
-
-_NEGATIVE_PATTERNS = (
-    "frustrated", "angry", "terrible", "horrible", "worst service", "waste of time",
-    "useless", "ridiculous", "unacceptable", "scam", "cancel subscription",
-    "refund", "complain", "complaint", "broken", "does not work", "doesn't work",
-)
-
-
-def _needs_human(text: str) -> bool:
-    t = (text or "").lower()
-    return any(p in t for p in _HANDOFF_PATTERNS)
-
-
-def _detect_sentiment_escalation(text: str) -> Optional[str]:
-    t = (text or "").lower()
-    if any(p in t for p in _HANDOFF_PATTERNS):
-        return "Customer requested human agent"
-    if any(p in t for p in _NEGATIVE_PATTERNS):
-        return "Negative sentiment detected"
-    return None
-
-
-# Phrases the assistant uses when it lacks the answer - used to detect
-# knowledge gaps worth surfacing to the owner for retraining.
-_UNANSWERED_MARKERS = (
-    "i don't have", "i do not have", "don't have that information",
-    "don't have information", "i'm not sure", "i am not sure",
-    "i don't know", "i do not know", "couldn't find", "could not find",
-    "no information", "not in my knowledge", "outside my knowledge",
-    "unable to find", "wasn't able to", "was not able to",
-    "i can't help with that", "i cannot help with that",
-    "don't have details", "do not have details",
-)
-
-
-def _looks_unanswered(reply: str) -> bool:
-    r = (reply or "").lower()
-    return any(m in r for m in _UNANSWERED_MARKERS)
-
-
-def _log_unanswered_if_needed(bot_id: str, session_id: str, question: str, reply: str) -> None:
-    """Record a visitor question the bot couldn't confidently answer, so the
-    owner can review + retrain from the dashboard. Best-effort; never raises."""
-    try:
-        if not question or not _looks_unanswered(reply):
-            return
-        # Skip if the exact question is already open for this bot (dedupe).
-        existing = supabase.table("chatty_unanswered").select("id") \
-            .eq("bot_id", bot_id).eq("question", question[:2000]) \
-            .eq("status", "open").limit(1).execute()
-        if existing.data:
-            return
-        supabase.table("chatty_unanswered").insert({
-            "bot_id": bot_id, "session_id": session_id, "question": question[:2000],
-        }).execute()
-    except Exception:
-        logger.exception("failed to log unanswered question")
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import HTTPException
 
@@ -90,11 +91,14 @@ async def test_widget_booking_confirm_success():
             "summary": "Demo Meeting with Alice Smith",
         }
 
+        future_start = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+        future_end = (datetime.now(timezone.utc) + timedelta(days=2, minutes=30)).isoformat()
+
         req = WidgetBookingConfirmRequest(
             bot_id="bot-1",
             session_id="sess-456",
-            start_time="2026-09-11T10:00:00Z",
-            end_time="2026-09-11T10:30:00Z",
+            start_time=future_start,
+            end_time=future_end,
             visitor_timezone="Asia/Colombo",
             name="Alice Smith",
             email="alice@company.com",

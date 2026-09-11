@@ -15,15 +15,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from app.core.clients import supabase
-from app.core.config import ALLOWED_ORIGINS, FRONTEND_URL, FUNCTION_SECRET
+from app.core.config import ALLOWED_ORIGINS, CHATTY_FRONTEND_URL, FUNCTION_SECRET
 from app.core.crypto import encrypt_secret
 from app.core.db import run_db
 from app.core.deps import require_user
 from plugins import google_integrations as g
 from plugins import microsoft_integrations as ms
 
-# Bridged helper still living in main.py (shared quota/plan logic).
-from main import plan_for
+from app.services.chatty_quota_service import plan_for
 
 logger = logging.getLogger("chatty")
 
@@ -69,11 +68,11 @@ def _decode_state(state: str) -> tuple[Optional[str], str, str, str]:
         # Validate origin is an allowed frontend to prevent open-redirect
         if origin and origin not in ALLOWED_ORIGINS:
             origin = ""
-        frontend = origin or FRONTEND_URL
+        frontend = origin or CHATTY_FRONTEND_URL
         redirect_path = claims.get("path", "/dashboard/integrations")
         return claims["sub"], frontend, redirect_path, claims.get("mode", "primary")
     except jwt.PyJWTError:
-        return None, FRONTEND_URL, "/dashboard/integrations", "primary"
+        return None, CHATTY_FRONTEND_URL, "/dashboard/integrations", "primary"
 
 
 # Pro/Executive can connect this many EXTRA Google accounts on top of their

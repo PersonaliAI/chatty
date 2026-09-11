@@ -10,7 +10,8 @@
     "test:e2e": "playwright test",
     "test:design-snapshot": "node scripts/verify-design-snapshot.mjs",
     "gen:design-snapshot": "node scripts/generate-design-snapshot.mjs",
-    "test:contrast": "node scripts/verify-contrast.mjs"
+    "test:contrast": "node scripts/verify-contrast.mjs",
+    "test:public-mirror": "node scripts/verify-public-mirror.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

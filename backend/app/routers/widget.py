@@ -20,9 +20,20 @@ from app.core.clients import supabase
 from app.core.config import GEMINI_FALLBACK_MODELS
 from app.core.db import run_db
 from app.core.uploads import read_upload_capped
+from app.services.chatty_quota_service import WHITELABEL_PLANS, chatty_quota_exceeded, plan_for
+from app.services.widget_session_service import (
+    _detect_sentiment_escalation,
+    _log_unanswered_if_needed,
+    _needs_human,
+    _notify_new_conversation,
+    _upsert_session,
+    geoip_lookup,
+)
 from plugins import ai_client
 from app.schemas.widget import (
     WidgetBookingConfirmRequest,
+    WidgetBookingRescheduleRequest,
+    WidgetBookingCancelRequest,
     WidgetChatRequest,
     WidgetChatResponse,
     WidgetCsatRequest,
@@ -36,22 +47,13 @@ from plugins import notifications as notify
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
 from main import (
-    WHITELABEL_PLANS,
     WIDGET_MAX_CHARS,
     WIDGET_QUOTA_REPLY,
     _client_ip,
-    _detect_sentiment_escalation,
-    _log_unanswered_if_needed,
     _mint_widget_token,
-    _needs_human,
     _normalize_host,
-    _notify_new_conversation,
     _rate_limited_async,
-    _upsert_session,
     _widget_rate_limit_or_429,
-    chatty_quota_exceeded,
-    geoip_lookup,
-    plan_for,
 )
 from plugins.widget_brain import run_widget_assistant
 
@@ -1347,4 +1349,391 @@ async def widget_booking_confirm(
         "attendee_email": visitor_email,
         "assigned_to_email": assigned_email,
     }
+
+
+@router.post("/api/widget/booking/reschedule")
+async def widget_booking_reschedule(
+    body: WidgetBookingRescheduleRequest,
+    request: Request = None,
+):
+    """Direct meeting reschedule from the widget's interactive calendar UI.
+    Validates attendee ownership/session, verifies slot schedule and availability,
+    updates Google/Outlook calendar events, updates chatty_meetings, and sends
+    updated notifications."""
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", body.bot_id).execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = res.data[0]
+
+    if not bot.get("calendar_scheduling_enabled"):
+        raise HTTPException(status_code=400, detail="Scheduling is disabled for this assistant.")
+
+    # 1. Origin verification and rate limiting (per bot + IP, when called via HTTP)
+    visitor_email = (body.attendee_email or "").strip().lower()
+    if request:
+        ip = _client_ip(request)
+        await _widget_rate_limit_or_429(bot, body.bot_id, ip, request.headers.get("x-widget-token"))
+
+        # Dedicated rate limit per IP: max 5 reschedules per 5 minutes
+        if await _rate_limited_async(f"booking_resched:{body.bot_id}:{ip}", limit=5, window=300):
+            raise HTTPException(status_code=429, detail="Too many reschedule attempts. Please wait a few minutes before trying again.")
+
+    # Dedicated rate limit per email: max 5 reschedules per 5 minutes
+    if visitor_email and await _rate_limited_async(f"booking_resched_email:{body.bot_id}:{visitor_email}", limit=5, window=300):
+        raise HTTPException(status_code=429, detail="Too many reschedule attempts for this email address. Please wait a few minutes.")
+
+    # 2. Meeting lookup and status verification
+    meeting_res = await run_db(
+        lambda: supabase.table("chatty_meetings")
+        .select("*")
+        .eq("id", body.meeting_id)
+        .eq("bot_id", body.bot_id)
+        .execute()
+    )
+    if not meeting_res.data:
+        raise HTTPException(status_code=404, detail="Meeting not found.")
+    meeting = meeting_res.data[0]
+
+    if meeting.get("status") == "cancelled":
+        raise HTTPException(status_code=400, detail="This meeting has already been cancelled. Please book a new meeting instead.")
+
+    if meeting.get("attendee_email", "").strip().lower() != visitor_email:
+        raise HTTPException(status_code=403, detail="The email address provided does not match this booking.")
+
+    # 3. Session / Ownership verification to prevent IDOR
+    if body.session_id:
+        try:
+            leads_res = await run_db(
+                lambda: supabase.table("chatty_leads")
+                .select("id, email")
+                .eq("bot_id", body.bot_id)
+                .eq("session_id", body.session_id)
+                .execute()
+            )
+            session_leads = leads_res.data or []
+            session_lead_ids = {row["id"] for row in session_leads if row.get("id")}
+            session_emails = {row["email"].strip().lower() for row in session_leads if row.get("email")}
+
+            is_authorized = bool(
+                (meeting.get("lead_id") and meeting.get("lead_id") in session_lead_ids)
+                or (visitor_email in session_emails)
+            )
+            if not is_authorized and not (body.session_id == meeting.get("session_id")):
+                from plugins.agent_tools import _get_booking_otp_state
+                otp_state = await _get_booking_otp_state(body.bot_id, body.session_id, visitor_email)
+                if not (otp_state and otp_state.get("verified")):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="For security, bookings from previous sessions can only be rescheduled using the link in your confirmation email.",
+                    )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Failed session ownership check on reschedule")
+
+    # 4. Slot Timing & Integrity Validation
+    try:
+        dt_start = datetime.fromisoformat(body.new_start_time.replace("Z", "+00:00"))
+        dt_end = datetime.fromisoformat(body.new_end_time.replace("Z", "+00:00"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid start or end time format. Expected ISO-8601 timestamps.")
+
+    if dt_end <= dt_start:
+        raise HTTPException(status_code=400, detail="Invalid meeting slot: end time must be after start time.")
+
+    now_utc = datetime.now(timezone.utc)
+    if dt_start.tzinfo is None:
+        dt_start = dt_start.replace(tzinfo=timezone.utc)
+    if dt_end.tzinfo is None:
+        dt_end = dt_end.replace(tzinfo=timezone.utc)
+
+    if dt_start < (now_utc - timedelta(minutes=5)):
+        raise HTTPException(status_code=400, detail="Cannot reschedule to a past time. Please select an upcoming slot.")
+
+    if dt_start > (now_utc + timedelta(days=90)):
+        raise HTTPException(status_code=400, detail="Cannot schedule meetings more than 90 days in advance.")
+
+    duration_mins = (dt_end - dt_start).total_seconds() / 60
+    if duration_mins < 10 or duration_mins > 240:
+        raise HTTPException(status_code=400, detail="Invalid meeting duration.")
+
+    # 5. Resolve bot owner & host user
+    owner_res = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot.get("user_id")).execute())
+    if not owner_res.data:
+        raise HTTPException(status_code=404, detail="Bot owner not found")
+    owner_user = owner_res.data[0]
+
+    from plugins.agent_tools import _resolve_meeting_host, reschedule_meeting_core, _format_invitation_time
+    from plugins import availability_engine as avail
+
+    host_user = await _resolve_meeting_host(supabase, meeting, owner_user)
+    owner_tz_str = avail.resolve_owner_timezone(bot, host_user)
+    visitor_tz_str = body.visitor_timezone or meeting.get("timezone") or owner_tz_str
+
+    slot_start_utc = dt_start.astimezone(timezone.utc)
+    slot_end_utc = dt_end.astimezone(timezone.utc)
+
+    # 6. Industrial-standard cross-timezone business schedule validation
+    bh_start = int(bot.get("business_hours_start") if bot.get("business_hours_start") is not None else 9)
+    bh_end = int(bot.get("business_hours_end") if bot.get("business_hours_end") is not None else 17)
+    work_days = bot.get("working_days") or ["mon", "tue", "wed", "thu", "fri"]
+    adv_hours = int(bot.get("advance_notice_hours") or 0)
+
+    sched_err = avail.validate_slot_against_business_schedule(
+        slot_start_utc=slot_start_utc,
+        slot_end_utc=slot_end_utc,
+        owner_tz_str=owner_tz_str,
+        business_hours_start=bh_start,
+        business_hours_end=bh_end,
+        working_days=work_days,
+        advance_notice_hours=adv_hours,
+        visitor_tz_str=visitor_tz_str,
+    )
+    if sched_err:
+        raise HTTPException(status_code=400, detail=sched_err)
+
+    # 7. Availability conflict check
+    buffer_minutes = int(bot.get("buffer_minutes") or 0)
+    use_ms = (bot.get("meeting_provider") or "google_meet") == "teams"
+    try:
+        available = await avail.is_slot_available(
+            supabase, host_user, bot=bot, use_ms_calendar=use_ms,
+            start_utc=slot_start_utc, end_utc=slot_end_utc,
+            buffer_minutes=buffer_minutes,
+        )
+    except Exception:
+        logger.exception("Reschedule availability check failed; falling open")
+        available = True
+
+    if not available:
+        raise HTTPException(status_code=400, detail="That new time slot is no longer available. Please choose another time.")
+
+    # 8. Execute reschedule core
+    core_res = await reschedule_meeting_core(
+        meeting, slot_start_utc, slot_end_utc, bot, body.bot_id, host_user, supabase,
+        performed_by="visitor_widget",
+    )
+    if "error" in core_res:
+        raise HTTPException(status_code=400, detail=core_res["error"])
+
+    formatted_time = _format_invitation_time(body.new_start_time, visitor_tz_str)
+    meeting_link = meeting.get("meeting_link") or "https://meet.google.com/"
+
+    # 9. Record confirmation message in chatty_conversations
+    if body.session_id:
+        try:
+            confirmation_msg = (
+                f"Your meeting has been rescheduled to {formatted_time}.\n\n"
+                f"Meeting Link: {meeting_link}\n\n"
+                f"A calendar invitation update has been sent to {visitor_email}."
+            )
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": body.bot_id,
+                "session_id": body.session_id,
+                "role": "assistant",
+                "content": confirmation_msg,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }).execute())
+        except Exception:
+            logger.exception("Failed to record reschedule in chatty_conversations")
+
+    return {
+        "success": True,
+        "meeting_id": meeting["id"],
+        "meeting_link": meeting_link,
+        "formatted_time": formatted_time,
+        "start_time": body.new_start_time,
+        "end_time": body.new_end_time,
+        "attendee_name": meeting.get("attendee_name") or "Guest",
+        "attendee_email": visitor_email,
+        "assigned_to_email": meeting.get("assigned_to_email") or host_user.get("email"),
+    }
+
+
+@router.post("/api/widget/booking/cancel")
+async def widget_booking_cancel(
+    body: WidgetBookingCancelRequest,
+    request: Request = None,
+):
+    """Direct meeting cancellation from the widget UI.
+    Validates attendee ownership/session, deletes calendar provider event,
+    updates chatty_meetings row to 'cancelled', and emails confirmations."""
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", body.bot_id).execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = res.data[0]
+
+    visitor_email = (body.attendee_email or "").strip().lower()
+    if request:
+        ip = _client_ip(request)
+        await _widget_rate_limit_or_429(bot, body.bot_id, ip, request.headers.get("x-widget-token"))
+
+        if await _rate_limited_async(f"booking_cancel:{body.bot_id}:{ip}", limit=5, window=300):
+            raise HTTPException(status_code=429, detail="Too many cancellation attempts. Please wait a few minutes.")
+
+    # Meeting lookup
+    meeting_res = await run_db(
+        lambda: supabase.table("chatty_meetings")
+        .select("*")
+        .eq("id", body.meeting_id)
+        .eq("bot_id", body.bot_id)
+        .execute()
+    )
+    if not meeting_res.data:
+        raise HTTPException(status_code=404, detail="Meeting not found.")
+    meeting = meeting_res.data[0]
+
+    if meeting.get("status") == "cancelled":
+        return {"success": True, "meeting_id": body.meeting_id, "status": "cancelled", "message": "Meeting is already cancelled."}
+
+    if meeting.get("attendee_email", "").strip().lower() != visitor_email:
+        raise HTTPException(status_code=403, detail="The email address provided does not match this booking.")
+
+    # Session ownership verification
+    if body.session_id:
+        try:
+            leads_res = await run_db(
+                lambda: supabase.table("chatty_leads")
+                .select("id, email")
+                .eq("bot_id", body.bot_id)
+                .eq("session_id", body.session_id)
+                .execute()
+            )
+            session_leads = leads_res.data or []
+            session_lead_ids = {row["id"] for row in session_leads if row.get("id")}
+            session_emails = {row["email"].strip().lower() for row in session_leads if row.get("email")}
+
+            is_authorized = bool(
+                (meeting.get("lead_id") and meeting.get("lead_id") in session_lead_ids)
+                or (visitor_email in session_emails)
+            )
+            if not is_authorized and not (body.session_id == meeting.get("session_id")):
+                from plugins.agent_tools import _get_booking_otp_state
+                otp_state = await _get_booking_otp_state(body.bot_id, body.session_id, visitor_email)
+                if not (otp_state and otp_state.get("verified")):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="For security, bookings from previous sessions can only be cancelled using the link in your confirmation email.",
+                    )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Failed session ownership check on cancellation")
+
+    owner_res = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot.get("user_id")).execute())
+    if not owner_res.data:
+        raise HTTPException(status_code=404, detail="Bot owner not found")
+    owner_user = owner_res.data[0]
+
+    from plugins.agent_tools import cancel_meeting_core, _format_invitation_time
+    cancel_res = await cancel_meeting_core(
+        meeting, bot, body.bot_id, owner_user, supabase, performed_by="visitor_widget",
+    )
+    if "error" in cancel_res:
+        raise HTTPException(status_code=400, detail=cancel_res["error"])
+
+    formatted_time = _format_invitation_time(meeting.get("start_time", ""), meeting.get("timezone"))
+
+    if body.session_id:
+        try:
+            cancellation_msg = f"Your appointment originally scheduled for {formatted_time} has been cancelled."
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": body.bot_id,
+                "session_id": body.session_id,
+                "role": "assistant",
+                "content": cancellation_msg,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }).execute())
+        except Exception:
+            logger.exception("Failed to record cancellation in chatty_conversations")
+
+    return {
+        "success": True,
+        "meeting_id": body.meeting_id,
+        "status": "cancelled",
+        "message": "Meeting has been cancelled.",
+    }
+
+
+@router.get("/api/widget/booking/active")
+async def widget_booking_active(
+    bot_id: str,
+    session_id: Optional[str] = None,
+    email: Optional[str] = None,
+):
+    """Retrieve any currently scheduled upcoming meeting for this session/visitor."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    clean_email = (email or "").strip().lower()
+
+    # 1. Search by attendee email if provided
+    if clean_email:
+        res = await run_db(
+            lambda: supabase.table("chatty_meetings")
+            .select("id, bot_id, attendee_name, attendee_email, start_time, end_time, title, status, meeting_link, assigned_to_email, timezone")
+            .eq("bot_id", bot_id)
+            .eq("attendee_email", clean_email)
+            .eq("status", "scheduled")
+            .gte("end_time", now_iso)
+            .order("start_time", desc=False)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            m = res.data[0]
+            from plugins.agent_tools import _format_invitation_time
+            return {
+                "has_active": True,
+                "meeting": {
+                    "id": m["id"],
+                    "formatted_time": _format_invitation_time(m["start_time"], m.get("timezone")),
+                    "start_time": m["start_time"],
+                    "end_time": m["end_time"],
+                    "attendee_name": m.get("attendee_name") or "Guest",
+                    "attendee_email": m["attendee_email"],
+                    "meeting_link": m.get("meeting_link") or "https://meet.google.com/",
+                    "assigned_to_email": m.get("assigned_to_email"),
+                },
+            }
+
+    # 2. Search by session leads
+    if session_id:
+        try:
+            leads_res = await run_db(
+                lambda: supabase.table("chatty_leads")
+                .select("id, email")
+                .eq("bot_id", bot_id)
+                .eq("session_id", session_id)
+                .execute()
+            )
+            lead_ids = [r["id"] for r in (leads_res.data or []) if r.get("id")]
+            lead_emails = [r["email"].strip().lower() for r in (leads_res.data or []) if r.get("email")]
+
+            if lead_ids or lead_emails:
+                query = supabase.table("chatty_meetings").select("id, bot_id, attendee_name, attendee_email, start_time, end_time, title, status, meeting_link, assigned_to_email, timezone").eq("bot_id", bot_id).eq("status", "scheduled").gte("end_time", now_iso).order("start_time", desc=False)
+                if lead_ids:
+                    query = query.in_("lead_id", lead_ids)
+                elif lead_emails:
+                    query = query.in_("attendee_email", lead_emails)
+                res = await run_db(lambda: query.limit(1).execute())
+                if res.data:
+                    m = res.data[0]
+                    from plugins.agent_tools import _format_invitation_time
+                    return {
+                        "has_active": True,
+                        "meeting": {
+                            "id": m["id"],
+                            "formatted_time": _format_invitation_time(m["start_time"], m.get("timezone")),
+                            "start_time": m["start_time"],
+                            "end_time": m["end_time"],
+                            "attendee_name": m.get("attendee_name") or "Guest",
+                            "attendee_email": m["attendee_email"],
+                            "meeting_link": m.get("meeting_link") or "https://meet.google.com/",
+                            "assigned_to_email": m.get("assigned_to_email"),
+                        },
+                    }
+        except Exception:
+            logger.exception("Failed looking up active meeting by session")
+
+    return {"has_active": False, "meeting": None}
+
 

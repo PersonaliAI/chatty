@@ -20,6 +20,26 @@ import { CampaignsUI } from "@/components/campaigns-ui";
 import { KBManager } from "@/components/kb-manager";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
+import { BACKEND_URL, fetchBackend } from "@/lib/backend-client";
+import { GOOGLE_FONTS, LOCALE_TEXTS, MAX_BOTS_BY_PLAN, PLAN_LABELS } from "./dashboard-constants";
+import {
+  CloudProviderMenu,
+  MemberAvailabilityEditor,
+  MemberPermissionEditor,
+  SectionPropertyDropdown,
+  TeamTabCheckbox,
+} from "./dashboard-controls";
+import {
+  CHATTY_TEAM_TABS,
+  DEFAULT_ADMIN_TABS,
+  DEFAULT_AGENT_TABS,
+  NAV_TAB_PERMISSION,
+  OWNER_ONLY_TABS,
+  TAB_LABELS,
+  type ChattyTeamTab,
+} from "./dashboard-permissions";
+import { extractColorsFromUrl } from "./dashboard-utils";
+import { KnowledgeProgressBar, type KnowledgeProgress } from "./knowledge-progress-bar";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { getOnColor, primaryColorCssVars, generateColorScheme, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
@@ -249,6 +269,35 @@ interface Source {
   nextCrawlAt?: string | null;
 }
 
+type SourceRecord = {
+  id: string;
+  type: Source["type"];
+  name: string;
+  content?: string;
+  status: Source["status"];
+  char_count?: number;
+  charCount?: number;
+  crawl_schedule?: Source["crawlSchedule"];
+  next_crawl_at?: string | null;
+};
+
+type ErrorDetails = {
+  message?: string;
+  error_description?: string;
+  detail?: string;
+  hint?: string;
+};
+
+function errorMessageFromUnknown(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object") {
+    const details = err as ErrorDetails;
+    return details.message || details.error_description || details.detail || details.hint || JSON.stringify(err);
+  }
+  return "An unexpected error occurred.";
+}
+
 interface QuickReply {
   label: string;
   value: string;
@@ -270,367 +319,9 @@ interface KnowledgeMessage {
   thinkingSteps?: string[];
 }
 
-interface KnowledgeProgress {
-  id: string;
-  title: string;
-  detail: string;
-  percent: number;
-  status: "active" | "success" | "error";
-  stages?: string[];
-  currentStageIndex?: number;
-}
-
 // Section Colors rows whose "text" property is really an icon/dot color
 // (no separate typed text on a button or a launcher circle).
 const ICON_ONLY_SECTIONS = new Set(["sendBtn", "launcher"]);
-
-// Dashboard-tab permission keys - keep in sync with the backend's
-// app/core/permissions.py ALL_TABS. A team member's `permissions` array
-// (chatty_team_members.permissions) lists which of these they hold; the
-// owner implicitly holds all of them.
-const CHATTY_TEAM_TABS = ["inbox", "sources", "design", "settings", "voice", "team", "meetings", "billing", "byok", "webhooks"] as const;
-type ChattyTeamTab = (typeof CHATTY_TEAM_TABS)[number];
-// Only the owner may grant/revoke these for anyone, including an admin
-// managing the roster - mirrors OWNER_ONLY_TABS in app/core/permissions.py.
-const OWNER_ONLY_TABS = new Set<ChattyTeamTab>(["billing", "byok", "webhooks"]);
-const DEFAULT_ADMIN_TABS: ChattyTeamTab[] = ["inbox", "sources", "design", "settings", "voice", "team", "meetings"];
-const DEFAULT_AGENT_TABS: ChattyTeamTab[] = ["inbox"];
-const TAB_LABELS: Record<ChattyTeamTab, string> = {
-  inbox: "Inbox", sources: "Knowledge", design: "Customizer", settings: "Settings",
-  voice: "Voice Agent", team: "Team", meetings: "Meetings", billing: "Billing", byok: "BYOK keys", webhooks: "Webhooks",
-};
-
-// Which permission tab (if any) gates each sidebar nav item. `null` means
-// every team member can see it regardless of permissions (read-only/low-risk
-// sections). Real enforcement lives in the backend/RLS - this only hides
-// the nav entry so a member doesn't land on a tab whose actions will 403.
-const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
-  home: null, customizer: "design", knowledge: "sources", playground: null,
-  inbox: "inbox", flows: "settings", campaigns: "settings", leads: "inbox",
-  feedback: "inbox", map: "inbox", meetings: "inbox", voice_agent: "voice",
-  mailbox: "inbox", notifications: "settings", audit_log: "settings",
-  analytics: "inbox", integrations: "settings", developer: "webhooks",
-  mcp: "webhooks", billing: "billing", settings: "settings",
-};
-
-/** Quick Connect's Google/Microsoft buttons, as a modern dropdown instead of
- * a single toggle. One OAuth connection unlocks several services (Google:
- * Drive + Calendar; Microsoft: OneDrive + Outlook Calendar + Teams), so the
- * button always reads the provider's own name/icon ("Google"/"Microsoft" -
- * never "Google Drive", which wrongly implied Drive was the only thing
- * connecting bought you) and the dropdown lists what it unlocks. Each
- * service row starts the OAuth flow itself if not yet connected. */
-function CloudProviderMenu({
-  label, iconSrc, connected, services, onDisconnect,
-}: {
-  label: string;
-  iconSrc: string;
-  connected: boolean;
-  services: { label: string; iconSrc: string; onClick: () => void }[];
-  onDisconnect: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
-          connected ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400" : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
-        }`}
-      >
-        <Image src={iconSrc} alt="" width={16} height={16} className="size-4 object-contain" />
-        {label}
-        {connected && <Check className="size-3" />}
-        <ChevronDown className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="absolute z-20 mt-1.5 w-56 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-lg shadow-black/10 dark:shadow-black/40 overflow-hidden">
-          {!connected && (
-            <div className="px-3 py-2 text-[10px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-850">
-              Connect {label} to unlock:
-            </div>
-          )}
-          {services.map((s) => (
-            <button
-              key={s.label}
-              type="button"
-              onClick={() => { setOpen(false); s.onClick(); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-            >
-              <Image src={s.iconSrc} alt="" width={16} height={16} className="size-4 object-contain" />
-              {s.label}
-            </button>
-          ))}
-          {connected && (
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onDisconnect(); }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer border-t border-neutral-100 dark:border-neutral-850"
-            >
-              Disconnect {label}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** A custom checkbox for the Team section's per-tab permission grants -
- * native checkboxes render the browser/OS's own check glyph (often a flat
- * black tick on whatever accent-color background), which doesn't match this
- * app's rounded, white-on-orange button styling used everywhere else. */
-function TeamTabCheckbox({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-300 cursor-pointer select-none"
-    >
-      <span
-        className={`flex items-center justify-center size-4 rounded-[5px] border transition-colors duration-150 ${
-          checked
-            ? "bg-[#f97316] border-[#f97316]"
-            : "bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600"
-        }`}
-      >
-        {checked && <Check className="size-3 text-white" strokeWidth={3.5} />}
-      </span>
-      {label}
-    </button>
-  );
-}
-
-const _TIME_PICKER_HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
-const _TIME_PICKER_MINUTES = ["00", "15", "30", "45"];
-
-/** A compact 3-part time picker (hour / minute / AM-PM) built from
- * ModernSelect, replacing a bare native `<input type="time">` - the latter
- * renders as unstyled browser chrome (a plain clock-icon field) that looks
- * out of place next to the rest of this dashboard's styled controls.
- * `minutes` is minutes-since-midnight (0-1439), matching
- * chatty_availability_rules.start_minute/end_minute. */
-function TimePicker({ minutes, onChange }: { minutes: number; onChange: (minutes: number) => void }) {
-  const h24 = Math.floor(minutes / 60) % 24;
-  const m = minutes % 60;
-  const isPM = h24 >= 12;
-  const h12 = h24 % 12 || 12;
-
-  function update(newH12: number, newM: number, newIsPM: boolean) {
-    const newH24 = (newH12 % 12) + (newIsPM ? 12 : 0);
-    onChange(newH24 * 60 + newM);
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      <div className="w-[68px] shrink-0">
-        <ModernSelect
-          size="sm" value={String(h12)}
-          options={_TIME_PICKER_HOURS.map((h) => ({ value: h, label: h }))}
-          onChange={(v) => update(parseInt(v, 10), m, isPM)}
-        />
-      </div>
-      <span className="text-neutral-400 text-[10px]">:</span>
-      <div className="w-[68px] shrink-0">
-        <ModernSelect
-          size="sm" value={String(m).padStart(2, "0")}
-          options={_TIME_PICKER_MINUTES.map((mm) => ({ value: mm, label: mm }))}
-          onChange={(v) => update(h12, parseInt(v, 10), isPM)}
-        />
-      </div>
-      <div className="w-[68px] shrink-0">
-        <ModernSelect
-          size="sm" value={isPM ? "PM" : "AM"}
-          options={[{ value: "AM", label: "AM" }, { value: "PM", label: "PM" }]}
-          onChange={(v) => update(h12, m, v === "PM")}
-        />
-      </div>
-    </div>
-  );
-}
-
-/** Inline role + per-tab permission editor for one row in the Team section's
- * member list. Kept local state so keystrokes/checkbox toggles don't touch
- * teamMembers (and re-render the whole list) until Save is pressed. */
-function MemberPermissionEditor({
-  role, permissions, grantableTabs, onSave, onCancel,
-}: {
-  role: "agent" | "admin";
-  permissions: ChattyTeamTab[];
-  grantableTabs: readonly ChattyTeamTab[];
-  onSave: (role: "agent" | "admin", permissions: ChattyTeamTab[]) => void;
-  onCancel: () => void;
-}) {
-  const [draftRole, setDraftRole] = useState(role);
-  const [draftTabs, setDraftTabs] = useState<ChattyTeamTab[]>(permissions);
-  return (
-    <div className="space-y-2 pt-1">
-      <div className="w-28">
-        <ModernSelect
-          value={draftRole}
-          options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
-          onChange={(v) => setDraftRole(v as "agent" | "admin")}
-        />
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-        {grantableTabs.map((tab) => (
-          <TeamTabCheckbox
-            key={tab}
-            checked={draftTabs.includes(tab)}
-            onChange={(checked) => setDraftTabs((p) => checked ? [...p, tab] : p.filter((t) => t !== tab))}
-            label={TAB_LABELS[tab]}
-          />
-        ))}
-      </div>
-      <div className="flex items-center gap-2">
-        <button onClick={() => onSave(draftRole, draftTabs)} className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-[#f97316] text-white hover:opacity-90 transition-opacity">Save</button>
-        <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-medium rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors">Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-const AVAILABILITY_DAYS = [
-  { value: 0, label: "Mon" }, { value: 1, label: "Tue" }, { value: 2, label: "Wed" },
-  { value: 3, label: "Thu" }, { value: 4, label: "Fri" }, { value: 5, label: "Sat" }, { value: 6, label: "Sun" },
-] as const;
-
-
-/** Per-day recurring availability for one team member - matches
- * chatty_availability_rules (day_of_week 0=Mon..6=Sun, start_minute/
- * end_minute). Round-robin only considers a member "free" within these
- * windows; a member with no rows falls back to the bot's own business
- * hours (see plugins/availability_engine.py). */
-function MemberAvailabilityEditor({ memberId, botId, showToast, fetchWithFallback }: {
-  memberId: string; botId: string;
-  showToast: (msg: string, kind: "success" | "error" | "info") => void;
-  fetchWithFallback: (path: string, options?: RequestInit) => Promise<Response>;
-}) {
-  const [rules, setRules] = useState<{ day_of_week: number; start_minute: number; end_minute: number }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetchWithFallback(`/api/team/${memberId}/availability?bot_id=${botId}`);
-        if (res.ok && !cancelled) {
-          const d = await res.json();
-          setRules(d.rules || []);
-        }
-      } finally { if (!cancelled) setLoading(false); }
-    })();
-    return () => { cancelled = true; };
-  }, [memberId, botId]);
-
-  function dayRule(day: number) { return rules.find((r) => r.day_of_week === day); }
-  function toggleDay(day: number, on: boolean) {
-    setRules((p) => on
-      ? [...p, { day_of_week: day, start_minute: 540, end_minute: 1020 }] // default 9am-5pm
-      : p.filter((r) => r.day_of_week !== day));
-  }
-  function updateDay(day: number, field: "start_minute" | "end_minute", minutes: number) {
-    setRules((p) => p.map((r) => (r.day_of_week === day ? { ...r, [field]: minutes } : r)));
-  }
-
-  async function save() {
-    setSaving(true);
-    try {
-      const res = await fetchWithFallback(`/api/team/${memberId}/availability`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, rules }),
-      });
-      if (!res.ok) showToast("Couldn't save availability. Try again.", "error");
-      else showToast("Availability saved.", "success");
-    } catch { showToast("Couldn't save availability. Try again.", "error"); } finally { setSaving(false); }
-  }
-
-  if (loading) return <p className="text-[10px] text-neutral-400 py-1">Loading availability…</p>;
-
-  return (
-    <div className="space-y-1.5 pt-1">
-      <p className="text-[10px] text-neutral-400">Recurring weekly availability for round-robin booking. Days left off use this bot&apos;s default business hours.</p>
-      {AVAILABILITY_DAYS.map(({ value, label }) => {
-        const rule = dayRule(value);
-        const on = !!rule;
-        return (
-          <div key={value} className="flex items-center gap-2.5">
-            <div className="w-16 shrink-0">
-              <TeamTabCheckbox checked={on} onChange={(checked) => toggleDay(value, checked)} label={label} />
-            </div>
-            {on && rule && (
-              <>
-                <TimePicker minutes={rule.start_minute} onChange={(m) => updateDay(value, "start_minute", m)} />
-                <span className="text-[10px] text-neutral-400">to</span>
-                <TimePicker minutes={rule.end_minute} onChange={(m) => updateDay(value, "end_minute", m)} />
-              </>
-            )}
-          </div>
-        );
-      })}
-      <button onClick={save} disabled={saving} className="mt-1 px-2.5 py-1 text-[10px] font-semibold rounded-md bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
-        {saving ? "Saving…" : "Save availability"}
-      </button>
-    </div>
-  );
-}
-
-/** A styled dropdown for Section Colors' property picker - a native
- * <select>'s CLOSED box can be restyled with appearance:none, but its
- * OPENED option list is OS/browser chrome in every browser with no CSS
- * hook at all, so a real custom listbox is the only way to actually look
- * "modern" when opened, not just when closed. */
-function SectionPropertyDropdown({ value, options, onChange }: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
-  const current = options.find((o) => o.value === value) || options[0];
-  return (
-    <div ref={ref} className="relative flex-1">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg pl-2.5 pr-2 py-1.5 text-[11px] font-medium text-left cursor-pointer transition-colors hover:border-neutral-300 dark:hover:border-neutral-700"
-      >
-        <span className="truncate">{current?.label}</span>
-        <ChevronDown className={`size-3 text-neutral-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg overflow-hidden py-1">
-          {options.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-2.5 py-1.5 text-[11px] cursor-pointer transition-colors ${
-                o.value === current?.value ? "bg-[#f97316]/10 text-[#f97316] font-semibold" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              }`}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Lazy-loaded: pulls in lucide-react/dynamic's full icon-name list, which
 // shouldn't sit in the main dashboard bundle for something opened rarely.
@@ -644,505 +335,6 @@ const MeetingsCalendar = dynamic(
   () => import("@/components/meetings-calendar").then((m) => m.MeetingsCalendar),
   { ssr: false }
 );
-
-// A curated subset of Google Fonts (not the full ~1800-font catalog - a
-// dropdown that size stops being a picker) spanning the categories a chat
-// widget's body text realistically wants: readable sans-serifs, a few
-// serifs for the more editorial presets, one monospace, one rounded/
-// friendly display face. `null` (the first option) means "use the active
-// design preset's own default font" rather than overriding it.
-const GOOGLE_FONTS: { value: string | null; label: string }[] = [
-  { value: null, label: "Design default" },
-  { value: "Inter", label: "Inter" },
-  { value: "Roboto", label: "Roboto" },
-  { value: "Open Sans", label: "Open Sans" },
-  { value: "Lato", label: "Lato" },
-  { value: "Poppins", label: "Poppins" },
-  { value: "Nunito", label: "Nunito" },
-  { value: "Work Sans", label: "Work Sans" },
-  { value: "DM Sans", label: "DM Sans" },
-  { value: "Manrope", label: "Manrope" },
-  { value: "Sora", label: "Sora" },
-  { value: "Outfit", label: "Outfit" },
-  { value: "Space Grotesk", label: "Space Grotesk" },
-  { value: "Plus Jakarta Sans", label: "Plus Jakarta Sans" },
-  { value: "Quicksand", label: "Quicksand" },
-  { value: "Rubik", label: "Rubik" },
-  { value: "Playfair Display", label: "Playfair Display" },
-  { value: "Merriweather", label: "Merriweather" },
-  { value: "Lora", label: "Lora" },
-  { value: "IBM Plex Mono", label: "IBM Plex Mono (monospace)" },
-];
-
-const LOCALE_TEXTS: Record<string, Record<string, string>> = {
-  EN: {
-    overview: "Overview",
-    customizer: "Customizer",
-    knowledge_base: "Knowledge Base",
-    playground: "Playground",
-    leads: "Leads",
-    analytics: "Analytics",
-    integrations: "Embed & Integrate",
-    settings: "Agent Settings",
-    meetings: "Meetings",
-    notifications: "Notifications",
-    audit_log: "Audit Log",
-    training_data: "Training Data",
-    setup_wizard: "AI Assistant Setup Wizard",
-    welcome: "Hi! Would you like to train the assistant using your business data?",
-    yes: "Yes",
-    no: "No",
-    supported_sources: "Supported Sources",
-    optional_integrations: "Optional Integrations",
-    processing: "Processing your files...",
-    training_completed: "Training completed successfully.",
-    custom_instructions_q: "Do you have any custom instructions, rules, policies, or response guidelines?",
-    save_instructions: "Save Instructions",
-    instructions_saved: "Instructions received and saved successfully.",
-    enable_lead_extraction: "Would you like to enable Lead Extraction?",
-    lead_fields_q: "Please specify which lead fields should be captured.",
-    lead_configured: "Lead extraction configured successfully.",
-    schedule_meetings_q: "Would you like the assistant to schedule meetings with leads?",
-    timezone_confirm: "Please confirm country and timezone:",
-    calendar_integration_q: "Please connect your calendar:",
-    calendar_connected: "Calendar connected successfully.",
-    meeting_provider_q: "Please select meeting providers:",
-    provider_configured: "Meeting provider configured successfully.",
-    scheduling_rules: "Scheduling Rules Checklist:",
-    confirm_rules: "Review and Proceed",
-    notifications_setup: "Setup notification channels when a meeting is booked:",
-    notify_client: "Notify Client via Email & Push",
-    notify_admin: "Notify Administrator via Email & Push",
-    setup_completed: "Setup completed successfully.",
-    go_to_admin: "Open Admin Panel",
-    back: "Back",
-    next: "Next",
-    skip: "Skip Setup",
-    language: "Language",
-    timezone: "Timezone",
-    country: "Country",
-  },
-  ES: {
-    overview: "Vista General",
-    customizer: "Personalizador",
-    knowledge_base: "Base de Conocimientos",
-    playground: "Área de Pruebas",
-    leads: "Clientes Potenciales",
-    analytics: "Analítica",
-    integrations: "Incrustar e Integrar",
-    settings: "Configuración del Agente",
-    meetings: "Reuniones",
-    notifications: "Notificaciones",
-    audit_log: "Registro de Auditoría",
-    training_data: "Datos de Entrenamiento",
-    setup_wizard: "Asistente de Configuración de IA",
-    welcome: "¿Le gustaría entrenar al asistente con los datos de su negocio?",
-    yes: "Sí",
-    no: "No",
-    supported_sources: "Fuentes Soportadas",
-    optional_integrations: "Integraciones Opcionales",
-    processing: "Procesando sus archivos...",
-    training_completed: "Entrenamiento completado con éxito.",
-    custom_instructions_q: "¿Tiene alguna instrucción personalizada, regla, política o guía de respuesta?",
-    save_instructions: "Guardar Instrucciones",
-    instructions_saved: "Instrucciones recibidas y guardadas con éxito.",
-    enable_lead_extraction: "¿Le gustaría activar la Extracción de Clientes Potenciales?",
-    lead_fields_q: "Por favor, especifique qué campos de clientes potenciales capturar.",
-    lead_configured: "Extracción de clientes potenciales configurada con éxito.",
-    schedule_meetings_q: "¿Le gustaría que el asistente programe reuniones con clientes potenciales?",
-    timezone_confirm: "Por favor, confirme país y zona horaria:",
-    calendar_integration_q: "Por favor, conecte su calendario:",
-    calendar_connected: "Calendario conectado con éxito.",
-    meeting_provider_q: "Por favor, seleccione proveedores de reuniones:",
-    provider_configured: "Proveedor de reuniones configurado con éxito.",
-    scheduling_rules: "Lista de Reglas de Programación:",
-    confirm_rules: "Revisar y Continuar",
-    notifications_setup: "Configure los canales de notificación cuando se reserve una reunión:",
-    notify_client: "Notificar al Cliente por Correo y Push",
-    notify_admin: "Notificar al Administrador por Correo y Push",
-    setup_completed: "Configuración completada con éxito.",
-    go_to_admin: "Abrir Panel de Administración",
-    back: "Atrás",
-    next: "Siguiente",
-    skip: "Omitir Configuración",
-    language: "Idioma",
-    timezone: "Zona Horaria",
-    country: "País",
-  },
-  FR: {
-    overview: "Vue d'ensemble",
-    customizer: "Personnalisateur",
-    knowledge_base: "Base de Connaissances",
-    playground: "Espace d'essai",
-    leads: "Prospects",
-    analytics: "Analytiques",
-    integrations: "Intégrer le code",
-    settings: "Paramètres de l'agent",
-    meetings: "Réunions",
-    notifications: "Notifications",
-    audit_log: "Journal d'audit",
-    training_data: "Données d'entraînement",
-    setup_wizard: "Assistant de Configuration IA",
-    welcome: "Souhaitez-vous entraîner l'assistant en utilisant les données de votre entreprise?",
-    yes: "Oui",
-    no: "Non",
-    supported_sources: "Sources Supportées",
-    optional_integrations: "Intégrations Optionnelles",
-    processing: "Traitement de vos fichiers...",
-    training_completed: "Entraînement terminé avec succès.",
-    custom_instructions_q: "Avez-vous des instructions personnalisées, des règles ou des directives de réponse?",
-    save_instructions: "Enregistrer les Instructions",
-    instructions_saved: "Instructions reçues et enregistrées avec succès.",
-    enable_lead_extraction: "Souhaitez-vous activer l'extraction de prospects?",
-    lead_fields_q: "Veuillez spécifier quels champs de prospects doivent être capturés.",
-    lead_configured: "Extraction de prospects configurée avec succès.",
-    schedule_meetings_q: "Souhaitez-vous que l'assistant planifie des réunions avec les prospects?",
-    timezone_confirm: "Veuillez confirmer le pays et le fuseau horaire:",
-    calendar_integration_q: "Veuillez connecter votre calendrier:",
-    calendar_connected: "Calendrier connecté avec succès.",
-    meeting_provider_q: "Veuillez sélectionner les fournisseurs de réunion:",
-    provider_configured: "Fournisseur de réunion configuré avec succès.",
-    scheduling_rules: "Liste des règles de planification:",
-    confirm_rules: "Vérifier et Continuer",
-    notifications_setup: "Configurer les canaux de notification lors de la réservation d'une réunion:",
-    notify_client: "Notifier le client par e-mail et push",
-    notify_admin: "Notifier l'administrateur par e-mail et push",
-    setup_completed: "Configuration terminée avec succès.",
-    go_to_admin: "Ouvrir le panneau d'administration",
-    back: "Retour",
-    next: "Suivant",
-    skip: "Ignorer la configuration",
-    language: "Langue",
-    timezone: "Fuseau Horaire",
-    country: "Pays",
-  },
-  DE: {
-    overview: "Übersicht",
-    customizer: "Anpasser",
-    knowledge_base: "Wissensdatenbank",
-    playground: "Spielwiese",
-    leads: "Kontakte",
-    analytics: "Analysen",
-    integrations: "Einbetten & Integrieren",
-    settings: "Agenten-Einstellungen",
-    meetings: "Besprechungen",
-    notifications: "Benachrichtigungen",
-    audit_log: "Audit-Protokoll",
-    training_data: "Trainingsdaten",
-    setup_wizard: "KI-Assistent Onboarding-Assistent",
-    welcome: "Möchten Sie den Assistenten mit Ihren Geschäftsdaten trainieren?",
-    yes: "Ja",
-    no: "Nein",
-    supported_sources: "Unterstützte Quellen",
-    optional_integrations: "Optionale Integrationen",
-    processing: "Ihre Dateien werden verarbeitet...",
-    training_completed: "Training erfolgreich abgeschlossen.",
-    custom_instructions_q: "Haben Sie benutzerdefinierte Anweisungen, Regeln, Richtlinien oder Antwortrichtlinien?",
-    save_instructions: "Anweisungen Speichern",
-    instructions_saved: "Anweisungen erfolgreich empfangen und gespeichert.",
-    enable_lead_extraction: "Möchten Sie die Lead-Extraktion aktivieren?",
-    lead_fields_q: "Bitte geben Sie an, welche Lead-Felder erfasst werden sollen.",
-    lead_configured: "Lead-Extraktion erfolgreich konfiguriert.",
-    schedule_meetings_q: "Möchten Sie, dass der Assistent Termine mit Leads vereinbart?",
-    timezone_confirm: "Bitte bestätigen Sie Land und Zeitzone:",
-    calendar_integration_q: "Bitte verbinden Sie Ihren Kalender:",
-    calendar_connected: "Kalender erfolgreich verbunden.",
-    meeting_provider_q: "Bitte wählen Sie Meeting-Anbieter aus:",
-    provider_configured: "Meeting-Anbieter erfolgreich konfiguriert.",
-    scheduling_rules: "Checkliste für Planungsregeln:",
-    confirm_rules: "Überprüfen und fortfahren",
-    notifications_setup: "Benachrichtigungskanäle einrichten, wenn ein Termin gebucht wird:",
-    notify_client: "Client per E-Mail & Push benachrichtigen",
-    notify_admin: "Administrator per E-Mail & Push benachrichtigen",
-    setup_completed: "Einrichtung erfolgreich abgeschlossen.",
-    go_to_admin: "Admin-Panel öffnen",
-    back: "Zurück",
-    next: "Weiter",
-    skip: "Einrichtung überspringen",
-    language: "Sprache",
-    timezone: "Zeitzone",
-    country: "Land",
-  },
-  IT: {
-    overview: "Panoramica",
-    customizer: "Personalizzatore",
-    knowledge_base: "Database Conoscenza",
-    playground: "Area di Prova",
-    leads: "Contatti",
-    analytics: "Analisi",
-    integrations: "Incorpora e Integra",
-    settings: "Impostazioni Agente",
-    meetings: "Riunioni",
-    notifications: "Notifiche",
-    audit_log: "Registro di Audit",
-    training_data: "Dati di Addestramento",
-    setup_wizard: "Configurazione Guidata Assistente IA",
-    welcome: "Vorresti addestrare l'assistente usando i tuoi dati aziendali?",
-    yes: "Sì",
-    no: "No",
-    supported_sources: "Fonti Supportate",
-    optional_integrations: "Integrazioni Opzionali",
-    processing: "Elaborazione dei file in corso...",
-    training_completed: "Addestramento completato con successo.",
-    custom_instructions_q: "Hai istruzioni personalizzate, regole, politiche o linee guida per le risposte?",
-    save_instructions: "Salva Istruzioni",
-    instructions_saved: "Istruzioni ricevute e salvate con successo.",
-    enable_lead_extraction: "Vorresti abilitare l'estrazione dei contatti?",
-    lead_fields_q: "Specifica quali campi dei contatti catturare.",
-    lead_configured: "Estrazione contatti configurata con successo.",
-    schedule_meetings_q: "Vorresti che l'assistente pianifichi riunioni con i contatti?",
-    timezone_confirm: "Conferma paese e fuso orario:",
-    calendar_integration_q: "Connetti il tuo calendario:",
-    calendar_connected: "Calendario connesso con successo.",
-    meeting_provider_q: "Seleziona i provider per le riunioni:",
-    provider_configured: "Provider di riunioni configurato con successo.",
-    scheduling_rules: "Checklist Regole di Pianificazione:",
-    confirm_rules: "Rivedi e Procedi",
-    notifications_setup: "Configura i canali di notifica alla prenotazione di una riunione:",
-    notify_client: "Notifica Cliente via Email e Push",
-    notify_admin: "Notifica Amministratore via Email e Push",
-    setup_completed: "Configurazione completata con successo.",
-    go_to_admin: "Apri Pannello Amministratore",
-    back: "Indietro",
-    next: "Avanti",
-    skip: "Salta Configurazione",
-    language: "Lingua",
-    timezone: "Fuso Orario",
-    country: "Paese",
-  }
-};
-
-async function extractColorsFromUrl(url: string): Promise<string[]> {
-  return new Promise((resolve) => {
-    if (!url) return resolve([]);
-    const img = new window.Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return resolve([]);
-        
-        // Resize to small size for faster processing and color clustering
-        canvas.width = 40;
-        canvas.height = 40;
-        ctx.drawImage(img, 0, 0, 40, 40);
-        
-        const imgData = ctx.getImageData(0, 0, 40, 40).data;
-        const colorCounts: Record<string, number> = {};
-        
-        for (let i = 0; i < imgData.length; i += 4) {
-          const r = imgData[i];
-          const g = imgData[i + 1];
-          const b = imgData[i + 2];
-          const a = imgData[i + 3];
-          
-          // Ignore transparent or near-transparent pixels
-          if (a < 128) continue;
-          
-          // Ignore extreme white or extreme black to get actual brand colors
-          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-          if (brightness > 245 || brightness < 15) continue;
-          
-          // Round RGB values to group similar colors (clustering)
-          const clusterR = Math.round(r / 16) * 16;
-          const clusterG = Math.round(g / 16) * 16;
-          const clusterB = Math.round(b / 16) * 16;
-          
-          const hex = "#" + [clusterR, clusterG, clusterB].map(x => {
-            const hexStr = Math.min(255, Math.max(0, x)).toString(16);
-            return hexStr.length === 1 ? "0" + hexStr : hexStr;
-          }).join("");
-          
-          colorCounts[hex] = (colorCounts[hex] || 0) + 1;
-        }
-        
-        // Sort by frequency
-        const sortedColors = Object.keys(colorCounts).sort((a, b) => colorCounts[b] - colorCounts[a]);
-        
-        // Take top 5 colors
-        resolve(sortedColors.slice(0, 5));
-      } catch (e) {
-        console.error("Color extraction error:", e);
-        resolve([]);
-      }
-    };
-    img.onerror = () => resolve([]);
-    img.src = url;
-  });
-}
-
-const PLAN_LABELS: Record<string, string> = {
-  free: "Free",
-  chatty_hobby: "Hobby",
-  chatty_standard: "Standard",
-  chatty_business: "Business",
-};
-
-const MAX_BOTS_BY_PLAN: Record<string, number> = {
-  free: 1,
-  chatty_hobby: 1,
-  chatty_standard: 3,
-  chatty_business: 5,
-};
-
-function KnowledgeProgressBar({
-  progress,
-  onDismiss,
-}: {
-  progress: KnowledgeProgress | null;
-  onDismiss: () => void;
-}) {
-  if (!progress) return null;
-
-  const isSuccess = progress.status === "success";
-  const isError = progress.status === "error";
-  const isActive = progress.status === "active";
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -8, scale: 0.99 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -8, scale: 0.99 }}
-        transition={{ duration: 0.22, ease: "easeOut" }}
-        className={`relative overflow-hidden rounded-2xl p-4 sm:p-5 border transition-all duration-300 shadow-sm ${
-          isSuccess
-            ? "bg-emerald-50/85 dark:bg-emerald-950/25 border-emerald-200/90 dark:border-emerald-800/60 shadow-emerald-500/5"
-            : isError
-            ? "bg-red-50/85 dark:bg-red-950/25 border-red-200/90 dark:border-red-800/60 shadow-red-500/5"
-            : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 shadow-[0_4px_24px_-4px_rgba(249,115,22,0.12)]"
-        }`}
-      >
-        {/* Subtle background glow effect for active state */}
-        {isActive && (
-          <div className="absolute -top-10 -right-10 size-32 bg-gradient-to-br from-orange-400/15 to-amber-400/5 rounded-full blur-2xl pointer-events-none" />
-        )}
-
-        {/* Top Header Row */}
-        <div className="relative flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className={`size-10 rounded-xl flex items-center justify-center shrink-0 transition-all ${
-                isSuccess
-                  ? "bg-emerald-500 text-white shadow-[0_0_16px_rgba(16,185,129,0.4)]"
-                  : isError
-                  ? "bg-red-500 text-white shadow-[0_0_16px_rgba(239,68,68,0.4)]"
-                  : "bg-gradient-to-br from-[#f97316] to-amber-500 text-white shadow-[0_0_16px_rgba(249,115,22,0.35)]"
-              }`}
-            >
-              {isSuccess ? (
-                <CheckCircle2 className="size-5" strokeWidth={2.5} />
-              ) : isError ? (
-                <AlertCircle className="size-5" strokeWidth={2.5} />
-              ) : (
-                <Loader2 className="size-5 animate-spin" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
-                  {progress.title}
-                </h4>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                    isSuccess
-                      ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
-                      : isError
-                      ? "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300"
-                      : "bg-[#f97316]/10 text-[#f97316]"
-                  }`}
-                >
-                  {isSuccess ? "Completed" : isError ? "Error" : "Processing"}
-                </span>
-              </div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate mt-0.5 font-medium">
-                {progress.detail}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 shrink-0">
-            {/* Percentage badge */}
-            <div
-              className={`font-mono text-xs sm:text-sm font-black px-2.5 py-1 rounded-xl border flex items-center gap-1 transition-colors ${
-                isSuccess
-                  ? "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                  : isError
-                  ? "bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"
-                  : "bg-orange-50 dark:bg-orange-950/30 text-[#f97316] border-orange-200/70 dark:border-orange-900/50 shadow-sm"
-              }`}
-            >
-              <span>{progress.percent}%</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={onDismiss}
-              className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-              aria-label="Dismiss progress notification"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Progress Track & Bar */}
-        <div className="relative w-full h-2.5 bg-neutral-100 dark:bg-neutral-800/80 rounded-full overflow-hidden shadow-inner">
-          <div
-            className={`h-full rounded-full relative overflow-hidden transition-all duration-300 ease-out ${
-              isSuccess
-                ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
-                : isError
-                ? "bg-gradient-to-r from-red-500 via-rose-500 to-red-400 shadow-[0_0_12px_rgba(239,68,68,0.5)]"
-                : "bg-gradient-to-r from-[#f97316] via-orange-500 to-amber-400 shadow-[0_0_14px_rgba(249,115,22,0.6)]"
-            }`}
-            style={{ width: `${Math.max(3, Math.min(100, progress.percent))}%` }}
-          >
-            {/* Shimmer light sweep animation */}
-            {isActive && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
-            )}
-          </div>
-        </div>
-
-        {/* Stage Step Indicators */}
-        {progress.stages && progress.stages.length > 0 && (
-          <div className="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800/60 flex items-center justify-between gap-2 overflow-x-auto text-[10px] scrollbar-none">
-            {progress.stages.map((stage, idx) => {
-              const currentIdx = progress.currentStageIndex ?? 0;
-              const isPassed = isSuccess || currentIdx > idx;
-              const isCurrent = isActive && currentIdx === idx;
-              return (
-                <div
-                  key={idx}
-                  className={`flex items-center gap-1.5 whitespace-nowrap transition-colors ${
-                    isPassed
-                      ? "text-emerald-600 dark:text-emerald-400 font-medium"
-                      : isCurrent
-                      ? "text-[#f97316] font-bold"
-                      : "text-neutral-400 dark:text-neutral-500"
-                  }`}
-                >
-                  <div
-                    className={`size-1.5 rounded-full shrink-0 ${
-                      isPassed
-                        ? "bg-emerald-500"
-                        : isCurrent
-                        ? "bg-[#f97316] ring-2 ring-orange-200 dark:ring-orange-950 animate-pulse"
-                        : "bg-neutral-300 dark:bg-neutral-700"
-                    }`}
-                  />
-                  <span className="truncate max-w-[130px] sm:max-w-none">{stage}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </motion.div>
-    </AnimatePresence>
-  );
-}
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
@@ -1806,9 +998,6 @@ export default function Dashboard() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- set for a "Copied!" indicator that isn't rendered yet
   const [copiedIframe, setCopiedIframe] = useState(false);
 
-  // Backend Integration URL
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
-
   // Authenticate user and fetch configuration from Supabase
   useEffect(() => {
     async function checkSession() {
@@ -1855,22 +1044,7 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Helper for resilient fetch calls with fallback to production backend
-  const fetchWithFallback = async (path: string, options: RequestInit = {}) => {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    const headers = {
-      ...options.headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    };
-    try {
-      return await fetch(`${BACKEND_URL}${path}`, { ...options, headers });
-    } catch {
-      console.warn(`Local backend down for ${path}, retrying with production fallback...`);
-      const fallbackUrl = "https://api.chatty.personaliai.com";
-      return await fetch(`${fallbackUrl}${path}`, { ...options, headers });
-    }
-  };
+  const fetchWithFallback = (path: string, options: RequestInit = {}) => fetchBackend(supabase, path, options);
 
   // Check backend integration state & query email accounts
   async function checkCloudConnections(userId: string) {
@@ -2181,7 +1355,7 @@ export default function Dashboard() {
         }
 
         // Fetch sources
-        let srcList: any[] | null = null;
+        let srcList: SourceRecord[] | null = null;
         const { data: dbSources } = await supabase
           .from("chatty_sources")
           .select("*")
@@ -2195,7 +1369,7 @@ export default function Dashboard() {
             if (resp.ok) {
               const json = await resp.json();
               if (json.sources && json.sources.length > 0) {
-                srcList = json.sources;
+                srcList = json.sources as SourceRecord[];
               }
             }
           } catch (e) {
@@ -2211,9 +1385,9 @@ export default function Dashboard() {
             id: s.id,
             type: s.type,
             name: s.name,
-            content: s.content,
+            content: s.content ?? "",
             status: s.status,
-            charCount: s.char_count,
+            charCount: s.char_count ?? s.charCount ?? 0,
             crawlSchedule: s.crawl_schedule || "off",
             nextCrawlAt: s.next_crawl_at
           })));
@@ -2326,7 +1500,7 @@ export default function Dashboard() {
       setBookingRequireBusinessEmail(selected.booking_require_business_email || false);
 
       // Fetch sources
-      let srcList: any[] | null = null;
+      let srcList: SourceRecord[] | null = null;
       const { data: dbSources } = await supabase
         .from("chatty_sources")
         .select("*")
@@ -2340,7 +1514,7 @@ export default function Dashboard() {
           if (resp.ok) {
             const json = await resp.json();
             if (json.sources && json.sources.length > 0) {
-              srcList = json.sources;
+              srcList = json.sources as SourceRecord[];
             }
           }
         } catch (e) {
@@ -2356,9 +1530,9 @@ export default function Dashboard() {
           id: s.id,
           type: s.type,
           name: s.name,
-          content: s.content,
+          content: s.content ?? "",
           status: s.status,
-          charCount: s.char_count,
+          charCount: s.char_count ?? s.charCount ?? 0,
           crawlSchedule: s.crawl_schedule || "off",
           nextCrawlAt: s.next_crawl_at
         })));
@@ -2450,17 +1624,7 @@ export default function Dashboard() {
       }
     } catch (err: unknown) {
       console.error("Error creating bot:", err);
-      let errMsg = "An unexpected error occurred.";
-      if (err && typeof err === "object") {
-        errMsg =
-          (err as any).message ||
-          (err as any).error_description ||
-          (err as any).detail ||
-          (err as any).hint ||
-          (err instanceof Error ? err.message : JSON.stringify(err));
-      } else if (typeof err === "string") {
-        errMsg = err;
-      }
+      const errMsg = errorMessageFromUnknown(err);
 
       if (
         errMsg.toLowerCase().includes("limit reached") ||

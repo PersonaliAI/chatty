@@ -4,10 +4,10 @@
 
 # Chatty Frontend
 
-**Next.js 15 frontend for Chatty - Dashboard, embeddable chat widget, and widget.js loader.**
+**Next.js 16 frontend for Chatty - Dashboard, embeddable chat widget, and widget.js loader.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 
 [Chatty Cloud](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com)

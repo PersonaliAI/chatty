@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
-  CheckCircle2,
   Video,
   ExternalLink,
   Globe,
@@ -18,16 +17,19 @@ import {
   Mail,
   Phone,
   Building,
-  FileText,
   Loader2,
   CalendarPlus,
   AlertCircle,
   RefreshCw,
   KeyRound,
   ShieldCheck,
+  CalendarClock,
+  AlertTriangle,
+  XCircle,
 } from "lucide-react";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
+import { BACKEND_URL } from "@/lib/backend-client";
+const DEFAULT_BACKEND_URL = BACKEND_URL;
 
 interface TimeSlot {
   start: string;
@@ -71,7 +73,10 @@ export interface InlineBookingCardProps {
   visitorTimezone?: string;
   primaryColor?: string;
   backendUrl?: string;
+  initialMeeting?: ConfirmedMeeting;
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
+  onMeetingRescheduled?: (meeting: ConfirmedMeeting) => void;
+  onMeetingCancelled?: () => void;
 }
 
 interface TzOption {
@@ -153,8 +158,11 @@ export function InlineBookingCard({
   sessionId,
   visitorTimezone,
   primaryColor = "#f97316",
-  backendUrl = BACKEND_URL,
+  backendUrl = DEFAULT_BACKEND_URL,
+  initialMeeting,
   onBookingSuccess,
+  onMeetingRescheduled,
+  onMeetingCancelled,
 }: InlineBookingCardProps) {
   const [loading, setLoading] = useState(true);
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
@@ -243,7 +251,10 @@ export function InlineBookingCard({
   }, [tzQuery, activeTimezone]);
 
   // Wizard state: 1: Slot Picker, 2: Lead Form / OTP, 3: Confirmed Card
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(initialMeeting ? 3 : 1);
+  const [cardMode, setCardMode] = useState<"book" | "confirmed" | "reschedule" | "cancel_confirm" | "cancelled">(
+    initialMeeting ? "confirmed" : "book"
+  );
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
 
@@ -261,7 +272,22 @@ export function InlineBookingCard({
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
+  const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(initialMeeting || null);
+
+  // Reschedule & Cancel states
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  const [rescheduleSuccess, setRescheduleSuccess] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialMeeting) {
+      setConfirmedMeeting(initialMeeting);
+      setCardMode("confirmed");
+      setStep(3);
+    }
+  }, [initialMeeting]);
 
   // OTP cooldown ticker
   useEffect(() => {
@@ -416,6 +442,7 @@ export function InlineBookingCard({
 
       setConfirmedMeeting(confirmed);
       setStep(3);
+      setCardMode("confirmed");
       if (onBookingSuccess) {
         onBookingSuccess(confirmed);
       }
@@ -429,6 +456,80 @@ export function InlineBookingCard({
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     await executeBookingSubmission();
+  };
+
+  const handleConfirmReschedule = async () => {
+    if (!confirmedMeeting || !selectedSlot) return;
+    setRescheduling(true);
+    setRescheduleError(null);
+    try {
+      const res = await fetch(`${backendUrl}/api/widget/booking/reschedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          meeting_id: confirmedMeeting.id,
+          attendee_email: confirmedMeeting.attendee_email,
+          new_start_time: selectedSlot.start,
+          new_end_time: selectedSlot.end,
+          visitor_timezone: activeTimezone,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.detail || data.error || "Failed to reschedule meeting.");
+      }
+      const updated: ConfirmedMeeting = {
+        ...confirmedMeeting,
+        start_time: data.start_time || selectedSlot.start,
+        end_time: data.end_time || selectedSlot.end,
+        formatted_time: data.formatted_time || `${selectedSlot.time_label} (${activeTimezone})`,
+        meeting_link: data.meeting_link || confirmedMeeting.meeting_link,
+      };
+      setConfirmedMeeting(updated);
+      setCardMode("confirmed");
+      setStep(3);
+      setRescheduleSuccess(true);
+      setTimeout(() => setRescheduleSuccess(false), 5000);
+      if (onMeetingRescheduled) {
+        onMeetingRescheduled(updated);
+      }
+    } catch (err: any) {
+      setRescheduleError(err?.message || "Failed to reschedule meeting.");
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!confirmedMeeting) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const res = await fetch(`${backendUrl}/api/widget/booking/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          meeting_id: confirmedMeeting.id,
+          attendee_email: confirmedMeeting.attendee_email,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.detail || data.error || "Failed to cancel meeting.");
+      }
+      setCardMode("cancelled");
+      if (onMeetingCancelled) {
+        onMeetingCancelled();
+      }
+    } catch (err: any) {
+      setCancelError(err?.message || "Failed to cancel meeting.");
+    } finally {
+      setCancelling(false);
+    }
   };
 
   // Google Calendar web URL
@@ -465,8 +566,8 @@ export function InlineBookingCard({
     URL.revokeObjectURL(url);
   };
 
-  // Loading state
-  if (loading) {
+  // Loading state (only show full loading skeleton if not showing an existing confirmed meeting)
+  if (loading && !confirmedMeeting) {
     return (
       <div className="w-full my-2 p-4 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-sm flex flex-col items-center justify-center gap-2 text-neutral-500 min-h-[140px]">
         <Loader2 className="size-5 animate-spin text-neutral-400" />
@@ -476,12 +577,12 @@ export function InlineBookingCard({
   }
 
   // Scheduling disabled on bot: hide widget completely
-  if (slotsData && !slotsData.enabled) {
+  if (slotsData && !slotsData.enabled && !confirmedMeeting) {
     return null;
   }
 
   // Error state
-  if (error || !slotsData) {
+  if ((error || !slotsData) && !confirmedMeeting) {
     return (
       <div className="w-full my-2 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-sm text-xs">
         <div className="flex items-center gap-2 text-neutral-600 dark:text-neutral-400">
@@ -492,14 +593,14 @@ export function InlineBookingCard({
     );
   }
 
-  const availableDates = slotsData.available_dates || [];
-  const currentSlots = (selectedDate && slotsData.slots_by_date[selectedDate]) || [];
+  const availableDates = slotsData?.available_dates || [];
+  const currentSlots = (selectedDate && slotsData?.slots_by_date?.[selectedDate]) || [];
 
   // Lead fields configuration
-  const showPhone = !slotsData.lead_fields || slotsData.lead_fields.includes("phone");
-  const showCompany = !slotsData.lead_fields || slotsData.lead_fields.includes("company");
-  const isPhoneRequired = !!slotsData.lead_required_fields?.includes("phone");
-  const isCompanyRequired = !!slotsData.lead_required_fields?.includes("company");
+  const showPhone = !slotsData?.lead_fields || slotsData.lead_fields.includes("phone");
+  const showCompany = !slotsData?.lead_fields || slotsData.lead_fields.includes("company");
+  const isPhoneRequired = !!slotsData?.lead_required_fields?.includes("phone");
+  const isCompanyRequired = !!slotsData?.lead_required_fields?.includes("company");
 
   return (
     <div className="w-full my-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden text-neutral-800 dark:text-neutral-200 font-sans transition-all">
@@ -508,12 +609,12 @@ export function InlineBookingCard({
         <div className="flex items-center gap-2 font-medium text-neutral-700 dark:text-neutral-300">
           <span className="flex items-center gap-1">
             <Clock className="size-3 text-neutral-400" />
-            {slotsData.duration_minutes}m
+            {slotsData?.duration_minutes || 30}m
           </span>
           <span className="text-neutral-300 dark:text-neutral-700">|</span>
           <span className="flex items-center gap-1">
             <Video className="size-3 text-neutral-400" />
-            {slotsData.provider === "teams" ? "Teams" : "Google Meet"}
+            {slotsData?.provider === "teams" ? "Teams" : "Google Meet"}
           </span>
         </div>
 
@@ -525,7 +626,7 @@ export function InlineBookingCard({
               setIsTzOpen(!isTzOpen);
               setTzQuery("");
             }}
-            className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
             title="Click to change timezone"
           >
             <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 shrink-0" />
@@ -616,11 +717,39 @@ export function InlineBookingCard({
         </div>
       </div>
 
-      {/* VIEW 1: Slot Selector */}
-      {step === 1 && (
+      {/* VIEW 1: Slot Selector (Used for Booking & Rescheduling) */}
+      {(step === 1 || cardMode === "reschedule") && cardMode !== "confirmed" && cardMode !== "cancel_confirm" && cardMode !== "cancelled" && (
         <div className="p-3.5 space-y-3">
+          {cardMode === "reschedule" && (
+            <div className="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                  <CalendarClock className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>Reschedule Appointment</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSlot(null);
+                    setRescheduleError(null);
+                    setCardMode("confirmed");
+                    setStep(3);
+                  }}
+                  className="text-[11px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 underline cursor-pointer"
+                >
+                  Keep Current
+                </button>
+              </div>
+              {confirmedMeeting && (
+                <div className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                  Current: <span className="font-semibold text-neutral-800 dark:text-neutral-200">{confirmedMeeting.formatted_time}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="text-xs font-semibold text-neutral-800 dark:text-neutral-100">
-            Select a Date & Time
+            {cardMode === "reschedule" ? "Select New Date & Time" : "Select a Date & Time"}
           </div>
 
           {availableDates.length === 0 ? (
@@ -650,7 +779,7 @@ export function InlineBookingCard({
                   {availableDates.map((dStr) => {
                     const { dayName, monthDay } = formatDateLabel(dStr);
                     const isSelected = selectedDate === dStr;
-                    const count = slotsData.slots_by_date[dStr]?.length || 0;
+                    const count = slotsData?.slots_by_date?.[dStr]?.length || 0;
 
                     return (
                       <button
@@ -703,25 +832,92 @@ export function InlineBookingCard({
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 min-[360px]:grid-cols-3 gap-1.5 max-h-[170px] overflow-y-auto pr-1 chatty-custom-scrollbar">
-                    {currentSlots.map((slot, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setSelectedSlot(slot);
-                          setSubmitError(null);
-                          setOtpSent(false);
-                          setVerificationCode("");
-                          setStep(2);
-                        }}
-                        className="px-2 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50/50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-medium text-neutral-800 dark:text-neutral-200 transition-all text-center cursor-pointer active:scale-95"
-                      >
-                        {slot.time_label}
-                      </button>
-                    ))}
+                    {currentSlots.map((slot, idx) => {
+                      const isSlotSelected = selectedSlot?.start === slot.start;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSlot(slot);
+                            if (cardMode === "reschedule") {
+                              setRescheduleError(null);
+                            } else {
+                              setSubmitError(null);
+                              setOtpSent(false);
+                              setVerificationCode("");
+                              setStep(2);
+                            }
+                          }}
+                          className={`px-2 py-2 rounded-lg border text-xs font-medium transition-all text-center cursor-pointer active:scale-95 ${
+                            isSlotSelected && cardMode === "reschedule"
+                              ? "border-transparent text-white font-semibold shadow-sm"
+                              : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50/50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
+                          }`}
+                          style={{
+                            backgroundColor: (isSlotSelected && cardMode === "reschedule") ? primaryColor : undefined,
+                          }}
+                        >
+                          {slot.time_label}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
+
+              {/* Reschedule Confirmation Section */}
+              {cardMode === "reschedule" && (
+                <div className="pt-1">
+                  {selectedSlot ? (
+                    <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 space-y-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-500 dark:text-neutral-400">New Proposed Time:</span>
+                        <span className="font-semibold text-neutral-900 dark:text-white">{selectedSlot.visitor_local_label}</span>
+                      </div>
+                      {rescheduleError && (
+                        <div className="p-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-[11px] flex items-start gap-1.5">
+                          <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
+                          <span className="break-words">{rescheduleError}</span>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSlot(null);
+                            setRescheduleError(null);
+                          }}
+                          disabled={rescheduling}
+                          className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleConfirmReschedule}
+                          disabled={rescheduling}
+                          className="flex-1 py-2 rounded-xl text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                          style={{ backgroundColor: primaryColor }}
+                        >
+                          {rescheduling ? (
+                            <>
+                              <Loader2 className="size-3.5 animate-spin" />
+                              <span>Rescheduling...</span>
+                            </>
+                          ) : (
+                            <span>Confirm Reschedule</span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-center text-neutral-400 dark:text-neutral-500 py-1">
+                      Select an available time slot above to reschedule.
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -739,7 +935,7 @@ export function InlineBookingCard({
                   {selectedSlot.visitor_local_label}
                 </div>
                 <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                  {slotsData.duration_minutes} min video demo
+                  {slotsData?.duration_minutes || 30} min video demo
                 </div>
               </div>
             </div>
@@ -874,7 +1070,7 @@ export function InlineBookingCard({
                       className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-1 focus:ring-neutral-400"
                     />
                   </div>
-                  {slotsData.booking_require_business_email && (
+                  {slotsData?.booking_require_business_email && (
                     <span className="text-[10px] text-neutral-400 mt-0.5 block">
                       Corporate business email required
                     </span>
@@ -957,10 +1153,10 @@ export function InlineBookingCard({
                   {submitting ? (
                     <>
                       <Loader2 className="size-3.5 animate-spin" />
-                      <span>{slotsData.booking_email_verification ? "Sending code..." : "Reserving slot..."}</span>
+                      <span>{slotsData?.booking_email_verification ? "Sending code..." : "Reserving slot..."}</span>
                     </>
                   ) : (
-                    <span>{slotsData.booking_email_verification ? "Continue to Verify" : "Confirm Booking"}</span>
+                    <span>{slotsData?.booking_email_verification ? "Continue to Verify" : "Confirm Booking"}</span>
                   )}
                 </button>
               </div>
@@ -970,8 +1166,15 @@ export function InlineBookingCard({
       )}
 
       {/* VIEW 3: Confirmed Meeting Card */}
-      {step === 3 && confirmedMeeting && (
+      {step === 3 && cardMode === "confirmed" && confirmedMeeting && (
         <div className="p-4 space-y-3.5 text-center">
+          {rescheduleSuccess && (
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-medium flex items-center justify-center gap-1.5">
+              <Check className="size-3.5" />
+              <span>Appointment successfully rescheduled!</span>
+            </div>
+          )}
+
           <div className="size-10 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
             <Check className="size-5 stroke-[2.5]" />
           </div>
@@ -1042,6 +1245,130 @@ export function InlineBookingCard({
             >
               <Calendar className="size-3.5 text-neutral-400" />
               <span>Download .ics</span>
+            </button>
+          </div>
+
+          {/* Manage Appointment Actions */}
+          <div className="pt-2.5 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSlot(null);
+                setRescheduleError(null);
+                setCardMode("reschedule");
+              }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-medium transition-colors cursor-pointer"
+            >
+              <CalendarClock className="size-3.5 text-neutral-500" />
+              <span>Reschedule</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCancelError(null);
+                setCardMode("cancel_confirm");
+              }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 font-medium transition-colors cursor-pointer"
+            >
+              <XCircle className="size-3.5 text-red-500" />
+              <span>Cancel</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 4: Cancel Confirmation Dialog */}
+      {cardMode === "cancel_confirm" && confirmedMeeting && (
+        <div className="p-4 space-y-3.5 text-center">
+          <div className="size-10 rounded-full bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto">
+            <AlertTriangle className="size-5 stroke-[2.2]" />
+          </div>
+
+          <div>
+            <div className="text-sm font-bold text-neutral-900 dark:text-white">
+              Cancel Appointment?
+            </div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
+              Are you sure you want to cancel your meeting scheduled for{" "}
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                {confirmedMeeting.formatted_time}
+              </span>
+              ? This action cannot be undone.
+            </div>
+          </div>
+
+          {cancelError && (
+            <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-[11px] flex items-start gap-1.5 text-left">
+              <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
+              <span className="break-words">{cancelError}</span>
+            </div>
+          )}
+
+          <div className="pt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCancelError(null);
+                setCardMode("confirmed");
+              }}
+              disabled={cancelling}
+              className="flex-1 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Keep Meeting
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmCancel}
+              disabled={cancelling}
+              className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+            >
+              {cancelling ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Cancelling...</span>
+                </>
+              ) : (
+                <span>Yes, Cancel Meeting</span>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 5: Meeting Cancelled Confirmation */}
+      {cardMode === "cancelled" && (
+        <div className="p-4 space-y-3.5 text-center">
+          <div className="size-10 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 flex items-center justify-center mx-auto">
+            <XCircle className="size-5 stroke-[2.2]" />
+          </div>
+
+          <div>
+            <div className="text-sm font-bold text-neutral-900 dark:text-white">
+              Meeting Cancelled
+            </div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
+              Your appointment has been cancelled. Confirmation has been emailed to{" "}
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                {confirmedMeeting?.attendee_email || "your email"}
+              </span>
+              .
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmedMeeting(null);
+                setCardMode("book");
+                setStep(1);
+                setSelectedSlot(null);
+                fetchSlots(activeTimezone);
+              }}
+              className="w-full py-2 rounded-xl text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98"
+              style={{ backgroundColor: primaryColor }}
+            >
+              <span>Schedule New Meeting</span>
             </button>
           </div>
         </div>

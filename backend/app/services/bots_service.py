@@ -749,7 +749,7 @@ async def get_account_billing(principal: dict[str, Any]) -> dict[str, Any]:
     byok_active always True) regardless of the account's real plan or usage."""
     # Lazy import: main.py imports every router at the bottom of the file
     # specifically to avoid this cycle (see main.py's own comment on that).
-    from main import PLAN_QUOTAS, get_chatty_monthly_usage, plan_for
+    from app.services.chatty_quota_service import PLAN_QUOTAS, get_chatty_monthly_usage, plan_for
 
     user = await _oauth.user_dict_for_principal(principal)
     bots = await list_bots(principal)

@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Playwright's deterministic local server uses 127.0.0.1. Allow it in
+  // development so browser checks exercise real client bundles without
+  // cross-origin dev-resource warnings.
+  allowedDevOrigins: ["127.0.0.1"],
   async headers() {
     return [
       {

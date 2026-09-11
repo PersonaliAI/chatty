@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
+import { BACKEND_URL } from "@/lib/backend-client";
 
 interface Props {
   botId: string | null;
@@ -395,8 +396,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
     if (!aiPrompt.trim() || !botId) return;
     setGenerating(true);
     try {
-      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
-    const res = await fetch(`${BACKEND_URL}/api/flow/generate`, {
+      const res = await fetch(`${BACKEND_URL}/api/flow/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bot_id: botId, description: aiPrompt }),

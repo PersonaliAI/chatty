@@ -17,9 +17,10 @@ from app.core.clients import supabase
 from app.core.db import run_db
 from app.schemas.voice import VoiceTokenRequest, VoiceTokenResponse
 from app.services import voice_service
+from app.services.chatty_quota_service import chatty_quota_exceeded
 
 # Bridged helpers still living in main.py - same pattern as app/routers/widget.py.
-from main import _client_ip, _widget_rate_limit_or_429, chatty_quota_exceeded
+from main import _client_ip, _widget_rate_limit_or_429
 
 logger = logging.getLogger("chatty")
 

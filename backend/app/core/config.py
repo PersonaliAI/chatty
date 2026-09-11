@@ -62,13 +62,10 @@ LEMON_STORE_ID = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
 RESEND_INBOUND_DOMAIN = os.environ.get("RESEND_INBOUND_DOMAIN", "")
 RESEND_INBOUND_WEBHOOK_SECRET = os.environ.get("RESEND_INBOUND_WEBHOOK_SECRET", "")
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://personaliai.com")
-# Deliberately a separate var from FRONTEND_URL above: per env.yaml.example's
-# own comment, FRONTEND_URL is intentionally pinned to Kin's dashboard
-# (kin.personaliai.com) because Kin owns /dashboard/integrations, the one
-# thing that currently reads FRONTEND_URL. That doesn't apply here - the
-# OAuth2 consent screen is a Chatty-specific page and must land on Chatty's
-# own frontend regardless of where FRONTEND_URL points.
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://chatty.personaliai.com")
+# Chatty's own frontend is the redirect fallback for Chatty OAuth flows. Keep
+# FRONTEND_URL as a legacy alias for older deploy envs, but prefer the explicit
+# Chatty name everywhere new code needs a product frontend URL.
 CHATTY_FRONTEND_URL = os.environ.get("CHATTY_FRONTEND_URL", "https://chatty.personaliai.com")
 # This service's own public URL - the OAuth issuer/resource identifiers the
 # MCP server (app/routers/mcp.py) advertises in its metadata must exactly

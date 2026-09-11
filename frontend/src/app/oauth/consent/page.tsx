@@ -6,8 +6,7 @@ import { Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
+import { BACKEND_URL } from "@/lib/backend-client";
 
 type ConsentInfo = {
   client_name: string;

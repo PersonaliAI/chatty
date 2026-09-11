@@ -19,10 +19,11 @@ from fastapi.responses import PlainTextResponse
 from app.core.clients import supabase
 from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, RESEND_INBOUND_WEBHOOK_SECRET
 from app.core.db import run_db
+from app.services.chatty_quota_service import chatty_quota_exceeded
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
-from main import WIDGET_QUOTA_REPLY, chatty_quota_exceeded
+from main import WIDGET_QUOTA_REPLY
 from plugins.widget_brain import run_widget_assistant
 
 logger = logging.getLogger("chatty")

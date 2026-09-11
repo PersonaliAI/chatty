@@ -1018,7 +1018,9 @@ def test_execute_books_against_assigned_member_not_caller(monkeypatch):
         user=owner_user, supabase=MagicMock(),
         context={"source": "widget", "bot_id": "b1", "bot": {"meeting_provider": "google_meet"}},
     ))
-    assert result == {"id": "evt1"}
+    # The booking result must preserve ownership selected by round-robin
+    # assignment rather than making callers infer it from calendar state.
+    assert result == {"id": "evt1", "assigned_to_email": "jane@example.com"}
     # The event was created using the ASSIGNED member's credentials, not the caller's.
     create_args, _ = create_mock.call_args
     assert create_args[1] == assignee["user"]
@@ -1290,7 +1292,7 @@ def test_execute_allows_disposable_email_when_defense_disabled(monkeypatch):
         supabase=MagicMock(),
         context=context,
     ))
-    assert res == {"id": "evt-1"}
+    assert res == {"id": "evt-1", "assigned_to_email": "owner@example.com"}
 
 
 def test_execute_blocks_consumer_email_when_business_email_required():
@@ -1329,7 +1331,7 @@ def test_execute_allows_corporate_email_when_business_email_required(monkeypatch
         supabase=MagicMock(),
         context=context,
     ))
-    assert res == {"id": "evt-biz"}
+    assert res == {"id": "evt-biz", "assigned_to_email": "owner@example.com"}
 
 
 def test_execute_blocks_duplicate_active_meeting_when_limit_one_active_enabled():
@@ -1404,4 +1406,4 @@ def test_execute_triggers_otp_and_verifies_code(monkeypatch):
         supabase=MagicMock(),
         context=context,
     ))
-    assert res3 == {"id": "evt-verified"}
+    assert res3 == {"id": "evt-verified", "assigned_to_email": "owner@example.com"}

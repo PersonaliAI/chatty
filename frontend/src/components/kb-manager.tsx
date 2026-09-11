@@ -105,6 +105,10 @@ export interface KBAnalytics {
   }>;
 }
 
+type KBSubTab = "articles" | "categories" | "analytics" | "sources";
+type KBArticleStatus = "published" | "draft" | "archived";
+type KBArticleVisibility = "public" | "internal_only";
+
 const CATEGORY_ICONS = [
   { name: "Folder", icon: Folder },
   { name: "BookOpen", icon: BookOpen },
@@ -145,7 +149,7 @@ export function KBManager({
   rawSourcesContent,
   color = "#f97316",
 }: KBManagerProps) {
-  const [subTab, setSubTab] = useState<"articles" | "categories" | "analytics" | "sources">("articles");
+  const [subTab, setSubTab] = useState<KBSubTab>("articles");
 
   // Articles state
   const [articles, setArticles] = useState<KBArticle[]>([]);
@@ -164,8 +168,8 @@ export function KBManager({
   const [editorCategoryId, setEditorCategoryId] = useState<string>("");
   const [editorSubtitle, setEditorSubtitle] = useState("");
   const [editorContent, setEditorContent] = useState("");
-  const [editorStatus, setEditorStatus] = useState<"published" | "draft" | "archived">("published");
-  const [editorVisibility, setEditorVisibility] = useState<"public" | "internal_only">("public");
+  const [editorStatus, setEditorStatus] = useState<KBArticleStatus>("published");
+  const [editorVisibility, setEditorVisibility] = useState<KBArticleVisibility>("public");
   const [editorTags, setEditorTags] = useState<string[]>([]);
   const [editorTagInput, setEditorTagInput] = useState("");
   const [editorPromoted, setEditorPromoted] = useState(false);
@@ -220,7 +224,10 @@ export function KBManager({
   };
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [botId]);
 
   // Open editor for new or existing article
@@ -470,18 +477,18 @@ export function KBManager({
 
       {/* Sub-Navigation Tabs */}
       <div className="flex items-center gap-1 border-b border-neutral-200 dark:border-neutral-800 pb-2 overflow-x-auto">
-        {[
+        {([
           { id: "articles", label: "Articles & Guides", icon: BookOpen, count: articles.length },
           { id: "categories", label: "Categories & Structure", icon: Folder, count: categories.length },
           { id: "analytics", label: "Insights & Content Gaps", icon: BarChart2, count: analytics?.content_gaps.length },
           { id: "sources", label: "Raw Sources & Crawlers", icon: Database },
-        ].map((tab) => {
+        ] satisfies Array<{ id: KBSubTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }>).map((tab) => {
           const Icon = tab.icon;
           const isActive = subTab === tab.id;
           return (
             <button
               key={tab.id}
-              onClick={() => setSubTab(tab.id as any)}
+              onClick={() => setSubTab(tab.id)}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                 isActive
                   ? "bg-[#f97316]/10 text-[#f97316] font-bold"
@@ -1029,7 +1036,7 @@ export function KBManager({
                       { value: "public", label: "Public (Help Center)" },
                       { value: "internal_only", label: "Internal (Team Only)" },
                     ]}
-                    onChange={(v) => setEditorVisibility(v as any)}
+                    onChange={(v) => setEditorVisibility(v as KBArticleVisibility)}
                     size="sm"
                   />
                 </div>

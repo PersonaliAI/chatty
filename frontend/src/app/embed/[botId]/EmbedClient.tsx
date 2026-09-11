@@ -11,176 +11,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import VoiceCallWidget from "@/components/voice-call-widget";
-import { InlineBookingCard } from "@/components/inline-booking-card";
+import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle } from "@/lib/widget-style";
+import { AudioBubble, RECORD_BAR_COUNT, VOICE_MESSAGE_PLACEHOLDER, audioBlobToWav } from "./widget-media";
+import { AVATAR_ICONS, SEND_BUTTON_STYLES } from "./widget-style-options";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
   BookOpen,
-  type LucideIcon,
 } from "lucide-react";
-
-// Preset assistant avatar icons (selectable in the customizer).
-const AVATAR_ICONS: Record<string, LucideIcon> = {
-  bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User,
-};
+import { BACKEND_URL } from "@/lib/backend-client";
 import { useSearchParams } from "next/navigation";
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
-
-const RECORD_BAR_COUNT = 14;
-
-// The default placeholder content a voice message gets when the visitor
-// didn't type an accompanying caption (set where the message is created,
-// below) - used to skip rendering it as redundant text under the player.
-const VOICE_MESSAGE_PLACEHOLDER = "🎤 Voice message";
-
-// A WhatsApp/Telegram-style voice-message player: play/pause + a seekable
-// waveform + elapsed/duration, themed entirely through `currentColor` and
-// `color-mix()` (see .audio-bubble-* rules in globals.css) so it
-// automatically matches whichever design preset (and primaryColor) the
-// surrounding .user-bubble/.bot-bubble is already using. Mirrors
-// packages/chatty-react/src/ChatWidgetCore.tsx's AudioBubble exactly - this
-// route is a separate, parallel widget implementation, not a consumer of
-// that package.
-function AudioBubble({ src }: { src: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-
-  // There's no real peak/amplitude data for a recorded clip, so the bars are
-  // a deterministic pseudo-waveform hashed from the src URL - the same
-  // message always renders the same bar pattern (rather than a fresh random
-  // shape on every re-render, which would look broken/flickery).
-  const bars = useMemo(() => {
-    let seed = 0;
-    for (let i = 0; i < src.length; i++) seed = (seed * 31 + src.charCodeAt(i)) >>> 0;
-    return Array.from({ length: 24 }, () => {
-      seed = (seed * 1103515245 + 12345) >>> 0;
-      return 0.28 + ((seed >>> 8) % 100) / 100 * 0.72;
-    });
-  }, [src]);
-
-  const progress = duration > 0 ? currentTime / duration : 0;
-
-  const togglePlay = () => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (playing) el.pause();
-    else el.play().catch(() => {});
-  };
-
-  const seek: React.MouseEventHandler<HTMLDivElement> = (e) => {
-    const el = audioRef.current;
-    if (!el || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const fraction = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    el.currentTime = fraction * duration;
-    setCurrentTime(el.currentTime);
-  };
-
-  const fmt = (s: number) => {
-    if (!isFinite(s) || s < 0) s = 0;
-    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
-    return `${m}:${sec.toString().padStart(2, "0")}`;
-  };
-
-  return (
-    <div className="audio-bubble flex items-center gap-2.5 py-0.5 min-w-[188px] max-w-[220px]">
-      <audio
-        ref={audioRef}
-        src={src}
-        preload="metadata"
-        onLoadedMetadata={(e) => {
-          const el = e.currentTarget;
-          // Chrome reports Infinity for a MediaRecorder-produced blob's
-          // duration until forced to seek past the end - without this, every
-          // voice message we record ourselves shows "0:00" regardless of its
-          // real length (fmt() below maps non-finite durations to 0).
-          if (isFinite(el.duration)) setDuration(el.duration);
-          else el.currentTime = 1e101;
-        }}
-        onDurationChange={(e) => {
-          const d = e.currentTarget.duration;
-          if (isFinite(d) && d > 0) {
-            setDuration(d);
-            if (e.currentTarget.currentTime !== 0) e.currentTarget.currentTime = 0;
-          }
-        }}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => { setPlaying(false); setCurrentTime(0); }}
-        className="hidden"
-      />
-      <button
-        type="button"
-        onClick={togglePlay}
-        aria-label={playing ? "Pause voice message" : "Play voice message"}
-        className="audio-bubble-btn shrink-0 size-8 rounded-full flex items-center justify-center transition-transform active:scale-90 cursor-pointer"
-      >
-        {playing ? <Pause className="size-3.5 fill-current" /> : <Play className="size-3.5 fill-current ml-0.5" />}
-      </button>
-      <div className="flex-1 flex items-center gap-[2.5px] h-5 cursor-pointer" onClick={seek}>
-        {bars.map((h, idx) => (
-          <span
-            key={idx}
-            className="audio-bubble-bar w-[2.5px] rounded-full shrink-0"
-            style={{ height: `${h * 100}%`, opacity: idx / bars.length < progress ? 1 : 0.35 }}
-          />
-        ))}
-      </div>
-      <span className="audio-bubble-time text-[10px] tabular-nums opacity-70 shrink-0">
-        {fmt(playing || currentTime > 0 ? currentTime : duration)}
-      </span>
-    </div>
-  );
-}
-
-// Send-button variants (icon + shape). Keyed by chatty_bots.send_button_style.
-const SEND_BUTTON_STYLES: Record<string, { shape: string; icon: React.ReactNode; label?: string }> = {
-  plane:      { shape: "size-7 rounded-full",        icon: <Send className="size-3.5" /> },
-  arrowUp:    { shape: "size-7 rounded-full",        icon: <ArrowUp className="size-3.5" /> },
-  arrowRight: { shape: "size-7 rounded-full",        icon: <ArrowRight className="size-3.5" /> },
-  square:     { shape: "size-7 rounded-lg",          icon: <Send className="size-3.5" /> },
-  label:      { shape: "h-7 px-3 rounded-full gap-1.5", icon: <Send className="size-3" />, label: "Send" },
-};
-
-// Browsers record audio as webm/opus, which Gemini does NOT accept. Decode and
-// re-encode to 16-bit mono WAV (a Gemini-supported format) client-side.
-async function audioBlobToWav(blob: Blob): Promise<Blob> {
-  const AC: typeof AudioContext = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
-  const ctx = new AC();
-  const audioBuf = await ctx.decodeAudioData(await blob.arrayBuffer());
-  ctx.close();
-  const len = audioBuf.length;
-  // A near-instant tap-to-stop can decode to an AudioBuffer with ~0 samples -
-  // that still produces a "valid" (44-byte-header) WAV with no audio content,
-  // which Gemini silently treats as empty. Require a minimum of ~150ms.
-  if (len < audioBuf.sampleRate * 0.15) {
-    throw new Error("Recording too short");
-  }
-  const rate = audioBuf.sampleRate;
-  const numCh = audioBuf.numberOfChannels;
-  const mono = new Float32Array(len);
-  for (let ch = 0; ch < numCh; ch++) {
-    const d = audioBuf.getChannelData(ch);
-    for (let i = 0; i < len; i++) mono[i] += d[i] / numCh;
-  }
-  const view = new DataView(new ArrayBuffer(44 + len * 2));
-  const ws = (o: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
-  ws(0, "RIFF"); view.setUint32(4, 36 + len * 2, true); ws(8, "WAVE"); ws(12, "fmt ");
-  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true); ws(36, "data"); view.setUint32(40, len * 2, true);
-  let off = 44;
-  for (let i = 0; i < len; i++) { const s = Math.max(-1, Math.min(1, mono[i])); view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); off += 2; }
-  return new Blob([view], { type: "audio/wav" });
-}
 
 interface Citation { name: string; type: string; url?: string | null; }
 interface Message {
@@ -190,17 +34,11 @@ interface Message {
   fileType?: string;
   sources?: Citation[];
   feedback?: "up" | "down";
-  // Only set on assistant messages, and only meaningful when the customizer's
-  // "show AI / Human tag" setting is on. /api/widget/poll and /api/widget/live
-  // only ever return human-agent replies (server-side filtered), so any
-  // message arriving through those two paths is unambiguously "human" -
-  // everything else assistant-role is a direct AI reply.
   sender?: "ai" | "human";
+  confirmedMeeting?: ConfirmedMeeting;
 }
 interface Source { id: string; name: string; content: string; }
 
-// Visual-flow config parsed out of the bot's custom JS (built by the flow
-// builder in the dashboard). Nodes/edges follow React Flow's shape.
 interface FlowNode {
   id: string;
   type?: string;
@@ -415,8 +253,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     ) {
       return false;
     }
-    const hasBookingWords = /\b(book|booking|demo|schedule|appointment|meeting|calendar|slots?)\b/i.test(lower);
-    const mentionsTimesOrSlots = /\b(available slots?|earliest slot|available times?|what day and time|works best for you|reserve your slot|reserve your spot)\b/i.test(lower);
+    const hasBookingWords = /\b(book|booking|demo|schedule|reschedule|appointment|meeting|calendar|slots?)\b/i.test(lower);
+    const mentionsTimesOrSlots = /\b(available slots?|earliest slot|available times?|what day and time|works best for you|reserve your slot|reserve your spot|pick a time|choose a time|select a time)\b/i.test(lower);
     return hasBookingWords && mentionsTimesOrSlots;
   }, [calendarSchedulingEnabled]);
 
@@ -429,6 +267,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     }
     return -1;
   }, [messages, isBookingMessage]);
+
+  const latestActiveMeeting = useMemo(() => {
+    for (let idx = messages.length - 1; idx >= 0; idx--) {
+      if (messages[idx].confirmedMeeting) {
+        return messages[idx].confirmedMeeting;
+      }
+    }
+    return null;
+  }, [messages]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -918,6 +765,37 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId]);
+
+  // Query active scheduled meeting for the current session on load
+  useEffect(() => {
+    if (!botId || !sessionId || !calendarSchedulingEnabled) return;
+    const fetchActiveMeeting = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.meeting) {
+          const activeMeeting: ConfirmedMeeting = data.meeting;
+          setMessages((prev) => {
+            const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
+            if (alreadyHas) return prev;
+            const updated = [...prev];
+            for (let idx = updated.length - 1; idx >= 0; idx--) {
+              if (updated[idx].role === "assistant") {
+                updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
+                return updated;
+              }
+            }
+            if (updated.length > 0) {
+              updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
+            }
+            return updated;
+          });
+        }
+      } catch {}
+    };
+    fetchActiveMeeting();
+  }, [botId, sessionId, calendarSchedulingEnabled]);
 
   // Reset html and body backgrounds to transparent to prevent white corners in rounded iframe borders
   useEffect(() => {
@@ -2069,13 +1947,44 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                                 {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
                               </ReactMarkdown>
                             )}
-                            {i === lastBookingMsgIdx && (
+                            {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
                               <InlineBookingCard
                                 botId={String(botId)}
                                 sessionId={sessionId}
                                 visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
                                 primaryColor={primaryColor}
                                 backendUrl={BACKEND_URL}
+                                initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
+                                onBookingSuccess={(meeting) => {
+                                  setMessages((prev) => {
+                                    const updated = [...prev];
+                                    if (updated[i]) {
+                                      updated[i] = { ...updated[i], confirmedMeeting: meeting };
+                                    }
+                                    return updated;
+                                  });
+                                }}
+                                onMeetingRescheduled={(meeting) => {
+                                  setMessages((prev) =>
+                                    prev.map((m) =>
+                                      m.confirmedMeeting && (m.confirmedMeeting.id === meeting.id || !m.confirmedMeeting.id)
+                                        ? { ...m, confirmedMeeting: meeting }
+                                        : m
+                                    )
+                                  );
+                                }}
+                                onMeetingCancelled={() => {
+                                  setMessages((prev) =>
+                                    prev.map((m) => {
+                                      if (m.confirmedMeeting) {
+                                        const copy = { ...m };
+                                        delete copy.confirmedMeeting;
+                                        return copy;
+                                      }
+                                      return m;
+                                    })
+                                  );
+                                }}
                               />
                             )}
                           </>

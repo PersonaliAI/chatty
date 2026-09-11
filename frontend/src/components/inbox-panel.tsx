@@ -69,6 +69,8 @@ function applyCannedVars(text: string, visitorName: string): string {
   return text.replace(/\{\{visitor_name\}\}/gi, visitorName || "Visitor");
 }
 
+type InboxStatusTab = "all" | "unassigned" | "open" | "pending" | "resolved" | "closed";
+
 async function audioBlobToWav(blob: Blob): Promise<Blob> {
   const AC: typeof AudioContext = (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)!;
   const ctx = new AC();
@@ -395,7 +397,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Helpdesk Engine State ──
-  const [selectedStatusTab, setSelectedStatusTab] = useState<"all" | "unassigned" | "open" | "pending" | "resolved" | "closed">("open");
+  const [selectedStatusTab, setSelectedStatusTab] = useState<InboxStatusTab>("open");
   const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<string>("all");
   const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<string>("all");
   const [selectedChannelFilter, setSelectedChannelFilter] = useState<string>("all");
@@ -442,7 +444,9 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const PREDEFINED_TAGS = ["VIP", "Bug", "Billing", "Feature Request", "Urgent", "Lead"];
 
   // ── Canned Responses state ──
-  const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([]);
+  const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>(() =>
+    typeof window === "undefined" ? [] : loadCannedResponses()
+  );
   const [cannedOpen, setCannedOpen] = useState(false);
   const [cannedFilter, setCannedFilter] = useState("");
   const [cannedManageOpen, setCannedManageOpen] = useState(false);
@@ -482,11 +486,6 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       } catch {}
     }
     fetchUser();
-  }, []);
-
-  // Load canned responses on mount
-  useEffect(() => {
-    setCannedResponses(loadCannedResponses());
   }, []);
 
   const saveCanned = (items: CannedResponse[]) => {
@@ -713,15 +712,21 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   };
 
   useEffect(() => {
-    loadSessions();
-    loadAssignees();
-    loadPresence();
+    const timer = setTimeout(() => {
+      void loadSessions();
+      void loadAssignees();
+      void loadPresence();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadSessions, loadAssignees, loadPresence]);
 
   useEffect(() => {
     if (selected) {
-      loadMessages(selected);
-      loadNotes(selected);
+      const timer = setTimeout(() => {
+        void loadMessages(selected);
+        void loadNotes(selected);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [selected, loadMessages, loadNotes]);
 
@@ -1207,17 +1212,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex flex-col max-h-[680px]">
           {/* Ticket Lifecycle Status Tabs */}
           <div className="flex items-center border-b border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/40 text-[11px] font-semibold select-none overflow-x-auto scrollbar-none rounded-t-2xl">
-            {[
+            {([
               { key: "all", label: "All", count: ticketCounts.all },
               { key: "unassigned", label: "Queue", count: ticketCounts.unassigned, dot: "bg-rose-500" },
               { key: "open", label: "Open", count: ticketCounts.open, dot: "bg-emerald-500" },
               { key: "pending", label: "Pending", count: ticketCounts.pending, dot: "bg-amber-500" },
               { key: "resolved", label: "Resolved", count: ticketCounts.resolved, dot: "bg-purple-500" },
               { key: "closed", label: "Closed", count: ticketCounts.closed, dot: "bg-neutral-400" },
-            ].map((tab) => (
+            ] satisfies Array<{ key: InboxStatusTab; label: string; count: number; dot?: string }>).map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setSelectedStatusTab(tab.key as any)}
+                onClick={() => setSelectedStatusTab(tab.key)}
                 className={`shrink-0 py-2.5 px-3 flex items-center justify-center gap-1.5 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                   selectedStatusTab === tab.key
                     ? "border-[#f97316] text-neutral-900 dark:text-neutral-100 font-bold bg-white dark:bg-neutral-900"

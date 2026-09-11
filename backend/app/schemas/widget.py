@@ -57,3 +57,22 @@ class WidgetBookingConfirmRequest(BaseModel):
     company: Optional[str] = ""
     notes: Optional[str] = ""
     verification_code: Optional[str] = None
+
+
+class WidgetBookingRescheduleRequest(BaseModel):
+    bot_id: str
+    session_id: Optional[str] = None
+    meeting_id: str
+    attendee_email: str
+    new_start_time: str
+    new_end_time: str
+    visitor_timezone: Optional[str] = "UTC"
+
+
+class WidgetBookingCancelRequest(BaseModel):
+    bot_id: str
+    session_id: Optional[str] = None
+    meeting_id: str
+    attendee_email: str
+    reason: Optional[str] = None
+
