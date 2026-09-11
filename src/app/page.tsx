@@ -547,7 +547,7 @@ export default function Home() {
             <div>
               <h2 id="help-center-heading" className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Build a bot people trust</h2>
               <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[64ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
-                Practical operating guides for a useful, safe, and conversion-ready Chatty deployment. Each guide is written for the person responsible for the customer experience—not just the installation.
+                Practical operating guides for a useful, safe, and conversion-ready Chatty deployment. Each guide is written for the person responsible for the customer experience - not just the installation.
               </p>
             </div>
             <a href="https://docs.chatty.personaliai.com" target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium" style={{ borderColor: "var(--color-divider)", color: "var(--color-accent-800)" }}>
