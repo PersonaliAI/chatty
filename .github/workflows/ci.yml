@@ -29,12 +29,12 @@ jobs:
         with:
           repository: PersonaliAI/chatty
           ref: main
-          path: ../chatty-public
+          path: chatty-public
 
       - name: Verify changed frontend files are mirrored publicly
         run: npm run test:public-mirror
         env:
-          PUBLIC_MIRROR_DIR: ../chatty-public
+          PUBLIC_MIRROR_DIR: chatty-public
 
       - name: Typecheck
         run: npx tsc --noEmit
