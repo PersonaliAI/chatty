@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, ShieldAlert, Plus, Globe, X } from "lucide-react";
+import { Check, Copy, ShieldAlert, Plus, Globe, X, ExternalLink } from "lucide-react";
 
 interface IntegrationsTabProps {
   embedPlatform: string | null;
@@ -51,13 +51,13 @@ export function IntegrationsTab({
       }}
     />
   );
-  const platforms = [
+  const platforms: { id: string; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: "html", label: "HTML", icon: <PlatformIcon domain="w3.org" label="HTML" /> },
     { id: "react", label: "React / Next.js", icon: <PlatformIcon domain="react.dev" label="React" /> },
-    { id: "wordpress", label: "WordPress", icon: <PlatformIcon domain="wordpress.org" label="WordPress" /> },
+    { id: "wordpress", label: "WordPress", icon: <PlatformIcon domain="wordpress.org" label="WordPress" />, badge: "Official" },
     { id: "shopify", label: "Shopify", icon: <PlatformIcon domain="shopify.com" label="Shopify" /> },
     { id: "prestashop", label: "Prestashop", icon: <PlatformIcon domain="prestashop.com" label="Prestashop" /> },
-    { id: "woocommerce", label: "WooCommerce", icon: <PlatformIcon domain="woocommerce.com" label="WooCommerce" /> },
+    { id: "woocommerce", label: "WooCommerce", icon: <PlatformIcon domain="woocommerce.com" label="WooCommerce" />, badge: "Plugin Ready" },
     { id: "whmcs", label: "WHMCS", icon: <PlatformIcon domain="whmcs.com" label="WHMCS" /> },
     { id: "adobe", label: "Adobe Commerce", icon: <PlatformIcon domain="business.adobe.com" label="Adobe Commerce" /> },
     {
@@ -75,7 +75,17 @@ export function IntegrationsTab({
 
   const platformInstructions: Record<
     string,
-    { title: string; steps: { label: string; code?: string; note?: string }[] }
+    {
+      title: string;
+      badge?: string;
+      actionLink?: { label: string; url: string };
+      steps: {
+        label: string;
+        code?: string;
+        note?: string;
+        link?: { label: string; url: string };
+      }[];
+    }
   > = {
     html: {
       title: "Add to any HTML page",
@@ -105,15 +115,33 @@ export function IntegrationsTab({
       ],
     },
     wordpress: {
-      title: "Add to WordPress",
+      title: "Add to WordPress (Official Plugin Approved)",
+      badge: "Official WordPress Plugin",
+      actionLink: {
+        label: "View on WordPress.org",
+        url: "https://wordpress.org/plugins/personaliai-customer-support-chatbot",
+      },
       steps: [
         {
-          label: "Go to Appearance → Theme File Editor → functions.php and add:",
-          code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');`,
+          label:
+            "Method 1 (Recommended - Official Plugin): In your WordPress admin, navigate to Plugins → Add New Plugin, search for \"PersonaliAI Customer Support Chatbot\", and click Install Now followed by Activate.",
+          link: {
+            label: "WordPress.org Plugin Directory: personaliai-customer-support-chatbot",
+            url: "https://wordpress.org/plugins/personaliai-customer-support-chatbot",
+          },
+          note: "Note: Search indexing across WordPress.org can take up to 72 hours following directory approval. You can also download the ZIP package directly from WordPress.org and upload via Plugins → Add New → Upload Plugin.",
         },
         {
-          label: "Alternatively, install the Insert Headers and Footers plugin and paste the snippet into the Footer Scripts field.",
-          note: "No code editing required.",
+          label:
+            "In your WordPress sidebar, open Settings → PersonaliAI Chatbot and enter your Bot ID:",
+          code: botId || "YOUR_BOT_ID",
+          note: "Click Save Changes. Your chatbot will immediately appear live across your WordPress site with zero code editing required.",
+        },
+        {
+          label:
+            "Method 2 (Manual Theme Snippet - Alternative without plugin): Paste this hook into your active theme's functions.php:",
+          code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');`,
+          note: "Alternatively, paste the script snippet into the WPCode / Insert Headers and Footers plugin footer field.",
         },
       ],
     },
@@ -141,15 +169,32 @@ export function IntegrationsTab({
     },
     woocommerce: {
       title: "Add to WooCommerce (WordPress)",
+      badge: "Official Plugin Ready",
+      actionLink: {
+        label: "View on WordPress.org",
+        url: "https://wordpress.org/plugins/personaliai-customer-support-chatbot",
+      },
       steps: [
         {
           label:
-            "WooCommerce runs on WordPress - follow the WordPress steps above, or add to Appearance → Theme File Editor → functions.php:",
-          code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');`,
+            "Method 1 (Recommended - Official Plugin): Install the official PersonaliAI Customer Support Chatbot plugin directly from WordPress.org:",
+          link: {
+            label: "WordPress.org: PersonaliAI Customer Support Chatbot",
+            url: "https://wordpress.org/plugins/personaliai-customer-support-chatbot",
+          },
+          note: "Fully compatible with WooCommerce product catalog pages, cart, and checkout.",
         },
         {
-          label: "The widget appears on all WooCommerce product and checkout pages automatically.",
-          note: "No WooCommerce-specific plugin needed.",
+          label:
+            "In your WordPress sidebar, open Settings → PersonaliAI Chatbot and enter your Bot ID:",
+          code: botId || "YOUR_BOT_ID",
+          note: "Save Changes. The chatbot will assist shoppers with pre-sale questions, FAQs, and lead capture automatically.",
+        },
+        {
+          label:
+            "Method 2 (Manual Theme Snippet): Or add directly to Appearance → Theme File Editor → functions.php:",
+          code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');`,
+          note: "No WooCommerce-specific coding required.",
         },
       ],
     },
@@ -296,12 +341,17 @@ export function IntegrationsTab({
             <button
               key={p.id}
               onClick={() => setEmbedPlatform(embedPlatform === p.id ? null : p.id)}
-              className={`flex flex-col items-center gap-2 p-3 rounded-xl border text-center transition-all cursor-pointer ${
+              className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border text-center transition-all cursor-pointer ${
                 embedPlatform === p.id
                   ? "border-[#f97316] bg-orange-50 dark:bg-orange-950/20"
                   : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
               }`}
             >
+              {p.badge && (
+                <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 text-[8px] font-semibold rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80 leading-none">
+                  {p.badge}
+                </span>
+              )}
               {p.icon}
               <span className="text-[10px] font-medium text-neutral-700 dark:text-neutral-300 leading-tight">
                 {p.label}
@@ -314,13 +364,33 @@ export function IntegrationsTab({
         {selected && (
           <div className="mt-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selected.title}</h4>
-              <button
-                onClick={() => setEmbedPlatform(null)}
-                className="text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer transition-colors"
-              >
-                ← Back
-              </button>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selected.title}</h4>
+                {selected.badge && (
+                  <span className="px-2 py-0.5 text-[9px] font-semibold rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80">
+                    {selected.badge}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                {selected.actionLink && (
+                  <a
+                    href={selected.actionLink.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#f97316] hover:underline"
+                  >
+                    <span>{selected.actionLink.label}</span>
+                    <ExternalLink className="size-3" />
+                  </a>
+                )}
+                <button
+                  onClick={() => setEmbedPlatform(null)}
+                  className="text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer transition-colors"
+                >
+                  ← Back
+                </button>
+              </div>
             </div>
             {selected.steps.map((step, i) => (
               <div key={i} className="space-y-1.5">
@@ -330,6 +400,19 @@ export function IntegrationsTab({
                   </span>
                   {step.label}
                 </p>
+                {step.link && (
+                  <div className="pl-6 pt-0.5">
+                    <a
+                      href={step.link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-[#f97316] hover:underline font-medium"
+                    >
+                      <span>{step.link.label}</span>
+                      <ExternalLink className="size-3" />
+                    </a>
+                  </div>
+                )}
                 {step.code && (
                   <div className="relative">
                     <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-350 leading-relaxed">

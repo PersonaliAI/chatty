@@ -1,6 +1,6 @@
 ---
 title: Embed Widget
-description: Add Chatty to any website with one snippet — 100% crisp vector rendering
+description: Add Chatty to any website with one snippet - 100% crisp vector rendering
 ---
 
 ## Overview
@@ -9,13 +9,13 @@ The Chatty embed widget is a standalone assistant that you add to any webpage wi
 
 It works on HTML, WordPress, Shopify, Webflow, Wix, Squarespace, and any other platform that lets you add custom HTML.
 
-No API key is required — the widget authenticates automatically by bot ID.
+No API key is required - the widget authenticates automatically by bot ID.
 
 ## Installation
 
 ### 1. Get your bot ID
 
-In the Dashboard, go to **Embed & Integrate → Embed Code**. Copy your bot ID — it looks like `a1b2c3d4-e5f6-7890-abcd-ef1234567890`.
+In the Dashboard, go to **Embed & Integrate → Embed Code**. Copy your bot ID - it looks like `a1b2c3d4-e5f6-7890-abcd-ef1234567890`.
 
 ### 2. Add the script tag
 
@@ -36,9 +36,21 @@ That's it. A chat bubble will appear in the bottom-right corner.
 <AccordionGroup>
 
   <Accordion title="WordPress">
-    Install the official **Chatty WordPress plugin**, or install the **Insert Headers and Footers** plugin and paste the script tag into the **Footer** section. It will appear on every page of your site automatically.
+    Install the official **[PersonaliAI Customer Support Chatbot](https://wordpress.org/plugins/personaliai-customer-support-chatbot)** plugin directly from **Plugins → Add New Plugin** in your WordPress admin (or from the [WordPress.org Plugin Directory](https://wordpress.org/plugins/personaliai-customer-support-chatbot)).
 
-    Alternatively, add it to your theme's `footer.php` file directly before `</body>`.
+    Once activated, navigate to **Settings → PersonaliAI Chatbot** and enter your **Bot ID**. Your AI chatbot will immediately appear across your site with zero code editing required.
+
+    *Note: WordPress.org directory search indexing can take up to 72 hours following approval. If directory search is still updating in your region, download the plugin ZIP directly from WordPress.org and upload via Plugins → Add New → Upload Plugin.*
+
+    **Alternative (Manual Code Snippet)**:
+    If you prefer not using a plugin, paste the script tag into your theme's `footer.php` before `</body>`, or add this snippet to your theme's `functions.php`:
+
+    ```php
+    function chatty_widget() { ?>
+      <script src="https://chatty.personaliai.com/widget.js" data-id="YOUR_BOT_ID" defer></script>
+    <?php }
+    add_action('wp_footer', 'chatty_widget');
+    ```
   </Accordion>
 
   <Accordion title="Shopify">
@@ -79,7 +91,7 @@ That's it. A chat bubble will appear in the bottom-right corner.
 
     For plain React (Vite / CRA), add the standard script tag to your `index.html` before `</body>`.
 
-    Renders as native vector DOM elements inside an isolated Shadow Root — zero iframes, 100% sharp at any zoom level.
+    Renders as native vector DOM elements inside an isolated Shadow Root - zero iframes, 100% sharp at any zoom level.
   </Accordion>
 
   <Accordion title="Inline Full-Page Embed">
@@ -100,4 +112,4 @@ That's it. A chat bubble will appear in the bottom-right corner.
 
 ## Customisation
 
-All visual settings (colors, avatar, welcome message, widget style) are configured in **Dashboard → Customizer** — no code changes needed.
+All visual settings (colors, avatar, welcome message, widget style) are configured in **Dashboard → Customizer** - no code changes needed.
