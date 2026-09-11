@@ -2,6 +2,39 @@
 
 import { Check, Copy, ShieldAlert, Plus, Globe, X, ExternalLink } from "lucide-react";
 
+const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
+
+const logoUrl = (domain: string) =>
+  `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
+
+function PlatformIcon({ domain, label }: { domain: string; label: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
+    <img
+      src={logoUrl(domain)}
+      alt={label}
+      className="size-7 rounded-md object-contain"
+      onError={(e) => {
+        (e.target as HTMLImageElement).style.visibility = "hidden";
+      }}
+    />
+  );
+}
+
+function MobilePlatformIcon({ domain, label }: { domain: string; label: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
+    <img
+      src={logoUrl(domain)}
+      alt={label}
+      className="size-6 rounded-md object-contain"
+      onError={(e) => {
+        (e.target as HTMLImageElement).style.visibility = "hidden";
+      }}
+    />
+  );
+}
+
 interface IntegrationsTabProps {
   embedPlatform: string | null;
   setEmbedPlatform: (p: string | null) => void;
@@ -37,20 +70,6 @@ export function IntegrationsTab({
   setAllowedDomains,
   handleInputChange,
 }: IntegrationsTabProps) {
-  const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
-  const logoUrl = (domain: string) =>
-    `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
-  const PlatformIcon = ({ domain, label }: { domain: string; label: string }) => (
-    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
-    <img
-      src={logoUrl(domain)}
-      alt={label}
-      className="size-7 rounded-md object-contain"
-      onError={(e) => {
-        (e.target as HTMLImageElement).style.visibility = "hidden";
-      }}
-    />
-  );
   const platforms: { id: string; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: "html", label: "HTML", icon: <PlatformIcon domain="w3.org" label="HTML" /> },
     { id: "react", label: "React / Next.js", icon: <PlatformIcon domain="react.dev" label="React" /> },
@@ -238,19 +257,6 @@ export function IntegrationsTab({
 
   const selected = embedPlatform ? platformInstructions[embedPlatform] : null;
 
-  const mobileLogoUrl = (domain: string) =>
-    `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
-  const MobilePlatformIcon = ({ domain, label }: { domain: string; label: string }) => (
-    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
-    <img
-      src={mobileLogoUrl(domain)}
-      alt={label}
-      className="size-6 rounded-md object-contain"
-      onError={(e) => {
-        (e.target as HTMLImageElement).style.visibility = "hidden";
-      }}
-    />
-  );
   const mobilePlatforms = [
     { id: "ios", label: "iOS SDK", icon: <MobilePlatformIcon domain="apple.com" label="iOS" /> },
     { id: "android", label: "Android SDK", icon: <MobilePlatformIcon domain="android.com" label="Android" /> },
