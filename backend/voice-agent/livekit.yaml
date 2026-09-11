@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# LiveKit Server Configuration — Self-Hosted (Contabo VPS)
+# LiveKit Server Configuration - Self-Hosted (Contabo VPS)
 # ─────────────────────────────────────────────────────────────────────────────
 # API keys are self-generated (no LiveKit Cloud dependency).
 # See setup.sh for key generation.
@@ -22,7 +22,7 @@ rtc:
   tcp_port: 7881
   # UDP port range for WebRTC media (audio/video RTP packets).
   # Narrowed to 50000-50200 (200 ports) to avoid Docker iptables overhead.
-  # Each active media track uses one port — 200 is plenty for a single-node
+  # Each active media track uses one port - 200 is plenty for a single-node
   # voice-only deployment (even 50 concurrent calls only need ~100 ports).
   port_range_start: 50000
   port_range_end: 50200
@@ -30,7 +30,7 @@ rtc:
   # TCP fallback happens automatically when UDP is blocked.
   use_ice_lite: true
 
-# Embedded TURN server — provides TCP fallback for clients behind
+# Embedded TURN server - provides TCP fallback for clients behind
 # corporate firewalls that block UDP entirely. No external Coturn needed.
 turn:
   enabled: true
@@ -45,7 +45,7 @@ redis:
 room:
   # Auto-create rooms when the first participant joins.
   auto_create: true
-  # Empty room cleanup — destroy rooms with no participants after 60s.
+  # Empty room cleanup - destroy rooms with no participants after 60s.
   empty_timeout: 60
   # Max participants per room (voice call = 2: visitor + agent).
   max_participants: 5
