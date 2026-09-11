@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "./quick-emoji-picker";
 import { AttachMenu } from "./attach-menu";
 import VoiceCallWidget from "./voice-call-widget";
-import { InlineBookingCard } from "./inline-booking-card";
+import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
 import { normalizeWidgetStyle } from "./widget-style";
 // CSS is shipped separately (dist/styles.css, plus katex's own CSS) instead
@@ -207,6 +207,7 @@ interface Message {
   // message arriving through those two paths is unambiguously "human" -
   // everything else assistant-role is a direct AI reply.
   sender?: "ai" | "human";
+  confirmedMeeting?: ConfirmedMeeting;
 }
 interface Source { id: string; name: string; content: string; }
 
@@ -524,8 +525,8 @@ export default function ChatWidgetCore({
     ) {
       return false;
     }
-    const hasBookingWords = /\b(book|booking|demo|schedule|appointment|meeting|calendar|slots?)\b/i.test(lower);
-    const mentionsTimesOrSlots = /\b(available slots?|earliest slot|available times?|what day and time|works best for you|reserve your slot|reserve your spot)\b/i.test(lower);
+    const hasBookingWords = /\b(book|booking|demo|schedule|reschedule|appointment|meeting|calendar|slots?)\b/i.test(lower);
+    const mentionsTimesOrSlots = /\b(available slots?|earliest slot|available times?|what day and time|works best for you|reserve your slot|reserve your spot|pick a time|choose a time|select a time)\b/i.test(lower);
     return hasBookingWords && mentionsTimesOrSlots;
   }, [calendarSchedulingEnabled]);
 
@@ -538,6 +539,46 @@ export default function ChatWidgetCore({
     }
     return -1;
   }, [messages, isBookingMessage]);
+
+  const latestActiveMeeting = useMemo(() => {
+    for (let idx = messages.length - 1; idx >= 0; idx--) {
+      if (messages[idx].confirmedMeeting) {
+        return messages[idx].confirmedMeeting;
+      }
+    }
+    return null;
+  }, [messages]);
+
+  // Query active scheduled meeting for the current session on load
+  useEffect(() => {
+    if (!botId || !sessionId || !calendarSchedulingEnabled) return;
+    const fetchActiveMeeting = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.meeting) {
+          const activeMeeting: ConfirmedMeeting = data.meeting;
+          setMessages((prev) => {
+            const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
+            if (alreadyHas) return prev;
+            const updated = [...prev];
+            for (let idx = updated.length - 1; idx >= 0; idx--) {
+              if (updated[idx].role === "assistant") {
+                updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
+                return updated;
+              }
+            }
+            if (updated.length > 0) {
+              updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
+            }
+            return updated;
+          });
+        }
+      } catch {}
+    };
+    fetchActiveMeeting();
+  }, [botId, sessionId, calendarSchedulingEnabled]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -2265,13 +2306,44 @@ export default function ChatWidgetCore({
                                 {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
                               </ReactMarkdown>
                             )}
-                            {i === lastBookingMsgIdx && (
+                            {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
                               <InlineBookingCard
                                 botId={String(botId)}
                                 sessionId={sessionId}
                                 visitorTimezone={typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"}
                                 primaryColor={primaryColor}
                                 backendUrl={BACKEND_URL}
+                                initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
+                                onBookingSuccess={(meeting) => {
+                                  setMessages((prev) => {
+                                    const updated = [...prev];
+                                    if (updated[i]) {
+                                      updated[i] = { ...updated[i], confirmedMeeting: meeting };
+                                    }
+                                    return updated;
+                                  });
+                                }}
+                                onMeetingRescheduled={(meeting) => {
+                                  setMessages((prev) =>
+                                    prev.map((m) =>
+                                      m.confirmedMeeting && (m.confirmedMeeting.id === meeting.id || !m.confirmedMeeting.id)
+                                        ? { ...m, confirmedMeeting: meeting }
+                                        : m
+                                    )
+                                  );
+                                }}
+                                onMeetingCancelled={() => {
+                                  setMessages((prev) =>
+                                    prev.map((m) => {
+                                      if (m.confirmedMeeting) {
+                                        const copy = { ...m };
+                                        delete copy.confirmedMeeting;
+                                        return copy;
+                                      }
+                                      return m;
+                                    })
+                                  );
+                                }}
                               />
                             )}
                           </>

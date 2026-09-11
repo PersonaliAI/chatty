@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import VoiceCallWidget from "@/components/voice-call-widget";
-import { InlineBookingCard } from "@/components/inline-booking-card";
+import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle } from "@/lib/widget-style";
 import { AudioBubble, RECORD_BAR_COUNT, VOICE_MESSAGE_PLACEHOLDER, audioBlobToWav } from "./widget-media";
@@ -34,17 +34,11 @@ interface Message {
   fileType?: string;
   sources?: Citation[];
   feedback?: "up" | "down";
-  // Only set on assistant messages, and only meaningful when the customizer's
-  // "show AI / Human tag" setting is on. /api/widget/poll and /api/widget/live
-  // only ever return human-agent replies (server-side filtered), so any
-  // message arriving through those two paths is unambiguously "human" -
-  // everything else assistant-role is a direct AI reply.
   sender?: "ai" | "human";
+  confirmedMeeting?: ConfirmedMeeting;
 }
 interface Source { id: string; name: string; content: string; }
 
-// Visual-flow config parsed out of the bot's custom JS (built by the flow
-// builder in the dashboard). Nodes/edges follow React Flow's shape.
 interface FlowNode {
   id: string;
   type?: string;
@@ -259,8 +253,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     ) {
       return false;
     }
-    const hasBookingWords = /\b(book|booking|demo|schedule|appointment|meeting|calendar|slots?)\b/i.test(lower);
-    const mentionsTimesOrSlots = /\b(available slots?|earliest slot|available times?|what day and time|works best for you|reserve your slot|reserve your spot)\b/i.test(lower);
+    const hasBookingWords = /\b(book|booking|demo|schedule|reschedule|appointment|meeting|calendar|slots?)\b/i.test(lower);
+    const mentionsTimesOrSlots = /\b(available slots?|earliest slot|available times?|what day and time|works best for you|reserve your slot|reserve your spot|pick a time|choose a time|select a time)\b/i.test(lower);
     return hasBookingWords && mentionsTimesOrSlots;
   }, [calendarSchedulingEnabled]);
 
@@ -273,6 +267,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     }
     return -1;
   }, [messages, isBookingMessage]);
+
+  const latestActiveMeeting = useMemo(() => {
+    for (let idx = messages.length - 1; idx >= 0; idx--) {
+      if (messages[idx].confirmedMeeting) {
+        return messages[idx].confirmedMeeting;
+      }
+    }
+    return null;
+  }, [messages]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -762,6 +765,37 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId]);
+
+  // Query active scheduled meeting for the current session on load
+  useEffect(() => {
+    if (!botId || !sessionId || !calendarSchedulingEnabled) return;
+    const fetchActiveMeeting = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.meeting) {
+          const activeMeeting: ConfirmedMeeting = data.meeting;
+          setMessages((prev) => {
+            const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
+            if (alreadyHas) return prev;
+            const updated = [...prev];
+            for (let idx = updated.length - 1; idx >= 0; idx--) {
+              if (updated[idx].role === "assistant") {
+                updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
+                return updated;
+              }
+            }
+            if (updated.length > 0) {
+              updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
+            }
+            return updated;
+          });
+        }
+      } catch {}
+    };
+    fetchActiveMeeting();
+  }, [botId, sessionId, calendarSchedulingEnabled]);
 
   // Reset html and body backgrounds to transparent to prevent white corners in rounded iframe borders
   useEffect(() => {
@@ -1913,13 +1947,44 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                                 {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
                               </ReactMarkdown>
                             )}
-                            {i === lastBookingMsgIdx && (
+                            {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
                               <InlineBookingCard
                                 botId={String(botId)}
                                 sessionId={sessionId}
                                 visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
                                 primaryColor={primaryColor}
                                 backendUrl={BACKEND_URL}
+                                initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
+                                onBookingSuccess={(meeting) => {
+                                  setMessages((prev) => {
+                                    const updated = [...prev];
+                                    if (updated[i]) {
+                                      updated[i] = { ...updated[i], confirmedMeeting: meeting };
+                                    }
+                                    return updated;
+                                  });
+                                }}
+                                onMeetingRescheduled={(meeting) => {
+                                  setMessages((prev) =>
+                                    prev.map((m) =>
+                                      m.confirmedMeeting && (m.confirmedMeeting.id === meeting.id || !m.confirmedMeeting.id)
+                                        ? { ...m, confirmedMeeting: meeting }
+                                        : m
+                                    )
+                                  );
+                                }}
+                                onMeetingCancelled={() => {
+                                  setMessages((prev) =>
+                                    prev.map((m) => {
+                                      if (m.confirmedMeeting) {
+                                        const copy = { ...m };
+                                        delete copy.confirmedMeeting;
+                                        return copy;
+                                      }
+                                      return m;
+                                    })
+                                  );
+                                }}
                               />
                             )}
                           </>
