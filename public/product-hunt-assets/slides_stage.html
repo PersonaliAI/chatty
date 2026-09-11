@@ -1,0 +1,266 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Product Hunt Slides</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    .slide {
+      width: 1270px; height: 760px; position: relative; overflow: hidden;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #090d16; color: #fff; display: flex; align-items: center;
+      padding: 0 80px; justify-content: space-between;
+    }
+    .slide-bg-grid {
+      position: absolute; inset: 0;
+      background-image: radial-gradient(rgba(249, 115, 22, 0.15) 1px, transparent 1px);
+      background-size: 36px 36px; pointer-events: none;
+    }
+    .slide-glow {
+      position: absolute; width: 600px; height: 600px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(249, 115, 22, 0.22) 0%, transparent 70%);
+      top: -100px; right: 100px; pointer-events: none; filter: blur(60px);
+    }
+    .slide-content { max-width: 540px; position: relative; z-index: 10; }
+    .slide-tag {
+      display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px;
+      border-radius: 9999px; background: rgba(249, 115, 22, 0.15);
+      border: 1px solid rgba(249, 115, 22, 0.4); color: #fb923c;
+      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 20px;
+    }
+    .slide-title {
+      font-size: 44px; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em;
+      margin-bottom: 16px;
+    }
+    .slide-title span {
+      background: linear-gradient(135deg, #f97316, #fdba74);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .slide-desc { font-size: 16px; line-height: 1.6; color: #94a3b8; margin-bottom: 28px; }
+    .slide-features { display: flex; flex-direction: column; gap: 12px; }
+    .slide-feat-item { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: #e2e8f0; }
+    .slide-feat-icon {
+      width: 24px; height: 24px; border-radius: 50%; background: rgba(249, 115, 22, 0.2);
+      border: 1px solid #f97316; color: #fb923c; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800;
+    }
+
+    .slide-mockup {
+      width: 480px; height: 600px; background: #0f172a; border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 25px 60px -15px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06);
+      position: relative; z-index: 10; overflow: hidden; display: flex; flex-direction: column;
+    }
+    .sm-header {
+      height: 60px; background: #0b1120; border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex; align-items: center; padding: 0 18px; gap: 12px;
+    }
+    .sm-avatar {
+      width: 34px; height: 34px; border-radius: 50%; background: #f97316;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sm-avatar svg { width: 20px; height: 20px; fill: #fff; }
+    .sm-title h4 { font-size: 13px; font-weight: 700; color: #fff; }
+    .sm-title p { font-size: 10px; color: #10b981; font-weight: 600; }
+    .sm-body {
+      flex: 1; background: #0a0f1d; padding: 18px; display: flex; flex-direction: column; gap: 14px;
+      overflow: hidden;
+    }
+    .sm-bubble-user {
+      align-self: flex-end; background: #f97316; color: #fff; padding: 10px 14px;
+      border-radius: 16px 16px 4px 16px; font-size: 12px; font-weight: 500; max-width: 85%;
+    }
+    .sm-bubble-bot {
+      align-self: flex-start; background: #1e293b; color: #e2e8f0; padding: 12px 14px;
+      border-radius: 16px 16px 16px 4px; font-size: 12px; border: 1px solid rgba(255,255,255,0.06);
+      max-width: 95%; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <!-- Slide 1: Hero -->
+  <div id="slide-1" class="slide">
+    <div class="slide-bg-grid"></div>
+    <div class="slide-glow"></div>
+    <div class="slide-content">
+      <div class="slide-tag">Product Hunt Special Launch</div>
+      <h1 class="slide-title">Chatty by <span>PersonaliAI</span></h1>
+      <p class="slide-desc">The modern AI customer support widget with native in-chat calendar booking, live voice agent calls, and zero-code setup.</p>
+      <div class="slide-features">
+        <div class="slide-feat-item"><span class="slide-feat-icon">✓</span> In-Chat Interactive Calendar Booking</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">✓</span> Low-Latency Real-Time Voice Agent</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">✓</span> Grounded on Your Website & Knowledge Base</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">✓</span> Official WordPress & WooCommerce Integration</div>
+      </div>
+    </div>
+    <div class="slide-mockup">
+      <div class="sm-header">
+        <div class="sm-avatar">
+          <svg viewBox="0 0 512 512"><path d="M256,40C136.7,40,40,136.7,40,256c0,42.5,12.3,82.2,33.5,115.8L43.2,462.6c-2.3,6.8,3.4,13.8,10.4,12.2l95.5-22.1C181.7,466.8,217.7,472,256,472c119.3,0,216-96.7,216-216S375.3,40,256,40z" fill="none" stroke="#ffffff" stroke-width="36"/><circle cx="196" cy="220" r="18" fill="#ffffff"/><circle cx="316" cy="220" r="18" fill="#ffffff"/><path d="M196,290c18,22,40,32,60,32s42-10,60-32" fill="none" stroke="#ffffff" stroke-width="32"/></svg>
+        </div>
+        <div class="sm-title">
+          <h4>Chatty Support</h4>
+          <p>● Active Now</p>
+        </div>
+      </div>
+      <div class="sm-body">
+        <div class="sm-bubble-user">Can I book a live demo with your sales team?</div>
+        <div class="sm-bubble-bot">
+          Absolutely! Pick an available slot below:
+          <div style="background:#0f172a; border:1px solid rgba(249,115,22,0.4); border-radius:12px; padding:12px; margin-top:10px;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700; color:#fff; margin-bottom:10px;">
+              <span>📅 Wednesday, Sep 16</span>
+              <span style="color:#fb923c;">Pacific Time</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:10px;">
+              <div style="background:rgba(255,255,255,0.06); padding:6px; border-radius:6px; font-size:10px; text-align:center;">9:30 AM</div>
+              <div style="background:#f97316; color:#fff; font-weight:700; padding:6px; border-radius:6px; font-size:10px; text-align:center;">10:00 AM</div>
+              <div style="background:rgba(255,255,255,0.06); padding:6px; border-radius:6px; font-size:10px; text-align:center;">2:00 PM</div>
+            </div>
+            <div style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:8px; text-align:center;">
+              <div style="color:#10b981; font-weight:700; font-size:11px;">✓ Instant Google & Outlook Sync</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 2: In-Chat Booking -->
+  <div id="slide-2" class="slide">
+    <div class="slide-bg-grid"></div>
+    <div class="slide-glow"></div>
+    <div class="slide-content">
+      <div class="slide-tag">Zero Friction Scheduling</div>
+      <h1 class="slide-title">In-Chat <span>Calendar Booking</span></h1>
+      <p class="slide-desc">Stop losing leads to external booking links. Chatty embeds a complete interactive slot picker, timezone detection, and instant calendar confirmation directly inside the conversation.</p>
+      <div class="slide-features">
+        <div class="slide-feat-item"><span class="slide-feat-icon">⚡</span> Self-Hosted Slots (No Calendly Needed)</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">⚡</span> Automatic Google & Outlook Calendar Sync</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">⚡</span> Business Email & Lead Field Capture</div>
+      </div>
+    </div>
+    <div class="slide-mockup" style="border-color:rgba(249,115,22,0.4);">
+      <div style="padding:24px; display:flex; flex-direction:column; justify-content:center; height:100%; gap:16px;">
+        <div style="background:#0b1120; border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:18px;">
+          <div style="font-size:14px; font-weight:700; color:#fff; margin-bottom:12px;">📅 Available Demo Slots</div>
+          <div style="display:flex; gap:8px; margin-bottom:14px;">
+            <div style="padding:6px 12px; border-radius:8px; background:rgba(255,255,255,0.05); font-size:11px; color:#94a3b8;">Mon 14</div>
+            <div style="padding:6px 12px; border-radius:8px; background:rgba(255,255,255,0.05); font-size:11px; color:#94a3b8;">Tue 15</div>
+            <div style="padding:6px 12px; border-radius:8px; background:#f97316; font-weight:700; font-size:11px; color:#fff;">Wed 16</div>
+            <div style="padding:6px 12px; border-radius:8px; background:rgba(255,255,255,0.05); font-size:11px; color:#94a3b8;">Thu 17</div>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:16px;">
+            <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px; text-align:center; font-size:11px;">09:00 AM</div>
+            <div style="background:#f97316; color:#fff; font-weight:700; padding:8px; border-radius:8px; text-align:center; font-size:11px;">10:00 AM</div>
+            <div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px; text-align:center; font-size:11px;">01:30 PM</div>
+          </div>
+          <div style="background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); border-radius:12px; padding:14px; text-align:center;">
+            <div style="font-size:18px; margin-bottom:4px;">🎉</div>
+            <div style="font-size:13px; font-weight:700; color:#fff;">Meeting Confirmed!</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:2px;">Wed, Sep 16 &bull; 10:00 AM PT</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 3: Voice Agent -->
+  <div id="slide-3" class="slide">
+    <div class="slide-bg-grid"></div>
+    <div class="slide-glow"></div>
+    <div class="slide-content">
+      <div class="slide-tag">WebRTC Real-Time Audio</div>
+      <h1 class="slide-title">Human-Like <span>Voice Agent</span></h1>
+      <p class="slide-desc">Deliver conversational voice assistance directly in browser with low latency, pulsing animated orb, live speech-to-text transcript, and in-call booking.</p>
+      <div class="slide-features">
+        <div class="slide-feat-item"><span class="slide-feat-icon">🎙️</span> Ultra Low Latency LiveKit WebRTC</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">🎙️</span> Multi-Provider STT/TTS (ElevenLabs, Deepgram, Google)</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">🎙️</span> Interactive In-Call Booking & Lead Capture</div>
+      </div>
+    </div>
+    <div class="slide-mockup" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:30px; gap:20px;">
+      <div style="font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Live Voice Call &bull; 00:24</div>
+      <div style="width:120px; height:120px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #f97316, #ea580c); box-shadow:0 0 60px rgba(249,115,22,0.6); display:flex; align-items:center; justify-content:center;">
+        <div style="width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,0.3); backdrop-filter:blur(4px);"></div>
+      </div>
+      <div style="font-size:14px; font-weight:700; color:#fb923c;">Chatty Speaking...</div>
+      <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:14px; font-size:12px; line-height:1.5; color:#e2e8f0; width:100%;">
+        <div style="font-size:10px; font-weight:700; color:#f97316; text-transform:uppercase; margin-bottom:4px;">Live Transcript</div>
+        "I've got you confirmed for Wednesday at 10:00 AM, Alex! I also added the calendar invite to your inbox."
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 4: Knowledge Grounding -->
+  <div id="slide-4" class="slide">
+    <div class="slide-bg-grid"></div>
+    <div class="slide-glow"></div>
+    <div class="slide-content">
+      <div class="slide-tag">Accurate & Grounded</div>
+      <h1 class="slide-title">Trained on <span>Your Content</span></h1>
+      <p class="slide-desc">No hallucinations. Chatty strictly grounds every response in your website pages, sitemaps, uploaded documentation, and WooCommerce product catalog.</p>
+      <div class="slide-features">
+        <div class="slide-feat-item"><span class="slide-feat-icon">📚</span> Auto Website Crawling & Sitemaps</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">📚</span> PDF, DOCX, & Markdown Knowledge Uploads</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">📚</span> Real-time Source Citations on Every Answer</div>
+      </div>
+    </div>
+    <div class="slide-mockup" style="padding:24px; display:flex; flex-direction:column; justify-content:center; gap:14px;">
+      <div style="background:#0b1120; border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:12px; font-weight:700; color:#fff;">🌐 Website Crawler</span>
+          <span style="font-size:10px; color:#10b981; font-weight:600;">Indexed (142 pages)</span>
+        </div>
+        <div style="font-size:11px; color:#94a3b8;">https://acme.com &bull; Auto-synced daily</div>
+      </div>
+      <div style="background:#0b1120; border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:12px; font-weight:700; color:#fff;">📄 Product Docs & PDFs</span>
+          <span style="font-size:10px; color:#10b981; font-weight:600;">8 Documents Grounded</span>
+        </div>
+        <div style="font-size:11px; color:#94a3b8;">UserGuide.pdf, API-Ref.md, Pricing.pdf</div>
+      </div>
+      <div style="background:#0b1120; border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:12px; font-weight:700; color:#fff;">🛍️ WooCommerce Catalog</span>
+          <span style="font-size:10px; color:#10b981; font-weight:600;">Connected</span>
+        </div>
+        <div style="font-size:11px; color:#94a3b8;">Real-time stock, pricing, and product attributes</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 5: WordPress & Integrations -->
+  <div id="slide-5" class="slide">
+    <div class="slide-bg-grid"></div>
+    <div class="slide-glow"></div>
+    <div class="slide-content">
+      <div class="slide-tag">Instant Deployment</div>
+      <h1 class="slide-title">Official <span>WordPress Plugin</span></h1>
+      <p class="slide-desc">Install in under 60 seconds from the official WordPress Plugin Directory. Zero coding required, WooCommerce ready, and fully customizable.</p>
+      <div class="slide-features">
+        <div class="slide-feat-item"><span class="slide-feat-icon">🔌</span> Verified on WordPress.org Plugin Directory</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">🔌</span> 1-Click Bot ID Setup in WP Admin</div>
+        <div class="slide-feat-item"><span class="slide-feat-icon">🔌</span> Works with Elementor, Divi, Gutenberg & FSE</div>
+      </div>
+    </div>
+    <div class="slide-mockup" style="padding:24px; display:flex; flex-direction:column; justify-content:center; gap:16px;">
+      <div style="background:#0b1120; border:1px solid rgba(249,115,22,0.4); border-radius:16px; padding:18px; text-align:center;">
+        <div style="font-size:24px; margin-bottom:6px;">🔌</div>
+        <div style="font-size:15px; font-weight:800; color:#fff; margin-bottom:4px;">PersonaliAI Customer Support Chatbot</div>
+        <div style="font-size:11px; color:#fb923c; font-weight:700; margin-bottom:12px;">Official WordPress.org Directory Plugin</div>
+        <div style="background:rgba(255,255,255,0.06); padding:8px 12px; border-radius:8px; font-size:11px; font-family:monospace; color:#cbd5e1;">
+          Plugins &rarr; Add New &rarr; Search: Chatty
+        </div>
+      </div>
+      <div style="background:#0b1120; border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:14px; text-align:center;">
+        <div style="font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:4px;">Or 1-Line Embed for Any Website</div>
+        <div style="font-size:10px; font-family:monospace; color:#fb923c;">&lt;script src="https://chatty.personaliai.com/widget.js" ... &gt;</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
