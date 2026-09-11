@@ -213,11 +213,79 @@ const mcpPoints = [
   { title: "Scoped access", desc: "read / write / knowledge / voice / actions / admin scopes, so an agent only gets what it needs." },
 ];
 
+type McpInstallTab = "plugin" | "hosted" | "manual";
+
+const mcpInstallTabs: {
+  id: McpInstallTab;
+  label: string;
+  eyebrow: string;
+  title: string;
+  desc: string;
+  steps: string[];
+  code?: string;
+  cta?: { label: string; href: string };
+}[] = [
+  {
+    id: "plugin",
+    label: "Codex plugin",
+    eyebrow: "Recommended",
+    title: "Install the Chatty Codex integration",
+    desc: "The plugin publishes Chatty as a first-class Codex integration while using the exact same hosted MCP endpoint and OAuth permissions as the manual client setup.",
+    steps: [
+      "Open Codex settings and install the Chatty integration from your personal or team marketplace.",
+      "Approve the OAuth flow once so Codex receives the scopes you choose.",
+      "Ask Codex to audit bots, update knowledge, triage inboxes, manage campaigns, or create booking-ready assistants.",
+    ],
+    code: `{
+  "mcpServers": {
+    "chatty": {
+      "url": "https://api.chatty.personaliai.com/mcp"
+    }
+  }
+}`,
+    cta: { label: "Open dashboard", href: "/dashboard" },
+  },
+  {
+    id: "hosted",
+    label: "Hosted MCP",
+    eyebrow: "No self-hosting",
+    title: "Connect directly to Chatty's hosted MCP server",
+    desc: "Use the managed endpoint for Claude, ChatGPT, Cursor, Windsurf, or any client that supports remote MCP over OAuth.",
+    steps: [
+      "Add the hosted Chatty MCP URL to your client.",
+      "Sign in with your Chatty account during OAuth authorization.",
+      "Keep using the dashboard and MCP together - they read and write the same production data.",
+    ],
+    code: `https://api.chatty.personaliai.com/mcp`,
+  },
+  {
+    id: "manual",
+    label: "Manual config",
+    eyebrow: "Universal",
+    title: "Paste the JSON into any MCP-compatible client",
+    desc: "For clients that still expect a JSON block, use this config exactly. The first connection opens the same OAuth consent flow.",
+    steps: [
+      "Open your MCP client configuration file.",
+      "Paste the Chatty server block and save.",
+      "Restart the client if it does not hot-reload MCP servers.",
+    ],
+    code: `{
+  "mcpServers": {
+    "chatty": {
+      "url": "https://api.chatty.personaliai.com/mcp"
+    }
+  }
+}`,
+  },
+];
+
 export default function Home() {
   const [isYearly, setIsYearly] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeMcpInstallTab, setActiveMcpInstallTab] = useState<McpInstallTab>("plugin");
+  const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
   // widget.js (loaded below via <Script>) mounts itself by appending a
   // #chatty-widget-host div straight to document.body - outside React's
@@ -522,20 +590,58 @@ export default function Home() {
               ))}
             </div>
 
-            <div className="mt-10">
-              <p className="text-xs tracking-wide uppercase mb-2.5" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>Add to any MCP client</p>
-              <pre className="rounded-[18px] p-5 sm:p-6 text-[12px] sm:text-[13.5px] leading-relaxed overflow-x-auto m-0 font-mono" style={{ background: "var(--color-neutral-900)", color: "#f9f4ed" }}>
-{`{
-  "mcpServers": {
-    "chatty": {
-      "url": "https://api.chatty.personaliai.com/mcp"
-    }
-  }
-}`}
-              </pre>
-              <p className="text-[13px] leading-snug mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 72%, transparent)" }}>
-                The client opens a standard OAuth 2.0 authorization flow on first connect - approve it once, no API key to copy anywhere.
-              </p>
+            <div className="mt-10 rounded-[24px] p-4 sm:p-5" style={{ background: "color-mix(in srgb, var(--color-bg) 72%, white 8%)", boxShadow: "var(--shadow-sm)" }}>
+              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Chatty MCP integration options">
+                {mcpInstallTabs.map((tab) => {
+                  const isActive = activeMcpInstallTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-controls="mcp-install-panel"
+                      onClick={() => setActiveMcpInstallTab(tab.id)}
+                      className="rounded-full border px-4 py-2 text-[12.5px] font-semibold transition-colors cursor-pointer"
+                      style={{
+                        borderColor: isActive ? "var(--color-accent)" : "var(--color-divider)",
+                        background: isActive ? "var(--color-accent)" : "transparent",
+                        color: isActive ? "var(--color-bg)" : "color-mix(in srgb, var(--color-text) 78%, transparent)",
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div id="mcp-install-panel" role="tabpanel" className="grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr] gap-5 mt-5">
+                <div>
+                  <p className="text-xs tracking-wide uppercase font-semibold" style={{ color: "var(--color-accent-2-800)" }}>{activeMcpInstall.eyebrow}</p>
+                  <h3 className="mt-2 text-[21px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{activeMcpInstall.title}</h3>
+                  <p className="mt-2.5 text-[13.5px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{activeMcpInstall.desc}</p>
+                  <ol className="mt-4 space-y-2.5 pl-5 text-[13px] leading-relaxed marker:font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 84%, transparent)" }}>
+                    {activeMcpInstall.steps.map((step) => <li key={step} className="pl-1">{step}</li>)}
+                  </ol>
+                  {activeMcpInstall.cta && (
+                    <Link href={activeMcpInstall.cta.href} className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium mt-5" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent-2)", color: "var(--color-bg)" }}>
+                      {activeMcpInstall.cta.label}
+                      <ArrowRight className="size-3.5" />
+                    </Link>
+                  )}
+                </div>
+                {activeMcpInstall.code && (
+                  <div>
+                    <p className="text-xs tracking-wide uppercase mb-2.5" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>Connection value</p>
+                    <pre className="rounded-[18px] p-5 sm:p-6 text-[12px] sm:text-[13.5px] leading-relaxed overflow-x-auto m-0 font-mono" style={{ background: "var(--color-neutral-900)", color: "#f9f4ed" }}>
+                      {activeMcpInstall.code}
+                    </pre>
+                    <p className="text-[13px] leading-snug mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 72%, transparent)" }}>
+                      The client opens a standard OAuth 2.0 authorization flow on first connect - approve it once, no API key to copy anywhere.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>

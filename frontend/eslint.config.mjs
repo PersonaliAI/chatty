@@ -23,6 +23,7 @@ const eslintConfig = defineConfig([
     // failing CI on every push regardless of what the push changed.
     // widget.js stays linted - that one's real hand-written source.
     "public/chatty-app.js",
+    "public/chatty-app.global.js",
     // Same problem, same package's other build output: tsup's compiled
     // dist/index.js (the React SDK bundle) and its bundled deps
     // (emoji-picker-react etc.) are also generated, not source - linting
