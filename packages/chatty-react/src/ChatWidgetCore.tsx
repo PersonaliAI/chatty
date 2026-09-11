@@ -549,36 +549,6 @@ export default function ChatWidgetCore({
     return null;
   }, [messages]);
 
-  // Query active scheduled meeting for the current session on load
-  useEffect(() => {
-    if (!botId || !sessionId || !calendarSchedulingEnabled) return;
-    const fetchActiveMeeting = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success && data.meeting) {
-          const activeMeeting: ConfirmedMeeting = data.meeting;
-          setMessages((prev) => {
-            const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
-            if (alreadyHas) return prev;
-            const updated = [...prev];
-            for (let idx = updated.length - 1; idx >= 0; idx--) {
-              if (updated[idx].role === "assistant") {
-                updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
-                return updated;
-              }
-            }
-            if (updated.length > 0) {
-              updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
-            }
-            return updated;
-          });
-        }
-      } catch {}
-    };
-    fetchActiveMeeting();
-  }, [botId, sessionId, calendarSchedulingEnabled]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -1078,6 +1048,37 @@ export default function ChatWidgetCore({
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId]);
+
+  // Query active scheduled meeting for the current session on load
+  useEffect(() => {
+    if (!botId || !sessionId || !calendarSchedulingEnabled) return;
+    const fetchActiveMeeting = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.meeting) {
+          const activeMeeting: ConfirmedMeeting = data.meeting;
+          setMessages((prev) => {
+            const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
+            if (alreadyHas) return prev;
+            const updated = [...prev];
+            for (let idx = updated.length - 1; idx >= 0; idx--) {
+              if (updated[idx].role === "assistant") {
+                updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
+                return updated;
+              }
+            }
+            if (updated.length > 0) {
+              updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
+            }
+            return updated;
+          });
+        }
+      } catch {}
+    };
+    fetchActiveMeeting();
+  }, [botId, sessionId, calendarSchedulingEnabled]);
 
   // Reset html and body backgrounds to transparent to prevent white corners
   // in rounded iframe borders. Only when we actually own `document` (see
