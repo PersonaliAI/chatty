@@ -1728,6 +1728,18 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
             primaryColor={primaryColor}
             onClose={() => { setVoiceCallOpen(false); refetchNow(); }}
+            onBookingSuccess={(meeting) => {
+              setMessages((prev) => {
+                const updated = [...prev];
+                for (let idx = updated.length - 1; idx >= 0; idx--) {
+                  if (updated[idx].role === "assistant") {
+                    updated[idx] = { ...updated[idx], confirmedMeeting: meeting };
+                    return updated;
+                  }
+                }
+                return updated;
+              });
+            }}
           />
         ) : showCsat ? (
           /* CSAT Feedback Modal */
