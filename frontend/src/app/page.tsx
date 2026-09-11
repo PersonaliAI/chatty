@@ -106,38 +106,74 @@ const helpArticles = [
   {
     category: "Getting started",
     title: "Launch your first Chatty bot",
-    summary: "Create a bot, give it an identity, train it, and add it to a live page in one focused setup session.",
-    steps: ["Create a bot from the Dashboard and set its name, welcome message, and audience.", "Add a website, document, or pasted text source and wait for indexing to finish.", "Copy the generated script from the Embed tab and place it immediately before your site’s closing body tag."],
+    outcome: "A trained, branded assistant live on a production page with a tested fallback path.",
+    summary: "Start with one focused use case: answer product questions, qualify visitors, or route support requests. Give the bot a clear identity, train it from trusted sources, then test it like a real visitor before publishing.",
+    sections: [
+      { heading: "Create the bot", body: "Open the dashboard, create a bot, and set the name, welcome message, tone, language behavior, and first suggested prompts. Keep the first welcome short and action-oriented so visitors know exactly what to ask." },
+      { heading: "Train the source of truth", body: "Add your website, help docs, pricing page, policy pages, PDFs, or pasted text. Wait for indexing to finish, then ask the bot ten questions your customers actually ask." },
+      { heading: "Publish safely", body: "Copy the embed script from the Embed tab and place it before the closing body tag. Add your production domain to the allow list before sending traffic to the widget." },
+    ],
+    checklist: ["Bot identity and welcome message are set", "At least one authoritative knowledge source is indexed", "Embed script works on a staging or production page", "Fallback contact or handoff route is visible"],
   },
   {
     category: "Knowledge",
     title: "Keep answers accurate with a healthy knowledge base",
-    summary: "Train on authoritative pages and documents, then use unanswered questions to close real customer knowledge gaps.",
-    steps: ["Prefer canonical help, pricing, policy, and product pages over broad home-page crawls.", "Review failed or stale sources after significant website changes.", "Use the Unanswered view to add a direct source for questions the bot could not confidently resolve."],
+    outcome: "Reliable answers that stay aligned with your current product, pricing, and policies.",
+    summary: "A strong bot is only as good as the material it can cite. Treat the knowledge base like a living help center: structured, current, and biased toward canonical sources instead of broad crawls.",
+    sections: [
+      { heading: "Use canonical sources", body: "Train from pages that contain final policy, pricing, setup, billing, delivery, return, and troubleshooting information. Avoid duplicate drafts and outdated campaign pages." },
+      { heading: "Close missing-answer gaps", body: "Review unanswered questions and low-confidence conversations weekly. Add a short article or source snippet for every recurring gap instead of relying on prompt changes alone." },
+      { heading: "Automate freshness", body: "Enable Auto Train for sources that change often. Daily sync is best for pricing, inventory, status, and policy pages; weekly or monthly works for slower documentation." },
+    ],
+    checklist: ["Pricing and policy pages are indexed", "Old or duplicate sources are removed", "Unanswered questions are reviewed regularly", "Auto Train is enabled for changing content"],
   },
   {
     category: "Safety",
     title: "Secure a bot before publishing",
-    summary: "Limit where the widget runs, use least-privilege keys, and define a clear route to a human when the situation requires one.",
-    steps: ["Add every production domain to the Allow List before sharing the embed code.", "Use a separate API key per integration and grant only the scopes it needs.", "Enable handoff rules and make your team’s response path clear for sensitive, urgent, or unresolved requests."],
+    outcome: "A public assistant that answers confidently without leaking access or pretending to be a human.",
+    summary: "Security is part of the customer experience. Lock the widget to approved domains, keep integration keys scoped, and define exactly when Chatty should stop and hand the conversation to your team.",
+    sections: [
+      { heading: "Restrict where it runs", body: "Add every approved website to the Allow List before sharing the embed code. This prevents copied scripts from being used on unknown domains." },
+      { heading: "Limit integration access", body: "Use separate API keys for separate systems and grant only the scopes each workflow needs. Rotate keys when a teammate or vendor no longer needs access." },
+      { heading: "Design the handoff", body: "Add clear escalation rules for billing disputes, account access, urgent issues, sensitive personal data, and questions the bot cannot answer with confidence." },
+    ],
+    checklist: ["Production domains are allow-listed", "API keys are scoped by integration", "Human handoff rules are written", "Abuse and off-topic guardrails are enabled"],
   },
   {
     category: "Conversions",
     title: "Turn useful conversations into qualified leads",
-    summary: "Ask for contact details at the moment of intent, preserve context, and deliver the lead to the team that can act on it.",
-    steps: ["Keep the lead form short: ask only for details needed for the next step.", "Use booking when a conversation reaches sales or support escalation intent.", "Connect email or webhooks so a qualified conversation gets a timely follow-up."],
+    outcome: "More qualified conversations reaching your inbox, CRM, calendar, or sales team with context intact.",
+    summary: "Lead capture works best when it feels like the natural next step, not a form dropped in front of the visitor. Ask for contact details only when the conversation has enough intent to justify it.",
+    sections: [
+      { heading: "Ask at the right moment", body: "Trigger lead collection after pricing, demo, custom quote, support escalation, or availability questions. Keep the form short: name, email, and phone only when phone follow-up is useful." },
+      { heading: "Preserve conversation context", body: "Send the transcript, visitor page, lead fields, and detected intent to your team so follow-up starts from the conversation instead of a blank record." },
+      { heading: "Book when intent is high", body: "Use calendar booking for demo requests, consultations, onboarding calls, and urgent support. Let the visitor choose a real available slot before they leave the site." },
+    ],
+    checklist: ["Lead trigger is tied to intent", "Required fields are minimal", "Email or webhook delivery is tested", "Booking is connected for high-intent flows"],
   },
   {
     category: "Operations",
     title: "Run the inbox and human handoff well",
-    summary: "The bot should accelerate your team, not hide conversations from it. Use ownership, status, and feedback consistently.",
-    steps: ["Assign conversations deliberately and keep availability current for routing.", "Pause AI responses when a teammate takes ownership of a live conversation.", "Capture corrections as knowledge improvements so the next visitor receives a better answer."],
+    outcome: "A clean support rhythm where AI handles repeat questions and humans own the conversations that need judgment.",
+    summary: "The inbox is where automation meets real customers. Use ownership, status, and feedback consistently so the bot improves instead of burying work.",
+    sections: [
+      { heading: "Own active conversations", body: "Assign conversations deliberately and keep team availability current. When a teammate takes over, pause AI replies so the visitor does not receive conflicting answers." },
+      { heading: "Use statuses consistently", body: "Separate open, pending, resolved, and follow-up conversations. This makes response time, missed handoffs, and unresolved issues visible." },
+      { heading: "Turn corrections into training", body: "When a human fixes an answer, capture that correction as a knowledge improvement. Repeated inbox fixes should become articles, sources, or guardrail changes." },
+    ],
+    checklist: ["Conversation ownership is assigned", "AI pause is used during human takeover", "Resolved status is applied after follow-up", "Corrections feed the knowledge base"],
   },
   {
-    category: "Integrations",
-    title: "Connect Chatty to your existing workflow",
-    summary: "Use webhooks, the REST API, or MCP to move leads, conversation context, and bot management into the tools your team already uses.",
-    steps: ["Start with a test destination and validate the payload before enabling production automation.", "Protect API keys with scopes and IP restrictions where possible.", "Use MCP for conversational bot administration; use the REST API for repeatable application integrations."],
+    category: "Codex plugin",
+    title: "Add Chatty to Codex with the plugin",
+    outcome: "Codex can manage Chatty bots, knowledge, inboxes, campaigns, bookings, and analytics through the hosted MCP server.",
+    summary: "Use the public Chatty plugin when you want the easiest Codex setup. The plugin contains the MCP endpoint and Chatty instructions, so users only add the marketplace source once and approve OAuth when Codex connects.",
+    sections: [
+      { heading: "Add the marketplace", body: "In Codex, open Settings, Plugins, Add, then Add plugin marketplace. Use source https://github.com/PersonaliAI/chatty.git, git ref main, and sparse paths .agents/plugins/marketplace.json and plugins/chatty-integration." },
+      { heading: "Install Chatty", body: "After the marketplace loads, install the Chatty integration. Codex will show it as a normal plugin with the Chatty icon, description, starter prompts, and MCP connection." },
+      { heading: "Connect your account", body: "Ask Codex to use Chatty. The first run opens OAuth; approve only the scopes you want, then Codex can audit bots, update articles, triage inboxes, and manage booking flows." },
+    ],
+    checklist: ["Marketplace source is the public GitHub repo", "Sparse path is plugins/chatty-integration", "Chatty plugin is installed and enabled", "OAuth approval completes on first use"],
   },
 ];
 
@@ -230,19 +266,22 @@ const mcpInstallTabs: {
     label: "Codex plugin",
     eyebrow: "Recommended",
     title: "Install the Chatty Codex integration",
-    desc: "The plugin publishes Chatty as a first-class Codex integration while using the exact same hosted MCP endpoint and OAuth permissions as the manual client setup.",
+    desc: "The public plugin lets any Codex user add Chatty from GitHub. It ships the Chatty icon, starter prompts, skill guidance, and the hosted MCP endpoint in one integration.",
     steps: [
-      "Open Codex settings and install the Chatty integration from your personal or team marketplace.",
-      "Approve the OAuth flow once so Codex receives the scopes you choose.",
+      "Open Codex, then go to Settings, Plugins, Add, and choose Add plugin marketplace.",
+      "Paste the public Chatty repository values shown here, then add the marketplace.",
+      "Install the Chatty integration, keep it enabled, and approve OAuth on first use.",
       "Ask Codex to audit bots, update knowledge, triage inboxes, manage campaigns, or create booking-ready assistants.",
     ],
-    code: `{
-  "mcpServers": {
-    "chatty": {
-      "url": "https://api.chatty.personaliai.com/mcp"
-    }
-  }
-}`,
+    code: `Source
+https://github.com/PersonaliAI/chatty.git
+
+Git ref
+main
+
+Sparse paths
+.agents/plugins/marketplace.json
+plugins/chatty-integration`,
     cta: { label: "Open dashboard", href: "/dashboard" },
   },
   {
@@ -661,18 +700,47 @@ export default function Home() {
             </a>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-8">
             {helpArticles.map((article, index) => (
-              <article key={article.title} className="rounded-[24px] p-5 sm:p-6" style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-sm)" }}>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex size-8 items-center justify-center rounded-full text-xs" style={{ fontFamily: "var(--font-heading)", background: index % 2 === 0 ? "var(--color-accent-100)" : "var(--color-accent-2-100)", color: index % 2 === 0 ? "var(--color-accent-700)" : "var(--color-accent-2-800)" }}>{String(index + 1).padStart(2, "0")}</span>
-                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "color-mix(in srgb, var(--color-text) 58%, transparent)" }}>{article.category}</span>
+              <article key={article.title} className="rounded-[28px] p-5 sm:p-7" style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-sm)" }}>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    className="inline-flex size-9 items-center justify-center rounded-full text-xs"
+                    style={{
+                      fontFamily: "var(--font-heading)",
+                      background: index % 2 === 0 ? "var(--color-accent-100)" : "var(--color-accent-2-100)",
+                      color: index % 2 === 0 ? "var(--color-accent-700)" : "var(--color-accent-2-800)",
+                    }}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide" style={{ borderColor: "var(--color-divider)", color: "color-mix(in srgb, var(--color-text) 62%, transparent)" }}>{article.category}</span>
                 </div>
-                <h3 className="mt-4 text-[20px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{article.title}</h3>
+                <h3 className="mt-5 text-[22px] leading-tight" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{article.title}</h3>
                 <p className="mt-2.5 text-sm leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{article.summary}</p>
-                <ol className="mt-5 space-y-3 pl-5 text-[13.5px] leading-relaxed marker:font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
-                  {article.steps.map((step) => <li key={step} className="pl-1">{step}</li>)}
-                </ol>
+                <div className="mt-4 rounded-[18px] px-4 py-3 text-[13.5px] leading-relaxed" style={{ background: index % 2 === 0 ? "var(--color-accent-100)" : "var(--color-accent-2-100)", color: "color-mix(in srgb, var(--color-text) 84%, transparent)" }}>
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide mb-1" style={{ color: index % 2 === 0 ? "var(--color-accent-700)" : "var(--color-accent-2-800)" }}>Outcome</span>
+                  {article.outcome}
+                </div>
+                <div className="mt-5 space-y-4">
+                  {article.sections.map((section) => (
+                    <section key={section.heading}>
+                      <h4 className="text-[15px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{section.heading}</h4>
+                      <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 76%, transparent)" }}>{section.body}</p>
+                    </section>
+                  ))}
+                </div>
+                <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--color-divider)" }}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "color-mix(in srgb, var(--color-text) 58%, transparent)" }}>Before you ship</p>
+                  <ul className="mt-3 grid gap-2 text-[13px] leading-snug" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
+                    {article.checklist.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-1 size-1.5 shrink-0 rounded-full" style={{ background: index % 2 === 0 ? "var(--color-accent)" : "var(--color-accent-2)" }} />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </article>
             ))}
           </div>

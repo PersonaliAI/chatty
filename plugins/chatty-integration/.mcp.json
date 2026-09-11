@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "chatty": {
+      "url": "https://api.chatty.personaliai.com/mcp"
+    }
+  }
+}

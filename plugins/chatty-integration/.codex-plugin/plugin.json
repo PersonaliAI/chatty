@@ -1,0 +1,34 @@
+{
+  "name": "chatty-integration",
+  "version": "0.1.0",
+  "description": "Connect Codex to the hosted Chatty MCP server.",
+  "author": {
+    "name": "PersonaliAI",
+    "url": "https://github.com/PersonaliAI/chatty"
+  },
+  "homepage": "https://chatty.personaliai.com/#mcp",
+  "repository": "https://github.com/PersonaliAI/chatty",
+  "license": "MIT",
+  "keywords": ["chatty", "personaliai", "mcp", "chatbot", "support", "automation"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Chatty",
+    "shortDescription": "Run your Chatty dashboard through the hosted MCP server.",
+    "longDescription": "Chatty connects Codex to the same hosted Model Context Protocol server used by the Chatty dashboard, exposing bot management, knowledge, leads, inbox, campaigns, voice, calendar scheduling, guardrails, team, billing, and GDPR operations through conversational tools.",
+    "developerName": "PersonaliAI",
+    "category": "Productivity",
+    "capabilities": ["MCP", "OAuth", "Bot management", "Knowledge base", "Inbox", "Calendar booking", "Voice agents"],
+    "websiteURL": "https://chatty.personaliai.com/",
+    "privacyPolicyURL": "https://chatty.personaliai.com/privacy",
+    "termsOfServiceURL": "https://chatty.personaliai.com/terms",
+    "composerIcon": "./assets/chatty-icon.png",
+    "logo": "./assets/chatty-icon.png",
+    "defaultPrompt": [
+      "Audit my Chatty bot and suggest improvements.",
+      "Show my Chatty leads and inbox status.",
+      "Create a Chatty bot from this website."
+    ],
+    "brandColor": "#c67139"
+  },
+  "mcpServers": "./.mcp.json"
+}

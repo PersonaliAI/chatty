@@ -1,0 +1,20 @@
+{
+  "name": "chatty",
+  "interface": {
+    "displayName": "Chatty"
+  },
+  "plugins": [
+    {
+      "name": "chatty-integration",
+      "source": {
+        "source": "local",
+        "path": "./plugins/chatty-integration"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
