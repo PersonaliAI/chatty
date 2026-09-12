@@ -16,12 +16,13 @@ import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorS
 import { normalizeWidgetStyle } from "@/lib/widget-style";
 import { AudioBubble, RECORD_BAR_COUNT, VOICE_MESSAGE_PLACEHOLDER, audioBlobToWav } from "./widget-media";
 import { AVATAR_ICONS, SEND_BUTTON_STYLES } from "./widget-style-options";
+import { detectCountryCode, detectTimezone } from "@/lib/locale-data";
 import {
   Send, Loader2, Sparkles, MessageSquare, FileText, Search,
   Paperclip, Smile, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
-  BookOpen,
+  BookOpen, Star,
 } from "lucide-react";
 import { BACKEND_URL } from "@/lib/backend-client";
 import { useSearchParams } from "next/navigation";
@@ -117,6 +118,8 @@ interface EmbedClientProps {
 export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const widgetTokenHeader: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
   const searchParams = useSearchParams();
+  const visitorTimezone = useMemo(() => detectTimezone(), []);
+  const visitorCountry = useMemo(() => detectCountryCode(), []);
   const paramColor = searchParams.get("color");
   const paramStyle = searchParams.get("style");
   const isPreview = searchParams.get("preview") === "true";
@@ -412,8 +415,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // ── CSAT, Offline Ticketing, & Typing States ──
   const [showCsat, setShowCsat] = useState(false);
   const [csatRating, setCsatRating] = useState(0);
+  const [csatHoverRating, setCsatHoverRating] = useState(0);
   const [csatComment, setCsatComment] = useState("");
   const [csatSubmitted, setCsatSubmitted] = useState(false);
+  const [csatSubmitting, setCsatSubmitting] = useState(false);
 
   const [showOfflineForm, setShowOfflineForm] = useState(false);
   const [offlineEmail, setOfflineEmail] = useState("");
@@ -643,8 +648,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   const submitCsat = async () => {
-    if (csatRating === 0) return;
+    if (csatRating === 0 || csatSubmitting) return;
     try {
+      setCsatSubmitting(true);
       const res = await fetch(`${BACKEND_URL}/api/widget/csat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...widgetTokenHeader },
@@ -652,15 +658,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           bot_id: botId,
           session_id: sessionId,
           rating: csatRating,
-          comment: csatComment,
+          comment: csatComment.trim() || null,
         }),
       });
       if (!res.ok) throw new Error("csat submit failed");
       setCsatSubmitted(true);
-      showToast("Thank you for your feedback!", "success");
-      setTimeout(() => { setShowCsat(false); try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }, 1500);
+      showToast(`Thanks - ${csatRating} star rating submitted.`, "success");
+      setTimeout(() => { setShowCsat(false); try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }, 1200);
     } catch {
       showToast("Failed to submit feedback.", "error");
+    } finally {
+      setCsatSubmitting(false);
     }
   };
 
@@ -674,7 +682,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           bot_id: botId,
           session_id: sessionId,
           text: `[Offline Support Ticket]\nEmail: ${offlineEmail}\nMessage: ${offlineMessage}`,
-          visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          visitor_timezone: visitorTimezone,
+          visitor_country: visitorCountry,
           host: getHost(),
         }),
       });
@@ -1219,7 +1228,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     try {
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/stream`, {
         method: "POST", headers: { "Content-Type": "application/json", ...widgetTokenHeader },
-        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, host: getHost() }),
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: visitorTimezone, visitor_country: visitorCountry, host: getHost() }),
       });
 
       if (!res.ok || !res.body) {
@@ -1290,7 +1299,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       fd.append("bot_id", String(botId));
       fd.append("session_id", sessionId);
       fd.append("text", caption);
-      fd.append("visitor_timezone", Intl.DateTimeFormat().resolvedOptions().timeZone);
+      fd.append("visitor_timezone", visitorTimezone);
+      fd.append("visitor_country", visitorCountry);
       fd.append("host", getHost());
       fd.append("file", file, filename);
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/media`, { method: "POST", headers: widgetTokenHeader, body: fd });
@@ -1501,7 +1511,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       // 2. Query AI assistant
       const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST", headers: { "Content-Type": "application/json", ...widgetTokenHeader },
-        body: JSON.stringify({ bot_id: botId, session_id: `${sessionId}-search`, text: q, visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, host: getHost() }),
+        body: JSON.stringify({ bot_id: botId, session_id: `${sessionId}-search`, text: q, visitor_timezone: visitorTimezone, visitor_country: visitorCountry, host: getHost() }),
       });
       const body = await res.json();
       setSearchAnswer(res.ok ? body.reply : (body.detail || "No answer found."));
@@ -1725,59 +1735,89 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             sessionId={sessionId}
             backendUrl={BACKEND_URL}
             originToken={originToken}
-            visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+            visitorTimezone={visitorTimezone}
             primaryColor={primaryColor}
             onClose={() => { setVoiceCallOpen(false); refetchNow(); }}
           />
         ) : showCsat ? (
           /* CSAT Feedback Modal */
-          <div className="p-5 flex flex-col justify-center h-full space-y-4">
-            <div className="text-center space-y-2">
-              <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-250">How was your conversation?</h3>
-              <p className="text-[11px] text-neutral-500">Your rating helps us improve support quality.</p>
-            </div>
-            {/* Stars selection */}
-            <div className="flex justify-center gap-1.5 py-2">
-              {[1, 2, 3, 4, 5].map((star) => (
+          <div className="relative flex h-full flex-col justify-center overflow-hidden bg-linear-to-b from-white to-neutral-50/80 p-5 dark:from-neutral-950 dark:to-neutral-900">
+            <div className="pointer-events-none absolute inset-x-8 top-8 h-24 rounded-full blur-3xl opacity-20" style={{ backgroundColor: primaryColor }} />
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 24 }}
+              className="relative rounded-2xl border border-neutral-200/80 bg-white/90 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/90"
+            >
+              <div className="text-center space-y-2">
+                <div className="mx-auto flex size-10 items-center justify-center rounded-full border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950">
+                  <Star className="size-5" style={{ color: primaryColor }} />
+                </div>
+                <h3 className="text-[15px] font-bold text-neutral-900 dark:text-neutral-100">How was your conversation?</h3>
+                <p className="mx-auto max-w-[26ch] text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                  Your rating helps the team improve replies, handoff quality, and bot training.
+                </p>
+              </div>
+
+              <div className="mt-4 flex justify-center gap-1.5" onMouseLeave={() => setCsatHoverRating(0)}>
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const active = star <= (csatHoverRating || csatRating);
+                  return (
+                    <motion.button
+                      key={star}
+                      type="button"
+                      whileHover={{ y: -2, scale: 1.08 }}
+                      whileTap={{ scale: 0.9 }}
+                      onMouseEnter={() => setCsatHoverRating(star)}
+                      onFocus={() => setCsatHoverRating(star)}
+                      onBlur={() => setCsatHoverRating(0)}
+                      onClick={() => setCsatRating(star)}
+                      aria-label={`Rate ${star} out of 5`}
+                      className="group flex size-9 items-center justify-center rounded-full transition-colors cursor-pointer"
+                      style={{ backgroundColor: active ? "color-mix(in srgb, #f59e0b 16%, transparent)" : "transparent" }}
+                    >
+                      <Star
+                        className={`size-6 transition-all ${active ? "fill-amber-400 text-amber-400 drop-shadow-sm" : "text-neutral-300 dark:text-neutral-700 group-hover:text-amber-300"}`}
+                      />
+                    </motion.button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-2 min-h-5 text-center text-[11px] font-semibold text-neutral-500 dark:text-neutral-400">
+                {csatRating > 0 ? `${csatRating}/5 selected` : "Select a rating to continue"}
+              </div>
+
+              <textarea
+                rows={3}
+                value={csatComment}
+                onChange={(e) => setCsatComment(e.target.value)}
+                placeholder="What went well or could be better? Optional."
+                className="mt-3 w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-xs text-neutral-800 outline-none transition-all placeholder:text-neutral-400 focus:border-transparent focus:ring-2 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
+                style={{ ["--tw-ring-color" as string]: primaryColor }}
+              />
+
+              <div className="mt-4 flex justify-end gap-2">
                 <button
-                  key={star}
                   type="button"
-                  onClick={() => setCsatRating(star)}
-                  className={`text-2xl transition-transform hover:scale-110 cursor-pointer ${
-                    star <= csatRating ? "text-yellow-400" : "text-neutral-300 dark:text-neutral-700"
-                  }`}
+                  onClick={() => { setShowCsat(false); try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }}
+                  disabled={csatSubmitting}
+                  className="px-3 py-2 border border-neutral-200 dark:border-neutral-800 rounded-xl text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer text-neutral-600 dark:text-neutral-350 disabled:opacity-50"
                 >
-                  ★
+                  Skip
                 </button>
-              ))}
-            </div>
-            {/* Comment */}
-            <textarea
-              rows={3}
-              value={csatComment}
-              onChange={(e) => setCsatComment(e.target.value)}
-              placeholder="What went well or could be better? (optional)..."
-              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-xs resize-none focus:outline-none"
-            />
-            {/* Action buttons */}
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => { setShowCsat(false); try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }}
-                className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer text-neutral-600 dark:text-neutral-350"
-              >
-                Skip
-              </button>
-              <button
-                type="button"
-                onClick={submitCsat}
-                disabled={csatRating === 0 || csatSubmitted}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-40"
-                style={{ background: primaryColor, color: onPrimary }}
-              >
-                Submit feedback
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={submitCsat}
+                  disabled={csatRating === 0 || csatSubmitted || csatSubmitting}
+                  className="min-w-[126px] px-3 py-2 text-xs font-semibold rounded-xl cursor-pointer disabled:opacity-45 inline-flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+                  style={{ background: primaryColor, color: onPrimary }}
+                >
+                  {csatSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : csatSubmitted ? <Check className="size-3.5" /> : null}
+                  <span>{csatSubmitted ? "Submitted" : csatSubmitting ? "Submitting..." : "Submit feedback"}</span>
+                </button>
+              </div>
+            </motion.div>
           </div>
         ) : showOfflineForm ? (
           /* Offline Message Capture Form */
@@ -1919,80 +1959,83 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             {tab === "messages" && (
               <div className="p-4 space-y-4 text-xs">
                 <AnimatePresence initial={false}>
-                  {messages.map((msg, i) => (
-                    <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                      className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
-                      {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>}
-                      <div className="flex flex-col min-w-0">
-                      {msg.role === "assistant" && showSenderTag && msg.sender && (
-                        <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5">
-                          {msg.sender === "human" ? "Human agent" : "AI"}
-                        </span>
-                      )}
-                      {/* .user-bubble's background/color come entirely from the
-                          design preset's own CSS (globals.css, !important) - an
-                          inline style here computed from primaryColor would be
-                          silently overridden for the background but NOT
-                          recomputed for the text color, producing the same
-                          invisible-text bug the header had. */}
-                      <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
-                        {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL - neither works with next/image's optimizer */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
-                        {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
-                        {msg.role === "assistant" ? (
-                          <>
-                            {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim() && (
-                              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
-                                {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
-                              </ReactMarkdown>
-                            )}
-                            {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
-                              <InlineBookingCard
-                                botId={String(botId)}
-                                sessionId={sessionId}
-                                visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
-                                primaryColor={primaryColor}
-                                backendUrl={BACKEND_URL}
-                                initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
-                                onBookingSuccess={(meeting) => {
-                                  setMessages((prev) => {
-                                    const updated = [...prev];
-                                    if (updated[i]) {
-                                      updated[i] = { ...updated[i], confirmedMeeting: meeting };
-                                    }
-                                    return updated;
-                                  });
-                                }}
-                                onMeetingRescheduled={(meeting) => {
-                                  setMessages((prev) =>
-                                    prev.map((m) =>
-                                      m.confirmedMeeting && (m.confirmedMeeting.id === meeting.id || !m.confirmedMeeting.id)
-                                        ? { ...m, confirmedMeeting: meeting }
-                                        : m
-                                    )
-                                  );
-                                }}
-                                onMeetingCancelled={() => {
-                                  setMessages((prev) =>
-                                    prev.map((m) => {
-                                      if (m.confirmedMeeting) {
-                                        const copy = { ...m };
-                                        delete copy.confirmedMeeting;
-                                        return copy;
+                  {messages.map((msg, i) => {
+                    const hasBooking = Boolean(msg.confirmedMeeting || i === lastBookingMsgIdx);
+                    return (
+                      <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        className={`flex gap-2 ${hasBooking ? "w-full max-w-[96%] sm:max-w-[88%]" : "max-w-[88%]"} ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
+                        {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>}
+                        <div className={`flex flex-col min-w-0 ${hasBooking ? "w-full" : ""}`}>
+                        {msg.role === "assistant" && showSenderTag && msg.sender && (
+                          <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5">
+                            {msg.sender === "human" ? "Human agent" : "AI"}
+                          </span>
+                        )}
+                        {/* .user-bubble's background/color come entirely from the
+                            design preset's own CSS (globals.css, !important) - an
+                            inline style here computed from primaryColor would be
+                            silently overridden for the background but NOT
+                            recomputed for the text color, producing the same
+                            invisible-text bug the header had. */}
+                        <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
+                          {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL - neither works with next/image's optimizer */}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
+                          {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
+                          {msg.role === "assistant" ? (
+                            <>
+                              {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim() && (
+                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                                  {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
+                                </ReactMarkdown>
+                              )}
+                              {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
+                                <InlineBookingCard
+                                  botId={String(botId)}
+                                  sessionId={sessionId}
+                                  visitorTimezone={visitorTimezone}
+                                  visitorCountry={visitorCountry}
+                                  primaryColor={primaryColor}
+                                  backendUrl={BACKEND_URL}
+                                  initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
+                                  onBookingSuccess={(meeting) => {
+                                    setMessages((prev) => {
+                                      const updated = [...prev];
+                                      if (updated[i]) {
+                                        updated[i] = { ...updated[i], confirmedMeeting: meeting };
                                       }
-                                      return m;
-                                    })
-                                  );
-                                }}
-                              />
-                            )}
-                          </>
-                        ) : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
-                        {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
-                          <div className="mt-1.5 flex items-center gap-1">
-                            <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
-                              className={`p-1 rounded-md transition-colors ${msg.feedback === "up" ? "text-green-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
+                                      return updated;
+                                    });
+                                  }}
+                                  onMeetingRescheduled={(meeting) => {
+                                    setMessages((prev) =>
+                                      prev.map((m) =>
+                                        m.confirmedMeeting && (m.confirmedMeeting.id === meeting.id || !m.confirmedMeeting.id)
+                                          ? { ...m, confirmedMeeting: meeting }
+                                          : m
+                                      )
+                                    );
+                                  }}
+                                  onMeetingCancelled={() => {
+                                    setMessages((prev) =>
+                                      prev.map((m) => {
+                                        if (m.confirmedMeeting) {
+                                          const copy = { ...m };
+                                          delete copy.confirmedMeeting;
+                                          return copy;
+                                        }
+                                        return m;
+                                      })
+                                    );
+                                  }}
+                                />
+                              )}
+                            </>
+                          ) : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
+                          {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
+                            <div className="mt-1.5 flex items-center gap-1">
+                              <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
+                                className={`p-1 rounded-md transition-colors ${msg.feedback === "up" ? "text-green-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
                               <ThumbsUp className="size-3" />
                             </button>
                             <button onClick={() => rateMessage(i, "down")} aria-label="Not helpful"
@@ -2015,7 +2058,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                       </div>
                       </div>
                     </motion.div>
-                  ))}
+                  );
+                })}
                   {(isBotResponding || agentTyping) && (
                     <div className="flex gap-2 mr-auto">
                       <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>
