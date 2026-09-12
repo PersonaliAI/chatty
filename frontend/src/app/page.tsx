@@ -456,9 +456,17 @@ export default function Home() {
           <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
 
           <div className="mt-14 sm:mt-16 relative max-w-[1080px] mx-auto">
-            <div className="absolute -inset-4 sm:-inset-6 rounded-[52px] -z-10" style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 75%)" }} />
-            <div className="relative rounded-[24px] sm:rounded-[36px] overflow-hidden p-2 sm:p-2.5" style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)" }}>
-              <ShowcasePlaceholder label="Product console (Overview & Real-time stats)" className="w-full aspect-[16/9.2] rounded-[16px] sm:rounded-[26px]" />
+            <div className="absolute -inset-4 sm:-inset-6 rounded-[52px] -z-10" style={{ background: "var(--color-accent-2-100)" }} />
+            <div className="relative rounded-[24px] sm:rounded-[36px] overflow-hidden p-2 sm:p-2.5 border" style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)", borderColor: "var(--color-divider)" }}>
+              <Image
+                src="/chatty-hero-product.png"
+                alt="Chatty dashboard, website chat widget, booking, and inbox workflow preview"
+                width={1672}
+                height={941}
+                priority
+                sizes="(min-width: 1200px) 1080px, calc(100vw - 40px)"
+                className="w-full h-auto rounded-[16px] sm:rounded-[26px]"
+              />
             </div>
             <div className="hidden sm:flex absolute -top-[18px] right-7 rounded-full items-center gap-2 px-4.5 py-2.5 text-[12.5px] font-semibold" style={{ background: "var(--color-bg)", boxShadow: "var(--shadow-md)", color: "var(--color-accent-700)" }}>
               <Clock className="size-[15px]" />
