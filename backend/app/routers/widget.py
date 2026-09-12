@@ -1071,6 +1071,7 @@ async def widget_booking_slots(
     visitor_timezone: Optional[str] = None,
     visitor_country: Optional[str] = None,
     days: int = 14,
+    session_id: Optional[str] = None,
     request: Request = None,
 ):
     """Fetches real guaranteed available booking slots for the widget's inline
@@ -1159,6 +1160,86 @@ async def widget_booking_slots(
     lead_fields = bot.get("lead_fields") or ["name", "email", "phone"]
     lead_required_fields = bot.get("lead_required_fields") or ["name", "email"]
 
+    # Pre-populate visitor contact details if already known or captured in this session
+    prefilled_lead: dict[str, Optional[str]] = {
+        "name": None,
+        "email": None,
+        "phone": None,
+        "company": None,
+    }
+    if session_id:
+        try:
+            # 1. Lookup in chatty_leads (saved via create_lead tool or earlier captures)
+            lead_res = await run_db(
+                lambda: supabase.table("chatty_leads")
+                .select("name, email, phone, company, custom_fields")
+                .eq("bot_id", bot_id)
+                .eq("session_id", session_id)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if lead_res.data:
+                row = lead_res.data[0]
+                if row.get("name"):
+                    prefilled_lead["name"] = str(row["name"]).strip()
+                if row.get("email"):
+                    prefilled_lead["email"] = str(row["email"]).strip().lower()
+                if row.get("phone"):
+                    prefilled_lead["phone"] = str(row["phone"]).strip()
+                c_val = row.get("company") or (row.get("custom_fields") or {}).get("company")
+                if c_val:
+                    prefilled_lead["company"] = str(c_val).strip()
+
+            # 2. Lookup in chatty_sessions for visitor_name / visitor_email fallback
+            if not prefilled_lead["name"] or not prefilled_lead["email"]:
+                sess_res = await run_db(
+                    lambda: supabase.table("chatty_sessions")
+                    .select("visitor_name, visitor_email")
+                    .eq("bot_id", bot_id)
+                    .eq("session_id", session_id)
+                    .limit(1)
+                    .execute()
+                )
+                if sess_res.data:
+                    s_row = sess_res.data[0]
+                    if not prefilled_lead["name"] and s_row.get("visitor_name"):
+                        prefilled_lead["name"] = str(s_row["visitor_name"]).strip()
+                    if not prefilled_lead["email"] and s_row.get("visitor_email"):
+                        prefilled_lead["email"] = str(s_row["visitor_email"]).strip().lower()
+
+            # 3. Fallback scan on recent visitor conversation turns if any fields remain missing
+            if not (prefilled_lead["name"] and prefilled_lead["email"] and prefilled_lead["phone"]):
+                conv_res = await run_db(
+                    lambda: supabase.table("chatty_conversations")
+                    .select("content, sender")
+                    .eq("bot_id", bot_id)
+                    .eq("session_id", session_id)
+                    .eq("sender", "visitor")
+                    .order("created_at", desc=True)
+                    .limit(10)
+                    .execute()
+                )
+                if conv_res.data:
+                    for row in conv_res.data:
+                        text_item = str(row.get("content") or "")
+                        if not prefilled_lead["email"]:
+                            email_match = re.search(r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", text_item)
+                            if email_match:
+                                prefilled_lead["email"] = email_match.group(1).strip().lower()
+                        if not prefilled_lead["phone"]:
+                            phone_match = re.search(r"(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}", text_item)
+                            if phone_match and len(re.sub(r"\D", "", phone_match.group(0))) >= 7:
+                                prefilled_lead["phone"] = phone_match.group(0).strip()
+                        if not prefilled_lead["name"]:
+                            name_match = re.search(r"(?:my name is|i am|i'm|this is)\s+([A-Za-z]+(?:\s+[A-Za-z]+){1,2})", text_item, re.IGNORECASE)
+                            if name_match:
+                                cand = name_match.group(1).strip()
+                                if cand.lower() not in ("interested", "looking", "trying", "here", "ready", "fine", "good"):
+                                    prefilled_lead["name"] = cand
+        except Exception:
+            logger.exception("Failed to look up prefilled lead details for booking slots")
+
     return {
         "enabled": True,
         "bot_id": bot_id,
@@ -1174,6 +1255,7 @@ async def widget_booking_slots(
         "booking_require_business_email": bool(bot.get("booking_require_business_email")),
         "booking_block_disposable_emails": bool(bot.get("booking_block_disposable_emails")),
         "booking_email_verification": bool(bot.get("booking_email_verification")),
+        "prefilled_lead": prefilled_lead,
     }
 
 

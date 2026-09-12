@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { motion, AnimatePresence, useSpring } from "framer-motion";
 import {
   Room,
@@ -19,6 +19,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
+import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 
 const WAVE_BAR_COUNT = 14;
 
@@ -39,6 +40,8 @@ interface VoiceCallWidgetProps {
   visitorTimezone: string;
   primaryColor: string;
   onClose: () => void;
+  onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
+  previewMode?: boolean;
 }
 
 export default function VoiceCallWidget({
@@ -49,13 +52,78 @@ export default function VoiceCallWidget({
   visitorTimezone,
   primaryColor,
   onClose,
+  onBookingSuccess,
+  previewMode = false,
 }: VoiceCallWidgetProps) {
-  const [status, setStatus] = useState<CallStatus>("connecting");
+  const [status, setStatus] = useState<CallStatus>(previewMode ? "agent-speaking" : "connecting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(previewMode ? 24 : 0);
   const [localLevels, setLocalLevels] = useState<number[]>(() => Array(WAVE_BAR_COUNT).fill(0));
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>(() =>
+    previewMode
+      ? [
+          { id: "p1", speaker: "visitor", text: "Can we schedule a product demo for this Wednesday at 10 AM?", final: true },
+          { id: "p2", speaker: "agent", text: "I've confirmed your product demo for Wednesday at 10:00 AM! Here are your meeting details: [BOOKING_WIDGET]", final: true },
+        ]
+      : []
+  );
+
+  // Auto-extract visitor contact info if spoken/transcribed during the call
+  const extractedVisitorInfo = useMemo(() => {
+    let name = "";
+    let email = "";
+    let phone = "";
+    let company = "";
+    for (const entry of transcript) {
+      if (entry.speaker === "visitor" && entry.text) {
+        const text = entry.text;
+        if (!email) {
+          const em = text.match(/\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/);
+          if (em) email = em[1].toLowerCase();
+        }
+        if (!phone) {
+          const pm = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/);
+          if (pm && pm[0].replace(/\D/g, "").length >= 7) phone = pm[0].trim();
+        }
+        if (!name) {
+          const nm = text.match(/(?:my name is|i am|i'm|this is)\s+([A-Za-z]+(?:\s+[A-Za-z]+){1,2})/i);
+          if (nm) {
+            const cand = nm[1].trim();
+            if (!["interested", "looking", "trying", "here", "ready", "fine", "good"].includes(cand.toLowerCase())) {
+              name = cand;
+            }
+          }
+        }
+        if (!company) {
+          const cm = text.match(/(?:company is|work at|work for|company:\s*|from)\s+([A-Za-z0-9&., -]{2,40})/i);
+          if (cm) {
+            const cand = cm[1].trim();
+            if (!["home", "here", "myself"].includes(cand.toLowerCase())) {
+              company = cand;
+            }
+          }
+        }
+      }
+    }
+    return { name, email, phone, company };
+  }, [transcript]);
+  const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(() =>
+    previewMode
+      ? {
+          meeting_link: "https://meet.google.com/abc-defg-hij",
+          formatted_time: "Wednesday, Sep 16 at 10:00 AM",
+          summary: "Chatty Product Demo",
+          start_time: "2026-09-16T10:00:00Z",
+          end_time: "2026-09-16T10:30:00Z",
+          attendee_name: "Alex Morgan",
+          attendee_email: "alex@personaliai.com",
+          assigned_to_email: "sales@personaliai.com",
+        }
+      : null
+  );
+  const [showBookingCard, setShowBookingCard] = useState(previewMode);
+  const [bookingTriggeredEntryId, setBookingTriggeredEntryId] = useState<string | null>(previewMode ? "p2" : null);
 
   const roomRef = useRef<Room | null>(null);
   const audioElRef = useRef<HTMLMediaElement | null>(null);
@@ -76,6 +144,17 @@ export default function VoiceCallWidget({
 
   useEffect(() => {
     mountedRef.current = true;
+
+    if (previewMode) {
+      const pulseInterval = setInterval(() => {
+        orbLevel.set(0.25 + Math.random() * 0.65);
+        setDuration((d) => d + 1);
+      }, 400);
+      return () => {
+        clearInterval(pulseInterval);
+        mountedRef.current = false;
+      };
+    }
 
     const widgetTokenHeader: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
     let cancelled = false;
@@ -138,6 +217,24 @@ export default function VoiceCallWidget({
           track.detach().forEach((el) => el.remove());
         });
 
+        // Real-time control messages (e.g. show booking widget or confirmed meeting)
+        room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+          if (cancelled || !mountedRef.current) return;
+          try {
+            const text = new TextDecoder().decode(payload);
+            const data = JSON.parse(text);
+            if (data?.type === "booking_widget") {
+              setShowBookingCard(true);
+            } else if (data?.type === "meeting_confirmed" && data?.meeting) {
+              setConfirmedMeeting(data.meeting);
+              setShowBookingCard(true);
+              onBookingSuccess?.(data.meeting);
+            }
+          } catch {
+            // Ignore non-JSON or unrelated packets
+          }
+        });
+
         // Live transcript - the agent worker already publishes STT/reply text
         // over LiveKit's built-in transcription stream; each segment updates
         // in place (by id) while interim, then locks in once `final`. Segments
@@ -149,6 +246,16 @@ export default function VoiceCallWidget({
             if (cancelled || !mountedRef.current) return;
             const speaker: "visitor" | "agent" =
               !participant || participant.identity === room?.localParticipant?.identity ? "visitor" : "agent";
+
+            if (speaker === "agent") {
+              for (const seg of segments) {
+                if (seg.text && seg.text.includes("[BOOKING_WIDGET]")) {
+                  setBookingTriggeredEntryId(seg.id);
+                  setShowBookingCard(true);
+                }
+              }
+            }
+
             setTranscript((prev) => {
               const next = [...prev];
               for (const seg of segments) {
@@ -256,10 +363,31 @@ export default function VoiceCallWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Compute the latest agent entry ID in transcript
+  const lastAgentEntryId = useMemo(() => {
+    for (let i = transcript.length - 1; i >= 0; i--) {
+      if (transcript[i].speaker === "agent") {
+        return transcript[i].id;
+      }
+    }
+    return null;
+  }, [transcript]);
+
+  const activeBookingId = bookingTriggeredEntryId || (showBookingCard ? lastAgentEntryId : null);
+
   // Auto-scroll the transcript to the newest line as it streams in.
   useEffect(() => {
+    if (previewMode) return;
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [transcript]);
+  }, [transcript, previewMode]);
+
+  // Auto-scroll when booking card appears or meeting confirms
+  useEffect(() => {
+    if (previewMode) return;
+    if (showBookingCard || confirmedMeeting) {
+      transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [showBookingCard, confirmedMeeting, previewMode]);
 
   // Call duration timer, starts once connected.
   useEffect(() => {
@@ -461,7 +589,7 @@ export default function VoiceCallWidget({
           {/* Live transcript - auto-scrolls to the newest line; interim
               (not-yet-final) segments render with a bouncy typing indicator
               instead of raw text jitter, then settle into place once final. */}
-          <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-thin py-3 space-y-2.5">
+          <div className={`flex-1 min-h-0 w-full ${previewMode ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin py-2 space-y-2`}>
             {transcript.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center px-6">
@@ -472,44 +600,82 @@ export default function VoiceCallWidget({
               </div>
             ) : (
               <AnimatePresence initial={false}>
-                {transcript.map((entry) => (
-                  <motion.div
-                    key={entry.id}
-                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                    className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[80%] px-3 py-2 text-xs leading-relaxed ${
-                        entry.speaker === "visitor"
-                          ? "user-bubble rounded-br-md"
-                          : "bot-bubble rounded-bl-md"
-                      }`}
+                {transcript.map((entry) => {
+                  const isAgent = entry.speaker === "agent";
+                  const containsBookingTag = isAgent && entry.text.includes("[BOOKING_WIDGET]");
+                  const hasBookingOnEntry = isAgent && (entry.id === activeBookingId || containsBookingTag);
+                  const cleanText = entry.text.replace(/\[BOOKING_WIDGET\]/g, "").trim();
+
+                  return (
+                    <motion.div
+                      key={entry.id}
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                      className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"} ${hasBookingOnEntry ? "w-full" : ""}`}
                     >
-                      {entry.text.trim() ? (
-                        <>
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeKatex]}
-                            components={transcriptMdComponents}
-                          >
-                            {entry.text}
-                          </ReactMarkdown>
-                          {!entry.final && (
-                            <span className="inline-block w-1 h-3 ml-0.5 -mb-0.5 bg-current opacity-60 animate-pulse" />
-                          )}
-                        </>
-                      ) : (
-                        <span className="flex items-center gap-1 py-0.5" aria-label="typing">
-                          <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce" />
-                          <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:150ms]" />
-                          <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:300ms]" />
-                        </span>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                      <div
+                        className={`${
+                          hasBookingOnEntry ? "w-full p-2" : "max-w-[85%] px-3 py-2"
+                        } text-xs leading-relaxed ${
+                          entry.speaker === "visitor"
+                            ? "user-bubble rounded-br-md"
+                            : "bot-bubble rounded-bl-md"
+                        }`}
+                      >
+                        {cleanText ? (
+                          <>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[rehypeKatex]}
+                              components={transcriptMdComponents}
+                            >
+                              {cleanText}
+                            </ReactMarkdown>
+                            {!entry.final && (
+                              <span className="inline-block w-1 h-3 ml-0.5 -mb-0.5 bg-current opacity-60 animate-pulse" />
+                            )}
+                          </>
+                        ) : (
+                          !hasBookingOnEntry && (
+                            <span className="flex items-center gap-1 py-0.5" aria-label="typing">
+                              <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce" />
+                              <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:150ms]" />
+                              <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:300ms]" />
+                            </span>
+                          )
+                        )}
+                        {hasBookingOnEntry && (
+                          <div className="mt-2.5 w-full">
+                            <InlineBookingCard
+                              botId={botId}
+                              sessionId={sessionId}
+                              visitorTimezone={visitorTimezone}
+                              primaryColor={primaryColor}
+                              backendUrl={backendUrl}
+                              initialMeeting={confirmedMeeting || undefined}
+                              initialName={extractedVisitorInfo.name}
+                              initialEmail={extractedVisitorInfo.email}
+                              initialPhone={extractedVisitorInfo.phone}
+                              initialCompany={extractedVisitorInfo.company}
+                              onBookingSuccess={(meeting) => {
+                                setConfirmedMeeting(meeting);
+                                onBookingSuccess?.(meeting);
+                              }}
+                              onMeetingRescheduled={(meeting) => {
+                                setConfirmedMeeting(meeting);
+                                onBookingSuccess?.(meeting);
+                              }}
+                              onMeetingCancelled={() => {
+                                setConfirmedMeeting(null);
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </AnimatePresence>
             )}
             <div ref={transcriptEndRef} />

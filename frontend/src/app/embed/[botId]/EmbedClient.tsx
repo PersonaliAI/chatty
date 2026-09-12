@@ -243,6 +243,46 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [chatNavExpanded, setChatNavExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
+  // Auto-extract visitor contact info if provided in chat conversation
+  const extractedVisitorInfo = useMemo(() => {
+    let name = "";
+    let email = "";
+    let phone = "";
+    let company = "";
+    for (const m of messages) {
+      if (m.role === "user" && typeof m.content === "string") {
+        const text = m.content;
+        if (!email) {
+          const em = text.match(/\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/);
+          if (em) email = em[1].toLowerCase();
+        }
+        if (!phone) {
+          const pm = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/);
+          if (pm && pm[0].replace(/\D/g, "").length >= 7) phone = pm[0].trim();
+        }
+        if (!name) {
+          const nm = text.match(/(?:my name is|i am|i'm|this is)\s+([A-Za-z]+(?:\s+[A-Za-z]+){1,2})/i);
+          if (nm) {
+            const cand = nm[1].trim();
+            if (!["interested", "looking", "trying", "here", "ready", "fine", "good"].includes(cand.toLowerCase())) {
+              name = cand;
+            }
+          }
+        }
+        if (!company) {
+          const cm = text.match(/(?:company is|work at|work for|company:\s*|from)\s+([A-Za-z0-9&., -]{2,40})/i);
+          if (cm) {
+            const cand = cm[1].trim();
+            if (!["home", "here", "myself"].includes(cand.toLowerCase())) {
+              company = cand;
+            }
+          }
+        }
+      }
+    }
+    return { name, email, phone, company };
+  }, [messages]);
+
   const isBookingMessage = useCallback((content: string) => {
     if (!content) return false;
     if (content.includes("[BOOKING_WIDGET]")) return true;
@@ -1746,6 +1786,18 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             visitorTimezone={visitorTimezone}
             primaryColor={primaryColor}
             onClose={() => { setVoiceCallOpen(false); refetchNow(); }}
+            onBookingSuccess={(meeting) => {
+              setMessages((prev) => {
+                const updated = [...prev];
+                for (let idx = updated.length - 1; idx >= 0; idx--) {
+                  if (updated[idx].role === "assistant") {
+                    updated[idx] = { ...updated[idx], confirmedMeeting: meeting };
+                    return updated;
+                  }
+                }
+                return updated;
+              });
+            }}
           />
         ) : showCsat ? (
           /* CSAT Feedback Modal */
@@ -2018,6 +2070,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                                   primaryColor={primaryColor}
                                   backendUrl={BACKEND_URL}
                                   initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
+                                  initialName={extractedVisitorInfo.name}
+                                  initialEmail={extractedVisitorInfo.email}
+                                  initialPhone={extractedVisitorInfo.phone}
+                                  initialCompany={extractedVisitorInfo.company}
                                   onBookingSuccess={(meeting) => {
                                     setMessages((prev) => {
                                       const updated = [...prev];

@@ -1252,6 +1252,18 @@ async def _create_lead(args: dict, user: dict, supabase) -> dict:
             logger.exception("lead dedupe lookup failed")
 
     try:
+        if session_id and (fields.get("name") or fields.get("email")):
+            try:
+                sess_upd: dict[str, Any] = {}
+                if fields.get("name"):
+                    sess_upd["visitor_name"] = fields["name"]
+                if fields.get("email"):
+                    sess_upd["visitor_email"] = fields["email"]
+                if sess_upd:
+                    await run_db(lambda: supabase.table("chatty_sessions").update(sess_upd).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+            except Exception:
+                pass
+
         if existing:
             update = {k: v for k, v in fields.items() if v}
             if custom_fields:

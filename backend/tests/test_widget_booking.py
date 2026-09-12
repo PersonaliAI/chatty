@@ -258,3 +258,37 @@ async def test_offline_ticket_stores_contact_fields_and_skips_ai():
     assert kwargs["visitor_email"] == "jane@example.com"
     mock_ai.assert_not_awaited()
 
+
+@pytest.mark.anyio
+async def test_widget_booking_slots_returns_prefilled_lead():
+    mock_bot = {"id": "bot-1", "calendar_scheduling_enabled": True, "user_id": "u-1"}
+    mock_owner = {"auth_user_id": "u-1", "email": "owner@example.com"}
+    mock_lead = {
+        "name": "Sarah Connor",
+        "email": "sarah@cyberdyne.com",
+        "phone": "+1-555-0199",
+        "company": "Cyberdyne Systems",
+    }
+
+    with patch("app.routers.widget.run_db") as mock_db, \
+         patch("plugins.availability_engine.get_bookable_members", new_callable=AsyncMock) as mock_members, \
+         patch("plugins.availability_engine.get_team_available_slots", new_callable=AsyncMock) as mock_slots:
+        mock_db.side_effect = [
+            MagicMock(data=[mock_bot]),      # bot lookup
+            MagicMock(data=[mock_owner]),    # owner lookup
+            MagicMock(data=[mock_lead]),     # chatty_leads lookup
+        ]
+        mock_members.return_value = [{"id": "m-1"}]
+        mock_slots.return_value = [
+            {"start": "2026-09-15T14:00:00Z", "end": "2026-09-15T14:30:00Z", "visitor_local_label": "2:00 PM"}
+        ]
+
+        res = await widget_booking_slots(bot_id="bot-1", session_id="sess-123")
+        assert res["enabled"] is True
+        assert res["prefilled_lead"] is not None
+        assert res["prefilled_lead"]["name"] == "Sarah Connor"
+        assert res["prefilled_lead"]["email"] == "sarah@cyberdyne.com"
+        assert res["prefilled_lead"]["phone"] == "+1-555-0199"
+        assert res["prefilled_lead"]["company"] == "Cyberdyne Systems"
+
+
