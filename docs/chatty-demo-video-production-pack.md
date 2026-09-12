@@ -29,6 +29,23 @@ Launch your AI support assistant in minutes.
 - Scene 5: Manage conversations, team workflows, and analytics.
 - End card: Chatty — AI customer support for your website.
 
+## Ready-to-use caption screens
+
+These 1920×1080 PNG screens include the exact captions rendered with deterministic overlays, so they do not have AI-generated text artifacts.
+
+- `public/demo-video-caption-screens/screen-01-visitors-have-questions.png`
+- `public/demo-video-caption-screens/screen-02-train-it-on-your-content.png`
+- `public/demo-video-caption-screens/screen-03-capture-every-lead.png`
+- `public/demo-video-caption-screens/screen-04-book-meetings-time-zone.png`
+- `public/demo-video-caption-screens/screen-05-manage-everything.png`
+- `public/demo-video-caption-screens/screen-06-end-card.png`
+
+Regenerate them with:
+
+```bash
+node scripts/create-demo-caption-screens.js
+```
+
 ## Scene 1 — Visitor problem
 
 Image asset:
@@ -135,4 +152,3 @@ Voice: calm, confident SaaS founder voice. Not hype-heavy. Medium pace, clear pr
 Music: light warm tech beat, minimal percussion, soft organic plucks, no dramatic EDM drop.
 
 Editing: add crisp captions separately in the editor, using Chatty heading/body fonts where possible. Keep captions short and place them in negative space.
-
