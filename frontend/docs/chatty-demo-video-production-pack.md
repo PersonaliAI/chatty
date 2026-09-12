@@ -29,28 +29,11 @@ Launch your AI support assistant in minutes.
 - Scene 5: Manage conversations, team workflows, and analytics.
 - End card: Chatty — AI customer support for your website.
 
-## Ready-to-use caption screens
+## Asset storage note
 
-These 1920×1080 PNG screens include the exact captions rendered with deterministic overlays, so they do not have AI-generated text artifacts.
-
-- `public/demo-video-caption-screens/screen-01-visitors-have-questions.png`
-- `public/demo-video-caption-screens/screen-02-train-it-on-your-content.png`
-- `public/demo-video-caption-screens/screen-03-capture-every-lead.png`
-- `public/demo-video-caption-screens/screen-04-book-meetings-time-zone.png`
-- `public/demo-video-caption-screens/screen-05-manage-everything.png`
-- `public/demo-video-caption-screens/screen-06-end-card.png`
-
-Regenerate them with:
-
-```bash
-node scripts/create-demo-caption-screens.js
-```
+The temporary generated PNG keyframes and caption screens were removed from `public/` to keep the production website bundle clean. Use the prompts below to regenerate fresh source images when producing the final marketing video, then keep final exports outside the deployable `public/` folder unless they are intentionally used by the website.
 
 ## Scene 1 — Visitor problem
-
-Image asset:
-
-`public/demo-video-assets/scene-01-visitor-problem.png`
 
 Image prompt used:
 
@@ -66,10 +49,6 @@ Animate this image as a premium SaaS demo opening shot. Keep the composition and
 
 ## Scene 2 — Trained knowledge answer
 
-Image asset:
-
-`public/demo-video-assets/scene-02-knowledge-answer.png`
-
 Image prompt used:
 
 ```text
@@ -83,10 +62,6 @@ Animate this as a clean product demo of Chatty using trained knowledge. Keep all
 ```
 
 ## Scene 3 — Lead capture
-
-Image asset:
-
-`public/demo-video-assets/scene-03-lead-capture.png`
 
 Image prompt used:
 
@@ -102,10 +77,6 @@ Animate this image as a lead capture flow. Keep the scene stable and professiona
 
 ## Scene 4 — Booking and team routing
 
-Image asset:
-
-`public/demo-video-assets/scene-04-booking-routing.png`
-
 Image prompt used:
 
 ```text
@@ -119,10 +90,6 @@ Animate this as a booking automation flow. Keep all cards and icons crisp. Begin
 ```
 
 ## Scene 5 — Dashboard command center
-
-Image asset:
-
-`public/demo-video-assets/scene-05-dashboard-command-center.png`
 
 Image prompt used:
 
