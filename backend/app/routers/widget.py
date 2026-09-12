@@ -1021,6 +1021,7 @@ def _sanitize_booking_field(text: Optional[str], max_len: int = 100) -> str:
 async def widget_booking_slots(
     bot_id: str,
     visitor_timezone: Optional[str] = None,
+    visitor_country: Optional[str] = None,
     days: int = 14,
     request: Request = None,
 ):
@@ -1098,6 +1099,9 @@ async def widget_booking_slots(
                 "end": s["end"],
                 "time_label": time_label,
                 "visitor_local_label": s.get("visitor_local_label") or f"{date_key} at {time_label}",
+                "owner_local_label": s.get("owner_local_label"),
+                "host_timezone": s.get("host_timezone"),
+                "eligible_hosts": s.get("eligible_hosts") or [],
             })
         except Exception:
             continue
@@ -1110,6 +1114,7 @@ async def widget_booking_slots(
         "bot_id": bot_id,
         "duration_minutes": int(bot.get("scheduling_duration_minutes") or 30),
         "visitor_timezone": visitor_tz_str,
+        "visitor_country": (visitor_country or "").strip().upper()[:2] or None,
         "owner_timezone": owner_tz_str,
         "provider": bot.get("meeting_provider") or "google_meet",
         "available_dates": sorted(slots_by_date.keys()),
@@ -1245,6 +1250,8 @@ async def widget_booking_confirm(
         f"Attendee: {visitor_name} ({visitor_email})",
         f"Timezone: {body.visitor_timezone or 'UTC'}",
     ]
+    if body.visitor_country:
+        desc_lines.append(f"Country: {body.visitor_country.strip().upper()[:2]}")
     if visitor_phone:
         desc_lines.append(f"Phone: {visitor_phone}")
     if visitor_company:
@@ -1271,6 +1278,7 @@ async def widget_booking_confirm(
         "bot": bot,
         "session_id": body.session_id,
         "visitor_timezone": body.visitor_timezone,
+        "visitor_country": body.visitor_country,
         "source": "widget",
     }
 

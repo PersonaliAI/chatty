@@ -1581,40 +1581,21 @@ async def execute(
                     slot_start_utc = start_dt.astimezone(timezone.utc)
                     slot_end_utc = end_dt.astimezone(timezone.utc)
 
-                    # Industrial-standard cross-timezone business schedule validation:
-                    # Enforces that the requested slot strictly falls within the business owner's
-                    # working hours and working days, converted accurately from the visitor's timezone.
-                    bh_start = int(bot_cfg.get("business_hours_start") if bot_cfg.get("business_hours_start") is not None else 9)
-                    bh_end = int(bot_cfg.get("business_hours_end") if bot_cfg.get("business_hours_end") is not None else 17)
-                    work_days = bot_cfg.get("working_days") or ["mon", "tue", "wed", "thu", "fri"]
-                    adv_hours = int(bot_cfg.get("advance_notice_hours") or 0)
-
-                    sched_err = avail.validate_slot_against_business_schedule(
-                        slot_start_utc=slot_start_utc,
-                        slot_end_utc=slot_end_utc,
-                        owner_tz_str=owner_tz_str,
-                        business_hours_start=bh_start,
-                        business_hours_end=bh_end,
-                        working_days=work_days,
-                        advance_notice_hours=adv_hours,
-                        visitor_tz_str=visitor_tz_str,
-                    )
-                    if sched_err:
-                        return {"error": sched_err}
-
                     buffer_minutes = int(bot_cfg.get("buffer_minutes") or 0)
                     members = await avail.get_bookable_members(supabase, bot_id_for_assign, bot_cfg, user)
                     assignee = await avail.pick_assignee(
                         supabase, bot_id=bot_id_for_assign, members=members, owner_tz_str=owner_tz_str,
                         buffer_minutes=buffer_minutes,
                         slot_start_utc=slot_start_utc, slot_end_utc=slot_end_utc,
+                        bot=bot_cfg,
                     )
                     if assignee is None:
                         return {
                             "error": (
-                                "That slot is no longer available - it conflicts with an existing "
-                                "booking or the required buffer around one. Call get_available_slots "
-                                "to find a real open time and offer that to the visitor instead."
+                                "That slot is no longer available for any bookable team member - it may be "
+                                "outside their schedule, conflict with an existing booking, or violate the "
+                                "required buffer. Call get_available_slots to find a real open time and "
+                                "offer that to the visitor instead."
                             )
                         }
                     booking_user = assignee["user"]

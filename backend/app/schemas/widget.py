@@ -12,6 +12,7 @@ class WidgetChatRequest(BaseModel):
     session_id: str
     text: str
     visitor_timezone: Optional[str] = "UTC"
+    visitor_country: Optional[str] = None
     host: Optional[str] = None  # parent page host, sent by widget.js - advisory only, not trusted
 
 
@@ -51,6 +52,7 @@ class WidgetBookingConfirmRequest(BaseModel):
     start_time: str
     end_time: str
     visitor_timezone: Optional[str] = "UTC"
+    visitor_country: Optional[str] = None
     name: str
     email: str
     phone: Optional[str] = ""

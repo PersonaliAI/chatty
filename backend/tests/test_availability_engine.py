@@ -558,6 +558,30 @@ def test_pick_assignee_only_frees_members_that_are_actually_free(monkeypatch):
     assert chosen["email"] == "b@example.com"
 
 
+def test_pick_assignee_accepts_member_timezone_schedule(monkeypatch):
+    monkeypatch.setattr(avail, "fetch_busy_intervals", AsyncMock(return_value=[]))
+    fake = FakeSupabase()
+    fake.queue([{"member_email": "jane@example.com", "day_of_week": 0, "start_minute": 540, "end_minute": 600}])
+    members = [{
+        "email": "jane@example.com",
+        "name": "Jane",
+        "user": {"email": "jane@example.com", "timezone": "Asia/Colombo"},
+        "use_ms_calendar": False,
+        "schedule_timezone": "Asia/Colombo",
+        "book_on_own_calendar": True,
+    }]
+    bot = {
+        "scheduling_duration_minutes": 30, "business_hours_start": 9, "business_hours_end": 17,
+        "working_days": ["mon", "tue", "wed", "thu", "fri"], "advance_notice_hours": 0,
+    }
+    chosen = asyncio.run(avail.pick_assignee(
+        fake, bot_id="bot-1", members=members, owner_tz_str="America/Los_Angeles", buffer_minutes=0,
+        slot_start_utc=_utc(2026, 1, 5, 3, 30), slot_end_utc=_utc(2026, 1, 5, 4, 0),
+        bot=bot,
+    ))
+    assert chosen["email"] == "jane@example.com"
+
+
 # ---------------------------------------------------------------------------
 # get_team_available_slots
 # ---------------------------------------------------------------------------
@@ -613,3 +637,39 @@ def test_get_team_available_slots_uses_member_own_rules(monkeypatch):
     ))
     monday_starts = {s["start"] for s in slots if s["start"].startswith("2026-01-05")}
     assert monday_starts == {"2026-01-05T10:00:00Z", "2026-01-05T10:30:00Z"}  # only within 10-11am
+
+
+def test_get_team_available_slots_uses_member_timezone_for_own_calendar(monkeypatch):
+    """A team member's own availability rules are interpreted in the
+    member's timezone, not the bot owner's timezone. Owner in Los Angeles,
+    teammate in Colombo, Monday 9-10am for the teammate should appear as
+    03:30Z/04:00Z, not Monday 9am Los Angeles."""
+    monkeypatch.setattr(avail, "fetch_busy_intervals", AsyncMock(return_value=[]))
+    fake = FakeSupabase()
+    fake.queue([{"member_email": "jane@example.com", "day_of_week": 0, "start_minute": 540, "end_minute": 600}])
+
+    members = [{
+        "email": "jane@example.com",
+        "name": "Jane",
+        "user": {"email": "jane@example.com", "timezone": "Asia/Colombo"},
+        "use_ms_calendar": False,
+        "schedule_timezone": "Asia/Colombo",
+        "book_on_own_calendar": True,
+    }]
+    bot = {
+        "scheduling_duration_minutes": 30, "business_hours_start": 9, "business_hours_end": 17,
+        "working_days": ["mon", "tue", "wed", "thu", "fri"], "buffer_minutes": 0, "advance_notice_hours": 0,
+        "max_daily_meetings": 0, "max_weekly_meetings": 0,
+    }
+    slots = asyncio.run(avail.get_team_available_slots(
+        fake, bot_id="bot-1", bot=bot, members=members, owner_tz_str="America/Los_Angeles",
+        now_utc=_utc(2026, 1, 5, 0, 0), visitor_tz_str="Asia/Colombo", max_results=4,
+    ))
+
+    assert [s["start"] for s in slots[:2]] == ["2026-01-05T03:30:00Z", "2026-01-05T04:00:00Z"]
+    assert slots[0]["eligible_hosts"] == [{
+        "email": "jane@example.com",
+        "name": "Jane",
+        "timezone": "Asia/Colombo",
+        "uses_own_calendar": True,
+    }]
