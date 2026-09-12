@@ -313,7 +313,7 @@ function ModernFilterDropdown<T extends string>({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
+    function handleClickOutside(e: Event) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
       }
@@ -323,9 +323,11 @@ function ModernFilterDropdown<T extends string>({
     };
     if (open) {
       document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
       document.addEventListener("keydown", onKey);
       return () => {
         document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("touchstart", handleClickOutside);
         document.removeEventListener("keydown", onKey);
       };
     }
@@ -334,7 +336,7 @@ function ModernFilterDropdown<T extends string>({
   const selectedOpt = options.find((o) => o.value === value) || options[0];
 
   return (
-    <div ref={ref} className="relative inline-block text-left shrink-0">
+    <div ref={ref} className={`relative inline-block text-left shrink-0 ${open ? "z-50" : "z-10"}`}>
       <button
         type="button"
         title={title}
@@ -440,6 +442,43 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all");
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
+  const statusPopoverRef = useRef<HTMLDivElement>(null);
+  const priorityPopoverRef = useRef<HTMLDivElement>(null);
+  const assigneePopoverRef = useRef<HTMLDivElement>(null);
+  const tagPopoverRef = useRef<HTMLDivElement>(null);
+  const presenceMenuRef = useRef<HTMLDivElement>(null);
+  const rosterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: Event) {
+      const target = e.target as Node;
+      if (statusPopoverOpen && statusPopoverRef.current && !statusPopoverRef.current.contains(target)) {
+        setStatusPopoverOpen(false);
+      }
+      if (priorityPopoverOpen && priorityPopoverRef.current && !priorityPopoverRef.current.contains(target)) {
+        setPriorityPopoverOpen(false);
+      }
+      if (assigneePopoverOpen && assigneePopoverRef.current && !assigneePopoverRef.current.contains(target)) {
+        setAssigneePopoverOpen(false);
+      }
+      if (tagPopoverOpen && tagPopoverRef.current && !tagPopoverRef.current.contains(target)) {
+        setTagPopoverOpen(false);
+      }
+      if (presenceMenuOpen && presenceMenuRef.current && !presenceMenuRef.current.contains(target)) {
+        setPresenceMenuOpen(false);
+      }
+      if (showRoster && rosterRef.current && !rosterRef.current.contains(target)) {
+        setShowRoster(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [statusPopoverOpen, priorityPopoverOpen, assigneePopoverOpen, tagPopoverOpen, presenceMenuOpen, showRoster]);
+
   const [tags, setTags] = useState<Record<string, string[]>>({});
   const PREDEFINED_TAGS = ["VIP", "Bug", "Billing", "Feature Request", "Urgent", "Lead"];
 
@@ -745,13 +784,31 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   }, [selected, loadSessions, loadMessages, loadPresence]);
 
   // ── Session Update (Helpdesk Lifecycle Engine) ──
-  const updateSession = useCallback(async (sid: string, patch: Partial<Session>) => {
-    setSessions((prev) => prev.map((s) => (s.session_id === sid ? { ...s, ...patch } : s)));
+  const updateSession = useCallback(async (sid: string, patch: Partial<Session> & { unassign?: boolean }) => {
+    setSessions((prev) => prev.map((s) => {
+      if (s.session_id !== sid) return s;
+      const updated = { ...s, ...patch };
+      if (patch.unassign || patch.assigned_agent_email === "") {
+        updated.assigned_agent_email = undefined;
+        updated.assigned_agent_name = undefined;
+      }
+      return updated;
+    }));
     try {
+      const payload: Record<string, any> = {
+        bot_id: botId,
+        session_id: sid,
+        ...patch,
+      };
+      if (patch.unassign) {
+        payload.unassign = true;
+        payload.assigned_agent_email = "";
+        payload.assigned_agent_name = "";
+      }
       await fetchBackend("/api/admin/inbox/session", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, session_id: sid, ...patch }),
+        body: JSON.stringify(payload),
       });
     } catch {
       showToast("Failed to sync changes with server.", "error");
@@ -776,10 +833,12 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   };
 
   const assignSession = (sid: string, agentEmail: string | null, agentName?: string | null) => {
+    const isUnassign = !agentEmail;
     updateSession(sid, {
-      assigned_agent_email: agentEmail || undefined,
-      assigned_agent_name: agentName || (agentEmail ? capitalize(agentEmail.split("@")[0]) : undefined),
-      ai_paused: !!agentEmail,
+      assigned_agent_email: isUnassign ? "" : agentEmail,
+      assigned_agent_name: isUnassign ? "" : (agentName || (agentEmail ? capitalize(agentEmail.split("@")[0]) : "")),
+      ai_paused: !isUnassign,
+      unassign: isUnassign,
     });
     setAssigneePopoverOpen(false);
     showToast(agentEmail ? `Assigned to ${agentName || agentEmail}.` : "Ticket unassigned.", "success");
@@ -1021,6 +1080,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       }
     } else if (selectedAssigneeFilter === "unassigned") {
       if (s.assigned_agent_email) return false;
+    } else if (selectedAssigneeFilter !== "all") {
+      if (s.assigned_agent_email?.toLowerCase() !== selectedAssigneeFilter.toLowerCase()) {
+        return false;
+      }
     }
 
     const sessionTags = s.tags || tags[s.session_id] || [];
@@ -1054,7 +1117,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         {/* Left: Agent Presence Status & Capacity */}
         <div className="flex items-center gap-3">
-          <div className="relative">
+          <div ref={presenceMenuRef} className="relative">
             <button
               onClick={() => setPresenceMenuOpen(!presenceMenuOpen)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
@@ -1134,7 +1197,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
 
         {/* Middle: Team Presence Roster */}
-        <div className="relative flex items-center gap-2">
+        <div ref={rosterRef} className="relative flex items-center gap-2">
           <button
             onClick={() => setShowRoster(!showRoster)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors text-xs font-medium cursor-pointer whitespace-nowrap"
@@ -1243,7 +1306,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </div>
 
         {/* Filter Controls & Search */}
-        <div className="p-2.5 border-b border-neutral-100 dark:border-neutral-850 space-y-2 bg-white dark:bg-neutral-900">
+        <div className="p-2.5 border-b border-neutral-100 dark:border-neutral-850 space-y-2 bg-white dark:bg-neutral-900 relative z-20">
           <div className="flex items-center gap-1.5">
             <input
               type="text"
@@ -1262,7 +1325,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </div>
 
           {/* Secondary Filters: Priority, Assignee, Channel & Tags */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+          <div className="flex items-center flex-wrap gap-1.5 py-0.5 relative z-20">
             {/* Priority Filter */}
             <ModernFilterDropdown
               title="Filter by priority"
@@ -1288,6 +1351,11 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 { value: "all", label: "All Assignees" },
                 { value: "me", label: "Mine", icon: <User className="size-2.5 text-neutral-400 shrink-0" /> },
                 { value: "unassigned", label: "Queue", icon: <InboxIcon className="size-2.5 text-neutral-400 shrink-0" /> },
+                ...assignees.map((a) => ({
+                  value: a.email.toLowerCase(),
+                  label: a.name || a.email,
+                  icon: <UserCheck className="size-2.5 text-neutral-400 shrink-0" />,
+                })),
               ]}
             />
 
@@ -1462,7 +1530,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         ) : (
           <>
             {/* Ticket Header Bar */}
-            <div className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20">
+            <div className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-40 flex items-center gap-1.5">
                   {current?.visitor_name || `Visitor ${selected.slice(-5)}`}
@@ -1482,7 +1550,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 </span>
 
                 {/* Status Switcher Popover */}
-                <div className="relative">
+                <div ref={statusPopoverRef} className="relative">
                   <button
                     onClick={() => {
                       setStatusPopoverOpen(!statusPopoverOpen);
@@ -1500,7 +1568,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </button>
 
                   {statusPopoverOpen && (
-                    <div className="absolute top-8 left-0 z-30 w-36 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl p-1.5 space-y-1">
+                    <div className="absolute top-8 left-0 z-50 w-36 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-1.5 space-y-1">
                       {(["open", "pending", "resolved", "closed"] as const).map((st) => (
                         <button
                           key={st}
@@ -1521,7 +1589,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 </div>
 
                 {/* Priority Switcher Popover */}
-                <div className="relative">
+                <div ref={priorityPopoverRef} className="relative">
                   <button
                     onClick={() => {
                       setPriorityPopoverOpen(!priorityPopoverOpen);
@@ -1538,7 +1606,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </button>
 
                   {priorityPopoverOpen && (
-                    <div className="absolute top-8 left-0 z-30 w-32 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl p-1.5 space-y-1">
+                    <div className="absolute top-8 left-0 z-50 w-32 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-1.5 space-y-1">
                       {(["urgent", "high", "normal", "low"] as const).map((p) => {
                         const Icon = PRIORITY_CONFIG[p].icon;
                         return (
@@ -1562,7 +1630,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 </div>
 
                 {/* Assignee Switcher Popover */}
-                <div className="relative">
+                <div ref={assigneePopoverRef} className="relative">
                   <button
                     onClick={() => {
                       setAssigneePopoverOpen(!assigneePopoverOpen);
@@ -1578,7 +1646,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </button>
 
                   {assigneePopoverOpen && (
-                    <div className="absolute top-8 left-0 z-30 w-48 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl p-2 space-y-1">
+                    <div className="absolute top-8 left-0 z-50 w-48 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-2 space-y-1">
                       <div className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 px-1 pb-1 border-b border-neutral-100 dark:border-neutral-800">
                         Assign Ticket
                       </div>
@@ -1646,7 +1714,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 )}
 
                 {/* Tags Popover Trigger */}
-                <div className="relative">
+                <div ref={tagPopoverRef} className="relative">
                   <button
                     onClick={() => {
                       setTagPopoverOpen(!tagPopoverOpen);
@@ -1659,7 +1727,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     🏷️ Tags
                   </button>
                   {tagPopoverOpen && (
-                    <div className="absolute top-8 right-0 z-30 w-44 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl p-2 space-y-1">
+                    <div className="absolute top-8 right-0 z-50 w-44 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-2 space-y-1">
                       <div className="flex justify-between items-center px-1 pb-1 border-b border-neutral-100 dark:border-neutral-800">
                         <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Ticket Tags</span>
                         <button onClick={() => setTagPopoverOpen(false)} className="text-[10px] text-neutral-400 hover:text-neutral-600">&times;</button>
