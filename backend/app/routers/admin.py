@@ -7,7 +7,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
@@ -312,12 +312,24 @@ async def update_inbox_session(req: SessionUpdateRequest, user: dict[str, Any] =
             raise HTTPException(status_code=400, detail=f"priority must be one of {valid_priorities}")
         upd["priority"] = req.priority
 
-    if req.assigned_agent_email is not None:
+    is_unassign = (
+        req.unassign is True
+        or (req.assigned_agent_email is not None and req.assigned_agent_email.strip() == "")
+        or ("assigned_agent_email" in req.model_fields_set and req.assigned_agent_email is None)
+    )
+
+    if is_unassign:
+        upd["assigned_agent_email"] = None
+        upd["assigned_agent_name"] = None
+        upd["ai_paused"] = False
+    elif req.assigned_agent_email is not None:
         if role == "agent":
             raise HTTPException(status_code=403, detail="Only an owner or admin can reassign conversations")
         email_val = req.assigned_agent_email.strip() if req.assigned_agent_email else None
         upd["assigned_agent_email"] = email_val
         upd["assigned_agent_name"] = req.assigned_agent_name or (email_val.split("@")[0].capitalize() if email_val else None)
+        if email_val:
+            upd["ai_paused"] = True
 
     if req.ai_paused is not None:
         upd["ai_paused"] = req.ai_paused
@@ -1123,6 +1135,7 @@ async def _dispatch_ticket_to_agent(bot_id: str, session_id: str) -> dict[str, A
         await run_db(lambda: supabase.table("chatty_sessions").update({
             "assigned_agent_email": chosen["agent_email"],
             "assigned_agent_name": chosen["agent_name"],
+            "ai_paused": True,
         }).eq("session_id", session_id).eq("bot_id", bot_id).execute())
 
         try:
@@ -1345,15 +1358,18 @@ async def admin_dispatch_routing_queue(bot_id: str, user: dict[str, Any] = Depen
     try:
         # Find unassigned sessions
         res_sessions = await run_db(lambda: supabase.table("chatty_sessions")
-            .select("session_id")
+            .select("session_id, assigned_agent_email, status, last_message_at")
             .eq("bot_id", bot_id)
-            .in_("status", ["open", "pending"])
-            .is_("assigned_agent_email", "null")
-            .order("created_at")
-            .limit(20)
+            .order("last_message_at", desc=False)
+            .limit(100)
             .execute())
 
-        sessions = res_sessions.data or []
+        all_sess = res_sessions.data or []
+        sessions = [
+            s for s in all_sess
+            if (not (s.get("assigned_agent_email") or "").strip())
+            and (s.get("status") or "open") not in ("resolved", "closed")
+        ][:20]
         dispatched_count = 0
         results = []
 

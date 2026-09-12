@@ -46,6 +46,7 @@ class SessionUpdateRequest(BaseModel):
     needs_attention: Optional[bool] = None
     tags: Optional[list[str]] = None
     escalation_reason: Optional[str] = None
+    unassign: Optional[bool] = None
 
 
 class SessionNoteCreateRequest(BaseModel):

@@ -245,8 +245,12 @@ class _RecordingQuery:
         self.calls.append((self.table_name, "update", payload))
         return self
 
-    def delete(self, *_args, **_kwargs):
-        self.calls.append((self.table_name, "delete", True))
+    def in_(self, column, values):
+        self.calls.append((self.table_name, f"in_{column}", values))
+        return self
+
+    def is_(self, column, value):
+        self.calls.append((self.table_name, f"is_{column}", value))
         return self
 
     def execute(self):
@@ -328,3 +332,68 @@ def test_admin_get_audit_logs_denies_agent_even_with_settings(monkeypatch):
         asyncio.run(admin.admin_get_audit_logs("bot-1", AGENT))
 
     assert exc.value.status_code == 403
+
+
+def test_admin_update_session_unassign(monkeypatch):
+    fake = _RecordingSupabase({
+        "chatty_sessions": [
+            {"session_id": "s1", "bot_id": "bot-1", "assigned_agent_email": "agent@example.com", "assigned_agent_name": "Agent"},
+        ],
+    })
+    monkeypatch.setattr(admin, "supabase", fake)
+    monkeypatch.setattr(admin, "_verify_inbox_access", AsyncMock(return_value="owner"))
+
+    req = admin.SessionUpdateRequest(bot_id="bot-1", session_id="s1", unassign=True)
+    res = asyncio.run(admin.update_inbox_session(req, OWNER))
+
+    assert res["success"] is True
+    update_calls = [c for c in fake.calls if c[0] == "chatty_sessions" and c[1] == "update"]
+    assert len(update_calls) == 1
+    upd_payload = update_calls[0][2]
+    assert upd_payload.get("assigned_agent_email") is None
+    assert upd_payload.get("assigned_agent_name") is None
+    assert upd_payload.get("ai_paused") is False
+
+
+def test_admin_update_session_unassign_empty_string(monkeypatch):
+    fake = _RecordingSupabase({
+        "chatty_sessions": [
+            {"session_id": "s1", "bot_id": "bot-1", "assigned_agent_email": "agent@example.com"},
+        ],
+    })
+    monkeypatch.setattr(admin, "supabase", fake)
+    monkeypatch.setattr(admin, "_verify_inbox_access", AsyncMock(return_value="owner"))
+
+    req = admin.SessionUpdateRequest(bot_id="bot-1", session_id="s1", assigned_agent_email="")
+    res = asyncio.run(admin.update_inbox_session(req, OWNER))
+
+    assert res["success"] is True
+    update_calls = [c for c in fake.calls if c[0] == "chatty_sessions" and c[1] == "update"]
+    assert len(update_calls) == 1
+    upd_payload = update_calls[0][2]
+    assert upd_payload.get("assigned_agent_email") is None
+    assert upd_payload.get("assigned_agent_name") is None
+
+
+def test_admin_dispatch_routing_queue_assigns_to_online_agent(monkeypatch):
+    fake = _RecordingSupabase({
+        "chatty_sessions": [
+            {"session_id": "s1", "bot_id": "bot-1", "status": "open", "assigned_agent_email": None, "last_message_at": "2026-09-12T10:00:00Z"},
+        ],
+        "chatty_routing_settings": [
+            {"bot_id": "bot-1", "routing_enabled": True, "algorithm": "spare_capacity", "default_capacity": 5},
+        ],
+        "chatty_agent_presence": [
+            {"id": "ag-1", "bot_id": "bot-1", "agent_email": "agent@example.com", "agent_name": "Agent", "status": "online", "max_capacity": 5},
+        ],
+    })
+    monkeypatch.setattr(admin, "supabase", fake)
+    monkeypatch.setattr(admin, "_verify_bot_access", AsyncMock(return_value=("owner", ["all"])))
+
+    res = asyncio.run(admin.admin_dispatch_routing_queue("bot-1", OWNER))
+
+    assert res["unassigned_found"] == 1
+    assert res["dispatched_count"] == 1
+    assert len(res["results"]) == 1
+    assert res["results"][0]["session_id"] == "s1"
+    assert res["results"][0]["assigned_to"] == "agent@example.com"
