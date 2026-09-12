@@ -355,6 +355,48 @@ export default function Home() {
 
   return (
     <div className={`${caprasimo.variable} ${figtree.variable} antialiased`} style={{ ...colorVars, fontFamily: "var(--font-body)", background: "var(--color-bg)", color: "var(--color-text)", overflowX: "clip" }}>
+      <style>{`
+        @keyframes chattyHeroLift {
+          0%, 100% { transform: translate3d(0, 0, 0) rotate(-0.18deg); }
+          50% { transform: translate3d(0, -10px, 0) rotate(0.18deg); }
+        }
+
+        @keyframes chattyHeroImageDrift {
+          0%, 100% { transform: scale(1) translate3d(0, 0, 0); }
+          50% { transform: scale(1.012) translate3d(0, -4px, 0); }
+        }
+
+        @keyframes chattyHeroBadgePulse {
+          0%, 100% { transform: translate3d(0, 0, 0); box-shadow: var(--shadow-md); }
+          50% { transform: translate3d(0, -4px, 0); box-shadow: var(--shadow-lg); }
+        }
+
+        .chatty-hero-frame {
+          animation: chattyHeroLift 9s ease-in-out infinite;
+          transform-origin: center;
+          will-change: transform;
+        }
+
+        .chatty-hero-image {
+          animation: chattyHeroImageDrift 12s ease-in-out infinite;
+          transform-origin: center;
+          will-change: transform;
+        }
+
+        .chatty-hero-badge {
+          animation: chattyHeroBadgePulse 5.5s ease-in-out infinite;
+          will-change: transform, box-shadow;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .chatty-hero-frame,
+          .chatty-hero-image,
+          .chatty-hero-badge {
+            animation: none;
+            transform: none;
+          }
+        }
+      `}</style>
       {/* Announcement bar */}
       <div className="text-center px-5 py-2.5 text-[13px] sm:text-[13.5px]" style={{ background: "var(--color-accent-2-100)" }}>
         <span className="font-semibold" style={{ color: "var(--color-accent-2-800)" }}>NEW</span>
@@ -457,18 +499,19 @@ export default function Home() {
 
           <div className="mt-14 sm:mt-16 relative max-w-[1080px] mx-auto">
             <div className="absolute -inset-4 sm:-inset-6 rounded-[52px] -z-10" style={{ background: "var(--color-accent-2-100)" }} />
-            <div className="relative rounded-[24px] sm:rounded-[36px] overflow-hidden p-2 sm:p-2.5 border" style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)", borderColor: "var(--color-divider)" }}>
+            <div className="chatty-hero-frame relative rounded-[24px] sm:rounded-[36px] overflow-hidden p-2 sm:p-2.5 border" style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)", borderColor: "var(--color-divider)" }}>
               <Image
-                src="/chatty-hero-product.png"
+                src="/chatty-hero-product.webp"
                 alt="Chatty dashboard, website chat widget, booking, and inbox workflow preview"
-                width={1672}
-                height={941}
+                width={1440}
+                height={810}
                 priority
+                quality={82}
                 sizes="(min-width: 1200px) 1080px, calc(100vw - 40px)"
-                className="w-full h-auto rounded-[16px] sm:rounded-[26px]"
+                className="chatty-hero-image w-full h-auto rounded-[16px] sm:rounded-[26px]"
               />
             </div>
-            <div className="hidden sm:flex absolute -top-[18px] right-7 rounded-full items-center gap-2 px-4.5 py-2.5 text-[12.5px] font-semibold" style={{ background: "var(--color-bg)", boxShadow: "var(--shadow-md)", color: "var(--color-accent-700)" }}>
+            <div className="chatty-hero-badge hidden sm:flex absolute -top-[18px] right-7 rounded-full items-center gap-2 px-4.5 py-2.5 text-[12.5px] font-semibold" style={{ background: "var(--color-bg)", boxShadow: "var(--shadow-md)", color: "var(--color-accent-700)" }}>
               <Clock className="size-[15px]" />
               Live on your site in 5 minutes
             </div>
