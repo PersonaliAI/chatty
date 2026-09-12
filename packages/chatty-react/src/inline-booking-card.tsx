@@ -52,6 +52,12 @@ interface SlotsResponse {
   booking_require_business_email: boolean;
   booking_block_disposable_emails: boolean;
   booking_email_verification: boolean;
+  prefilled_lead?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    company?: string | null;
+  } | null;
 }
 
 export interface ConfirmedMeeting {
@@ -70,9 +76,14 @@ export interface InlineBookingCardProps {
   botId: string;
   sessionId?: string;
   visitorTimezone?: string;
+  visitorCountry?: string;
   primaryColor?: string;
   backendUrl?: string;
   initialMeeting?: ConfirmedMeeting;
+  initialName?: string;
+  initialEmail?: string;
+  initialPhone?: string;
+  initialCompany?: string;
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
   onMeetingRescheduled?: (meeting: ConfirmedMeeting) => void;
   onMeetingCancelled?: () => void;
@@ -156,9 +167,14 @@ export function InlineBookingCard({
   botId,
   sessionId,
   visitorTimezone,
+  visitorCountry,
   primaryColor = "#f97316",
   backendUrl = DEFAULT_BACKEND_URL,
   initialMeeting,
+  initialName,
+  initialEmail,
+  initialPhone,
+  initialCompany,
   onBookingSuccess,
   onMeetingRescheduled,
   onMeetingCancelled,
@@ -272,11 +288,19 @@ export function InlineBookingCard({
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
 
   // Form inputs
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [company, setCompany] = useState("");
+  const [name, setName] = useState(initialName || "");
+  const [email, setEmail] = useState(initialEmail || "");
+  const [phone, setPhone] = useState(initialPhone || "");
+  const [company, setCompany] = useState(initialCompany || "");
   const [notes, setNotes] = useState("");
+
+  // Sync props if contact details arrive or change dynamically
+  useEffect(() => {
+    if (initialName) setName((prev) => prev || initialName);
+    if (initialEmail) setEmail((prev) => prev || initialEmail);
+    if (initialPhone) setPhone((prev) => prev || initialPhone);
+    if (initialCompany) setCompany((prev) => prev || initialCompany);
+  }, [initialName, initialEmail, initialPhone, initialCompany]);
 
   // Email OTP verification state
   const [otpSent, setOtpSent] = useState(false);
@@ -316,13 +340,19 @@ export function InlineBookingCard({
     try {
       setLoading(true);
       setError(null);
-      const url = `${backendUrl}/api/widget/booking/slots?bot_id=${encodeURIComponent(botId)}&visitor_timezone=${encodeURIComponent(tz)}&days=14`;
+      const url = `${backendUrl}/api/widget/booking/slots?bot_id=${encodeURIComponent(botId)}&visitor_timezone=${encodeURIComponent(tz)}&days=14${sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : ""}${visitorCountry ? `&visitor_country=${encodeURIComponent(visitorCountry)}` : ""}`;
       const res = await fetch(url);
       if (!res.ok) {
         throw new Error(`Failed to load slots: HTTP ${res.status}`);
       }
       const data: SlotsResponse = await res.json();
       setSlotsData(data);
+      if (data.prefilled_lead) {
+        if (data.prefilled_lead.name) setName((prev) => prev || data.prefilled_lead!.name || "");
+        if (data.prefilled_lead.email) setEmail((prev) => prev || data.prefilled_lead!.email || "");
+        if (data.prefilled_lead.phone) setPhone((prev) => prev || data.prefilled_lead!.phone || "");
+        if (data.prefilled_lead.company) setCompany((prev) => prev || data.prefilled_lead!.company || "");
+      }
       if (data.available_dates && data.available_dates.length > 0) {
         setSelectedDate(data.available_dates[0]);
       }

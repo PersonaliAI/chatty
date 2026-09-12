@@ -68,6 +68,46 @@ export default function VoiceCallWidget({
         ]
       : []
   );
+
+  // Auto-extract visitor contact info if spoken/transcribed during the call
+  const extractedVisitorInfo = useMemo(() => {
+    let name = "";
+    let email = "";
+    let phone = "";
+    let company = "";
+    for (const entry of transcript) {
+      if (entry.speaker === "visitor" && entry.text) {
+        const text = entry.text;
+        if (!email) {
+          const em = text.match(/\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/);
+          if (em) email = em[1].toLowerCase();
+        }
+        if (!phone) {
+          const pm = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/);
+          if (pm && pm[0].replace(/\D/g, "").length >= 7) phone = pm[0].trim();
+        }
+        if (!name) {
+          const nm = text.match(/(?:my name is|i am|i'm|this is)\s+([A-Za-z]+(?:\s+[A-Za-z]+){1,2})/i);
+          if (nm) {
+            const cand = nm[1].trim();
+            if (!["interested", "looking", "trying", "here", "ready", "fine", "good"].includes(cand.toLowerCase())) {
+              name = cand;
+            }
+          }
+        }
+        if (!company) {
+          const cm = text.match(/(?:company is|work at|work for|company:\s*|from)\s+([A-Za-z0-9&., -]{2,40})/i);
+          if (cm) {
+            const cand = cm[1].trim();
+            if (!["home", "here", "myself"].includes(cand.toLowerCase())) {
+              company = cand;
+            }
+          }
+        }
+      }
+    }
+    return { name, email, phone, company };
+  }, [transcript]);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(() =>
     previewMode
       ? {
@@ -614,6 +654,10 @@ export default function VoiceCallWidget({
                               primaryColor={primaryColor}
                               backendUrl={backendUrl}
                               initialMeeting={confirmedMeeting || undefined}
+                              initialName={extractedVisitorInfo.name}
+                              initialEmail={extractedVisitorInfo.email}
+                              initialPhone={extractedVisitorInfo.phone}
+                              initialCompany={extractedVisitorInfo.company}
                               onBookingSuccess={(meeting) => {
                                 setConfirmedMeeting(meeting);
                                 onBookingSuccess?.(meeting);
