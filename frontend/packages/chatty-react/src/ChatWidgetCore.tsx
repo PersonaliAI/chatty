@@ -2069,7 +2069,7 @@ export default function ChatWidgetCore({
             sessionId={sessionId}
             backendUrl={BACKEND_URL}
             originToken={effectiveOriginToken}
-            visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+            visitorTimezone={typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone && Intl.DateTimeFormat().resolvedOptions().timeZone !== "UTC" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "America/New_York"}
             primaryColor={primaryColor}
             onClose={() => { setVoiceCallOpen(false); refetchNow(); }}
           />
@@ -2279,103 +2279,106 @@ export default function ChatWidgetCore({
             {tab === "messages" && (
               <div className="p-4 space-y-4 text-xs">
                 <AnimatePresence initial={false}>
-                  {messages.map((msg, i) => (
-                    <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                      className={`flex gap-2 max-w-[88%] ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
-                      {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>}
-                      <div className="flex flex-col min-w-0">
-                      {msg.role === "assistant" && showSenderTag && msg.sender && (
-                        <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5">
-                          {msg.sender === "human" ? "Human agent" : "AI"}
-                        </span>
-                      )}
-                      {/* .user-bubble's background/color come entirely from the
-                          design preset's own CSS (globals.css, !important) - an
-                          inline style here computed from primaryColor would be
-                          silently overridden for the background but NOT
-                          recomputed for the text color, producing the same
-                          invisible-text bug the header had. */}
-                      <div className={`p-2.5 rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
-                        {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL - neither works with next/image's optimizer */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
-                        {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
-                        {msg.role === "assistant" ? (
-                          <>
-                            {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim() && (
-                              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
-                                {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
-                              </ReactMarkdown>
-                            )}
-                            {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
-                              <InlineBookingCard
-                                botId={String(botId)}
-                                sessionId={sessionId}
-                                visitorTimezone={typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"}
-                                primaryColor={primaryColor}
-                                backendUrl={BACKEND_URL}
-                                initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
-                                onBookingSuccess={(meeting) => {
-                                  setMessages((prev) => {
-                                    const updated = [...prev];
-                                    if (updated[i]) {
-                                      updated[i] = { ...updated[i], confirmedMeeting: meeting };
-                                    }
-                                    return updated;
-                                  });
-                                }}
-                                onMeetingRescheduled={(meeting) => {
-                                  setMessages((prev) =>
-                                    prev.map((m) =>
-                                      m.confirmedMeeting && (m.confirmedMeeting.id === meeting.id || !m.confirmedMeeting.id)
-                                        ? { ...m, confirmedMeeting: meeting }
-                                        : m
-                                    )
-                                  );
-                                }}
-                                onMeetingCancelled={() => {
-                                  setMessages((prev) =>
-                                    prev.map((m) => {
-                                      if (m.confirmedMeeting) {
-                                        const copy = { ...m };
-                                        delete copy.confirmedMeeting;
-                                        return copy;
+                  {messages.map((msg, i) => {
+                    const hasBooking = Boolean(msg.confirmedMeeting || i === lastBookingMsgIdx);
+                    return (
+                      <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        className={`flex gap-2 ${hasBooking ? "w-full max-w-[96%] sm:max-w-[88%]" : "max-w-[88%]"} ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
+                        {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>}
+                        <div className={`flex flex-col min-w-0 ${hasBooking ? "w-full" : ""}`}>
+                        {msg.role === "assistant" && showSenderTag && msg.sender && (
+                          <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5">
+                            {msg.sender === "human" ? "Human agent" : "AI"}
+                          </span>
+                        )}
+                        {/* .user-bubble's background/color come entirely from the
+                            design preset's own CSS (globals.css, !important) - an
+                            inline style here computed from primaryColor would be
+                            silently overridden for the background but NOT
+                            recomputed for the text color, producing the same
+                            invisible-text bug the header had. */}
+                        <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
+                          {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL - neither works with next/image's optimizer */}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
+                          {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
+                          {msg.role === "assistant" ? (
+                            <>
+                              {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim() && (
+                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                                  {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
+                                </ReactMarkdown>
+                              )}
+                              {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
+                                <InlineBookingCard
+                                  botId={String(botId)}
+                                  sessionId={sessionId}
+                                  visitorTimezone={typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone && Intl.DateTimeFormat().resolvedOptions().timeZone !== "UTC" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "America/New_York"}
+                                  primaryColor={primaryColor}
+                                  backendUrl={BACKEND_URL}
+                                  initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
+                                  onBookingSuccess={(meeting) => {
+                                    setMessages((prev) => {
+                                      const updated = [...prev];
+                                      if (updated[i]) {
+                                        updated[i] = { ...updated[i], confirmedMeeting: meeting };
                                       }
-                                      return m;
-                                    })
-                                  );
-                                }}
-                              />
-                            )}
-                          </>
-                        ) : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
-                        {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
-                          <div className="mt-1.5 flex items-center gap-1">
-                            <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
-                              className={`p-1 rounded-md transition-colors ${msg.feedback === "up" ? "text-green-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
-                              <ThumbsUp className="size-3" />
-                            </button>
-                            <button onClick={() => rateMessage(i, "down")} aria-label="Not helpful"
-                              className={`p-1 rounded-md transition-colors ${msg.feedback === "down" ? "text-red-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
-                              <ThumbsDown className="size-3" />
-                            </button>
-                          </div>
-                        )}
-                        {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap gap-1">
-                            {msg.sources.map((s, si) => {
-                              const label = s.url ? (() => { try { return new URL(s.url!).hostname.replace(/^www\./, "") + new URL(s.url!).pathname.replace(/\/$/, ""); } catch { return s.name; } })() : s.name;
-                              const cls = "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-500 max-w-[170px]";
-                              return s.url
-                                ? <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url} className={`${cls} hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors`}><Link2 className="size-2.5 shrink-0" /><span className="truncate">{label}</span></a>
-                                : <span key={si} title={s.name} className={cls}><FileText className="size-2.5 shrink-0" /><span className="truncate">{label}</span></span>;
-                            })}
-                          </div>
-                        )}
-                      </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                                      return updated;
+                                    });
+                                  }}
+                                  onMeetingRescheduled={(meeting) => {
+                                    setMessages((prev) =>
+                                      prev.map((m) =>
+                                        m.confirmedMeeting && (m.confirmedMeeting.id === meeting.id || !m.confirmedMeeting.id)
+                                          ? { ...m, confirmedMeeting: meeting }
+                                          : m
+                                      )
+                                    );
+                                  }}
+                                  onMeetingCancelled={() => {
+                                    setMessages((prev) =>
+                                      prev.map((m) => {
+                                        if (m.confirmedMeeting) {
+                                          const copy = { ...m };
+                                          delete copy.confirmedMeeting;
+                                          return copy;
+                                        }
+                                        return m;
+                                      })
+                                    );
+                                  }}
+                                />
+                              )}
+                            </>
+                          ) : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
+                          {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
+                            <div className="mt-1.5 flex items-center gap-1">
+                              <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
+                                className={`p-1 rounded-md transition-colors ${msg.feedback === "up" ? "text-green-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
+                                <ThumbsUp className="size-3" />
+                              </button>
+                              <button onClick={() => rateMessage(i, "down")} aria-label="Not helpful"
+                                className={`p-1 rounded-md transition-colors ${msg.feedback === "down" ? "text-red-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
+                                <ThumbsDown className="size-3" />
+                              </button>
+                            </div>
+                          )}
+                          {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap gap-1">
+                              {msg.sources.map((s, si) => {
+                                const label = s.url ? (() => { try { return new URL(s.url!).hostname.replace(/^www\./, "") + new URL(s.url!).pathname.replace(/\/$/, ""); } catch { return s.name; } })() : s.name;
+                                const cls = "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-500 max-w-[170px]";
+                                return s.url
+                                  ? <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url} className={`${cls} hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors`}><Link2 className="size-2.5 shrink-0" /><span className="truncate">{label}</span></a>
+                                  : <span key={si} title={s.name} className={cls}><FileText className="size-2.5 shrink-0" /><span className="truncate">{label}</span></span>;
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                   {(isBotResponding || agentTyping) && (
                     <div className="flex gap-2 mr-auto">
                       <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>

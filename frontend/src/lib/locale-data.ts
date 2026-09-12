@@ -105,10 +105,12 @@ const TZ_TO_COUNTRY: Record<string, string> = {
 
 export function detectTimezone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz && tz !== "UTC") return tz;
   } catch {
-    return "UTC";
+    /* fall through */
   }
+  return "America/New_York";
 }
 
 export function detectCountryCode(): string {

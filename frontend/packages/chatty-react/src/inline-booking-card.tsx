@@ -167,20 +167,23 @@ export function InlineBookingCard({
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Timezone selection
+  // Timezone selection: auto-detect visitor's location, default to USA Eastern Time if unavailable or UTC
   const detectedTz = useMemo(() => {
     if (visitorTimezone && visitorTimezone !== "UTC") return visitorTimezone;
     try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz && tz !== "UTC") return tz;
     } catch {
-      return "UTC";
+      /* fall through */
     }
+    return "America/New_York";
   }, [visitorTimezone]);
 
   const [activeTimezone, setActiveTimezone] = useState(detectedTz);
   const [isTzOpen, setIsTzOpen] = useState(false);
   const [tzQuery, setTzQuery] = useState("");
   const tzDropdownRef = useRef<HTMLDivElement>(null);
+  const tzButtonRef = useRef<HTMLButtonElement>(null);
 
   // Date strip scrolling
   const dateScrollRef = useRef<HTMLDivElement>(null);
@@ -208,9 +211,20 @@ export function InlineBookingCard({
   useEffect(() => {
     if (!isTzOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (tzDropdownRef.current && !tzDropdownRef.current.contains(e.target as Node)) {
-        setIsTzOpen(false);
+      const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+      if (
+        tzDropdownRef.current &&
+        (tzDropdownRef.current.contains(e.target as Node) || path.includes(tzDropdownRef.current))
+      ) {
+        return;
       }
+      if (
+        tzButtonRef.current &&
+        (tzButtonRef.current.contains(e.target as Node) || path.includes(tzButtonRef.current))
+      ) {
+        return;
+      }
+      setIsTzOpen(false);
     };
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -325,6 +339,16 @@ export function InlineBookingCard({
       fetchSlots(activeTimezone);
     }
   }, [botId, activeTimezone]);
+
+  const selectTimezone = (tzId: string) => {
+    setActiveTimezone(tzId);
+    setIsTzOpen(false);
+    setTzQuery("");
+    setSelectedSlot(null);
+    setSelectedDate("");
+    setSlotsData(null);
+    setError(null);
+  };
 
   // Format date helper
   const formatDateLabel = (dateStr: string) => {
@@ -602,119 +626,129 @@ export function InlineBookingCard({
   const isCompanyRequired = !!slotsData?.lead_required_fields?.includes("company");
 
   return (
-    <div className="w-full my-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden text-neutral-800 dark:text-neutral-200 font-sans transition-all">
+    <div className={`relative w-full my-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-sm text-neutral-800 dark:text-neutral-200 font-sans transition-all ${isTzOpen ? "min-h-[340px] overflow-visible z-30" : "overflow-hidden"}`}>
       {/* Top Header */}
-      <div className="px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/40 flex items-center justify-between text-[11px]">
-        <div className="flex items-center gap-2 font-medium text-neutral-700 dark:text-neutral-300">
-          <span className="flex items-center gap-1">
-            <Clock className="size-3 text-neutral-400" />
+      <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/40 flex items-center justify-between text-[11px] gap-1.5">
+        <div className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300 shrink-0 text-[10px] sm:text-[11px]">
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <Clock className="size-3 text-neutral-400 shrink-0" />
             {slotsData?.duration_minutes || 30}m
           </span>
           <span className="text-neutral-300 dark:text-neutral-700">|</span>
-          <span className="flex items-center gap-1">
-            <Video className="size-3 text-neutral-400" />
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <Video className="size-3 text-neutral-400 shrink-0" />
             {slotsData?.provider === "teams" ? "Teams" : "Google Meet"}
           </span>
         </div>
 
         {/* Modern Cal.com-style Timezone Selector */}
-        <div className="relative">
+        <div className="min-w-0">
           <button
+            ref={tzButtonRef}
             type="button"
             onClick={() => {
               setIsTzOpen(!isTzOpen);
               setTzQuery("");
             }}
-            className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
+            className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group max-w-full"
             title="Click to change timezone"
           >
             <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 shrink-0" />
-            <span className="truncate max-w-[130px] sm:max-w-[175px] font-medium">
+            <span className="truncate max-w-[80px] min-[360px]:max-w-[105px] sm:max-w-[160px] font-medium">
               {formatTimezoneCity(activeTimezone)}
             </span>
-            <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-200 ${isTzOpen ? "rotate-180" : ""}`} />
+            <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-200 shrink-0 ${isTzOpen ? "rotate-180" : ""}`} />
           </button>
-
-          {isTzOpen && (
-            <div
-              ref={tzDropdownRef}
-              className="absolute right-0 top-full mt-1.5 w-64 max-w-[calc(100vw-40px)] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col"
-            >
-              {/* Popover Search Bar */}
-              <div className="p-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-800/50">
-                <div className="relative">
-                  <Search className="size-3 text-neutral-400 absolute left-2.5 top-2.5" />
-                  <input
-                    type="text"
-                    autoFocus
-                    placeholder="Search city or timezone..."
-                    value={tzQuery}
-                    onChange={(e) => setTzQuery(e.target.value)}
-                    className="w-full pl-7 pr-6 py-1 text-[11px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md focus:outline-none focus:ring-1 focus:ring-neutral-400 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400"
-                  />
-                  {tzQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setTzQuery("")}
-                      className="absolute right-1.5 top-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Timezone List with modern scrollbar */}
-              <div className="max-h-56 overflow-y-auto p-1 divide-y divide-neutral-100 dark:divide-neutral-800/50 chatty-custom-scrollbar">
-                {filteredTimezones.length === 0 ? (
-                  <div className="py-5 text-center text-[11px] text-neutral-400">
-                    No matching timezone found
-                  </div>
-                ) : (
-                  filteredTimezones.map((tz) => {
-                    const isSelected = tz.id === activeTimezone;
-                    const currentTime = getTimeInTimezone(tz.id);
-                    return (
-                      <button
-                        key={tz.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveTimezone(tz.id);
-                          setIsTzOpen(false);
-                          setTzQuery("");
-                          setSelectedSlot(null);
-                        }}
-                        className={`w-full px-2 py-1.5 flex items-center justify-between text-left rounded-md transition-colors cursor-pointer ${
-                          isSelected
-                            ? "bg-neutral-100 dark:bg-neutral-800 font-medium text-neutral-900 dark:text-neutral-100"
-                            : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300"
-                        }`}
-                      >
-                        <div className="min-w-0 pr-1.5">
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs truncate">{tz.city}</span>
-                            {isSelected && (
-                              <Check className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                            )}
-                          </div>
-                          <div className="text-[9px] text-neutral-400 truncate">
-                            {tz.label}
-                          </div>
-                        </div>
-                        {currentTime && (
-                          <div className="text-[10px] tabular-nums text-neutral-500 dark:text-neutral-400 shrink-0 font-medium">
-                            {currentTime}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Modern Cal.com-style Timezone Selector Dropdown */}
+      {isTzOpen && (
+        <div
+          ref={tzDropdownRef}
+          className="absolute left-2 right-2 sm:left-auto sm:right-3 sm:w-64 top-[38px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[255px]"
+        >
+          {/* Popover Search Bar */}
+          <div className="p-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-800/60 flex items-center gap-1.5">
+            <div className="relative flex-1 min-w-0">
+              <Search className="size-3 text-neutral-400 absolute left-2.5 top-2.5" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search city or timezone..."
+                value={tzQuery}
+                onChange={(e) => setTzQuery(e.target.value)}
+                className="w-full pl-7 pr-6 py-1 text-[11px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md focus:outline-none focus:ring-1 focus:ring-neutral-400 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400"
+              />
+              {tzQuery && (
+                <button
+                  type="button"
+                  onClick={() => setTzQuery("")}
+                  className="absolute right-1.5 top-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsTzOpen(false)}
+              className="px-2 py-1 text-[10px] font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700/60 transition-colors shrink-0 cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+
+          {/* Timezone List with modern scrollbar */}
+          <div className="max-h-52 overflow-y-auto p-1 divide-y divide-neutral-100 dark:divide-neutral-800/50 chatty-custom-scrollbar">
+            {filteredTimezones.length === 0 ? (
+              <div className="py-5 text-center text-[11px] text-neutral-400">
+                No matching timezone found
+              </div>
+            ) : (
+              filteredTimezones.map((tz) => {
+                const isSelected = tz.id === activeTimezone;
+                const currentTime = getTimeInTimezone(tz.id);
+                return (
+                  <button
+                    key={tz.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectTimezone(tz.id);
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className={`w-full px-2.5 py-1.5 flex items-center justify-between text-left rounded-lg transition-colors cursor-pointer ${
+                      isSelected
+                        ? "bg-neutral-100 dark:bg-neutral-800 font-medium text-neutral-900 dark:text-neutral-100"
+                        : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300"
+                    }`}
+                  >
+                    <div className="min-w-0 pr-1.5 flex-1">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs truncate font-medium">{tz.city}</span>
+                        {isSelected && (
+                          <Check className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        )}
+                      </div>
+                      <div className="text-[9px] text-neutral-400 truncate">
+                        {tz.label}
+                      </div>
+                    </div>
+                    {currentTime && (
+                      <div className="text-[10px] tabular-nums text-neutral-500 dark:text-neutral-400 shrink-0 font-medium ml-2">
+                        {currentTime}
+                      </div>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* VIEW 1: Slot Selector (Used for Booking & Rescheduling) */}
       {(step === 1 || cardMode === "reschedule") && cardMode !== "confirmed" && cardMode !== "cancel_confirm" && cardMode !== "cancelled" && (
@@ -763,7 +797,7 @@ export function InlineBookingCard({
                   <button
                     type="button"
                     onClick={() => scrollDates("left")}
-                    className="absolute -left-1.5 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-white/95 dark:bg-neutral-800/95 border border-neutral-200 dark:border-neutral-700 shadow-sm flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white cursor-pointer transition-transform active:scale-95"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-white/95 dark:bg-neutral-800/95 border border-neutral-200 dark:border-neutral-700 shadow-sm flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white cursor-pointer transition-transform active:scale-95"
                     title="Previous dates"
                   >
                     <ChevronLeft className="size-3.5" />
@@ -812,7 +846,7 @@ export function InlineBookingCard({
                   <button
                     type="button"
                     onClick={() => scrollDates("right")}
-                    className="absolute -right-1.5 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-white/95 dark:bg-neutral-800/95 border border-neutral-200 dark:border-neutral-700 shadow-sm flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white cursor-pointer transition-transform active:scale-95"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-white/95 dark:bg-neutral-800/95 border border-neutral-200 dark:border-neutral-700 shadow-sm flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white cursor-pointer transition-transform active:scale-95"
                     title="Next dates"
                   >
                     <ChevronRight className="size-3.5" />
@@ -830,7 +864,7 @@ export function InlineBookingCard({
                     No available times on this date.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 min-[360px]:grid-cols-3 gap-1.5 max-h-[170px] overflow-y-auto pr-1 chatty-custom-scrollbar">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-[170px] overflow-y-auto pr-1 chatty-custom-scrollbar">
                     {currentSlots.map((slot, idx) => {
                       const isSlotSelected = selectedSlot?.start === slot.start;
                       return (
@@ -848,7 +882,7 @@ export function InlineBookingCard({
                               setStep(2);
                             }
                           }}
-                          className={`px-2 py-2 rounded-lg border text-xs font-medium transition-all text-center cursor-pointer active:scale-95 ${
+                          className={`px-2 py-2 rounded-lg border text-xs font-medium whitespace-nowrap transition-all text-center cursor-pointer active:scale-95 ${
                             isSlotSelected && cardMode === "reschedule"
                               ? "border-transparent text-white font-semibold shadow-sm"
                               : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50/50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
@@ -1078,7 +1112,7 @@ export function InlineBookingCard({
 
                 {/* Phone & Company (Responsive 1-col mobile, 2-col wider) */}
                 {(showPhone || showCompany) && (
-                  <div className={showPhone && showCompany ? "grid grid-cols-1 min-[380px]:grid-cols-2 gap-2" : "space-y-2"}>
+                  <div className={showPhone && showCompany ? "grid grid-cols-1 sm:grid-cols-2 gap-2" : "space-y-2"}>
                     {showPhone && (
                       <div>
                         <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">

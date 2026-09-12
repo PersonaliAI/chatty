@@ -1102,11 +1102,13 @@ async def widget_booking_slots(
     from plugins import availability_engine as avail
 
     owner_tz_str = avail.resolve_owner_timezone(bot, owner_user)
-    visitor_tz_str = visitor_timezone or owner_tz_str
+    visitor_tz_str = visitor_timezone or "America/New_York"
+    if visitor_tz_str == "UTC":
+        visitor_tz_str = "America/New_York"
     try:
         pytz.timezone(visitor_tz_str)
     except Exception:
-        visitor_tz_str = owner_tz_str
+        visitor_tz_str = "America/New_York"
 
     now_utc = datetime.now(timezone.utc)
     members = await avail.get_bookable_members(supabase, bot_id, bot, owner_user)
