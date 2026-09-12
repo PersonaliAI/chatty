@@ -36,6 +36,14 @@ interface TimeSlot {
   end: string;
   time_label: string;
   visitor_local_label: string;
+  owner_local_label?: string;
+  host_timezone?: string;
+  eligible_hosts?: Array<{
+    email: string;
+    name?: string;
+    timezone?: string;
+    uses_own_calendar?: boolean;
+  }>;
 }
 
 interface SlotsResponse {
@@ -71,6 +79,7 @@ export interface InlineBookingCardProps {
   botId: string;
   sessionId?: string;
   visitorTimezone?: string;
+  visitorCountry?: string;
   primaryColor?: string;
   backendUrl?: string;
   initialMeeting?: ConfirmedMeeting;
@@ -132,6 +141,34 @@ const WORLD_TIMEZONES: TzOption[] = [
   { id: "Pacific/Auckland", city: "Auckland", label: "NZST (GMT+12)", countryOrRegion: "New Zealand, Wellington" },
 ];
 
+function buildTimezoneOptions(activeTimezone?: string): TzOption[] {
+  const byId = new Map(WORLD_TIMEZONES.map((tz) => [tz.id, tz]));
+  try {
+    const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.("timeZone") || [];
+    for (const tz of supported) {
+      if (!byId.has(tz)) {
+        byId.set(tz, {
+          id: tz,
+          city: formatTimezoneCity(tz),
+          label: tz.replace(/_/g, " "),
+          countryOrRegion: tz.split("/")[0] || "Other",
+        });
+      }
+    }
+  } catch {
+    /* keep curated fallback */
+  }
+  if (activeTimezone && !byId.has(activeTimezone)) {
+    byId.set(activeTimezone, {
+      id: activeTimezone,
+      city: formatTimezoneCity(activeTimezone),
+      label: activeTimezone,
+      countryOrRegion: "Current",
+    });
+  }
+  return Array.from(byId.values()).sort((a, b) => a.city.localeCompare(b.city));
+}
+
 function formatTimezoneCity(tzStr: string): string {
   if (!tzStr) return "Timezone";
   if (tzStr === "UTC") return "UTC";
@@ -157,6 +194,7 @@ export function InlineBookingCard({
   botId,
   sessionId,
   visitorTimezone,
+  visitorCountry,
   primaryColor = "#f97316",
   backendUrl = DEFAULT_BACKEND_URL,
   initialMeeting,
@@ -232,18 +270,7 @@ export function InlineBookingCard({
   }, [isTzOpen]);
 
   const filteredTimezones = useMemo(() => {
-    let list = WORLD_TIMEZONES;
-    if (activeTimezone && !list.some((t) => t.id === activeTimezone)) {
-      list = [
-        {
-          id: activeTimezone,
-          city: formatTimezoneCity(activeTimezone),
-          label: activeTimezone,
-          countryOrRegion: "Current",
-        },
-        ...list,
-      ];
-    }
+    const list = buildTimezoneOptions(activeTimezone);
     if (!tzQuery.trim()) return list;
     const q = tzQuery.toLowerCase().trim();
     return list.filter(
@@ -294,6 +321,11 @@ export function InlineBookingCard({
     }
   }, [initialMeeting]);
 
+  useEffect(() => {
+    setActiveTimezone(detectedTz);
+    setSelectedSlot(null);
+  }, [detectedTz]);
+
   // OTP cooldown ticker
   useEffect(() => {
     if (otpCooldown <= 0) return;
@@ -308,7 +340,13 @@ export function InlineBookingCard({
     try {
       setLoading(true);
       setError(null);
-      const url = `${backendUrl}/api/widget/booking/slots?bot_id=${encodeURIComponent(botId)}&visitor_timezone=${encodeURIComponent(tz)}&days=14`;
+      const params = new URLSearchParams({
+        bot_id: botId,
+        visitor_timezone: tz,
+        days: "14",
+      });
+      if (visitorCountry) params.set("visitor_country", visitorCountry);
+      const url = `${backendUrl}/api/widget/booking/slots?${params.toString()}`;
       const res = await fetch(url);
       if (!res.ok) {
         throw new Error(`Failed to load slots: HTTP ${res.status}`);
@@ -406,6 +444,7 @@ export function InlineBookingCard({
         start_time: selectedSlot.start,
         end_time: selectedSlot.end,
         visitor_timezone: activeTimezone,
+        visitor_country: visitorCountry || undefined,
         name: trimmedName,
         email: trimmedEmail,
         phone: phone.trim() || undefined,
@@ -479,6 +518,7 @@ export function InlineBookingCard({
           new_start_time: selectedSlot.start,
           new_end_time: selectedSlot.end,
           visitor_timezone: activeTimezone,
+          visitor_country: visitorCountry || undefined,
         }),
       });
       const data = await res.json();
@@ -600,6 +640,7 @@ export function InlineBookingCard({
 
   const availableDates = slotsData?.available_dates || [];
   const currentSlots = (selectedDate && slotsData?.slots_by_date?.[selectedDate]) || [];
+  const bookingCountryLabel = visitorCountry ? `Detected country: ${visitorCountry}` : null;
 
   // Lead fields configuration
   const showPhone = !slotsData?.lead_fields || slotsData.lead_fields.includes("phone");
@@ -837,8 +878,9 @@ export function InlineBookingCard({
 
               {/* Time Slots Grid with responsive columns & modern scrollbar */}
               <div className="pt-1">
-                <div className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 mb-2">
-                  Available Slots ({activeTimezone})
+                <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-neutral-500 dark:text-neutral-400 mb-2">
+                  <span>Available slots in {formatTimezoneCity(activeTimezone)}</span>
+                  {bookingCountryLabel && <span className="shrink-0 text-[10px]">{bookingCountryLabel}</span>}
                 </div>
                 {currentSlots.length === 0 ? (
                   <div className="py-4 text-center text-xs text-neutral-400">
@@ -863,7 +905,7 @@ export function InlineBookingCard({
                               setStep(2);
                             }
                           }}
-                          className={`px-2 py-2 rounded-lg border text-xs font-medium whitespace-nowrap transition-all text-center cursor-pointer active:scale-95 ${
+                          className={`px-2 py-2 rounded-lg border text-xs font-medium transition-all text-left cursor-pointer active:scale-95 ${
                             isSlotSelected && cardMode === "reschedule"
                               ? "border-transparent text-white font-semibold shadow-sm"
                               : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50/50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
@@ -872,7 +914,14 @@ export function InlineBookingCard({
                             backgroundColor: (isSlotSelected && cardMode === "reschedule") ? primaryColor : undefined,
                           }}
                         >
-                          {slot.time_label}
+                          <span className="block text-center whitespace-nowrap">{slot.time_label}</span>
+                          {slot.eligible_hosts && slot.eligible_hosts.length > 0 && (
+                            <span className={`mt-1 block truncate text-center text-[9px] ${isSlotSelected && cardMode === "reschedule" ? "text-white/80" : "text-neutral-400 dark:text-neutral-500"}`}>
+                              {slot.eligible_hosts.length === 1
+                                ? `${slot.eligible_hosts[0].name || slot.eligible_hosts[0].email}`
+                                : `${slot.eligible_hosts.length} team hosts`}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -951,6 +1000,13 @@ export function InlineBookingCard({
                 <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
                   {slotsData?.duration_minutes || 30} min video demo
                 </div>
+                {selectedSlot.eligible_hosts && selectedSlot.eligible_hosts.length > 0 && (
+                  <div className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                    Host: {selectedSlot.eligible_hosts.length === 1
+                      ? selectedSlot.eligible_hosts[0].name || selectedSlot.eligible_hosts[0].email
+                      : `${selectedSlot.eligible_hosts.length} available team members`}
+                  </div>
+                )}
               </div>
             </div>
             <button
@@ -1205,9 +1261,9 @@ export function InlineBookingCard({
           <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/70 border border-neutral-200 dark:border-neutral-700 text-left space-y-2 text-xs">
             <div className="flex items-start gap-2">
               <Calendar className="size-3.5 text-neutral-400 mt-0.5 shrink-0" />
-              <div className="font-semibold text-neutral-800 dark:text-neutral-200 leading-snug">
-                {confirmedMeeting.formatted_time}
-              </div>
+                <div className="font-semibold text-neutral-800 dark:text-neutral-200 leading-snug">
+                  {confirmedMeeting.formatted_time}
+                </div>
             </div>
             <div className="flex items-start gap-2">
               <User className="size-3.5 text-neutral-400 mt-0.5 shrink-0" />

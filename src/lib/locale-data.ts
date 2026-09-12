@@ -113,7 +113,17 @@ export function detectTimezone(): string {
 
 export function detectCountryCode(): string {
   const tz = detectTimezone();
-  return TZ_TO_COUNTRY[tz] || "US";
+  if (TZ_TO_COUNTRY[tz]) return TZ_TO_COUNTRY[tz];
+  try {
+    const locales = typeof navigator !== "undefined" ? [navigator.language, ...(navigator.languages || [])] : [];
+    for (const locale of locales) {
+      const region = locale.split("-")[1]?.toUpperCase();
+      if (region && COUNTRIES.some((c) => c.code === region)) return region;
+    }
+  } catch {
+    /* fall through */
+  }
+  return "US";
 }
 
 // Full IANA timezone list (falls back to a curated set on old browsers).
