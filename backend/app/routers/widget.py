@@ -102,6 +102,10 @@ async def widget_chat(
     session_id = body.session_id
     text = body.text
     visitor_timezone = body.visitor_timezone
+    visitor_name = (body.visitor_name or "").strip()[:120] or None
+    visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
+    if visitor_email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", visitor_email):
+        raise HTTPException(status_code=400, detail="visitor_email must be a valid email address")
 
     # --- Input validation / abuse caps ---
     if not text or not text.strip():
@@ -128,13 +132,29 @@ async def widget_chat(
     owner_user = res_user.data[0]
 
     # 2b. Session tracking + new-conversation email
-    session_row, is_new = await _upsert_session(bot_id, session_id, text)
+    session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
     if is_new:
         await _notify_new_conversation(bot, owner_user, text, session_id)
         background_tasks.add_task(
             notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="session.started",
             session_id=session_id, data={"first_message": text[:500]},
         )
+
+    if body.offline_ticket:
+        try:
+            offline_update = {
+                "needs_attention": True,
+                "escalation_reason": "Offline support ticket submitted",
+                "priority": "high",
+                "ai_paused": True,
+            }
+            if visitor_name:
+                offline_update["visitor_name"] = visitor_name
+            if visitor_email:
+                offline_update["visitor_email"] = visitor_email
+            await run_db(lambda: supabase.table("chatty_sessions").update(offline_update).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+        except Exception:
+            logger.exception("Failed to mark offline ticket session")
 
     # Flag conversations where the visitor asks for a human or shows frustration.
     esc = _detect_sentiment_escalation(text)
@@ -171,8 +191,11 @@ async def widget_chat(
         logger.exception("Failed to save user conversation message")
     background_tasks.add_task(
         notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="message.user",
-        session_id=session_id, data={"content": text},
+        session_id=session_id, data={"content": text, "visitor_name": visitor_name, "visitor_email": visitor_email, "offline_ticket": body.offline_ticket},
     )
+
+    if body.offline_ticket:
+        return WidgetChatResponse(reply="", session_id=session_id, ai_paused=True)
 
     # 2c. If a human agent has taken over, don't run the AI - they'll reply.
     if session_row.get("ai_paused"):
@@ -242,6 +265,10 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     session_id = body.session_id
     text = body.text
     visitor_timezone = body.visitor_timezone
+    visitor_name = (body.visitor_name or "").strip()[:120] or None
+    visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
+    if visitor_email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", visitor_email):
+        raise HTTPException(status_code=400, detail="visitor_email must be a valid email address")
 
     if not text or not text.strip():
         raise HTTPException(status_code=400, detail="text required")
@@ -262,13 +289,29 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = res_user.data[0]
 
-    session_row, is_new = await _upsert_session(bot_id, session_id, text)
+    session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
     if is_new:
         await _notify_new_conversation(bot, owner_user, text, session_id)
         background_tasks.add_task(
             notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="session.started",
             session_id=session_id, data={"first_message": text[:500]},
         )
+
+    if body.offline_ticket:
+        try:
+            offline_update = {
+                "needs_attention": True,
+                "escalation_reason": "Offline support ticket submitted",
+                "priority": "high",
+                "ai_paused": True,
+            }
+            if visitor_name:
+                offline_update["visitor_name"] = visitor_name
+            if visitor_email:
+                offline_update["visitor_email"] = visitor_email
+            await run_db(lambda: supabase.table("chatty_sessions").update(offline_update).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+        except Exception:
+            logger.exception("Failed to mark offline ticket session")
 
     esc = _detect_sentiment_escalation(text)
     if esc:
@@ -303,11 +346,16 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         logger.exception("Failed to save user conversation message")
     background_tasks.add_task(
         notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="message.user",
-        session_id=session_id, data={"content": text},
+        session_id=session_id, data={"content": text, "visitor_name": visitor_name, "visitor_email": visitor_email, "offline_ticket": body.offline_ticket},
     )
 
     def _sse(obj: dict) -> str:
         return f"data: {json.dumps(obj)}\n\n"
+
+    if body.offline_ticket:
+        async def _offline_gen():
+            yield _sse({"type": "paused"})
+        return StreamingResponse(_offline_gen(), media_type="text/event-stream", background=background_tasks)
 
     # Human agent took over - nothing to stream.
     if session_row.get("ai_paused"):

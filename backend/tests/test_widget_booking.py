@@ -4,11 +4,12 @@ from __future__ import annotations
 import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
+from starlette.requests import Request
 
 import main  # noqa: F401 - must import before app.routers.widget
-from app.schemas.widget import WidgetBookingConfirmRequest
-from app.routers.widget import widget_booking_slots, widget_booking_confirm
+from app.schemas.widget import WidgetBookingConfirmRequest, WidgetChatRequest
+from app.routers.widget import widget_booking_slots, widget_booking_confirm, widget_chat
 
 
 @pytest.mark.anyio
@@ -210,4 +211,50 @@ async def test_widget_assistant_respects_conversational_only_mode():
             visitor_timezone="UTC",
         )
         assert "[BOOKING_WIDGET]" not in res["reply"]
+
+
+@pytest.mark.anyio
+async def test_offline_ticket_stores_contact_fields_and_skips_ai():
+    req = WidgetChatRequest(
+        bot_id="bot-1",
+        session_id="offline-1",
+        text="[Offline Support Ticket]\nName: Jane Smith\nEmail: jane@example.com\nMessage: Need help",
+        visitor_name="Jane Smith",
+        visitor_email="jane@example.com",
+        visitor_timezone="Asia/Colombo",
+        visitor_country="LK",
+        offline_ticket=True,
+    )
+    request = Request({
+        "type": "http",
+        "method": "POST",
+        "path": "/api/widget/chat",
+        "headers": [],
+        "client": ("127.0.0.1", 12345),
+    })
+
+    run_db_results = [
+        MagicMock(data=[{"id": "bot-1", "user_id": "owner-1", "name": "Chatty"}]),
+        MagicMock(data=[{"auth_user_id": "owner-1", "email": "owner@example.com"}]),
+        MagicMock(data=[{"ok": True}]),  # mark offline ticket session
+        MagicMock(data=[{"id": "msg-1"}]),  # persist user message
+    ]
+
+    with patch("app.routers.widget.run_db", new_callable=AsyncMock) as mock_run_db, \
+         patch("app.routers.widget._widget_rate_limit_or_429", new_callable=AsyncMock), \
+         patch("app.routers.widget._upsert_session", new_callable=AsyncMock) as mock_upsert, \
+         patch("app.routers.widget._notify_new_conversation", new_callable=AsyncMock), \
+         patch("app.routers.widget.run_widget_assistant", new_callable=AsyncMock) as mock_ai:
+        mock_run_db.side_effect = run_db_results
+        mock_upsert.return_value = ({}, True)
+
+        result = await widget_chat(req, request, BackgroundTasks())
+
+    assert result.ai_paused is True
+    assert result.reply == ""
+    mock_upsert.assert_awaited_once()
+    _, kwargs = mock_upsert.call_args
+    assert kwargs["visitor_name"] == "Jane Smith"
+    assert kwargs["visitor_email"] == "jane@example.com"
+    mock_ai.assert_not_awaited()
 

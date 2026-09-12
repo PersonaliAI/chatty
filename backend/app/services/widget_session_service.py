@@ -20,6 +20,7 @@ async def upsert_session(
     session_id: str,
     last_message: str,
     visitor_name: Optional[str] = None,
+    visitor_email: Optional[str] = None,
 ) -> tuple[dict[str, Any], bool]:
     """Create or update a conversation session. Returns (row, is_new)."""
     try:
@@ -33,6 +34,8 @@ async def upsert_session(
             }
             if visitor_name and not row.get("visitor_name"):
                 upd["visitor_name"] = visitor_name
+            if visitor_email and not row.get("visitor_email"):
+                upd["visitor_email"] = visitor_email
             await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("id", row["id"]).execute())
             return row, False
 
@@ -48,6 +51,7 @@ async def upsert_session(
             "tags": [],
             "ai_paused": False,
             "visitor_name": visitor_name,
+            "visitor_email": visitor_email,
             "last_message": last_message[:300],
         }).execute())
         return (ins.data[0] if ins.data else {}), True

@@ -13,6 +13,9 @@ class WidgetChatRequest(BaseModel):
     text: str
     visitor_timezone: Optional[str] = "UTC"
     visitor_country: Optional[str] = None
+    visitor_name: Optional[str] = None
+    visitor_email: Optional[str] = None
+    offline_ticket: bool = False
     host: Optional[str] = None  # parent page host, sent by widget.js - advisory only, not trusted
 
 
