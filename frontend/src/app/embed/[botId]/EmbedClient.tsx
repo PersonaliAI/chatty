@@ -421,6 +421,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [csatSubmitting, setCsatSubmitting] = useState(false);
 
   const [showOfflineForm, setShowOfflineForm] = useState(false);
+  const [offlineName, setOfflineName] = useState("");
   const [offlineEmail, setOfflineEmail] = useState("");
   const [offlineMessage, setOfflineMessage] = useState("");
   const [offlineSubmitted, setOfflineSubmitted] = useState(false);
@@ -673,7 +674,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   const submitOfflineMessage = async () => {
-    if (!offlineEmail.trim() || !offlineMessage.trim()) return;
+    if (!offlineName.trim() || !offlineEmail.trim() || !offlineMessage.trim()) return;
+    const name = offlineName.trim();
+    const email = offlineEmail.trim().toLowerCase();
+    const message = offlineMessage.trim();
     try {
       const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
@@ -681,15 +685,19 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         body: JSON.stringify({
           bot_id: botId,
           session_id: sessionId,
-          text: `[Offline Support Ticket]\nEmail: ${offlineEmail}\nMessage: ${offlineMessage}`,
+          text: `[Offline Support Ticket]\nName: ${name}\nEmail: ${email}\nMessage: ${message}`,
+          visitor_name: name,
+          visitor_email: email,
           visitor_timezone: visitorTimezone,
           visitor_country: visitorCountry,
+          offline_ticket: true,
           host: getHost(),
         }),
       });
       if (res.ok) {
         setOfflineSubmitted(true);
         showToast("Ticket submitted successfully!", "success");
+        setOfflineName("");
         setOfflineEmail("");
         setOfflineMessage("");
         setTimeout(() => { setShowOfflineForm(false); setOfflineSubmitted(false); }, 2000);
@@ -1829,9 +1837,20 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 </button>
                 <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Leave a Message</h3>
               </div>
-              <p className="text-[11px] text-neutral-500 leading-relaxed dark:text-neutral-400">No support agents are currently available to chat. Leave your contact email and description below, and we&apos;ll get back to you soon.</p>
+              <p className="text-[11px] text-neutral-500 leading-relaxed dark:text-neutral-400">No support agents are currently available to chat. Leave your name, contact email, and description below, and we&apos;ll get back to you soon.</p>
               
               <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Your Name</label>
+                  <input
+                    type="text"
+                    value={offlineName}
+                    onChange={(e) => setOfflineName(e.target.value)}
+                    placeholder="Jane Smith"
+                    autoComplete="name"
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                  />
+                </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Your Email</label>
                   <input
@@ -1839,6 +1858,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     value={offlineEmail}
                     onChange={(e) => setOfflineEmail(e.target.value)}
                     placeholder="name@company.com"
+                    autoComplete="email"
                     className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
                   />
                 </div>
@@ -1866,7 +1886,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               <button
                 type="button"
                 onClick={submitOfflineMessage}
-                disabled={!offlineEmail.trim() || !offlineMessage.trim() || offlineSubmitted}
+                disabled={!offlineName.trim() || !offlineEmail.trim() || !offlineMessage.trim() || offlineSubmitted}
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-40"
                 style={{ background: primaryColor, color: onPrimary }}
               >
