@@ -258,6 +258,7 @@ def test_set_availability_replaces_existing_rules(monkeypatch):
     fake.queue(None)  # delete().execute()
     fake.queue(None)  # insert().execute()
     monkeypatch.setattr(team, "supabase", fake)
+    monkeypatch.setattr(team, "_write_team_audit_log", AsyncMock())
 
     caller = {"auth_user_id": "u2", "email": "jane@example.com"}
     req = AvailabilityRulesRequest(bot_id="bot-1", rules=[
@@ -288,9 +289,43 @@ def test_set_availability_empty_rules_skips_insert(monkeypatch):
     fake.queue([{"id": "member-1", "email": "jane@example.com", "bot_id": "bot-1"}])
     fake.queue(None)  # delete().execute()
     monkeypatch.setattr(team, "supabase", fake)
+    monkeypatch.setattr(team, "_write_team_audit_log", AsyncMock())
 
     caller = {"auth_user_id": "u2", "email": "jane@example.com"}
     req = AvailabilityRulesRequest(bot_id="bot-1", rules=[])
     result = asyncio.run(team.set_availability("member-1", req, caller))
     assert result["ok"] is True
     assert insert_calls == []
+
+
+def test_set_availability_writes_audit_log(monkeypatch):
+    insert_calls: list[tuple[str, Any]] = []
+
+    class RecordingQuery(_FakeQuery):
+        def __init__(self, results: list[Any], table_name: str):
+            super().__init__(results)
+            self.table_name = table_name
+
+        def insert(self, payload, **k):
+            insert_calls.append((self.table_name, payload))
+            return self
+
+    class RecordingSupabase(FakeSupabase):
+        def table(self, name):
+            return RecordingQuery(self._results, name)
+
+    fake = RecordingSupabase()
+    fake.queue([{"id": "member-1", "email": "jane@example.com", "bot_id": "bot-1"}])
+    fake.queue(None)  # delete availability
+    fake.queue(None)  # insert audit log
+    monkeypatch.setattr(team, "supabase", fake)
+
+    caller = {"auth_user_id": "u2", "email": "jane@example.com"}
+    req = AvailabilityRulesRequest(bot_id="bot-1", rules=[])
+    result = asyncio.run(team.set_availability("member-1", req, caller))
+
+    assert result["ok"] is True
+    audit_payloads = [payload for table_name, payload in insert_calls if table_name == "chatty_audit_logs"]
+    assert audit_payloads
+    assert audit_payloads[0]["action"] == "team_availability_updated"
+    assert audit_payloads[0]["performed_by"] == "jane@example.com"

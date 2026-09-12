@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -22,6 +23,7 @@ from app.routers import admin
 from app.schemas.admin import RescheduleMeetingRequest
 
 OWNER = {"auth_user_id": "owner-1", "email": "owner@example.com"}
+AGENT = {"auth_user_id": "agent-1", "email": "agent@example.com"}
 
 
 def _admin_supabase(meeting_row, bot_row):
@@ -208,3 +210,121 @@ def test_admin_get_meeting_messages_returns_thread(monkeypatch):
     monkeypatch.setattr(admin, "verify_bot_permission", AsyncMock(return_value="owner"))
     result = asyncio.run(admin.admin_get_meeting_messages("meet-1", OWNER))
     assert len(result["messages"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# inbox RBAC + audit/admin-data access
+# ---------------------------------------------------------------------------
+
+
+class _RecordingQuery:
+    def __init__(self, table_name: str, rows: list[dict[str, Any]], calls: list[tuple[str, str, Any]]):
+        self.table_name = table_name
+        self.rows = rows
+        self.calls = calls
+
+    def select(self, *_args, **_kwargs):
+        return self
+
+    def eq(self, column, value):
+        self.calls.append((self.table_name, column, value))
+        self.rows = [r for r in self.rows if r.get(column) == value]
+        return self
+
+    def order(self, *_args, **_kwargs):
+        return self
+
+    def limit(self, *_args, **_kwargs):
+        return self
+
+    def insert(self, payload, **_kwargs):
+        self.calls.append((self.table_name, "insert", payload))
+        return self
+
+    def update(self, payload, **_kwargs):
+        self.calls.append((self.table_name, "update", payload))
+        return self
+
+    def delete(self, *_args, **_kwargs):
+        self.calls.append((self.table_name, "delete", True))
+        return self
+
+    def execute(self):
+        return SimpleNamespace(data=self.rows)
+
+
+class _RecordingSupabase:
+    def __init__(self, table_rows: dict[str, list[dict[str, Any]]]):
+        self.table_rows = table_rows
+        self.calls: list[tuple[str, str, Any]] = []
+
+    def table(self, name: str):
+        return _RecordingQuery(name, list(self.table_rows.get(name, [])), self.calls)
+
+
+def test_admin_inbox_requires_inbox_permission_and_scopes_agent_to_assigned(monkeypatch):
+    fake = _RecordingSupabase({
+        "chatty_sessions": [
+            {"session_id": "s1", "bot_id": "bot-1", "assigned_agent_email": "agent@example.com"},
+            {"session_id": "s2", "bot_id": "bot-1", "assigned_agent_email": "other@example.com"},
+        ],
+    })
+    monkeypatch.setattr(admin, "supabase", fake)
+    verify = AsyncMock(return_value="agent")
+    monkeypatch.setattr(admin, "verify_bot_permission", verify)
+
+    result = asyncio.run(admin.admin_inbox("bot-1", AGENT))
+
+    verify.assert_awaited_once_with("bot-1", AGENT, "inbox")
+    assert [s["session_id"] for s in result["sessions"]] == ["s1"]
+    assert ("chatty_sessions", "assigned_agent_email", "agent@example.com") in fake.calls
+
+
+def test_admin_inbox_messages_denies_agent_for_unassigned_session(monkeypatch):
+    fake = _RecordingSupabase({
+        "chatty_sessions": [
+            {"session_id": "s1", "bot_id": "bot-1", "assigned_agent_email": "other@example.com"},
+        ],
+    })
+    monkeypatch.setattr(admin, "supabase", fake)
+    monkeypatch.setattr(admin, "verify_bot_permission", AsyncMock(return_value="agent"))
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(admin.admin_inbox_messages("bot-1", "s1", AGENT))
+
+    assert exc.value.status_code == 403
+
+
+def test_admin_get_notifications_requires_settings_permission(monkeypatch):
+    fake = _RecordingSupabase({
+        "chatty_notifications": [{"id": "n1", "bot_id": "bot-1"}],
+    })
+    monkeypatch.setattr(admin, "supabase", fake)
+    verify = AsyncMock(return_value="admin")
+    monkeypatch.setattr(admin, "verify_bot_permission", verify)
+
+    result = asyncio.run(admin.admin_get_notifications("bot-1", OWNER))
+
+    verify.assert_awaited_once_with("bot-1", OWNER, "settings")
+    assert result["notifications"][0]["id"] == "n1"
+
+
+def test_admin_get_audit_logs_allows_admin_with_settings(monkeypatch):
+    fake = _RecordingSupabase({
+        "chatty_audit_logs": [{"id": "a1", "bot_id": "bot-1", "action": "team_member_updated"}],
+    })
+    monkeypatch.setattr(admin, "supabase", fake)
+    monkeypatch.setattr(admin, "get_bot_role_and_permissions", AsyncMock(return_value=("admin", ["settings"])))
+
+    result = asyncio.run(admin.admin_get_audit_logs("bot-1", OWNER))
+
+    assert result["audit_logs"][0]["id"] == "a1"
+
+
+def test_admin_get_audit_logs_denies_agent_even_with_settings(monkeypatch):
+    monkeypatch.setattr(admin, "get_bot_role_and_permissions", AsyncMock(return_value=("agent", ["settings"])))
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(admin.admin_get_audit_logs("bot-1", AGENT))
+
+    assert exc.value.status_code == 403

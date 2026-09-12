@@ -24,6 +24,23 @@ logger = logging.getLogger("chatty")
 router = APIRouter()
 
 
+def _actor_email(user: dict[str, Any]) -> str:
+    return (user.get("email") or user.get("auth_user_id") or "user").strip()
+
+
+async def _write_team_audit_log(bot_id: str, action: str, details: str, user: dict[str, Any]) -> None:
+    """Best-effort audit trail for dashboard team/availability changes."""
+    try:
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+            "bot_id": bot_id,
+            "action": action,
+            "details": details,
+            "performed_by": _actor_email(user),
+        }).execute())
+    except Exception:
+        logger.warning("Failed to write team audit log for %s/%s", bot_id, action, exc_info=True)
+
+
 def _sanitize_permissions(requested: list[str] | None, role: str, caller_role: str) -> list[str]:
     """Fill in the role's default set when unset, and strip owner-only tabs
     (billing/byok/webhooks) unless the caller granting them is the owner."""
@@ -73,6 +90,13 @@ async def invite_team(req: TeamInviteRequest, user: dict[str, Any] = Depends(req
         logger.exception("team invite failed")
         raise HTTPException(status_code=500, detail="Could not add member")
 
+    await _write_team_audit_log(
+        req.bot_id,
+        "team_member_upserted",
+        f"Added or updated {email} as {role} with permissions: {', '.join(permissions)}",
+        user,
+    )
+
     email_status = "logged"
     try:
         bot_row = await run_db(lambda: supabase.table("chatty_bots").select("name").eq(
@@ -117,14 +141,24 @@ async def update_team(member_id: str, req: TeamUpdateRequest, user: dict[str, An
 
     await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
         "id", member_id).eq("bot_id", req.bot_id).execute())
+    await _write_team_audit_log(
+        req.bot_id,
+        "team_member_updated",
+        f"Updated team member {member_id}: {', '.join(sorted(update.keys()))}",
+        user,
+    )
     return {"ok": True, **update}
 
 
 @router.delete("/api/team/{member_id}")
 async def remove_team(member_id: str, bot_id: str, user: dict[str, Any] = Depends(require_user)):
     await verify_bot_permission(bot_id, user, "team")
+    existing = await run_db(lambda: supabase.table("chatty_team_members").select("email").eq(
+        "id", member_id).eq("bot_id", bot_id).limit(1).execute())
     await run_db(lambda: supabase.table("chatty_team_members").delete().eq(
         "id", member_id).eq("bot_id", bot_id).execute())
+    removed_email = existing.data[0].get("email") if existing.data else member_id
+    await _write_team_audit_log(bot_id, "team_member_removed", f"Removed team member {removed_email}", user)
     return {"ok": True}
 
 
@@ -174,4 +208,10 @@ async def set_availability(member_id: str, req: AvailabilityRulesRequest, user: 
             for r in req.rules
         ]
         await run_db(lambda: supabase.table("chatty_availability_rules").insert(rows).execute())
+    await _write_team_audit_log(
+        req.bot_id,
+        "team_availability_updated",
+        f"Updated availability for {member['email']} with {len(req.rules)} weekly rule(s)",
+        user,
+    )
     return {"ok": True, "rules": [r.model_dump() for r in req.rules]}

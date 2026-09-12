@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from app.core.clients import supabase
 from app.core.db import run_db
 from app.core.deps import require_user
-from app.core.permissions import verify_bot_permission
+from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
 from app.core.uploads import read_upload_capped
 import re
 from app.schemas.admin import (
@@ -53,11 +53,77 @@ router = APIRouter()
 _MEDIA_MAX_BYTES = 20 * 1024 * 1024  # 20MB - matches app/routers/widget.py
 
 
+def _actor_email(user: dict[str, Any]) -> str:
+    return (user.get("email") or user.get("auth_user_id") or "user").strip()
+
+
+async def _write_admin_audit_log(bot_id: str, action: str, details: str, user: dict[str, Any]) -> None:
+    """Best-effort audit trail for dashboard actions.
+
+    Audit logging must never break the primary user action, but sensitive
+    dashboard mutations should leave a durable row whenever the database is
+    reachable.
+    """
+    try:
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+            "bot_id": bot_id,
+            "action": action,
+            "details": details,
+            "performed_by": _actor_email(user),
+        }).execute())
+    except Exception:
+        logger.warning("Failed to write admin audit log for %s/%s", bot_id, action, exc_info=True)
+
+
+async def _verify_inbox_access(bot_id: str, user: dict[str, Any]) -> str:
+    return await verify_bot_permission(bot_id, user, "inbox")
+
+
+async def _session_row_for_access(bot_id: str, session_id: str) -> dict[str, Any]:
+    res = await run_db(lambda: supabase.table("chatty_sessions")
+        .select("bot_id, session_id, assigned_agent_email")
+        .eq("bot_id", bot_id)
+        .eq("session_id", session_id)
+        .limit(1)
+        .execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return res.data[0]
+
+
+async def _verify_session_inbox_access(bot_id: str, session_id: str, user: dict[str, Any]) -> str:
+    """Owner/admin may access any inbox session; agents only their assigned sessions."""
+    role = await _verify_inbox_access(bot_id, user)
+    session = await _session_row_for_access(bot_id, session_id)
+    if role == "agent":
+        caller_email = (user.get("email") or "").strip().lower()
+        assigned_email = (session.get("assigned_agent_email") or "").strip().lower()
+        if not caller_email or assigned_email != caller_email:
+            raise HTTPException(status_code=403, detail="Unauthorized")
+    return role
+
+
+async def _verify_audit_log_access(bot_id: str, user: dict[str, Any]) -> str:
+    """Owner or admin with Settings/Team permission may read audit logs."""
+    role, permissions = await get_bot_role_and_permissions(bot_id, user)
+    if role == "owner":
+        return role
+    if role == "admin" and ("settings" in permissions or "team" in permissions):
+        return role
+    raise HTTPException(status_code=403, detail="Only an owner or admin with Settings/Team access can view audit logs")
+
+
 @router.get("/api/admin/inbox")
 async def admin_inbox(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    await _verify_bot_access(bot_id, user)
-    rows = (await run_db(lambda: supabase.table("chatty_sessions").select("*").eq("bot_id", bot_id) \
-        .order("last_message_at", desc=True).limit(200).execute())).data or []
+    role = await _verify_inbox_access(bot_id, user)
+    if role == "agent":
+        caller_email = (user.get("email") or "").strip().lower()
+        rows = (await run_db(lambda: supabase.table("chatty_sessions").select("*").eq("bot_id", bot_id)
+            .eq("assigned_agent_email", caller_email)
+            .order("last_message_at", desc=True).limit(200).execute())).data or []
+    else:
+        rows = (await run_db(lambda: supabase.table("chatty_sessions").select("*").eq("bot_id", bot_id) \
+            .order("last_message_at", desc=True).limit(200).execute())).data or []
     # Float conversations that need a human to the top (stable: keeps recency).
     rows.sort(key=lambda r: not r.get("needs_attention"))
     return {"sessions": rows}
@@ -66,7 +132,7 @@ async def admin_inbox(bot_id: str, user: dict[str, Any] = Depends(require_user))
 @router.get("/api/admin/inbox/messages")
 async def admin_inbox_messages(bot_id: str, session_id: str,
                                user: dict[str, Any] = Depends(require_user)):
-    await _verify_bot_access(bot_id, user)
+    await _verify_session_inbox_access(bot_id, session_id, user)
     rows = (await run_db(lambda: supabase.table("chatty_conversations").select("id,role,content,sender,created_at,feedback_rating,correction") \
         .eq("bot_id", bot_id).eq("session_id", session_id) \
         .order("created_at", desc=False).limit(500).execute())).data or []
@@ -78,14 +144,16 @@ async def set_message_feedback(message_id: str, req: MessageFeedbackRequest, use
     """Thumbs up/down + an optional corrected answer on an assistant message
     ("refine answers"). A saved correction is also added as a searchable
     knowledge source so future replies on the same topic use it."""
-    await _verify_bot_access(req.bot_id, user)
+    await _verify_inbox_access(req.bot_id, user)
     if req.rating not in (None, "up", "down"):
         raise HTTPException(status_code=400, detail="rating must be up, down, or null")
 
-    msg_res = await run_db(lambda: supabase.table("chatty_conversations").select("id, bot_id, content, role").eq("id", message_id).execute())
+    msg_res = await run_db(lambda: supabase.table("chatty_conversations").select("id, bot_id, session_id, content, role").eq("id", message_id).execute())
     if not msg_res.data or msg_res.data[0]["bot_id"] != req.bot_id:
         raise HTTPException(status_code=404, detail="Message not found")
     message = msg_res.data[0]
+    if message.get("session_id"):
+        await _verify_session_inbox_access(req.bot_id, message["session_id"], user)
 
     await run_db(lambda: supabase.table("chatty_conversations").update({
         "feedback_rating": req.rating,
@@ -104,13 +172,19 @@ async def set_message_feedback(message_id: str, req: MessageFeedbackRequest, use
                 "bot_id": req.bot_id, "type": "text", "name": source_name,
                 "content": content, "status": "trained", "char_count": len(content),
             }).execute())
+        await _write_admin_audit_log(
+            req.bot_id,
+            "conversation_correction_saved",
+            f"Saved corrected answer from message {message_id}",
+            user,
+        )
 
     return {"success": True}
 
 
 @router.post("/api/admin/inbox/reply")
 async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depends(require_user)):
-    await _verify_bot_access(req.bot_id, user)
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="text required")
     await run_db(lambda: supabase.table("chatty_conversations").insert({
@@ -130,6 +204,7 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
     if sess_res.data and not sess_res.data[0].get("first_responded_at"):
         upd["first_responded_at"] = now_iso
     await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    await _write_admin_audit_log(req.bot_id, "inbox_reply_sent", f"Human reply sent in session {req.session_id}", user)
 
     # Outbound Email Threading: if session is from email channel or has customer email, deliver reply via email
     if sess_res.data:
@@ -164,7 +239,7 @@ async def admin_inbox_reply_media(
     file: UploadFile = File(...),
     user: dict[str, Any] = Depends(require_user),
 ):
-    await _verify_bot_access(bot_id, user)
+    await _verify_session_inbox_access(bot_id, session_id, user)
     data = await read_upload_capped(file, _MEDIA_MAX_BYTES, detail="File too large (max 20MB)")
     if not data:
         raise HTTPException(status_code=400, detail="Empty file")
@@ -202,6 +277,7 @@ async def admin_inbox_reply_media(
     if sess_res.data and not sess_res.data[0].get("first_responded_at"):
         upd["first_responded_at"] = now_iso
     await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+    await _write_admin_audit_log(bot_id, "inbox_media_reply_sent", f"Human media reply sent in session {session_id}", user)
 
     return {"success": True, "file_url": file_url, "file_type": mime}
 
@@ -209,7 +285,7 @@ async def admin_inbox_reply_media(
 @router.patch("/api/admin/inbox/session")
 async def update_inbox_session(req: SessionUpdateRequest, user: dict[str, Any] = Depends(require_user)):
     """Update helpdesk session lifecycle state, priority, assignment, tags, and SLA status."""
-    await _verify_bot_access(req.bot_id, user)
+    role = await _verify_session_inbox_access(req.bot_id, req.session_id, user)
     upd: dict[str, Any] = {}
 
     if req.status is not None:
@@ -237,6 +313,8 @@ async def update_inbox_session(req: SessionUpdateRequest, user: dict[str, Any] =
         upd["priority"] = req.priority
 
     if req.assigned_agent_email is not None:
+        if role == "agent":
+            raise HTTPException(status_code=403, detail="Only an owner or admin can reassign conversations")
         email_val = req.assigned_agent_email.strip() if req.assigned_agent_email else None
         upd["assigned_agent_email"] = email_val
         upd["assigned_agent_name"] = req.assigned_agent_name or (email_val.split("@")[0].capitalize() if email_val else None)
@@ -259,13 +337,19 @@ async def update_inbox_session(req: SessionUpdateRequest, user: dict[str, Any] =
         return {"success": True, "updated": False}
 
     res = await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    await _write_admin_audit_log(
+        req.bot_id,
+        "inbox_session_updated",
+        f"Updated session {req.session_id}: {', '.join(sorted(upd.keys()))}",
+        user,
+    )
     return {"success": True, "session": res.data[0] if res.data else None}
 
 
 @router.get("/api/admin/inbox/notes")
 async def list_inbox_notes(bot_id: str, session_id: str, user: dict[str, Any] = Depends(require_user)):
     """Fetch persistent internal staff notes for a conversation."""
-    await _verify_bot_access(bot_id, user)
+    await _verify_session_inbox_access(bot_id, session_id, user)
     rows = (await run_db(lambda: supabase.table("chatty_session_notes").select("*") \
         .eq("bot_id", bot_id).eq("session_id", session_id) \
         .order("created_at", desc=False).execute())).data or []
@@ -275,7 +359,7 @@ async def list_inbox_notes(bot_id: str, session_id: str, user: dict[str, Any] = 
 @router.post("/api/admin/inbox/notes")
 async def create_inbox_note(req: SessionNoteCreateRequest, user: dict[str, Any] = Depends(require_user)):
     """Add a persistent staff note visible across all human agents."""
-    await _verify_bot_access(req.bot_id, user)
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
     note_text = (req.note or "").strip()
     if not note_text:
         raise HTTPException(status_code=400, detail="Note text cannot be empty")
@@ -294,22 +378,28 @@ async def create_inbox_note(req: SessionNoteCreateRequest, user: dict[str, Any] 
         "author_id": author_id or None,
     }
     res = await run_db(lambda: supabase.table("chatty_session_notes").insert(row).execute())
+    await _write_admin_audit_log(req.bot_id, "inbox_note_created", f"Internal note added to session {req.session_id}", user)
     return {"success": True, "note": res.data[0] if res.data else row}
 
 
 @router.delete("/api/admin/inbox/notes/{note_id}")
 async def delete_inbox_note(note_id: str, bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Delete a staff note."""
-    await _verify_bot_access(bot_id, user)
-    await run_db(lambda: supabase.table("chatty_session_notes").delete() \
+    note_res = await run_db(lambda: supabase.table("chatty_session_notes").select("session_id").eq(
+        "id", note_id).eq("bot_id", bot_id).limit(1).execute())
+    if not note_res.data:
+        raise HTTPException(status_code=404, detail="Note not found")
+    await _verify_session_inbox_access(bot_id, note_res.data[0]["session_id"], user)
+    await run_db(lambda: supabase.table("chatty_session_notes").delete()
         .eq("id", note_id).eq("bot_id", bot_id).execute())
+    await _write_admin_audit_log(bot_id, "inbox_note_deleted", f"Internal note {note_id} deleted", user)
     return {"success": True}
 
 
 @router.get("/api/admin/inbox/assignees")
 async def get_inbox_assignees(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Return all team members and agents who can be assigned conversations."""
-    await _verify_bot_access(bot_id, user)
+    await _verify_inbox_access(bot_id, user)
     assignees: list[dict[str, Any]] = []
     seen_emails: set[str] = set()
 
@@ -347,9 +437,15 @@ async def get_inbox_assignees(bot_id: str, user: dict[str, Any] = Depends(requir
 
 @router.post("/api/admin/inbox/ai")
 async def admin_inbox_ai(req: InboxAIToggle, user: dict[str, Any] = Depends(require_user)):
-    await _verify_bot_access(req.bot_id, user)
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
     await run_db(lambda: supabase.table("chatty_sessions").update({"ai_paused": req.ai_paused}) \
         .eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    await _write_admin_audit_log(
+        req.bot_id,
+        "inbox_ai_toggled",
+        f"AI {'paused' if req.ai_paused else 'resumed'} for session {req.session_id}",
+        user,
+    )
     return {"success": True}
 
 
@@ -358,13 +454,14 @@ async def admin_inbox_delete(req: InboxDeleteRequest, user: dict[str, Any] = Dep
     """Delete a conversation (its messages + session row). Destructive, so
     (unlike reading/replying) it's owner/admin only - an 'agent' role can
     work the inbox but not erase history from it."""
-    role = await _verify_bot_access(req.bot_id, user)
+    role = await _verify_session_inbox_access(req.bot_id, req.session_id, user)
     if role == "agent":
         raise HTTPException(status_code=403, detail="Only an owner or admin can delete conversations")
     await run_db(lambda: supabase.table("chatty_conversations").delete().eq(
         "bot_id", req.bot_id).eq("session_id", req.session_id).execute())
     await run_db(lambda: supabase.table("chatty_sessions").delete().eq(
         "bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    await _write_admin_audit_log(req.bot_id, "inbox_conversation_deleted", f"Deleted session {req.session_id}", user)
     return {"success": True}
 
 
@@ -457,10 +554,7 @@ async def admin_get_notifications(
     bot_id: str,
     user: dict[str, Any] = Depends(require_user),
 ):
-    # Verify auth
-    res_bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
-    if not res_bot.data:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    await verify_bot_permission(bot_id, user, "settings")
 
     try:
         res = await run_db(lambda: supabase.table("chatty_notifications").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute())
@@ -475,10 +569,7 @@ async def admin_get_audit_logs(
     bot_id: str,
     user: dict[str, Any] = Depends(require_user),
 ):
-    # Verify auth
-    res_bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
-    if not res_bot.data:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    await _verify_audit_log_access(bot_id, user)
 
     try:
         res = await run_db(lambda: supabase.table("chatty_audit_logs").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute())
