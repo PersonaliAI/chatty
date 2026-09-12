@@ -395,7 +395,7 @@ async def get_available_slots(
     now_utc: datetime,
     visitor_tz_str: Optional[str] = None,
     near_utc: Optional[datetime] = None,
-    max_results: int = 5,
+    max_results: Optional[int] = 5,
     search_days: int = 21,
 ) -> list[dict[str, Any]]:
     """Convenience wrapper: fetch busy intervals + meeting counts for the
