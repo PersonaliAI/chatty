@@ -1127,7 +1127,7 @@ async def widget_booking_slots(
         now_utc=now_utc,
         visitor_tz_str=visitor_tz_str,
         near_utc=None,
-        max_results=100,
+        max_results=None,
         search_days=max(min(days, 30), 7),
     )
 

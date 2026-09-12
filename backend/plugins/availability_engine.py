@@ -345,7 +345,7 @@ def compute_available_slots(
     weekly_counts: dict[str, int],
     now_utc: datetime,
     search_days: int = 21,
-    max_results: int = 5,
+    max_results: Optional[int] = 5,
     near_utc: Optional[datetime] = None,
     visitor_tz_str: Optional[str] = None,
 ) -> list[dict[str, Any]]:
@@ -379,7 +379,9 @@ def compute_available_slots(
     else:
         found.sort(key=lambda s: s.start_utc)
 
-    return [s.to_dict() for s in found[:max_results]]
+    if max_results is not None:
+        found = found[:max_results]
+    return [s.to_dict() for s in found]
 
 
 async def get_available_slots(
@@ -543,7 +545,7 @@ async def get_team_available_slots(
     now_utc: datetime,
     visitor_tz_str: Optional[str] = None,
     near_utc: Optional[datetime] = None,
-    max_results: int = 5,
+    max_results: Optional[int] = 5,
     search_days: int = 21,
 ) -> list[dict[str, Any]]:
     """Unions every bookable member's own individually-computed available
@@ -626,7 +628,9 @@ async def get_team_available_slots(
         found.sort(key=lambda x: abs((_parse_dt(x["start"]) - near_utc).total_seconds()))
     else:
         found.sort(key=lambda x: _parse_dt(x["start"]))
-    return found[:max_results]
+    if max_results is not None:
+        return found[:max_results]
+    return found
 
 
 async def pick_assignee(
