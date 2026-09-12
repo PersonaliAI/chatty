@@ -370,6 +370,16 @@ export function InlineBookingCard({
     }
   }, [botId, activeTimezone]);
 
+  const selectTimezone = (tzId: string) => {
+    setActiveTimezone(tzId);
+    setIsTzOpen(false);
+    setTzQuery("");
+    setSelectedSlot(null);
+    setSelectedDate("");
+    setSlotsData(null);
+    setError(null);
+  };
+
   // Format date helper
   const formatDateLabel = (dateStr: string) => {
     try {
@@ -649,7 +659,7 @@ export function InlineBookingCard({
   const isCompanyRequired = !!slotsData?.lead_required_fields?.includes("company");
 
   return (
-    <div className={`relative w-full my-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden text-neutral-800 dark:text-neutral-200 font-sans transition-all ${isTzOpen ? "min-h-[300px]" : ""}`}>
+    <div className={`relative w-full my-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-sm text-neutral-800 dark:text-neutral-200 font-sans transition-all ${isTzOpen ? "min-h-[330px] overflow-visible z-20" : "overflow-hidden"}`}>
       {/* Top Header */}
       <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/40 flex items-center justify-between text-[11px] gap-1.5">
         <div className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300 shrink-0 text-[10px] sm:text-[11px]">
@@ -669,8 +679,9 @@ export function InlineBookingCard({
           <button
             ref={tzButtonRef}
             type="button"
-            onClick={() => {
-              setIsTzOpen(!isTzOpen);
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsTzOpen((open) => !open);
               setTzQuery("");
             }}
             className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group max-w-full"
@@ -689,6 +700,8 @@ export function InlineBookingCard({
       {isTzOpen && (
         <div
           ref={tzDropdownRef}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
           className="absolute left-2 right-2 sm:left-auto sm:right-3 sm:w-64 top-[38px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[255px]"
         >
           {/* Popover Search Bar */}
@@ -736,11 +749,17 @@ export function InlineBookingCard({
                   <button
                     key={tz.id}
                     type="button"
-                    onClick={() => {
-                      setActiveTimezone(tz.id);
-                      setIsTzOpen(false);
-                      setTzQuery("");
-                      setSelectedSlot(null);
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      selectTimezone(tz.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        selectTimezone(tz.id);
+                      }
                     }}
                     className={`w-full px-2.5 py-1.5 flex items-center justify-between text-left rounded-lg transition-colors cursor-pointer ${
                       isSelected
