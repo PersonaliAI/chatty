@@ -823,7 +823,7 @@ export default function Home() {
             Everything you need to know about Chatty&apos;s training mechanics, costs, safety layers, and white-label setups.
           </p>
 
-          <div className="mt-8 max-w-[760px]">
+          <div className="mt-8 w-full">
             {faqs.map((faq, i) => (
               <div key={faq.question} className="border-b" style={{ borderColor: "var(--color-divider)" }}>
                 <button
