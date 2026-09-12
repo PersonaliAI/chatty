@@ -167,14 +167,16 @@ export function InlineBookingCard({
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Timezone selection
+  // Timezone selection: auto-detect visitor's location, default to USA Eastern Time if unavailable or UTC
   const detectedTz = useMemo(() => {
     if (visitorTimezone && visitorTimezone !== "UTC") return visitorTimezone;
     try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz && tz !== "UTC") return tz;
     } catch {
-      return "UTC";
+      /* fall through */
     }
+    return "America/New_York";
   }, [visitorTimezone]);
 
   const [activeTimezone, setActiveTimezone] = useState(detectedTz);
@@ -209,13 +211,20 @@ export function InlineBookingCard({
   useEffect(() => {
     if (!isTzOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
+      const path = typeof e.composedPath === "function" ? e.composedPath() : [];
       if (
         tzDropdownRef.current &&
-        !tzDropdownRef.current.contains(e.target as Node) &&
-        (!tzButtonRef.current || !tzButtonRef.current.contains(e.target as Node))
+        (tzDropdownRef.current.contains(e.target as Node) || path.includes(tzDropdownRef.current))
       ) {
-        setIsTzOpen(false);
+        return;
       }
+      if (
+        tzButtonRef.current &&
+        (tzButtonRef.current.contains(e.target as Node) || path.includes(tzButtonRef.current))
+      ) {
+        return;
+      }
+      setIsTzOpen(false);
     };
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -330,6 +339,16 @@ export function InlineBookingCard({
       fetchSlots(activeTimezone);
     }
   }, [botId, activeTimezone]);
+
+  const selectTimezone = (tzId: string) => {
+    setActiveTimezone(tzId);
+    setIsTzOpen(false);
+    setTzQuery("");
+    setSelectedSlot(null);
+    setSelectedDate("");
+    setSlotsData(null);
+    setError(null);
+  };
 
   // Format date helper
   const formatDateLabel = (dateStr: string) => {
@@ -607,7 +626,7 @@ export function InlineBookingCard({
   const isCompanyRequired = !!slotsData?.lead_required_fields?.includes("company");
 
   return (
-    <div className={`relative w-full my-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden text-neutral-800 dark:text-neutral-200 font-sans transition-all ${isTzOpen ? "min-h-[300px]" : ""}`}>
+    <div className={`relative w-full my-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-sm text-neutral-800 dark:text-neutral-200 font-sans transition-all ${isTzOpen ? "min-h-[340px] overflow-visible z-30" : "overflow-hidden"}`}>
       {/* Top Header */}
       <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/40 flex items-center justify-between text-[11px] gap-1.5">
         <div className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300 shrink-0 text-[10px] sm:text-[11px]">
@@ -694,11 +713,12 @@ export function InlineBookingCard({
                   <button
                     key={tz.id}
                     type="button"
-                    onClick={() => {
-                      setActiveTimezone(tz.id);
-                      setIsTzOpen(false);
-                      setTzQuery("");
-                      setSelectedSlot(null);
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectTimezone(tz.id);
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
                     }}
                     className={`w-full px-2.5 py-1.5 flex items-center justify-between text-left rounded-lg transition-colors cursor-pointer ${
                       isSelected

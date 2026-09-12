@@ -206,14 +206,16 @@ export function InlineBookingCard({
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Timezone selection
+  // Timezone selection: auto-detect visitor's location, default to USA Eastern Time if unavailable or UTC
   const detectedTz = useMemo(() => {
     if (visitorTimezone && visitorTimezone !== "UTC") return visitorTimezone;
     try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz && tz !== "UTC") return tz;
     } catch {
-      return "UTC";
+      /* fall through */
     }
+    return "America/New_York";
   }, [visitorTimezone]);
 
   const [activeTimezone, setActiveTimezone] = useState(detectedTz);
@@ -248,13 +250,20 @@ export function InlineBookingCard({
   useEffect(() => {
     if (!isTzOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
+      const path = typeof e.composedPath === "function" ? e.composedPath() : [];
       if (
         tzDropdownRef.current &&
-        !tzDropdownRef.current.contains(e.target as Node) &&
-        (!tzButtonRef.current || !tzButtonRef.current.contains(e.target as Node))
+        (tzDropdownRef.current.contains(e.target as Node) || path.includes(tzDropdownRef.current))
       ) {
-        setIsTzOpen(false);
+        return;
       }
+      if (
+        tzButtonRef.current &&
+        (tzButtonRef.current.contains(e.target as Node) || path.includes(tzButtonRef.current))
+      ) {
+        return;
+      }
+      setIsTzOpen(false);
     };
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -749,10 +758,12 @@ export function InlineBookingCard({
                   <button
                     key={tz.id}
                     type="button"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
+                    onClick={(e) => {
                       e.stopPropagation();
                       selectTimezone(tz.id);
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {

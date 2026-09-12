@@ -1,69 +1,64 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=1280, height=720, initial-scale=1.0" />
-  <title>Chatty Product Hunt Demo Stage</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>Chatty Product Hunt Real UI Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       width: 1280px; height: 720px; overflow: hidden;
-      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-      background: #090d16; color: #f1f5f9; position: relative;
+      background: #080c14; font-family: 'Plus Jakarta Sans', sans-serif;
+      color: #fff; position: relative; user-select: none;
     }
     .bg-grid {
       position: absolute; inset: 0;
-      background-image: radial-gradient(rgba(249, 115, 22, 0.12) 1px, transparent 1px),
-                        radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-      background-size: 32px 32px; background-position: 0 0, 16px 16px;
-      pointer-events: none;
+      background-image: radial-gradient(rgba(249, 115, 22, 0.12) 1px, transparent 1px);
+      background-size: 32px 32px; pointer-events: none;
     }
-    .glow-sphere {
-      position: absolute; width: 650px; height: 650px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(249, 115, 22, 0.18) 0%, rgba(249, 115, 22, 0) 70%);
-      top: -150px; left: 150px; pointer-events: none; filter: blur(40px);
+    .bg-glow {
+      position: absolute; width: 600px; height: 600px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(249, 115, 22, 0.16) 0%, transparent 70%);
+      top: -100px; left: 100px; pointer-events: none; filter: blur(70px);
     }
+
+    /* SaaS Landing Page */
     .saas-nav {
       height: 64px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 48px; border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 0 48px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       position: relative; z-index: 10;
     }
-    .saas-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
-    .saas-logo-icon {
-      width: 28px; height: 28px; border-radius: 8px;
-      background: linear-gradient(135deg, #f97316, #fb923c);
-      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; color: #fff;
+    .saas-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; }
+    .saas-brand-icon {
+      width: 30px; height: 30px; border-radius: 8px; background: #f97316;
+      display: flex; align-items: center; justify-content: center;
     }
-    .saas-links { display: flex; gap: 28px; font-size: 13px; color: #94a3b8; font-weight: 500; }
+    .saas-brand-icon img { width: 20px; height: 20px; object-fit: contain; }
+    .saas-links { display: flex; gap: 32px; font-size: 13px; color: #94a3b8; font-weight: 600; }
     .saas-btn {
-      background: #f97316; color: #fff; font-size: 13px; font-weight: 600;
-      padding: 8px 18px; border-radius: 9999px; border: none; cursor: pointer;
+      background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff; padding: 8px 18px; border-radius: 9999px; font-size: 13px; font-weight: 700;
     }
-    .saas-hero {
-      padding: 60px 48px 0; max-width: 680px; position: relative; z-index: 10;
+
+    .saas-hero { padding: 80px 48px 0; max-width: 650px; position: relative; z-index: 10; }
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px;
+      border-radius: 9999px; background: rgba(249, 115, 22, 0.14);
+      border: 1px solid rgba(249, 115, 22, 0.35); color: #fb923c;
+      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 20px;
     }
-    .badge-tag {
-      display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
-      background: rgba(249, 115, 22, 0.12); border: 1px solid rgba(249, 115, 22, 0.3);
-      border-radius: 9999px; color: #fb923c; font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
-      text-transform: uppercase; margin-bottom: 18px;
-    }
-    .saas-hero h1 {
-      font-size: 42px; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em;
-      margin-bottom: 16px; color: #fff;
-    }
+    .saas-hero h1 { font-size: 46px; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; margin-bottom: 18px; }
     .saas-hero h1 span {
       background: linear-gradient(135deg, #f97316, #fdba74);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .saas-hero p { font-size: 15px; line-height: 1.6; color: #94a3b8; margin-bottom: 24px; }
-    .hero-features { display: flex; gap: 20px; font-size: 12px; color: #cbd5e1; }
-    .hero-feat-item { display: flex; align-items: center; gap: 6px; }
-    .feat-dot { width: 6px; height: 6px; border-radius: 50%; background: #f97316; }
+    .saas-hero p { font-size: 16px; line-height: 1.6; color: #94a3b8; margin-bottom: 28px; }
+    .hero-features { display: flex; gap: 24px; font-size: 13px; font-weight: 600; color: #cbd5e1; }
+    .hero-feat-item { display: flex; align-items: center; gap: 8px; }
+    .feat-check { color: #f97316; font-weight: 800; }
 
+    /* Animated Cursor */
     #cursor {
       position: absolute; width: 22px; height: 22px; pointer-events: none; z-index: 9999;
       transform: translate3d(1200px, 680px, 0);
@@ -81,542 +76,260 @@
       100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
     }
 
+    /* Chatty Floating Launcher */
     #launcher {
       position: absolute; bottom: 32px; right: 40px; width: 62px; height: 62px;
-      border-radius: 50%; background: #f97316;
-      box-shadow: 0 10px 30px rgba(249, 115, 22, 0.45), 0 0 0 1px rgba(255,255,255,0.2);
+      border-radius: 50%; background: #ffffff;
+      box-shadow: 0 12px 32px rgba(249, 115, 22, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.2);
       display: flex; align-items: center; justify-content: center; cursor: pointer;
-      z-index: 100; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 100; transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     #launcher.hidden { transform: scale(0); pointer-events: none; }
-    #launcher svg { width: 34px; height: 34px; fill: #fff; }
+    #launcher img { width: 34px; height: 34px; object-fit: contain; }
     .launcher-pulse {
-      position: absolute; inset: -4px; border-radius: 50%;
+      position: absolute; inset: -5px; border-radius: 50%;
       border: 2px solid rgba(249, 115, 22, 0.6); animation: pulseAura 2s infinite;
     }
     @keyframes pulseAura {
       0% { transform: scale(0.95); opacity: 0.8; }
-      50% { transform: scale(1.15); opacity: 0; }
+      50% { transform: scale(1.18); opacity: 0; }
       100% { transform: scale(0.95); opacity: 0; }
     }
 
-    #widget {
-      position: absolute; bottom: 32px; right: 40px; width: 400px; height: 620px;
-      background: #0f172a; border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06);
-      display: flex; flex-direction: column; overflow: hidden;
-      z-index: 100; opacity: 0; transform: translateY(40px) scale(0.92);
-      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: none;
+    /* Widget Stage Container */
+    #widget-frame {
+      position: absolute; bottom: 32px; right: 40px;
+      width: 400px; height: 670px; border-radius: 24px;
+      background: #ffffff;
+      box-shadow: 0 30px 80px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.14);
+      z-index: 100; overflow: hidden;
+      opacity: 0; transform: translateY(40px) scale(0.92);
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex; flex-direction: column;
     }
-    #widget.open {
-      opacity: 1; transform: translateY(0) scale(1); pointer-events: auto;
-    }
-
-    .widget-header {
-      height: 64px; background: #0b1120; border-bottom: 1px solid rgba(255,255,255,0.08);
-      display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
-      position: relative; z-index: 2;
-    }
-    .agent-info { display: flex; align-items: center; gap: 10px; }
-    .agent-avatar {
-      width: 36px; height: 36px; border-radius: 50%; background: #f97316;
-      display: flex; align-items: center; justify-content: center; position: relative;
-    }
-    .agent-avatar svg { width: 22px; height: 22px; fill: #fff; }
-    .online-indicator {
-      position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px;
-      border-radius: 50%; background: #10b981; border: 2px solid #0b1120;
-    }
-    .agent-meta h3 { font-size: 13px; font-weight: 700; color: #fff; line-height: 1.2; }
-    .agent-meta p { font-size: 10px; color: #10b981; font-weight: 600; }
-    .header-actions { display: flex; align-items: center; gap: 8px; }
-    .header-btn {
-      width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.08); color: #cbd5e1;
-      display: flex; align-items: center; justify-content: center; cursor: pointer;
-      transition: background 0.2s;
-    }
-    .header-btn:hover { background: rgba(255,255,255,0.12); }
-    .header-btn.phone-btn {
-      background: rgba(249, 115, 22, 0.15); border-color: rgba(249, 115, 22, 0.3); color: #fb923c;
+    #widget-frame.open {
+      opacity: 1; transform: translateY(0) scale(1);
     }
 
-    .widget-body {
-      flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;
-      scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;
-      background: #0a0f1d;
+    /* View layers inside the widget */
+    .view-layer {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      display: none; flex-direction: column; background: #ffffff;
     }
-    .msg-group { display: flex; flex-direction: column; gap: 4px; max-width: 88%; }
-    .msg-group.user { align-self: flex-end; align-items: flex-end; }
-    .msg-group.bot { align-self: flex-start; align-items: flex-start; }
-    .msg-bubble {
-      padding: 10px 14px; border-radius: 16px; font-size: 12px; line-height: 1.55;
-    }
-    .msg-group.user .msg-bubble {
-      background: #f97316; color: #fff; border-bottom-right-radius: 4px; font-weight: 500;
-    }
-    .msg-group.bot .msg-bubble {
-      background: #1e293b; color: #e2e8f0; border-bottom-left-radius: 4px;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-    .bot-author { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+    .view-layer.active { display: flex; }
 
-    .booking-card {
-      width: 100%; background: #0f172a; border: 1px solid rgba(249, 115, 22, 0.35);
-      border-radius: 16px; padding: 14px; margin-top: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-    }
-    .bc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .bc-title { font-size: 11px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; }
-    .bc-title svg { color: #f97316; }
-    .bc-tz { font-size: 10px; color: #94a3b8; }
-    .bc-dates { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; }
-    .bc-date-btn {
-      padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.08); font-size: 10px; font-weight: 600; color: #94a3b8;
-      cursor: pointer; text-align: center; white-space: nowrap;
-    }
-    .bc-date-btn.active {
-      background: rgba(249, 115, 22, 0.15); border-color: #f97316; color: #fb923c;
-    }
-    .bc-slots-label { font-size: 10px; font-weight: 600; color: #64748b; margin-bottom: 6px; }
-    .bc-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
-    .bc-slot-btn {
-      padding: 7px 4px; border-radius: 8px; background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08); font-size: 10px; font-weight: 600; color: #cbd5e1;
-      text-align: center; cursor: pointer; transition: all 0.2s;
-    }
-    .bc-slot-btn.selected {
-      background: #f97316; border-color: #f97316; color: #fff;
-    }
-    .bc-inputs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-    .bc-input {
-      width: 100%; padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 11px;
-    }
-    .bc-confirm-btn {
-      width: 100%; padding: 8px; border-radius: 8px; background: #f97316; color: #fff;
-      font-size: 11px; font-weight: 700; border: none; cursor: pointer; text-align: center;
+    .view-layer img {
+      width: 100%; height: 100%; object-fit: contain; display: block;
     }
 
-    .bc-confirmed {
-      text-align: center; padding: 12px 6px; display: none;
+    /* Outro Screen */
+    #outro {
+      position: absolute; inset: 0; background: #070a12;
+      z-index: 500; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.8s ease; text-align: center;
     }
-    .bc-confirmed.active { display: block; }
-    .bc-check {
-      width: 38px; height: 38px; border-radius: 50%; background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981;
-      display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;
+    #outro.show { opacity: 1; pointer-events: auto; }
+    .outro-glow {
+      position: absolute; width: 700px; height: 700px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(249, 115, 22, 0.22) 0%, transparent 70%);
+      pointer-events: none; filter: blur(80px);
     }
-    .bc-confirmed h4 { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-    .bc-confirmed p { font-size: 11px; color: #94a3b8; margin-bottom: 12px; }
-    .bc-cal-links { display: flex; gap: 8px; justify-content: center; }
-    .bc-cal-link {
-      padding: 6px 12px; border-radius: 6px; background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1); font-size: 10px; font-weight: 600; color: #cbd5e1;
-      text-decoration: none;
+    .outro-logo {
+      width: 88px; height: 88px; border-radius: 24px; background: #ffffff; display: flex; align-items: center; justify-content: center; margin-bottom: 24px;
+      box-shadow: 0 15px 40px rgba(249, 115, 22, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.2);
     }
-
-    #voice-screen {
-      position: absolute; inset: 64px 0 0 0; background: #080d1a;
-      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-      padding: 24px 20px; opacity: 0; pointer-events: none; transition: opacity 0.35s ease;
-      z-index: 50;
-    }
-    #voice-screen.active { opacity: 1; pointer-events: auto; }
-    .voice-orb-wrap {
-      display: flex; flex-direction: column; align-items: center; margin-top: 10px;
-    }
-    .voice-orb {
-      width: 100px; height: 100px; border-radius: 50%;
-      background: radial-gradient(circle at 35% 30%, #f97316, #ea580c);
-      box-shadow: 0 0 45px rgba(249, 115, 22, 0.5), 0 0 80px rgba(249, 115, 22, 0.25);
-      display: flex; align-items: center; justify-content: center;
-      animation: orbPulse 1.8s ease-in-out infinite;
-    }
-    @keyframes orbPulse {
-      0%, 100% { transform: scale(1); filter: brightness(1); }
-      50% { transform: scale(1.1); filter: brightness(1.25); }
-    }
-    .voice-orb-inner {
-      width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.3);
-      backdrop-filter: blur(4px);
-    }
-    .voice-status-text { font-size: 12px; font-weight: 600; color: #f97316; margin-top: 16px; }
-    .voice-equalizer { display: flex; align-items: center; gap: 3px; height: 24px; margin-top: 8px; }
-    .eq-bar {
-      width: 3px; border-radius: 9999px; background: #f97316; height: 8px;
-      animation: eqDance 0.8s ease-in-out infinite alternate;
-    }
-    .eq-bar:nth-child(2) { animation-delay: 0.1s; height: 14px; }
-    .eq-bar:nth-child(3) { animation-delay: 0.25s; height: 22px; }
-    .eq-bar:nth-child(4) { animation-delay: 0.4s; height: 18px; }
-    .eq-bar:nth-child(5) { animation-delay: 0.15s; height: 24px; }
-    .eq-bar:nth-child(6) { animation-delay: 0.3s; height: 12px; }
-    .eq-bar:nth-child(7) { animation-delay: 0.5s; height: 20px; }
-    .eq-bar:nth-child(8) { animation-delay: 0.2s; height: 16px; }
-    @keyframes eqDance {
-      0% { transform: scaleY(0.3); }
-      100% { transform: scaleY(1.2); }
-    }
-
-    .voice-transcript-card {
-      width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 14px; padding: 12px; font-size: 11px; line-height: 1.5; color: #cbd5e1;
-    }
-    .vt-speaker { font-size: 9px; font-weight: 700; color: #f97316; text-transform: uppercase; margin-bottom: 2px; }
-    .voice-controls { display: flex; gap: 16px; align-items: center; }
-    .v-ctrl-btn {
-      width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center;
-      justify-content: center; cursor: pointer; border: none;
-    }
-    .v-btn-mute { background: rgba(255,255,255,0.08); color: #fff; }
-    .v-btn-hangup { background: #ef4444; color: #fff; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); }
-
-    .widget-footer {
-      height: 60px; background: #0b1120; border-top: 1px solid rgba(255,255,255,0.08);
-      display: flex; align-items: center; padding: 0 14px; gap: 10px; position: relative; z-index: 2;
-    }
-    .input-mock {
-      flex: 1; height: 38px; border-radius: 9999px; background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1); padding: 0 14px; font-size: 12px; color: #fff;
-      display: flex; align-items: center;
-    }
-    .send-btn-mock {
-      width: 34px; height: 34px; border-radius: 50%; background: #f97316;
-      border: none; display: flex; align-items: center; justify-content: center; color: #fff;
-    }
-
-    #outro-overlay {
-      position: absolute; inset: 0; background: rgba(9, 13, 22, 0.95); backdrop-filter: blur(12px);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      z-index: 500; opacity: 0; pointer-events: none; transition: opacity 0.6s ease;
-      text-align: center; padding: 40px;
-    }
-    #outro-overlay.active { opacity: 1; pointer-events: auto; }
-    .outro-badge {
-      padding: 6px 16px; border-radius: 9999px; background: rgba(249, 115, 22, 0.15);
-      border: 1px solid #f97316; color: #fb923c; font-size: 12px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 20px;
-    }
-    .outro-title {
-      font-size: 48px; font-weight: 800; color: #fff; margin-bottom: 12px;
-    }
+    .outro-logo img { width: 56px; height: 56px; object-fit: contain; }
+    .outro-title { font-size: 52px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 12px; }
     .outro-title span {
       background: linear-gradient(135deg, #f97316, #fdba74);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .outro-sub { font-size: 18px; color: #94a3b8; max-width: 600px; line-height: 1.6; margin-bottom: 32px; }
-    .outro-pills { display: flex; gap: 14px; margin-bottom: 36px; }
-    .outro-pill {
-      padding: 8px 18px; border-radius: 9999px; background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.12); font-size: 13px; font-weight: 600; color: #e2e8f0;
+    .outro-sub { font-size: 20px; color: #94a3b8; font-weight: 500; margin-bottom: 32px; max-width: 650px; line-height: 1.5; }
+    .outro-badges { display: flex; gap: 16px; margin-bottom: 36px; }
+    .outro-badge {
+      display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 14px; font-weight: 700; color: #e2e8f0;
     }
-    .outro-ph-btn {
-      display: inline-flex; align-items: center; gap: 12px; padding: 14px 32px;
-      background: #f97316; color: #fff; font-size: 16px; font-weight: 700;
-      border-radius: 12px; box-shadow: 0 10px 30px rgba(249, 115, 22, 0.4);
+    .outro-cta {
+      display: inline-flex; align-items: center; gap: 10px; padding: 14px 32px;
+      border-radius: 9999px; background: linear-gradient(135deg, #f97316, #ea580c);
+      color: #fff; font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+      box-shadow: 0 12px 35px rgba(249, 115, 22, 0.5);
     }
   </style>
 </head>
 <body>
   <div class="bg-grid"></div>
-  <div class="glow-sphere"></div>
+  <div class="bg-glow"></div>
 
-  <nav class="saas-nav">
-    <div class="saas-logo">
-      <div class="saas-logo-icon">P</div>
-      <span>PersonaliAI</span>
+  <!-- Cursor -->
+  <div id="cursor">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+      <path d="M4 2L20 10L12 12L10 20L4 2Z" fill="#ffffff" stroke="#000000" stroke-width="1.8" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <!-- Background SaaS Website -->
+  <header class="saas-nav">
+    <div class="saas-brand">
+      <div class="saas-brand-icon">
+        <img src="data:image/png;base64,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" alt="Chatty" />
+      </div>
+      <span>Acme Cloud</span>
     </div>
     <div class="saas-links">
-      <span>Features</span>
-      <span>Knowledge Base</span>
+      <span>Products</span>
+      <span>Solutions</span>
       <span>Integrations</span>
       <span>Pricing</span>
     </div>
     <button class="saas-btn">Start Free Trial</button>
-  </nav>
+  </header>
 
-  <div class="saas-hero">
-    <div class="badge-tag">Powered by PersonaliAI</div>
-    <h1>Turn Website Visitors Into <span>Booked Meetings</span> 24/7</h1>
-    <p>The first AI customer support widget with native self-hosted calendar booking, live voice agent calls, and zero-code setup for any website.</p>
+  <main class="saas-hero">
+    <div class="hero-tag">AI Customer Support Platform</div>
+    <h1>Turn Site Visitors Into <span>Booked Meetings</span> 24/7</h1>
+    <p>Empower your business with instant grounded answers, interactive in-chat calendar booking, and low-latency real-time voice calls.</p>
     <div class="hero-features">
-      <div class="hero-feat-item"><span class="feat-dot"></span> Trained on Your Content</div>
-      <div class="hero-feat-item"><span class="feat-dot"></span> In-Chat Slot Booking</div>
-      <div class="hero-feat-item"><span class="feat-dot"></span> WebRTC Voice Agent</div>
+      <div class="hero-feat-item"><span class="feat-check">✓</span> Zero-Code Setup</div>
+      <div class="hero-feat-item"><span class="feat-check">✓</span> WordPress & WooCommerce</div>
+      <div class="hero-feat-item"><span class="feat-check">✓</span> Live WebRTC Voice Calls</div>
     </div>
-  </div>
+  </main>
 
-  <div id="cursor">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M5.5 3.2L19.5 12L12.5 13.5L9.5 20.8L5.5 3.2Z" fill="#ffffff" stroke="#000000" stroke-width="1.8" stroke-linejoin="round"/>
-    </svg>
-  </div>
-
+  <!-- Floating Launcher -->
   <div id="launcher">
     <div class="launcher-pulse"></div>
-    <svg viewBox="0 0 512 512">
-      <path d="M256,40C136.7,40,40,136.7,40,256c0,42.5,12.3,82.2,33.5,115.8L43.2,462.6c-2.3,6.8,3.4,13.8,10.4,12.2l95.5-22.1C181.7,466.8,217.7,472,256,472c119.3,0,216-96.7,216-216S375.3,40,256,40z" fill="none" stroke="#ffffff" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="196" cy="220" r="18" fill="#ffffff"/>
-      <circle cx="316" cy="220" r="18" fill="#ffffff"/>
-      <path d="M196,290c18,22,40,32,60,32s42-10,60-32" fill="none" stroke="#ffffff" stroke-width="32" stroke-linecap="round"/>
-    </svg>
+    <img src="data:image/png;base64,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" alt="Chatty" />
   </div>
 
-  <div id="widget">
-    <div class="widget-header">
-      <div class="agent-info">
-        <div class="agent-avatar">
-          <svg viewBox="0 0 512 512">
-            <path d="M256,40C136.7,40,40,136.7,40,256c0,42.5,12.3,82.2,33.5,115.8L43.2,462.6c-2.3,6.8,3.4,13.8,10.4,12.2l95.5-22.1C181.7,466.8,217.7,472,256,472c119.3,0,216-96.7,216-216S375.3,40,256,40z" fill="none" stroke="#ffffff" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="196" cy="220" r="18" fill="#ffffff"/>
-            <circle cx="316" cy="220" r="18" fill="#ffffff"/>
-            <path d="M196,290c18,22,40,32,60,32s42-10,60-32" fill="none" stroke="#ffffff" stroke-width="32" stroke-linecap="round"/>
-          </svg>
-          <div class="online-indicator"></div>
-        </div>
-        <div class="agent-meta">
-          <h3>Chatty Support</h3>
-          <p>● Active Now</p>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button id="call-btn" class="header-btn phone-btn" title="Start Voice Call">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-        </button>
-        <button id="close-btn" class="header-btn">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-      </div>
+  <!-- Widget Container hosting the real Chatty UI captures -->
+  <div id="widget-frame">
+    <!-- View 1: Real Home Tab -->
+    <div id="v-home" class="view-layer active">
+      <img src="chatty_home_tab.png" alt="Home Tab" />
     </div>
 
-    <div id="messages" class="widget-body">
-      <div class="msg-group bot">
-        <span class="bot-author">Chatty AI</span>
-        <div class="msg-bubble">
-          👋 Hi Alex! I'm Chatty, your AI assistant. How can I help you today?
-        </div>
-      </div>
+    <!-- View 2: Real Booking Card Loaded -->
+    <div id="v-booking" class="view-layer">
+      <img src="chatty_booking_card_loaded.png" alt="Booking Card Loaded" />
     </div>
 
-    <div id="voice-screen">
-      <div style="font-size:11px; font-weight:700; color:#94a3b8; letter-spacing:0.05em; text-transform:uppercase;">
-        Live Voice Call &bull; 00:14
-      </div>
-      <div class="voice-orb-wrap">
-        <div class="voice-orb">
-          <div class="voice-orb-inner"></div>
-        </div>
-        <div class="voice-status-text">Chatty Speaking...</div>
-        <div class="voice-equalizer">
-          <div class="eq-bar"></div>
-          <div class="eq-bar"></div>
-          <div class="eq-bar"></div>
-          <div class="eq-bar"></div>
-          <div class="eq-bar"></div>
-          <div class="eq-bar"></div>
-          <div class="eq-bar"></div>
-          <div class="eq-bar"></div>
-        </div>
-      </div>
-      <div class="voice-transcript-card">
-        <div class="vt-speaker">Chatty Voice Agent</div>
-        <div>"I've got you confirmed for Wednesday at 10 AM, Alex! I also added the calendar invite to your email."</div>
-      </div>
-      <div class="voice-controls">
-        <button class="v-ctrl-btn v-btn-mute">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-        </button>
-        <button class="v-ctrl-btn v-btn-hangup">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-        </button>
-      </div>
+    <!-- View 3: Real Slot Selected Form -->
+    <div id="v-slot-form" class="view-layer">
+      <img src="chatty_slot_selected_form.png" alt="Slot Selected Form" />
     </div>
 
-    <div class="widget-footer">
-      <div id="mock-input" class="input-mock">Ask anything...</div>
-      <button class="send-btn-mock">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-      </button>
+    <!-- View 4: Real Voice Agent Call -->
+    <div id="v-voice" class="view-layer">
+      <img src="real_voice_widget.png" alt="Real Voice Call Widget" />
     </div>
   </div>
 
-  <div id="outro-overlay">
-    <div class="outro-badge">Official Product Hunt Launch</div>
-    <h2 class="outro-title">Chatty by <span>PersonaliAI</span></h2>
-    <p class="outro-sub">The all-in-one AI Customer Support, In-Chat Calendar Booking, and Voice Agent widget for fast-growing businesses.</p>
-    <div class="outro-pills">
-      <div class="outro-pill">⚡ Zero-Code Setup</div>
-      <div class="outro-pill">📅 In-Chat Booking</div>
-      <div class="outro-pill">🎙️ WebRTC Voice Agent</div>
-      <div class="outro-pill">🔌 WordPress & WooCommerce</div>
+  <!-- Outro -->
+  <div id="outro">
+    <div class="outro-glow"></div>
+    <div class="outro-logo">
+      <img src="data:image/png;base64,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" alt="Chatty" />
     </div>
-    <div class="outro-ph-btn">
-      <svg width="24" height="24" viewBox="0 0 40 40" fill="none">
-        <circle cx="20" cy="20" r="20" fill="#DA552F"/>
-        <path d="M22.667 20H17.333V14.667H22.667C24.139 14.667 25.333 15.861 25.333 17.333C25.333 18.805 24.139 20 22.667 20ZM22.667 12H14.667V28H17.333V22.667H22.667C25.612 22.667 28 20.279 28 17.333C28 14.387 25.612 12 22.667 12Z" fill="white"/>
-      </svg>
-      Support us on Product Hunt
+    <h1 class="outro-title">Chatty by <span>PersonaliAI</span></h1>
+    <p class="outro-sub">The modern AI customer support widget with native calendar booking, real-time voice calls, and zero-code WordPress integration.</p>
+    <div class="outro-badges">
+      <div class="outro-badge">📅 In-Chat Booking</div>
+      <div class="outro-badge">🎙️ WebRTC Voice Calls</div>
+      <div class="outro-badge">🔌 Official WordPress.org</div>
+      <div class="outro-badge">⚡ WooCommerce Ready</div>
+    </div>
+    <div class="outro-cta">
+      Upvote Us on Product Hunt Today 🚀
     </div>
   </div>
 
   <script>
     const cursor = document.getElementById('cursor');
     const launcher = document.getElementById('launcher');
-    const widget = document.getElementById('widget');
-    const messages = document.getElementById('messages');
-    const mockInput = document.getElementById('mock-input');
-    const callBtn = document.getElementById('call-btn');
-    const voiceScreen = document.getElementById('voice-screen');
-    const outro = document.getElementById('outro-overlay');
+    const widgetFrame = document.getElementById('widget-frame');
+    const outro = document.getElementById('outro');
 
-    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    const vHome = document.getElementById('v-home');
+    const vBooking = document.getElementById('v-booking');
+    const vSlotForm = document.getElementById('v-slot-form');
+    const vVoice = document.getElementById('v-voice');
 
-    async function moveCursor(x, y, duration = 650) {
-      cursor.style.transition = `transform ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+    function moveCursor(x, y, ms = 650) {
+      cursor.style.transition = `transform ${ms}ms cubic-bezier(0.22, 1, 0.36, 1)`;
       cursor.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      await sleep(duration);
+      return new Promise(r => setTimeout(r, ms));
     }
 
-    async function clickAt(x, y) {
-      await moveCursor(x, y);
+    function triggerClick(x, y) {
       const ripple = document.createElement('div');
       ripple.className = 'click-ripple';
-      ripple.style.left = `${x}px`;
-      ripple.style.top = `${y}px`;
+      ripple.style.left = x + 'px';
+      ripple.style.top = y + 'px';
       document.body.appendChild(ripple);
-      setTimeout(() => ripple.remove(), 550);
-      await sleep(150);
+      setTimeout(() => ripple.remove(), 600);
     }
 
-    async function typeInInput(text, speed = 40) {
-      mockInput.textContent = '';
-      for (let i = 0; i < text.length; i++) {
-        mockInput.textContent += text[i];
-        await sleep(speed + Math.random() * 20);
-      }
-      await sleep(200);
+    function showView(viewEl) {
+      [vHome, vBooking, vSlotForm, vVoice].forEach(v => v.classList.remove('active'));
+      viewEl.classList.add('active');
     }
 
-    function addMessage(role, htmlContent) {
-      const group = document.createElement('div');
-      group.className = `msg-group ${role}`;
-      if (role === 'bot') {
-        const author = document.createElement('span');
-        author.className = 'bot-author';
-        author.textContent = 'Chatty AI';
-        group.appendChild(author);
-      }
-      const bubble = document.createElement('div');
-      bubble.className = 'msg-bubble';
-      bubble.innerHTML = htmlContent;
-      group.appendChild(bubble);
-      messages.appendChild(group);
-      messages.scrollTop = messages.scrollHeight;
-      return group;
-    }
+    async function runDemo() {
+      // 0s - Wait initially
+      await new Promise(r => setTimeout(r, 1000));
 
-    async function startDemo() {
-      await sleep(1000);
-
-      await clickAt(1240, 660);
+      // Move cursor to floating launcher
+      await moveCursor(1230, 645, 900);
+      triggerClick(1230, 645);
       launcher.classList.add('hidden');
-      widget.classList.add('open');
-      await sleep(800);
+      widgetFrame.classList.add('open');
 
-      await moveCursor(1050, 680);
-      await typeInInput("How does Chatty connect to my website content?");
-      await sleep(400);
+      // 1.5s - Show Home Tab
+      await new Promise(r => setTimeout(r, 2200));
 
-      addMessage('user', "How does Chatty connect to my website content?");
-      mockInput.textContent = 'Ask anything...';
-      await sleep(700);
+      // Move cursor to "Send us a message" on Home Tab
+      await moveCursor(1040, 360, 700);
+      triggerClick(1040, 360);
 
-      addMessage('bot', `
-        Chatty indexes your business knowledge instantly:
-        <ul style="margin: 6px 0 6px 16px; font-size:11px;">
-          <li><b>Auto Web Crawl</b>: Learns every page & FAQ</li>
-          <li><b>Document Sync</b>: Upload PDFs, Docs & sheets</li>
-          <li><b>WooCommerce</b>: Real-time inventory & specs</li>
-        </ul>
-        <span style="font-size:10px; color:#94a3b8;">Sources: docs.acme.com/knowledge</span>
-      `);
-      await sleep(1400);
+      // Switch to Booking Card
+      await new Promise(r => setTimeout(r, 400));
+      showView(vBooking);
 
-      await moveCursor(1050, 680);
-      await typeInInput("Can I book a 15-min demo with your team?");
-      await sleep(400);
+      // Inspect Booking Card
+      await new Promise(r => setTimeout(r, 2600));
 
-      addMessage('user', "Can I book a 15-min demo with your team?");
-      mockInput.textContent = 'Ask anything...';
-      await sleep(700);
+      // Move cursor to 10:00 AM slot button
+      await moveCursor(1180, 525, 700);
+      triggerClick(1180, 525);
 
-      const bookingMsg = addMessage('bot', `
-        I'd love to set that up! Pick an available time slot below to schedule a 15-minute walkthrough:
-        <div id="demo-card" class="booking-card">
-          <div class="bc-header">
-            <div class="bc-title">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-              Select Date & Time
-            </div>
-            <div class="bc-tz">Pacific Time (PT)</div>
-          </div>
-          <div class="bc-dates">
-            <div class="bc-date-btn">Mon Sep 14</div>
-            <div class="bc-date-btn">Tue Sep 15</div>
-            <div id="target-date" class="bc-date-btn active">Wed Sep 16</div>
-            <div class="bc-date-btn">Thu Sep 17</div>
-          </div>
-          <div class="bc-slots-label">Available Slots for Sep 16:</div>
-          <div class="bc-slots">
-            <div class="bc-slot-btn">9:30 AM</div>
-            <div id="target-slot" class="bc-slot-btn selected">10:00 AM</div>
-            <div class="bc-slot-btn">1:30 PM</div>
-            <div class="bc-slot-btn">2:00 PM</div>
-            <div class="bc-slot-btn">3:30 PM</div>
-            <div class="bc-slot-btn">4:00 PM</div>
-          </div>
-          <div id="booking-form-wrap">
-            <div class="bc-inputs">
-              <input id="demo-name" class="bc-input" value="Alex Morgan" readonly />
-              <input id="demo-email" class="bc-input" value="alex@acme.inc" readonly />
-            </div>
-            <button id="demo-submit-btn" class="bc-confirm-btn">Confirm Booking</button>
-          </div>
-          <div id="demo-confirmed-wrap" class="bc-confirmed">
-            <div class="bc-check">✓</div>
-            <h4>Meeting Confirmed! 🎉</h4>
-            <p>Wed, Sep 16 at 10:00 AM (PT) with PersonaliAI Sales</p>
-            <div class="bc-cal-links">
-              <a href="#" class="bc-cal-link">Google Calendar</a>
-              <a href="#" class="bc-cal-link">Outlook</a>
-            </div>
-          </div>
-        </div>
-      `);
-      messages.scrollTop = messages.scrollHeight;
-      await sleep(1000);
+      // Switch to Slot Selected Form
+      await new Promise(r => setTimeout(r, 400));
+      showView(vSlotForm);
 
-      const rect = document.getElementById('demo-submit-btn').getBoundingClientRect();
-      await clickAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      // View attendee form
+      await new Promise(r => setTimeout(r, 2600));
 
-      document.getElementById('booking-form-wrap').style.display = 'none';
-      document.getElementById('demo-confirmed-wrap').classList.add('active');
-      messages.scrollTop = messages.scrollHeight;
-      await sleep(1800);
+      // Move cursor to Header Phone button to start voice call
+      await moveCursor(1180, 42, 800);
+      triggerClick(1180, 42);
 
-      const phoneRect = callBtn.getBoundingClientRect();
-      await clickAt(phoneRect.left + phoneRect.width / 2, phoneRect.top + phoneRect.height / 2);
-      voiceScreen.classList.add('active');
-      await sleep(3500);
+      // Switch to Voice Call Widget
+      await new Promise(r => setTimeout(r, 400));
+      showView(vVoice);
 
-      outro.classList.add('active');
-      await sleep(3000);
-      window.__demoFinished = true;
+      // Showcase Voice Call Widget with pulsing audio orb, live transcript, and confirmed booking
+      await new Promise(r => setTimeout(r, 4000));
+
+      // Show Outro
+      outro.classList.add('show');
     }
 
-    window.startDemo = startDemo;
+    window.addEventListener('DOMContentLoaded', () => {
+      runDemo();
+    });
   </script>
 </body>
 </html>

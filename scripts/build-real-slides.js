@@ -1,4 +1,8 @@
-<!DOCTYPE html>
+﻿const fs = require('fs');
+const path = require('path');
+const { chromium } = require('playwright');
+
+const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -222,3 +226,35 @@
 
 </body>
 </html>
+`;
+
+fs.writeFileSync(path.join(__dirname, '../public/product-hunt-assets/slides_stage.html'), htmlContent, 'utf8');
+
+async function renderSlides() {
+  const browser = await chromium.launch({
+    headless: true,
+    executablePath: 'C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe'
+  });
+  const page = await browser.newPage({ viewport: { width: 1270, height: 760 }, deviceScaleFactor: 2 });
+  const fileUrl = 'file:///' + path.resolve(__dirname, '../public/product-hunt-assets/slides_stage.html').replace(/\\\\/g, '/');
+  await page.goto(fileUrl, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1000);
+
+  const brainDir = 'C:\\\\Users\\\\HP\\\\.gemini\\\\antigravity\\\\brain\\\\1ca617eb-bc44-4730-826c-47a5eaa19628';
+
+  for (let i = 1; i <= 5; i++) {
+    const slide = page.locator('#slide-' + i);
+    const pubPath = path.join(__dirname, '../public/product-hunt-assets/gallery-slide-' + i + '.png');
+    const brainPath = path.join(brainDir, 'gallery-slide-' + i + '.png');
+    await slide.screenshot({ path: pubPath });
+    fs.copyFileSync(pubPath, brainPath);
+    console.log('Rendered gallery-slide-' + i + '.png');
+  }
+
+  await browser.close();
+}
+
+renderSlides().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

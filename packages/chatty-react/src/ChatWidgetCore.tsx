@@ -2069,7 +2069,7 @@ export default function ChatWidgetCore({
             sessionId={sessionId}
             backendUrl={BACKEND_URL}
             originToken={effectiveOriginToken}
-            visitorTimezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+            visitorTimezone={typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone && Intl.DateTimeFormat().resolvedOptions().timeZone !== "UTC" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "America/New_York"}
             primaryColor={primaryColor}
             onClose={() => { setVoiceCallOpen(false); refetchNow(); }}
           />
@@ -2313,7 +2313,7 @@ export default function ChatWidgetCore({
                                 <InlineBookingCard
                                   botId={String(botId)}
                                   sessionId={sessionId}
-                                  visitorTimezone={typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"}
+                                  visitorTimezone={typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone && Intl.DateTimeFormat().resolvedOptions().timeZone !== "UTC" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "America/New_York"}
                                   primaryColor={primaryColor}
                                   backendUrl={BACKEND_URL}
                                   initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}

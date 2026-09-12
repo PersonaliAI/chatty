@@ -41,6 +41,7 @@ interface VoiceCallWidgetProps {
   primaryColor: string;
   onClose: () => void;
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
+  previewMode?: boolean;
 }
 
 export default function VoiceCallWidget({
@@ -52,16 +53,37 @@ export default function VoiceCallWidget({
   primaryColor,
   onClose,
   onBookingSuccess,
+  previewMode = false,
 }: VoiceCallWidgetProps) {
-  const [status, setStatus] = useState<CallStatus>("connecting");
+  const [status, setStatus] = useState<CallStatus>(previewMode ? "agent-speaking" : "connecting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(previewMode ? 24 : 0);
   const [localLevels, setLocalLevels] = useState<number[]>(() => Array(WAVE_BAR_COUNT).fill(0));
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-  const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
-  const [showBookingCard, setShowBookingCard] = useState(false);
-  const [bookingTriggeredEntryId, setBookingTriggeredEntryId] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>(() =>
+    previewMode
+      ? [
+          { id: "p1", speaker: "visitor", text: "Can we schedule a product demo for this Wednesday at 10 AM?", final: true },
+          { id: "p2", speaker: "agent", text: "I've confirmed your product demo for Wednesday at 10:00 AM! Here are your meeting details: [BOOKING_WIDGET]", final: true },
+        ]
+      : []
+  );
+  const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(() =>
+    previewMode
+      ? {
+          meeting_link: "https://meet.google.com/abc-defg-hij",
+          formatted_time: "Wednesday, Sep 16 at 10:00 AM",
+          summary: "Chatty Product Demo",
+          start_time: "2026-09-16T10:00:00Z",
+          end_time: "2026-09-16T10:30:00Z",
+          attendee_name: "Alex Morgan",
+          attendee_email: "alex@personaliai.com",
+          assigned_to_email: "sales@personaliai.com",
+        }
+      : null
+  );
+  const [showBookingCard, setShowBookingCard] = useState(previewMode);
+  const [bookingTriggeredEntryId, setBookingTriggeredEntryId] = useState<string | null>(previewMode ? "p2" : null);
 
   const roomRef = useRef<Room | null>(null);
   const audioElRef = useRef<HTMLMediaElement | null>(null);
@@ -82,6 +104,17 @@ export default function VoiceCallWidget({
 
   useEffect(() => {
     mountedRef.current = true;
+
+    if (previewMode) {
+      const pulseInterval = setInterval(() => {
+        orbLevel.set(0.25 + Math.random() * 0.65);
+        setDuration((d) => d + 1);
+      }, 400);
+      return () => {
+        clearInterval(pulseInterval);
+        mountedRef.current = false;
+      };
+    }
 
     const widgetTokenHeader: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
     let cancelled = false;
@@ -290,11 +323,6 @@ export default function VoiceCallWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-scroll the transcript to the newest line as it streams in.
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [transcript]);
-
   // Compute the latest agent entry ID in transcript
   const lastAgentEntryId = useMemo(() => {
     for (let i = transcript.length - 1; i >= 0; i--) {
@@ -307,12 +335,19 @@ export default function VoiceCallWidget({
 
   const activeBookingId = bookingTriggeredEntryId || (showBookingCard ? lastAgentEntryId : null);
 
+  // Auto-scroll the transcript to the newest line as it streams in.
+  useEffect(() => {
+    if (previewMode) return;
+    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [transcript, previewMode]);
+
   // Auto-scroll when booking card appears or meeting confirms
   useEffect(() => {
+    if (previewMode) return;
     if (showBookingCard || confirmedMeeting) {
       transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-  }, [showBookingCard, confirmedMeeting]);
+  }, [showBookingCard, confirmedMeeting, previewMode]);
 
   // Call duration timer, starts once connected.
   useEffect(() => {
@@ -514,7 +549,7 @@ export default function VoiceCallWidget({
           {/* Live transcript - auto-scrolls to the newest line; interim
               (not-yet-final) segments render with a bouncy typing indicator
               instead of raw text jitter, then settle into place once final. */}
-          <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-thin py-3 space-y-2.5">
+          <div className={`flex-1 min-h-0 w-full ${previewMode ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin py-2 space-y-2`}>
             {transcript.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center px-6">
