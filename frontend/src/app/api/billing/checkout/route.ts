@@ -19,10 +19,24 @@ const VARIANT_IDS: Record<string, Record<"monthly" | "yearly", string | undefine
   },
 };
 
+function clean(value: unknown, max = 160): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, max).replace(/[^\w .:@/+~-]/g, "") : undefined;
+}
+
+function cleanReferralCode(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const code = value.trim().toLowerCase().slice(0, 80);
+  return /^[a-z0-9][a-z0-9_-]{1,79}$/.test(code) ? code : undefined;
+}
+
 export async function POST(request: Request) {
   const b = await request.json().catch(() => ({}));
   const plan = typeof b.plan === "string" ? b.plan.toLowerCase() : "";
   const interval = b.interval === "yearly" ? "yearly" : "monthly";
+  const referral = typeof b.referral === "object" && b.referral ? b.referral as Record<string, unknown> : {};
+  const affiliateRef = cleanReferralCode(referral.ref);
   const variantId = VARIANT_IDS[plan]?.[interval];
   if (!variantId) return NextResponse.json({ error: "Invalid or unconfigured plan" }, { status: 400 });
 
@@ -35,8 +49,34 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) { email = user.email ?? undefined; userId = user.id; }
+    if (user) {
+      email = user.email ?? undefined;
+      userId = user.id;
+      if (affiliateRef) {
+        await supabase
+          .from("users")
+          .update({
+            initial_referrer_code: affiliateRef,
+            initial_utm_source: clean(referral.utm_source) || "affiliate",
+            initial_utm_medium: clean(referral.utm_medium),
+            initial_utm_campaign: clean(referral.utm_campaign),
+            initial_landing_page: clean(referral.landing_page, 500),
+            referred_at: clean(referral.captured_at) || new Date().toISOString(),
+          })
+          .eq("auth_user_id", user.id)
+          .is("initial_referrer_code", null);
+      }
+    }
   } catch { /* unauthenticated – fine */ }
+
+  const custom: Record<string, string> = {
+    ...(userId ? { auth_user_id: userId, user_id: userId } : {}),
+    ...(affiliateRef ? { affiliate_ref: affiliateRef } : {}),
+    ...(clean(referral.utm_source) ? { utm_source: clean(referral.utm_source)! } : {}),
+    ...(clean(referral.utm_medium) ? { utm_medium: clean(referral.utm_medium)! } : {}),
+    ...(clean(referral.utm_campaign) ? { utm_campaign: clean(referral.utm_campaign)! } : {}),
+    ...(clean(referral.landing_page, 500) ? { landing_page: clean(referral.landing_page, 500)! } : {}),
+  };
 
   const body = {
     data: {
@@ -44,7 +84,7 @@ export async function POST(request: Request) {
       attributes: {
         checkout_data: {
           ...(email ? { email } : {}),
-          ...(userId ? { custom: { auth_user_id: userId } } : {}),
+          ...(Object.keys(custom).length ? { custom } : {}),
         },
         product_options: {
           redirect_url: "https://chatty.personaliai.com/success",

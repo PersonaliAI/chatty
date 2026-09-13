@@ -10,7 +10,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
@@ -34,6 +34,158 @@ from plugins.widget_brain import run_widget_assistant
 logger = logging.getLogger("chatty")
 
 router = APIRouter()
+
+AFFILIATE_DEFAULT_COMMISSION_RATE_BPS = 3000
+AFFILIATE_DEFAULT_PAYOUT_HOLD_DAYS = 30
+AFFILIATE_IP_HASH_SALT = os.environ.get("AFFILIATE_IP_HASH_SALT") or LEMON_WEBHOOK_SECRET or ""
+
+
+def _clean_referral_code(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    code = value.strip().lower()[:80]
+    return code if re.match(r"^[a-z0-9][a-z0-9_-]{1,79}$", code) else None
+
+
+def _lemon_event_id(data: dict, event_name: str) -> str:
+    meta = data.get("meta") or {}
+    event_id = meta.get("event_id") or meta.get("id")
+    if event_id:
+        return str(event_id)
+    data_id = (data.get("data") or {}).get("id")
+    if data_id:
+        return f"{event_name}:{data_id}"
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _amount_cents(attributes: dict) -> int:
+    for key in ("total", "subtotal", "amount", "total_usd"):
+        value = attributes.get(key)
+        if isinstance(value, int):
+            return max(value, 0)
+        if isinstance(value, float):
+            return max(int(round(value)), 0)
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    return 0
+
+
+async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str | None, event_id: str) -> None:
+    custom_data = (data.get("meta") or {}).get("custom_data") or {}
+    referral_code = _clean_referral_code(custom_data.get("affiliate_ref") or custom_data.get("ref"))
+    if not (referral_code and user_id):
+        return
+
+    attributes = (data.get("data") or {}).get("attributes") or {}
+    gross_amount_cents = _amount_cents(attributes)
+    if gross_amount_cents <= 0:
+        return
+
+    affiliate_res = await run_db(lambda: supabase.table("affiliate_profiles").select(
+        "id,user_id,commission_rate_bps,payout_hold_days,status"
+    ).eq("referral_code", referral_code).limit(1).execute())
+    if not affiliate_res.data:
+        logger.info("Affiliate code %s was not found for Lemon event %s", referral_code, event_id)
+        return
+
+    affiliate = affiliate_res.data[0]
+    if affiliate.get("status") != "active":
+        logger.info("Affiliate code %s is not active; skipping commission for %s", referral_code, event_id)
+        return
+    if affiliate.get("user_id") == user_id:
+        await run_db(lambda: supabase.table("affiliate_fraud_flags").insert({
+            "affiliate_id": affiliate["id"],
+            "referred_user_id": user_id,
+            "severity": "blocked",
+            "reason": "Self-referral attempted",
+            "metadata": {"lemon_event_id": event_id, "event_name": event_name},
+        }).execute())
+        return
+
+    referral_payload = {
+        "affiliate_id": affiliate["id"],
+        "referred_user_id": user_id,
+        "referral_code": referral_code,
+        "first_landing_page": custom_data.get("landing_page"),
+        "utm_source": custom_data.get("utm_source") or "affiliate",
+        "utm_medium": custom_data.get("utm_medium"),
+        "utm_campaign": custom_data.get("utm_campaign"),
+        "status": "paid",
+        "converted_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    referral_res = await run_db(lambda: supabase.table("affiliate_referrals").upsert(
+        referral_payload,
+        on_conflict="referred_user_id",
+    ).execute())
+    referral_id = referral_res.data[0].get("id") if referral_res.data else None
+
+    rate_bps = int(affiliate.get("commission_rate_bps") or AFFILIATE_DEFAULT_COMMISSION_RATE_BPS)
+    hold_days = int(affiliate.get("payout_hold_days") or AFFILIATE_DEFAULT_PAYOUT_HOLD_DAYS)
+    commission_amount = round(gross_amount_cents * rate_bps / 10000)
+    currency = str(attributes.get("currency") or "USD").upper()
+    await run_db(lambda: supabase.table("affiliate_commissions").upsert({
+        "affiliate_id": affiliate["id"],
+        "referral_id": referral_id,
+        "referred_user_id": user_id,
+        "lemon_event_id": event_id,
+        "lemon_event_name": event_name,
+        "lemon_order_id": str(attributes.get("order_id") or (data.get("data") or {}).get("id") or ""),
+        "lemon_subscription_id": str(attributes.get("subscription_id") or attributes.get("subscription_item_id") or ""),
+        "currency": currency,
+        "gross_amount_cents": gross_amount_cents,
+        "commission_rate_bps": rate_bps,
+        "commission_amount_cents": commission_amount,
+        "status": "pending",
+        "hold_until": (datetime.now(timezone.utc) + timedelta(days=hold_days)).isoformat(),
+    }, on_conflict="lemon_event_id").execute())
+
+
+@router.post("/api/affiliate/click")
+async def record_affiliate_click(request: Request):
+    """Record an affiliate link click without exposing Supabase write access."""
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    referral_code = _clean_referral_code(payload.get("referral_code"))
+    if not referral_code:
+        raise HTTPException(status_code=400, detail="Invalid referral code")
+
+    affiliate_res = await run_db(lambda: supabase.table("affiliate_profiles").select(
+        "id,status"
+    ).eq("referral_code", referral_code).limit(1).execute())
+    affiliate = affiliate_res.data[0] if affiliate_res.data else None
+    affiliate_id = affiliate.get("id") if affiliate else None
+    if affiliate and affiliate.get("status") not in ("active", "pending"):
+        raise HTTPException(status_code=404, detail="Affiliate link unavailable")
+
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not client_ip and request.client:
+        client_ip = request.client.host
+    ip_hash = hashlib.sha256(f"{AFFILIATE_IP_HASH_SALT}:{client_ip}".encode("utf-8")).hexdigest() if client_ip else None
+
+    def _clean_text(value: object, max_len: int = 500) -> str | None:
+        if not isinstance(value, str):
+            return None
+        text = value.strip()
+        return text[:max_len] if text else None
+
+    await run_db(lambda: supabase.table("affiliate_clicks").insert({
+        "referral_code": referral_code,
+        "affiliate_id": affiliate_id,
+        "session_id": _clean_text(payload.get("session_id"), 120),
+        "landing_page": _clean_text(payload.get("landing_page"), 500),
+        "referrer_url": _clean_text(payload.get("referrer_url"), 500),
+        "utm_source": _clean_text(payload.get("utm_source"), 160),
+        "utm_medium": _clean_text(payload.get("utm_medium"), 160),
+        "utm_campaign": _clean_text(payload.get("utm_campaign"), 160),
+        "country": _clean_text(request.headers.get("cf-ipcountry") or request.headers.get("x-vercel-ip-country"), 2),
+        "ip_hash": ip_hash,
+        "user_agent": _clean_text(request.headers.get("user-agent"), 500),
+    }).execute())
+    return {"ok": True}
 
 # ---------------------------------------------------------------------------
 # WhatsApp channel (Meta Cloud API).
@@ -463,11 +615,23 @@ async def webhook_lemonsqueezy(request: Request):
 
     event_name = data.get("meta", {}).get("event_name", "")
     custom_data = data.get("meta", {}).get("custom_data", {})
-    user_id = custom_data.get("user_id")
-    variant_id = str(data.get("data", {}).get("attributes", {}).get("variant_id", ""))
+    user_id = custom_data.get("user_id") or custom_data.get("auth_user_id")
+    event_id = _lemon_event_id(data, event_name)
+    attributes = data.get("data", {}).get("attributes", {})
+    variant_id = str(attributes.get("variant_id", ""))
     plan_name = LEMON_VARIANT_TO_PLAN.get(variant_id, "hobby")
 
     logger.info("Lemon Squeezy webhook event %s for user %s, variant %s -> plan %s", event_name, user_id, variant_id, plan_name)
+    try:
+        await run_db(lambda: supabase.table("lemon_events").upsert({
+            "event_id": event_id,
+            "event_name": event_name,
+            "raw": data,
+            "processed_at": datetime.now(timezone.utc).isoformat()
+        }, on_conflict="event_id").execute())
+    except Exception:
+        logger.exception("Failed to record Lemon Squeezy event %s", event_id)
+
     if user_id and event_name in ("order_created", "subscription_created", "subscription_updated"):
         try:
             await run_db(lambda: supabase.table("user_subscriptions").upsert({
@@ -478,6 +642,12 @@ async def webhook_lemonsqueezy(request: Request):
             }).execute())
         except Exception as e:
             logger.exception("Failed to record subscription update: %s", e)
+
+    if user_id and event_name in ("order_created", "subscription_created", "subscription_payment_success"):
+        try:
+            await _record_affiliate_conversion(data, event_name, user_id, event_id)
+        except Exception as e:
+            logger.exception("Failed to record affiliate conversion for event %s: %s", event_id, e)
 
     return {"status": "success"}
 
