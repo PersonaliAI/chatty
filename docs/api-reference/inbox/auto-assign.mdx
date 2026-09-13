@@ -1,0 +1,44 @@
+---
+title: "Auto-Assign Queue Dispatch"
+api: "POST /api/admin/routing/dispatch-queue"
+description: "Dispatch unassigned tickets from the Queue to online agents using round-robin capacity balancing."
+---
+
+# Auto-Assign Queue Dispatch
+
+Scans the unassigned ticket queue for the bot and automatically routes tickets to online agents who have available capacity.
+
+## Query Parameters
+
+<ParamField query="bot_id" type="string" required>
+  The unique ID of the bot.
+</ParamField>
+
+---
+
+## Behavior
+1. Selects up to 20 unassigned tickets ordered by `last_message_at`.
+2. Queries agents currently marked `online` in `chatty_agent_presence`.
+3. Dispatches tickets in a round-robin cycle to the agent with the lowest active workload under their `max_capacity`.
+4. Updates each dispatched ticket with the agent's identity and sets `ai_paused = True`.
+
+---
+
+## Response
+
+```json Response Example
+{
+  "unassigned_found": 3,
+  "dispatched_count": 3,
+  "results": [
+    {
+      "session_id": "v-b66f3c88-8a65-4b3b-865b-04de01284e16",
+      "assigned_to": "agent@company.com"
+    },
+    {
+      "session_id": "v-c77a4d99-9b76-5c4c-976c-15ef12395f27",
+      "assigned_to": "support@company.com"
+    }
+  ]
+}
+```
