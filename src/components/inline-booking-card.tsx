@@ -202,6 +202,39 @@ function getTimeInTimezone(tzStr: string): string {
   }
 }
 
+function getDateKeyInTimezone(date: Date, timeZone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    if (values.year && values.month && values.day) {
+      return `${values.year}-${values.month}-${values.day}`;
+    }
+  } catch {
+    /* fall through */
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map((part) => parseInt(part, 10));
+  if (!year || !month || !day) return dateKey;
+  const date = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDateKey(dateKey: string, options: Intl.DateTimeFormatOptions): string {
+  const [year, month, day] = dateKey.split("-").map((part) => parseInt(part, 10));
+  if (!year || !month || !day) return dateKey;
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", ...options }).format(
+    new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
+  );
+}
+
 export function InlineBookingCard({
   botId,
   sessionId,
@@ -425,16 +458,13 @@ export function InlineBookingCard({
   // Format date helper
   const formatDateLabel = (dateStr: string) => {
     try {
-      const parts = dateStr.split("-");
-      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-      const today = new Date();
-      const isToday = d.toDateString() === today.toDateString();
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const isTomorrow = d.toDateString() === tomorrow.toDateString();
+      const todayKey = getDateKeyInTimezone(new Date(), activeTimezone);
+      const tomorrowKey = addDaysToDateKey(todayKey, 1);
+      const isToday = dateStr === todayKey;
+      const isTomorrow = dateStr === tomorrowKey;
 
-      const dayName = isToday ? "Today" : isTomorrow ? "Tomorrow" : d.toLocaleDateString("en-US", { weekday: "short" });
-      const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const dayName = isToday ? "Today" : isTomorrow ? "Tomorrow" : formatDateKey(dateStr, { weekday: "short" });
+      const monthDay = formatDateKey(dateStr, { month: "short", day: "numeric" });
       return { dayName, monthDay, isToday };
     } catch {
       return { dayName: dateStr, monthDay: "", isToday: false };
@@ -979,7 +1009,7 @@ export function InlineBookingCard({
                             backgroundColor: (isSlotSelected && cardMode === "reschedule") ? primaryColor : undefined,
                           }}
                         >
-                          <span className="block text-center whitespace-nowrap">{slot.time_label}</span>
+                          <span className="block text-center whitespace-nowrap">{slot.visitor_local_label || slot.time_label}</span>
                           {slot.eligible_hosts && slot.eligible_hosts.length > 0 && (
                             <span className={`mt-1 block truncate text-center text-[9px] ${isSlotSelected && cardMode === "reschedule" ? "text-white/80" : "text-neutral-400 dark:text-neutral-500"}`}>
                               {slot.eligible_hosts.length === 1
