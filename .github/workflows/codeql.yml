@@ -34,3 +34,11 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
+          upload: false
+
+      - name: Upload SARIF report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-${{ matrix.language }}-sarif
+          path: /home/runner/work/chatty/results/
+          if-no-files-found: ignore
