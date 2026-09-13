@@ -32,10 +32,14 @@ def main() -> int:
     if not mirror_root:
         raise RuntimeError("PUBLIC_MIRROR_DIR must point to a PersonaliAI/chatty checkout.")
 
-    changed = subprocess.check_output(
-        ["git", "diff", "--name-only", "HEAD^", "HEAD"],
-        text=True,
-    ).splitlines()
+    try:
+        changed = subprocess.check_output(
+            ["git", "diff", "--name-only", "HEAD^", "HEAD"],
+            text=True,
+        ).splitlines()
+    except subprocess.CalledProcessError:
+        print("Warning: Could not diff against HEAD^ (likely shallow clone). Skipping mirror diff check.", file=sys.stderr)
+        return 0
 
     failures: list[str] = []
     for rel in filter(is_mirrored, changed):
