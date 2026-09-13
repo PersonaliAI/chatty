@@ -20,6 +20,11 @@ from app.core.clients import supabase
 from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, RESEND_INBOUND_WEBHOOK_SECRET
 from app.core.db import run_db
 from app.services.chatty_quota_service import chatty_quota_exceeded
+from app.services.whatsapp_service import (
+    build_whatsapp_booking_url,
+    get_bot_whatsapp_secret,
+    send_whatsapp_message,
+)
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
@@ -120,62 +125,14 @@ async def _send_whatsapp(
     quick_replies: list[str] | None = None,
 ) -> None:
     """Send an outbound text or interactive quick-reply message via Meta Cloud API."""
-    if not (phone_number_id and to and access_token):
-        return
-    url = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}/{phone_number_id}/messages"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-
-    valid_buttons: list[str] = []
-    if quick_replies and isinstance(quick_replies, list):
-        for b in quick_replies:
-            if isinstance(b, str) and b.strip():
-                valid_buttons.append(b.strip()[:20])
-            if len(valid_buttons) >= 3:
-                break
-
-    # If quick-reply buttons are configured and body fits within 1024 chars, send interactive
-    if valid_buttons and len(text) <= 1024:
-        payload: dict[str, Any] = {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": to,
-            "type": "interactive",
-            "interactive": {
-                "type": "button",
-                "body": {"text": text},
-                "action": {
-                    "buttons": [
-                        {
-                            "type": "reply",
-                            "reply": {
-                                "id": f"btn_{i+1}",
-                                "title": btn_title,
-                            },
-                        }
-                        for i, btn_title in enumerate(valid_buttons)
-                    ]
-                },
-            },
-        }
-    else:
-        payload = {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": to,
-            "type": "text",
-            "text": {"body": text[:4096]},
-        }
-
-    try:
-        async with httpx.AsyncClient(timeout=15) as c:
-            res = await c.post(url, headers=headers, json=payload)
-            if res.status_code >= 400:
-                logger.error("Meta WhatsApp send failed (%s): %s", res.status_code, res.text)
-    except Exception:
-        logger.exception("WhatsApp send message failed")
+    await send_whatsapp_message(
+        phone_number_id=phone_number_id,
+        to=to,
+        text=text,
+        access_token=access_token,
+        quick_replies=quick_replies,
+        api_version=WHATSAPP_API_VERSION,
+    )
 
 
 async def _handle_whatsapp_message(
@@ -233,6 +190,33 @@ async def _handle_whatsapp_message(
 
     if not reply:
         return
+
+    # Intercept booking widget marker or explicit scheduling requests
+    booking_marker = "[BOOKING_WIDGET]"
+    wants_booking = (
+        booking_marker in reply
+        or (
+            bot.get("calendar_scheduling_enabled")
+            and re.search(r"\b(book|booking|schedule|appointment|demo)\b", text, re.IGNORECASE)
+            and not any(k in reply for k in ("/book/", "meet.google.com", "teams.microsoft.com"))
+        )
+    )
+
+    if wants_booking:
+        secret = get_bot_whatsapp_secret(bot)
+        booking_url, _, _ = build_whatsapp_booking_url(bot_id=bot_id, phone=frm, secret=secret)
+        booking_cta = (
+            f"\n\n📅 *Schedule your appointment here:*\n"
+            f"{booking_url}\n\n"
+            f"_Tap the link to choose your preferred date & time slot._"
+        )
+        if booking_marker in reply:
+            reply = reply.replace(booking_marker, "").strip() + booking_cta
+        elif not any(x in reply for x in ("/book/", "meet.google.com", "teams.microsoft.com")):
+            reply = reply.strip() + booking_cta
+    else:
+        # Strip booking marker if leftover
+        reply = reply.replace(booking_marker, "").strip()
 
     # Save AI reply
     try:

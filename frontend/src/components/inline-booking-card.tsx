@@ -96,6 +96,8 @@ export interface InlineBookingCardProps {
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
   onMeetingRescheduled?: (meeting: ConfirmedMeeting) => void;
   onMeetingCancelled?: () => void;
+  sig?: string;
+  t?: string;
 }
 
 interface TzOption {
@@ -215,6 +217,8 @@ export function InlineBookingCard({
   onBookingSuccess,
   onMeetingRescheduled,
   onMeetingCancelled,
+  sig,
+  t,
 }: InlineBookingCardProps) {
   const [loading, setLoading] = useState(true);
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
@@ -489,6 +493,8 @@ export function InlineBookingCard({
       const payload = {
         bot_id: botId,
         session_id: sessionId || null,
+        sig: sig || undefined,
+        t: t || undefined,
         start_time: selectedSlot.start,
         end_time: selectedSlot.end,
         visitor_timezone: activeTimezone,

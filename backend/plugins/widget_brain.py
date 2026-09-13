@@ -699,6 +699,80 @@ async def run_widget_assistant(
     if voice_mode:
         voice_role_block = _VOICE_ROLE_INSTRUCTIONS.get(bot.get("voice_agent_role") or "general", "")
 
+    # ── VISITOR MEMORY & ACTIVE APPOINTMENTS (Context Awareness) ──
+    lead_row = None
+    lead_memory_lines: list[str] = []
+    try:
+        lead_res = await run_db(
+            lambda: supabase.table("chatty_leads")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("session_id", session_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if lead_res.data:
+            lead_row = lead_res.data[0]
+            if lead_row.get("name"):
+                lead_memory_lines.append(f"- Visitor Name: {lead_row['name']}")
+            if lead_row.get("email"):
+                lead_memory_lines.append(f"- Visitor Email: {lead_row['email']}")
+            if lead_row.get("phone"):
+                lead_memory_lines.append(f"- Visitor Phone: {lead_row['phone']}")
+            if lead_row.get("custom_fields") and isinstance(lead_row["custom_fields"], dict):
+                for k, v in lead_row["custom_fields"].items():
+                    if v and str(v).strip():
+                        lead_memory_lines.append(f"- {k.capitalize()}: {v}")
+    except Exception:
+        logger.exception("Error loading lead profile into widget brain memory")
+
+    active_meetings_lines: list[str] = []
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        filter_parts = [f"session_id.eq.{session_id}"]
+        if lead_row and lead_row.get("email"):
+            filter_parts.append(f"attendee_email.eq.{lead_row['email'].strip().lower()}")
+
+        meet_res = await run_db(
+            lambda: supabase.table("chatty_meetings")
+            .select("id, summary, start_time, end_time, attendee_name, attendee_email, meeting_link, status")
+            .eq("bot_id", bot_id)
+            .neq("status", "cancelled")
+            .gte("end_time", now_iso)
+            .or_(",".join(filter_parts))
+            .order("start_time", desc=False)
+            .limit(3)
+            .execute()
+        )
+        if meet_res.data:
+            for m in meet_res.data:
+                m_start = agent_tools._format_invitation_time(m["start_time"], visitor_timezone)
+                m_link = m.get("meeting_link") or "Online Meeting Link"
+                m_summary = m.get("summary") or "Scheduled Appointment"
+                m_status = m.get("status") or "confirmed"
+                active_meetings_lines.append(
+                    f"- '{m_summary}' scheduled for {m_start} (Status: {m_status}). Link: {m_link}"
+                )
+    except Exception:
+        logger.exception("Error loading active meetings into widget brain memory")
+
+    visitor_memory_block = ""
+    if lead_memory_lines or active_meetings_lines:
+        mem_sections = ["VISITOR MEMORY & BOOKING CONTEXT:"]
+        if lead_memory_lines:
+            mem_sections.append("KNOWN VISITOR PROFILE:")
+            mem_sections.extend(lead_memory_lines)
+        if active_meetings_lines:
+            mem_sections.append("ACTIVE UPCOMING APPOINTMENTS:")
+            mem_sections.extend(active_meetings_lines)
+        mem_sections.append(
+            "CRITICAL MEMORY INSTRUCTION: You already know this visitor and their appointments. "
+            "Address them personally. If they ask about their booking or appointment details, provide their confirmed time and meeting link directly. "
+            "DO NOT ask for their name, email, or contact details again because you already have them on file!"
+        )
+        visitor_memory_block = "\n".join(mem_sections) + "\n\n"
+
     system_instruction = (
         f"{persona}"
         f"{voice_role_block}"
@@ -708,6 +782,7 @@ async def run_widget_assistant(
         f"=== END KNOWLEDGE ===\n\n"
         f"{scheduling_block}"
         f"{lead_capture_block}"
+        f"{visitor_memory_block}"
         f"(Internal - never share: Bot ID {bot_id})"
     )
 

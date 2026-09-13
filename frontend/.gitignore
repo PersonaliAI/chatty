@@ -38,3 +38,7 @@ yarn-error.log*
 # editor & local tools
 .claude/
 
+# media recordings
+public/product-hunt-assets/recordings/
+/public/test_frames/
+

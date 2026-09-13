@@ -29,6 +29,11 @@ from app.services.widget_session_service import (
     _upsert_session,
     geoip_lookup,
 )
+from app.services.whatsapp_service import (
+    dispatch_whatsapp_booking_confirmation,
+    get_bot_whatsapp_secret,
+    verify_whatsapp_booking_signature,
+)
 from plugins import ai_client
 from app.schemas.widget import (
     WidgetBookingConfirmRequest,
@@ -1474,6 +1479,41 @@ async def widget_booking_confirm(
             }).execute())
         except Exception:
             logger.exception("Failed to record booking confirmation in chatty_conversations")
+
+    # If the booking originated from WhatsApp (wa:<phone>), verify HMAC and dispatch WhatsApp confirmation
+    if body.session_id and body.session_id.startswith("wa:"):
+        wa_phone = body.session_id[3:].strip()
+        secret = get_bot_whatsapp_secret(bot)
+        sig_valid = False
+        if body.t and body.sig:
+            sig_valid = verify_whatsapp_booking_signature(
+                bot_id=body.bot_id,
+                phone=wa_phone,
+                timestamp=body.t,
+                signature=body.sig,
+                secret=secret,
+            )
+
+        if sig_valid:
+            try:
+                sent = await dispatch_whatsapp_booking_confirmation(
+                    bot=bot,
+                    phone=wa_phone,
+                    formatted_time=formatted_time,
+                    meeting_link=meeting_link,
+                    attendee_email=visitor_email,
+                    attendee_name=visitor_name,
+                )
+                if sent:
+                    logger.info("WhatsApp booking confirmation sent to %s for bot %s", wa_phone, body.bot_id)
+            except Exception:
+                logger.exception("Failed to dispatch WhatsApp booking confirmation to %s", wa_phone)
+        else:
+            logger.warning(
+                "WhatsApp booking confirmation skipped: invalid, missing, or expired HMAC signature (session_id=%s, bot_id=%s)",
+                body.session_id,
+                body.bot_id,
+            )
 
     assigned_email = exec_res.get("assigned_to_email") or (owner_user.get("email") or "").strip().lower()
 

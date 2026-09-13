@@ -62,6 +62,8 @@ class WidgetBookingConfirmRequest(BaseModel):
     company: Optional[str] = ""
     notes: Optional[str] = ""
     verification_code: Optional[str] = None
+    t: Optional[str] = None
+    sig: Optional[str] = None
 
 
 class WidgetBookingRescheduleRequest(BaseModel):
