@@ -1519,7 +1519,7 @@ async def widget_booking_confirm(
 
     return {
         "success": True,
-        "meeting_id": exec_res.get("id"),
+        "meeting_id": exec_res.get("meeting_id") or exec_res.get("id"),
         "meeting_link": meeting_link,
         "formatted_time": formatted_time,
         "summary": summary,
@@ -1529,6 +1529,71 @@ async def widget_booking_confirm(
         "attendee_email": visitor_email,
         "assigned_to_email": assigned_email,
     }
+
+
+async def _lookup_widget_meeting(
+    bot_id: str,
+    raw_meeting_id: Optional[str],
+    attendee_email: Optional[str],
+) -> Optional[dict[str, Any]]:
+    """Defensively look up a meeting row in chatty_meetings.
+    Supports:
+    1. Primary key UUID (chatty_meetings.id)
+    2. Provider event id (chatty_meetings.provider_event_id, e.g. Google Calendar event ID or Outlook event ID)
+    3. Fallback by attendee email and bot_id for active scheduled meetings.
+    Prevents PostgreSQL 22P02 'invalid input syntax for type uuid' errors when the client has a provider event ID.
+    """
+    clean_meeting_id = str(raw_meeting_id or "").strip()
+    is_uuid = False
+    if clean_meeting_id:
+        try:
+            import uuid
+            uuid.UUID(clean_meeting_id)
+            is_uuid = True
+        except (ValueError, AttributeError):
+            is_uuid = False
+
+    # 1. Primary key UUID lookup
+    if is_uuid:
+        res = await run_db(
+            lambda: supabase.table("chatty_meetings")
+            .select("*")
+            .eq("id", clean_meeting_id)
+            .eq("bot_id", bot_id)
+            .execute()
+        )
+        if res.data:
+            return res.data[0]
+
+    # 2. Provider event ID lookup (Google Calendar event ID, Outlook ID, etc.)
+    if clean_meeting_id:
+        res = await run_db(
+            lambda: supabase.table("chatty_meetings")
+            .select("*")
+            .eq("provider_event_id", clean_meeting_id)
+            .eq("bot_id", bot_id)
+            .execute()
+        )
+        if res.data:
+            return res.data[0]
+
+    # 3. Fallback: most recent active scheduled meeting for this attendee and bot
+    clean_email = (attendee_email or "").strip().lower()
+    if clean_email:
+        res = await run_db(
+            lambda: supabase.table("chatty_meetings")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("attendee_email", clean_email)
+            .neq("status", "cancelled")
+            .order("start_time", desc=False)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            return res.data[0]
+
+    return None
 
 
 @router.post("/api/widget/booking/reschedule")
@@ -1562,17 +1627,10 @@ async def widget_booking_reschedule(
     if visitor_email and await _rate_limited_async(f"booking_resched_email:{body.bot_id}:{visitor_email}", limit=5, window=300):
         raise HTTPException(status_code=429, detail="Too many reschedule attempts for this email address. Please wait a few minutes.")
 
-    # 2. Meeting lookup and status verification
-    meeting_res = await run_db(
-        lambda: supabase.table("chatty_meetings")
-        .select("*")
-        .eq("id", body.meeting_id)
-        .eq("bot_id", body.bot_id)
-        .execute()
-    )
-    if not meeting_res.data:
+    # 2. Meeting lookup and status verification (defensive UUID / provider_event_id / attendee fallback)
+    meeting = await _lookup_widget_meeting(body.bot_id, body.meeting_id, visitor_email)
+    if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found.")
-    meeting = meeting_res.data[0]
 
     if meeting.get("status") == "cancelled":
         raise HTTPException(status_code=400, detail="This meeting has already been cancelled. Please book a new meeting instead.")
@@ -1751,20 +1809,13 @@ async def widget_booking_cancel(
         if await _rate_limited_async(f"booking_cancel:{body.bot_id}:{ip}", limit=5, window=300):
             raise HTTPException(status_code=429, detail="Too many cancellation attempts. Please wait a few minutes.")
 
-    # Meeting lookup
-    meeting_res = await run_db(
-        lambda: supabase.table("chatty_meetings")
-        .select("*")
-        .eq("id", body.meeting_id)
-        .eq("bot_id", body.bot_id)
-        .execute()
-    )
-    if not meeting_res.data:
+    # Meeting lookup (defensive UUID / provider_event_id / attendee fallback)
+    meeting = await _lookup_widget_meeting(body.bot_id, body.meeting_id, visitor_email)
+    if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found.")
-    meeting = meeting_res.data[0]
 
     if meeting.get("status") == "cancelled":
-        return {"success": True, "meeting_id": body.meeting_id, "status": "cancelled", "message": "Meeting is already cancelled."}
+        return {"success": True, "meeting_id": meeting.get("id") or body.meeting_id, "status": "cancelled", "message": "Meeting is already cancelled."}
 
     if meeting.get("attendee_email", "").strip().lower() != visitor_email:
         raise HTTPException(status_code=403, detail="The email address provided does not match this booking.")
@@ -1829,7 +1880,7 @@ async def widget_booking_cancel(
 
     return {
         "success": True,
-        "meeting_id": body.meeting_id,
+        "meeting_id": meeting.get("id") or body.meeting_id,
         "status": "cancelled",
         "message": "Meeting has been cancelled.",
     }

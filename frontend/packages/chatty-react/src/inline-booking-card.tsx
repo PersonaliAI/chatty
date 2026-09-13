@@ -828,10 +828,10 @@ export function InlineBookingCard({
         <div className="p-3.5 space-y-3">
           {cardMode === "reschedule" && (
             <div className="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300 min-w-0">
                   <CalendarClock className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                  <span>Reschedule Appointment</span>
+                  <span className="truncate">Reschedule Appointment</span>
                 </div>
                 <button
                   type="button"
@@ -841,13 +841,13 @@ export function InlineBookingCard({
                     setCardMode("confirmed");
                     setStep(3);
                   }}
-                  className="text-[11px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 underline cursor-pointer"
+                  className="text-[11px] font-medium text-amber-800 dark:text-amber-300 hover:text-amber-950 dark:hover:text-amber-100 underline decoration-amber-300 dark:decoration-amber-700 underline-offset-2 cursor-pointer shrink-0 ml-auto"
                 >
                   Keep Current
                 </button>
               </div>
               {confirmedMeeting && (
-                <div className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                <div className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-snug break-words">
                   Current: <span className="font-semibold text-neutral-800 dark:text-neutral-200">{confirmedMeeting.formatted_time}</span>
                 </div>
               )}
@@ -977,9 +977,9 @@ export function InlineBookingCard({
                 <div className="pt-1">
                   {selectedSlot ? (
                     <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 space-y-2.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-neutral-500 dark:text-neutral-400">New Proposed Time:</span>
-                        <span className="font-semibold text-neutral-900 dark:text-white">{selectedSlot.visitor_local_label}</span>
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                        <span className="text-neutral-500 dark:text-neutral-400 shrink-0">New Proposed Time:</span>
+                        <span className="font-semibold text-neutral-900 dark:text-white break-words text-right">{selectedSlot.visitor_local_label}</span>
                       </div>
                       {rescheduleError && (
                         <div className="p-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-[11px] flex items-start gap-1.5">
@@ -1033,8 +1033,8 @@ export function InlineBookingCard({
       {step === 2 && selectedSlot && (
         <div className="p-3.5 space-y-3">
           {/* Selected Slot Banner (no truncation, natural wrap) */}
-          <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <Calendar className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 leading-snug break-words">
@@ -1052,7 +1052,7 @@ export function InlineBookingCard({
                 setOtpSent(false);
                 setStep(1);
               }}
-              className="text-[11px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 underline cursor-pointer shrink-0 ml-2"
+              className="text-[11px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 underline cursor-pointer shrink-0 ml-auto"
             >
               Change
             </button>

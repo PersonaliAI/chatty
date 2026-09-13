@@ -436,3 +436,107 @@ async def test_widget_booking_active_retrieval():
         assert res["meeting"]["id"] == "meet-active-1"
         assert res["meeting"]["attendee_name"] == "Active Attendee"
 
+
+@pytest.mark.anyio
+async def test_widget_booking_reschedule_with_provider_event_id():
+    """Verify reschedule succeeds when client supplies a provider event ID (e.g. Google Calendar event ID)."""
+    with patch("app.routers.widget.run_db") as mock_db, \
+         patch("plugins.agent_tools.reschedule_meeting_core", new_callable=AsyncMock) as mock_core, \
+         patch("plugins.availability_engine.is_slot_available", new_callable=AsyncMock) as mock_avail:
+
+        mock_bot = MagicMock(data=[{
+            "id": "bot-resched-provider",
+            "calendar_scheduling_enabled": True,
+            "user_id": "u-resched-p",
+            "business_hours_start": 9,
+            "business_hours_end": 17,
+            "working_days": ["mon", "tue", "wed", "thu", "fri"],
+        }])
+        # Mock meeting has a UUID id and a provider_event_id
+        mock_meeting = MagicMock(data=[{
+            "id": "3f1e497e-f828-4f2a-8b90-09fc5e5aedeb",
+            "provider_event_id": "0bckau8v3lmap6mq9sc6em2pcg",
+            "bot_id": "bot-resched-provider",
+            "attendee_name": "Google Event User",
+            "attendee_email": "google.event@company.com",
+            "status": "scheduled",
+            "lead_id": "lead-resched-p",
+            "meeting_link": "https://meet.google.com/provider-meet",
+        }])
+        mock_leads = MagicMock(data=[{"id": "lead-resched-p", "email": "google.event@company.com"}])
+        mock_owner = MagicMock(data=[{"auth_user_id": "u-resched-p", "email": "owner@reschedp.com"}])
+
+        # Sequence:
+        # 1. bot lookup
+        # 2. meeting lookup via provider_event_id
+        # 3. leads lookup
+        # 4. owner lookup
+        # 5. update chatty_meetings
+        mock_db.side_effect = [mock_bot, mock_meeting, mock_leads, mock_owner, MagicMock()]
+        mock_avail.return_value = True
+        mock_core.return_value = {"success": True, "message": "Meeting rescheduled"}
+
+        now = datetime.now(timezone.utc)
+        days_ahead = (1 - now.weekday() + 7) % 7
+        if days_ahead == 0:
+            days_ahead = 7
+        tuesday = (now + timedelta(days=days_ahead)).replace(hour=11, minute=0, second=0, microsecond=0)
+        new_start = tuesday.isoformat()
+        new_end = (tuesday + timedelta(minutes=30)).isoformat()
+
+        req = WidgetBookingRescheduleRequest(
+            bot_id="bot-resched-provider",
+            session_id="sess-resched-p",
+            meeting_id="0bckau8v3lmap6mq9sc6em2pcg",  # Google Calendar alphanumeric event ID
+            attendee_email="google.event@company.com",
+            new_start_time=new_start,
+            new_end_time=new_end,
+            visitor_timezone="UTC",
+        )
+
+        res = await widget_booking_reschedule(req)
+        assert res["success"] is True
+        assert res["meeting_id"] == "3f1e497e-f828-4f2a-8b90-09fc5e5aedeb"
+        assert res["meeting_link"] == "https://meet.google.com/provider-meet"
+
+
+@pytest.mark.anyio
+async def test_widget_booking_cancel_with_provider_event_id():
+    """Verify cancellation succeeds when client supplies a provider event ID."""
+    with patch("app.routers.widget.run_db") as mock_db, \
+         patch("plugins.agent_tools.cancel_meeting_core", new_callable=AsyncMock) as mock_cancel:
+
+        mock_bot = MagicMock(data=[{
+            "id": "bot-cancel-p",
+            "calendar_scheduling_enabled": True,
+            "user_id": "u-cancel-p",
+        }])
+        mock_meeting = MagicMock(data=[{
+            "id": "7b8c9d0e-1234-5678-9abc-def012345678",
+            "provider_event_id": "0bckau8v3lmap6mq9sc6em2pcg",
+            "bot_id": "bot-cancel-p",
+            "attendee_name": "Google Cancel User",
+            "attendee_email": "cancel.p@company.com",
+            "status": "scheduled",
+            "lead_id": "lead-cancel-p",
+            "start_time": (datetime.now(timezone.utc) + timedelta(days=2)).isoformat(),
+        }])
+        mock_leads = MagicMock(data=[{"id": "lead-cancel-p", "email": "cancel.p@company.com"}])
+        mock_owner = MagicMock(data=[{"auth_user_id": "u-cancel-p", "email": "owner@cancelp.com"}])
+
+        mock_db.side_effect = [mock_bot, mock_meeting, mock_leads, mock_owner, MagicMock()]
+        mock_cancel.return_value = {"success": True, "message": "Cancelled"}
+
+        req = WidgetBookingCancelRequest(
+            bot_id="bot-cancel-p",
+            session_id="sess-cancel-p",
+            meeting_id="0bckau8v3lmap6mq9sc6em2pcg",
+            attendee_email="cancel.p@company.com",
+        )
+
+        res = await widget_booking_cancel(req)
+        assert res["success"] is True
+        assert res["meeting_id"] == "7b8c9d0e-1234-5678-9abc-def012345678"
+        assert res["status"] == "cancelled"
+
+

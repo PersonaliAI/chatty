@@ -142,7 +142,7 @@ Represents an individual visitor ticket or omnichannel conversation thread.
 - `bot_id` (`uuid`, FK -> chatty_bots): Associated bot.
 - `status` (`text`): Lifecycle status (`open`, `pending`, `resolved`, `closed`).
 - `priority` (`text`): Helpdesk priority (`urgent`, `high`, `normal`, `low`).
-- `channel` (`text`): Ingress channel (`web`, `email`, `whatsapp`, `slack`).
+- `channel` (`text`): Ingress channel (`web`, `email`, `whatsapp`).
 - `visitor_name` (`text`): Identified visitor name.
 - `visitor_email` (`text`): Identified visitor email.
 - `assigned_agent_email` (`text`, Nullable): Currently assigned team member email.

@@ -4,30 +4,28 @@ Format: 5 scenes × 10 seconds each = 50-second product demo.
 
 Style target: warm, polished SaaS product marketing. Use Chatty cream, burnt orange, olive green, off-white cards, soft shadows, and crisp flat UI. Avoid gradient-heavy “AI SaaS” styling. Add final captions in the video editor instead of generating readable text inside the images.
 
-## Voiceover script
+## Voiceover script (55-Second Flagship Hero Tour)
 
-Most website visitors do not wait around. They have a question, they compare options, and if the answer is not there, they leave.
+Most website visitors don’t wait around. They have a question, they look for answers, and if nobody’s there to help—they leave.
 
-Chatty turns your website into an instant support and sales assistant. Train it on your pages, files, help articles, and product details, then let it answer visitors the moment they ask.
+Meet Chatty. In seconds, train your AI assistant on your website, documents, and help center across ninety-five languages.
 
-When someone is interested, Chatty does more than chat. It captures their name, email, and question, and sends the lead into your inbox so your team can follow up without losing context.
+When someone’s ready to buy, Chatty does more than chat. It captures verified leads and syncs directly into your inbox for instant human follow-up.
 
-If the next step is a meeting, Chatty can show available slots, detect the visitor’s time zone, and route the booking to the right team member’s calendar.
+Need to book a demo? Chatty checks team availability, detects the visitor’s time zone, and books meetings straight onto your Google or Outlook calendar.
 
-Inside the dashboard, your team can review conversations, leads, bookings, ratings, analytics, assignments, and activity history from one place.
+Drive it with cutting-edge models, bring your own API keys for free forever, or control your entire dashboard through our hosted MCP server.
 
-Chatty helps you answer faster, capture more leads, book more meetings, and keep every customer conversation organized.
+Live on your website in five minutes. Start your free trial today at chatty.personaliai.com.
 
-Launch your AI support assistant in minutes.
+## Suggested on-screen kinetic captions
 
-## Suggested on-screen captions
-
-- Scene 1: Visitors have questions. Chatty answers instantly.
-- Scene 2: Train it on your website, files, and docs.
-- Scene 3: Capture every lead automatically.
-- Scene 4: Book meetings in the visitor’s time zone.
-- Scene 5: Manage conversations, team workflows, and analytics.
-- End card: Chatty — AI customer support for your website.
+- Scene 1 (0:00–0:08): Most website visitors don't wait around. If answers aren't instant, they leave.
+- Scene 2 (0:08–0:17): Meet Chatty — trained on your website & docs in over 95 languages.
+- Scene 3 (0:17–0:28): Captures leads and contact info mid-chat · 1-click human inbox takeover.
+- Scene 4 (0:28–0:39): Books meetings directly inside chat · Google & Outlook Calendar sync.
+- Scene 5 (0:39–0:48): 100% Free BYOK option · Full Model Context Protocol (MCP) server.
+- End Card (0:48–0:55): Live on any website in 5 minutes · chatty.personaliai.com.
 
 ## Asset storage note
 

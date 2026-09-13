@@ -1442,9 +1442,9 @@ export default function Dashboard() {
     const ownedCount = userBots.filter((b) => b.user_id === user.id).length;
     const currentPlan = billingInfo?.plan || "free";
     const maxBots = MAX_BOTS_BY_PLAN[currentPlan] ?? 1;
-    if (ownedCount >= maxBots) {
+    if (Number.isFinite(maxBots) && ownedCount >= maxBots) {
       showToast(
-        `Chatbot limit reached (${ownedCount}/${maxBots} in use). Free and Hobby plans allow 1 chatbot. Upgrade to Standard (3 chatbots) or Business (5 chatbots) to create more!`,
+        `Chatbot limit reached (${ownedCount}/${maxBots} in use). Free allows 1, Hobby allows 3, and Standard allows 6 chatbots. Upgrade to Business for unlimited chatbots!`,
         "error"
       );
       setActiveTab("billing");
@@ -3783,7 +3783,7 @@ export default function Dashboard() {
                       const ownedCount = user ? userBots.filter((b) => b.user_id === user.id).length : 0;
                       const currentPlan = billingInfo?.plan || "free";
                       const maxBots = MAX_BOTS_BY_PLAN[currentPlan] ?? 1;
-                      const isAtLimit = ownedCount >= maxBots;
+                      const isAtLimit = Number.isFinite(maxBots) && ownedCount >= maxBots;
                       return (
                         <button
                           type="button"
@@ -4861,7 +4861,7 @@ export default function Dashboard() {
               const ownedCount = user ? userBots.filter((b) => b.user_id === user.id).length : 0;
               const currentPlan = billingInfo?.plan || "free";
               const maxBots = MAX_BOTS_BY_PLAN[currentPlan] ?? 1;
-              const isAtLimit = ownedCount >= maxBots;
+              const isAtLimit = Number.isFinite(maxBots) && ownedCount >= maxBots;
 
               if (isAtLimit) {
                 return (
@@ -4877,7 +4877,7 @@ export default function Dashboard() {
                             Your current plan (<b>{PLAN_LABELS[currentPlan] || currentPlan}</b>) allows up to <b>{maxBots} chatbot{maxBots > 1 ? "s" : ""}</b> ({ownedCount}/{maxBots} currently in use).
                           </p>
                           <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                            Upgrade to <b>Standard</b> (3 chatbots) or <b>Business</b> (5 chatbots) to create and deploy additional assistants.
+                            Upgrade to <b>Hobby</b> (3 chatbots), <b>Standard</b> (6 chatbots), or <b>Business</b> (Unlimited) to create and deploy additional assistants.
                           </p>
                         </div>
                       </div>

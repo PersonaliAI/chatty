@@ -29,7 +29,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   chatty_hobby: [
     "1,000 message credits/mo",
     "10M training characters",
-    "1 chatbot",
+    "3 chatbots",
     "Fast & Advanced AI models",
     "AI Actions & Analytics",
     "Guardrails & Notifications",
@@ -38,7 +38,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   chatty_standard: [
     "10,000 message credits/mo",
     "20M training characters",
-    "3 chatbots",
+    "6 chatbots",
     "Daily Auto Train sync",
     "Remove branding completely",
     "Unlimited team members",
@@ -46,7 +46,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   chatty_business: [
     "40,000 message credits/mo",
     "50M training characters",
-    "5 chatbots",
+    "Unlimited chatbots",
     "BYOK (Bring-Your-Own-Key) option",
     "White-label configuration",
     "Management Admin API",

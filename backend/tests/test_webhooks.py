@@ -1,6 +1,6 @@
 """Unit tests for app/routers/webhooks.py's Resend inbound-email handler
 (team scheduling Phase 4 - captures a visitor's reply to a meeting email
-into that meeting's thread). Lemon Squeezy / WhatsApp / Slack webhooks in
+into that meeting's thread). Lemon Squeezy / WhatsApp webhooks in
 this same router already had no test coverage before this file; not
 backfilled here, out of scope for this change.
 """

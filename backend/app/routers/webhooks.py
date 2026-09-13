@@ -1,4 +1,4 @@
-"""Inbound channel webhooks: WhatsApp, Slack, Lemon Squeezy billing (/webhook/*)."""
+"""Inbound channel webhooks: WhatsApp, Lemon Squeezy billing (/webhook/*)."""
 
 from __future__ import annotations
 
@@ -643,75 +643,6 @@ async def whatsapp_receive(request: Request):
 
     return {"ok": True}
 
-
-# ---------------------------------------------------------------------------
-# Slack channel (slash command). Disabled unless SLACK_SIGNING_SECRET is set.
-# Link a bot to a workspace via chatty_bots.slack_team_id.
-# ---------------------------------------------------------------------------
-SLACK_SIGNING_SECRET = os.environ.get("SLACK_SIGNING_SECRET", "")
-
-
-def _verify_slack_signature(timestamp: str, sig: str, raw_body: str) -> bool:
-    if not (SLACK_SIGNING_SECRET and timestamp and sig):
-        return False
-    try:
-        if abs(time.time() - int(timestamp)) > 300:
-            return False
-    except ValueError:
-        return False
-    base = f"v0:{timestamp}:{raw_body}".encode()
-    mine = "v0=" + hmac.new(SLACK_SIGNING_SECRET.encode(), base, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(mine, sig)
-
-
-async def _slack_answer_and_post(team_id: str, text: str, response_url: str) -> None:
-    answer = "This Slack workspace isn't linked to a Chatty bot yet."
-    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq(
-        "slack_team_id", team_id).limit(1).execute())
-    if res.data:
-        bot = res.data[0]
-        owner = await run_db(lambda: supabase.table("users").select("*").eq(
-            "auth_user_id", bot["user_id"]).limit(1).execute())
-        if not owner.data:
-            answer = "Bot owner not found."
-        elif await chatty_quota_exceeded(owner.data[0], bot["user_id"]):
-            answer = WIDGET_QUOTA_REPLY
-        else:
-            try:
-                result = await run_widget_assistant(
-                    bot_id=bot["id"], owner_user=owner.data[0], bot=bot,
-                    session_id=f"slack:{team_id}", text=text, visitor_timezone="UTC")
-                answer = result["reply"]
-            except Exception:
-                logger.exception("slack assistant failed")
-                answer = "Sorry, something went wrong."
-    try:
-        async with httpx.AsyncClient(timeout=10) as c:
-            await c.post(response_url, json={"response_type": "in_channel", "text": answer})
-    except Exception:
-        logger.exception("slack response post failed")
-
-
-@router.post("/webhook/slack")
-async def slack_command(request: Request, background_tasks: BackgroundTasks):
-    """Slack slash command → answer from the linked bot. Acks immediately and
-    posts the full answer to response_url (LLM exceeds Slack's 3s limit)."""
-    if not SLACK_SIGNING_SECRET:
-        return {"text": "Slack channel not configured."}
-    raw = (await request.body()).decode()
-    if not _verify_slack_signature(
-        request.headers.get("x-slack-request-timestamp", ""),
-        request.headers.get("x-slack-signature", ""), raw,
-    ):
-        raise HTTPException(status_code=403, detail="bad signature")
-    from urllib.parse import parse_qs
-    form = {k: v[0] for k, v in parse_qs(raw).items()}
-    text = (form.get("text") or "").strip()
-    if not text:
-        return {"text": "Ask me something, e.g. `/chatty how do I reset my password?`"}
-    background_tasks.add_task(
-        _slack_answer_and_post, form.get("team_id", ""), text, form.get("response_url", ""))
-    return {"response_type": "ephemeral", "text": "🤔 Thinking…"}
 
 
 @router.post("/webhook/lemonsqueezy")

@@ -185,6 +185,9 @@ async def process_widget_booking(
         }).execute())
 
         meeting_id = meet_res.data[0]["id"] if meet_res.data else None
+        if isinstance(result, dict) and meeting_id:
+            result["meeting_id"] = meeting_id
+            result["chatty_meeting_id"] = meeting_id
 
         owner_email = user.get("email") or "admin@personaliai.com"
         bot_owner_auth_id = bot.get("user_id")
