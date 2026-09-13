@@ -800,7 +800,7 @@ export function IntegrationsTab({
             <span className="text-[10px] text-neutral-400">Max 3 buttons (Meta limit)</span>
           </div>
           <p className="text-[11px] text-neutral-400 leading-relaxed">
-            Attach interactive quick-reply buttons below AI replies on WhatsApp for one-tap navigation (e.g. <i>"Book a Call"</i>, <i>"Talk to Human"</i>, <i>"Pricing"</i>).
+            Attach interactive quick-reply buttons below AI replies on WhatsApp for one-tap navigation (e.g. <i>&ldquo;Book a Call&rdquo;</i>, <i>&ldquo;Talk to Human&rdquo;</i>, <i>&ldquo;Pricing&rdquo;</i>).
           </p>
           <div className="flex flex-wrap gap-2 items-center">
             {whatsappQuickReplies.map((btn) => (
