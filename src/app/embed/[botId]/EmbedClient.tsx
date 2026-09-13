@@ -83,6 +83,29 @@ export interface WidgetKbCategory {
   article_count?: number;
 }
 
+export interface VisitorConversationItem {
+  sessionId: string;
+  lastSnippet: string;
+  lastSender: "user" | "assistant";
+  updatedAt: string;
+  messageCount: number;
+}
+
+function formatTimeAgo(dateStr?: string | number): string {
+  if (!dateStr) return "Recently";
+  try {
+    const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
+    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diffSec < 60) return "Just now";
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+    if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return "Recently";
+  }
+}
+
 function CodeBlock({ lang, text }: { lang: string; text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -241,6 +264,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   const [bottomNavVisible, setBottomNavVisible] = useState(true);
   const [chatNavExpanded, setChatNavExpanded] = useState(false);
+  const [conversationsList, setConversationsList] = useState<VisitorConversationItem[]>([]);
+  const [chatView, setChatView] = useState<"chat" | "list">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
 
   // Auto-extract visitor contact info if provided in chat conversation
@@ -814,14 +839,91 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   useEffect(() => {
     if (typeof window === "undefined" || !botId) return;
     try {
-      const raw = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}`);
+      // 1. Load multi-conversation registry
+      const rawConvs = localStorage.getItem(`chatty_convs_${botId}_${hostKey}`);
+      if (rawConvs) {
+        const parsed: VisitorConversationItem[] = JSON.parse(rawConvs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setConversationsList(parsed);
+        }
+      }
+
+      // 2. Load active messages
+      const raw = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`) || localStorage.getItem(`chatty_msgs_${botId}_${hostKey}`);
       if (raw) {
         const saved = JSON.parse(raw);
-        if (Array.isArray(saved) && saved.length) setMessages(saved);
+        if (Array.isArray(saved) && saved.length) {
+          setMessages(saved);
+          // If no registry yet, bootstrap with this conversation
+          if (!rawConvs) {
+            const lastM = saved[saved.length - 1];
+            const snippet = (lastM?.content || "").replace(/\[BOOKING_WIDGET\]/g, "").slice(0, 100);
+            const initialItem: VisitorConversationItem = {
+              sessionId,
+              lastSnippet: snippet || "Welcome conversation",
+              lastSender: lastM?.role || "assistant",
+              updatedAt: new Date().toISOString(),
+              messageCount: saved.length,
+            };
+            setConversationsList([initialItem]);
+            localStorage.setItem(`chatty_convs_${botId}_${hostKey}`, JSON.stringify([initialItem]));
+          }
+        }
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [botId]);
+  }, [botId, sessionId]);
+
+  // Conversation switcher
+  const switchConversation = (targetSessionId: string) => {
+    setSessionId(targetSessionId);
+    try {
+      localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, targetSessionId);
+    } catch {}
+    let targetMsgs: Message[] = [];
+    try {
+      const raw =
+        localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${targetSessionId}`) ||
+        (targetSessionId === sessionId ? localStorage.getItem(`chatty_msgs_${botId}_${hostKey}`) : null);
+      if (raw) {
+        targetMsgs = JSON.parse(raw);
+      }
+    } catch {}
+    setMessages(targetMsgs.length > 0 ? targetMsgs : [{ role: "assistant", content: welcomeMsg, sender: "ai" }]);
+    setChatView("chat");
+    setTab("messages");
+  };
+
+  // Start a fresh conversation (Crisp/WhatChimp style "+ New conversation")
+  const startNewConversation = () => {
+    const freshId = `v-${crypto.randomUUID()}`;
+    setSessionId(freshId);
+    try {
+      localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, freshId);
+    } catch {}
+    const initialMsgs: Message[] = [{ role: "assistant", content: welcomeMsg, sender: "ai" }];
+    setMessages(initialMsgs);
+    try {
+      localStorage.setItem(`chatty_msgs_${botId}_${hostKey}_${freshId}`, JSON.stringify(initialMsgs));
+      localStorage.setItem(`chatty_msgs_${botId}_${hostKey}`, JSON.stringify(initialMsgs));
+    } catch {}
+    const newItem: VisitorConversationItem = {
+      sessionId: freshId,
+      lastSnippet: welcomeMsg.slice(0, 100),
+      lastSender: "assistant",
+      updatedAt: new Date().toISOString(),
+      messageCount: 1,
+    };
+    setConversationsList((prev) => {
+      const next = [newItem, ...prev.filter((c) => c.sessionId !== freshId)];
+      try {
+        localStorage.setItem(`chatty_convs_${botId}_${hostKey}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setChatView("chat");
+    setTab("messages");
+  };
 
   // Query active scheduled meeting for the current session on load
   useEffect(() => {
@@ -862,11 +964,44 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     }
   }, []);
 
-  // Persist messages (cap to last 100)
+  // Persist messages (cap to last 100) and update conversations list registry
   useEffect(() => {
     if (typeof window === "undefined" || !botId || messages.length === 0) return;
-    try { localStorage.setItem(`chatty_msgs_${botId}_${hostKey}`, JSON.stringify(messages.slice(-100))); } catch {}
-  }, [messages, botId, hostKey]);
+    try {
+      localStorage.setItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`, JSON.stringify(messages.slice(-100)));
+      localStorage.setItem(`chatty_msgs_${botId}_${hostKey}`, JSON.stringify(messages.slice(-100)));
+
+      const lastM = messages[messages.length - 1];
+      if (lastM) {
+        const rawContent = lastM.content || "";
+        const cleanContent = rawContent
+          .replace(/\[BOOKING_WIDGET\]/g, "")
+          .replace(/\[attachment:.*?\]/g, "")
+          .trim();
+        const snippet = cleanContent || (lastM.fileUrl ? "Attachment" : "Conversation started");
+        setConversationsList((prev) => {
+          const existingIdx = prev.findIndex((c) => c.sessionId === sessionId);
+          const updated: VisitorConversationItem = {
+            sessionId,
+            lastSnippet: snippet.slice(0, 100),
+            lastSender: lastM.role,
+            updatedAt: new Date().toISOString(),
+            messageCount: messages.length,
+          };
+          let nextList: VisitorConversationItem[];
+          if (existingIdx >= 0) {
+            nextList = [updated, ...prev.filter((_, idx) => idx !== existingIdx)];
+          } else {
+            nextList = [updated, ...prev];
+          }
+          try {
+            localStorage.setItem(`chatty_convs_${botId}_${hostKey}`, JSON.stringify(nextList));
+          } catch {}
+          return nextList;
+        });
+      }
+    } catch {}
+  }, [messages, botId, hostKey, sessionId]);
 
   // Live human-agent replies via SSE (one persistent connection). Falls back
   // to the /poll endpoint if the stream can't be established.
@@ -1973,10 +2108,61 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   />
                 </div>
 
-                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
-                  <span className="flex items-center gap-2.5 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
-                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
+                <button
+                  onClick={() => {
+                    setChatView("chat");
+                    setTab("messages");
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer bg-white dark:bg-neutral-900 shadow-2xs"
+                >
+                  <span className="flex items-center gap-2.5 text-xs font-semibold">
+                    <MessageSquare className="size-4" style={{ color: primaryColor }} />
+                    Send us a message
+                  </span>
+                  <div
+                    className="size-7 rounded-full flex items-center justify-center text-white transition-transform group-hover:translate-x-0.5"
+                    style={{ background: primaryColor }}
+                  >
+                    <ArrowRight className="size-3.5" />
+                  </div>
                 </button>
+
+                {/* RECENT CONVERSATION (Crisp / WhatChimp Style) */}
+                {conversationsList.length > 0 && conversationsList[0].lastSnippet && (
+                  <div className="space-y-1 pt-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-1">
+                      Recent conversation
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => switchConversation(conversationsList[0].sessionId)}
+                      className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all text-left group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                        <div
+                          className="size-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden"
+                          style={{ background: primaryColor, color: onPrimary }}
+                        >
+                          {avatarInner("size-4")}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-[#f97316] transition-colors truncate">
+                              {botName}
+                            </span>
+                            <span className="text-[10px] text-neutral-400 shrink-0 ml-1">
+                              {formatTimeAgo(conversationsList[0].updatedAt)}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5">
+                            {conversationsList[0].lastSnippet}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    </button>
+                  </div>
+                )}
                 <button onClick={() => setShowOfflineForm(true)} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
                   <span className="flex items-center gap-2.5 text-xs font-semibold"><Mail className="size-4" style={{ color: primaryColor }} />Leave us a message</span>
                   <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
@@ -2029,8 +2215,105 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
             {/* MESSAGES */}
             {tab === "messages" && (
-              <div className="p-4 space-y-4 text-xs">
-                <AnimatePresence initial={false}>
+              chatView === "list" ? (
+                /* ── CRISP / WHATCHIMP STYLE CONVERSATIONS LIST ── */
+                <div className="p-4 space-y-4 text-xs">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                      Your conversations
+                    </span>
+                    <span className="text-[11px] text-neutral-400 font-medium">
+                      {conversationsList.length} total
+                    </span>
+                  </div>
+
+                  {/* Conversation Cards List */}
+                  <div className="space-y-2">
+                    {conversationsList.length === 0 ? (
+                      <div className="text-center py-8 space-y-3">
+                        <MessageSquare className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
+                        <p className="text-xs text-neutral-400">No conversations started yet.</p>
+                      </div>
+                    ) : (
+                      conversationsList.map((conv) => {
+                        const isActive = conv.sessionId === sessionId;
+                        return (
+                          <button
+                            key={conv.sessionId}
+                            type="button"
+                            onClick={() => switchConversation(conv.sessionId)}
+                            className={`w-full flex items-center justify-between p-3.5 rounded-2xl border text-left group cursor-pointer transition-all shadow-2xs ${
+                              isActive
+                                ? "border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850"
+                                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                              <div
+                                className="size-9 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden"
+                                style={{ background: primaryColor, color: onPrimary }}
+                              >
+                                {avatarInner("size-4")}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-[#f97316] transition-colors truncate">
+                                    {botName}
+                                  </span>
+                                  <span className="text-[10px] text-neutral-400 shrink-0 ml-1">
+                                    {formatTimeAgo(conv.updatedAt)}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5">
+                                  {conv.lastSnippet || "Click to open conversation"}
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* New Conversation Button */}
+                  <div className="pt-2 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={startNewConversation}
+                      className="px-5 py-2.5 rounded-full text-xs font-semibold shadow-sm hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                      style={{ background: primaryColor, color: onPrimary }}
+                    >
+                      <span className="text-sm">→</span>
+                      <span>New conversation</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* ── ACTIVE CHAT VIEW ── */
+                <div className="p-4 space-y-4 text-xs">
+                  {/* Top Bar inside active chat when multiple conversations exist */}
+                  {conversationsList.length > 1 && (
+                    <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-850">
+                      <button
+                        type="button"
+                        onClick={() => setChatView("list")}
+                        className="text-[11px] font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 flex items-center gap-1 cursor-pointer"
+                      >
+                        <ArrowLeft className="size-3" />
+                        <span>All conversations ({conversationsList.length})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startNewConversation}
+                        className="text-[11px] font-semibold hover:underline cursor-pointer"
+                        style={{ color: primaryColor }}
+                      >
+                        + New chat
+                      </button>
+                    </div>
+                  )}
+                  <AnimatePresence initial={false}>
                   {messages.map((msg, i) => {
                     const hasBooking = Boolean(msg.confirmedMeeting || i === lastBookingMsgIdx);
                     return (
@@ -2187,7 +2470,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 )}
                 <div ref={messagesEndRef} />
               </div>
-            )}
+            )
+          )}
 
             {/* ARTICLES (Crisp Style In-Widget Help Center) */}
             {tab === "articles" && (
@@ -2409,8 +2693,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         )}
       </div>
 
-      {/* Composer (Messages tab only) */}
-      {tab === "messages" && !voiceCallOpen && (
+      {/* Composer (Messages tab active chat only) */}
+      {tab === "messages" && chatView === "chat" && !voiceCallOpen && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" multiple />
           <AnimatePresence>
@@ -2594,6 +2878,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     type="button"
                     onClick={() => {
                       setActiveArticle(null);
+                      if (id === "messages") {
+                        if (conversationsList.length > 1) {
+                          setChatView("list");
+                        } else {
+                          setChatView("chat");
+                        }
+                      }
                       setTab(id);
                     }}
                     className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative"

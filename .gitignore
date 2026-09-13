@@ -40,4 +40,5 @@ yarn-error.log*
 
 # media recordings
 public/product-hunt-assets/recordings/
+/public/test_frames/
 
