@@ -187,6 +187,18 @@ async def get_my_affiliate_profile(user: dict[str, Any] = Depends(require_user))
                 total_earned_cents += amt
 
     # 4. Payouts statistics
+    paid_payouts_res = await run_db(
+        lambda: supabase.table("affiliate_payouts")
+        .select("amount_cents")
+        .eq("affiliate_id", affiliate_id)
+        .eq("status", "paid")
+        .execute()
+    )
+    paid_cents = sum(
+        int(p.get("amount_cents") or 0)
+        for p in (paid_payouts_res.data or [])
+    )
+
     payouts_res = await run_db(
         lambda: supabase.table("affiliate_payouts")
         .select("amount_cents, status, paid_at, payout_method, external_payout_id")
@@ -194,11 +206,6 @@ async def get_my_affiliate_profile(user: dict[str, Any] = Depends(require_user))
         .order("created_at", desc=True)
         .limit(10)
         .execute()
-    )
-    paid_cents = sum(
-        int(p.get("amount_cents") or 0)
-        for p in (payouts_res.data or [])
-        if p.get("status") == "paid"
     )
 
     conversion_rate = (

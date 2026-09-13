@@ -477,11 +477,11 @@ def test_admin_create_affiliate_payout():
     with patch("app.routers.admin.run_db", new_callable=AsyncMock) as mock_db:
         mock_db.side_effect = [
             MagicMock(data=[{"id": "aff-1", "payout_email": "partner@paypal.com"}]),
-            MagicMock(data=[{"id": "payout-001", "amount_cents": 10000, "status": "paid"}]),
             MagicMock(data=[
                 {"id": "c1", "commission_amount_cents": 5000},
                 {"id": "c2", "commission_amount_cents": 5000},
             ]),
+            MagicMock(data=[{"id": "payout-001", "amount_cents": 10000, "status": "paid"}]),
             MagicMock(data=[{"id": "c1"}, {"id": "c2"}]),
         ]
 

@@ -1629,6 +1629,31 @@ async def admin_create_affiliate_payout(
         "updated_at": now_iso,
     }
 
+    payable_res = await run_db(
+        lambda: supabase.table("affiliate_commissions")
+        .select("id, commission_amount_cents")
+        .eq("affiliate_id", body.affiliate_id)
+        .eq("status", "payable")
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    payable_commissions = payable_res.data or []
+    payable_cents = sum(int(comm.get("commission_amount_cents") or 0) for comm in payable_commissions)
+    if payable_cents <= 0:
+        raise HTTPException(status_code=400, detail="This affiliate has no payable commissions to settle.")
+    if body.amount_cents != payable_cents:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Payout amount must exactly match the current payable commission balance. "
+                "Partial affiliate payouts are not supported yet."
+            ),
+        )
+
+    comm_ids_to_update = [comm["id"] for comm in payable_commissions if comm.get("id")]
+    allocated = payable_cents
+
     payout_res = await run_db(
         lambda: supabase.table("affiliate_payouts").insert(payout_payload).execute()
     )
@@ -1637,23 +1662,6 @@ async def admin_create_affiliate_payout(
 
     payout = payout_res.data[0]
     payout_id = payout["id"]
-
-    payable_res = await run_db(
-        lambda: supabase.table("affiliate_commissions")
-        .select("id, commission_amount_cents")
-        .eq("affiliate_id", body.affiliate_id)
-        .in_("status", ["payable", "approved", "pending"])
-        .order("created_at", desc=False)
-        .execute()
-    )
-
-    allocated = 0
-    comm_ids_to_update = []
-    for comm in (payable_res.data or []):
-        if allocated >= body.amount_cents:
-            break
-        comm_ids_to_update.append(comm["id"])
-        allocated += int(comm.get("commission_amount_cents") or 0)
 
     if comm_ids_to_update:
         await run_db(
