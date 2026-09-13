@@ -217,7 +217,70 @@ async def list_extra_google_accounts(user: dict[str, Any] = Depends(require_user
         .execute()
     ))
     accounts = res.data or []
-    return {"accounts": accounts, "max": cap, "used": len(accounts)}
+    primary = {
+        "id": None,
+        "email": user.get("google_email"),
+        "connected": bool(user.get("google_access_token")),
+        "is_primary": True,
+        "label": f"Primary / Workspace Default ({user.get('google_email') or 'Not connected'})"
+    }
+    return {
+        "accounts": accounts,
+        "primary_account": primary,
+        "max": cap,
+        "used": len(accounts),
+    }
+
+
+@router.get("/api/integrations/google/calendars")
+async def get_google_calendars(
+    bot_id: Optional[str] = None,
+    account_id: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user)
+):
+    target_account_id = account_id
+    if bot_id and not target_account_id:
+        b_res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id, google_connected_account_id").eq("id", bot_id).execute())
+        if b_res.data:
+            bot = b_res.data[0]
+            if bot.get("user_id") != user["id"]:
+                raise HTTPException(status_code=403, detail="Forbidden: Bot not owned by user")
+            target_account_id = bot.get("google_connected_account_id")
+
+    try:
+        calendars = await g.list_calendars(supabase, user, account_id=target_account_id)
+        return {"calendars": calendars}
+    except g.GoogleNotConnected:
+        return {"calendars": [], "connected": False}
+    except Exception as exc:
+        logger.warning(f"Failed to list Google calendars: {exc}")
+        return {"calendars": [], "error": str(exc)}
+
+
+@router.get("/api/integrations/google/drive-folders")
+async def get_google_drive_folders(
+    bot_id: Optional[str] = None,
+    parent_id: Optional[str] = None,
+    account_id: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user)
+):
+    target_account_id = account_id
+    if bot_id and not target_account_id:
+        b_res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id, google_connected_account_id").eq("id", bot_id).execute())
+        if b_res.data:
+            bot = b_res.data[0]
+            if bot.get("user_id") != user["id"]:
+                raise HTTPException(status_code=403, detail="Forbidden: Bot not owned by user")
+            target_account_id = bot.get("google_connected_account_id")
+
+    try:
+        folders = await g.list_drive_folders(supabase, user, parent_id=parent_id, account_id=target_account_id)
+        return {"folders": folders}
+    except g.GoogleNotConnected:
+        return {"folders": [], "connected": False}
+    except Exception as exc:
+        logger.warning(f"Failed to list Google Drive folders: {exc}")
+        return {"folders": [], "error": str(exc)}
 
 
 @router.delete("/api/integrations/google/accounts/{account_id}")
@@ -226,6 +289,7 @@ async def disconnect_extra_google_account(account_id: str, user: dict[str, Any] 
         "user_id", user["id"]
     ).execute())
     return {"status": "disconnected"}
+
 
 
 @router.get("/api/integrations/calendar/events")

@@ -80,6 +80,8 @@ async def fetch_busy_intervals(
     use_ms_calendar: bool,
     time_min: datetime,
     time_max: datetime,
+    calendar_id: Optional[str] = None,
+    table: str = "users",
 ) -> list[tuple[datetime, datetime]]:
     """Provider-agnostic busy-interval fetch, normalized to a merged, sorted
     list of (start_utc, end_utc) tuples regardless of whether the connected
@@ -103,7 +105,10 @@ async def fetch_busy_intervals(
             except ValueError:
                 continue
     else:
-        res = await g.check_calendar_availability(supabase, user, time_min=time_min, time_max=time_max)
+        cal_ids = [calendar_id or "primary"]
+        res = await g.check_calendar_availability(
+            supabase, user, time_min=time_min, time_max=time_max, calendar_ids=cal_ids, table=table
+        )
         for cal_busy in (res.get("busy") or {}).values():
             for b in cal_busy:
                 s, e = b.get("start"), b.get("end")
@@ -414,9 +419,19 @@ async def get_available_slots(
     window_start = now_utc
     window_end = now_utc + timedelta(days=search_days + 1)
 
+    calendar_id = bot.get("google_calendar_id") or "primary"
+    account_id = bot.get("google_connected_account_id")
+    target_user, table = (user, "users")
+    if not use_ms_calendar and account_id:
+        try:
+            target_user, table = await g.resolve_account_user(supabase, user, account_id)
+        except Exception:
+            target_user, table = (user, "users")
+
     busy = await fetch_busy_intervals(
-        supabase, user, use_ms_calendar=use_ms_calendar,
+        supabase, target_user, use_ms_calendar=use_ms_calendar,
         time_min=window_start, time_max=window_end,
+        calendar_id=calendar_id, table=table,
     )
     daily_counts, weekly_counts = {}, {}
     if max_daily or max_weekly:
@@ -472,16 +487,29 @@ async def get_bookable_members(
     use_ms_calendar = (bot.get("meeting_provider") or "google_meet") == "teams"
     owner_email = (owner_user.get("email") or "").strip().lower()
     owner_tz_str = resolve_owner_timezone(bot, owner_user)
-    owner_has_token = bool(owner_user.get("microsoft_access_token")) if use_ms_calendar else bool(owner_user.get("google_access_token"))
+
+    cal_id = bot.get("google_calendar_id") or "primary"
+    target_owner = owner_user
+    owner_table = "users"
+    if not use_ms_calendar and bot.get("google_connected_account_id"):
+        try:
+            target_owner, owner_table = await g.resolve_account_user(supabase, owner_user, bot.get("google_connected_account_id"))
+        except Exception:
+            target_owner = owner_user
+            owner_table = "users"
+
+    owner_has_token = bool(target_owner.get("microsoft_access_token")) if use_ms_calendar else bool(target_owner.get("google_access_token"))
     members: list[dict[str, Any]] = []
     if owner_has_token:
         members.append({
             "email": owner_email,
             "name": owner_user.get("name") or owner_user.get("full_name") or owner_email,
-            "user": owner_user,
+            "user": target_owner,
             "use_ms_calendar": use_ms_calendar,
             "schedule_timezone": owner_tz_str,
             "book_on_own_calendar": True,
+            "calendar_id": cal_id,
+            "table": owner_table,
         })
     try:
         res = await run_db(lambda: supabase.table("chatty_team_members").select("email, name, book_on_own_calendar").eq(
@@ -501,10 +529,12 @@ async def get_bookable_members(
                 members.append({
                     "email": email,
                     "name": row.get("name") or email,
-                    "user": owner_user,
+                    "user": target_owner,
                     "use_ms_calendar": use_ms_calendar,
                     "schedule_timezone": owner_tz_str,
                     "book_on_own_calendar": False,
+                    "calendar_id": cal_id,
+                    "table": owner_table,
                 })
             continue
 
@@ -597,6 +627,7 @@ async def get_team_available_slots(
         busy = await fetch_busy_intervals(
             supabase, m["user"], use_ms_calendar=m["use_ms_calendar"],
             time_min=window_start, time_max=window_end,
+            calendar_id=m.get("calendar_id"), table=m.get("table", "users"),
         )
         raw = _raw_slots_for_schedule(
             day_ranges=day_ranges, tz=member_tz, busy_intervals=busy,
@@ -699,6 +730,8 @@ async def pick_assignee(
             supabase, m["user"], use_ms_calendar=m["use_ms_calendar"],
             time_min=slot_start_utc - buf - timedelta(minutes=1),
             time_max=slot_end_utc + buf + timedelta(minutes=1),
+            calendar_id=m.get("calendar_id"),
+            table=m.get("table", "users"),
         )
         if not _slot_conflicts(slot_start_utc, slot_end_utc, busy, buffer_minutes):
             free.append(m)
@@ -745,10 +778,20 @@ async def is_slot_available(
     right before actually creating the event."""
     buffer_minutes = int(bot.get("buffer_minutes") or 0)
     buf = timedelta(minutes=buffer_minutes)
+    cal_id = bot.get("google_calendar_id") or "primary"
+    account_id = bot.get("google_connected_account_id")
+    target_user, table = (user, "users")
+    if not use_ms_calendar and account_id:
+        try:
+            target_user, table = await g.resolve_account_user(supabase, user, account_id)
+        except Exception:
+            target_user, table = (user, "users")
     busy = await fetch_busy_intervals(
-        supabase, user, use_ms_calendar=use_ms_calendar,
+        supabase, target_user, use_ms_calendar=use_ms_calendar,
         time_min=start_utc - buf - timedelta(minutes=1),
         time_max=end_utc + buf + timedelta(minutes=1),
+        calendar_id=cal_id,
+        table=table,
     )
     return not _slot_conflicts(start_utc, end_utc, busy, buffer_minutes)
 

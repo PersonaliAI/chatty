@@ -43,13 +43,12 @@ import { KnowledgeProgressBar, type KnowledgeProgress } from "./knowledge-progre
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { getOnColor, primaryColorCssVars, generateColorScheme, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
-import { colorForAssignee } from "@/lib/meeting-colors";
 import {
   Home,
   Sliders,
   Database,
   MessageSquare,
-  Bot,
+  Bot as BotIcon,
   Headphones,
   User,
   Bell,
@@ -117,207 +116,39 @@ import {
   type LucideIcon
 } from "lucide-react";
 
-// Types
-interface Lead {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  created_at: string;
-  company?: string;
-  job_title?: string;
-  country?: string;
-  industry?: string;
-  budget?: string;
-  custom_fields?: Record<string, unknown>;
-  session_id?: string;
-  [key: string]: unknown;
-}
-
-// Fields the dashboard actually reads/writes off a chatty_bots row (see
-// switchActiveBot below, which is the exhaustive source for this list) -
-// the index signature covers everything else the table has that this file
-// doesn't touch by name.
-interface Bot {
-  id: string;
-  name: string;
-  welcome_message?: string;
-  conversation_starters?: string[];
-  teaser_message?: string;
-  primary_color?: string;
-  widget_style?: string;
-  font_family?: string | null;
-  font_size_percent?: number;
-  panel_size?: string;
-  send_button_style?: string;
-  avatar_icon?: string;
-  avatar_url?: string | null;
-  logo_url?: string | null;
-  selected_model?: string;
-  system_instructions?: string;
-  strict_mode?: boolean;
-  answer_mode?: "strict" | "hybrid" | "web";
-  email_notify?: boolean;
-  hide_branding?: boolean;
-  show_sender_tag?: boolean;
-  csat_enabled?: boolean;
-  voice_message_mode?: "transcribe" | "audio";
-  webhook_url?: string;
-  custom_css?: string;
-  custom_js?: string;
-  response_language?: string;
-  guardrail_topics?: string;
-  guardrail_block_profanity?: boolean;
-  guardrail_refusal_message?: string;
-  sync_google_drive?: boolean;
-  sync_google_calendar?: boolean;
-  calendar_scheduling_enabled?: boolean;
-  scheduling_duration_minutes?: number;
-  bot_timezone?: string;
-  business_hours_start?: number;
-  business_hours_end?: number;
-  working_days?: string[];
-  buffer_minutes?: number;
-  advance_notice_hours?: number;
-  max_daily_meetings?: number;
-  max_weekly_meetings?: number;
-  allowed_domains?: string[];
-  onboarding_step?: number;
-  onboarding_completed?: boolean;
-  lead_fields?: string[];
-  lead_capture_enabled?: boolean;
-  lead_required_fields?: string[];
-  bot_country?: string;
-  sync_outlook_calendar?: boolean;
-  sync_office365_calendar?: boolean;
-  meeting_provider?: string;
-  booking_email_verification?: boolean;
-  booking_block_disposable_emails?: boolean;
-  booking_limit_one_active?: boolean;
-  booking_require_business_email?: boolean;
-  [key: string]: unknown;
-}
-
-interface AdminMeeting {
-  id: string;
-  title?: string;
-  attendee_name?: string;
-  attendee_email?: string;
-  start_time: string;
-  end_time?: string;
-  status: string;
-  provider?: string;
-  meeting_link?: string;
-  assigned_to_email?: string;
-  description?: string;
-}
-
-interface MeetingMessage {
-  id: string;
-  direction: "inbound" | "outbound";
-  from_email: string;
-  subject?: string;
-  body_text?: string;
-  created_at: string;
-}
-
-interface AdminNotification {
-  id: string;
-  type?: string;
-  channel?: string;
-  recipient?: string;
-  subject?: string;
-  content?: string;
-  html_content?: string;
-  status?: string;
-  error_message?: string;
-  created_at?: string;
-}
-
-interface AdminAuditLog {
-  id: string;
-  action?: string;
-  details?: string;
-  performed_by?: string;
-  created_at?: string;
-}
-
-interface ApiKey {
-  id: string;
-  key_prefix: string;
-  revoked?: boolean;
-  request_count?: number;
-  last_used_at?: string | null;
-  created_at?: string;
-}
-
-interface Webhook {
-  id: string;
-  url: string;
-  events?: string[];
-  created_at?: string;
-}
-
-interface Source {
-  id: string;
-  type: "text" | "url" | "file";
-  name: string;
-  content: string;
-  status: "training" | "trained";
-  charCount: number;
-  crawlSchedule?: "off" | "daily" | "weekly" | "monthly";
-  nextCrawlAt?: string | null;
-}
-
-type SourceRecord = {
-  id: string;
-  type: Source["type"];
-  name: string;
-  content?: string;
-  status: Source["status"];
-  char_count?: number;
-  charCount?: number;
-  crawl_schedule?: Source["crawlSchedule"];
-  next_crawl_at?: string | null;
-};
-
-type ErrorDetails = {
-  message?: string;
-  error_description?: string;
-  detail?: string;
-  hint?: string;
-};
-
-function errorMessageFromUnknown(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  if (err && typeof err === "object") {
-    const details = err as ErrorDetails;
-    return details.message || details.error_description || details.detail || details.hint || JSON.stringify(err);
-  }
-  return "An unexpected error occurred.";
-}
-
-interface QuickReply {
-  label: string;
-  value: string;
-  icon?: string;
-}
-
-interface KnowledgeMessage {
-  role: string;
-  content: string;
-  status?: "info" | "success" | "error" | "pending";
-  filename?: string;
-  quickReplies?: QuickReply[];
-  connectorButtons?: boolean;
-  calendarButtons?: boolean;
-  leadFieldPicker?: boolean;
-  tzPicker?: boolean;
-  providerPicker?: boolean;
-  isSetup?: boolean;
-  thinkingSteps?: string[];
-}
+import {
+  type Lead,
+  type Bot,
+  type AdminMeeting,
+  type MeetingMessage,
+  type AdminNotification,
+  type AdminAuditLog,
+  type ApiKey,
+  type Webhook,
+  type Source,
+  type SourceRecord,
+  type ErrorDetails,
+  type QuickReply,
+  type KnowledgeMessage,
+  errorMessageFromUnknown,
+} from "./dashboard-types";
+import { LeadsTab } from "./tabs/LeadsTab";
+import { FeedbackTab } from "./tabs/FeedbackTab";
+import { AnalyticsTab } from "./tabs/AnalyticsTab";
+import { MailboxTab } from "./tabs/MailboxTab";
+import { NotificationsTab } from "./tabs/NotificationsTab";
+import { AuditLogTab } from "./tabs/AuditLogTab";
+import { McpTab } from "./tabs/McpTab";
+import { DeveloperTab } from "./tabs/DeveloperTab";
+import { BillingTab } from "./tabs/BillingTab";
+import { IntegrationsTab } from "./tabs/IntegrationsTab";
+import { MeetingsTab } from "./tabs/MeetingsTab";
+import { VoiceAgentTab } from "./tabs/VoiceAgentTab";
+import { HomeTab } from "./tabs/HomeTab";
+import { PlaygroundTab } from "./tabs/PlaygroundTab";
+import { CustomizerTab } from "./tabs/CustomizerTab";
+import { KnowledgeTab } from "./tabs/KnowledgeTab";
+import { SettingsTab } from "./tabs/SettingsTab";
 
 // Section Colors rows whose "text" property is really an icon/dot color
 // (no separate typed text on a button or a launcher circle).
@@ -330,17 +161,11 @@ const IconLibraryPicker = dynamic(
   { ssr: false }
 );
 
-// Lazy-loaded, no-SSR: FullCalendar (via meetings-calendar.tsx) needs the DOM.
-const MeetingsCalendar = dynamic(
-  () => import("@/components/meetings-calendar").then((m) => m.MeetingsCalendar),
-  { ssr: false }
-);
-
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [botDropdownOpen, setBotDropdownOpen] = useState(false);
-  
+
   // Custom Toast, Confirm & Dialog States
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [createBotModalOpen, setCreateBotModalOpen] = useState(false);
@@ -562,6 +387,11 @@ export default function Dashboard() {
   // Sync controls (each separate card)
   const [syncGoogleDrive, setSyncGoogleDrive] = useState(false);
   const [syncGoogleCalendar, setSyncGoogleCalendar] = useState(false);
+  const [googleConnectedAccountId, setGoogleConnectedAccountId] = useState<string | null>(null);
+  const [googleCalendarId, setGoogleCalendarId] = useState<string>("primary");
+  const [googleCalendarName, setGoogleCalendarName] = useState<string>("");
+  const [googleDriveFolderId, setGoogleDriveFolderId] = useState<string | null>(null);
+  const [googleDriveFolderName, setGoogleDriveFolderName] = useState<string | null>(null);
 
   // Scheduling settings
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
@@ -1325,6 +1155,11 @@ export default function Dashboard() {
 
         setSyncGoogleDrive(activeBot.sync_google_drive || false);
         setSyncGoogleCalendar(activeBot.sync_google_calendar || false);
+        setGoogleConnectedAccountId(activeBot.google_connected_account_id || null);
+        setGoogleCalendarId(activeBot.google_calendar_id || "primary");
+        setGoogleCalendarName(activeBot.google_calendar_name || "");
+        setGoogleDriveFolderId(activeBot.google_drive_folder_id || null);
+        setGoogleDriveFolderName(activeBot.google_drive_folder_name || null);
         setCalendarSchedulingEnabled(activeBot.calendar_scheduling_enabled || false);
         setSchedulingDuration(activeBot.scheduling_duration_minutes || 30);
         setBotTimezone(activeBot.bot_timezone || "UTC");
@@ -1474,6 +1309,11 @@ export default function Dashboard() {
 
       setSyncGoogleDrive(selected.sync_google_drive || false);
       setSyncGoogleCalendar(selected.sync_google_calendar || false);
+      setGoogleConnectedAccountId(selected.google_connected_account_id || null);
+      setGoogleCalendarId(selected.google_calendar_id || "primary");
+      setGoogleCalendarName(selected.google_calendar_name || "");
+      setGoogleDriveFolderId(selected.google_drive_folder_id || null);
+      setGoogleDriveFolderName(selected.google_drive_folder_name || null);
       setCalendarSchedulingEnabled(selected.calendar_scheduling_enabled || false);
       setSchedulingDuration(selected.scheduling_duration_minutes || 30);
       setBotTimezone(selected.bot_timezone || "UTC");
@@ -2389,6 +2229,11 @@ export default function Dashboard() {
           guardrail_refusal_message: guardrailRefusalMessage,
           sync_google_drive: syncGoogleDrive,
           sync_google_calendar: syncGoogleCalendar,
+          google_connected_account_id: googleConnectedAccountId || null,
+          google_calendar_id: googleCalendarId || "primary",
+          google_calendar_name: googleCalendarName || null,
+          google_drive_folder_id: googleDriveFolderId || null,
+          google_drive_folder_name: googleDriveFolderName || null,
           sync_outlook_calendar: syncOutlookCalendar,
           calendar_scheduling_enabled: calendarSchedulingEnabled,
           scheduling_duration_minutes: schedulingDuration,
@@ -3130,6 +2975,7 @@ export default function Dashboard() {
           folder_id_or_url: driveFolderUrl.trim(),
           max_files: driveMaxFiles,
           source,
+          bot_id: botId,
         }),
       });
 
@@ -3742,7 +3588,7 @@ export default function Dashboard() {
   };
 
   const dashAvatar = (iconCls: string) => {
-    const ICONS: Record<string, LucideIcon> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
+    const ICONS: Record<string, LucideIcon> = { bot: BotIcon, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
     // avatarUrl/logoUrl are uploaded-file URLs (arbitrary storage domain, not
     // in next.config's image allowlist) - next/image would refuse to load them.
     // eslint-disable-next-line @next/next/no-img-element
@@ -3854,7 +3700,7 @@ export default function Dashboard() {
                 className="w-full flex items-center justify-between bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors focus:outline-none cursor-pointer"
               >
                 <span className="flex items-center gap-1.5 truncate">
-                  <Bot className="size-3.5 text-neutral-400 shrink-0" />
+                  <BotIcon className="size-3.5 text-neutral-400 shrink-0" />
                   <span className="truncate">{userBots.find(b => b.id === botId)?.name || "Select Chatbot"}</span>
                 </span>
                 <ChevronDown className={`size-3.5 text-neutral-400 transition-transform ${botDropdownOpen ? 'rotate-180' : ''}`} />
@@ -4084,2283 +3930,259 @@ export default function Dashboard() {
           
           {/* TAB 1: OVERVIEW */}
           {activeTab === "home" && (
-            <div className="max-w-4xl mx-auto w-full space-y-6 py-6 px-4 flex flex-col">
-              <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Sparkles className="size-4 text-[#f97316]" />
-                  Welcome to Chatty!
-                </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2 leading-relaxed">
-                  Your chatbot is online and ready to be installed. Follow the quick steps below to train its memory, customize its visuals, and embed the code snippet onto your website.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-                  <button
-                    onClick={() => setActiveTab("knowledge")}
-                    className="p-4 text-left rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-955 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
-                  >
-                    <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">1. Train Memory</div>
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Add URLs, text documents, or API sync sources.</p>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("customizer")}
-                    className="p-4 text-left rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/20 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
-                  >
-                    <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">2. Customize Style</div>
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Preset designs: Minimalist, Glassmorphism, Neumorphism.</p>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("integrations")}
-                    className="p-4 text-left rounded-xl border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/20 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
-                  >
-                    <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">3. Install Script</div>
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Copy code scripts or iframe elements for your webpage.</p>
-                  </button>
-                </div>
-              </div>
-
-              {/* Stats Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Conversations</span>
-                    <h4 className="text-2xl font-bold mt-1">{totalSessions}</h4>
-                    <span className="text-[9px] text-green-500 font-medium flex items-center gap-0.5 mt-1">
-                      <TrendingUp className="size-3" /> Real-time active sessions
-                    </span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                    <MessageCircle className="size-5" />
-                  </div>
-                </div>
-
-                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Trained Sources</span>
-                    <h4 className="text-2xl font-bold mt-1">{sources.length} Active</h4>
-                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 flex items-center gap-1">
-                      {sources.reduce((acc, s) => acc + s.charCount, 0).toLocaleString()} characters
-                    </span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                    <Database className="size-5" />
-                  </div>
-                </div>
-
-                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Leads Captured</span>
-                    <h4 className="text-2xl font-bold mt-1">{leads.length}</h4>
-                    <span className="text-[9px] text-[#f97316] font-medium mt-1">
-                      Click to view leads tab
-                    </span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-[#f97316]">
-                    <Users className="size-5" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Performance Row - the ROI metrics */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">AI Resolution Rate</span>
-                    <h4 className="text-2xl font-bold mt-1">{resolutionRate}</h4>
-                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 block">Sessions handled without a human</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-500">
-                    <CheckCircle2 className="size-5" />
-                  </div>
-                </div>
-
-                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">CSAT</span>
-                    <h4 className="text-2xl font-bold mt-1">{csatScore}</h4>
-                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 block">Visitor thumbs-up ratio</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-500">
-                    <Star className="size-5" />
-                  </div>
-                </div>
-
-                <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Busiest Hour</span>
-                    <h4 className="text-2xl font-bold mt-1">{busiestHour}</h4>
-                    <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 block">Peak traffic (last 7 days)</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                    <Clock className="size-5" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent Feedback - the post-chat star rating + comment popup
-                  (EmbedClient.tsx's CSAT modal). Kept separate from the CSAT
-                  % tile above, which is the per-message thumbs up/down ratio. */}
-              <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Recent Feedback</h3>
-                  {csatFeedback.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("feedback")}
-                      className="text-[10px] font-semibold text-[#f97316] hover:underline cursor-pointer flex items-center gap-0.5"
-                    >
-                      View all <ChevronRight className="size-3" />
-                    </button>
-                  )}
-                </div>
-                {csatFeedback.length === 0 ? (
-                  <p className="text-xs text-neutral-400 dark:text-neutral-500">No star ratings yet. Visitors see this prompt when they close the chat after a couple of messages.</p>
-                ) : (
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {csatFeedback.slice(0, 5).map((f) => (
-                      <div key={f.id} className="flex items-start gap-3 pb-3 border-b border-neutral-100 dark:border-neutral-850 last:border-0 last:pb-0">
-                        <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <Star key={n} className={`size-3.5 ${n <= f.rating ? "fill-amber-400 text-amber-400" : "text-neutral-300 dark:text-neutral-700"}`} />
-                          ))}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          {f.comment ? (
-                            <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">{f.comment}</p>
-                          ) : (
-                            <p className="text-xs text-neutral-400 dark:text-neutral-500 italic">No comment left</p>
-                          )}
-                          <span className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 block">
-                            {new Date(f.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <HomeTab
+              setActiveTab={setActiveTab}
+              totalSessions={totalSessions}
+              sources={sources}
+              leads={leads}
+              resolutionRate={resolutionRate}
+              csatScore={csatScore}
+              busiestHour={busiestHour}
+              csatFeedback={csatFeedback}
+            />
           )}
 
           {/* TAB 2: CUSTOMIZER */}
           {activeTab === "customizer" && (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Customizer Panel */}
-                <div className="lg:col-span-7 space-y-6">
-                  <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Design Assistant presets</h3>
-                    
-                    {/* Design Presets cards */}
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { id: "minimal", name: "Minimal", desc: "Clean SaaS · off-white" },
-                        { id: "playful", name: "Playful", desc: "Consumer app · rounded & warm" },
-                        { id: "corporate", name: "Corporate", desc: "Enterprise SaaS · structured navy" },
-                        { id: "dark-sleek", name: "Dark Sleek", desc: "Dev tool · near-black with glow" },
-                        { id: "gradient-glow", name: "Gradient Glow", desc: "Startup · vivid gradient" },
-                        { id: "glassmorphism", name: "Glassmorphism", desc: "Fintech app · frosted glass" },
-                        { id: "ecommerce", name: "E-commerce", desc: "Online shop · order-aware" },
-                        { id: "healthcare-calm", name: "Healthcare Calm", desc: "Clinic · soft sage & serif" },
-                        { id: "neubrutalism", name: "Neubrutalism", desc: "Bold brand · thick borders" },
-                        { id: "luxury-editorial", name: "Luxury Editorial", desc: "Boutique · serif & gold" },
-                      ].map((style) => (
-                        <button
-                          key={style.id}
-                          onClick={() => handleInputChange(setWidgetStyle, style.id)}
-                          className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
-                            widgetStyle === style.id
-                              ? "border-[#f97316] bg-[#f97316]/5"
-                              : "border-neutral-200 dark:border-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-800/20"
-                          }`}
-                        >
-                          <div className="text-xs font-bold">{style.name}</div>
-                          <p className="text-[9px] text-neutral-400 mt-1 leading-normal">{style.desc}</p>
-                        </button>
-                      ))}
-                    </div>
-
-                    <hr className="border-neutral-100 dark:border-neutral-800 my-4" />
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Font</label>
-                      <ModernSelect
-                        value={fontFamily ?? ""}
-                        options={fontOptions}
-                        onChange={(v) => handleInputChange(setFontFamily, v || null)}
-                      />
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
-                        Loaded from Google Fonts. &quot;Design default&quot; keeps the active design preset&apos;s own font.
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355">Text Size</label>
-                        <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 tabular-nums">{fontSizePercent}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={80}
-                        max={150}
-                        step={5}
-                        value={fontSizePercent}
-                        onChange={(e) => handleInputChange(setFontSizePercent, Number(e.target.value))}
-                        style={{ "--slider-fill": `${((fontSizePercent - 80) / (150 - 80)) * 100}%` } as React.CSSProperties}
-                        className="chatty-slider w-full cursor-pointer"
-                      />
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
-                        Scales every text size in the widget together, as a percentage of normal (100%).
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-2">Chat Window Size</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {([
-                          { id: "compact", label: "Compact" },
-                          { id: "default", label: "Default" },
-                          { id: "large", label: "Large" },
-                        ] as const).map((size) => (
-                          <button
-                            key={size.id}
-                            type="button"
-                            onClick={() => handleInputChange(setPanelSize, size.id)}
-                            className={`px-3 py-2 rounded-lg border text-[11px] font-semibold cursor-pointer transition-colors ${
-                              panelSize === size.id
-                                ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
-                                : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-700"
-                            }`}
-                          >
-                            {size.label}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
-                        Starting size of the chat window on desktop. Visitors can still drag the window&apos;s corner to resize it themselves.
-                      </p>
-                    </div>
-
-                    <hr className="border-neutral-100 dark:border-neutral-800 my-4" />
-
-                    <div>
-                      <label className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-2">
-                        Voice Messages
-                        <span
-                          className="inline-flex text-neutral-400 dark:text-neutral-500 cursor-help"
-                          title="Controls what happens when a visitor taps the mic, records, and stops. 'Transcribe & send as text' turns the recording into text they can review and edit before sending. 'Send as audio message' skips that step and delivers the recording itself as a playable voice message."
-                        >
-                          <Info className="size-3.5" />
-                        </span>
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleInputChange(setVoiceMessageMode, "transcribe")}
-                          className={`px-3 py-2 rounded-lg border text-[11px] font-semibold cursor-pointer transition-colors ${
-                            voiceMessageMode === "transcribe"
-                              ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
-                              : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-700"
-                          }`}
-                        >
-                          Transcribe &amp; send as text
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleInputChange(setVoiceMessageMode, "audio")}
-                          className={`px-3 py-2 rounded-lg border text-[11px] font-semibold cursor-pointer transition-colors ${
-                            voiceMessageMode === "audio"
-                              ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
-                              : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-700"
-                          }`}
-                        >
-                          Send as audio message
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
-                        {voiceMessageMode === "audio"
-                          ? "Recordings are sent as-is, styled to match this design - see the preview."
-                          : "Recordings are transcribed to text the visitor can review before sending."}
-                      </p>
-                    </div>
-
-                    <hr className="border-neutral-100 dark:border-neutral-800 my-4" />
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Chatbot Name</label>
-                      <input
-                        type="text"
-                        value={botName}
-                        onChange={(e) => handleInputChange(setBotName, e.target.value)}
-                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Welcome Message</label>
-                      <input
-                        type="text"
-                        value={welcomeMsg}
-                        onChange={(e) => handleInputChange(setWelcomeMsg, e.target.value)}
-                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Teaser Message</label>
-                      <input
-                        type="text"
-                        value={teaserMessage}
-                        placeholder="👋 Need help? Chat with us."
-                        onChange={(e) => handleInputChange(setTeaserMessage, e.target.value)}
-                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                      />
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Proactive bubble shown next to the launcher a few seconds after a visitor lands.</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Suggested Messages</label>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-2">Tappable starter prompts shown to visitors (up to 4).</p>
-                      <div className="space-y-2">
-                        {conversationStarters.map((s, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={s}
-                              placeholder={`e.g. How can you help me?`}
-                              onChange={(e) => { const next = [...conversationStarters]; next[i] = e.target.value; handleInputChange(setConversationStarters, next); }}
-                              className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleInputChange(setConversationStarters, conversationStarters.filter((_, j) => j !== i))}
-                              className="px-2 py-1.5 text-neutral-400 hover:text-red-500 rounded-lg cursor-pointer transition-colors"
-                              aria-label="Remove suggested message"
-                            >✕</button>
-                          </div>
-                        ))}
-                        {conversationStarters.length < 4 && (
-                          <button
-                            type="button"
-                            onClick={() => handleInputChange(setConversationStarters, [...conversationStarters, ""])}
-                            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer transition-colors"
-                          >+ Add suggested message</button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Primary Hex Color</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={primaryColor}
-                          onChange={(e) => handleInputChange(setPrimaryColor, e.target.value)}
-                          className="size-8 rounded border border-neutral-200 bg-transparent p-0.5 cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={primaryColor}
-                          onChange={(e) => handleInputChange(setPrimaryColor, e.target.value)}
-                          className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        {["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#111827"].map((color) => (
-                          <button
-                            key={color}
-                            onClick={() => handleInputChange(setPrimaryColor, color)}
-                            style={{ backgroundColor: color }}
-                            className={`size-6 rounded-full border cursor-pointer ${
-                              primaryColor === color ? "border-neutral-900 dark:border-white ring-2 ring-[#f97316]/20" : "border-transparent"
-                            }`}
-                          />
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => handleInputChange(setColorScheme, generateColorScheme(primaryColor))}
-                          className="ml-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-[#f97316]/50 hover:text-[#f97316] cursor-pointer transition-colors flex items-center gap-1"
-                          title="Fill every section below from this color using color theory"
-                        >
-                          <Sparkles className="size-3" /> Auto-generate palette
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Quick-sets every section below at once. Each stays individually editable after.</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Section Colors</label>
-                      <div className="space-y-1.5">
-                        {(
-                          [
-                            { key: "header", label: "Header", props: ["bg", "text"] as const },
-                            { key: "botBubble", label: "Bot Bubble", props: ["bg", "text"] as const },
-                            { key: "userBubble", label: "User Bubble", props: ["bg", "text"] as const },
-                            { key: "inputBar", label: "Input Bar", props: ["bg", "text", "icon"] as const },
-                            { key: "sendBtn", label: "Send Button", props: ["bg", "text"] as const },
-                            { key: "launcher", label: "Launcher Button", props: ["bg", "text"] as const },
-                          ] as const
-                        ).map((section) => {
-                          // "text" doubles as the icon color on sendBtn/launcher
-                          // (a button/dot has no separate typed text), and as
-                          // real text color everywhere else.
-                          const textPropLabel = ICON_ONLY_SECTIONS.has(section.key) ? "Icon Color" : "Text Color";
-                          const scheme = colorScheme || generateColorScheme(primaryColor);
-                          const selectedProp = sectionColorProp[section.key] || "bg";
-                          const propLabel = selectedProp === "bg" ? "Background" : selectedProp === "icon" ? "Icon Color" : textPropLabel;
-                          const currentValue = (scheme[section.key] as unknown as Record<string, string>)[selectedProp] || "#000000";
-                          return (
-                            <div key={section.key} className="flex items-center gap-2">
-                              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 w-24 shrink-0 truncate">{section.label}</span>
-                              <SectionPropertyDropdown
-                                value={selectedProp}
-                                options={section.props.map((p) => ({ value: p, label: p === "bg" ? "Background" : p === "icon" ? "Icon Color" : textPropLabel }))}
-                                onChange={(v) => setSectionColorProp((prev) => ({ ...prev, [section.key]: v as "bg" | "text" | "icon" }))}
-                              />
-                              <input
-                                type="color"
-                                value={currentValue}
-                                title={`${section.label} - ${propLabel}`}
-                                onChange={(e) => {
-                                  const next = { ...scheme, [section.key]: { ...scheme[section.key], [selectedProp]: e.target.value } };
-                                  handleInputChange(setColorScheme, next);
-                                }}
-                                className="color-swatch-circle size-7 shrink-0 cursor-pointer"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {colorScheme && (
-                        <button
-                          type="button"
-                          onClick={() => handleInputChange(setColorScheme, null)}
-                          className="mt-2 text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer underline"
-                        >
-                          Reset to design defaults
-                        </button>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Send Button</label>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          { key: "plane", shape: "size-8 rounded-full", icon: <Send className="size-4" /> },
-                          { key: "arrowUp", shape: "size-8 rounded-full", icon: <ArrowUp className="size-4" /> },
-                          { key: "arrowRight", shape: "size-8 rounded-full", icon: <ArrowRight className="size-4" /> },
-                          { key: "square", shape: "size-8 rounded-lg", icon: <Send className="size-4" /> },
-                          { key: "label", shape: "h-8 px-3 rounded-full gap-1.5", icon: <Send className="size-3.5" />, label: "Send" },
-                        ].map((opt) => (
-                          <button
-                            key={opt.key}
-                            type="button"
-                            onClick={() => handleInputChange(setSendButtonStyle, opt.key)}
-                            title={opt.key}
-                            className={`p-1.5 rounded-xl border cursor-pointer transition-colors ${
-                              sendButtonStyle === opt.key
-                                ? "border-neutral-900 dark:border-white ring-2 ring-[#f97316]/20"
-                                : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300"
-                            }`}
-                          >
-                            <span
-                              style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
-                              className={`${opt.shape} flex items-center justify-center`}
-                            >
-                              {opt.icon}{opt.label && <span className="text-xs font-semibold">{opt.label}</span>}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Assistant Icon</label>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          // eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist
-                          { key: "logo", node: logoUrl ? <img src={logoUrl} alt="" className="size-5 rounded-full object-cover" /> : <span className="text-xs font-bold">{(botName?.[0] || "C").toUpperCase()}</span> },
-                          { key: "bot", node: <Bot className="size-4" /> },
-                          { key: "headset", node: <Headphones className="size-4" /> },
-                          { key: "sparkles", node: <Sparkles className="size-4" /> },
-                          { key: "message", node: <MessageSquare className="size-4" /> },
-                          { key: "user", node: <User className="size-4" /> },
-                        ].map((opt) => (
-                          <button key={opt.key} type="button" onClick={() => handleInputChange(setAvatarIcon, opt.key)} title={opt.key === "logo" ? "Logo / initial" : opt.key}
-                            className={`size-9 rounded-xl border flex items-center justify-center cursor-pointer transition-colors ${avatarIcon === opt.key ? "border-[#f97316] ring-2 ring-[#f97316]/20 text-[#f97316]" : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300"}`}>
-                            {opt.node}
-                          </button>
-                        ))}
-                        <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-                        {/* When the current avatar came from the icon library, clicking it
-                            reopens that picker (pre-filled on the same icon/color) instead
-                            of a native file dialog - a file dialog can't "replace" a library
-                            icon the way clicking an icon-shaped thumbnail suggests it should. */}
-                        <button type="button" onClick={() => avatarIconLibrarySelection ? setIconPickerOpen(true) : avatarFileRef.current?.click()} title={avatarIconLibrarySelection ? "Edit this icon" : "Upload custom image"}
-                          className={`size-9 rounded-xl border flex items-center justify-center cursor-pointer transition-colors overflow-hidden ${avatarIcon === "custom" ? "border-[#f97316] ring-2 ring-[#f97316]/20" : "border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-[#f97316]/50"}`}>
-                          {/* eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist */}
-                          {uploadingAvatar ? <Loader2 className="size-4 animate-spin" /> : (avatarIcon === "custom" && avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <Plus className="size-4" />)}
-                        </button>
-                        <button type="button" onClick={() => setIconPickerOpen(true)} title="Browse icon library"
-                          className="size-9 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-[#f97316]/50 flex items-center justify-center cursor-pointer transition-colors">
-                          <LayoutGrid className="size-4" />
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">&quot;Logo&quot; uses your uploaded logo (or the initial). Pick a preset, or upload a custom avatar image (+).</p>
-                    </div>
-
-                    {/* Brand Logo Upload */}
-                    <div className="mt-1 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1.5">Business / Brand Logo</label>
-                      <div className="flex items-center gap-4">
-                        <div 
-                          className="size-12 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center justify-center bg-neutral-50 dark:bg-neutral-950 overflow-hidden shrink-0 transition-colors"
-                          style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist */}
-                          {logoUrl ? <img src={logoUrl} alt="Logo" className="size-full object-cover" /> : <span className="text-sm font-bold text-neutral-400">{(botName?.[0] || "C").toUpperCase()}</span>}
-                        </div>
-                        <div>
-                          <input ref={logoFileRef} type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
-                          <button type="button" onClick={() => logoFileRef.current?.click()} disabled={uploadingLogo}
-                            className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 cursor-pointer disabled:opacity-55 flex items-center gap-1.5 transition-colors hover:opacity-90">
-                            {uploadingLogo ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3" />} Change Logo
-                          </button>
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">PNG/JPG, max 10 MB. Used as the widget avatar when &quot;Logo&quot; is selected.</p>
-                        </div>
-                      </div>
-
-                      {/* Brand Logo Background Color Setting */}
-                      <div className="mt-4">
-                        <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1.5">Logo Background Color</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={logoBgColor || "#ffffff"}
-                            onChange={(e) => handleInputChange(setLogoBgColor, e.target.value)}
-                            className="size-8 rounded border border-neutral-200 bg-transparent p-0.5 cursor-pointer"
-                          />
-                          <input
-                            type="text"
-                            value={logoBgColor}
-                            placeholder="e.g. #ffffff or transparent"
-                            onChange={(e) => handleInputChange(setLogoBgColor, e.target.value)}
-                            className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
-                          />
-                          {logoBgColor && (
-                            <button
-                              type="button"
-                              onClick={() => handleInputChange(setLogoBgColor, "")}
-                              className="text-[10px] text-red-500 hover:underline shrink-0"
-                            >
-                              Reset
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Color Suggestions */}
-                      {suggestedColors.length > 0 && (
-                        <div className="mt-4">
-                          <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1.5 font-medium">Suggested Colors (from Logo)</label>
-                          <div className="flex flex-wrap gap-2.5">
-                            {suggestedColors.map((color) => (
-                              <div key={color} className="flex flex-col items-center gap-1 p-1.5 border border-neutral-200 dark:border-neutral-850 rounded-xl bg-neutral-50/50 dark:bg-neutral-950/50">
-                                <div 
-                                  className="w-7 h-7 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-sm transition-transform hover:scale-105"
-                                  style={{ backgroundColor: color }}
-                                  title={color}
-                                />
-                                <span className="text-[8px] font-mono text-neutral-500 dark:text-neutral-400">{color.toUpperCase()}</span>
-                                <div className="flex gap-1 mt-1">
-                                  <button 
-                                    type="button" 
-                                    onClick={() => handleInputChange(setPrimaryColor, color)}
-                                    title="Set as Widget Primary Color"
-                                    className="px-1 py-0.5 text-[8px] font-semibold rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-85 cursor-pointer"
-                                  >
-                                    Primary
-                                  </button>
-                                  <button 
-                                    type="button" 
-                                    onClick={() => handleInputChange(setLogoBgColor, color)}
-                                    title="Set as Logo Background Color"
-                                    className="px-1 py-0.5 text-[8px] font-semibold rounded border border-neutral-350 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
-                                  >
-                                    Logo BG
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Launcher Button Shape */}
-                      <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                        <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-450 mb-1.5">Launcher Button Shape</label>
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            { key: "circle", name: "Circle", radiusClass: "rounded-full" },
-                            { key: "bubble", name: "WhatsApp Bubble", radiusClass: "rounded-3xl rounded-br-sm" },
-                            { key: "rounded", name: "Rounded Square", radiusClass: "rounded-xl" },
-                            { key: "square", name: "Square", radiusClass: "rounded-none" },
-                          ].map((shape) => (
-                            <button
-                              key={shape.key}
-                              type="button"
-                              onClick={() => handleInputChange(setLauncherShape, shape.key)}
-                              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer transition-all flex items-center gap-2 ${
-                                launcherShape === shape.key
-                                  ? "border-[#f97316] bg-[#f97316]/5 text-[#f97316] font-bold"
-                                  : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-350"
-                              }`}
-                            >
-                              <span 
-                                className={`w-3.5 h-3.5 border border-current ${shape.radiusClass} bg-current opacity-70 shrink-0`}
-                              />
-                              {shape.name}
-                            </button>
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
-                          Select the outer shape of the floating chat button. &quot;WhatsApp Bubble&quot; automatically mirrors if the launcher position is set to the left.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Live visual mockup preview - rendered from local component state
-                    (not an iframe) so every keystroke reflects instantly with zero
-                    reload lag. Mirrors EmbedClient.tsx's header chrome (bell/refresh/
-                    close) and input-bar icons (emoji/paperclip/mic) exactly so it
-                    can't visually drift from the real widget. */}
-                <div className="lg:col-span-5 flex flex-col items-center">
-                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
-                  {/* Chat/Call preview chip - same horizontal pill-tab pattern
-                      as the Mailbox filter and the Voice Agent tab's Pipeline/
-                      Realtime tabs elsewhere on this page. Always shown (not
-                      just when voiceEnabled) so switching it on can be
-                      previewed here first. */}
-                  <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-lg p-0.5 mb-3">
-                    {([
-                      { value: "chat" as const, label: "Chat", icon: MessageCircle },
-                      { value: "call" as const, label: "Call", icon: Phone },
-                    ]).map((t) => (
-                      <button
-                        key={t.value}
-                        type="button"
-                        onClick={() => setPreviewView(t.value)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
-                          previewView === t.value
-                            ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
-                            : "text-neutral-400 hover:text-neutral-600"
-                        }`}
-                      >
-                        <t.icon className="size-3" /> {t.label}
-                      </button>
-                    ))}
-                  </div>
-                  {/* box-shadow stripped to match the real embedded widget exactly -
-                      EmbedClient.tsx strips it too, since the iframe there has zero
-                      margin and clips any shadow off. An id selector is used (not a
-                      Tailwind class) so it reliably beats globals.css's !important
-                      .style-* rule regardless of stylesheet order. */}
-                  <style>{`#customizer-live-preview { box-shadow: none !important; }\n${buildColorSchemeCss(colorScheme, "#customizer-live-preview")}\n${
-                    fontFamily && /^[a-zA-Z0-9 -]+$/.test(fontFamily)
-                      ? `#customizer-live-preview { font-family: "${fontFamily}", sans-serif !important; }`
-                      : ""
-                  }`}</style>
-                  <div
-                    id="customizer-live-preview"
-                    className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
-                    style={{ ...primaryColorCssVars(primaryColor), zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined } as React.CSSProperties}
-                  >
-                    {/* Header - background always the brand color, same as the real
-                        embedded widget; per-style CSS (globals.css) overrides it where a
-                        preset wants a different treatment (frosted/contrast). */}
-                    <div
-                      style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
-                      className="chat-header p-4 flex items-center gap-3 transition-all"
-                    >
-                      <div
-                        className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
-                        style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
-                      >
-                        {dashHeaderLogo("size-6")}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-sm leading-tight truncate">{botName}</h4>
-                        <p className="text-[9px] opacity-80">Online · replies instantly</p>
-                      </div>
-                      <div className="flex items-center shrink-0 opacity-80">
-                        <span className="p-1.5"><Bell className="size-3.5" /></span>
-                        <span className="p-1.5"><RefreshCw className="size-3.5" /></span>
-                        <span className="p-1.5"><X className="size-3.5" /></span>
-                      </div>
-                    </div>
-
-                    {previewView === "call" ? (
-                      /* Static mockup of VoiceCallWidget.tsx's call screen -
-                         compact status row, a couple of fake transcript
-                         turns using the same .bot-bubble/.user-bubble
-                         classes the real one now uses, and mute/hangup
-                         controls. No live audio, just the visual design. */
-                      <div className="flex-1 flex flex-col p-4 text-xs">
-                        <div className="flex items-center gap-3 w-full pb-3 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
-                          <div
-                            className="shrink-0 rounded-full flex items-center justify-center size-9"
-                            style={{
-                              background: `radial-gradient(circle at 35% 30%, ${primaryColor}dd, ${primaryColor}88)`,
-                              boxShadow: `0 0 12px ${primaryColor}55`,
-                            }}
-                          >
-                            <div className="rounded-full bg-white/25 backdrop-blur-sm size-5" />
-                          </div>
-                          <p className="flex-1 min-w-0 text-xs font-semibold text-neutral-500 dark:text-neutral-400 tracking-wide truncate">00:14</p>
-                        </div>
-                        <div className="flex-1 min-h-0 w-full overflow-y-auto py-3 space-y-2.5">
-                          <div className="flex justify-start">
-                            <div className="bot-bubble max-w-[80%] px-3 py-2 text-xs leading-relaxed rounded-bl-md">
-                              Hi! How can I help you today?
-                            </div>
-                          </div>
-                          <div className="flex justify-end">
-                            <div className="user-bubble max-w-[80%] px-3 py-2 text-xs leading-relaxed rounded-br-md">
-                              What are your pricing plans?
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-center gap-4 pb-1 pt-1 shrink-0">
-                          <div className="size-12 rounded-full flex items-center justify-center border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300">
-                            <MicOff className="size-5" />
-                          </div>
-                          <div className="size-14 rounded-full flex items-center justify-center bg-red-500 text-white shadow-lg">
-                            <PhoneOff className="size-6" />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                    <>
-                    {/* Messages list */}
-                    <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
-                      <div className="flex gap-2 max-w-[85%]">
-                        <div className="size-6 rounded-full bg-neutral-200/50 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden">{dashAvatar("size-3.5")}</div>
-                        <div className="bot-bubble p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-800 dark:bg-neutral-850 dark:text-neutral-200 leading-relaxed">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeKatex]}
-                            components={{
-                              p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
-                              ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-                              ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-                              li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                              a: ({ href, children }) => <SafeMarkdownLink href={href} className="underline break-all">{children}</SafeMarkdownLink>,
-                              pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
-                              code: ({ children }) => <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono">{children}</code>
-                            }}
-                          >
-                            {welcomeMsg}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 ml-auto flex-row-reverse max-w-[85%]">
-                        <div
-                          className="user-bubble p-3 rounded-2xl rounded-tr-none leading-relaxed"
-                          style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
-                        >
-                          Hi there, testing theme preview!
-                        </div>
-                      </div>
-
-                      {/* Static demo of the voice-message player - same
-                          classNames as the real AudioBubble in
-                          ChatWidgetCore.tsx, so it picks up this design's
-                          .user-bubble theming (and .audio-bubble-* rules,
-                          see globals.css) exactly as it will in the actual
-                          widget. No real <audio> element; the bars/time are
-                          fixed since this is a design preview, not a player. */}
-                      <div className="flex gap-2 ml-auto flex-row-reverse max-w-[85%]">
-                        <div
-                          className="user-bubble p-2.5 rounded-2xl rounded-tr-none leading-relaxed"
-                          style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
-                        >
-                          <div className="audio-bubble flex items-center gap-2.5 py-0.5 min-w-[188px]">
-                            <span className="audio-bubble-btn shrink-0 size-8 rounded-full flex items-center justify-center">
-                              <Play className="size-3.5 fill-current ml-0.5" />
-                            </span>
-                            <span className="flex-1 flex items-center gap-[2.5px] h-5">
-                              {[0.4, 0.7, 0.5, 0.9, 0.6, 1, 0.45, 0.75, 0.55, 0.85, 0.4, 0.65, 0.5, 0.95, 0.6, 0.7, 0.45, 0.8, 0.55, 0.9, 0.5, 0.7, 0.4, 0.6].map((h, i) => (
-                                <span key={i} className="audio-bubble-bar w-[2.5px] rounded-full shrink-0" style={{ height: `${h * 100}%`, opacity: i < 6 ? 1 : 0.35 }} />
-                              ))}
-                            </span>
-                            <span className="audio-bubble-time text-[10px] tabular-nums opacity-70 shrink-0">0:12</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Suggested-message chips (live preview) */}
-                    {conversationStarters.filter(Boolean).length > 0 && (
-                      <div className="px-3 pb-1 flex flex-col items-end gap-1.5">
-                        {conversationStarters.filter(Boolean).slice(0, 4).map((s, i) => (
-                          <span key={i} className="px-2.5 py-1.5 rounded-2xl border text-[11px] font-medium text-right" style={{ borderColor: primaryColor, color: primaryColor }}>{s}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Footer input form - same two-row layout as EmbedClient.tsx:
-                        text field on top, icon row (emoji/paperclip/mic + send) below. */}
-                    <div className="p-3">
-                      <div className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5">
-                        <input
-                          disabled
-                          type="text"
-                          placeholder="Compose your message…"
-                          className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5"
-                        />
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-0.5">
-                            <span className="chat-input-bar-icon p-1.5 text-neutral-500"><Smile className="size-4.5" /></span>
-                            <span className="chat-input-bar-icon p-1.5 text-neutral-500"><Paperclip className="size-4.5" /></span>
-                            <span className="chat-input-bar-icon p-1.5 text-neutral-500"><Mic className="size-4.5" /></span>
-                          </div>
-                          {(() => {
-                            const map: Record<string, { shape: string; icon: React.ReactNode; label?: string }> = {
-                              plane: { shape: "size-7 rounded-full", icon: <Send className="size-3.5" /> },
-                              arrowUp: { shape: "size-7 rounded-full", icon: <ArrowUp className="size-3.5" /> },
-                              arrowRight: { shape: "size-7 rounded-full", icon: <ArrowRight className="size-3.5" /> },
-                              square: { shape: "size-7 rounded-lg", icon: <Send className="size-3.5" /> },
-                              label: { shape: "h-7 px-2.5 rounded-full gap-1", icon: <Send className="size-3" />, label: "Send" },
-                            };
-                            const c = map[sendButtonStyle] || map.plane;
-                            return (
-                              <button disabled style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }} className={`send-btn ${c.shape} flex items-center justify-center shrink-0 opacity-90`}>
-                                {c.icon}{c.label && <span className="text-[11px] font-semibold">{c.label}</span>}
-                              </button>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                      {!hideBranding && (
-                        <div className="text-center pt-2 text-[9px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide">
-                          Powered by <span className="font-bold text-neutral-500 dark:text-neutral-400">Chatty</span>
-                        </div>
-                      )}
-                    </div>
-                    </>
-                    )}
-                  </div>
-
-                  {/* Floating Launcher preview in Customizer - mirrors the real
-                      launcher (page.tsx/widget.js) exactly: background and shadow
-                      come from the selected design's own LAUNCHER_STYLES, not the
-                      bot's Primary Hex Color, so this preview can't visually drift
-                      from what actually ships on the live widget. */}
-                  <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
-                    <span className="text-[10px] text-neutral-450 dark:text-neutral-500 uppercase font-bold tracking-wider">Button Preview</span>
-                    <div className="relative">
-                      {(() => {
-                        const schemeLauncherBg = colorScheme?.launcher?.bg;
-                        const launcherBg = schemeLauncherBg || LAUNCHER_STYLES[widgetStyle]?.bg || primaryColor;
-                        const launcherSolidBg = launcherBg.indexOf("gradient") === -1 ? launcherBg : "#a855f7";
-                        const launcherIconColor = colorScheme?.launcher?.text || getOnColor(launcherSolidBg);
-                        return (
-                      <div
-                        style={{
-                          background: launcherBg,
-                          boxShadow: schemeLauncherBg ? undefined : LAUNCHER_STYLES[widgetStyle]?.shadow,
-                          color: launcherIconColor,
-                          borderRadius: launcherShape === "circle" ? "50%" :
-                                        launcherShape === "square" ? "0px" :
-                                        launcherShape === "rounded" ? "12px" :
-                                        "24px 24px 4px 24px" // bubble (right side)
-                        }}
-                        className="w-14 h-14 flex items-center justify-center transition-all duration-300 select-none cursor-pointer"
-                      >
-                        {(() => {
-                          const ICONS: Record<string, LucideIcon> = { bot: Bot, headset: Headphones, sparkles: Sparkles, message: MessageSquare, user: User };
-                          if (avatarIcon === "custom" && avatarUrl) {
-                            // eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist
-                            return <img src={avatarUrl} alt="" className="size-10 rounded-full object-cover" />;
-                          }
-                          if (avatarIcon && avatarIcon !== "logo" && ICONS[avatarIcon]) {
-                            const IconComponent = ICONS[avatarIcon];
-                            return <IconComponent className="size-6" />;
-                          }
-                          // Default brand logo
-                          if (logoUrl) {
-                            return (
-                              <div
-                                className="size-10 rounded-full flex items-center justify-center overflow-hidden"
-                                style={logoBgColor ? { backgroundColor: logoBgColor } : { backgroundColor: "rgba(255,255,255,0.2)" }}
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist */}
-                                <img src={logoUrl} alt="" className="w-8 h-8 object-contain rounded-full" />
-                              </div>
-                            );
-                          }
-                          // True default (no logo uploaded yet) - the selected
-                          // design's own dot mark (or the Section Colors
-                          // launcher icon color, if set), matching the real
-                          // launcher (page.tsx/widget.js) exactly.
-                          return <div className="size-[17px] rounded-full opacity-90" style={{ background: colorScheme?.launcher?.text || LAUNCHER_STYLES[widgetStyle]?.dot || "#ffffff" }} />;
-                        })()}
-                      </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <CustomizerTab
+              widgetStyle={widgetStyle}
+              setWidgetStyle={setWidgetStyle}
+              handleInputChange={handleInputChange}
+              fontFamily={fontFamily}
+              setFontFamily={setFontFamily}
+              fontOptions={fontOptions}
+              fontSizePercent={fontSizePercent}
+              setFontSizePercent={setFontSizePercent}
+              panelSize={panelSize}
+              setPanelSize={setPanelSize}
+              voiceMessageMode={voiceMessageMode}
+              setVoiceMessageMode={setVoiceMessageMode}
+              botName={botName}
+              setBotName={setBotName}
+              welcomeMsg={welcomeMsg}
+              setWelcomeMsg={setWelcomeMsg}
+              teaserMessage={teaserMessage}
+              setTeaserMessage={setTeaserMessage}
+              conversationStarters={conversationStarters}
+              setConversationStarters={setConversationStarters}
+              primaryColor={primaryColor}
+              setPrimaryColor={setPrimaryColor}
+              colorScheme={colorScheme}
+              setColorScheme={setColorScheme}
+              sectionColorProp={sectionColorProp}
+              setSectionColorProp={setSectionColorProp}
+              sendButtonStyle={sendButtonStyle}
+              setSendButtonStyle={setSendButtonStyle}
+              avatarIcon={avatarIcon}
+              setAvatarIcon={setAvatarIcon}
+              logoUrl={logoUrl}
+              logoBgColor={logoBgColor}
+              setLogoBgColor={setLogoBgColor}
+              avatarFileRef={avatarFileRef}
+              handleAvatarUpload={handleAvatarUpload}
+              avatarIconLibrarySelection={avatarIconLibrarySelection}
+              setIconPickerOpen={setIconPickerOpen}
+              uploadingAvatar={uploadingAvatar}
+              avatarUrl={avatarUrl}
+              logoFileRef={logoFileRef}
+              handleLogoUpload={handleLogoUpload}
+              uploadingLogo={uploadingLogo}
+              suggestedColors={suggestedColors}
+              launcherShape={launcherShape}
+              setLauncherShape={setLauncherShape}
+              previewView={previewView}
+              setPreviewView={setPreviewView}
+              dashHeaderLogo={dashHeaderLogo}
+              dashAvatar={dashAvatar}
+              hideBranding={hideBranding}
+            />
           )}
           {/* TAB 3: KNOWLEDGE BASE */}
           {activeTab === "knowledge" && botId && (
-            <KBManager
+            <KnowledgeTab
               botId={botId}
-              fetchBackend={fetchWithFallback}
-              color={primaryColor}
-              rawSourcesContent={
-                <div className="space-y-6">
-              {/* Hidden file input (re-uses existing upload handler) */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleKnowledgeUpload}
-                accept=".pdf,.docx,.txt,.md"
-                className="hidden"
-              />
-
-              {/* Header */}
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  <h3 className="text-sm font-bold flex items-center gap-2">
-                    <Database className="size-4 text-[#f97316]" />
-                    {t("knowledge_base")}
-                  </h3>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
-                    Everything your assistant knows. Add text, crawl websites, upload documents, or sync a Google Drive folder - all sources are chunked and embedded into RAG memory.
-                  </p>
-                </div>
-                <button
-                  onClick={() => user && loadBotSettings(user.id)}
-                  disabled={loadingLists}
-                  className="shrink-0 flex items-center gap-1.5 text-[11px] font-semibold border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-350 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className={`size-3.5 ${loadingLists ? "animate-spin" : ""}`} />
-                  Refresh
-                </button>
-              </div>
-
-              {/* Lead Capture */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-xs font-bold flex items-center gap-2"><Database className="size-4 text-[#f97316]" />Lead Capture</h4>
-                    <p className="text-[10px] text-neutral-400 mt-1 max-w-md">Collect visitor details in conversations. Required fields must be gathered; new fields create columns in the Leads table automatically.</p>
-                  </div>
-                  <button type="button" disabled={savingLeadCapture || !botId}
-                    onClick={async () => {
-                      const next = !leadCaptureEnabled;
-                      setLeadCaptureEnabled(next);
-                      if (!botId) return;
-                      setSavingLeadCapture(true);
-                      try {
-                        await saveOnboardingStep(onboardingStep || 0, onboardingCompleted, { lead_fields: leadFields, lead_capture_enabled: next, lead_required_fields: leadRequiredFields });
-                      } finally {
-                        setSavingLeadCapture(false);
-                      }
-                    }}
-                    aria-label="Toggle lead capture"
-                    className={`relative w-10 h-6 rounded-full transition-colors shrink-0 cursor-pointer disabled:opacity-50 ${leadCaptureEnabled ? "bg-[#f97316]" : "bg-neutral-300 dark:bg-neutral-700"}`}>
-                    <span className={`absolute top-0.5 size-5 rounded-full bg-white transition-all ${leadCaptureEnabled ? "left-[18px]" : "left-0.5"}`} />
-                  </button>
-                </div>
-
-                {leadCaptureEnabled && (
-                  <>
-                    <div className="space-y-2">
-                      {leadFields.map((field) => {
-                        const required = leadRequiredFields.map((f) => f.toLowerCase()).includes(field.toLowerCase());
-                        return (
-                          <div key={field} className="flex items-center justify-between gap-2 p-2 pl-3 rounded-lg border border-neutral-100 dark:border-neutral-800">
-                            <span className="text-xs font-medium capitalize">{field.replace(/_/g, " ")}</span>
-                            <div className="flex items-center gap-2">
-                              <button type="button" onClick={() => setLeadRequiredFields((prev) => required ? prev.filter((f) => f.toLowerCase() !== field.toLowerCase()) : [...prev, field])}
-                                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold cursor-pointer transition-colors ${required ? "bg-[#f97316]/10 text-[#f97316]" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500"}`}>
-                                {required ? "Required" : "Optional"}
-                              </button>
-                              <button type="button" onClick={() => { setLeadFields((prev) => prev.filter((f) => f !== field)); setLeadRequiredFields((prev) => prev.filter((f) => f.toLowerCase() !== field.toLowerCase())); }}
-                                className="px-1.5 text-neutral-400 hover:text-red-500 text-xs cursor-pointer" aria-label="Remove field">✕</button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex gap-2">
-                      <input value={newLeadField} onChange={(e) => setNewLeadField(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const f = newLeadField.trim().toLowerCase().replace(/\s+/g, "_"); if (f && !leadFields.map((x) => x.toLowerCase()).includes(f)) setLeadFields((p) => [...p, f]); setNewLeadField(""); } }}
-                        placeholder="Add a field (e.g. company, budget)"
-                        className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none" />
-                      <button type="button" onClick={() => { const f = newLeadField.trim().toLowerCase().replace(/\s+/g, "_"); if (f && !leadFields.map((x) => x.toLowerCase()).includes(f)) setLeadFields((p) => [...p, f]); setNewLeadField(""); }}
-                        className="px-3 py-1.5 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 text-[11px] font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer">+ Add</button>
-                    </div>
-                  </>
-                )}
-
-                <button type="button" disabled={savingLeadCapture || !botId}
-                  onClick={async () => { if (!botId) return; setSavingLeadCapture(true); try { await saveOnboardingStep(onboardingStep || 0, onboardingCompleted, { lead_fields: leadFields, lead_capture_enabled: leadCaptureEnabled, lead_required_fields: leadRequiredFields }); } finally { setSavingLeadCapture(false); } }}
-                  className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50">
-                  {savingLeadCapture ? "Saving…" : "Save lead settings"}
-                </button>
-              </div>
-
-              {/* Quick connect strip */}
-              <div className="flex flex-wrap items-center gap-2 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mr-1">Quick connect:</span>
-                <CloudProviderMenu
-                  label="Google"
-                  iconSrc="/logos/google.png"
-                  connected={googleConnected}
-                  onDisconnect={() => handleDisconnectCloud("google")}
-                  services={[
-                    { label: "Google Drive", iconSrc: "/logos/google-drive.png", onClick: () => googleConnected ? setKbSourceTab("drive") : handleConnectCloud("google") },
-                    { label: "Google Calendar", iconSrc: "/logos/google-calendar.png", onClick: () => handleCalendarSyncChange("google") },
-                  ]}
-                />
-                <CloudProviderMenu
-                  label="Microsoft"
-                  iconSrc="/logos/microsoft.png"
-                  connected={microsoftConnected}
-                  onDisconnect={() => handleDisconnectCloud("microsoft")}
-                  services={[
-                    { label: "OneDrive", iconSrc: "/logos/onedrive.png", onClick: () => microsoftConnected ? setKbSourceTab("onedrive") : handleConnectCloud("microsoft") },
-                    { label: "Outlook Calendar", iconSrc: "/logos/outlook-calendar.png", onClick: () => handleCalendarSyncChange("outlook") },
-                  ]}
-                />
-                <button
-                  onClick={() => setKbSourceTab("url")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5 text-[11px] font-semibold transition-colors cursor-pointer"
-                >
-                  <Globe className="size-3.5" /> Website
-                </button>
-                <button
-                  onClick={() => { setKbSourceTab("file"); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5 text-[11px] font-semibold transition-colors cursor-pointer"
-                >
-                  <FileUp className="size-3.5" /> Upload
-                </button>
-              </div>
-
-              {/* Scheduling quick-config */}
-              <div className="flex flex-wrap items-center gap-4 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5"><Calendar className="size-3.5" /> Scheduling:</span>
-                <button
-                  onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
-                  className="flex items-center gap-2 text-[11px] font-semibold cursor-pointer"
-                >
-                  <span className={`w-8 h-4.5 rounded-full p-0.5 transition-colors ${calendarSchedulingEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"}`}>
-                    <span className={`block size-3.5 rounded-full bg-white transition-transform ${calendarSchedulingEnabled ? "translate-x-3.5" : ""}`} />
-                  </span>
-                  {calendarSchedulingEnabled ? "Booking on" : "Booking off"}
-                </button>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-neutral-400">Provider</span>
-                  <div className="w-40"><ModernSelect value={meetingProvider} options={providerOptions} onChange={handleMeetingProviderChange} size="sm" /></div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-neutral-400">Calendar</span>
-                  <div className="w-44"><ModernSelect
-                    value={meetingProvider === "teams" ? "outlook" : "google"}
-                    options={[
-                      { value: "google", label: "Google Calendar", icon: <Image src="/logos/google-calendar.png" alt="" width={16} height={16} className="size-4 object-contain" />, hint: googleConnected ? undefined : "connect Google" },
-                      { value: "outlook", label: "Outlook Calendar", icon: <Image src="/logos/outlook-calendar.png" alt="" width={16} height={16} className="size-4 object-contain" />, hint: microsoftConnected ? undefined : "connect Microsoft" },
-                    ]}
-                    onChange={handleCalendarSyncChange}
-                    size="sm"
-                  /></div>
-                </div>
-                {!googleConnected && !microsoftConnected && calendarSchedulingEnabled && (
-                  <button
-                    onClick={() => setActiveTab("settings")}
-                    className="text-[10px] font-semibold text-[#f97316] hover:underline cursor-pointer"
-                  >
-                    Connect Google or Microsoft to actually sync bookings →
-                  </button>
-                )}
-              </div>
-
-              {/* Stats Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Total Sources</span>
-                    <h4 className="text-2xl font-bold mt-1">{sources.length}</h4>
-                  </div>
-                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500"><Layers className="size-5" /></div>
-                </div>
-                <div className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Characters Indexed</span>
-                    <h4 className="text-2xl font-bold mt-1">{sources.reduce((acc, s) => acc + (s.charCount || 0), 0).toLocaleString()}</h4>
-                  </div>
-                  <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500"><FileText className="size-5" /></div>
-                </div>
-                <div className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Status</span>
-                    <h4 className="text-2xl font-bold mt-1">{sources.filter(s => s.status === "trained").length}<span className="text-sm font-medium text-neutral-400"> / {sources.length} trained</span></h4>
-                    {sources.some(s => s.status === "training") && (
-                      <span className="text-[9px] text-[#f97316] font-medium flex items-center gap-1 mt-1">
-                        <Loader2 className="size-3 animate-spin" /> {sources.filter(s => s.status === "training").length} training…
-                        {knowledgeProgress && knowledgeProgress.status === "active" && (
-                          <span className="font-mono font-bold">({knowledgeProgress.percent}%)</span>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-3 rounded-xl bg-green-50 dark:bg-green-950/30 text-green-500"><Check className="size-5" /></div>
-                </div>
-              </div>
-
-              {/* Animated Knowledge Base Progress Bar Banner */}
-              <KnowledgeProgressBar
-                progress={knowledgeProgress}
-                onDismiss={() => setKnowledgeProgress(null)}
-              />
-
-              {/* Add Source Card */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <div className="p-1.5 border-b border-neutral-100 dark:border-neutral-800 flex gap-1 overflow-x-auto rounded-t-2xl">
-                  {[
-                    { id: "text", label: "Text / FAQ", icon: Type },
-                    { id: "url", label: "Website URL", icon: Globe },
-                    { id: "file", label: "Upload File", icon: FileUp },
-                    { id: "drive", label: "Google Drive", icon: FolderOpen },
-                    { id: "onedrive", label: "OneDrive", icon: HardDrive },
-                  ].map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setKbSourceTab(tab.id as "text" | "url" | "file" | "drive" | "onedrive")}
-                        className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                          kbSourceTab === tab.id
-                            ? "bg-[#f97316]/10 text-[#f97316]"
-                            : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                        }`}
-                      >
-                        <Icon className="size-3.5" />
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="p-5">
-                  {/* Text source */}
-                  {kbSourceTab === "text" && (
-                    <form onSubmit={handleTrainText} className="space-y-3">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Title</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Refund Policy"
-                          value={inputTitle}
-                          onChange={(e) => setInputTitle(e.target.value)}
-                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Content</label>
-                        <textarea
-                          placeholder="Paste FAQ answers, policies, product details, or any knowledge the bot should learn…"
-                          value={inputText}
-                          onChange={(e) => setInputText(e.target.value)}
-                          rows={5}
-                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-y leading-relaxed"
-                        />
-                        <p className="text-[9px] text-neutral-400 mt-1">{inputText.length.toLocaleString()} characters</p>
-                      </div>
-                      <div className="flex justify-end">
-                        <button
-                          type="submit"
-                          disabled={!inputText.trim() || !inputTitle.trim() || !botId}
-                          className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-                        >
-                          <Plus className="size-3.5" /> Add to Knowledge
-                        </button>
-                      </div>
-                    </form>
-                  )}
-
-                  {/* URL source */}
-                  {kbSourceTab === "url" && (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Website URL</label>
-                        <input
-                          type="url"
-                          placeholder="https://example.com"
-                          value={inputUrl}
-                          onChange={(e) => setInputUrl(e.target.value)}
-                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                        <p className="text-[9px] text-neutral-400 mt-1 flex items-center gap-1">
-                          <Sparkles className="size-3 text-[#f97316]" /> Scan the sitemap to list every page, then tick which ones to index.
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={handleScanSitemap}
-                          disabled={!inputUrl.trim() || scanningSitemap}
-                          className="px-3 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
-                        >
-                          {scanningSitemap ? <Loader2 className="size-3.5 animate-spin" /> : <Globe className="size-3.5" />}
-                          {scanningSitemap && knowledgeProgress?.status === "active"
-                            ? `Scanning sitemap (${knowledgeProgress.percent}%)`
-                            : "Scan sitemap"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleTrainUrl(e as unknown as React.FormEvent)}
-                          disabled={!inputUrl.trim() || !botId}
-                          className="px-3 py-2 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
-                        >
-                          <Link2 className="size-3.5" /> Just this page
-                        </button>
-                      </div>
-
-                      <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setBulkUrlsOpen((o) => !o)}
-                          className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer"
-                        >
-                          <span className="flex items-center gap-1.5"><Layers className="size-3.5" /> Bulk add URLs (paste a list)</span>
-                          {bulkUrlsOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                        </button>
-                        {bulkUrlsOpen && (
-                          <div className="p-3 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
-                            <textarea
-                              rows={5}
-                              value={bulkUrlsText}
-                              onChange={(e) => setBulkUrlsText(e.target.value)}
-                              placeholder={"https://example.com/page-1\nhttps://example.com/page-2\nhttps://example.com/page-3"}
-                              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none"
-                            />
-                            <div className="flex items-center justify-between">
-                              <p className="text-[9px] text-neutral-400">One URL per line, up to 100.</p>
-                              <button
-                                type="button"
-                                onClick={handleBulkAddUrls}
-                                disabled={!bulkUrlsText.trim() || crawlingPages || !botId}
-                                className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
-                              >
-                                {crawlingPages ? <Loader2 className="size-3.5 animate-spin" /> : <Layers className="size-3.5" />}
-                                {crawlingPages && knowledgeProgress?.status === "active"
-                                  ? `Indexing (${knowledgeProgress.percent}%)`
-                                  : "Index all"}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {discoveredUrls.length > 0 && (
-                        <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden">
-                          <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
-                            <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">{selectedUrls.size} of {discoveredUrls.length} selected</span>
-                            <div className="flex gap-3 text-[11px] font-semibold text-[#f97316]">
-                              <button type="button" onClick={() => setSelectedUrls(new Set(discoveredUrls))} className="cursor-pointer hover:underline">Select all</button>
-                              <button type="button" onClick={() => setSelectedUrls(new Set())} className="cursor-pointer hover:underline">None</button>
-                            </div>
-                          </div>
-                          <div className="max-h-56 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-850">
-                            {discoveredUrls.map((u) => (
-                              <label key={u} className="flex items-center gap-2.5 px-3 py-2 text-[11px] cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedUrls.has(u)}
-                                  onChange={(e) => { const next = new Set(selectedUrls); if (e.target.checked) next.add(u); else next.delete(u); setSelectedUrls(next); }}
-                                  className="sr-only"
-                                />
-                                <span className={`size-[18px] rounded-md border flex items-center justify-center shrink-0 transition-colors ${selectedUrls.has(u) ? "bg-[#f97316] border-[#f97316]" : "border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900"}`}>
-                                  {selectedUrls.has(u) && <Check className="size-3 text-white" strokeWidth={3.5} />}
-                                </span>
-                                <span className="truncate text-neutral-700 dark:text-neutral-300">{u}</span>
-                              </label>
-                            ))}
-                          </div>
-                          <div className="flex justify-end p-2 border-t border-neutral-100 dark:border-neutral-800">
-                            <button
-                              type="button"
-                              onClick={handleCrawlSelected}
-                              disabled={!selectedUrls.size || crawlingPages || !botId}
-                              className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
-                            >
-                              {crawlingPages ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
-                              {crawlingPages && knowledgeProgress?.status === "active"
-                                ? `Crawling (${knowledgeProgress.percent}%)`
-                                : `Crawl selected (${selectedUrls.size})`}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {crawlSummary && <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{crawlSummary}</p>}
-                    </div>
-                  )}
-
-                  {/* File upload */}
-                  {kbSourceTab === "file" && (
-                    <div className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isKnowledgeLoading || !botId}
-                        className="w-full border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl p-8 flex flex-col items-center justify-center gap-2 text-center hover:border-[#f97316]/50 hover:bg-[#f97316]/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isKnowledgeLoading ? (
-                          <div className="w-full max-w-sm flex flex-col items-center gap-2.5">
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="size-5 text-[#f97316] animate-spin" />
-                              <span className="text-xs font-bold text-neutral-700 dark:text-neutral-200 truncate max-w-xs">
-                                Indexing {uploadingFile}…
-                              </span>
-                              {knowledgeProgress && (
-                                <span className="text-xs font-mono font-black text-[#f97316] bg-orange-50 dark:bg-orange-950/40 px-2 py-0.5 rounded-md border border-orange-200 dark:border-orange-900/50">
-                                  {knowledgeProgress.percent}%
-                                </span>
-                              )}
-                            </div>
-                            {knowledgeProgress && (
-                              <div className="w-full h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden relative shadow-inner">
-                                <div
-                                  className="h-full bg-gradient-to-r from-[#f97316] via-orange-500 to-amber-400 rounded-full transition-all duration-300 relative overflow-hidden"
-                                  style={{ width: `${Math.max(4, Math.min(100, knowledgeProgress.percent))}%` }}
-                                >
-                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
-                                </div>
-                              </div>
-                            )}
-                            <p className="text-[10px] text-neutral-400 font-medium">
-                              {knowledgeProgress?.detail || "Parsing structure & extracting text chunks..."}
-                            </p>
-                          </div>
-                        ) : (
-                          <>
-                            <FileUp className="size-6 text-neutral-400" />
-                            <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Click to upload a document</span>
-                            <span className="text-[10px] text-neutral-400">PDF, DOCX, TXT, MD - up to 20MB</span>
-                          </>
-                        )}
-                      </button>
-                      <p className="text-[9px] text-neutral-400 text-center">Uploaded files are sent to the backend, chunked, and embedded automatically.</p>
-                    </div>
-                  )}
-
-                  {/* Google Drive folder */}
-                  {kbSourceTab === "drive" && (
-                    <form onSubmit={handleIndexDriveFolder} className="space-y-3">
-                      {!googleConnected && (
-                        <div className="flex items-center gap-2 text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-lg px-3 py-2">
-                          <AlertCircle className="size-3.5 shrink-0" />
-                          Connect Google in Agent Settings first for private folders. Public folders work without it.
-                        </div>
-                      )}
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Folder URL or ID</label>
-                        <input
-                          type="text"
-                          placeholder="https://drive.google.com/drive/folders/…"
-                          value={driveFolderUrl}
-                          onChange={(e) => setDriveFolderUrl(e.target.value)}
-                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Files</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={200}
-                          value={driveMaxFiles}
-                          onChange={(e) => setDriveMaxFiles(parseInt(e.target.value, 10) || 50)}
-                          className="w-32 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                      </div>
-                      {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
-                      {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-[200px]">
-                          <RefreshCw className="size-3 text-neutral-400 shrink-0" />
-                          <ModernSelect
-                            value={driveSyncSchedule}
-                            options={syncScheduleOptions}
-                            onChange={(v) => handleSetDriveSyncSchedule("gdrive", v as "off" | "daily" | "weekly" | "monthly")}
-                            size="sm"
-                            className="min-w-[165px]"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={isIndexingDrive || !driveFolderUrl.trim()}
-                          className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-                        >
-                          {isIndexingDrive ? <Loader2 className="size-3.5 animate-spin" /> : <FolderOpen className="size-3.5" />}
-                          Index Folder
-                        </button>
-                      </div>
-                      <p className="text-[9px] text-neutral-400">Auto re-sync requires indexing this folder at least once first.</p>
-                    </form>
-                  )}
-
-                  {/* OneDrive folder */}
-                  {kbSourceTab === "onedrive" && (
-                    <form onSubmit={(e) => handleIndexDriveFolder(e, "onedrive")} className="space-y-3">
-                      {!microsoftConnected && (
-                        <div className="flex items-center gap-2 text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-lg px-3 py-2">
-                          <AlertCircle className="size-3.5 shrink-0" />
-                          Connect Microsoft in Agent Settings first to index OneDrive folders.
-                        </div>
-                      )}
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">OneDrive Folder URL or ID</label>
-                        <input
-                          type="text"
-                          placeholder="https://onedrive.live.com/… or folder ID"
-                          value={driveFolderUrl}
-                          onChange={(e) => setDriveFolderUrl(e.target.value)}
-                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Files</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={200}
-                          value={driveMaxFiles}
-                          onChange={(e) => setDriveMaxFiles(parseInt(e.target.value, 10) || 50)}
-                          className="w-32 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                      </div>
-                      {driveIndexError && <p className="text-[10px] text-red-500 font-medium">{driveIndexError}</p>}
-                      {driveIndexSuccess && <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">{driveIndexSuccess}</p>}
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-[200px]">
-                          <RefreshCw className="size-3 text-neutral-400 shrink-0" />
-                          <ModernSelect
-                            value={onedriveSyncSchedule}
-                            options={syncScheduleOptions}
-                            onChange={(v) => handleSetDriveSyncSchedule("onedrive", v as "off" | "daily" | "weekly" | "monthly")}
-                            size="sm"
-                            className="min-w-[165px]"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={isIndexingDrive || !driveFolderUrl.trim() || !microsoftConnected}
-                          className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-                        >
-                          {isIndexingDrive ? <Loader2 className="size-3.5 animate-spin" /> : <HardDrive className="size-3.5" />}
-                          Index OneDrive Folder
-                        </button>
-                      </div>
-                      <p className="text-[9px] text-neutral-400">Auto re-sync requires indexing this folder at least once first.</p>
-                    </form>
-                  )}
-                </div>
-              </div>
-
-              {/* Unanswered questions (knowledge gaps) */}
-              {unanswered.length > 0 && (
-                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-2xl overflow-hidden">
-                  <div className="p-4 border-b border-amber-200 dark:border-amber-900 flex items-center gap-2">
-                    <AlertCircle className="size-4 text-amber-500" />
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                      Unanswered questions
-                    </h4>
-                    <span className="text-amber-400 text-[11px]">({unanswered.length})</span>
-                    <span className="text-[11px] text-amber-500/70 dark:text-amber-500/60 normal-case ml-1">- visitors asked these but the bot didn&apos;t know. Answer to retrain.</span>
-                  </div>
-                  <div className="divide-y divide-amber-100 dark:divide-amber-900/50">
-                    {unanswered.map((u) => (
-                      <div key={u.id} className="p-3.5">
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="text-xs text-neutral-700 dark:text-neutral-200 flex-1">{u.question}</p>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              onClick={() => { setAnsweringId(answeringId === u.id ? null : u.id); setAnswerText(""); }}
-                              className="px-2.5 py-1 text-[10px] font-semibold rounded-full bg-amber-500 text-white hover:bg-amber-600 transition-colors"
-                            >
-                              {answeringId === u.id ? "Cancel" : "Answer"}
-                            </button>
-                            <button
-                              onClick={() => dismissUnanswered(u.id)}
-                              className="px-2 py-1 text-[10px] font-medium rounded-full text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
-                            >
-                              Dismiss
-                            </button>
-                          </div>
-                        </div>
-                        {answeringId === u.id && (
-                          <div className="mt-2.5 flex flex-col gap-2">
-                            <textarea
-                              value={answerText}
-                              onChange={(e) => setAnswerText(e.target.value)}
-                              placeholder="Write the answer - it'll be saved to your knowledge base and the bot will use it next time."
-                              rows={3}
-                              className="w-full text-xs bg-white dark:bg-neutral-900 border border-amber-200 dark:border-amber-900 rounded-lg p-2.5 focus:outline-none focus:border-amber-400 resize-y"
-                            />
-                            <button
-                              onClick={() => resolveUnanswered(u.id, u.question)}
-                              disabled={!answerText.trim()}
-                              className="self-end px-3.5 py-1.5 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
-                            >
-                              Save &amp; train
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Sources List */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-3 flex-wrap rounded-t-2xl">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
-                    {t("training_data")}
-                    <span className="text-neutral-300 dark:text-neutral-600 normal-case">({sources.length})</span>
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    {/* Type filter */}
-                    <div className="flex items-center gap-0.5 bg-neutral-50 dark:bg-neutral-950 rounded-lg p-0.5 border border-neutral-200 dark:border-neutral-800">
-                      {(["all", "text", "url", "file"] as const).map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => setSourceTypeFilter(f)}
-                          className={`px-2 py-1 text-[10px] font-semibold rounded-md capitalize transition-colors cursor-pointer ${
-                            sourceTypeFilter === f ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm" : "text-neutral-400 hover:text-neutral-600"
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                    {/* Search */}
-                    <div className="relative">
-                      <Search className="size-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        placeholder="Search sources…"
-                        value={sourcesSearch}
-                        onChange={(e) => setSourcesSearch(e.target.value)}
-                        className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg pl-8 pr-3 py-1.5 text-[11px] w-40 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                      />
-                    </div>
-                    {/* Crawl all URL sources now */}
-                    {sources.some((s) => s.type === "url") && (
-                      <button
-                        onClick={handleCrawlAll}
-                        disabled={crawlingAll || recrawlingSourceId !== null}
-                        title="Re-crawl every URL source now"
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-950 rounded-lg text-[10px] font-semibold text-neutral-600 dark:text-neutral-300 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                      >
-                        <RefreshCw className={`size-3.5 ${crawlingAll ? "animate-spin text-[#f97316]" : ""}`} />
-                        {crawlingAll && knowledgeProgress?.status === "active"
-                          ? `Crawling (${knowledgeProgress.percent}%)`
-                          : "Crawl All"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-850">
-                  {(() => {
-                    const q = sourcesSearch.toLowerCase();
-                    const filtered = sources.filter(s =>
-                      (sourceTypeFilter === "all" || s.type === sourceTypeFilter) &&
-                      (s.name.toLowerCase().includes(q) || (s.content || "").toLowerCase().includes(q))
-                    );
-
-                    if (sources.length === 0) {
-                      return (
-                        <div className="p-10 text-center">
-                          <Database className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
-                          <p className="text-xs font-semibold text-neutral-500 mt-3">No knowledge sources yet</p>
-                          <p className="text-[10px] text-neutral-400 mt-1">Add your first source above to start training your assistant.</p>
-                        </div>
-                      );
-                    }
-                    if (filtered.length === 0) {
-                      return <div className="p-10 text-center text-xs text-neutral-400">No sources match your filter.</div>;
-                    }
-
-                    return filtered.map((s) => {
-                      const TypeIcon = s.type === "url" ? Globe : s.type === "file" ? FileUp : Type;
-                      const expanded = expandedSourceId === s.id;
-                      return (
-                        <div key={s.id} className="p-4 hover:bg-neutral-50/50 dark:hover:bg-neutral-850/30 transition-colors">
-                          <div className="flex items-start gap-3">
-                            <div className="size-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 shrink-0 mt-0.5">
-                              <TypeIcon className="size-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate max-w-xs">{s.name}</p>
-                                {s.status === "trained" ? (
-                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
-                                    <Check className="size-2.5" /> Trained
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400">
-                                    <Loader2 className="size-2.5 animate-spin" /> Training
-                                    {knowledgeProgress && knowledgeProgress.status === "active" && (
-                                      <span className="font-mono font-bold">({knowledgeProgress.percent}%)</span>
-                                    )}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-3 mt-1 text-[10px] text-neutral-400">
-                                <span className="capitalize">{s.type}</span>
-                                <span className="flex items-center gap-1"><FileText className="size-3" /> {(s.charCount || 0).toLocaleString()} chars</span>
-                                {s.content && (
-                                  <button
-                                    onClick={() => setExpandedSourceId(expanded ? null : s.id)}
-                                    className="text-[#f97316] hover:underline font-semibold cursor-pointer"
-                                  >
-                                    {expanded ? "Hide" : "Preview"}
-                                  </button>
-                                )}
-                              </div>
-                              {s.type === "url" && (
-                                <div className="flex items-center gap-2 mt-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRecrawlNow(s.id, s.name)}
-                                    disabled={recrawlingSourceId === s.id}
-                                    aria-label="Re-crawl now"
-                                    title="Re-crawl now"
-                                    className="shrink-0 text-neutral-400 hover:text-[#f97316] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default flex items-center gap-1"
-                                  >
-                                    <RefreshCw className={`size-3 ${recrawlingSourceId === s.id ? "animate-spin text-[#f97316]" : ""}`} />
-                                    {recrawlingSourceId === s.id && knowledgeProgress?.status === "active" && (
-                                      <span className="text-[9px] font-mono text-[#f97316] font-bold">
-                                        {knowledgeProgress.percent}%
-                                      </span>
-                                    )}
-                                  </button>
-                                  <div className="relative">
-                                    <button
-                                      type="button"
-                                      onClick={() => setCrawlDropdownOpen(crawlDropdownOpen === s.id ? null : s.id)}
-                                      className={`flex items-center gap-1 text-[10px] font-semibold pl-2.5 pr-2 py-1 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${
-                                        s.crawlSchedule && s.crawlSchedule !== "off"
-                                          ? "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400"
-                                          : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400"
-                                      }`}
-                                    >
-                                      {s.crawlSchedule === "daily" ? "Re-crawl daily"
-                                        : s.crawlSchedule === "weekly" ? "Re-crawl weekly"
-                                        : s.crawlSchedule === "monthly" ? "Re-crawl monthly"
-                                        : "No auto re-crawl"}
-                                      <ChevronDown className={`size-3 transition-transform ${crawlDropdownOpen === s.id ? "rotate-180" : ""}`} />
-                                    </button>
-                                    {crawlDropdownOpen === s.id && (
-                                      <div className="absolute left-0 top-full mt-1 z-50 min-w-[170px] w-max rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl overflow-hidden">
-                                        {([
-                                          { value: "off", label: "No auto re-crawl" },
-                                          { value: "daily", label: "Re-crawl daily" },
-                                          { value: "weekly", label: "Re-crawl weekly" },
-                                          { value: "monthly", label: "Re-crawl monthly" },
-                                        ] as const).map((opt) => (
-                                          <button
-                                            key={opt.value}
-                                            type="button"
-                                            onClick={() => { handleSetCrawlSchedule(s.id, opt.value); setCrawlDropdownOpen(null); }}
-                                            className={`w-full text-left px-3 py-2 text-[11px] font-medium transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800 whitespace-nowrap ${
-                                              (s.crawlSchedule || "off") === opt.value
-                                                ? "text-orange-500 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30"
-                                                : "text-neutral-700 dark:text-neutral-300"
-                                            }`}
-                                          >
-                                            {opt.label}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                  {s.crawlSchedule && s.crawlSchedule !== "off" && s.nextCrawlAt && (
-                                    <span className="text-[10px] text-neutral-400">
-                                      Next: {new Date(s.nextCrawlAt).toLocaleDateString()}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              {expanded && s.content && (
-                                <div className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3 max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed font-mono">
-                                  {s.content.slice(0, 2000)}{s.content.length > 2000 ? "…" : ""}
-                                </div>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => handleDeleteSource(s.id)}
-                              className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer shrink-0"
-                              title="Delete source"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-                </div>
-              }
+              fetchWithFallback={fetchWithFallback}
+              primaryColor={primaryColor}
+              fileInputRef={fileInputRef}
+              handleKnowledgeUpload={handleKnowledgeUpload}
+              user={user}
+              loadBotSettings={loadBotSettings}
+              loadingLists={loadingLists}
+              savingLeadCapture={savingLeadCapture}
+              setSavingLeadCapture={setSavingLeadCapture}
+              leadCaptureEnabled={leadCaptureEnabled}
+              setLeadCaptureEnabled={setLeadCaptureEnabled}
+              leadFields={leadFields}
+              setLeadFields={setLeadFields}
+              leadRequiredFields={leadRequiredFields}
+              setLeadRequiredFields={setLeadRequiredFields}
+              newLeadField={newLeadField}
+              setNewLeadField={setNewLeadField}
+              onboardingStep={onboardingStep}
+              onboardingCompleted={onboardingCompleted}
+              saveOnboardingStep={saveOnboardingStep}
+              googleConnected={googleConnected}
+              microsoftConnected={microsoftConnected}
+              handleConnectCloud={handleConnectCloud}
+              handleDisconnectCloud={handleDisconnectCloud}
+              handleInputChange={handleInputChange}
+              calendarSchedulingEnabled={calendarSchedulingEnabled}
+              setCalendarSchedulingEnabled={setCalendarSchedulingEnabled}
+              handleCalendarSyncChange={handleCalendarSyncChange}
+              meetingProvider={meetingProvider}
+              handleMeetingProviderChange={handleMeetingProviderChange}
+              providerOptions={providerOptions}
+              sources={sources}
+              knowledgeProgress={knowledgeProgress}
+              setKnowledgeProgress={setKnowledgeProgress}
+              kbSourceTab={kbSourceTab}
+              setKbSourceTab={setKbSourceTab}
+              inputTitle={inputTitle}
+              setInputTitle={setInputTitle}
+              inputText={inputText}
+              setInputText={setInputText}
+              handleTrainText={handleTrainText}
+              isKnowledgeLoading={isKnowledgeLoading}
+              inputUrl={inputUrl}
+              setInputUrl={setInputUrl}
+              handleScanSitemap={handleScanSitemap}
+              scanningSitemap={scanningSitemap}
+              discoveredUrls={discoveredUrls}
+              selectedUrls={selectedUrls}
+              setSelectedUrls={setSelectedUrls}
+              handleCrawlSelected={handleCrawlSelected}
+              handleBulkAddUrls={handleBulkAddUrls}
+              handleTrainUrl={handleTrainUrl}
+              bulkUrlsOpen={bulkUrlsOpen}
+              setBulkUrlsOpen={setBulkUrlsOpen}
+              bulkUrlsText={bulkUrlsText}
+              setBulkUrlsText={setBulkUrlsText}
+              uploadingFile={uploadingFile}
+              driveFolderUrl={driveFolderUrl}
+              setDriveFolderUrl={setDriveFolderUrl}
+              driveMaxFiles={driveMaxFiles}
+              setDriveMaxFiles={setDriveMaxFiles}
+              driveSyncSchedule={driveSyncSchedule}
+              handleSetDriveSyncSchedule={handleSetDriveSyncSchedule}
+              onedriveSyncSchedule={onedriveSyncSchedule}
+              handleIndexDriveFolder={handleIndexDriveFolder}
+              isIndexingDrive={isIndexingDrive}
+              driveIndexSuccess={driveIndexSuccess}
+              driveIndexError={driveIndexError}
+              syncScheduleOptions={syncScheduleOptions}
+              unanswered={unanswered}
+              answeringId={answeringId}
+              setAnsweringId={setAnsweringId}
+              answerText={answerText}
+              setAnswerText={setAnswerText}
+              resolveUnanswered={resolveUnanswered}
+              dismissUnanswered={dismissUnanswered}
+              handleCrawlAll={handleCrawlAll}
+              crawlingAll={crawlingAll}
+              crawlDropdownOpen={crawlDropdownOpen}
+              setCrawlDropdownOpen={setCrawlDropdownOpen}
+              handleSetCrawlSchedule={handleSetCrawlSchedule}
+              sourceTypeFilter={sourceTypeFilter}
+              setSourceTypeFilter={setSourceTypeFilter}
+              sourcesSearch={sourcesSearch}
+              setSourcesSearch={setSourcesSearch}
+              expandedSourceId={expandedSourceId}
+              setExpandedSourceId={setExpandedSourceId}
+              recrawlingSourceId={recrawlingSourceId}
+              handleRecrawlNow={handleRecrawlNow}
+              handleDeleteSource={handleDeleteSource}
+              crawlingPages={crawlingPages}
+              crawlSummary={crawlSummary}
+              setActiveTab={setActiveTab}
+              t={t}
+            />
+          )}
+          {/* TAB 4: PLAYGROUND */}
+          {activeTab === "playground" && (
+            <PlaygroundTab
+              playgroundView={playgroundView}
+              setPlaygroundView={setPlaygroundView}
+              botId={botId}
+              primaryColor={primaryColor}
+              widgetStyle={widgetStyle}
+              avatarIcon={avatarIcon}
+              avatarUrl={avatarUrl}
+              logoUrl={logoUrl}
+              logoBgColor={logoBgColor}
+              botName={botName}
+              showSenderTag={showSenderTag}
+              csatEnabled={csatEnabled}
+              colorScheme={colorScheme}
+              fontFamily={fontFamily}
+              fontSizePercent={fontSizePercent}
+              welcomeMsg={welcomeMsg}
+              language={language}
+              setLanguage={setLanguage}
+              languageOptions={languageOptions}
+              playgroundMessages={playgroundMessages}
+              setPlaygroundMessages={setPlaygroundMessages}
+              dashHeaderLogo={dashHeaderLogo}
+              dashAvatar={dashAvatar}
+              handleSetupQuickReply={handleSetupQuickReply}
+              googleConnected={googleConnected}
+              microsoftConnected={microsoftConnected}
+              botCountry={botCountry}
+              setBotCountry={setBotCountry}
+              countryOptions={countryOptions}
+              botTimezone={botTimezone}
+              setBotTimezone={setBotTimezone}
+              timezoneOptions={timezoneOptions}
+              t={t}
+              handleInputChange={handleInputChange}
+              meetingProvider={meetingProvider}
+              providerOptions={providerOptions}
+              handleMeetingProviderChange={handleMeetingProviderChange}
+              pendingLeadFields={pendingLeadFields}
+              setPendingLeadFields={setPendingLeadFields}
+              isBotResponding={isBotResponding}
+              liveThinkingSteps={liveThinkingSteps}
+              playgroundEndRef={playgroundEndRef}
+              collectedInPlayground={collectedInPlayground}
+              setCollectedInPlayground={setCollectedInPlayground}
+              playgroundInput={playgroundInput}
+              setPlaygroundInput={setPlaygroundInput}
+              handlePlaygroundSend={handlePlaygroundSend}
+              sendButtonStyle={sendButtonStyle}
             />
           )}
 
-          {/* TAB 4: PLAYGROUND */}
-          {activeTab === "playground" && (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4 flex flex-col items-center gap-3">
-              <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-800 p-0.5 text-[11px] font-semibold">
-                <button onClick={() => setPlaygroundView("test")} className={`px-3 py-1.5 rounded-md cursor-pointer transition-colors ${playgroundView === "test" ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : "text-neutral-500"}`}>AI Test</button>
-                <button onClick={() => setPlaygroundView("live")} className={`px-3 py-1.5 rounded-md cursor-pointer transition-colors ${playgroundView === "live" ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : "text-neutral-500"}`}>Live Widget</button>
-              </div>
-              {playgroundView === "live" && (
-                botId ? (
-                  <>
-                    <iframe
-                      key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}-${JSON.stringify(colorScheme)}-${fontFamily}-${fontSizePercent}`}
-                      src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}&color_scheme=${encodeURIComponent(colorScheme ? JSON.stringify(colorScheme) : "")}&font=${encodeURIComponent(fontFamily || "")}&font_size_percent=${fontSizePercent}`}
-                      title="Live widget preview"
-                      // Deliberately no border/radius/shadow/background of its
-                      // own - every design preset already draws a complete
-                      // background+border+radius+shadow inside the iframe
-                      // (globals.css's .style-* rules), so decorating the
-                      // iframe element too doubled up on borders and clipped
-                      // away presets with a hard offset shadow (Neubrutalism)
-                      // entirely, since overflow-hidden here cut it off at a
-                      // boundary that didn't account for it. See the same fix
-                      // already applied to widget.js and the marketing page.
-                      className="w-full max-w-lg h-[500px] border-0"
-                    />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Live preview - reflects your <span className="font-semibold">current</span> customizer settings in real time.</p>
-                  </>
-                ) : (
-                  <div className="w-full max-w-lg h-[500px] rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-xs text-neutral-400">Save your bot to preview the live widget.</div>
-                )
-              )}
-              <style>{buildColorSchemeCss(colorScheme, "#playground-mock-preview")}</style>
-              <div
-                id="playground-mock-preview"
-                className={`w-full max-w-lg h-[500px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative flex flex-col style-${widgetStyle} ${playgroundView === "live" ? "hidden" : ""}`}
-                style={primaryColorCssVars(primaryColor) as React.CSSProperties}
-              >
-
-                {/* Playground Header - background always the brand color, same as
-                    the real embedded widget; per-style CSS overrides where needed. */}
-                <div
-                  style={{ backgroundColor: primaryColor }}
-                  className="chat-header p-4 flex items-center justify-between border-b border-transparent"
-                >
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="size-11 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
-                      style={logoBgColor ? { backgroundColor: logoBgColor } : {}}
-                    >
-                      {dashHeaderLogo("size-6")}
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-sm leading-tight">{botName}</h4>
-                      <p className="text-[9px] opacity-80 flex items-center gap-1">
-                        <span className="size-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                        Online · replies instantly
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* Language picker at the top of the assistant */}
-                    <div className="w-28">
-                      <ModernSelect
-                        value={language}
-                        options={languageOptions}
-                        onChange={(v) => setLanguage(v as "EN" | "ES" | "FR" | "DE" | "IT")}
-                        align="right"
-                        size="sm"
-                      />
-                    </div>
-                    <button
-                      onClick={() => setPlaygroundMessages([{ role: "assistant", content: welcomeMsg }])}
-                      className="px-2 py-1 rounded border border-white/20 hover:bg-white/10 text-[10px] font-semibold transition-colors cursor-pointer"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-
-                {/* Chat messages */}
-                <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs scrollbar-thin">
-                  {playgroundMessages.map((msg, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, scale: 0.92, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      className={`flex gap-2 max-w-[85%] ${
-                        msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
-                      }`}
-                    >
-                      {msg.role !== "user" && (
-                        <div className="size-6 rounded-full bg-neutral-150 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden">{dashAvatar("size-3.5")}</div>
-                      )}
-                      <div className="flex flex-col gap-1 w-full">
-                        {/* Collapsible HTML5 Details for Reasoning Trace */}
-                        {msg.role !== "user" && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
-                          <details className="mb-1 text-[9px] text-neutral-400 dark:text-neutral-500 bg-neutral-50/50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-lg p-2 cursor-pointer select-none">
-                            <summary className="font-semibold flex items-center gap-1.5 focus:outline-none hover:text-neutral-700 dark:hover:text-neutral-350">
-                              <Sparkles className="size-3 text-[#f97316]" />
-                              Agent Reasoning Trace
-                            </summary>
-                            <ul className="mt-1.5 pl-3 list-disc space-y-1 font-mono leading-normal border-t border-neutral-150/40 dark:border-neutral-800/40 pt-1.5">
-                              {msg.thinkingSteps.map((step, sIdx) => (
-                                <li key={sIdx}>{step}</li>
-                              ))}
-                            </ul>
-                          </details>
-                        )}
-                        <div
-                          className={`p-3 rounded-2xl leading-relaxed ${
-                            msg.role === "user"
-                              ? "user-bubble rounded-tr-none"
-                              : "bot-bubble bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 rounded-tl-none"
-                          }`}
-                          style={msg.role === "user" ? { backgroundColor: primaryColor, color: getOnColor(primaryColor) } : {}}
-                        >
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeKatex]}
-                            components={{
-                              p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
-                              ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-                              ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-                              li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                              a: ({ href, children }) => <SafeMarkdownLink href={href} className="underline break-all">{children}</SafeMarkdownLink>,
-                              pre: ({ children }) => <pre className="bg-neutral-950 text-white rounded-lg p-2 overflow-x-auto my-2 text-[10px] font-mono leading-normal">{children}</pre>,
-                              code: ({ children }) => (
-                                <code className={msg.role === "user" ? "bg-white/20 text-white px-1 py-0.5 rounded text-[10px] font-mono" : "bg-neutral-200 dark:bg-neutral-850 px-1 py-0.5 rounded text-[10px] font-mono"}>
-                                  {children}
-                                </code>
-                              )
-                            }}
-                          >
-                            {msg.content}
-                          </ReactMarkdown>
-                        </div>
-
-                        {/* ── Agentic setup interactive controls ── */}
-                        {msg.role !== "user" && (msg.calendarButtons || msg.connectorButtons) && (
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            <button
-                              onClick={() => handleSetupQuickReply("calendar_google")}
-                              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[11px] font-semibold transition-colors cursor-pointer ${
-                                googleConnected
-                                  ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400"
-                                  : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
-                              }`}
-                            >
-                              <svg className="size-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z"/></svg>
-                              {googleConnected ? "Google Connected" : "Connect Google Calendar"}
-                              {googleConnected && <Check className="size-3.5" />}
-                            </button>
-                            <button
-                              onClick={() => handleSetupQuickReply("calendar_microsoft")}
-                              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[11px] font-semibold transition-colors cursor-pointer ${
-                                microsoftConnected
-                                  ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400"
-                                  : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
-                              }`}
-                            >
-                              <svg className="size-4" viewBox="0 0 24 24"><path fill="#F25022" d="M3 3h8v8H3z"/><path fill="#7FBA00" d="M13 3h8v8h-8z"/><path fill="#00A4EF" d="M3 13h8v8H3z"/><path fill="#FFB900" d="M13 13h8v8h-8z"/></svg>
-                              {microsoftConnected ? "Microsoft Connected" : "Connect Outlook Calendar"}
-                              {microsoftConnected && <Check className="size-3.5" />}
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Timezone + Country pickers inline in chat */}
-                        {msg.role !== "user" && msg.tzPicker && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1 max-w-md">
-                            <div>
-                              <label className="block text-[9px] font-semibold text-neutral-400 uppercase mb-1">{t("country")}</label>
-                              <ModernSelect value={botCountry} options={countryOptions} onChange={(v) => handleInputChange(setBotCountry, v)} searchable size="sm" />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] font-semibold text-neutral-400 uppercase mb-1">{t("timezone")}</label>
-                              <ModernSelect value={botTimezone} options={timezoneOptions} onChange={(v) => handleInputChange(setBotTimezone, v)} searchable size="sm" />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Meeting provider picker inline in chat */}
-                        {msg.role !== "user" && msg.providerPicker && (
-                          <div className="mt-1 max-w-[220px]">
-                            <label className="block text-[9px] font-semibold text-neutral-400 uppercase mb-1">Meeting Provider</label>
-                            <ModernSelect value={meetingProvider} options={providerOptions} onChange={handleMeetingProviderChange} size="sm" />
-                          </div>
-                        )}
-
-                        {/* Lead field picker */}
-                        {msg.role !== "user" && msg.leadFieldPicker && (
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            {["name", "email", "phone", "company", "job_title", "country", "budget", "industry"].map((f) => {
-                              const required = f === "name" || f === "email";
-                              const on = pendingLeadFields.includes(f);
-                              return (
-                                <button
-                                  key={f}
-                                  disabled={required}
-                                  onClick={() =>
-                                    setPendingLeadFields((prev) =>
-                                      prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]
-                                    )
-                                  }
-                                  className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors capitalize ${
-                                    on
-                                      ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]"
-                                      : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                                  } ${required ? "opacity-70 cursor-default" : "cursor-pointer"}`}
-                                >
-                                  {f.replace("_", " ")}{required ? " *" : ""}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Quick reply buttons */}
-                        {msg.role !== "user" && msg.quickReplies && msg.quickReplies.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {msg.quickReplies.map((qr, qi) => (
-                              <button
-                                key={qi}
-                                onClick={() => handleSetupQuickReply(qr.value)}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5 text-[11px] font-semibold transition-colors cursor-pointer"
-                              >
-                                {qr.icon && <span>{qr.icon}</span>}
-                                {qr.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-
-                  {isBotResponding && (
-                    <div className="flex gap-2 mr-auto max-w-[85%] w-full">
-                      <div className="size-6 rounded-full bg-neutral-150 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden">{dashAvatar("size-3.5")}</div>
-                      <div className="flex-grow flex flex-col gap-1">
-                        {/* Live Thinking Status & Trace */}
-                        <div className="text-[9px] text-neutral-400 dark:text-neutral-500 bg-neutral-50/50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-lg p-2">
-                          <div className="font-semibold flex items-center gap-1.5 animate-pulse text-[#f97316]">
-                            <Loader2 className="size-3 animate-spin" />
-                            Agent is reasoning...
-                          </div>
-                          {liveThinkingSteps.length > 0 && (
-                            <ul className="mt-1.5 pl-3 list-disc space-y-1 font-mono leading-normal border-t border-neutral-150/40 dark:border-neutral-800/40 pt-1.5">
-                              {liveThinkingSteps.map((step, sIdx) => (
-                                <li key={sIdx} className="animate-fade-in">{step}</li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                        <div className="p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-400 dark:bg-neutral-850 flex items-center gap-1.5 w-fit">
-                          <span className="size-1.5 rounded-full bg-neutral-450 animate-bounce"></span>
-                          <span className="size-1.5 rounded-full bg-neutral-455 animate-bounce [animation-delay:0.2s]"></span>
-                          <span className="size-1.5 rounded-full bg-neutral-460 animate-bounce [animation-delay:0.4s]"></span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={playgroundEndRef} />
-                </div>
-
-                {/* Alert banner if lead captured */}
-                {collectedInPlayground && (
-                  <div className="p-2 bg-green-50 dark:bg-green-950/20 border-t border-green-200 dark:border-green-900/50 flex items-center justify-between text-[10px] text-green-700 dark:text-green-400 px-4">
-                    <span>New lead collected! Added to the Leads tab.</span>
-                    <button onClick={() => setCollectedInPlayground(false)} className="font-bold underline cursor-pointer">Dismiss</button>
-                  </div>
-                )}
-
-                {/* Form Input */}
-                <form onSubmit={handlePlaygroundSend} className="p-3 border-t border-neutral-150 dark:border-neutral-900 flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Ask a question or type 'lead'..."
-                    value={playgroundInput}
-                    onChange={(e) => setPlaygroundInput(e.target.value)}
-                    className="chat-input-bar flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none"
-                  />
-                  {(() => {
-                    const map: Record<string, { shape: string; icon: React.ReactNode; label?: string }> = {
-                      plane: { shape: "size-9 rounded-full", icon: <Send className="size-4" /> },
-                      arrowUp: { shape: "size-9 rounded-full", icon: <ArrowUp className="size-4" /> },
-                      arrowRight: { shape: "size-9 rounded-full", icon: <ArrowRight className="size-4" /> },
-                      square: { shape: "size-9 rounded-lg", icon: <Send className="size-4" /> },
-                      label: { shape: "h-9 px-3.5 rounded-full gap-1.5", icon: <Send className="size-3.5" />, label: "Send" },
-                    };
-                    const c = map[sendButtonStyle] || map.plane;
-                    return (
-                      <button type="submit" style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
-                        className={`${c.shape} flex items-center justify-center shrink-0 hover:opacity-90 cursor-pointer`}>
-                        {c.icon}{c.label && <span className="text-xs font-semibold">{c.label}</span>}
-                      </button>
-                    );
-                  })()}
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: LEADS */}
           {/* TAB 5: LEADS */}
           {activeTab === "leads" && (
-            <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Captured Leads ({leads.length})</h4>
-                  <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">Contact details gathered by your AI assistant during customer interactions.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search leads..."
-                    value={leadsSearch}
-                    onChange={(e) => setLeadsSearch(e.target.value)}
-                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 w-48"
-                  />
-                  <button
-                    onClick={refreshLeads}
-                    disabled={refreshingLeads}
-                    title="Refresh leads"
-                    aria-label="Refresh leads"
-                    className="p-2 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:border-neutral-350 dark:hover:border-neutral-700 cursor-pointer disabled:opacity-50 transition-colors"
-                  >
-                    <RefreshCw className={`size-3.5 ${refreshingLeads ? "animate-spin" : ""}`} />
-                  </button>
-                  <button
-                    onClick={exportLeadsCSV}
-                    disabled={leads.length === 0}
-                    className="text-[10px] font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg px-3 py-2 flex items-center gap-1.5 cursor-pointer hover:opacity-90 disabled:opacity-50 transition-opacity"
-                  >
-                    <FileSpreadsheet className="size-3.5" />
-                    Export CSV
-                  </button>
-                </div>
-              </div>
-
-              {loadingLists ? (
-                <div className="flex items-center justify-center p-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <Loader2 className="size-5 animate-spin text-neutral-400" />
-                </div>
-              ) : (
-                <div className="overflow-x-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <table className="w-full border-collapse text-left text-xs text-neutral-500 dark:text-neutral-400">
-                    <thead className="bg-neutral-50 dark:bg-neutral-955 font-semibold text-neutral-700 dark:text-neutral-300">
-                      <tr>
-                        {leadFields.map((field) => (
-                          <th key={field} className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 capitalize">
-                            {field.replace(/_/g, " ")}
-                          </th>
-                        ))}
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Captured At</th>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 font-medium text-neutral-800 dark:text-neutral-200">
-                      {filteredLeads.map((l) => {
-                        const isEditing = editingLeadId === l.id;
-                        return (
-                        <tr key={l.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10">
-                          {leadFields.map((field) => {
-                            if (isEditing) {
-                              return (
-                                <td key={field} className="px-6 py-3">
-                                  <input
-                                    type="text"
-                                    value={editLeadDraft[field] ?? ""}
-                                    onChange={(e) => setEditLeadDraft((prev) => ({ ...prev, [field]: e.target.value }))}
-                                    onKeyDown={(e) => { if (e.key === "Enter") saveEditLead(); if (e.key === "Escape") cancelEditLead(); }}
-                                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:border-[#f97316]"
-                                  />
-                                </td>
-                              );
-                            }
-                            const val = getLeadFieldValue(l, field);
-                            if (field === "name") {
-                              return (
-                                <td key={field} className="px-6 py-4 flex items-center gap-2.5">
-                                  <div className="size-7 rounded-full bg-[#f97316]/10 text-[#f97316] flex items-center justify-center font-bold shrink-0">
-                                    {val[0]?.toUpperCase() || "?"}
-                                  </div>
-                                  <span className="font-semibold">{val}</span>
-                                </td>
-                              );
-                            }
-                            return (
-                              <td key={field} className="px-6 py-4 font-mono">
-                                {val}
-                              </td>
-                            );
-                          })}
-                          <td className="px-6 py-4 text-neutral-400 dark:text-neutral-500 font-mono">
-                            {l.created_at}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end gap-1">
-                              {isEditing ? (
-                                <>
-                                  <button
-                                    onClick={saveEditLead}
-                                    disabled={savingLeadEdit}
-                                    title="Save"
-                                    aria-label="Save lead"
-                                    className="p-1.5 rounded-md text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30 cursor-pointer disabled:opacity-50"
-                                  >
-                                    {savingLeadEdit ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-                                  </button>
-                                  <button
-                                    onClick={cancelEditLead}
-                                    disabled={savingLeadEdit}
-                                    title="Cancel"
-                                    aria-label="Cancel edit"
-                                    className="p-1.5 rounded-md text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer disabled:opacity-50"
-                                  >
-                                    <X className="size-3.5" />
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => startEditLead(l)}
-                                    title="Edit lead"
-                                    aria-label="Edit lead"
-                                    className="p-1.5 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
-                                  >
-                                    <Pencil className="size-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => deleteLead(l)}
-                                    title="Delete lead"
-                                    aria-label="Delete lead"
-                                    className="p-1.5 rounded-md text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
-                                  >
-                                    <Trash2 className="size-3.5" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                        );
-                      })}
-
-                      {/* Empty State */}
-                      {filteredLeads.length === 0 && (
-                        <tr>
-                          <td colSpan={leadFields.length + 2} className="px-6 py-12 text-center space-y-2">
-                            <Users className="size-8 mx-auto text-neutral-300" />
-                            <h5 className="text-xs font-bold text-neutral-700 dark:text-neutral-300">No matching leads found</h5>
-                            <p className="text-[10px] text-neutral-400 max-w-xs mx-auto leading-normal">
-                              {leads.length === 0 
-                                ? "Start conversation tests in the Playground to see captured contact details show up in this panel."
-                                : "Try clearing your search query or search for other parameters."}
-                            </p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <LeadsTab
+              leads={leads}
+              filteredLeads={filteredLeads}
+              leadsSearch={leadsSearch}
+              setLeadsSearch={setLeadsSearch}
+              refreshLeads={refreshLeads}
+              refreshingLeads={refreshingLeads}
+              exportLeadsCSV={exportLeadsCSV}
+              loadingLists={loadingLists}
+              leadFields={leadFields}
+              editingLeadId={editingLeadId}
+              editLeadDraft={editLeadDraft}
+              setEditLeadDraft={setEditLeadDraft}
+              saveEditLead={saveEditLead}
+              cancelEditLead={cancelEditLead}
+              savingLeadEdit={savingLeadEdit}
+              startEditLead={startEditLead}
+              deleteLead={deleteLead}
+              getLeadFieldValue={getLeadFieldValue}
+            />
           )}
 
           {/* TAB: FEEDBACK */}
           {activeTab === "feedback" && (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-4">
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Ratings &amp; Feedback ({csatFeedback.length})</h4>
-                <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">Every post-chat star rating and comment your visitors left, with any contact details the AI captured during that same conversation.</p>
-              </div>
-
-              {loadingLists ? (
-                <div className="flex items-center justify-center p-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <Loader2 className="size-5 animate-spin text-neutral-400" />
-                </div>
-              ) : csatFeedback.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 p-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-center">
-                  <Star className="size-6 text-neutral-300 dark:text-neutral-700" />
-                  <p className="text-xs text-neutral-400 dark:text-neutral-500 max-w-sm">No ratings yet. Visitors see this prompt when they close the chat after a couple of messages.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {csatFeedback.map((f) => {
-                    const matchedLead = f.session_id ? leads.find((l) => l.session_id === f.session_id) : undefined;
-                    return (
-                      <div key={f.id} className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-0.5">
-                            {[1, 2, 3, 4, 5].map((n) => (
-                              <Star key={n} className={`size-3.5 ${n <= f.rating ? "fill-amber-400 text-amber-400" : "text-neutral-300 dark:text-neutral-700"}`} />
-                            ))}
-                          </div>
-                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 shrink-0">
-                            {new Date(f.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
-                          </span>
-                        </div>
-                        {f.comment ? (
-                          <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed mt-2">{f.comment}</p>
-                        ) : (
-                          <p className="text-xs text-neutral-400 dark:text-neutral-500 italic mt-2">No comment left</p>
-                        )}
-                        {matchedLead ? (
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab("leads")}
-                            title="Captured during this conversation - view in Leads"
-                            className="mt-3 w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 hover:border-[#f97316]/40 cursor-pointer transition-colors text-left"
-                          >
-                            <div className="size-7 rounded-full bg-[#f97316]/10 text-[#f97316] flex items-center justify-center shrink-0">
-                              <Users className="size-3.5" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200 truncate">{matchedLead.name || "Contact captured"}</p>
-                              <p className="text-[10px] text-neutral-450 dark:text-neutral-500 truncate">
-                                {[matchedLead.email, matchedLead.phone].filter(Boolean).join(" · ") || "No email/phone on file"}
-                              </p>
-                            </div>
-                            <ChevronRight className="size-3.5 text-neutral-400 shrink-0" />
-                          </button>
-                        ) : (
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-600 mt-3 italic">No contact info was captured in this conversation.</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <FeedbackTab
+              csatFeedback={csatFeedback}
+              loadingLists={loadingLists}
+              leads={leads}
+              setActiveTab={setActiveTab}
+            />
           )}
 
           {/* TAB: INBOX */}
@@ -6406,2872 +4228,310 @@ export default function Dashboard() {
 
           {/* TAB 6: ANALYTICS */}
           {activeTab === "analytics" && (
-            <div className="max-w-4xl mx-auto w-full space-y-8 py-6 px-4">
-              {loadingAnalytics ? (
-                <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl gap-3">
-                  <Loader2 className="size-6 animate-spin text-[#f97316]" />
-                  <p className="text-xs text-neutral-400 font-semibold">Calculating database metrics...</p>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                      <span className="text-[10px] text-neutral-400 uppercase font-semibold">Total Queries Sent</span>
-                      <h4 className="text-2xl font-bold mt-1">{totalQueries.toLocaleString()}</h4>
-                      <p className="text-[9px] text-green-500 mt-1 font-medium">100% real database sync</p>
-                    </div>
-                    <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                      <span className="text-[10px] text-neutral-400 uppercase font-semibold">Lead Conversion Rate</span>
-                      <h4 className="text-2xl font-bold mt-1">{conversionRate}%</h4>
-                      <p className="text-[9px] text-[#f97316] mt-1 font-semibold">Total unique sessions: {totalSessions}</p>
-                    </div>
-                    <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                      <span className="text-[10px] text-neutral-400 uppercase font-semibold">Satisfaction Score</span>
-                      <h4 className="text-2xl font-bold mt-1">{totalQueries > 0 ? "4.9 / 5.0" : "N/A"}</h4>
-                      <p className="text-[9px] text-green-500 mt-1 font-medium">Based on Playground test logs</p>
-                    </div>
-                  </div>
-
-                  <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-6">Queries Over Time (Last 7 Days)</h4>
-                    
-                    <div className="h-48 flex items-end justify-between gap-4 pt-4 px-2">
-                      {analyticsChartData.map((item, idx) => (
-                        <div key={idx} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end">
-                          <span className="text-[10px] font-mono text-neutral-400 opacity-0 group-hover:opacity-100 transition-opacity">{item.count}</span>
-                          <div
-                            style={{ height: item.height }}
-                            className="w-full bg-neutral-200 dark:bg-neutral-800 group-hover:bg-[#f97316] transition-all rounded-t-md"
-                          />
-                          <span className="text-[10px] text-neutral-500 font-medium">{item.day}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                    <div className="flex items-center justify-between mb-6">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">AI Usage & Cost (Last 30 Days)</h4>
-                      <span className="text-[9px] text-neutral-400 font-medium">Every model call, tracked by provider</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                      <div>
-                        <span className="text-[10px] text-neutral-400 uppercase font-semibold">Estimated Cost</span>
-                        <h4 className="text-2xl font-bold mt-1 font-mono tabular-nums">${aiUsageTotalCost.toFixed(4)}</h4>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-neutral-400 uppercase font-semibold">Total Tokens</span>
-                        <h4 className="text-2xl font-bold mt-1 font-mono tabular-nums">{aiUsageTotalTokens.toLocaleString()}</h4>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-neutral-400 uppercase font-semibold">Model Calls</span>
-                        <h4 className="text-2xl font-bold mt-1 font-mono tabular-nums">{aiUsageTotalCalls.toLocaleString()}</h4>
-                      </div>
-                    </div>
-                    {aiUsageByModel.length > 0 ? (
-                      <div className="space-y-2">
-                        {aiUsageByModel.map((row) => (
-                          <div key={row.model} className="flex items-center justify-between text-xs py-2 border-t border-neutral-100 dark:border-neutral-850">
-                            <span className="font-mono text-neutral-600 dark:text-neutral-300">{row.model}</span>
-                            <span className="text-neutral-400">{row.calls.toLocaleString()} calls</span>
-                            <span className="text-neutral-400">{row.tokens.toLocaleString()} tokens</span>
-                            <span className="font-mono font-semibold tabular-nums">${row.cost.toFixed(4)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-neutral-400">No AI usage recorded yet in this window.</p>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+            <AnalyticsTab
+              loadingAnalytics={loadingAnalytics}
+              totalQueries={totalQueries}
+              conversionRate={conversionRate}
+              totalSessions={totalSessions}
+              analyticsChartData={analyticsChartData}
+              aiUsageTotalCost={aiUsageTotalCost}
+              aiUsageTotalTokens={aiUsageTotalTokens}
+              aiUsageTotalCalls={aiUsageTotalCalls}
+              aiUsageByModel={aiUsageByModel}
+            />
           )}
 
           {/* TAB 7: INTEGRATIONS */}
           {activeTab === "integrations" && (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-6">
-              <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <h3 className="text-sm font-bold">Embed Chatbot</h3>
-                <p className="text-xs text-neutral-400 mt-1">
-                  Select your website builder to get tailored installation instructions.
-                </p>
-
-                {/* Platform selector */}
-                {(() => {
-                  const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
-                  const logoUrl = (domain: string) =>
-                    `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
-                  const PlatformIcon = ({ domain, label }: { domain: string; label: string }) => (
-                    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
-                    <img
-                      src={logoUrl(domain)}
-                      alt={label}
-                      className="size-7 rounded-md object-contain"
-                      onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }}
-                    />
-                  );
-                  const platforms = [
-                    { id: "html", label: "HTML", icon: <PlatformIcon domain="w3.org" label="HTML" /> },
-                    { id: "react", label: "React / Next.js", icon: <PlatformIcon domain="react.dev" label="React" /> },
-                    { id: "wordpress", label: "WordPress", icon: <PlatformIcon domain="wordpress.org" label="WordPress" /> },
-                    { id: "shopify", label: "Shopify", icon: <PlatformIcon domain="shopify.com" label="Shopify" /> },
-                    { id: "prestashop", label: "Prestashop", icon: <PlatformIcon domain="prestashop.com" label="Prestashop" /> },
-                    { id: "woocommerce", label: "WooCommerce", icon: <PlatformIcon domain="woocommerce.com" label="WooCommerce" /> },
-                    { id: "whmcs", label: "WHMCS", icon: <PlatformIcon domain="whmcs.com" label="WHMCS" /> },
-                    { id: "adobe", label: "Adobe Commerce", icon: <PlatformIcon domain="business.adobe.com" label="Adobe Commerce" /> },
-                    {
-                      id: "iframe",
-                      label: "Inline Embed",
-                      icon: (
-                        <svg viewBox="0 0 24 24" className="size-7" fill="none"><rect width="24" height="24" rx="5" fill="#6B7280"/><rect x="4" y="6" width="16" height="12" rx="1.5" stroke="white" strokeWidth="1.5"/><path d="M9 10l-2 2 2 2M15 10l2 2-2 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      ),
-                    },
-                  ];
-
-                  const platformInstructions: Record<string, { title: string; steps: { label: string; code?: string; note?: string }[] }> = {
-                    html: {
-                      title: "Add to any HTML page",
-                      steps: [
-                        { label: "Paste this snippet just before the closing </body> tag of your page (mounts as native vector elements via Shadow DOM):", code: embedScriptCode },
-                      ],
-                    },
-                    react: {
-                      title: "Add to React / Next.js",
-                      steps: [
-                        { label: "Add the script tag to your root layout (e.g. app/layout.tsx):", code: `import Script from "next/script";\n\n// Inside your <body>:\n<Script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  strategy="afterInteractive"\n/>` },
-                        { label: "For plain React (Vite / CRA), add to your index.html before </body>:", code: embedScriptCode },
-                        { label: "Renders as native vector DOM elements inside an isolated Shadow Root - zero iframes, 100% sharp at any zoom level." },
-                      ],
-                    },
-                    wordpress: {
-                      title: "Add to WordPress",
-                      steps: [
-                        { label: "Go to Appearance → Theme File Editor → functions.php and add:", code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');` },
-                        { label: "Alternatively, install the Insert Headers and Footers plugin and paste the snippet into the Footer Scripts field.", note: "No code editing required." },
-                      ],
-                    },
-                    shopify: {
-                      title: "Add to Shopify",
-                      steps: [
-                        { label: "In your Shopify admin go to Online Store → Themes → Edit code." },
-                        { label: "Open layout/theme.liquid and paste the snippet just before </body>:", code: embedScriptCode },
-                        { label: "Click Save.", note: "The widget will appear on all storefront pages." },
-                      ],
-                    },
-                    prestashop: {
-                      title: "Add to Prestashop",
-                      steps: [
-                        { label: "Go to Modules → Module Manager → search for Custom HTML." },
-                        { label: "If unavailable, edit your active theme's footer.tpl and paste just before </body>:", code: embedScriptCode },
-                        { label: "Clear the Prestashop cache under Advanced Parameters → Performance.", note: "Requires FTP access to edit templates directly." },
-                      ],
-                    },
-                    woocommerce: {
-                      title: "Add to WooCommerce (WordPress)",
-                      steps: [
-                        { label: "WooCommerce runs on WordPress - follow the WordPress steps above, or add to Appearance → Theme File Editor → functions.php:", code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');` },
-                        { label: "The widget appears on all WooCommerce product and checkout pages automatically.", note: "No WooCommerce-specific plugin needed." },
-                      ],
-                    },
-                    whmcs: {
-                      title: "Add to WHMCS",
-                      steps: [
-                        { label: "Navigate to your WHMCS template folder: /templates/<your-theme>/footer.tpl" },
-                        { label: "Paste the snippet just before </body>:", code: embedScriptCode },
-                        { label: "Save and clear the WHMCS template cache.", note: "Make sure to replace <your-theme> with your active template name." },
-                      ],
-                    },
-                    adobe: {
-                      title: "Add to Adobe Commerce (Magento)",
-                      steps: [
-                        { label: "In your Magento admin go to Content → Configuration → Edit your store view." },
-                        { label: "Under HTML Head → Scripts and Style Sheets, or use a CMS Block / Widget. Alternatively edit app/design/frontend/<Vendor>/<theme>/Magento_Theme/layout/default.xml and add a block referencing a custom .phtml containing:", code: embedScriptCode },
-                        { label: "Run bin/magento cache:flush after saving.", note: "Using a CMS Static Block is the no-deploy option." },
-                      ],
-                    },
-                    iframe: {
-                      title: "Inline In-Page Embed",
-                      steps: [
-                        { label: "Paste this embed code wherever you want a full in-page chat window:", code: embedIframeCode },
-                        { label: "Adjust width and height attributes to fit your layout.", note: "The inline embed renders directly in-page without the floating launcher button." },
-                      ],
-                    },
-                  };
-
-                  const selected = embedPlatform ? platformInstructions[embedPlatform] : null;
-
-                  return (
-                    <>
-                      {/* Grid */}
-                      <div className="mt-5 grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                        {platforms.map((p) => (
-                          <button
-                            key={p.id}
-                            onClick={() => setEmbedPlatform(embedPlatform === p.id ? null : p.id)}
-                            className={`flex flex-col items-center gap-2 p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                              embedPlatform === p.id
-                                ? "border-[#f97316] bg-orange-50 dark:bg-orange-950/20"
-                                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
-                            }`}
-                          >
-                            {p.icon}
-                            <span className="text-[10px] font-medium text-neutral-700 dark:text-neutral-300 leading-tight">{p.label}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Instructions */}
-                      {selected && (
-                        <div className="mt-5 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selected.title}</h4>
-                            <button
-                              onClick={() => setEmbedPlatform(null)}
-                              className="text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer transition-colors"
-                            >
-                              ← Back
-                            </button>
-                          </div>
-                          {selected.steps.map((step, i) => (
-                            <div key={i} className="space-y-1.5">
-                              <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                                <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#f97316] text-white text-[9px] font-bold mr-1.5">{i + 1}</span>
-                                {step.label}
-                              </p>
-                              {step.code && (
-                                <div className="relative">
-                                  <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-350 leading-relaxed">
-                                    {step.code}
-                                  </pre>
-                                  <button
-                                    onClick={() => copyToClipboard(step.code!, "script")}
-                                    className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer bg-white dark:bg-neutral-900 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
-                                  >
-                                    {copiedScript ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
-                                    {copiedScript ? "Copied!" : "Copy"}
-                                  </button>
-                                </div>
-                              )}
-                              {step.note && (
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 italic pl-6">{step.note}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Mobile SDKs */}
-              <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <h3 className="text-sm font-bold">Embed the widget within your mobile app</h3>
-                <p className="text-xs text-neutral-400 mt-1 leading-relaxed max-w-xl">
-                  Enhance and personalize your user experience by integrating the Chatty SDK into your app. Whether you&apos;re using
-                  iOS, Android, or React Native, the Chatty SDK renders a fully native chat UI - no WebView - talking directly to
-                  your bot&apos;s API.
-                </p>
-                <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mt-5 mb-2.5">Select your option:</p>
-
-                {(() => {
-                  const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
-                  const mobileLogoUrl = (domain: string) =>
-                    `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
-                  const MobilePlatformIcon = ({ domain, label }: { domain: string; label: string }) => (
-                    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
-                    <img
-                      src={mobileLogoUrl(domain)}
-                      alt={label}
-                      className="size-6 rounded-md object-contain"
-                      onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }}
-                    />
-                  );
-                  const mobilePlatforms = [
-                    { id: "ios", label: "iOS SDK", icon: <MobilePlatformIcon domain="apple.com" label="iOS" /> },
-                    { id: "android", label: "Android SDK", icon: <MobilePlatformIcon domain="android.com" label="Android" /> },
-                    { id: "react-native", label: "React Native SDK", icon: <MobilePlatformIcon domain="reactnative.dev" label="React Native" /> },
-                  ];
-
-                  const mobileInstructions: Record<string, { title: string; steps: { label: string; code?: string; note?: string }[] }> = {
-                    ios: {
-                      title: "iOS SDK (Swift Package, SwiftUI)",
-                      steps: [
-                        { label: "In Xcode: File → Add Package Dependencies, paste the URL below and select version 1.0.8:", code: `https://github.com/PersonaliAI/chatty-ios-sdk` },
-                        { label: "Add a floating launcher anywhere in your view hierarchy:", code: `import ChattySDK\n\nstruct RootView: View {\n    var body: some View {\n        ContentView()\n            .overlay(ChattyLauncher(botId: "${botId || "YOUR_BOT_ID"}"))\n    }\n}` },
-                        { label: "Or embed a full-screen chat screen directly:", code: `ChattyChatView(botId: "${botId || "YOUR_BOT_ID"}")` },
-                        { label: "Renders a fully native SwiftUI chat UI - no WebView.", note: "Requires iOS 15+." },
-                      ],
-                    },
-                    android: {
-                      title: "Android SDK (Kotlin, Jetpack Compose)",
-                      steps: [
-                        { label: "Add JitPack as a repository, then the dependency (Maven Central also has it, but lags behind at 1.0.0):", code: `// settings.gradle.kts\ndependencyResolutionManagement {\n    repositories {\n        maven { url = uri("https://jitpack.io") }\n    }\n}\n\n// app/build.gradle.kts\ndependencies {\n    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.8")\n}` },
-                        { label: "Add a floating launcher to your root composable:", code: `@Composable\nfun AppRoot() {\n    Box(Modifier.fillMaxSize()) {\n        // your app content\n        ChattyLauncher(botId = "${botId || "YOUR_BOT_ID"}")\n    }\n}` },
-                        { label: "Or embed a full-screen chat composable directly:", code: `ChattyChatScreen(botId = "${botId || "YOUR_BOT_ID"}", modifier = Modifier.fillMaxSize())` },
-                        { label: "Renders a fully native Jetpack Compose chat UI - no WebView.", note: "Requires minSdk 24+." },
-                      ],
-                    },
-                    "react-native": {
-                      title: "React Native SDK",
-                      steps: [
-                        { label: "Install the SDK and its peer dependency:", code: `npm install @personaliai/react-native @react-native-async-storage/async-storage` },
-                        { label: "Add a floating launcher anywhere in your app:", code: `import { ChattyLauncher } from "@personaliai/react-native";\n\nexport default function App() {\n  return (\n    <>\n      {/* ...your app... */}\n      <ChattyLauncher botId="${botId || "YOUR_BOT_ID"}" position="right" />\n    </>\n  );\n}` },
-                        { label: "Or embed a full-screen chat view directly:", code: `import { ChattyChatView } from "@personaliai/react-native";\n\nfunction SupportScreen() {\n  return <ChattyChatView botId="${botId || "YOUR_BOT_ID"}" />;\n}` },
-                        { label: "Renders real React Native components - no WebView - on both iOS and Android.", note: "Requires React Native 0.72+." },
-                      ],
-                    },
-                  };
-
-                  const selected = embedMobilePlatform ? mobileInstructions[embedMobilePlatform] : null;
-
-                  return (
-                    <>
-                      <div className="grid grid-cols-3 gap-2.5">
-                        {mobilePlatforms.map((p) => (
-                          <button
-                            key={p.id}
-                            onClick={() => setEmbedMobilePlatform(embedMobilePlatform === p.id ? null : p.id)}
-                            className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                              embedMobilePlatform === p.id
-                                ? "border-[#f97316] bg-orange-50 dark:bg-orange-950/20"
-                                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
-                            }`}
-                          >
-                            {p.icon}
-                            <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{p.label}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {selected && (
-                        <div className="mt-5 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selected.title}</h4>
-                            <button
-                              onClick={() => setEmbedMobilePlatform(null)}
-                              className="text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer transition-colors"
-                            >
-                              ← Back
-                            </button>
-                          </div>
-                          {selected.steps.map((step, i) => (
-                            <div key={i} className="space-y-1.5">
-                              <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                                <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#f97316] text-white text-[9px] font-bold mr-1.5">{i + 1}</span>
-                                {step.label}
-                              </p>
-                              {step.code && (
-                                <div className="relative">
-                                  <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-350 leading-relaxed">
-                                    {step.code}
-                                  </pre>
-                                  <button
-                                    onClick={() => copyToClipboard(step.code!, "mobile")}
-                                    className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer bg-white dark:bg-neutral-900 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
-                                  >
-                                    {copiedMobile ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
-                                    {copiedMobile ? "Copied!" : "Copy"}
-                                  </button>
-                                </div>
-                              )}
-                              {step.note && (
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 italic pl-6">{step.note}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Security: Allowed Domains */}
-              <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <ShieldAlert className="size-4 text-[#f97316]" /> Allowed Domains
-                </h3>
-                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  Restrict where this widget can run. Leave empty to allow <b>any</b> website. Add domains to lock the
-                  assistant to only your sites - requests from other domains are rejected.
-                </p>
-
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const d = newDomain.trim().toLowerCase()
-                      .replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
-                    if (d && !allowedDomains.includes(d)) {
-                      handleInputChange(setAllowedDomains, [...allowedDomains, d]);
-                    }
-                    setNewDomain("");
-                  }}
-                  className="flex gap-2 mt-4"
-                >
-                  <input
-                    type="text"
-                    value={newDomain}
-                    onChange={(e) => setNewDomain(e.target.value)}
-                    placeholder="example.com"
-                    className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!newDomain.trim()}
-                    className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
-                  >
-                    <Plus className="size-3.5" /> Add
-                  </button>
-                </form>
-
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {allowedDomains.length === 0 ? (
-                    <span className="text-[11px] text-neutral-400 flex items-center gap-1.5">
-                      <Globe className="size-3.5" /> Open to all domains (no restriction)
-                    </span>
-                  ) : (
-                    allowedDomains.map((d) => (
-                      <span key={d} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
-                        {d}
-                        <button
-                          onClick={() => handleInputChange(setAllowedDomains, allowedDomains.filter((x) => x !== d))}
-                          className="text-neutral-400 hover:text-red-500 cursor-pointer"
-                        >
-                          <X className="size-3" />
-                        </button>
-                      </span>
-                    ))
-                  )}
-                </div>
-                {allowedDomains.length > 0 && (
-                  <p className="text-[10px] text-neutral-400 mt-3">Remember to click <b>Save Changes</b> to apply.</p>
-                )}
-              </div>
-            </div>
+            <IntegrationsTab
+              embedPlatform={embedPlatform}
+              setEmbedPlatform={setEmbedPlatform}
+              embedMobilePlatform={embedMobilePlatform}
+              setEmbedMobilePlatform={setEmbedMobilePlatform}
+              embedScriptCode={embedScriptCode}
+              embedIframeCode={embedIframeCode}
+              botId={botId}
+              copyToClipboard={copyToClipboard}
+              copiedScript={copiedScript}
+              copiedMobile={copiedMobile}
+              newDomain={newDomain}
+              setNewDomain={setNewDomain}
+              allowedDomains={allowedDomains}
+              setAllowedDomains={setAllowedDomains}
+              handleInputChange={handleInputChange}
+            />
           )}
 
           {/* TAB: MCP */}
-          {activeTab === "mcp" && (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-6">
-              <div>
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Cpu className="size-4 text-[#f97316]" /> MCP Server
-                </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
-                  Connect Claude, ChatGPT, or any Model Context Protocol client to run this entire dashboard
-                  from a conversation - bots, flows, campaigns, voice, knowledge, inbox, leads, calendar,
-                  guardrails, team, billing, and GDPR export, all as callable tools. Authenticated with a
-                  standard OAuth 2.0 + PKCE flow, not a pasted API key.
-                </p>
-              </div>
-
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="flex items-start gap-2">
-                    <Lock className="size-3.5 text-[#f97316] mt-0.5 shrink-0" />
-                    <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">OAuth 2.0 + PKCE - no shared secret to paste into a config file.</p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Shield className="size-3.5 text-[#f97316] mt-0.5 shrink-0" />
-                    <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">Scoped access: read / write / knowledge / voice / actions / admin.</p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Layers className="size-3.5 text-[#f97316] mt-0.5 shrink-0" />
-                    <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">55 tools, all reading and writing the same tables the dashboard does.</p>
-                  </div>
-                </div>
-                <p className="text-[10px] text-neutral-400">MCP endpoint: <code className="font-mono">{BACKEND_URL}/mcp</code> · Discovery: <code className="font-mono">{BACKEND_URL}/.well-known/oauth-authorization-server</code></p>
-                <pre className="bg-neutral-950 text-neutral-100 rounded-xl p-4 overflow-x-auto text-[11px] font-mono leading-relaxed">{`{
-  "mcpServers": {
-    "chatty": {
-      "url": "${BACKEND_URL}/mcp"
-    }
-  }
-}`}</pre>
-                <p className="text-[10px] text-neutral-400">Add this to your MCP client&apos;s config (e.g. Claude Desktop&apos;s <code className="font-mono">claude_desktop_config.json</code>), or paste the URL into claude.ai&apos;s Connectors settings directly. The client opens a normal OAuth consent screen on first connect - approve it once per account.</p>
-              </div>
-
-              {/* Tool catalog */}
-              <div>
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Layers className="size-4 text-[#f97316] shrink-0" /> Tool catalog
-                </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
-                  Every tool the server exposes, grouped the same way the server source groups them.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  { name: "Bot Lifecycle", count: 6, desc: "Create, list, get, update, clone, and delete chatbots." },
-                  { name: "Customizer & Design Studio", count: 4, desc: "Widget styling, WCAG contrast audits, HTML preview, embed code." },
-                  { name: "Visual Flow Builder", count: 4, desc: "AI-generate, read, update, and simulate conversation flows." },
-                  { name: "Proactive Campaigns", count: 5, desc: "Create, list, update, delete campaigns, and read their analytics." },
-                  { name: "Voice Agent", count: 2, desc: "Configure the real-time LiveKit voice agent and mint session tokens." },
-                  { name: "Knowledge Base & RAG", count: 7, desc: "Add text, crawl URLs, upload documents, sync Drive/OneDrive, test retrieval." },
-                  { name: "Inbox, Live Chat & Takeover", count: 6, desc: "List conversations, read transcripts, human takeover, agent replies and notes." },
-                  { name: "Leads, Calendar & Meetings", count: 7, desc: "Lead capture config, export, calendar booking, and meeting lists." },
-                  { name: "Analytics & Self-Healing", count: 4, desc: "Usage analytics, knowledge-gap discovery, sentiment, feedback/CSAT." },
-                  { name: "Settings, Guardrails, BYOK & Team", count: 10, desc: "Guardrails, bring-your-own-key, team RBAC, domain allowlist, notifications, webhooks, billing, audit logs, GDPR export." },
-                ].map((cat) => (
-                  <div key={cat.name} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold text-neutral-900 dark:text-white">{cat.name}</p>
-                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">{cat.desc}</p>
-                    </div>
-                    <span className="shrink-0 text-[10px] font-bold px-2 py-1 rounded-full bg-[#f97316]/10 text-[#f97316]">{cat.count}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[10px] text-neutral-400">Plus 2 live MCP resources (bot config/analytics/knowledge-gaps as read context) and pre-built prompt workflows (e.g. &quot;audit and optimize this bot&quot;, &quot;build a bot from a brand URL&quot;) a client can invoke directly.</p>
-            </div>
-          )}
+          {activeTab === "mcp" && <McpTab />}
 
           {/* TAB: DEVELOPER API */}
           {activeTab === "developer" && (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-6">
-              <div>
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Puzzle className="size-4 text-[#f97316]" /> Developer API
-                </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
-                  Call your trained assistant programmatically from any app or backend. Generate an API key, then POST to the chat endpoint with a Bearer token.
-                </p>
-              </div>
-
-              {/* Usage summary */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Total Requests</p>
-                  <p className="text-2xl font-bold mt-1 text-neutral-900 dark:text-white">{apiKeys.reduce((s, k) => s + (k.request_count || 0), 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Active Keys</p>
-                  <p className="text-2xl font-bold mt-1 text-neutral-900 dark:text-white">{apiKeys.filter((k) => !k.revoked).length}</p>
-                </div>
-                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Last Activity</p>
-                  <p className="text-sm font-semibold mt-2 text-neutral-700 dark:text-neutral-300">{(() => { const t = apiKeys.map((k) => k.last_used_at).filter((v): v is string => Boolean(v)).sort(); return t.length ? formatDateTime(t[t.length - 1]) : "-"; })()}</p>
-                </div>
-              </div>
-
-              {/* Newly created key (shown once) */}
-              {newApiKey && (
-                <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-2xl">
-                  <p className="text-[11px] font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                    <Check className="size-3.5" /> New key created - copy it now, it won&apos;t be shown again.
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <code className="flex-1 text-[11px] font-mono bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 truncate">{newApiKey}</code>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(newApiKey); setCopiedApiKey(true); setTimeout(() => setCopiedApiKey(false), 2000); }}
-                      className="px-3 py-2 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg text-[11px] font-semibold cursor-pointer flex items-center gap-1.5 shrink-0"
-                    >
-                      {copiedApiKey ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                      {copiedApiKey ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Keys list */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">API Keys ({apiKeys.length})</h4>
-                  <button
-                    onClick={handleCreateApiKey}
-                    disabled={creatingApiKey || !botId}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50"
-                  >
-                    {creatingApiKey ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-                    Generate Key
-                  </button>
-                </div>
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-850">
-                  {apiKeys.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-neutral-400">No API keys yet. Generate one to start using the API.</div>
-                  ) : (
-                    apiKeys.map((k) => (
-                      <div key={k.id} className="p-4 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <code className="text-xs font-mono font-semibold text-neutral-800 dark:text-neutral-200">{k.key_prefix}••••••••</code>
-                            {k.revoked && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400">Revoked</span>}
-                          </div>
-                          <p className="text-[10px] text-neutral-400 mt-0.5">
-                            {(k.request_count || 0).toLocaleString()} requests
-                            {k.last_used_at ? ` · last used ${formatDateTime(k.last_used_at)}` : " · never used"}
-                            {k.created_at ? ` · created ${formatDateTime(k.created_at)}` : ""}
-                          </p>
-                        </div>
-                        {!k.revoked && (
-                          <button
-                            onClick={() => handleRevokeApiKey(k.id)}
-                            className="px-3 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer shrink-0"
-                          >
-                            Revoke
-                          </button>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Endpoint docs */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Endpoints</h4>
-                <div className="space-y-1.5">
-                  {[
-                    { m: "POST", p: "/api/v1/chat", d: "Send a message, get the assistant's reply" },
-                    { m: "GET", p: "/api/v1/bot", d: "Bot details (name, model, settings)" },
-                    { m: "GET", p: "/api/v1/leads", d: "List captured leads (?limit&offset)" },
-                    { m: "GET", p: "/api/v1/conversations", d: "Recent conversation messages (?limit)" },
-                    { m: "GET", p: "/api/v1/usage", d: "This key's usage stats" },
-                  ].map((e) => (
-                    <div key={e.p} className="flex items-center gap-2 text-xs">
-                      <span className={`px-2 py-0.5 rounded font-bold text-[10px] w-12 text-center ${e.m === "POST" ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400" : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"}`}>{e.m}</span>
-                      <code className="font-mono text-neutral-700 dark:text-neutral-300">{e.p}</code>
-                      <span className="text-[10px] text-neutral-400 truncate">- {e.d}</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[10px] text-neutral-400">Base URL: <code className="font-mono">{BACKEND_URL}</code> · Auth: <code className="font-mono">Authorization: Bearer &lt;your_api_key&gt;</code> · Rate limit: 60 requests/min per key.</p>
-                <pre className="bg-neutral-950 text-neutral-100 rounded-xl p-4 overflow-x-auto text-[11px] font-mono leading-relaxed">{`curl -X POST ${BACKEND_URL}/api/v1/chat \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"text": "What are your business hours?"}'
-
-# Response: { "reply": "...", "session_id": "..." }`}</pre>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 pt-1">JavaScript</p>
-                <pre className="bg-neutral-950 text-neutral-100 rounded-xl p-4 overflow-x-auto text-[11px] font-mono leading-relaxed">{`const res = await fetch("${BACKEND_URL}/api/v1/chat", {
-  method: "POST",
-  headers: {
-    "Authorization": "Bearer YOUR_API_KEY",
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ text: "What are your business hours?" }),
-});
-const { reply, session_id } = await res.json();`}</pre>
-              </div>
-
-              {/* MCP now has its own dedicated tab (55 tools, full catalog,
-                  connect snippet) - this REST API tab just points there
-                  instead of duplicating that content. */}
-              <button
-                type="button"
-                onClick={() => setActiveTab("mcp")}
-                className="w-full flex items-center justify-between gap-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 text-left hover:border-[#f97316]/50 transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <Cpu className="size-5 text-[#f97316] shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold text-neutral-900 dark:text-white">Prefer an AI agent instead of raw HTTP calls?</p>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Connect Claude or any MCP client - see the MCP tab</p>
-                  </div>
-                </div>
-                <ArrowRight className="size-4 text-neutral-400 shrink-0" />
-              </button>
-
-              {/* Webhooks */}
-              <div>
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Link2 className="size-4 text-[#f97316]" /> Webhooks
-                </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed max-w-xl">
-                  Get a signed HTTP POST to your own server whenever a lead is captured or a message is sent, instead of polling. Every request includes an <code className="font-mono">X-Chatty-Signature</code> header (HMAC-SHA256) - verify it with the secret shown below before trusting the payload.
-                </p>
-              </div>
-
-              {newWebhookSecret && (
-                <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-2xl">
-                  <p className="text-[11px] font-bold text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                    <Check className="size-3.5" /> Webhook registered - copy the signing secret now, it won&apos;t be shown again.
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <code className="flex-1 text-[11px] font-mono bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 truncate">{newWebhookSecret}</code>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(newWebhookSecret); setCopiedWebhookSecret(true); setTimeout(() => setCopiedWebhookSecret(false), 2000); }}
-                      className="px-3 py-2 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg text-[11px] font-semibold cursor-pointer flex items-center gap-1.5 shrink-0"
-                    >
-                      {copiedWebhookSecret ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                      {copiedWebhookSecret ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Add a webhook</h4>
-                  <input
-                    type="url"
-                    value={newWebhookUrl}
-                    onChange={(e) => setNewWebhookUrl(e.target.value)}
-                    placeholder="https://your-server.com/chatty-webhook"
-                    className="w-full text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {WEBHOOK_EVENT_OPTIONS.map((ev) => {
-                      const checked = newWebhookEvents.includes(ev);
-                      return (
-                        <button
-                          key={ev}
-                          type="button"
-                          onClick={() => setNewWebhookEvents((prev) => checked ? prev.filter((e) => e !== ev) : [...prev, ev])}
-                          className={`text-[10px] font-mono px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer ${
-                            checked
-                              ? "bg-[#f97316]/10 border-[#f97316]/40 text-[#f97316]"
-                              : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-350"
-                          }`}
-                        >
-                          {ev}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <button
-                    onClick={handleCreateWebhook}
-                    disabled={creatingWebhook || !botId || !newWebhookUrl.trim() || newWebhookEvents.length === 0}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-50"
-                  >
-                    {creatingWebhook ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-                    Add Webhook
-                  </button>
-                </div>
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-850">
-                  {webhooks.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-neutral-400">
-                      {loadingWebhooks ? "Loading…" : "No webhooks yet. Add one above to get real-time events."}
-                    </div>
-                  ) : (
-                    webhooks.map((w) => (
-                      <div key={w.id} className="p-4 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <code className="text-xs font-mono font-semibold text-neutral-800 dark:text-neutral-200 truncate block">{w.url}</code>
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {(w.events || []).map((ev: string) => (
-                              <span key={ev} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{ev}</span>
-                            ))}
-                          </div>
-                          <p className="text-[10px] text-neutral-400 mt-1.5">
-                            {w.created_at ? `Created ${formatDateTime(w.created_at)}` : ""}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteWebhook(w.id)}
-                          className="px-3 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer shrink-0"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-              <p className="text-[10px] text-neutral-400 -mt-3">
-                Full event/payload/retry reference in the <a href="https://docs.chatty.personaliai.com/guides/webhooks" target="_blank" rel="noreferrer" className="underline">webhooks docs</a>.
-              </p>
-            </div>
+            <DeveloperTab
+              apiKeys={apiKeys}
+              formatDateTime={formatDateTime}
+              newApiKey={newApiKey}
+              copiedApiKey={copiedApiKey}
+              setCopiedApiKey={setCopiedApiKey}
+              handleCreateApiKey={handleCreateApiKey}
+              creatingApiKey={creatingApiKey}
+              botId={botId}
+              handleRevokeApiKey={handleRevokeApiKey}
+              setActiveTab={setActiveTab}
+              newWebhookSecret={newWebhookSecret}
+              copiedWebhookSecret={copiedWebhookSecret}
+              setCopiedWebhookSecret={setCopiedWebhookSecret}
+              newWebhookUrl={newWebhookUrl}
+              setNewWebhookUrl={setNewWebhookUrl}
+              newWebhookEvents={newWebhookEvents}
+              setNewWebhookEvents={setNewWebhookEvents}
+              handleCreateWebhook={handleCreateWebhook}
+              creatingWebhook={creatingWebhook}
+              webhooks={webhooks}
+              loadingWebhooks={loadingWebhooks}
+              handleDeleteWebhook={handleDeleteWebhook}
+            />
           )}
 
           {/* TAB: BILLING */}
           {activeTab === "billing" && (
-            <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-6">
-              {(() => {
-                const PLAN_LABELS: Record<string, string> = {
-                  free: "Free",
-                  chatty_hobby: "Hobby",
-                  chatty_standard: "Standard",
-                  chatty_business: "Business",
-                };
-                const PLAN_FEATURES: Record<string, string[]> = {
-                  free: ["100 message credits/mo", "1 chatbot", "Basic AI models"],
-                  chatty_hobby: [
-                    "1,000 message credits/mo",
-                    "10M training characters",
-                    "1 chatbot",
-                    "Fast & Advanced AI models",
-                    "AI Actions & Analytics",
-                    "Guardrails & Notifications",
-                    "Lead collection & API",
-                  ],
-                  chatty_standard: [
-                    "10,000 message credits/mo",
-                    "20M training characters",
-                    "3 chatbots",
-                    "Daily Auto Train sync",
-                    "Remove branding completely",
-                    "Unlimited team members",
-                  ],
-                  chatty_business: [
-                    "40,000 message credits/mo",
-                    "50M training characters",
-                    "5 chatbots",
-                    "BYOK (Bring-Your-Own-Key) option",
-                    "White-label configuration",
-                    "Management Admin API",
-                  ],
-                };
-                const PLAN_CARDS: { id: "hobby" | "standard" | "business"; label: string; monthly: number; yearly: number; blurb: string; popular?: boolean }[] = [
-                  { id: "hobby", label: "Hobby", monthly: 19, yearly: 15, blurb: "Perfect for individuals, developers, and side projects." },
-                  { id: "standard", label: "Standard", monthly: 99, yearly: 82, blurb: "All in Hobby, plus advanced automation and multi-bot systems.", popular: true },
-                  { id: "business", label: "Business", monthly: 399, yearly: 332, blurb: "For enterprise scale, heavy traffic, and reseller options." },
-                ];
-                const plan = billingInfo?.plan || "free";
-                const status = billingInfo?.status;
-                const isPaid = ["active", "on_trial", "paused"].includes(status || "");
-                const portalUrl = process.env.NEXT_PUBLIC_LEMON_PORTAL_URL || "";
-
-                return (
-                  <>
-                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-6">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Current plan</div>
-                          <div className="mt-1 flex items-center gap-2">
-                            <span className="text-xl font-bold text-neutral-900 dark:text-white">
-                              {PLAN_LABELS[plan] || plan}
-                            </span>
-                            {status && (
-                              <span
-                                className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                                  isPaid
-                                    ? "bg-emerald-50 text-emerald-700"
-                                    : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
-                                }`}
-                              >
-                                {status}
-                              </span>
-                            )}
-                          </div>
-                          {billingInfo?.renewsAt && (
-                            <div className="mt-1 text-xs text-neutral-400">
-                              Renews {new Date(billingInfo.renewsAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
-                            </div>
-                          )}
-                        </div>
-                        {isPaid && portalUrl && (
-                          <a
-                            href={portalUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                          >
-                            Manage subscription <ExternalLink className="size-3.5" />
-                          </a>
-                        )}
-                      </div>
-
-                      <ul className="grid sm:grid-cols-2 gap-2">
-                        {(PLAN_FEATURES[plan] || PLAN_FEATURES.free).map((f) => (
-                          <li key={f} className="flex items-start gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-                            <CheckCircle2 className="size-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                            {f}
-                          </li>
-                        ))}
-                      </ul>
-
-                      <p className="text-[11px] text-neutral-400">
-                        Billing is handled by Lemon Squeezy. Receipts and tax invoices are sent to <b>{user?.email}</b>.
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
-                          {isPaid ? "Change plan" : "Upgrade"}
-                        </div>
-                        <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-full p-0.5">
-                          {(["monthly", "yearly"] as const).map((iv) => (
-                            <button
-                              key={iv}
-                              type="button"
-                              onClick={() => setBillingInterval(iv)}
-                              className={`text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 rounded-full transition-colors cursor-pointer ${
-                                billingInterval === iv
-                                  ? "bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white shadow-sm"
-                                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                              }`}
-                            >
-                              {iv === "monthly" ? "Monthly" : "Yearly · 2 months free"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="grid sm:grid-cols-3 gap-4">
-                        {PLAN_CARDS.map((card) => {
-                          const isCurrent = plan === `chatty_${card.id}`;
-                          return (
-                            <div
-                              key={card.id}
-                              className={`relative flex flex-col p-5 bg-white dark:bg-neutral-900 border rounded-2xl ${
-                                card.popular ? "border-neutral-900 dark:border-white" : "border-neutral-200 dark:border-neutral-800"
-                              }`}
-                            >
-                              {card.popular && (
-                                <span className="absolute top-0 right-5 -translate-y-1/2 px-2 py-0.5 bg-neutral-900 dark:bg-white text-white dark:text-black text-[9px] font-mono uppercase tracking-wider rounded">
-                                  Popular
-                                </span>
-                              )}
-                              <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">{card.label}</span>
-                              <div className="mt-1 flex items-baseline gap-1">
-                                <span className="text-2xl font-bold text-neutral-900 dark:text-white">
-                                  ${billingInterval === "yearly" ? card.yearly : card.monthly}
-                                </span>
-                                <span className="text-xs text-neutral-400">/mo</span>
-                              </div>
-                              {billingInterval === "yearly" && (
-                                <span className="text-[10px] text-emerald-600">billed ${card.yearly * 12}/yr</span>
-                              )}
-                              <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">{card.blurb}</p>
-                              <ul className="mt-4 space-y-2 flex-1">
-                                {PLAN_FEATURES[`chatty_${card.id}`].map((f) => (
-                                  <li key={f} className="flex items-start gap-2 text-[11px] text-neutral-600 dark:text-neutral-400">
-                                    <CheckCircle2 className="size-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                                    {f}
-                                  </li>
-                                ))}
-                              </ul>
-                              {isCurrent ? (
-                                <span className="mt-4 text-center text-xs font-mono uppercase tracking-wider border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-neutral-400">
-                                  Current plan
-                                </span>
-                              ) : (
-                                <Link
-                                  href={`/checkout?plan=${card.id}&interval=${billingInterval}`}
-                                  className={`mt-4 text-center text-xs font-mono uppercase tracking-wider rounded-lg px-3 py-2.5 transition-colors ${
-                                    card.popular
-                                      ? "bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-black dark:hover:bg-neutral-100"
-                                      : "border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                                  }`}
-                                >
-                                  {isPaid ? "Switch" : "Upgrade"}
-                                </Link>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
+            <BillingTab
+              billingInfo={billingInfo}
+              user={user}
+              billingInterval={billingInterval}
+              setBillingInterval={setBillingInterval}
+            />
           )}
 
           {/* TAB 8: AGENT SETTINGS */}
           {activeTab === "settings" && (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
-              <div className="w-full max-w-2xl p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-8">
-
-                {/* SECTION 0: TEAM */}
-                {canAccessTab("team") && (() => {
-                  // What THIS caller may grant to someone else - an admin
-                  // managing the roster can hand out any tab except the
-                  // owner-only ones (billing/BYOK/webhooks), matching the
-                  // backend's OWNER_ONLY_TABS enforcement.
-                  const grantableTabs = CHATTY_TEAM_TABS.filter((t) => myRole === "owner" || !OWNER_ONLY_TABS.has(t));
-                  return (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                      <Users className="size-4 text-[#f97316]" />
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Team</h3>
-                    </div>
-                    <p className="text-[11px] text-neutral-400 -mt-2">
-                      Invite teammates to help manage this bot. We&apos;ll email them, but this doesn&apos;t create an
-                      account for them - they need their own: if they don&apos;t have one yet, they sign up at
-                      chatty.personaliai.com with the exact email below, and this bot appears in their dashboard
-                      automatically. Access is limited to this bot only, and to the tabs checked below - pick which
-                      dashboard sections they can reach.
-                    </p>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      <input
-                        type="text" value={inviteName} onChange={(e) => setInviteName(e.target.value)}
-                        placeholder="Full name"
-                        className="sm:w-40 shrink-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                      />
-                      <input
-                        type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
-                        placeholder="teammate@company.com"
-                        className="flex-1 min-w-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                      />
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="w-28 shrink-0">
-                          <ModernSelect
-                            value={inviteRole}
-                            options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
-                            onChange={(v) => {
-                              const role = v as "agent" | "admin";
-                              setInviteRole(role);
-                              setInviteTabs((role === "admin" ? DEFAULT_ADMIN_TABS : DEFAULT_AGENT_TABS)
-                                .filter((t) => grantableTabs.includes(t)) as ChattyTeamTab[]);
-                            }}
-                          />
-                        </div>
-                        <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@") || !inviteName.trim()}
-                          className="flex-1 sm:flex-initial px-3.5 py-2 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap">
-                          {invitingTeam ? "Inviting…" : "Invite"}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                      {grantableTabs.map((tab) => (
-                        <TeamTabCheckbox
-                          key={tab}
-                          checked={inviteTabs.includes(tab)}
-                          onChange={(checked) => setInviteTabs((p) => checked ? [...p, tab] : p.filter((t) => t !== tab))}
-                          label={TAB_LABELS[tab]}
-                        />
-                      ))}
-                    </div>
-                    {teamMembers.length > 0 && (
-                      <div className="space-y-1.5">
-                        {teamMembers.map((m) => {
-                          const memberTabs = (m.permissions || []) as ChattyTeamTab[];
-                          const isEditing = editingMemberId === m.id;
-                          const isEditingAvailability = editingAvailabilityId === m.id;
-                          const isSelf = !!user?.email && user.email.toLowerCase() === m.email.toLowerCase();
-                          const canManageAvailability = canAccessTab("team") || isSelf;
-                          return (
-                            <div key={m.id} className="px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs text-neutral-700 dark:text-neutral-200 truncate">{m.name || m.email}</span>
-                                  {m.name && <span className="text-[10px] text-neutral-400 truncate">{m.email}</span>}
-                                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-500">{m.role}</span>
-                                </div>
-                                <div className="flex items-center gap-3 shrink-0">
-                                  {canManageAvailability && (
-                                    <button onClick={() => setEditingAvailabilityId(isEditingAvailability ? null : m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors">
-                                      {isEditingAvailability ? "Close" : "Availability"}
-                                    </button>
-                                  )}
-                                  <button onClick={() => setEditingMemberId(isEditing ? null : m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors">
-                                    {isEditing ? "Close" : "Manage"}
-                                  </button>
-                                  <button onClick={() => removeTeamMember(m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-red-500 transition-colors">Remove</button>
-                                </div>
-                              </div>
-                              {!isEditing && memberTabs.length > 0 && (
-                                <p className="text-[10px] text-neutral-400 truncate">{memberTabs.map((t) => TAB_LABELS[t] || t).join(", ")}</p>
-                              )}
-                              {canAccessTab("team") && (
-                                <div className="space-y-1.5">
-                                  <TeamTabCheckbox
-                                    checked={!!m.bookable}
-                                    onChange={(checked) => toggleMemberBookable(m.id, checked)}
-                                    label="Bookable for round-robin meetings"
-                                  />
-                                  {m.bookable && (
-                                    <div className="pl-5">
-                                      <TeamTabCheckbox
-                                        checked={m.book_on_own_calendar !== false}
-                                        onChange={(checked) => toggleMemberCalendarPreference(m.id, checked)}
-                                        label={m.book_on_own_calendar !== false ? "Books on their own calendar" : "Books on your (admin) calendar instead"}
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                              {isEditing && (
-                                <MemberPermissionEditor
-                                  role={m.role === "admin" ? "admin" : "agent"}
-                                  permissions={memberTabs}
-                                  grantableTabs={grantableTabs}
-                                  onSave={(role, permissions) => updateTeamMember(m.id, role, permissions)}
-                                  onCancel={() => setEditingMemberId(null)}
-                                />
-                              )}
-                              {isEditingAvailability && botId && (
-                                <MemberAvailabilityEditor
-                                  memberId={m.id} botId={botId}
-                                  showToast={showToast} fetchWithFallback={fetchWithFallback}
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  );
-                })()}
-
-                {/* SECTION 1: AI ENGINE */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <Sliders className="size-4 text-[#f97316]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">AI Engine Settings</h3>
-                  </div>
-
-                  {/* Model Selector */}
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">AI Foundation Model</label>
-                    <ModernSelect
-                      value={selectedModel}
-                      onChange={(v) => handleInputChange(setSelectedModel, v)}
-                      options={[
-                        { value: "gemini", label: "Gemini 3.5 Flash", hint: "Default - included, no setup" },
-                        { value: "gpt5", label: "GPT-5.3 Turbo", hint: "Requires your OpenAI key below" },
-                        { value: "claude", label: "Claude Opus", hint: "Requires your Anthropic key below" },
-                        { value: "mistral", label: "Mistral Large", hint: "Requires your OpenRouter key below" },
-                      ]}
-                    />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Selected model handles logic & responses inside your widget.</p>
-                  </div>
-
-                  {/* Knowledge Source */}
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Knowledge Source</label>
-                    <ModernSelect
-                      value={answerMode}
-                      onChange={(v) => handleInputChange(setAnswerMode, v as "strict" | "hybrid" | "web")}
-                      options={[
-                        { value: "strict", label: "Knowledge base only", hint: "Safest - answers strictly from your trained sources" },
-                        { value: "hybrid", label: "Knowledge base + AI knowledge", hint: "Falls back to the model's general knowledge" },
-                        { value: "web", label: "Knowledge base + web search", hint: "Looks up live info on the web when needed" },
-                      ]}
-                    />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
-                      {answerMode === "strict" && "Only answers from your trained knowledge - best for accuracy and avoiding made-up info."}
-                      {answerMode === "hybrid" && "Answers from your knowledge first, then the model's own general knowledge if needed."}
-                      {answerMode === "web" && "Adds a live web-search tool so the bot can pull current information beyond your knowledge base."}
-                    </p>
-                  </div>
-
-                  {/* BYOK - required for any non-Gemini model */}
-                  {selectedModel !== "gemini" && (() => {
-                    const providerForModel: Record<string, { provider: string; label: string; placeholder: string }> = {
-                      gpt5: { provider: "openai", label: "OpenAI API key", placeholder: "sk-..." },
-                      claude: { provider: "anthropic", label: "Anthropic API key", placeholder: "sk-ant-..." },
-                      mistral: { provider: "openrouter", label: "OpenRouter API key", placeholder: "sk-or-..." },
-                    };
-                    const expected = providerForModel[selectedModel];
-                    return (
-                      <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Bring Your Own Key (BYOK)</span>
-                          {byokConfigured && byokProvider === expected?.provider && (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
-                              <Check className="size-2.5" /> Configured
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-neutral-400 leading-relaxed">
-                          This model runs on your own {expected?.label.replace(" API key", "")} key - Chatty doesn&apos;t supply one. Note: lead capture and meeting booking tools currently only work on Gemini; BYOK models still answer from your knowledge base.
-                        </p>
-                        <input
-                          type="password"
-                          value={byokApiKeyInput}
-                          onChange={(e) => setByokApiKeyInput(e.target.value)}
-                          placeholder={byokConfigured ? "•••••••••••••••• (saved - enter a new key to replace)" : expected?.placeholder}
-                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                        <input
-                          type="text"
-                          value={byokModel}
-                          onChange={(e) => setByokModel(e.target.value)}
-                          placeholder="Model override (optional, e.g. gpt-4o-mini)"
-                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { setByokProvider(expected!.provider); handleSaveByok(false); }}
-                            disabled={savingByok || !byokApiKeyInput.trim()}
-                            className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
-                          >
-                            {savingByok ? "Saving…" : "Save key"}
-                          </button>
-                          {byokConfigured && (
-                            <button
-                              onClick={() => handleSaveByok(true)}
-                              disabled={savingByok}
-                              className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
-                            >
-                              Remove key
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* System Instructions / Guardrails */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">System Instructions / Guardrails</label>
-                      <button
-                        onClick={generateInstructions}
-                        disabled={isGeneratingInstructions}
-                        className="flex items-center gap-1 text-[10px] font-semibold text-[#f97316] hover:text-[#ea6b0e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Auto-generate from trained knowledge"
-                      >
-                        {isGeneratingInstructions
-                          ? <Loader2 className="size-3 animate-spin" />
-                          : <Sparkles className="size-3" />}
-                        {isGeneratingInstructions ? "Generating…" : "Auto-generate"}
-                      </button>
-                    </div>
-                    <textarea
-                      rows={4}
-                      value={systemInstructions}
-                      onChange={(e) => handleInputChange(setSystemInstructions, e.target.value)}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
-                    />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Configures behavior limitations and answers guidelines.</p>
-                  </div>
-
-                  {/* Toggles */}
-                  <div className="space-y-4 pt-1">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Knowledge Base Strict Mode</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Only answer questions using verified trained memory sources.</p>
-                      </div>
-                      <button
-                        onClick={() => handleInputChange(setStrictMode, !strictMode)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                          strictMode ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                        }`}
-                      >
-                        <div className={`size-4 rounded-full bg-white transition-transform ${strictMode ? "translate-x-4" : ""}`} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Email Lead Alerts</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Receive instant email updates when visitors submit contact info.</p>
-                      </div>
-                      <button
-                        onClick={() => handleInputChange(setEmailNotify, !emailNotify)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                          emailNotify ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                        }`}
-                      >
-                        <div className={`size-4 rounded-full bg-white transition-transform ${emailNotify ? "translate-x-4" : ""}`} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Remove &quot;Powered by Chatty&quot; Branding</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Hide the Chatty footer mark in the widget (white-label).</p>
-                      </div>
-                      <button
-                        onClick={() => handleInputChange(setHideBranding, !hideBranding)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                          hideBranding ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                        }`}
-                      >
-                        <div className={`size-4 rounded-full bg-white transition-transform ${hideBranding ? "translate-x-4" : ""}`} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Show AI / Human Tag</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Label each reply in the widget as &quot;AI&quot; or &quot;Human agent&quot;.</p>
-                      </div>
-                      <button
-                        onClick={() => handleInputChange(setShowSenderTag, !showSenderTag)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                          showSenderTag ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                        }`}
-                      >
-                        <div className={`size-4 rounded-full bg-white transition-transform ${showSenderTag ? "translate-x-4" : ""}`} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Post-Chat Rating Prompt</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Ask visitors to rate the conversation when they close the widget.</p>
-                      </div>
-                      <button
-                        onClick={() => handleInputChange(setCsatEnabled, !csatEnabled)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                          csatEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                        }`}
-                      >
-                        <div className={`size-4 rounded-full bg-white transition-transform ${csatEnabled ? "translate-x-4" : ""}`} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SECTION 1B: GUARDRAILS & LANGUAGE */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <div className="flex items-center gap-2">
-                      <ShieldAlert className="size-4 text-[#f97316]" />
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Guardrails & Language</h3>
-                    </div>
-                    <button
-                      onClick={generateInstructions}
-                      disabled={isGeneratingInstructions}
-                      className="flex items-center gap-1 text-[10px] font-semibold text-[#f97316] hover:text-[#ea6b0e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      title="Auto-generate from trained knowledge (same generator as System Instructions above)"
-                    >
-                      {isGeneratingInstructions
-                        ? <Loader2 className="size-3 animate-spin" />
-                        : <Sparkles className="size-3" />}
-                      {isGeneratingInstructions ? "Generating…" : "Auto-generate"}
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Off-Topic Refusal</label>
-                    <textarea
-                      rows={2}
-                      value={guardrailTopics}
-                      onChange={(e) => handleInputChange(setGuardrailTopics, e.target.value)}
-                      placeholder="e.g. politics, medical advice, legal advice, competitor products"
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
-                    />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Comma-separated topics the assistant should always decline to discuss. Leave empty to allow any on-topic discussion.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom Refusal Message</label>
-                    <input
-                      type="text"
-                      value={guardrailRefusalMessage}
-                      onChange={(e) => handleInputChange(setGuardrailRefusalMessage, e.target.value)}
-                      placeholder="Sorry, I can't help with that - but I'm happy to answer questions about our product!"
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold">Block Profanity & Abuse</span>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Refuse to engage with abusive or profane visitor messages.</p>
-                    </div>
-                    <button
-                      onClick={() => handleInputChange(setGuardrailBlockProfanity, !guardrailBlockProfanity)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                        guardrailBlockProfanity ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                      }`}
-                    >
-                      <div className={`size-4 rounded-full bg-white transition-transform ${guardrailBlockProfanity ? "translate-x-4" : ""}`} />
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Response Language</label>
-                    <ModernSelect
-                      value={responseLanguage}
-                      onChange={(v) => handleInputChange(setResponseLanguage, v)}
-                      options={[
-                        { value: "", label: "🌐 Mirror visitor's language (default)" },
-                        // - Most common -
-                        { value: "en",    label: "🇬🇧 English" },
-                        { value: "es",    label: "🇪🇸 Spanish" },
-                        { value: "es-MX", label: "🇲🇽 Spanish (Mexico)" },
-                        { value: "zh",    label: "🇨🇳 Chinese (Simplified)" },
-                        { value: "zh-TW", label: "🇹🇼 Chinese (Traditional)" },
-                        { value: "hi",    label: "🇮🇳 Hindi" },
-                        { value: "ar",    label: "🇸🇦 Arabic" },
-                        { value: "pt",    label: "🇵🇹 Portuguese" },
-                        { value: "pt-BR", label: "🇧🇷 Portuguese (Brazil)" },
-                        { value: "fr",    label: "🇫🇷 French" },
-                        { value: "ru",    label: "🇷🇺 Russian" },
-                        { value: "de",    label: "🇩🇪 German" },
-                        { value: "ja",    label: "🇯🇵 Japanese" },
-                        { value: "ko",    label: "🇰🇷 Korean" },
-                        { value: "it",    label: "🇮🇹 Italian" },
-                        { value: "tr",    label: "🇹🇷 Turkish" },
-                        { value: "vi",    label: "🇻🇳 Vietnamese" },
-                        { value: "pl",    label: "🇵🇱 Polish" },
-                        { value: "nl",    label: "🇳🇱 Dutch" },
-                        { value: "th",    label: "🇹🇭 Thai" },
-                        { value: "id",    label: "🇮🇩 Indonesian" },
-                        { value: "ms",    label: "🇲🇾 Malay" },
-                        { value: "tl",    label: "🇵🇭 Filipino (Tagalog)" },
-                        { value: "sv",    label: "🇸🇪 Swedish" },
-                        { value: "uk",    label: "🇺🇦 Ukrainian" },
-                        { value: "fa",    label: "🇮🇷 Persian (Farsi)" },
-                        { value: "ur",    label: "🇵🇰 Urdu" },
-                        { value: "bn",    label: "🇧🇩 Bengali" },
-                        { value: "sw",    label: "🇰🇪 Swahili" },
-                        { value: "ta",    label: "🇮🇳 Tamil" },
-                        { value: "te",    label: "🇮🇳 Telugu" },
-                        { value: "mr",    label: "🇮🇳 Marathi" },
-                        { value: "gu",    label: "🇮🇳 Gujarati" },
-                        { value: "kn",    label: "🇮🇳 Kannada" },
-                        { value: "ml",    label: "🇮🇳 Malayalam" },
-                        { value: "pa",    label: "🇮🇳 Punjabi" },
-                        { value: "ne",    label: "🇳🇵 Nepali" },
-                        { value: "si",    label: "🇱🇰 Sinhala" },
-                        // - European -
-                        { value: "da",    label: "🇩🇰 Danish" },
-                        { value: "fi",    label: "🇫🇮 Finnish" },
-                        { value: "no",    label: "🇳🇴 Norwegian" },
-                        { value: "cs",    label: "🇨🇿 Czech" },
-                        { value: "sk",    label: "🇸🇰 Slovak" },
-                        { value: "ro",    label: "🇷🇴 Romanian" },
-                        { value: "hu",    label: "🇭🇺 Hungarian" },
-                        { value: "bg",    label: "🇧🇬 Bulgarian" },
-                        { value: "hr",    label: "🇭🇷 Croatian" },
-                        { value: "sr",    label: "🇷🇸 Serbian" },
-                        { value: "bs",    label: "🇧🇦 Bosnian" },
-                        { value: "sl",    label: "🇸🇮 Slovenian" },
-                        { value: "mk",    label: "🇲🇰 Macedonian" },
-                        { value: "sq",    label: "🇦🇱 Albanian" },
-                        { value: "lt",    label: "🇱🇹 Lithuanian" },
-                        { value: "lv",    label: "🇱🇻 Latvian" },
-                        { value: "et",    label: "🇪🇪 Estonian" },
-                        { value: "el",    label: "🇬🇷 Greek" },
-                        { value: "ca",    label: "🏳️ Catalan" },
-                        { value: "gl",    label: "🏳️ Galician" },
-                        { value: "eu",    label: "🏳️ Basque" },
-                        { value: "cy",    label: "🏴󠁧󠁢󠁷󠁬󠁳󠁿 Welsh" },
-                        { value: "ga",    label: "🇮🇪 Irish" },
-                        { value: "is",    label: "🇮🇸 Icelandic" },
-                        { value: "mt",    label: "🇲🇹 Maltese" },
-                        { value: "lb",    label: "🇱🇺 Luxembourgish" },
-                        { value: "yi",    label: "🕍 Yiddish" },
-                        // - Central & Eastern Asia -
-                        { value: "mn",    label: "🇲🇳 Mongolian" },
-                        { value: "my",    label: "🇲🇲 Burmese (Myanmar)" },
-                        { value: "km",    label: "🇰🇭 Khmer" },
-                        { value: "lo",    label: "🇱🇦 Lao" },
-                        { value: "ka",    label: "🇬🇪 Georgian" },
-                        { value: "hy",    label: "🇦🇲 Armenian" },
-                        { value: "az",    label: "🇦🇿 Azerbaijani" },
-                        { value: "kk",    label: "🇰🇿 Kazakh" },
-                        { value: "ky",    label: "🇰🇬 Kyrgyz" },
-                        { value: "uz",    label: "🇺🇿 Uzbek" },
-                        { value: "tg",    label: "🇹🇯 Tajik" },
-                        { value: "tk",    label: "🇹🇲 Turkmen" },
-                        { value: "tt",    label: "🇷🇺 Tatar" },
-                        // - Middle East & Africa -
-                        { value: "he",    label: "🇮🇱 Hebrew" },
-                        { value: "ku",    label: "🏳️ Kurdish" },
-                        { value: "am",    label: "🇪🇹 Amharic" },
-                        { value: "so",    label: "🇸🇴 Somali" },
-                        { value: "ha",    label: "🇳🇬 Hausa" },
-                        { value: "yo",    label: "🇳🇬 Yoruba" },
-                        { value: "ig",    label: "🇳🇬 Igbo" },
-                        { value: "xh",    label: "🇿🇦 Xhosa" },
-                        { value: "zu",    label: "🇿🇦 Zulu" },
-                        // - Pacific & Other -
-                        { value: "mi",    label: "🇳🇿 Māori" },
-                        { value: "ht",    label: "🇭🇹 Haitian Creole" },
-                      ]}
-                    />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">By default the assistant replies in whatever language the visitor writes in. Force a single language here if you need consistent transcripts.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom CSS</label>
-                    <textarea
-                      rows={4}
-                      value={customCss}
-                      onChange={(e) => handleInputChange(setCustomCss, e.target.value)}
-                      placeholder=".chat-input-bar { border-radius: 4px; }"
-                      spellCheck={false}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
-                    />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Injected into the widget iframe. Advanced - invalid CSS is ignored by the browser, won&apos;t break the widget.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom JavaScript</label>
-                    <textarea
-                      rows={4}
-                      value={customJs}
-                      onChange={(e) => handleInputChange(setCustomJs, e.target.value)}
-                      placeholder="console.log('Chatty widget loaded');"
-                      spellCheck={false}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
-                    />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Runs once inside the widget iframe after it loads. Advanced - a script error here only affects the widget, not your site.</p>
-                  </div>
-                </div>
-
-                {/* SECTION 2: CONNECTIONS */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <Link2 className="size-4 text-[#f97316]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Connections & Integrations</h3>
-                  </div>
-
-                  <div className="space-y-3">
-                    {/* Google Connection Card */}
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
-                      <div>
-                        <span className="text-xs font-semibold flex items-center gap-1.5">
-                          <svg className="size-3.5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                          Google Workspace Account
-                        </span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                          {googleConnected ? "Connected successfully." : "Not connected yet."}
-                        </p>
-                      </div>
-                      {googleConnected ? (
-                        <button
-                          onClick={() => handleDisconnectCloud("google")}
-                          className="px-3 py-1.5 bg-red-50 text-red-650 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-                        >
-                          Disconnect
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleConnectCloud("google")}
-                          disabled={connectingProvider !== null}
-                          className="px-3 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-55 flex items-center gap-1.5"
-                        >
-                          {connectingProvider === "google" && <Loader2 className="size-3 animate-spin" />}
-                          Connect
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Microsoft Connection Card */}
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
-                      <div>
-                        <span className="text-xs font-semibold flex items-center gap-1.5">
-                          <svg className="size-3.5" viewBox="0 0 24 24"><path fill="#F25022" d="M3 3h8v8H3z"/><path fill="#7FBA00" d="M13 3h8v8h-8z"/><path fill="#00A4EF" d="M3 13h8v8H3z"/><path fill="#FFB900" d="M13 13h8v8h-8z"/></svg>
-                          Microsoft 365 Account
-                        </span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                          {microsoftConnected ? "Connected - enables Teams, Outlook Calendar & OneDrive." : "Connect for Teams meetings, Outlook calendar & OneDrive."}
-                        </p>
-                      </div>
-                      {microsoftConnected ? (
-                        <button
-                          onClick={() => handleDisconnectCloud("microsoft")}
-                          className="px-3 py-1.5 bg-red-50 text-red-650 hover:bg-red-100 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-                        >
-                          Disconnect
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleConnectCloud("microsoft")}
-                          disabled={connectingProvider !== null}
-                          className="px-3 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-55 flex items-center gap-1.5"
-                        >
-                          {connectingProvider === "microsoft" && <Loader2 className="size-3 animate-spin" />}
-                          Connect
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Zoom Status Card */}
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
-                      <div>
-                        <span className="text-xs font-semibold flex items-center gap-1.5">
-                          <svg className="size-3.5" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#2D8CFF"/><path d="M6 9.5c0-.55.45-1 1-1h6c.55 0 1 .45 1 1v5c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-5zm9 1.2 2.6-1.7c.3-.2.7 0 .7.4v5.2c0 .4-.4.6-.7.4L15 14.3v-3.6z" fill="#fff"/></svg>
-                          Zoom Meetings
-                        </span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                          {zoomConfigured ? "Ready - bookings create real Zoom links automatically." : "Zoom is not configured on the server yet."}
-                        </p>
-                      </div>
-                      <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${zoomConfigured ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400" : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"}`}>
-                        {zoomConfigured ? "Ready" : "Unavailable"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SECTION 3: DOCUMENT SYNC */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <FolderOpen className="size-4 text-[#f97316]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Document Sync (RAG)</h3>
-                  </div>
-
-                  {googleConnected || microsoftConnected ? (
-                    <div className="space-y-4">
-                      {googleConnected && (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-xs font-semibold">Sync Google Drive (RAG)</span>
-                            <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Allow bot to reference files from your Google Drive.</p>
-                          </div>
-                          <button
-                            onClick={() => handleInputChange(setSyncGoogleDrive, !syncGoogleDrive)}
-                            className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                              syncGoogleDrive ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                            }`}
-                          >
-                            <div className={`size-4 rounded-full bg-white transition-transform ${syncGoogleDrive ? "translate-x-4" : ""}`} />
-                          </button>
-                        </div>
-                      )}
-
-                      {microsoftConnected && (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-xs font-semibold">Use Outlook Calendar for Teams bookings</span>
-                            <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Turn on so the assistant books on Outlook/Teams instead of Google.</p>
-                          </div>
-                          <button
-                            onClick={() => handleInputChange(setSyncOutlookCalendar, !syncOutlookCalendar)}
-                            className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${syncOutlookCalendar ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"}`}
-                          >
-                            <div className={`size-4 rounded-full bg-white transition-transform ${syncOutlookCalendar ? "translate-x-4" : ""}`} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800/60 rounded-xl p-3 text-center leading-relaxed">
-                      Connect your Google Workspace or Microsoft 365 account to enable knowledge base document synchronization.
-                    </div>
-                  )}
-                </div>
-
-                {/* SECTION 4: CALENDAR SCHEDULING & BOOKING RULES */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="size-4 text-[#f97316]" />
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Calendar Scheduling</h3>
-                    </div>
-                    <button
-                      onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                        calendarSchedulingEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                      }`}
-                    >
-                      <div className={`size-4 rounded-full bg-white transition-transform ${calendarSchedulingEnabled ? "translate-x-4" : ""}`} />
-                    </button>
-                  </div>
-
-                  {calendarSchedulingEnabled && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      className="space-y-4 pt-1"
-                    >
-                      {/* Meeting Provider */}
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Meeting Provider</label>
-                        <ModernSelect
-                          value={meetingProvider}
-                          options={providerOptions}
-                          onChange={handleMeetingProviderChange}
-                        />
-                        <p className="text-[9px] text-neutral-400 mt-1">
-                          {meetingProvider === "google_meet"
-                            ? "Real Meet links are generated automatically on the connected Google Calendar."
-                            : meetingProvider === "zoom"
-                            ? "Real Zoom links require Zoom credentials configured on the backend (else a placeholder is used)."
-                            : "Real Microsoft Teams links are generated on booking - requires the owner to connect Microsoft/Outlook."}
-                        </p>
-                      </div>
-
-                      {/* Duration Selector */}
-                      <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Allowed Time Duration</label>
-                        <ModernSelect
-                          value={String(schedulingDuration)}
-                          options={[15, 30, 45, 60].map((m) => ({ value: String(m), label: `${m} Minutes` }))}
-                          onChange={(v) => handleInputChange(setSchedulingDuration, parseInt(v, 10))}
-                        />
-                      </div>
-
-                      {/* Country + Timezone (auto-detected, searchable) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("country")}</label>
-                          <ModernSelect
-                            value={botCountry}
-                            options={countryOptions}
-                            onChange={(v) => handleInputChange(setBotCountry, v)}
-                            searchable
-                            placeholder="Select country"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("timezone")}</label>
-                          <ModernSelect
-                            value={botTimezone}
-                            options={timezoneOptions}
-                            onChange={(v) => handleInputChange(setBotTimezone, v)}
-                            searchable
-                            placeholder="Select timezone"
-                          />
-                        </div>
-                      </div>
-
-                      {/* ── Booking Rules ── */}
-                      <div className="pt-2 border-t border-neutral-100 dark:border-neutral-850 space-y-3">
-                        <h5 className="text-[11px] font-bold uppercase tracking-wider text-neutral-450 flex items-center gap-1.5">
-                          <Calendar className="size-3.5 text-[#f97316]" /> Booking Rules
-                        </h5>
-
-                        {/* Business hours */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Open From</label>
-                            <ModernSelect
-                              value={String(businessHoursStart)}
-                              options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${(h % 12) || 12}:00 ${h < 12 ? "AM" : "PM"}` }))}
-                              onChange={(v) => handleInputChange(setBusinessHoursStart, parseInt(v, 10))}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Open Until</label>
-                            <ModernSelect
-                              value={String(businessHoursEnd)}
-                              options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${(h % 12) || 12}:00 ${h < 12 ? "AM" : "PM"}` }))}
-                              onChange={(v) => handleInputChange(setBusinessHoursEnd, parseInt(v, 10))}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Working days */}
-                        <div>
-                          <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Working Days</label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {[
-                              { id: "mon", label: "Mon" }, { id: "tue", label: "Tue" }, { id: "wed", label: "Wed" },
-                              { id: "thu", label: "Thu" }, { id: "fri", label: "Fri" }, { id: "sat", label: "Sat" }, { id: "sun", label: "Sun" },
-                            ].map((d) => {
-                              const on = workingDays.includes(d.id);
-                              return (
-                                <button
-                                  key={d.id}
-                                  onClick={() => handleInputChange(setWorkingDays, on ? workingDays.filter((x) => x !== d.id) : [...workingDays, d.id])}
-                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors cursor-pointer ${
-                                    on ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]" : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                                  }`}
-                                >
-                                  {d.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Buffer + advance notice */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Buffer Between Meetings</label>
-                            <ModernSelect
-                              value={String(bufferMinutes)}
-                              options={[0, 5, 10, 15, 30].map((m) => ({ value: String(m), label: m === 0 ? "No buffer" : `${m} min` }))}
-                              onChange={(v) => handleInputChange(setBufferMinutes, parseInt(v, 10))}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Minimum Advance Notice</label>
-                            <ModernSelect
-                              value={String(advanceNoticeHours)}
-                              options={[0, 1, 2, 4, 12, 24, 48].map((h) => ({ value: String(h), label: h === 0 ? "None" : `${h} hours` }))}
-                              onChange={(v) => handleInputChange(setAdvanceNoticeHours, parseInt(v, 10))}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Daily + weekly booking quotas */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Meetings Per Day</label>
-                            <ModernSelect
-                              value={String(maxDailyMeetings)}
-                              options={[
-                                { value: "0", label: "No limit (unlimited)" },
-                                { value: "1", label: "1 per day" },
-                                { value: "2", label: "2 per day" },
-                                { value: "3", label: "3 per day" },
-                                { value: "4", label: "4 per day" },
-                                { value: "5", label: "5 per day" },
-                                { value: "6", label: "6 per day" },
-                                { value: "8", label: "8 per day" },
-                              ]}
-                              onChange={(v) => handleInputChange(setMaxDailyMeetings, parseInt(v, 10))}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Meetings Per Week</label>
-                            <ModernSelect
-                              value={String(maxWeeklyMeetings)}
-                              options={[
-                                { value: "0", label: "No limit (unlimited)" },
-                                { value: "5", label: "5 per week" },
-                                { value: "10", label: "10 per week" },
-                                { value: "15", label: "15 per week" },
-                                { value: "20", label: "20 per week" },
-                                { value: "25", label: "25 per week" },
-                                { value: "30", label: "30 per week" },
-                              ]}
-                              onChange={(v) => handleInputChange(setMaxWeeklyMeetings, parseInt(v, 10))}
-                            />
-                          </div>
-                        </div>
-
-                        {/* ── Abuse & Spam Protection (4 Defenses) ── */}
-                        <div className="pt-2 border-t border-neutral-100 dark:border-neutral-850 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h5 className="text-[11px] font-bold uppercase tracking-wider text-neutral-450 flex items-center gap-1.5">
-                              <ShieldAlert className="size-3.5 text-[#f97316]" /> Abuse &amp; Spam Protection
-                            </h5>
-                            <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                              Optional Defenses
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 leading-normal">
-                            Prevent bots and malicious actors from flooding your calendar or reserving fake appointments.
-                          </p>
-
-                          <div className="space-y-2.5">
-                            {/* Defense 1: Email OTP Verification */}
-                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
-                              <div className="space-y-0.5 pr-2">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Email OTP Verification</span>
-                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 font-medium">Strongest</span>
-                                </div>
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                                  Sends a 6-digit one-time passcode to the attendee&apos;s email before confirming the booking.
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleInputChange(setBookingEmailVerification, !bookingEmailVerification)}
-                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
-                                  bookingEmailVerification ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                                }`}
-                              >
-                                <div className={`size-4 rounded-full bg-white transition-transform ${bookingEmailVerification ? "translate-x-4" : ""}`} />
-                              </button>
-                            </div>
-
-                            {/* Defense 2: Block Disposable Email Providers */}
-                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
-                              <div className="space-y-0.5 pr-2">
-                                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Block Disposable Emails</span>
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                                  Rejects throwaway / burner inbox domains (e.g. mailinator, tempmail, guerrillamail).
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleInputChange(setBookingBlockDisposableEmails, !bookingBlockDisposableEmails)}
-                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
-                                  bookingBlockDisposableEmails ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                                }`}
-                              >
-                                <div className={`size-4 rounded-full bg-white transition-transform ${bookingBlockDisposableEmails ? "translate-x-4" : ""}`} />
-                              </button>
-                            </div>
-
-                            {/* Defense 3: Limit 1 Active Booking Per Email */}
-                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
-                              <div className="space-y-0.5 pr-2">
-                                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Limit 1 Active Booking Per Email</span>
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                                  Prevents a single email address from hoarding multiple concurrent future bookings.
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleInputChange(setBookingLimitOneActive, !bookingLimitOneActive)}
-                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
-                                  bookingLimitOneActive ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                                }`}
-                              >
-                                <div className={`size-4 rounded-full bg-white transition-transform ${bookingLimitOneActive ? "translate-x-4" : ""}`} />
-                              </button>
-                            </div>
-
-                            {/* Defense 4: Require Business / Work Email */}
-                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
-                              <div className="space-y-0.5 pr-2">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Require Business Email</span>
-                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-medium">B2B</span>
-                                </div>
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                                  Rejects consumer inboxes (@gmail, @yahoo, @outlook, etc.) and requires a corporate domain.
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleInputChange(setBookingRequireBusinessEmail, !bookingRequireBusinessEmail)}
-                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
-                                  bookingRequireBusinessEmail ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                                }`}
-                              >
-                                <div className={`size-4 rounded-full bg-white transition-transform ${bookingRequireBusinessEmail ? "translate-x-4" : ""}`} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Read-only summary of ALL active rules */}
-                        <div className="text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3 space-y-1 leading-relaxed">
-                          <p className="font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[9px] tracking-wider mb-1">All active booking rules</p>
-                          <p>• Hours: <b>{(businessHoursStart % 12) || 12}:00 {businessHoursStart < 12 ? "AM" : "PM"}</b> - <b>{(businessHoursEnd % 12) || 12}:00 {businessHoursEnd < 12 ? "AM" : "PM"}</b> ({botTimezone})</p>
-                          <p>• Days: <b>{workingDays.length ? workingDays.map((d) => d.toUpperCase()).join(", ") : "None set"}</b></p>
-                          <p>• Duration: <b>{schedulingDuration} min</b>{bufferMinutes ? <> · Buffer: <b>{bufferMinutes} min</b></> : null}</p>
-                          {advanceNoticeHours ? <p>• Advance notice: <b>{advanceNoticeHours} hours</b></p> : null}
-                          {maxDailyMeetings ? <p>• Daily limit: <b>Max {maxDailyMeetings} meetings/day</b></p> : null}
-                          {maxWeeklyMeetings ? <p>• Weekly limit: <b>Max {maxWeeklyMeetings} meetings/week</b></p> : null}
-                          {bookingEmailVerification ? <p>• Security: <b>Email OTP verification required</b></p> : null}
-                          {bookingBlockDisposableEmails ? <p>• Security: <b>Disposable email addresses blocked</b></p> : null}
-                          {bookingLimitOneActive ? <p>• Security: <b>Max 1 active booking per attendee email</b></p> : null}
-                          {bookingRequireBusinessEmail ? <p>• Security: <b>Business/corporate email required</b></p> : null}
-                          <p>• Platform: <b>{meetingProvider.replace("_", " ")}</b></p>
-                          <p>• Collects all lead fields (<b>{leadFields.join(", ")}</b>) + visitor timezone before booking</p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-
-              </div>
-            </div>
+            <SettingsTab
+              canAccessTab={canAccessTab}
+              myRole={myRole}
+              inviteName={inviteName}
+              setInviteName={setInviteName}
+              inviteEmail={inviteEmail}
+              setInviteEmail={setInviteEmail}
+              inviteRole={inviteRole}
+              setInviteRole={setInviteRole}
+              inviteTabs={inviteTabs}
+              setInviteTabs={setInviteTabs}
+              invitingTeam={invitingTeam}
+              inviteTeamMember={inviteTeamMember}
+              teamMembers={teamMembers}
+              editingMemberId={editingMemberId}
+              setEditingMemberId={setEditingMemberId}
+              editingAvailabilityId={editingAvailabilityId}
+              setEditingAvailabilityId={setEditingAvailabilityId}
+              toggleMemberBookable={toggleMemberBookable}
+              toggleMemberCalendarPreference={toggleMemberCalendarPreference}
+              updateTeamMember={updateTeamMember}
+              removeTeamMember={removeTeamMember}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
+              byokConfigured={byokConfigured}
+              byokProvider={byokProvider}
+              setByokProvider={setByokProvider}
+              byokModel={byokModel}
+              setByokModel={setByokModel}
+              byokApiKeyInput={byokApiKeyInput}
+              setByokApiKeyInput={setByokApiKeyInput}
+              savingByok={savingByok}
+              handleSaveByok={handleSaveByok}
+              systemInstructions={systemInstructions}
+              setSystemInstructions={setSystemInstructions}
+              isGeneratingInstructions={isGeneratingInstructions}
+              generateInstructions={generateInstructions}
+              answerMode={answerMode}
+              setAnswerMode={setAnswerMode}
+              strictMode={strictMode}
+              setStrictMode={setStrictMode}
+              showSenderTag={showSenderTag}
+              setShowSenderTag={setShowSenderTag}
+              hideBranding={hideBranding}
+              setHideBranding={setHideBranding}
+              emailNotify={emailNotify}
+              setEmailNotify={setEmailNotify}
+              csatEnabled={csatEnabled}
+              setCsatEnabled={setCsatEnabled}
+              responseLanguage={responseLanguage}
+              setResponseLanguage={setResponseLanguage}
+              botCountry={botCountry}
+              setBotCountry={setBotCountry}
+              botTimezone={botTimezone}
+              setBotTimezone={setBotTimezone}
+              countryOptions={countryOptions}
+              timezoneOptions={timezoneOptions}
+              guardrailTopics={guardrailTopics}
+              setGuardrailTopics={setGuardrailTopics}
+              guardrailRefusalMessage={guardrailRefusalMessage}
+              setGuardrailRefusalMessage={setGuardrailRefusalMessage}
+              guardrailBlockProfanity={guardrailBlockProfanity}
+              setGuardrailBlockProfanity={setGuardrailBlockProfanity}
+              customCss={customCss}
+              setCustomCss={setCustomCss}
+              customJs={customJs}
+              setCustomJs={setCustomJs}
+              googleConnected={googleConnected}
+              microsoftConnected={microsoftConnected}
+              zoomConfigured={zoomConfigured}
+              connectingProvider={connectingProvider}
+              handleConnectCloud={handleConnectCloud}
+              handleDisconnectCloud={handleDisconnectCloud}
+              syncGoogleDrive={syncGoogleDrive}
+              setSyncGoogleDrive={setSyncGoogleDrive}
+              syncOutlookCalendar={syncOutlookCalendar}
+              setSyncOutlookCalendar={setSyncOutlookCalendar}
+              calendarSchedulingEnabled={calendarSchedulingEnabled}
+              setCalendarSchedulingEnabled={setCalendarSchedulingEnabled}
+              googleConnectedAccountId={googleConnectedAccountId}
+              setGoogleConnectedAccountId={setGoogleConnectedAccountId}
+              googleCalendarId={googleCalendarId}
+              setGoogleCalendarId={setGoogleCalendarId}
+              googleCalendarName={googleCalendarName}
+              setGoogleCalendarName={setGoogleCalendarName}
+              meetingProvider={meetingProvider}
+              handleMeetingProviderChange={handleMeetingProviderChange}
+              providerOptions={providerOptions}
+              schedulingDuration={schedulingDuration}
+              setSchedulingDuration={setSchedulingDuration}
+              businessHoursStart={businessHoursStart}
+              setBusinessHoursStart={setBusinessHoursStart}
+              businessHoursEnd={businessHoursEnd}
+              setBusinessHoursEnd={setBusinessHoursEnd}
+              workingDays={workingDays}
+              setWorkingDays={setWorkingDays}
+              bufferMinutes={bufferMinutes}
+              setBufferMinutes={setBufferMinutes}
+              advanceNoticeHours={advanceNoticeHours}
+              setAdvanceNoticeHours={setAdvanceNoticeHours}
+              maxDailyMeetings={maxDailyMeetings}
+              setMaxDailyMeetings={setMaxDailyMeetings}
+              maxWeeklyMeetings={maxWeeklyMeetings}
+              setMaxWeeklyMeetings={setMaxWeeklyMeetings}
+              bookingRequireBusinessEmail={bookingRequireBusinessEmail}
+              setBookingRequireBusinessEmail={setBookingRequireBusinessEmail}
+              bookingLimitOneActive={bookingLimitOneActive}
+              setBookingLimitOneActive={setBookingLimitOneActive}
+              bookingBlockDisposableEmails={bookingBlockDisposableEmails}
+              setBookingBlockDisposableEmails={setBookingBlockDisposableEmails}
+              bookingEmailVerification={bookingEmailVerification}
+              setBookingEmailVerification={setBookingEmailVerification}
+              leadFields={leadFields}
+              handleInputChange={handleInputChange}
+              showToast={showToast}
+              user={user}
+              botId={botId}
+              fetchWithFallback={fetchWithFallback}
+              t={t}
+            />
           )}
           {/* TAB 9: MEETINGS */}
-          {activeTab === "meetings" && (() => {
-            const isAgentView = myRole === "agent";
-            const assignees = Array.from(new Set(adminMeetings.map((m) => m.assigned_to_email).filter(Boolean))) as string[];
-            const filteredMeetings = (!isAgentView && meetingMemberFilter !== "all")
-              ? adminMeetings.filter((m) => m.assigned_to_email === meetingMemberFilter)
-              : adminMeetings;
-            const selectedMeeting = adminMeetings.find((m) => m.id === selectedMeetingId) || null;
-            return (
-            <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Scheduled Meetings</h4>
-                  <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">Calendar events booked by visitors through the assistant widget.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {!isAgentView && assignees.length > 1 && (
-                    <div className="w-44">
-                      <ModernSelect
-                        value={meetingMemberFilter}
-                        options={[
-                          { value: "all", label: "All team members" },
-                          ...assignees.map((email) => ({
-                            value: email,
-                            label: teamMembers.find((m) => m.email === email)?.name || email,
-                          })),
-                        ]}
-                        onChange={setMeetingMemberFilter}
-                      />
-                    </div>
-                  )}
-                  <button
-                    onClick={() => loadAdminData(botId || "")}
-                    className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1.5"
-                  >
-                    <RefreshCw className="size-3" />
-                    Refresh
-                  </button>
-                </div>
-              </div>
-
-              {loadingAdminData ? (
-                <div className="flex items-center justify-center p-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <Loader2 className="size-5 animate-spin text-neutral-400" />
-                </div>
-              ) : (
-                <MeetingsCalendar
-                  meetings={filteredMeetings.map((m) => ({
-                    id: m.id, title: m.title, start_time: m.start_time, end_time: m.end_time,
-                    status: m.status, assigned_to_email: m.assigned_to_email,
-                  }))}
-                  onSelectMeeting={openMeetingPanel}
-                  defaultTimezone={botTimezone || "UTC"}
-                />
-              )}
-
-              {selectedMeeting && (
-                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h5 className="text-sm font-bold text-neutral-900 dark:text-white">{selectedMeeting.title || "Meeting"}</h5>
-                      <p className="text-[11px] text-neutral-500 mt-0.5">{formatDateTime(selectedMeeting.start_time)}</p>
-                      <p className="text-[11px] text-neutral-400 mt-0.5">{selectedMeeting.attendee_name || "Guest"} · <span className="font-mono">{selectedMeeting.attendee_email}</span></p>
-                      {selectedMeeting.assigned_to_email && (
-                        <p className="text-[10px] text-neutral-400 mt-1 flex items-center gap-1.5">
-                          <span className="inline-block size-2 rounded-full" style={{ backgroundColor: colorForAssignee(selectedMeeting.assigned_to_email) }} />
-                          Assigned to {teamMembers.find((m) => m.email === selectedMeeting.assigned_to_email)?.name || selectedMeeting.assigned_to_email}
-                        </p>
-                      )}
-                      <span className="inline-flex items-center mt-2 gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
-                        {selectedMeeting.status}
-                      </span>
-                    </div>
-                    <button onClick={() => { setSelectedMeetingId(null); setReschedulingMeetingId(null); }} className="text-[10px] font-medium text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">Close</button>
-                  </div>
-
-                  {selectedMeeting.meeting_link && (
-                    <a href={selectedMeeting.meeting_link} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-[11px] w-fit">
-                      <ExternalLink className="size-3" /> Join {selectedMeeting.provider === "google_meet" ? "Google Meet" : selectedMeeting.provider}
-                    </a>
-                  )}
-
-                  {selectedMeeting.status !== "cancelled" && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button onClick={() => handleUpdateMeetingStatus(selectedMeeting.id, "completed")} className="text-[10px] font-bold bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 px-2.5 py-1.5 rounded-lg cursor-pointer">Mark done</button>
-                      <button onClick={() => handleUpdateMeetingStatus(selectedMeeting.id, "cancelled")} className="text-[10px] font-bold bg-red-50 hover:bg-red-100 dark:bg-red-950/20 text-red-650 dark:text-red-400 px-2.5 py-1.5 rounded-lg cursor-pointer">Cancel</button>
-                      <button
-                        onClick={() => setReschedulingMeetingId(reschedulingMeetingId === selectedMeeting.id ? null : selectedMeeting.id)}
-                        className="text-[10px] font-bold bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 px-2.5 py-1.5 rounded-lg cursor-pointer"
-                      >
-                        {reschedulingMeetingId === selectedMeeting.id ? "Cancel reschedule" : "Reschedule"}
-                      </button>
-                    </div>
-                  )}
-
-                  {reschedulingMeetingId === selectedMeeting.id && (
-                    <div className="flex flex-wrap items-center gap-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3">
-                      <input
-                        type="datetime-local" value={rescheduleDateTime}
-                        onChange={(e) => setRescheduleDateTime(e.target.value)}
-                        className="text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5"
-                      />
-                      <button
-                        onClick={() => handleRescheduleMeeting(selectedMeeting)}
-                        disabled={!rescheduleDateTime || reschedulingBusy}
-                        className="text-[10px] font-semibold px-3 py-1.5 rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
-                      >
-                        {reschedulingBusy ? "Saving…" : "Confirm new time"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Original list view - kept alongside the calendar above, not replaced by it. */}
-              <div className="space-y-8 pt-4">
-                <div className="space-y-4">
-                  <h5 className="text-xs font-bold text-neutral-750 dark:text-neutral-300 flex items-center gap-2">
-                    <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Upcoming appointments ({filteredMeetings.filter(m => new Date(m.start_time) >= new Date() && m.status !== 'cancelled').length})
-                  </h5>
-                  <div className="overflow-x-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                    <table className="w-full border-collapse text-left text-xs text-neutral-500 dark:text-neutral-400">
-                      <thead className="bg-neutral-50 dark:bg-neutral-955 font-semibold text-neutral-700 dark:text-neutral-300">
-                        <tr>
-                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Client</th>
-                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Meeting Details</th>
-                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Scheduled Time</th>
-                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Status</th>
-                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 font-medium text-neutral-800 dark:text-neutral-200">
-                        {filteredMeetings.filter(m => new Date(m.start_time) >= new Date() && m.status !== 'cancelled').map((m) => (
-                          <tr key={m.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10 cursor-pointer" onClick={() => openMeetingPanel(m.id)}>
-                            <td className="px-6 py-4">
-                              <div className="font-semibold text-neutral-900 dark:text-white">{m.attendee_name || "Guest User"}</div>
-                              <div className="text-[10px] text-neutral-450 font-mono mt-0.5">{m.attendee_email}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="font-semibold">{m.title}</div>
-                              {m.meeting_link && (
-                                <a href={m.meeting_link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-500 hover:underline flex items-center gap-1 mt-1 text-[10px] cursor-pointer">
-                                  <ExternalLink className="size-3" /> Join {m.provider === 'google_meet' ? 'Google Meet' : m.provider}
-                                </a>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 font-mono text-neutral-600 dark:text-neutral-300">
-                              {formatDateTime(m.start_time)}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400">
-                                {m.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  onClick={() => handleUpdateMeetingStatus(m.id, 'completed')}
-                                  className="text-[9px] font-bold bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 px-2 py-1 rounded-lg cursor-pointer"
-                                >
-                                  Done
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateMeetingStatus(m.id, 'cancelled')}
-                                  className="text-[9px] font-bold bg-red-50 hover:bg-red-100 dark:bg-red-950/20 text-red-650 dark:text-red-400 px-2 py-1 rounded-lg cursor-pointer"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-
-                        {filteredMeetings.filter(m => new Date(m.start_time) >= new Date() && m.status !== 'cancelled').length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="px-6 py-8 text-center text-neutral-400 dark:text-neutral-500">
-                              No upcoming appointments scheduled
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-4">
-                  <h5 className="text-xs font-bold text-neutral-750 dark:text-neutral-450 flex items-center gap-2">
-                    <span className="size-2 rounded-full bg-neutral-400"></span>
-                    Past / Cancelled appointments ({filteredMeetings.filter(m => new Date(m.start_time) < new Date() || m.status === 'cancelled').length})
-                  </h5>
-                  <div className="overflow-x-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                    <table className="w-full border-collapse text-left text-xs text-neutral-500 dark:text-neutral-400">
-                      <thead className="bg-neutral-50 dark:bg-neutral-955 font-semibold text-neutral-700 dark:text-neutral-300">
-                        <tr>
-                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Client</th>
-                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Meeting Details</th>
-                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Scheduled Time</th>
-                          <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-neutral-700 dark:text-neutral-350">
-                        {filteredMeetings.filter(m => new Date(m.start_time) < new Date() || m.status === 'cancelled').map((m) => (
-                          <tr key={m.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10 opacity-75 cursor-pointer" onClick={() => openMeetingPanel(m.id)}>
-                            <td className="px-6 py-4">
-                              <div className="font-semibold text-neutral-800 dark:text-neutral-300">{m.attendee_name || "Guest User"}</div>
-                              <div className="text-[10px] text-neutral-400 font-mono mt-0.5">{m.attendee_email}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="font-semibold">{m.title}</div>
-                            </td>
-                            <td className="px-6 py-4 font-mono">
-                              {formatDateTime(m.start_time)}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                                m.status === 'completed'
-                                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400'
-                                  : 'bg-red-50 text-red-755 dark:bg-red-950/20 dark:text-red-400'
-                              }`}>
-                                {m.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-
-                        {filteredMeetings.filter(m => new Date(m.start_time) < new Date() || m.status === 'cancelled').length === 0 && (
-                          <tr>
-                            <td colSpan={4} className="px-6 py-8 text-center text-neutral-400 dark:text-neutral-500">
-                              No past meetings recorded
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-            );
-          })()}
+          {activeTab === "meetings" && (
+            <MeetingsTab
+              myRole={myRole}
+              adminMeetings={adminMeetings}
+              meetingMemberFilter={meetingMemberFilter}
+              setMeetingMemberFilter={setMeetingMemberFilter}
+              selectedMeetingId={selectedMeetingId}
+              setSelectedMeetingId={setSelectedMeetingId}
+              teamMembers={teamMembers}
+              botId={botId}
+              loadAdminData={loadAdminData}
+              loadingAdminData={loadingAdminData}
+              botTimezone={botTimezone}
+              openMeetingPanel={openMeetingPanel}
+              formatDateTime={formatDateTime}
+              reschedulingMeetingId={reschedulingMeetingId}
+              setReschedulingMeetingId={setReschedulingMeetingId}
+              rescheduleDateTime={rescheduleDateTime}
+              setRescheduleDateTime={setRescheduleDateTime}
+              handleRescheduleMeeting={handleRescheduleMeeting}
+              reschedulingBusy={reschedulingBusy}
+              handleUpdateMeetingStatus={handleUpdateMeetingStatus}
+            />
+          )}
 
           {/* TAB: VOICE AGENT */}
           {activeTab === "voice_agent" && (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
-              <div className="w-full max-w-2xl space-y-6">
-                <div>
-                  <h2 className="text-sm font-bold flex items-center gap-2">
-                    <Phone className="size-4 text-[#f97316]" /> Voice Agent
-                  </h2>
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                    Let visitors talk to your bot instead of typing - configure speech recognition, voice
-                    synthesis, the agent&apos;s call persona, and call safety limits.
-                  </p>
-                </div>
-
-                <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <Mic className="size-4 text-[#f97316]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Voice Agent</h3>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold">Enable voice agent</span>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Adds a microphone control so visitors can speak to your widget.</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const next = !voiceEnabled;
-                        setVoiceEnabled(next);
-                        handleAutoSaveVoiceField({ voice_enabled: next });
-                      }}
-                      disabled={savingVoiceField}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer disabled:opacity-60 ${
-                        voiceEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
-                      }`}
-                    >
-                      <div className={`size-4 rounded-full bg-white transition-transform ${voiceEnabled ? "translate-x-4" : ""}`} />
-                    </button>
-                  </div>
-
-                  <AnimatePresence>
-                    {voiceEnabled && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="space-y-4 overflow-hidden"
-                      >
-                        {/* Agent role / persona */}
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Call Persona</label>
-                          <ModernSelect
-                            value={voiceAgentRole}
-                            onChange={(v) => {
-                              setVoiceAgentRole(v);
-                              handleAutoSaveVoiceField({ voice_agent_role: v });
-                            }}
-                            options={[
-                              { value: "general", label: "General Assistant", hint: "No special lean, default" },
-                              { value: "booking", label: "Order & Booking", hint: "Proactively offers to schedule once it understands the need" },
-                              { value: "info", label: "Information & FAQ", hint: "Sticks to answering questions, doesn't push booking" },
-                              { value: "lead", label: "Lead Qualification", hint: "Focuses on capturing contact info for follow-up" },
-                            ]}
-                          />
-                        </div>
-
-                        {/* Booking / lead-capture context note */}
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3 leading-relaxed">
-                          The persona above only shapes what the agent leads with on a call - it doesn&apos;t
-                          unlock new capabilities. Booking and lead-capture on calls use the same settings as
-                          your text chat:{" "}
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab("settings")}
-                            className="font-semibold text-[#f97316] hover:underline cursor-pointer"
-                          >
-                            Settings → Scheduling
-                          </button>{" "}
-                          configures calendar booking, and{" "}
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab("settings")}
-                            className="font-semibold text-[#f97316] hover:underline cursor-pointer"
-                          >
-                            Settings → AI Engine
-                          </button>{" "}
-                          configures knowledge base behavior.
-                        </p>
-
-                        {/* Mode tabs - Pipeline (STT -> LLM -> TTS, today's
-                            default) vs Realtime (Gemini Live / OpenAI
-                            Realtime speech-to-speech - faster & more
-                            natural, no separate STT/TTS provider choice).
-                            Same horizontal pill-tab pattern as the Mailbox
-                            tab's client/admin filter elsewhere on this page. */}
-                        <div>
-                          <div className="flex items-center gap-0.5 bg-neutral-50 dark:bg-neutral-950 rounded-lg p-0.5 border border-neutral-200 dark:border-neutral-800 w-fit mb-3">
-                            {([
-                              { value: "pipeline" as const, label: "Pipeline" },
-                              { value: "realtime" as const, label: "Realtime" },
-                            ]).map((t) => (
-                              <button
-                                key={t.value}
-                                type="button"
-                                onClick={() => {
-                                  setVoiceMode(t.value);
-                                  handleAutoSaveVoiceField({ voice_mode: t.value });
-                                }}
-                                className={`px-3.5 py-1.5 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
-                                  voiceMode === t.value
-                                    ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
-                                    : "text-neutral-400 hover:text-neutral-600"
-                                }`}
-                              >
-                                {t.label}
-                              </button>
-                            ))}
-                          </div>
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1">
-                            {voiceMode === "realtime"
-                              ? "Speech-to-speech - the model listens and speaks directly, no separate transcription/synthesis step. Faster and more natural, still uses your knowledge base and booking/lead-capture tools."
-                              : "Classic pipeline - pick a speech-to-text and text-to-speech provider independently."}
-                          </p>
-                        </div>
-
-                        {voiceMode === "realtime" ? (
-                          <>
-                            {/* Realtime provider */}
-                            <div>
-                              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Realtime Provider</label>
-                              <ModernSelect
-                                value={voiceRealtimeProvider}
-                                onChange={(v) => {
-                                  const provider = v as "google" | "openai";
-                                  const defaultModel = provider === "google" ? "gemini-3.1-flash-live-preview" : "gpt-realtime";
-                                  setVoiceRealtimeProvider(provider);
-                                  setVoiceRealtimeModel(defaultModel);
-                                  handleAutoSaveVoiceField({ voice_realtime_provider: provider, voice_realtime_model: defaultModel });
-                                }}
-                                options={[
-                                  { value: "google", label: "Google Gemini Live", hint: "gemini-3.1-flash-live-preview" },
-                                  { value: "openai", label: "OpenAI Realtime", hint: "gpt-realtime" },
-                                ]}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Model</label>
-                              <input
-                                type="text"
-                                value={voiceRealtimeModel}
-                                onChange={(e) => setVoiceRealtimeModel(e.target.value)}
-                                onBlur={(e) => handleAutoSaveVoiceField({ voice_realtime_model: e.target.value || null })}
-                                placeholder={voiceRealtimeProvider === "google" ? "gemini-3.1-flash-live-preview" : "gpt-realtime"}
-                                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Voice (optional)</label>
-                              <input
-                                type="text"
-                                value={voiceTtsVoice}
-                                onChange={(e) => setVoiceTtsVoice(e.target.value)}
-                                onBlur={(e) => handleAutoSaveVoiceField({ voice_tts_voice: e.target.value || null })}
-                                placeholder={voiceRealtimeProvider === "google" ? "Puck" : "marin"}
-                                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                              />
-                              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Leave blank to use the default voice.</p>
-                            </div>
-
-                            <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Realtime API Key (optional)</span>
-                                {voiceRealtimeConfigured && (
-                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
-                                    <Check className="size-2.5" /> Configured
-                                  </span>
-                                )}
-                              </div>
-                              <input
-                                type="password"
-                                value={voiceRealtimeApiKeyInput}
-                                onChange={(e) => setVoiceRealtimeApiKeyInput(e.target.value)}
-                                placeholder={voiceRealtimeConfigured ? "•••••••••••••••• (saved - enter a new key to replace)" : "API key (optional)"}
-                                className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                              />
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleSaveVoiceByok("realtime", false)}
-                                  disabled={savingVoiceRealtime || !voiceRealtimeApiKeyInput.trim()}
-                                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
-                                >
-                                  {savingVoiceRealtime ? "Saving…" : "Save key"}
-                                </button>
-                                {voiceRealtimeConfigured && (
-                                  <button
-                                    onClick={() => handleSaveVoiceByok("realtime", true)}
-                                    disabled={savingVoiceRealtime}
-                                    className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
-                                  >
-                                    Remove key
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                        <>
-                        {/* Speech-to-Text provider */}
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Speech-to-Text Provider</label>
-                          <ModernSelect
-                            value={voiceSttProvider}
-                            onChange={(v) => {
-                              setVoiceSttProvider(v);
-                              handleAutoSaveVoiceField({ voice_stt_provider: v });
-                            }}
-                            options={[
-                              { value: "google", label: "Google", hint: "Included, no setup" },
-                              { value: "deepgram", label: "Deepgram", hint: "Requires your own API key" },
-                              { value: "assemblyai", label: "AssemblyAI", hint: "Requires your own API key" },
-                              { value: "soniox", label: "Soniox", hint: "Requires your own API key" },
-                              { value: "openai", label: "OpenAI Whisper", hint: "Requires your own API key" },
-                            ]}
-                          />
-                        </div>
-
-                        {voiceSttProvider !== "google" && (
-                          <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Speech-to-Text API Key</span>
-                              {voiceSttConfigured && (
-                                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
-                                  <Check className="size-2.5" /> Configured
-                                </span>
-                              )}
-                              {!voiceSttConfigured && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
-                                  Not configured
-                                </span>
-                              )}
-                            </div>
-                            <input
-                              type="password"
-                              value={voiceSttApiKeyInput}
-                              onChange={(e) => setVoiceSttApiKeyInput(e.target.value)}
-                              placeholder={voiceSttConfigured ? "•••••••••••••••• (saved - enter a new key to replace)" : "API key"}
-                              className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleSaveVoiceByok("stt", false)}
-                                disabled={savingVoiceStt || !voiceSttApiKeyInput.trim()}
-                                className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
-                              >
-                                {savingVoiceStt ? "Saving…" : "Save key"}
-                              </button>
-                              {voiceSttConfigured && (
-                                <button
-                                  onClick={() => handleSaveVoiceByok("stt", true)}
-                                  disabled={savingVoiceStt}
-                                  className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
-                                >
-                                  Remove key
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Text-to-Speech provider */}
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Text-to-Speech Provider</label>
-                          <ModernSelect
-                            value={voiceTtsProvider}
-                            onChange={(v) => {
-                              setVoiceTtsProvider(v);
-                              handleAutoSaveVoiceField({ voice_tts_provider: v });
-                            }}
-                            options={[
-                              { value: "google", label: "Google", hint: "Included, no setup" },
-                              { value: "cartesia", label: "Cartesia", hint: "Requires your own API key" },
-                              { value: "elevenlabs", label: "ElevenLabs", hint: "Requires your own API key" },
-                              { value: "openai", label: "OpenAI", hint: "Requires your own API key" },
-                              { value: "fishaudio", label: "Fish Audio", hint: "Requires your own API key" },
-                            ]}
-                          />
-                        </div>
-
-                        {voiceTtsProvider === "google" && (
-                          <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Google TTS Voice (optional)</label>
-                            <input
-                              type="text"
-                              value={voiceTtsVoice}
-                              onChange={(e) => setVoiceTtsVoice(e.target.value)}
-                              onBlur={(e) => handleAutoSaveVoiceField({ voice_tts_voice: e.target.value || null })}
-                              placeholder="en-US-Chirp3-HD-Aoede"
-                              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                            />
-                            <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Leave blank to use the default voice.</p>
-                          </div>
-                        )}
-
-                        {voiceTtsProvider !== "google" && (
-                          <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Text-to-Speech API Key</span>
-                              {voiceTtsConfigured && (
-                                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
-                                  <Check className="size-2.5" /> Configured
-                                </span>
-                              )}
-                              {!voiceTtsConfigured && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
-                                  Not configured
-                                </span>
-                              )}
-                            </div>
-                            <input
-                              type="password"
-                              value={voiceTtsApiKeyInput}
-                              onChange={(e) => setVoiceTtsApiKeyInput(e.target.value)}
-                              placeholder={voiceTtsConfigured ? "•••••••••••••••• (saved - enter a new key to replace)" : "API key"}
-                              className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleSaveVoiceByok("tts", false)}
-                                disabled={savingVoiceTts || !voiceTtsApiKeyInput.trim()}
-                                className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
-                              >
-                                {savingVoiceTts ? "Saving…" : "Save key"}
-                              </button>
-                              {voiceTtsConfigured && (
-                                <button
-                                  onClick={() => handleSaveVoiceByok("tts", true)}
-                                  disabled={savingVoiceTts}
-                                  className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
-                                >
-                                  Remove key
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                          Voice uses the same AI Foundation Model and key configured above.
-                        </p>
-                        </>
-                        )}
-
-                        {/* Call Limits */}
-                        <div className="pt-2 mt-2 border-t border-neutral-100 dark:border-neutral-800">
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Call Limits</label>
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="number"
-                              min={1}
-                              max={60}
-                              value={voiceMaxDurationMinutes}
-                              onChange={(e) => setVoiceMaxDurationMinutes(parseInt(e.target.value, 10) || 1)}
-                              onBlur={(e) => {
-                                const v = Math.min(60, Math.max(1, parseInt(e.target.value, 10) || 15));
-                                setVoiceMaxDurationMinutes(v);
-                                handleAutoSaveVoiceField({ voice_max_duration_minutes: v });
-                              }}
-                              className="w-20 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                            />
-                            <span className="text-[10px] text-neutral-400 dark:text-neutral-500">minutes, max call duration</span>
-                          </div>
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
-                            Calls automatically end after this long, to prevent an abandoned browser tab from running indefinitely.
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-            </div>
+            <VoiceAgentTab
+              voiceEnabled={voiceEnabled}
+              setVoiceEnabled={setVoiceEnabled}
+              handleAutoSaveVoiceField={handleAutoSaveVoiceField}
+              savingVoiceField={savingVoiceField}
+              voiceAgentRole={voiceAgentRole}
+              setVoiceAgentRole={setVoiceAgentRole}
+              setActiveTab={setActiveTab}
+              voiceMode={voiceMode}
+              setVoiceMode={setVoiceMode}
+              voiceRealtimeProvider={voiceRealtimeProvider}
+              setVoiceRealtimeProvider={setVoiceRealtimeProvider}
+              voiceRealtimeModel={voiceRealtimeModel}
+              setVoiceRealtimeModel={setVoiceRealtimeModel}
+              voiceTtsVoice={voiceTtsVoice}
+              setVoiceTtsVoice={setVoiceTtsVoice}
+              voiceRealtimeConfigured={voiceRealtimeConfigured}
+              voiceRealtimeApiKeyInput={voiceRealtimeApiKeyInput}
+              setVoiceRealtimeApiKeyInput={setVoiceRealtimeApiKeyInput}
+              handleSaveVoiceByok={handleSaveVoiceByok}
+              savingVoiceRealtime={savingVoiceRealtime}
+              voiceSttProvider={voiceSttProvider}
+              setVoiceSttProvider={setVoiceSttProvider}
+              voiceSttConfigured={voiceSttConfigured}
+              voiceSttApiKeyInput={voiceSttApiKeyInput}
+              setVoiceSttApiKeyInput={setVoiceSttApiKeyInput}
+              savingVoiceStt={savingVoiceStt}
+              voiceTtsProvider={voiceTtsProvider}
+              setVoiceTtsProvider={setVoiceTtsProvider}
+              voiceTtsConfigured={voiceTtsConfigured}
+              voiceTtsApiKeyInput={voiceTtsApiKeyInput}
+              setVoiceTtsApiKeyInput={setVoiceTtsApiKeyInput}
+              savingVoiceTts={savingVoiceTts}
+              voiceMaxDurationMinutes={voiceMaxDurationMinutes}
+              setVoiceMaxDurationMinutes={setVoiceMaxDurationMinutes}
+            />
           )}
 
           {/* TAB: MAILBOX */}
-          {activeTab === "mailbox" && (() => {
-            const emails = adminNotifications
-              .filter((n) => n.channel === "email")
-              .filter((n) => mailboxFilter === "all" || n.type === mailboxFilter);
-            const selected = emails.find((m) => m.id === selectedMailId) || emails[0] || null;
-            const statusBadge = (s: string) => {
-              const map: Record<string, string> = {
-                sent: "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400",
-                sent_gmail: "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400",
-                logged: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400",
-              };
-              const label = s === "sent_gmail" ? "sent (gmail)" : s === "logged" ? "logged only" : s;
-              return <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full capitalize ${map[s] || "bg-neutral-100 text-neutral-500"}`}>{label}</span>;
-            };
-            return (
-              <div className="max-w-6xl mx-auto w-full py-6 px-4 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
-                      <Mail className="size-3.5" /> Mailbox
-                    </h4>
-                    <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">
-                      Beautiful confirmation emails sent to clients and admins when a meeting is booked.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-0.5 bg-neutral-50 dark:bg-neutral-950 rounded-lg p-0.5 border border-neutral-200 dark:border-neutral-800">
-                      {(["all", "client", "admin"] as const).map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => { setMailboxFilter(f); setSelectedMailId(null); }}
-                          className={`px-2.5 py-1 text-[10px] font-semibold rounded-md capitalize transition-colors cursor-pointer ${
-                            mailboxFilter === f ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm" : "text-neutral-400 hover:text-neutral-600"
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => botId && loadAdminData(botId)}
-                      className="flex items-center gap-1.5 text-[11px] font-semibold border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-350 cursor-pointer"
-                    >
-                      <RefreshCw className={`size-3.5 ${loadingAdminData ? "animate-spin" : ""}`} /> Refresh
-                    </button>
-                  </div>
-                </div>
-
-                {emails.length === 0 ? (
-                  <div className="p-12 text-center bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                    <Mail className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
-                    <p className="text-xs font-semibold text-neutral-500 mt-3">No emails yet</p>
-                    <p className="text-[10px] text-neutral-400 mt-1">When a visitor books a meeting, client &amp; admin confirmation emails will appear here.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                    {/* Email list */}
-                    <div className="lg:col-span-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-850 max-h-[600px] overflow-y-auto">
-                      {emails.map((m) => {
-                        const isSel = selected && m.id === selected.id;
-                        return (
-                          <button
-                            key={m.id}
-                            onClick={() => setSelectedMailId(m.id)}
-                            className={`w-full text-left p-3.5 transition-colors cursor-pointer ${
-                              isSel ? "bg-[#f97316]/5 border-l-2 border-l-[#f97316]" : "hover:bg-neutral-50 dark:hover:bg-neutral-850/40 border-l-2 border-l-transparent"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${m.type === "admin" ? "bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400" : "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"}`}>
-                                {m.type}
-                              </span>
-                              {statusBadge(m.status || "")}
-                            </div>
-                            <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mt-1.5 truncate">{m.subject}</p>
-                            <p className="text-[10px] text-neutral-400 truncate mt-0.5">To: {m.recipient}</p>
-                            {m.created_at && <p className="text-[9px] text-neutral-400 mt-1">{formatDateTime(m.created_at)}</p>}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Email preview */}
-                    <div className="lg:col-span-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col max-h-[600px]">
-                      {selected ? (
-                        <>
-                          <div className="p-4 border-b border-neutral-100 dark:border-neutral-850">
-                            <div className="flex items-center justify-between gap-2">
-                              <h5 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">{selected.subject}</h5>
-                              {statusBadge(selected.status || "")}
-                            </div>
-                            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-neutral-400">
-                              <span>To: <span className="text-neutral-600 dark:text-neutral-300 font-medium">{selected.recipient}</span></span>
-                              <span className="capitalize">· {selected.type} notification</span>
-                              {selected.created_at && <span>· {formatDateTime(selected.created_at)}</span>}
-                            </div>
-                          </div>
-                          <div className="flex-1 overflow-hidden bg-neutral-100 dark:bg-neutral-950">
-                            {selected.html_content ? (
-                              <iframe
-                                title="email-preview"
-                                sandbox=""
-                                srcDoc={selected.html_content}
-                                className="w-full h-full min-h-[420px] border-0 bg-white"
-                              />
-                            ) : (
-                              <pre className="p-5 text-xs text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed font-sans">{selected.content}</pre>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex-1 flex items-center justify-center text-xs text-neutral-400">Select an email to preview</div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {activeTab === "mailbox" && (
+            <MailboxTab
+              adminNotifications={adminNotifications}
+              mailboxFilter={mailboxFilter}
+              setMailboxFilter={setMailboxFilter}
+              selectedMailId={selectedMailId}
+              setSelectedMailId={setSelectedMailId}
+              botId={botId || ""}
+              loadAdminData={loadAdminData}
+              loadingAdminData={loadingAdminData}
+              formatDateTime={formatDateTime}
+            />
+          )}
 
           {/* TAB 10: NOTIFICATIONS */}
           {activeTab === "notifications" && (
-            <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
-              <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Mail className="size-4 text-[#f97316]" /> Support Team Notification Emails
-                </h3>
-                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  Enter comma-separated email addresses to receive instant alerts when a visitor starts a chat, files an offline ticket, or requests human support escalation.
-                </p>
-                <input
-                  type="text"
-                  value={notificationEmails}
-                  onChange={(e) => handleInputChange(setNotificationEmails, e.target.value)}
-                  placeholder="support@company.com, alex@company.com, escalation@company.com"
-                  className="w-full mt-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                />
-              </div>
-
-              <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Link2 className="size-4 text-[#f97316]" /> Outbound Webhook
-                </h3>
-                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  Get a POST request whenever this bot starts a new conversation or captures a new lead - wire it into Zapier, Slack, or your own backend.
-                </p>
-                <input
-                  type="url"
-                  value={webhookUrl}
-                  onChange={(e) => handleInputChange(setWebhookUrl, e.target.value)}
-                  placeholder="https://hooks.zapier.com/hooks/catch/…"
-                  className="w-full mt-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                />
-                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-2">
-                  Payload: <code className="font-mono">{"{ event: \"new_conversation\" | \"new_lead\", bot_id, data, timestamp }"}</code>. Remember to click <b>Save Changes</b>.
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Automated Notification Logs</h4>
-                  <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">Delivery reports for automated client meeting confirmations and administrator alerts.</p>
-                </div>
-                <button
-                  onClick={() => loadAdminData(botId || "")}
-                  className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-855 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1.5"
-                >
-                  <RefreshCw className="size-3" />
-                  Refresh
-                </button>
-              </div>
-
-              {loadingAdminData ? (
-                <div className="flex items-center justify-center p-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <Loader2 className="size-5 animate-spin text-neutral-400" />
-                </div>
-              ) : (
-                <div className="overflow-x-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <table className="w-full border-collapse text-left text-xs text-neutral-500 dark:text-neutral-400">
-                    <thead className="bg-neutral-50 dark:bg-neutral-955 font-semibold text-neutral-700 dark:text-neutral-300">
-                      <tr>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Channel</th>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Recipient</th>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Subject / Content</th>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Status</th>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Sent At</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 font-medium text-neutral-800 dark:text-neutral-200">
-                      {adminNotifications.map((n) => (
-                        <tr key={n.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              {n.channel === "email" ? (
-                                <Mail className="size-4 text-blue-500" />
-                              ) : (
-                                <Bell className="size-4 text-amber-500" />
-                              )}
-                              <span className="capitalize">{n.channel}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 font-mono truncate max-w-[150px]" title={n.recipient}>
-                            {n.recipient}
-                          </td>
-                          <td className="px-6 py-4 max-w-xs">
-                            <div className="font-semibold text-neutral-900 dark:text-white truncate">{n.subject || "Alert Notification"}</div>
-                            <div className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate mt-0.5">{n.content}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                              n.status === 'delivered' || n.status === 'sent'
-                                ? 'bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400'
-                                : 'bg-red-50 text-red-755 dark:bg-red-950/20 dark:text-red-400'
-                            }`}>
-                              {n.status}
-                            </span>
-                            {n.error_message && (
-                              <div className="text-[9px] text-red-500 font-medium mt-1 leading-normal max-w-[140px] truncate">{n.error_message}</div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-neutral-400 dark:text-neutral-500 font-mono">
-                            {n.created_at ? formatDateTime(n.created_at) : ""}
-                          </td>
-                        </tr>
-                      ))}
-                      
-                      {adminNotifications.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center space-y-2 text-neutral-400">
-                            <Bell className="size-8 mx-auto text-neutral-300" />
-                            <h5 className="text-xs font-bold text-neutral-700 dark:text-neutral-300">No notifications sent yet</h5>
-                            <p className="text-[10px] text-neutral-400 max-w-xs mx-auto leading-normal">
-                              Notification logs will populate once clients book meetings or updates are triggered.
-                            </p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <NotificationsTab
+              notificationEmails={notificationEmails}
+              setNotificationEmails={setNotificationEmails}
+              handleInputChange={handleInputChange}
+              webhookUrl={webhookUrl}
+              setWebhookUrl={setWebhookUrl}
+              botId={botId || ""}
+              loadAdminData={loadAdminData}
+              loadingAdminData={loadingAdminData}
+              adminNotifications={adminNotifications}
+              formatDateTime={formatDateTime}
+            />
           )}
 
           {/* TAB 11: AUDIT LOG */}
           {activeTab === "audit_log" && (
-            <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">System Audit Logs</h4>
-                  <p className="text-[10px] text-neutral-455 dark:text-neutral-550 mt-1">Immutable ledger of administrative actions, data syncing, and configuration updates.</p>
-                </div>
-                <button
-                  onClick={() => loadAdminData(botId || "")}
-                  className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-855 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1.5"
-                >
-                  <RefreshCw className="size-3" />
-                  Refresh
-                </button>
-              </div>
-
-              {loadingAdminData ? (
-                <div className="flex items-center justify-center p-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <Loader2 className="size-5 animate-spin text-neutral-400" />
-                </div>
-              ) : (
-                <div className="overflow-x-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <table className="w-full border-collapse text-left text-xs text-neutral-500 dark:text-neutral-400">
-                    <thead className="bg-neutral-50 dark:bg-neutral-955 font-semibold text-neutral-700 dark:text-neutral-300">
-                      <tr>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Action Type</th>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Event Details</th>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Performed By</th>
-                        <th className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 font-medium text-neutral-800 dark:text-neutral-200">
-                      {adminAuditLogs.map((a) => (
-                        <tr key={a.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/10">
-                          <td className="px-6 py-4">
-                            <span className="font-bold text-neutral-900 dark:text-white capitalize">
-                              {(a.action || "").replace(/_/g, " ")}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-neutral-600 dark:text-neutral-300 leading-normal max-w-sm">
-                            {a.details}
-                          </td>
-                          <td className="px-6 py-4 font-mono text-neutral-400 dark:text-neutral-500">
-                            {a.performed_by}
-                          </td>
-                          <td className="px-6 py-4 text-neutral-400 dark:text-neutral-500 font-mono">
-                            {a.created_at ? formatDateTime(a.created_at) : ""}
-                          </td>
-                        </tr>
-                      ))}
-                      
-                      {adminAuditLogs.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-12 text-center space-y-2 text-neutral-400">
-                            <FileText className="size-8 mx-auto text-neutral-300" />
-                            <h5 className="text-xs font-bold text-neutral-700 dark:text-neutral-300">No activity logged yet</h5>
-                            <p className="text-[10px] text-neutral-400 max-w-xs mx-auto leading-normal">
-                              Administrative configuration actions will be audited and listed here.
-                            </p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <AuditLogTab
+              botId={botId || ""}
+              adminAuditLogs={adminAuditLogs}
+              loadingAdminData={loadingAdminData}
+              loadAdminData={loadAdminData}
+              formatDateTime={formatDateTime}
+            />
           )}
           {/* TAB: FLOW BUILDER */}
           {activeTab === "flows" && (

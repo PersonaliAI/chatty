@@ -81,6 +81,12 @@ async def documents_index_folder(
         f"{field_prefix}_max_files": max_files,
     }).eq("id", user["id"]).execute())
 
+    if getattr(body, "bot_id", None):
+        bot_upd: dict[str, Any] = {"sync_google_drive": True}
+        if source == "gdrive":
+            bot_upd["google_drive_folder_id"] = folder_id
+        await run_db(lambda: supabase.table("chatty_bots").update(bot_upd).eq("id", body.bot_id).eq("user_id", user["auth_user_id"]).execute())
+
     background_tasks.add_task(
         _index_folder_task,
         user,

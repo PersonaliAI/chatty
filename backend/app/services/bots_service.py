@@ -120,6 +120,15 @@ async def update_bot(principal: dict[str, Any], bot_id: str, body: BotUpdateRequ
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    if updates.get("google_connected_account_id"):
+        user = await _oauth.user_dict_for_principal(principal)
+        acc_res = await run_db(lambda: supabase.table("kin_connected_accounts").select("id").eq(
+            "id", updates["google_connected_account_id"]
+        ).eq("user_id", user["id"]).execute())
+        if not acc_res.data:
+            raise HTTPException(status_code=403, detail="Forbidden: Connected account not owned by user")
+
     res = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to update bot")

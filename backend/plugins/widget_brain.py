@@ -185,8 +185,9 @@ async def search_knowledge(
     english_query = await _translate_to_english_for_rag(query)
     if bot.get("sync_google_drive"):
         try:
+            folder_id = bot.get("google_drive_folder_id")
             chunks = await doc_rag.search(
-                supabase, user_id=owner_user["id"], query=english_query, count=5
+                supabase, user_id=owner_user["id"], query=english_query, count=5, folder_id=folder_id
             )
             if chunks:
                 knowledge_context = doc_rag.format_for_prompt(chunks)

@@ -433,7 +433,16 @@ def _format_invitation_time(start_str: str, tz_name: Optional[str]) -> str:
 
 
 async def _create_calendar_event(args: dict, user: dict, supabase, context: Optional[dict] = None) -> dict:
-    if g_err := _need_google(user):
+    bot = (context or {}).get("bot") or {}
+    table = user.get("_table") or "users"
+    target_user = user
+    if table == "users" and bot.get("google_connected_account_id"):
+        try:
+            target_user, table = await g.resolve_account_user(supabase, user, bot.get("google_connected_account_id"))
+        except Exception:
+            target_user, table = user, "users"
+
+    if g_err := _need_google(target_user):
         return g_err
     tz_override = None
     if context:
@@ -445,9 +454,10 @@ async def _create_calendar_event(args: dict, user: dict, supabase, context: Opti
         time_label = _format_invitation_time(args["start"], tz_override)
         if time_label:
             desc = f"{desc}\n\nTime: {time_label}"
+    calendar_id = args.get("calendar_id") or bot.get("google_calendar_id") or "primary"
     return await g.create_calendar_event(
         supabase,
-        user,
+        target_user,
         summary=args.get("summary") or "",
         start=args.get("start") or "",
         end=args.get("end") or "",
@@ -455,7 +465,9 @@ async def _create_calendar_event(args: dict, user: dict, supabase, context: Opti
         location=args.get("location"),
         attendees=list(args.get("attendees") or []) or None,
         all_day=bool(args.get("all_day")),
+        calendar_id=calendar_id,
         timezone_override=tz_override,
+        table=table,
     )
 
 
@@ -770,9 +782,12 @@ async def reschedule_meeting_core(
                 start=new_start.isoformat(), end=new_end.isoformat(), timezone_override=owner_tz_str,
             )
         else:
+            cal_id = bot.get("google_calendar_id") or "primary"
+            tbl = host_user.get("_table", "users")
             await g.update_calendar_event(
                 supabase, host_user, event_id=meeting["provider_event_id"],
                 start=new_start.isoformat(), end=new_end.isoformat(), timezone_override=owner_tz_str,
+                calendar_id=cal_id, table=tbl,
             )
     except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
         raise
@@ -915,7 +930,12 @@ async def cancel_meeting_core(
             if use_ms_calendar:
                 await ms.delete_outlook_event(supabase, host_user, event_id=meeting["provider_event_id"])
             else:
-                await g.delete_calendar_event(supabase, host_user, event_id=meeting["provider_event_id"])
+                cal_id = bot.get("google_calendar_id") or "primary"
+                tbl = host_user.get("_table", "users")
+                await g.delete_calendar_event(
+                    supabase, host_user, event_id=meeting["provider_event_id"],
+                    calendar_id=cal_id, table=tbl,
+                )
         except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
             raise
         except Exception:
@@ -1611,6 +1631,10 @@ async def execute(
                             )
                         }
                     booking_user = assignee["user"]
+                    if assignee.get("table"):
+                        booking_user["_table"] = assignee["table"]
+                    if assignee.get("calendar_id"):
+                        args = {**args, "calendar_id": assignee["calendar_id"]}
                     args = {**args, "_assigned_to_email": assignee["email"]}
                 except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
                     raise

@@ -8,6 +8,7 @@ os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret")
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "123456:TEST")
 os.environ.setdefault("FUNCTION_SECRET", "test-function-secret-32-bytes-minimum")
+os.environ.setdefault("BYOK_ENCRYPTION_KEY", "Ti7qlTpobe6JGMgpbQIHpU0Q6-JAXMKxIq4mBm995dM=")
 
 # Avoid constructing a real Vertex AI client (needs GCP ADC) at import time.
 from google import genai as _genai  # noqa: E402

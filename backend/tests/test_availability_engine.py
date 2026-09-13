@@ -542,7 +542,7 @@ def test_pick_assignee_prefers_member_with_fewer_meetings(monkeypatch):
 
 def test_pick_assignee_only_frees_members_that_are_actually_free(monkeypatch):
     # a is busy at the slot, b is free -> b gets it even with no meeting-count query needed.
-    async def fake_fetch(supabase, u, *, use_ms_calendar, time_min, time_max):
+    async def fake_fetch(supabase, u, *, use_ms_calendar, time_min, time_max, **kwargs):
         if u.get("email") == "a@example.com":
             return [(_utc(2026, 1, 5, 10, 0), _utc(2026, 1, 5, 10, 30))]
         return []
@@ -591,7 +591,7 @@ def test_get_team_available_slots_unions_across_members(monkeypatch):
     """Member A is fully booked all day; member B is free. The visitor
     should still see open slots (from B), proving this is a real union and
     not just "first member's calendar"."""
-    async def fake_fetch(supabase, u, *, use_ms_calendar, time_min, time_max):
+    async def fake_fetch(supabase, u, *, use_ms_calendar, time_min, time_max, **kwargs):
         if u.get("email") == "a@example.com":
             return [(_utc(2026, 1, 5, 0, 0), _utc(2026, 1, 6, 0, 0))]  # busy all day
         return []

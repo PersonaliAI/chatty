@@ -932,6 +932,7 @@ async def search(
     query: str,
     count: int = 8,
     threshold: float = 0.40,
+    folder_id: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     try:
         vec = await mem.embed_query(query)
@@ -939,14 +940,17 @@ async def search(
         logger.exception("embed_query failed")
         return []
     try:
+        rpc_params: dict[str, Any] = {
+            "query_embedding": vec,
+            "match_user_id": user_id,
+            "match_threshold": threshold,
+            "match_count": count,
+        }
+        if folder_id:
+            rpc_params["match_folder_id"] = folder_id
         res = await run_db(lambda: supabase.rpc(
             "match_document_chunks",
-            {
-                "query_embedding": vec,
-                "match_user_id": user_id,
-                "match_threshold": threshold,
-                "match_count": count,
-            },
+            rpc_params,
         ).execute())
         return res.data or []
     except Exception:  # noqa: BLE001

@@ -25,6 +25,11 @@ class BotUpdateRequest(BaseModel):
     lead_capture_enabled: Optional[bool] = None
     max_daily_meetings: Optional[int] = None
     max_weekly_meetings: Optional[int] = None
+    google_connected_account_id: Optional[str] = None
+    google_calendar_id: Optional[str] = None
+    google_calendar_name: Optional[str] = None
+    google_drive_folder_id: Optional[str] = None
+    google_drive_folder_name: Optional[str] = None
 
 
 class KnowledgeTextCreateRequest(BaseModel):

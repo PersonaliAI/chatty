@@ -12,6 +12,7 @@ class IndexFolderBody(BaseModel):
     folder_id_or_url: str
     max_files: int = 50
     source: Optional[str] = "gdrive"  # "gdrive" | "onedrive"
+    bot_id: Optional[str] = None
 
 
 class IndexFilesBody(BaseModel):

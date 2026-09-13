@@ -1062,6 +1062,7 @@ async def create_calendar_event(
     all_day: bool = False,
     calendar_id: str = "primary",
     timezone_override: Optional[str] = None,
+    table: str = "users",
 ) -> dict[str, Any]:
     # timezone_override (the bot's configured bot_timezone) takes priority over
     # the owner's user-profile timezone field, which is frequently left at its
@@ -1096,6 +1097,7 @@ async def create_calendar_event(
         f"{CALENDAR_BASE}/calendars/{calendar_id}/events",
         params={"conferenceDataVersion": "1"},
         json_body=body,
+        table=table,
     )
     return _format_event_row(res)
 
@@ -1106,6 +1108,7 @@ async def add_meet_to_event(
     *,
     event_id: str,
     calendar_id: str = "primary",
+    table: str = "users",
 ) -> dict[str, Any]:
     """Attach a real Google Meet conference to an existing event and return
     its join link. Requires conferenceDataVersion=1 on the request."""
@@ -1124,6 +1127,7 @@ async def add_meet_to_event(
         f"{CALENDAR_BASE}/calendars/{calendar_id}/events/{event_id}",
         params={"conferenceDataVersion": "1"},
         json_body=body,
+        table=table,
     )
     link = res.get("hangoutLink")
     if not link:
@@ -1147,6 +1151,7 @@ async def update_calendar_event(
     attendees: Optional[list[str]] = None,
     calendar_id: str = "primary",
     timezone_override: Optional[str] = None,
+    table: str = "users",
 ) -> dict[str, Any]:
     """Partial update (PATCH) of an existing event - only the fields passed
     are touched. Used for reschedule (start/end only) so the event's
@@ -1177,6 +1182,7 @@ async def update_calendar_event(
         "PATCH",
         f"{CALENDAR_BASE}/calendars/{calendar_id}/events/{event_id}",
         json_body=body,
+        table=table,
     )
     return _format_event_row(res)
 
@@ -1187,12 +1193,14 @@ async def delete_calendar_event(
     *,
     event_id: str,
     calendar_id: str = "primary",
+    table: str = "users",
 ) -> dict[str, Any]:
     await _api(
         supabase,
         user,
         "DELETE",
         f"{CALENDAR_BASE}/calendars/{calendar_id}/events/{event_id}",
+        table=table,
     )
     return {"deleted": True, "event_id": event_id}
 
@@ -1204,6 +1212,7 @@ async def check_calendar_availability(
     time_min: datetime,
     time_max: datetime,
     calendar_ids: Optional[list[str]] = None,
+    table: str = "users",
 ) -> dict[str, Any]:
     """Free/busy query - returns busy intervals for the requested calendars."""
     items = [{"id": c} for c in (calendar_ids or ["primary"])]
@@ -1217,6 +1226,7 @@ async def check_calendar_availability(
             "timeMax": time_max.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
             "items": items,
         },
+        table=table,
     )
     cals = res.get("calendars", {}) or {}
     return {
@@ -1228,6 +1238,100 @@ async def check_calendar_availability(
             for cid, data in cals.items()
         }
     }
+
+
+async def resolve_account_user(
+    supabase,
+    user: dict[str, Any],
+    account_id: Optional[str] = None,
+) -> tuple[dict[str, Any], str]:
+    """Resolves whether to operate against the primary user record (table='users')
+    or a connected secondary account (table='kin_connected_accounts').
+    Validates ownership strictly to prevent cross-tenant account spoofing."""
+    if not account_id:
+        return user, "users"
+    res = await run_db(lambda: (
+        supabase.table("kin_connected_accounts")
+        .select("*")
+        .eq("id", account_id)
+        .eq("user_id", user["id"])
+        .execute()
+    ))
+    if not res.data:
+        raise GoogleNotConnected(f"Connected account {account_id} not found or unauthorized")
+    account = res.data[0]
+    account_dict = {
+        **account,
+        "timezone": user.get("timezone"),
+        "name": user.get("name") or user.get("full_name"),
+    }
+    return account_dict, "kin_connected_accounts"
+
+
+async def list_calendars(
+    supabase,
+    user: dict[str, Any],
+    account_id: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """List Google Calendars available to this user or connected account."""
+    acc_user, table = await resolve_account_user(supabase, user, account_id)
+    res = await _api(
+        supabase,
+        acc_user,
+        "GET",
+        f"{CALENDAR_BASE}/users/me/calendarList",
+        params={"minAccessRole": "writer"},
+        table=table,
+    )
+    items = res.get("items", [])
+    calendars = []
+    for item in items:
+        calendars.append({
+            "id": item.get("id"),
+            "summary": item.get("summary") or item.get("id"),
+            "description": item.get("description"),
+            "primary": bool(item.get("primary")),
+            "access_role": item.get("accessRole"),
+        })
+    return calendars
+
+
+async def list_drive_folders(
+    supabase,
+    user: dict[str, Any],
+    parent_id: Optional[str] = None,
+    account_id: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """List Google Drive folders to let users select a scoped folder for bot RAG."""
+    acc_user, table = await resolve_account_user(supabase, user, account_id)
+    q = "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    if parent_id:
+        safe_parent = parent_id.replace("'", "\\'")
+        q += f" and '{safe_parent}' in parents"
+    res = await _api(
+        supabase,
+        acc_user,
+        "GET",
+        f"{DRIVE_BASE}/files",
+        params={
+            "q": q,
+            "fields": "files(id, name, parents, modifiedTime)",
+            "orderBy": "name",
+            "pageSize": 100,
+        },
+        table=table,
+    )
+    files = res.get("files", [])
+    return [
+        {
+            "id": f.get("id"),
+            "name": f.get("name"),
+            "parents": f.get("parents", []),
+            "modified_time": f.get("modifiedTime"),
+        }
+        for f in files
+    ]
+
 
 
 # ---------------------------------------------------------------------------
