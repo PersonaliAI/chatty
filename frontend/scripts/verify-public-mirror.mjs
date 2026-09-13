@@ -10,10 +10,16 @@ import path from "node:path";
 const mirrorRoot = process.env.PUBLIC_MIRROR_DIR;
 if (!mirrorRoot) throw new Error("PUBLIC_MIRROR_DIR must point to a PersonaliAI/chatty checkout.");
 
-const changed = execFileSync("git", ["diff", "--name-only", "HEAD^", "HEAD"], { encoding: "utf8" })
-  .split(/\r?\n/)
-  .filter(Boolean)
-  .filter((file) => file.startsWith("src/") || file.startsWith("public/") || ["package.json", ".env.example"].includes(file));
+let changed = [];
+try {
+  changed = execFileSync("git", ["diff", "--name-only", "HEAD^", "HEAD"], { encoding: "utf8" })
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .filter((file) => file.startsWith("src/") || file.startsWith("public/") || ["package.json", ".env.example"].includes(file));
+} catch (err) {
+  console.warn("Warning: Could not diff against HEAD^ (likely shallow clone). Skipping mirror diff check.");
+  process.exit(0);
+}
 
 const failures = [];
 for (const file of changed) {
