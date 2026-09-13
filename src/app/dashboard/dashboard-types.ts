@@ -77,6 +77,11 @@ export interface Bot {
   booking_block_disposable_emails?: boolean;
   booking_limit_one_active?: boolean;
   booking_require_business_email?: boolean;
+  google_connected_account_id?: string | null;
+  google_calendar_id?: string | null;
+  google_calendar_name?: string | null;
+  google_drive_folder_id?: string | null;
+  google_drive_folder_name?: string | null;
   [key: string]: unknown;
 }
 

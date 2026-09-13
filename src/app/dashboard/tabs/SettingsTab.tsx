@@ -12,6 +12,7 @@ import {
   Calendar,
   Loader2,
   Check,
+  RefreshCw,
 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import {
@@ -114,6 +115,12 @@ export interface SettingsTabProps {
   // Calendar Scheduling & Booking
   calendarSchedulingEnabled: boolean;
   setCalendarSchedulingEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  googleConnectedAccountId: string | null;
+  setGoogleConnectedAccountId: (id: string | null) => void;
+  googleCalendarId: string;
+  setGoogleCalendarId: (id: string) => void;
+  googleCalendarName: string;
+  setGoogleCalendarName: (name: string) => void;
   meetingProvider: string;
   handleMeetingProviderChange: (v: string) => void;
   providerOptions: ModernSelectOption[];
@@ -234,6 +241,12 @@ export function SettingsTab({
   setSyncOutlookCalendar,
   calendarSchedulingEnabled,
   setCalendarSchedulingEnabled,
+  googleConnectedAccountId,
+  setGoogleConnectedAccountId,
+  googleCalendarId,
+  setGoogleCalendarId,
+  googleCalendarName,
+  setGoogleCalendarName,
   meetingProvider,
   handleMeetingProviderChange,
   providerOptions,
@@ -265,6 +278,63 @@ export function SettingsTab({
   handleInputChange,
   showToast,
 }: SettingsTabProps) {
+  const [googleAccounts, setGoogleAccounts] = React.useState<Array<{ id: string | null; label: string; email: string }>>([]);
+  const [googleCalendars, setGoogleCalendars] = React.useState<Array<{ id: string; summary: string; primary: boolean }>>([]);
+  const [loadingCalendars, setLoadingCalendars] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!googleConnected) return;
+    let mounted = true;
+    fetchWithFallback("/api/integrations/google/accounts")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return;
+        const list: Array<{ id: string | null; label: string; email: string }> = [];
+        if (data.primary_account) {
+          list.push({
+            id: null,
+            label: data.primary_account.label || "Workspace Default (Primary Account)",
+            email: data.primary_account.email || "",
+          });
+        }
+        if (Array.isArray(data.accounts)) {
+          for (const a of data.accounts) {
+            list.push({
+              id: a.id,
+              label: a.label || a.google_email || a.id,
+              email: a.google_email || "",
+            });
+          }
+        }
+        setGoogleAccounts(list);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [googleConnected, fetchWithFallback]);
+
+  const loadCalendars = React.useCallback(() => {
+    if (!googleConnected) return;
+    setLoadingCalendars(true);
+    const qs = new URLSearchParams();
+    if (googleConnectedAccountId) qs.set("account_id", googleConnectedAccountId);
+    if (botId) qs.set("bot_id", botId);
+    fetchWithFallback(`/api/integrations/google/calendars?${qs.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.calendars)) {
+          setGoogleCalendars(data.calendars);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCalendars(false));
+  }, [googleConnected, googleConnectedAccountId, botId, fetchWithFallback]);
+
+  React.useEffect(() => {
+    loadCalendars();
+  }, [loadCalendars]);
+
   return (
             <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
               <div className="w-full max-w-2xl p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-8">
@@ -969,6 +1039,61 @@ export function SettingsTab({
                             : "Real Microsoft Teams links are generated on booking - requires the owner to connect Microsoft/Outlook."}
                         </p>
                       </div>
+
+                      {/* Connected Google Account (Multi-account isolation) */}
+                      {meetingProvider === "google_meet" && googleConnected && googleAccounts.length > 1 && (
+                        <div>
+                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Google Account</label>
+                          <ModernSelect
+                            value={googleConnectedAccountId || ""}
+                            options={googleAccounts.map((a) => ({
+                              value: a.id || "",
+                              label: a.label,
+                            }))}
+                            onChange={(v) => handleInputChange(setGoogleConnectedAccountId, v || null)}
+                          />
+                          <p className="text-[9px] text-neutral-400 mt-1">
+                            Bind this bot to a dedicated Google account instead of the workspace default.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Target Calendar (Multi-calendar isolation) */}
+                      {meetingProvider === "google_meet" && googleConnected && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase">Target Calendar</label>
+                            <button
+                              type="button"
+                              onClick={loadCalendars}
+                              disabled={loadingCalendars}
+                              className="text-[10px] text-[#f97316] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <RefreshCw className={`size-2.5 ${loadingCalendars ? "animate-spin" : ""}`} />
+                              Refresh
+                            </button>
+                          </div>
+                          <ModernSelect
+                            value={googleCalendarId || "primary"}
+                            options={
+                              googleCalendars.length > 0
+                                ? googleCalendars.map((c) => ({
+                                    value: c.id,
+                                    label: `${c.summary}${c.primary ? " (Primary)" : ""}`,
+                                  }))
+                                : [{ value: "primary", label: "Primary Calendar" }]
+                            }
+                            onChange={(v) => {
+                              const matched = googleCalendars.find((c) => c.id === v);
+                              handleInputChange(setGoogleCalendarId, v);
+                              handleInputChange(setGoogleCalendarName, matched?.summary || "");
+                            }}
+                          />
+                          <p className="text-[9px] text-neutral-400 mt-1">
+                            Appointments and availability checks for this bot will be strictly scoped to this calendar.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Duration Selector */}
                       <div>

@@ -387,6 +387,11 @@ export default function Dashboard() {
   // Sync controls (each separate card)
   const [syncGoogleDrive, setSyncGoogleDrive] = useState(false);
   const [syncGoogleCalendar, setSyncGoogleCalendar] = useState(false);
+  const [googleConnectedAccountId, setGoogleConnectedAccountId] = useState<string | null>(null);
+  const [googleCalendarId, setGoogleCalendarId] = useState<string>("primary");
+  const [googleCalendarName, setGoogleCalendarName] = useState<string>("");
+  const [googleDriveFolderId, setGoogleDriveFolderId] = useState<string | null>(null);
+  const [googleDriveFolderName, setGoogleDriveFolderName] = useState<string | null>(null);
 
   // Scheduling settings
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
@@ -1150,6 +1155,11 @@ export default function Dashboard() {
 
         setSyncGoogleDrive(activeBot.sync_google_drive || false);
         setSyncGoogleCalendar(activeBot.sync_google_calendar || false);
+        setGoogleConnectedAccountId(activeBot.google_connected_account_id || null);
+        setGoogleCalendarId(activeBot.google_calendar_id || "primary");
+        setGoogleCalendarName(activeBot.google_calendar_name || "");
+        setGoogleDriveFolderId(activeBot.google_drive_folder_id || null);
+        setGoogleDriveFolderName(activeBot.google_drive_folder_name || null);
         setCalendarSchedulingEnabled(activeBot.calendar_scheduling_enabled || false);
         setSchedulingDuration(activeBot.scheduling_duration_minutes || 30);
         setBotTimezone(activeBot.bot_timezone || "UTC");
@@ -1299,6 +1309,11 @@ export default function Dashboard() {
 
       setSyncGoogleDrive(selected.sync_google_drive || false);
       setSyncGoogleCalendar(selected.sync_google_calendar || false);
+      setGoogleConnectedAccountId(selected.google_connected_account_id || null);
+      setGoogleCalendarId(selected.google_calendar_id || "primary");
+      setGoogleCalendarName(selected.google_calendar_name || "");
+      setGoogleDriveFolderId(selected.google_drive_folder_id || null);
+      setGoogleDriveFolderName(selected.google_drive_folder_name || null);
       setCalendarSchedulingEnabled(selected.calendar_scheduling_enabled || false);
       setSchedulingDuration(selected.scheduling_duration_minutes || 30);
       setBotTimezone(selected.bot_timezone || "UTC");
@@ -2214,6 +2229,11 @@ export default function Dashboard() {
           guardrail_refusal_message: guardrailRefusalMessage,
           sync_google_drive: syncGoogleDrive,
           sync_google_calendar: syncGoogleCalendar,
+          google_connected_account_id: googleConnectedAccountId || null,
+          google_calendar_id: googleCalendarId || "primary",
+          google_calendar_name: googleCalendarName || null,
+          google_drive_folder_id: googleDriveFolderId || null,
+          google_drive_folder_name: googleDriveFolderName || null,
           sync_outlook_calendar: syncOutlookCalendar,
           calendar_scheduling_enabled: calendarSchedulingEnabled,
           scheduling_duration_minutes: schedulingDuration,
@@ -2955,6 +2975,7 @@ export default function Dashboard() {
           folder_id_or_url: driveFolderUrl.trim(),
           max_files: driveMaxFiles,
           source,
+          bot_id: botId,
         }),
       });
 
@@ -4363,6 +4384,12 @@ export default function Dashboard() {
               setSyncOutlookCalendar={setSyncOutlookCalendar}
               calendarSchedulingEnabled={calendarSchedulingEnabled}
               setCalendarSchedulingEnabled={setCalendarSchedulingEnabled}
+              googleConnectedAccountId={googleConnectedAccountId}
+              setGoogleConnectedAccountId={setGoogleConnectedAccountId}
+              googleCalendarId={googleCalendarId}
+              setGoogleCalendarId={setGoogleCalendarId}
+              googleCalendarName={googleCalendarName}
+              setGoogleCalendarName={setGoogleCalendarName}
               meetingProvider={meetingProvider}
               handleMeetingProviderChange={handleMeetingProviderChange}
               providerOptions={providerOptions}
