@@ -1,7 +1,7 @@
 ﻿-- Supabase Security Linter Hardening Migration
 -- Resolves all ERROR, WARN, and INFO alerts flagged by Supabase Database Linter
 
--- 1. Enable RLS on public OAuth tables (resolves rls_disabled_in_public ERROR)
+-- 1. FIX ERRORS: Enable RLS on public OAuth tables (resolves rls_disabled_in_public ERROR)
 ALTER TABLE IF EXISTS public.chatty_oauth_clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.chatty_oauth_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.chatty_oauth_tokens ENABLE ROW LEVEL SECURITY;
@@ -13,12 +13,37 @@ BEGIN
     CREATE POLICY "Users can manage own oauth clients" ON public.chatty_oauth_clients
       FOR ALL
       TO authenticated
-      USING (user_id = auth.uid())
-      WITH CHECK (user_id = auth.uid());
+      USING (owner_user_id = auth.uid())
+      WITH CHECK (owner_user_id = auth.uid());
+
+    DROP POLICY IF EXISTS "Service role access chatty_oauth_clients" ON public.chatty_oauth_clients;
+    CREATE POLICY "Service role access chatty_oauth_clients" ON public.chatty_oauth_clients
+      FOR ALL
+      TO service_role
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'chatty_oauth_codes') THEN
+    DROP POLICY IF EXISTS "Service role access chatty_oauth_codes" ON public.chatty_oauth_codes;
+    CREATE POLICY "Service role access chatty_oauth_codes" ON public.chatty_oauth_codes
+      FOR ALL
+      TO service_role
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'chatty_oauth_tokens') THEN
+    DROP POLICY IF EXISTS "Service role access chatty_oauth_tokens" ON public.chatty_oauth_tokens;
+    CREATE POLICY "Service role access chatty_oauth_tokens" ON public.chatty_oauth_tokens
+      FOR ALL
+      TO service_role
+      USING (true)
+      WITH CHECK (true);
   END IF;
 END $$;
 
--- 2. Set search_path on mutable functions (resolves function_search_path_mutable WARN)
+-- 2. FIX WARN: Set search_path on mutable functions (resolves function_search_path_mutable WARN)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'touch_updated_at') THEN
@@ -32,7 +57,7 @@ BEGIN
   END IF;
 END $$;
 
--- 3. Revoke public/anon access from internal SECURITY DEFINER functions (resolves anon_security_definer_function_executable WARN)
+-- 3. FIX WARN: Revoke public/anon access from internal SECURITY DEFINER functions (resolves anon_security_definer_function_executable WARN)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'handle_new_auth_user') THEN
@@ -74,7 +99,7 @@ BEGIN
   END IF;
 END $$;
 
--- 4. Harden permissive INSERT policies (resolves rls_policy_always_true WARN)
+-- 4. FIX WARN: Harden permissive INSERT policies (resolves rls_policy_always_true WARN)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'chatty_kb_feedback') THEN
@@ -82,7 +107,7 @@ BEGIN
     CREATE POLICY "Public can submit feedback" ON public.chatty_kb_feedback
       FOR INSERT
       TO anon, authenticated
-      WITH CHECK (article_id IS NOT NULL AND is_helpful IS NOT NULL);
+      WITH CHECK (bot_id IS NOT NULL AND article_id IS NOT NULL AND is_helpful IS NOT NULL);
   END IF;
 
   IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'chatty_kb_searches') THEN
@@ -90,11 +115,11 @@ BEGIN
     CREATE POLICY "Public can record searches" ON public.chatty_kb_searches
       FOR INSERT
       TO anon, authenticated
-      WITH CHECK (query IS NOT NULL AND length(trim(query)) > 0);
+      WITH CHECK (bot_id IS NOT NULL AND query IS NOT NULL AND length(trim(query)) > 0);
   END IF;
 END $$;
 
--- 5. Add explicit service_role policies to internal tables (resolves rls_enabled_no_policy INFO)
+-- 5. FIX INFO: Add explicit service_role policies to internal tables (resolves rls_enabled_no_policy INFO)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = '_manual_migrations_log') THEN
@@ -123,7 +148,7 @@ BEGIN
   END IF;
 END $$;
 
--- 6. Move pg_net extension to extensions schema if available (resolves extension_in_public WARN)
+-- 6. FIX WARN: Move pg_net extension to extensions schema if available
 CREATE SCHEMA IF NOT EXISTS extensions;
 DO $$
 BEGIN
@@ -132,5 +157,5 @@ BEGIN
   END IF;
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE NOTICE 'Skipping pg_net extension schema alteration: %', SQLERRM;
+    RAISE NOTICE 'Skipping pg_net schema alteration: %', SQLERRM;
 END $$;
