@@ -16,6 +16,7 @@ import {
   ImageIcon,
   BookOpen,
   ChevronDown,
+  Play,
   type LucideIcon,
 } from "lucide-react";
 import { captureAffiliateReferral } from "@/lib/affiliate-referral";
@@ -325,21 +326,12 @@ export default function Home() {
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMcpInstallTab, setActiveMcpInstallTab] = useState<McpInstallTab>("plugin");
-  const [playHeroVideo, setPlayHeroVideo] = useState(false);
+  const [isYtPlaying, setIsYtPlaying] = useState(false);
 
   useEffect(() => {
     captureAffiliateReferral(new URLSearchParams(window.location.search));
   }, []);
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
-
-  useEffect(() => {
-    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const syncHeroVideoPreference = () => setPlayHeroVideo(!motionPreference.matches);
-
-    syncHeroVideoPreference();
-    motionPreference.addEventListener("change", syncHeroVideoPreference);
-    return () => motionPreference.removeEventListener("change", syncHeroVideoPreference);
-  }, []);
 
   // widget.js (loaded below via <Script>) mounts itself by appending a
   // #chatty-widget-host div straight to document.body - outside React's
@@ -501,39 +493,81 @@ export default function Home() {
               Start free 14-day trial
               <ArrowRight className="size-[15px]" />
             </Link>
-            <Link href="#features" className="inline-flex items-center rounded-full px-5 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent)" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsYtPlaying(true);
+                document.getElementById("hero-video-stage")?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+              className="inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-[15px] font-medium transition-opacity hover:opacity-85 cursor-pointer"
+              style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent)" }}
+            >
+              <Play className="size-4 fill-current" />
+              Watch 2-min demo
+            </button>
+            <Link href="#features" className="inline-flex items-center rounded-full px-5 py-3.5 text-[15px] font-medium opacity-80 hover:opacity-100" style={{ fontFamily: "var(--font-heading)", color: "var(--color-text)" }}>
               Explore features
             </Link>
           </div>
           <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
 
-          <div className="mt-14 sm:mt-16 relative max-w-[1080px] mx-auto">
+          <div id="hero-video-stage" className="mt-14 sm:mt-16 relative max-w-[1080px] mx-auto">
             <div className="absolute -inset-4 sm:-inset-6 rounded-[52px] -z-10" style={{ background: "var(--color-accent-2-100)" }} />
-            <div className="chatty-hero-frame relative rounded-[24px] sm:rounded-[36px] overflow-hidden p-2 sm:p-2.5 border" style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)", borderColor: "var(--color-divider)" }}>
-              {playHeroVideo ? (
-                <video
-                  aria-label="Animated Chatty dashboard, website chat widget, booking, and inbox workflow preview"
-                  className="chatty-hero-video w-full aspect-video rounded-[16px] sm:rounded-[26px]"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                  poster="/chatty-hero-product.webp"
-                >
-                  <source src="/chatty-hero-product.webm" type="video/webm" />
-                </video>
+            <div className={`chatty-hero-frame relative rounded-[24px] sm:rounded-[36px] overflow-hidden p-2 sm:p-2.5 border transition-all duration-500 ${isYtPlaying ? "[animation:none] [transform:none]" : ""}`} style={{ boxShadow: "var(--shadow-lg)", background: "var(--color-surface)", borderColor: "var(--color-divider)" }}>
+              {isYtPlaying ? (
+                <div className="relative w-full aspect-video rounded-[16px] sm:rounded-[26px] overflow-hidden bg-black shadow-inner">
+                  <iframe
+                    className="w-full h-full border-0 rounded-[16px] sm:rounded-[26px]"
+                    src="https://www.youtube-nocookie.com/embed/L26fLBUcIK8?autoplay=1&rel=0&modestbranding=1&playsinline=1"
+                    title="Chatty — Open-Source AI Support & Sales Agent Video Tour"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
               ) : (
-                <Image
-                  src="/chatty-hero-product.webp"
-                  alt="Chatty dashboard, website chat widget, booking, and inbox workflow preview"
-                  width={1440}
-                  height={810}
-                  priority
-                  quality={82}
-                  sizes="(min-width: 1200px) 1080px, calc(100vw - 40px)"
-                  className="w-full h-auto rounded-[16px] sm:rounded-[26px]"
-                />
+                <button
+                  type="button"
+                  onClick={() => setIsYtPlaying(true)}
+                  className="relative group cursor-pointer w-full aspect-video rounded-[16px] sm:rounded-[26px] overflow-hidden bg-black text-left block focus:outline-none focus:ring-4 focus:ring-[#c67139]/50 shadow-inner"
+                  aria-label="Play Chatty Product Explainer Video"
+                >
+                  <Image
+                    src="/chatty-hero-yt-poster.jpg"
+                    alt="Chatty — Open-Source AI Support & Sales Agent Video Tour"
+                    fill
+                    priority
+                    sizes="(min-width: 1200px) 1080px, calc(100vw - 40px)"
+                    className="object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/15 transition-opacity duration-300 group-hover:opacity-90" />
+
+                  {/* Glowing Center Play Button */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 sm:gap-3.5">
+                    <div
+                      className="size-16 sm:size-20 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-2xl"
+                      style={{
+                        background: "linear-gradient(135deg, #f97316 0%, #c67139 100%)",
+                        boxShadow: "0 0 35px rgba(249, 115, 22, 0.65)",
+                      }}
+                    >
+                      <Play className="size-7 sm:size-9 fill-white text-white translate-x-0.5" />
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-full px-4.5 py-1.5 backdrop-blur-md bg-black/55 border border-white/20 text-white text-xs sm:text-sm font-medium tracking-wide">
+                      <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Watch 2-Min Product Tour
+                    </div>
+                  </div>
+
+                  {/* Bottom duration & info pill */}
+                  <div className="absolute bottom-3.5 sm:bottom-5 left-4 sm:left-6 flex items-center gap-2">
+                    <span className="text-[11px] sm:text-xs font-semibold px-2.5 py-1 rounded-md bg-black/75 text-white/95 backdrop-blur-sm border border-white/10">
+                      2:52 · 4K UHD
+                    </span>
+                    <span className="hidden sm:inline text-xs text-white/90 font-medium drop-shadow-md">
+                      See how Chatty answers from docs, captures leads & books meetings
+                    </span>
+                  </div>
+                </button>
               )}
             </div>
             <div className="chatty-hero-badge hidden sm:flex absolute -top-[18px] right-7 rounded-full items-center gap-2 px-4.5 py-2.5 text-[12.5px] font-semibold" style={{ background: "var(--color-bg)", boxShadow: "var(--shadow-md)", color: "var(--color-accent-700)" }}>
