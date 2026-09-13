@@ -39,5 +39,6 @@ export const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   developer: "webhooks",
   mcp: "webhooks",
   billing: "billing",
+  admin_affiliates: null,
   settings: "settings",
 };
