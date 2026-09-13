@@ -316,8 +316,8 @@ export function AdminAffiliatesTab() {
       </div>
 
       {/* Sub-nav Buttons */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setSubView("affiliates")}
@@ -344,18 +344,18 @@ export function AdminAffiliatesTab() {
         </div>
 
         {subView === "affiliates" && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
             <input
               type="text"
               placeholder="Search code or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white w-48 sm:w-64 focus:outline-none"
+              className="px-3 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white w-full sm:w-64 focus:outline-none"
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white focus:outline-none capitalize"
+              className="px-3 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white focus:outline-none capitalize w-full sm:w-auto"
             >
               <option value="all">All Statuses</option>
               <option value="active">Active</option>
@@ -369,14 +369,14 @@ export function AdminAffiliatesTab() {
 
       {/* SubView 1: Affiliates List */}
       {subView === "affiliates" && (
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden shadow-xs">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl sm:rounded-2xl overflow-hidden shadow-xs">
           {filteredAffiliates.length === 0 ? (
             <div className="py-12 px-6 text-center text-xs text-neutral-500">
               No affiliates found matching filters.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[760px]">
                 <thead className="bg-neutral-50 dark:bg-neutral-950 text-neutral-500 uppercase font-mono text-[10px] border-b border-neutral-200 dark:border-neutral-800">
                   <tr>
                     <th className="py-3 px-4">Partner Code</th>
@@ -467,7 +467,7 @@ export function AdminAffiliatesTab() {
 
       {/* SubView 2: Fraud Flags Audit Log */}
       {subView === "fraud" && (
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden shadow-xs">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl sm:rounded-2xl overflow-hidden shadow-xs">
           {fraudFlags.length === 0 ? (
             <div className="py-12 px-6 text-center space-y-2">
               <ShieldCheck className="size-8 text-emerald-500 mx-auto" />
@@ -480,7 +480,7 @@ export function AdminAffiliatesTab() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[680px]">
                 <thead className="bg-neutral-50 dark:bg-neutral-950 text-neutral-500 uppercase font-mono text-[10px] border-b border-neutral-200 dark:border-neutral-800">
                   <tr>
                     <th className="py-3 px-4">Date</th>
