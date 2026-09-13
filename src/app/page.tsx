@@ -196,17 +196,17 @@ const plans = [
   {
     key: "hobby", tag: "HOBBY", name: "Hobby", monthly: 19, popular: false,
     desc: "Perfect for individuals, developers, and side projects.",
-    features: ["1,000 message credits/mo", "10M training characters", "1 chatbot", "Fast & Advanced AI models", "AI Actions & Analytics", "Guardrails & Notifications", "Lead collection & API", "Included AI credits"],
+    features: ["1,000 message credits/mo", "10M training characters", "3 chatbots", "Fast & Advanced AI models", "AI Actions & Analytics", "Guardrails & Notifications", "Lead collection & API", "Included AI credits"],
   },
   {
     key: "standard", tag: "STANDARD", name: "Standard", monthly: 99, popular: true,
     desc: "All in Hobby, plus advanced automation and multi-bot systems.",
-    features: ["10,000 message credits/mo", "20M training characters", "3 chatbots", "Daily Auto Train sync", "Remove branding completely", "Unlimited team members"],
+    features: ["10,000 message credits/mo", "20M training characters", "6 chatbots", "Daily Auto Train sync", "Remove branding completely", "Unlimited team members"],
   },
   {
     key: "business", tag: "BUSINESS", name: "Business", monthly: 399, popular: false,
     desc: "For enterprise scale, heavy traffic, and reseller options.",
-    features: ["40,000 message credits/mo", "50M training characters", "5 chatbots", "White-label configuration", "Management Admin API"],
+    features: ["40,000 message credits/mo", "50M training characters", "Unlimited chatbots", "White-label configuration", "Management Admin API"],
   },
 ];
 
