@@ -30,6 +30,7 @@ const eslintConfig = defineConfig([
     // them was the larger share of the false-positive count (340 errors).
     "packages/chatty-react/dist/**",
     "chatty-public/**",
+    "scripts/**",
   ]),
   {
     rules: {
