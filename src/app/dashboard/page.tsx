@@ -445,6 +445,15 @@ export default function Dashboard() {
   const [embedMobilePlatform, setEmbedMobilePlatform] = useState<string | null>(null);
   const [copiedMobile, setCopiedMobile] = useState(false);
 
+  // WhatsApp Business Channel
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState("");
+  const [whatsappWabaId, setWhatsappWabaId] = useState("");
+  const [whatsappAccessToken, setWhatsappAccessToken] = useState("");
+  const [whatsappVerifyToken, setWhatsappVerifyToken] = useState("");
+  const [whatsappAppSecret, setWhatsappAppSecret] = useState("");
+  const [whatsappQuickReplies, setWhatsappQuickReplies] = useState<string[]>([]);
+
   // Google Drive indexing settings
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
   const [driveMaxFiles, setDriveMaxFiles] = useState(50);
@@ -1184,6 +1193,16 @@ export default function Dashboard() {
         setBookingBlockDisposableEmails(activeBot.booking_block_disposable_emails || false);
         setBookingLimitOneActive(activeBot.booking_limit_one_active || false);
         setBookingRequireBusinessEmail(activeBot.booking_require_business_email || false);
+
+        // WhatsApp Business Channel
+        setWhatsappEnabled(activeBot.whatsapp_enabled || false);
+        setWhatsappPhoneNumberId(activeBot.whatsapp_phone_number_id || "");
+        setWhatsappWabaId(activeBot.whatsapp_waba_id || "");
+        setWhatsappAccessToken(activeBot.whatsapp_access_token || "");
+        setWhatsappVerifyToken(activeBot.whatsapp_verify_token || "");
+        setWhatsappAppSecret(activeBot.whatsapp_app_secret || "");
+        setWhatsappQuickReplies(Array.isArray(activeBot.whatsapp_quick_replies) ? activeBot.whatsapp_quick_replies : []);
+
         if (!activeBot.onboarding_completed) {
           // Show the structured onboarding wizard for new bots
           setShowWizard(true);
@@ -2256,6 +2275,13 @@ export default function Dashboard() {
           voice_stt_provider: voiceSttProvider,
           voice_tts_provider: voiceTtsProvider,
           voice_tts_voice: voiceTtsVoice || null,
+          whatsapp_enabled: whatsappEnabled,
+          whatsapp_phone_number_id: whatsappPhoneNumberId.trim() || null,
+          whatsapp_waba_id: whatsappWabaId.trim() || null,
+          whatsapp_access_token: whatsappAccessToken.trim() || null,
+          whatsapp_verify_token: whatsappVerifyToken.trim() || null,
+          whatsapp_app_secret: whatsappAppSecret.trim() || null,
+          whatsapp_quick_replies: whatsappQuickReplies,
           updated_at: new Date().toISOString()
       };
 
@@ -4259,6 +4285,21 @@ export default function Dashboard() {
               allowedDomains={allowedDomains}
               setAllowedDomains={setAllowedDomains}
               handleInputChange={handleInputChange}
+              whatsappEnabled={whatsappEnabled}
+              setWhatsappEnabled={setWhatsappEnabled}
+              whatsappPhoneNumberId={whatsappPhoneNumberId}
+              setWhatsappPhoneNumberId={setWhatsappPhoneNumberId}
+              whatsappWabaId={whatsappWabaId}
+              setWhatsappWabaId={setWhatsappWabaId}
+              whatsappAccessToken={whatsappAccessToken}
+              setWhatsappAccessToken={setWhatsappAccessToken}
+              whatsappVerifyToken={whatsappVerifyToken}
+              setWhatsappVerifyToken={setWhatsappVerifyToken}
+              whatsappAppSecret={whatsappAppSecret}
+              setWhatsappAppSecret={setWhatsappAppSecret}
+              whatsappQuickReplies={whatsappQuickReplies}
+              setWhatsappQuickReplies={setWhatsappQuickReplies}
+              showToast={showToast}
             />
           )}
 
