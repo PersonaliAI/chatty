@@ -241,6 +241,32 @@ export function BillingTab({
           })}
         </div>
       </div>
+
+      {/* Affiliate Partner Callout Banner */}
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[#f97316] font-bold">
+              Chatty Partner Program
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] text-[10px] font-bold">
+              30% Recurring
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+            Earn 30% monthly commission by recommending Chatty
+          </h3>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            Share your custom referral link with clients and peers. Earn recurring revenue on all paid plans for up to 12 months.
+          </p>
+        </div>
+        <Link
+          href="/affiliate"
+          className="shrink-0 px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100 text-xs font-bold transition-all shadow-xs"
+        >
+          Open Partner Portal &rarr;
+        </Link>
+      </div>
     </div>
   );
 }

@@ -113,6 +113,7 @@ import {
   Lock,
   Cpu,
   Shield,
+  DollarSign,
   type LucideIcon
 } from "lucide-react";
 
@@ -141,6 +142,7 @@ import { AuditLogTab } from "./tabs/AuditLogTab";
 import { McpTab } from "./tabs/McpTab";
 import { DeveloperTab } from "./tabs/DeveloperTab";
 import { BillingTab } from "./tabs/BillingTab";
+import { AdminAffiliatesTab } from "./tabs/AdminAffiliatesTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { MeetingsTab } from "./tabs/MeetingsTab";
 import { VoiceAgentTab } from "./tabs/VoiceAgentTab";
@@ -3841,6 +3843,9 @@ export default function Dashboard() {
               { id: "mcp", label: "MCP", icon: Cpu },
               { id: "developer", label: "Developer API", icon: Puzzle },
               { id: "billing", label: "Billing", icon: CreditCard },
+              ...(user?.email && ["personaliai.com@gmail.com"].includes(user.email.toLowerCase())
+                ? [{ id: "admin_affiliates", label: "Admin Affiliates", icon: ShieldAlert }]
+                : []),
               { id: "settings", label: t("settings"), icon: Settings },
             ].filter((link) => canAccessTab(NAV_TAB_PERMISSION[link.id])).map((link) => {
               const Icon = link.icon;
@@ -3878,6 +3883,18 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="space-y-1">
+            <Link
+              href="/affiliate"
+              className="w-full flex items-center justify-between text-[11px] font-medium text-neutral-600 dark:text-neutral-400 hover:text-[#f97316] dark:hover:text-[#f97316] transition-colors py-1.5 px-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              <span className="flex items-center gap-2">
+                <DollarSign className="size-3.5 text-[#f97316]" />
+                Affiliate Program
+              </span>
+              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#f97316]/10 text-[#f97316]">
+                30%
+              </span>
+            </Link>
             {user ? (
               <button
                 onClick={handleSignOut}
@@ -4342,6 +4359,11 @@ export default function Dashboard() {
               billingInterval={billingInterval}
               setBillingInterval={setBillingInterval}
             />
+          )}
+
+          {/* TAB: ADMIN AFFILIATES */}
+          {activeTab === "admin_affiliates" && (
+            <AdminAffiliatesTab />
           )}
 
           {/* TAB 8: AGENT SETTINGS */}

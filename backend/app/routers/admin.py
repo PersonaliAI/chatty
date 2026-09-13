@@ -7,6 +7,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
+import re
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -16,7 +17,12 @@ from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
 from app.core.uploads import read_upload_capped
-import re
+from app.core.config import ADMIN_BYPASS_EMAILS
+from app.schemas.affiliate import (
+    AdminAffiliatePayoutCreateRequest,
+    AdminAffiliateRateUpdateRequest,
+    AdminAffiliateStatusUpdateRequest,
+)
 from app.schemas.admin import (
     InboxAIToggle,
     InboxDeleteRequest,
@@ -1393,5 +1399,298 @@ async def admin_dispatch_routing_queue(bot_id: str, user: dict[str, Any] = Depen
             "results": [],
             "error": str(e)
         }
+
+
+# ---------------------------------------------------------------------------
+# Platform Admin: Affiliate Program Management
+# ---------------------------------------------------------------------------
+
+def _is_platform_admin(user: dict[str, Any]) -> bool:
+    email = (user.get("email") or "").strip().lower()
+    role = (user.get("role") or "").strip().lower()
+    return bool(email in ADMIN_BYPASS_EMAILS or role in ("admin", "superadmin"))
+
+
+def require_platform_admin(user: dict[str, Any] = Depends(require_user)) -> dict[str, Any]:
+    if not _is_platform_admin(user):
+        raise HTTPException(status_code=403, detail="Platform administrator privileges required")
+    return user
+
+
+@router.get("/api/admin/affiliates")
+async def admin_list_affiliates(
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """List all affiliate partner profiles with summarized performance metrics."""
+    query = supabase.table("affiliate_profiles").select("*")
+    if status:
+        query = query.eq("status", status)
+    if search:
+        query = query.ilike("referral_code", f"%{search}%")
+
+    profiles_res = await run_db(lambda: query.order("created_at", desc=True).range(offset, offset + limit - 1).execute())
+    profiles = profiles_res.data or []
+
+    if not profiles:
+        return {"affiliates": [], "limit": limit, "offset": offset}
+
+    affiliate_ids = [p["id"] for p in profiles]
+
+    # Aggregate clicks
+    clicks_res = await run_db(lambda: supabase.table("affiliate_clicks").select("affiliate_id").in_("affiliate_id", affiliate_ids).execute())
+    clicks_count: dict[str, int] = {}
+    for c in (clicks_res.data or []):
+        aid = c.get("affiliate_id")
+        clicks_count[aid] = clicks_count.get(aid, 0) + 1
+
+    # Aggregate referrals
+    refs_res = await run_db(lambda: supabase.table("affiliate_referrals").select("affiliate_id, status").in_("affiliate_id", affiliate_ids).execute())
+    referrals_count: dict[str, int] = {}
+    paid_referrals_count: dict[str, int] = {}
+    for r in (refs_res.data or []):
+        aid = r.get("affiliate_id")
+        referrals_count[aid] = referrals_count.get(aid, 0) + 1
+        if r.get("status") == "paid":
+            paid_referrals_count[aid] = paid_referrals_count.get(aid, 0) + 1
+
+    # Aggregate commissions
+    comms_res = await run_db(lambda: supabase.table("affiliate_commissions").select("affiliate_id, commission_amount_cents, status, hold_until").in_("affiliate_id", affiliate_ids).execute())
+    now_iso = datetime.now(timezone.utc).isoformat()
+    comm_stats: dict[str, dict[str, int]] = {}
+    for c in (comms_res.data or []):
+        aid = c.get("affiliate_id")
+        if aid not in comm_stats:
+            comm_stats[aid] = {"pending_cents": 0, "payable_cents": 0, "paid_cents": 0, "total_earned_cents": 0}
+        amt = int(c.get("commission_amount_cents") or 0)
+        c_status = c.get("status")
+        if c_status in ("pending", "approved"):
+            hold_until = c.get("hold_until")
+            if hold_until and hold_until <= now_iso:
+                comm_stats[aid]["payable_cents"] += amt
+            else:
+                comm_stats[aid]["pending_cents"] += amt
+            comm_stats[aid]["total_earned_cents"] += amt
+        elif c_status == "payable":
+            comm_stats[aid]["payable_cents"] += amt
+            comm_stats[aid]["total_earned_cents"] += amt
+        elif c_status == "paid":
+            comm_stats[aid]["paid_cents"] += amt
+            comm_stats[aid]["total_earned_cents"] += amt
+
+    results = []
+    for p in profiles:
+        aid = p["id"]
+        c_stat = comm_stats.get(aid, {"pending_cents": 0, "payable_cents": 0, "paid_cents": 0, "total_earned_cents": 0})
+        results.append({
+            **p,
+            "clicks_count": clicks_count.get(aid, 0),
+            "referrals_count": referrals_count.get(aid, 0),
+            "paid_referrals_count": paid_referrals_count.get(aid, 0),
+            "pending_cents": c_stat["pending_cents"],
+            "payable_cents": c_stat["payable_cents"],
+            "paid_cents": c_stat["paid_cents"],
+            "total_earned_cents": c_stat["total_earned_cents"],
+        })
+
+    return {"affiliates": results, "limit": limit, "offset": offset}
+
+
+@router.patch("/api/admin/affiliates/{affiliate_id}/status")
+async def admin_update_affiliate_status(
+    affiliate_id: str,
+    body: AdminAffiliateStatusUpdateRequest,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Approve, pause, or reject an affiliate partner."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    updates: dict[str, Any] = {
+        "status": body.status,
+        "updated_at": now_iso,
+    }
+    if body.status == "active":
+        updates["approved_at"] = now_iso
+
+    res = await run_db(
+        lambda: supabase.table("affiliate_profiles")
+        .update(updates)
+        .eq("id", affiliate_id)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Affiliate profile not found")
+
+    return {"success": True, "affiliate": res.data[0]}
+
+
+@router.patch("/api/admin/affiliates/{affiliate_id}/rate")
+async def admin_update_affiliate_rate(
+    affiliate_id: str,
+    body: AdminAffiliateRateUpdateRequest,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Adjust custom commission rate (basis points) for an affiliate partner."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    res = await run_db(
+        lambda: supabase.table("affiliate_profiles")
+        .update({"commission_rate_bps": body.commission_rate_bps, "updated_at": now_iso})
+        .eq("id", affiliate_id)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Affiliate profile not found")
+
+    return {"success": True, "affiliate": res.data[0]}
+
+
+@router.get("/api/admin/affiliate-commissions")
+async def admin_list_affiliate_commissions(
+    affiliate_id: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """List affiliate commissions with optional filtering by partner ID and status."""
+    query = supabase.table("affiliate_commissions").select("*", count="exact")
+    if affiliate_id:
+        query = query.eq("affiliate_id", affiliate_id)
+    if status:
+        query = query.eq("status", status)
+
+    res = await run_db(
+        lambda: query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    )
+    return {
+        "commissions": res.data or [],
+        "total": res.count or len(res.data or []),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.post("/api/admin/affiliate-commissions/approve-mature")
+async def admin_approve_mature_commissions(
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Scan and transition pending/approved commissions past their hold period to payable."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    mature_res = await run_db(
+        lambda: supabase.table("affiliate_commissions")
+        .select("id")
+        .in_("status", ["pending", "approved"])
+        .lte("hold_until", now_iso)
+        .execute()
+    )
+    mature_ids = [c["id"] for c in (mature_res.data or []) if c.get("id")]
+    if not mature_ids:
+        return {"success": True, "matured_count": 0, "message": "No mature commissions pending approval"}
+
+    await run_db(
+        lambda: supabase.table("affiliate_commissions")
+        .update({"status": "payable", "updated_at": now_iso})
+        .in_("id", mature_ids)
+        .execute()
+    )
+
+    return {"success": True, "matured_count": len(mature_ids)}
+
+
+@router.post("/api/admin/affiliate-payouts")
+async def admin_create_affiliate_payout(
+    body: AdminAffiliatePayoutCreateRequest,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Record an external payout (PayPal/Wise/Bank) and mark corresponding commissions as paid."""
+    aff_res = await run_db(
+        lambda: supabase.table("affiliate_profiles")
+        .select("id, payout_email, referral_code")
+        .eq("id", body.affiliate_id)
+        .limit(1)
+        .execute()
+    )
+    if not aff_res.data:
+        raise HTTPException(status_code=404, detail="Affiliate profile not found")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    payout_payload = {
+        "affiliate_id": body.affiliate_id,
+        "amount_cents": body.amount_cents,
+        "payout_method": body.payout_method or "paypal",
+        "external_payout_id": body.external_payout_id,
+        "notes": body.notes,
+        "status": "paid",
+        "paid_at": now_iso,
+        "created_at": now_iso,
+        "updated_at": now_iso,
+    }
+
+    payout_res = await run_db(
+        lambda: supabase.table("affiliate_payouts").insert(payout_payload).execute()
+    )
+    if not payout_res.data:
+        raise HTTPException(status_code=500, detail="Failed to create payout record")
+
+    payout = payout_res.data[0]
+    payout_id = payout["id"]
+
+    payable_res = await run_db(
+        lambda: supabase.table("affiliate_commissions")
+        .select("id, commission_amount_cents")
+        .eq("affiliate_id", body.affiliate_id)
+        .in_("status", ["payable", "approved", "pending"])
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    allocated = 0
+    comm_ids_to_update = []
+    for comm in (payable_res.data or []):
+        if allocated >= body.amount_cents:
+            break
+        comm_ids_to_update.append(comm["id"])
+        allocated += int(comm.get("commission_amount_cents") or 0)
+
+    if comm_ids_to_update:
+        await run_db(
+            lambda: supabase.table("affiliate_commissions")
+            .update({"status": "paid", "payout_id": payout_id, "updated_at": now_iso})
+            .in_("id", comm_ids_to_update)
+            .execute()
+        )
+
+    return {
+        "success": True,
+        "payout": payout,
+        "commissions_marked_paid": len(comm_ids_to_update),
+        "total_marked_cents": allocated,
+    }
+
+
+@router.get("/api/admin/affiliate-fraud-flags")
+async def admin_list_affiliate_fraud_flags(
+    affiliate_id: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Retrieve audit log of suspicious referral events or self-referral attempts."""
+    query = supabase.table("affiliate_fraud_flags").select("*", count="exact")
+    if affiliate_id:
+        query = query.eq("affiliate_id", affiliate_id)
+
+    res = await run_db(
+        lambda: query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    )
+    return {
+        "fraud_flags": res.data or [],
+        "total": res.count or len(res.data or []),
+        "limit": limit,
+        "offset": offset,
+    }
 
 

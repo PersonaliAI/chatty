@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Clock, DollarSign, ShieldCheck } from "lucide-react";
 
-const affiliateUrl = process.env.NEXT_PUBLIC_CHATTY_AFFILIATE_SIGNUP_URL || "/signup?next=/dashboard";
+const affiliateUrl = "/affiliate";
 
 const terms = [
   { label: "Commission", value: "30% recurring for 12 months", icon: DollarSign },
@@ -29,12 +29,20 @@ export default function AffiliatesPage() {
           <Link href="/" className="font-serif text-2xl font-bold">
             Chatty
           </Link>
-          <Link
-            href="/"
-            className="rounded-full border border-[#201e1d]/15 px-4 py-2 text-sm font-medium hover:bg-white/40"
-          >
-            Back to Chatty
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/affiliate"
+              className="rounded-full bg-[#c67139] text-white px-4 py-2 text-sm font-semibold hover:bg-[#b2622d] transition-colors"
+            >
+              Partner Portal
+            </Link>
+            <Link
+              href="/"
+              className="rounded-full border border-[#201e1d]/15 px-4 py-2 text-sm font-medium hover:bg-white/40 transition-colors"
+            >
+              Back to Chatty
+            </Link>
+          </div>
         </nav>
 
         <div className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[1fr_440px]">
@@ -52,15 +60,15 @@ export default function AffiliatesPage() {
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <Link
-                href={affiliateUrl}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#c67139] px-7 py-4 text-sm font-bold text-white shadow-sm hover:bg-[#b2622d]"
+                href="/affiliate"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#c67139] px-7 py-4 text-sm font-bold text-white shadow-sm hover:bg-[#b2622d] transition-colors"
               >
-                Become an affiliate
+                Join or Open Partner Portal
                 <ArrowRight className="size-4" />
               </Link>
               <Link
                 href="/pricing"
-                className="inline-flex items-center justify-center rounded-full border border-[#201e1d]/15 px-7 py-4 text-sm font-bold hover:bg-white/40"
+                className="inline-flex items-center justify-center rounded-full border border-[#201e1d]/15 px-7 py-4 text-sm font-bold hover:bg-white/40 transition-colors"
               >
                 View product pricing
               </Link>

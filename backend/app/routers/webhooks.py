@@ -82,7 +82,7 @@ async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str
         return
 
     affiliate_res = await run_db(lambda: supabase.table("affiliate_profiles").select(
-        "id,user_id,commission_rate_bps,payout_hold_days,status"
+        "id,user_id,payout_email,commission_rate_bps,payout_hold_days,status"
     ).eq("referral_code", referral_code).limit(1).execute())
     if not affiliate_res.data:
         logger.info("Affiliate code %s was not found for Lemon event %s", referral_code, event_id)
@@ -92,15 +92,48 @@ async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str
     if affiliate.get("status") != "active":
         logger.info("Affiliate code %s is not active; skipping commission for %s", referral_code, event_id)
         return
-    if affiliate.get("user_id") == user_id:
+
+    # 1. Multi-factor Anti-Self-Referral Checks
+    buyer_email = (attributes.get("user_email") or "").strip().lower()
+    payout_email = (affiliate.get("payout_email") or "").strip().lower()
+
+    is_self_referral = (
+        affiliate.get("user_id") == user_id
+        or (buyer_email and payout_email and buyer_email == payout_email)
+    )
+    if not is_self_referral and buyer_email and affiliate.get("user_id"):
+        try:
+            aff_user_res = await run_db(lambda: supabase.table("users").select("email").eq("auth_user_id", affiliate["user_id"]).limit(1).execute())
+            if aff_user_res.data:
+                affiliate_user_email = (aff_user_res.data[0].get("email") or "").strip().lower()
+                if buyer_email == affiliate_user_email:
+                    is_self_referral = True
+        except Exception:
+            pass
+
+    if is_self_referral:
+        logger.warning("Blocked self-referral attempt by affiliate %s on user %s", affiliate["id"], user_id)
         await run_db(lambda: supabase.table("affiliate_fraud_flags").insert({
             "affiliate_id": affiliate["id"],
             "referred_user_id": user_id,
             "severity": "blocked",
-            "reason": "Self-referral attempted",
-            "metadata": {"lemon_event_id": event_id, "event_name": event_name},
+            "reason": "Self-referral attempted (matching user ID or email address)",
+            "metadata": {"lemon_event_id": event_id, "event_name": event_name, "buyer_email": buyer_email},
         }).execute())
         return
+
+    # 2. Check 12-Month Recurring Commission Limit (365 days max)
+    existing_ref = await run_db(lambda: supabase.table("affiliate_referrals").select("id, converted_at, first_seen_at").eq("referred_user_id", user_id).limit(1).execute())
+    if existing_ref.data:
+        first_conv = existing_ref.data[0].get("converted_at") or existing_ref.data[0].get("first_seen_at")
+        if first_conv:
+            try:
+                conv_dt = datetime.fromisoformat(first_conv.replace("Z", "+00:00"))
+                if (datetime.now(timezone.utc) - conv_dt).days > 365:
+                    logger.info("Affiliate recurring window expired (>365 days) for user %s on event %s", user_id, event_id)
+                    return
+            except Exception:
+                pass
 
     referral_payload = {
         "affiliate_id": affiliate["id"],
@@ -141,9 +174,68 @@ async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str
     }, on_conflict="lemon_event_id").execute())
 
 
+async def _handle_affiliate_refund(data: dict, event_id: str) -> None:
+    """Claw back and void commissions if an order is refunded via Lemon Squeezy."""
+    attributes = (data.get("data") or {}).get("attributes") or {}
+    order_id = str(attributes.get("order_id") or (data.get("data") or {}).get("id") or "")
+    if not order_id:
+        return
+
+    comm_res = await run_db(
+        lambda: supabase.table("affiliate_commissions")
+        .select("id, affiliate_id, referral_id, status")
+        .eq("lemon_order_id", order_id)
+        .execute()
+    )
+    if comm_res.data:
+        for comm in comm_res.data:
+            await run_db(
+                lambda: supabase.table("affiliate_commissions")
+                .update({
+                    "status": "void",
+                    "notes": f"Order {order_id} refunded by Lemon Squeezy (event {event_id})",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
+                .eq("id", comm["id"])
+                .execute()
+            )
+            if comm.get("referral_id"):
+                await run_db(
+                    lambda: supabase.table("affiliate_referrals")
+                    .update({
+                        "status": "refunded",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                    .eq("id", comm["referral_id"])
+                    .execute()
+                )
+            logger.info("Voided commission %s due to order %s refund", comm["id"], order_id)
+
+
+async def _handle_affiliate_subscription_ended(user_id: str, event_name: str) -> None:
+    """Update referral state to cancelled when customer cancels or lets subscription expire."""
+    await run_db(
+        lambda: supabase.table("affiliate_referrals")
+        .update({
+            "status": "cancelled",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("referred_user_id", user_id)
+        .execute()
+    )
+
+
+_click_rate_limit: dict[str, list[float]] = {}
+
 @router.post("/api/affiliate/click")
 async def record_affiliate_click(request: Request):
-    """Record an affiliate link click without exposing Supabase write access."""
+    """Record an affiliate link click with bot filtering and deduplication."""
+    # 1. Filter Automated Web Crawlers & Bots
+    ua = (request.headers.get("user-agent") or "").lower()
+    bot_keywords = ("bot", "spider", "crawl", "slurp", "facebookexternalhit", "whatsapp", "meta-externalagent", "discordbot")
+    if any(k in ua for k in bot_keywords):
+        return {"ok": True, "filtered": "bot"}
+
     try:
         payload = await request.json()
     except Exception:
@@ -164,7 +256,32 @@ async def record_affiliate_click(request: Request):
     client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
     if not client_ip and request.client:
         client_ip = request.client.host
+
+    # 2. Rate limiting (max 60 clicks per IP per minute)
+    now = time.time()
+    if client_ip:
+        recent = [t for t in _click_rate_limit.get(client_ip, []) if now - t < 60]
+        if len(recent) >= 60:
+            return {"ok": True, "filtered": "rate_limited"}
+        recent.append(now)
+        _click_rate_limit[client_ip] = recent
+
     ip_hash = hashlib.sha256(f"{AFFILIATE_IP_HASH_SALT}:{client_ip}".encode("utf-8")).hexdigest() if client_ip else None
+
+    # 3. 1-Hour Deduplication (prevent database bloating from refreshing page)
+    if ip_hash:
+        one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        dup_res = await run_db(
+            lambda: supabase.table("affiliate_clicks")
+            .select("id")
+            .eq("referral_code", referral_code)
+            .eq("ip_hash", ip_hash)
+            .gte("created_at", one_hour_ago)
+            .limit(1)
+            .execute()
+        )
+        if dup_res.data:
+            return {"ok": True, "deduplicated": True}
 
     def _clean_text(value: object, max_len: int = 500) -> str | None:
         if not isinstance(value, str):
@@ -648,6 +765,18 @@ async def webhook_lemonsqueezy(request: Request):
             await _record_affiliate_conversion(data, event_name, user_id, event_id)
         except Exception as e:
             logger.exception("Failed to record affiliate conversion for event %s: %s", event_id, e)
+
+    if event_name == "order_refunded":
+        try:
+            await _handle_affiliate_refund(data, event_id)
+        except Exception as e:
+            logger.exception("Failed to process affiliate refund for event %s: %s", event_id, e)
+
+    if user_id and event_name in ("subscription_cancelled", "subscription_expired"):
+        try:
+            await _handle_affiliate_subscription_ended(user_id, event_name)
+        except Exception as e:
+            logger.exception("Failed to update affiliate subscription state for %s: %s", user_id, e)
 
     return {"status": "success"}
 

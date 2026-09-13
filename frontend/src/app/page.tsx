@@ -326,6 +326,10 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMcpInstallTab, setActiveMcpInstallTab] = useState<McpInstallTab>("plugin");
   const [playHeroVideo, setPlayHeroVideo] = useState(false);
+
+  useEffect(() => {
+    captureAffiliateReferral(new URLSearchParams(window.location.search));
+  }, []);
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
   useEffect(() => {
