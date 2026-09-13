@@ -18,6 +18,7 @@ import {
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
+import { captureAffiliateReferral } from "@/lib/affiliate-referral";
 
 const caprasimo = Caprasimo({ weight: "400", subsets: ["latin"], variable: "--font-heading", display: "swap" });
 const figtree = Figtree({ weight: ["400", "600", "700"], subsets: ["latin"], variable: "--font-body", display: "swap" });
@@ -325,6 +326,10 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMcpInstallTab, setActiveMcpInstallTab] = useState<McpInstallTab>("plugin");
   const [playHeroVideo, setPlayHeroVideo] = useState(false);
+
+  useEffect(() => {
+    captureAffiliateReferral(new URLSearchParams(window.location.search));
+  }, []);
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
   useEffect(() => {
@@ -359,6 +364,7 @@ export default function Home() {
       <Link href="#features" className="hover:opacity-70 transition-opacity">Features</Link>
       <Link href="#pricing" className="hover:opacity-70 transition-opacity">Pricing</Link>
       <Link href="#help-center" className="hover:opacity-70 transition-opacity">Help center</Link>
+      <Link href="/affiliates" className="hover:opacity-70 transition-opacity">Affiliates</Link>
       <Link href="#faq" className="hover:opacity-70 transition-opacity">FAQ</Link>
     </>
   );
@@ -442,6 +448,7 @@ export default function Home() {
             <Link href="#features" onClick={() => setMobileMenuOpen(false)}>Features</Link>
             <Link href="#pricing" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
             <Link href="#help-center" onClick={() => setMobileMenuOpen(false)}>Help center</Link>
+            <Link href="/affiliates" onClick={() => setMobileMenuOpen(false)}>Affiliates</Link>
             <Link href="#faq" onClick={() => setMobileMenuOpen(false)}>FAQ</Link>
             <a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
               <GithubIcon className="size-[18px]" /> GitHub
@@ -884,6 +891,7 @@ export default function Home() {
               <Link href="#features">Features</Link>
               <Link href="#pricing">Pricing</Link>
               <Link href="#help-center">Help center</Link>
+              <Link href="/affiliates">Affiliates</Link>
               <Link href="#faq">FAQ</Link>
               <Link href="#mcp">MCP server</Link>
             </div>

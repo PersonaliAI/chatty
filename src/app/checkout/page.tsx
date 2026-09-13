@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, AlertCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { captureAffiliateReferral, getAffiliateReferral } from "@/lib/affiliate-referral";
 
 const VALID_PLANS = new Set(["hobby", "standard", "business"]);
 
@@ -23,6 +24,7 @@ function CheckoutPageInner() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    captureAffiliateReferral(searchParams);
     if (!planIsValid) return;
 
     let cancelled = false;
@@ -36,7 +38,8 @@ function CheckoutPageInner() {
       if (!user) {
         // Not signed in - route through signup, then straight back here once
         // auth completes, so the plan never gets lost along the way.
-        const self = `/checkout?plan=${encodeURIComponent(plan)}&interval=${interval}`;
+        const ref = getAffiliateReferral()?.ref;
+        const self = `/checkout?plan=${encodeURIComponent(plan)}&interval=${interval}${ref ? `&ref=${encodeURIComponent(ref)}` : ""}`;
         window.location.href = `/signup?next=${encodeURIComponent(self)}`;
         return;
       }
@@ -45,7 +48,7 @@ function CheckoutPageInner() {
         const res = await fetch("/api/billing/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ plan, interval }),
+          body: JSON.stringify({ plan, interval, referral: getAffiliateReferral() }),
         });
         const data = (await res.json()) as { url?: string; error?: string };
         if (cancelled) return;
@@ -62,7 +65,7 @@ function CheckoutPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [planIsValid, plan, interval]);
+  }, [planIsValid, plan, interval, searchParams]);
 
   const displayError = !planIsValid ? "Unknown plan." : error;
 

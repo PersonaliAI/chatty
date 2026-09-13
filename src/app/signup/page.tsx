@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell, GoogleIcon, MicrosoftIcon } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
+import { captureAffiliateReferral, getAffiliateReferral } from "@/lib/affiliate-referral";
 
 type BusyKey = "password" | "google" | "microsoft" | null;
 
@@ -30,9 +31,16 @@ function SignupPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
+  useEffect(() => {
+    captureAffiliateReferral(searchParams);
+  }, [searchParams]);
+
   function redirect(): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/auth/callback?next=${encodeURIComponent(dest)}`;
+    const ref = getAffiliateReferral()?.ref;
+    const nextUrl = new URL(dest, origin || "https://chatty.personaliai.com");
+    if (ref && !nextUrl.searchParams.get("ref")) nextUrl.searchParams.set("ref", ref);
+    return `${origin}/auth/callback?next=${encodeURIComponent(`${nextUrl.pathname}${nextUrl.search}`)}`;
   }
 
   async function handlePassword(e: React.FormEvent) {
@@ -44,10 +52,16 @@ function SignupPageInner() {
     }
     setBusy("password");
     setError(null);
+    const signupReferral = getAffiliateReferral();
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { emailRedirectTo: redirect() },
+      options: {
+        emailRedirectTo: redirect(),
+        data: signupReferral
+          ? { chatty_ref: signupReferral.ref, chatty_referral: signupReferral }
+          : undefined,
+      },
     });
     setBusy(null);
     if (error) {
