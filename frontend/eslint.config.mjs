@@ -29,6 +29,7 @@ const eslintConfig = defineConfig([
     // (emoji-picker-react etc.) are also generated, not source - linting
     // them was the larger share of the false-positive count (340 errors).
     "packages/chatty-react/dist/**",
+    "chatty-public/**",
   ]),
   {
     rules: {
