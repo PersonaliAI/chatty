@@ -712,7 +712,19 @@ async def run_widget_assistant(
             .limit(1)
             .execute()
         )
-        if lead_res.data:
+        # If not found by session_id and it's a WhatsApp session (wa:<phone>), query by phone number
+        if not (lead_res and lead_res.data) and session_id and session_id.startswith("wa:"):
+            wa_phone = session_id[3:].strip()
+            lead_res = await run_db(
+                lambda: supabase.table("chatty_leads")
+                .select("*")
+                .eq("bot_id", bot_id)
+                .ilike("phone", f"%{wa_phone[-10:]}%")
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+        if lead_res and lead_res.data:
             lead_row = lead_res.data[0]
             if lead_row.get("name"):
                 lead_memory_lines.append(f"- Visitor Name: {lead_row['name']}")
@@ -730,30 +742,34 @@ async def run_widget_assistant(
     active_meetings_lines: list[str] = []
     try:
         now_iso = datetime.now(timezone.utc).isoformat()
-        filter_parts = [f"session_id.eq.{session_id}"]
-        if lead_row and lead_row.get("email"):
-            filter_parts.append(f"attendee_email.eq.{lead_row['email'].strip().lower()}")
+        filter_parts: list[str] = []
+        if lead_row:
+            if lead_row.get("id"):
+                filter_parts.append(f"lead_id.eq.{lead_row['id']}")
+            if lead_row.get("email"):
+                filter_parts.append(f"attendee_email.eq.{lead_row['email'].strip().lower()}")
 
-        meet_res = await run_db(
-            lambda: supabase.table("chatty_meetings")
-            .select("id, summary, start_time, end_time, attendee_name, attendee_email, meeting_link, status")
-            .eq("bot_id", bot_id)
-            .neq("status", "cancelled")
-            .gte("end_time", now_iso)
-            .or_(",".join(filter_parts))
-            .order("start_time", desc=False)
-            .limit(3)
-            .execute()
-        )
-        if meet_res.data:
-            for m in meet_res.data:
-                m_start = agent_tools._format_invitation_time(m["start_time"], visitor_timezone)
-                m_link = m.get("meeting_link") or "Online Meeting Link"
-                m_summary = m.get("summary") or "Scheduled Appointment"
-                m_status = m.get("status") or "confirmed"
-                active_meetings_lines.append(
-                    f"- '{m_summary}' scheduled for {m_start} (Status: {m_status}). Link: {m_link}"
-                )
+        if filter_parts:
+            meet_res = await run_db(
+                lambda: supabase.table("chatty_meetings")
+                .select("id, title, start_time, end_time, attendee_name, attendee_email, meeting_link, status")
+                .eq("bot_id", bot_id)
+                .neq("status", "cancelled")
+                .gte("end_time", now_iso)
+                .or_(",".join(filter_parts))
+                .order("start_time", desc=False)
+                .limit(3)
+                .execute()
+            )
+            if meet_res and meet_res.data:
+                for m in meet_res.data:
+                    m_start = agent_tools._format_invitation_time(m["start_time"], visitor_timezone)
+                    m_link = m.get("meeting_link") or "Online Meeting Link"
+                    m_title = m.get("title") or "Scheduled Appointment"
+                    m_status = m.get("status") or "scheduled"
+                    active_meetings_lines.append(
+                        f"- '{m_title}' scheduled for {m_start} (Status: {m_status}). Link: {m_link}"
+                    )
     except Exception:
         logger.exception("Error loading active meetings into widget brain memory")
 
