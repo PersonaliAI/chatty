@@ -1,4 +1,4 @@
-﻿-- Supabase Security Linter Hardening Migration
+-- Supabase Security Linter Hardening Migration
 -- Resolves all ERROR, WARN, and INFO alerts flagged by Supabase Database Linter
 
 -- 1. FIX ERRORS: Enable RLS on public OAuth tables (resolves rls_disabled_in_public ERROR)
