@@ -196,6 +196,19 @@ function formatDateKey(dateKey: string, options: Intl.DateTimeFormatOptions): st
   );
 }
 
+function formatSlotTime(slot: TimeSlot, timeZone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date(slot.start));
+  } catch {
+    return slot.time_label || slot.visitor_local_label || "";
+  }
+}
+
 export function InlineBookingCard({
   botId,
   sessionId,
@@ -951,7 +964,7 @@ export function InlineBookingCard({
                             backgroundColor: (isSlotSelected && cardMode === "reschedule") ? primaryColor : undefined,
                           }}
                         >
-                          {slot.visitor_local_label || slot.time_label}
+                          {formatSlotTime(slot, activeTimezone)}
                         </button>
                       );
                     })}
