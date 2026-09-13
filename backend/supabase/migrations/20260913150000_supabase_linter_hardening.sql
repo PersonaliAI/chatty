@@ -57,9 +57,10 @@ BEGIN
   END IF;
 END $$;
 
--- 3. FIX WARN: Revoke public/anon access from internal SECURITY DEFINER functions (resolves anon_security_definer_function_executable WARN)
+-- 3. FIX WARN: Revoke public/anon access and set SECURITY INVOKER where appropriate
 DO $$
 BEGIN
+  -- Internal triggers: should never be callable directly via RPC
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'handle_new_auth_user') THEN
     REVOKE EXECUTE ON FUNCTION public.handle_new_auth_user() FROM PUBLIC, anon, authenticated;
   END IF;
@@ -68,11 +69,30 @@ BEGIN
     REVOKE EXECUTE ON FUNCTION public.chatty_enforce_bot_limit() FROM PUBLIC, anon, authenticated;
   END IF;
 
+  -- current_user_id only inspects transaction JWT claim: switch to SECURITY INVOKER
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'current_user_id') THEN
+    ALTER FUNCTION public.current_user_id() SECURITY INVOKER;
     REVOKE EXECUTE ON FUNCTION public.current_user_id() FROM PUBLIC, anon;
     GRANT EXECUTE ON FUNCTION public.current_user_id() TO authenticated;
   END IF;
 
+  -- Vector RPCs: only called by backend service_role
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'match_document_chunks' AND pronargs = 4) THEN
+    REVOKE EXECUTE ON FUNCTION public.match_document_chunks(extensions.vector, uuid, double precision, integer) FROM PUBLIC, anon, authenticated;
+    GRANT EXECUTE ON FUNCTION public.match_document_chunks(extensions.vector, uuid, double precision, integer) TO service_role;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'match_document_chunks' AND pronargs = 5) THEN
+    REVOKE EXECUTE ON FUNCTION public.match_document_chunks(extensions.vector, uuid, double precision, integer, text) FROM PUBLIC, anon, authenticated;
+    GRANT EXECUTE ON FUNCTION public.match_document_chunks(extensions.vector, uuid, double precision, integer, text) TO service_role;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'match_memories' AND pronargs = 4) THEN
+    REVOKE EXECUTE ON FUNCTION public.match_memories(extensions.vector, uuid, double precision, integer) FROM PUBLIC, anon, authenticated;
+    GRANT EXECUTE ON FUNCTION public.match_memories(extensions.vector, uuid, double precision, integer) TO service_role;
+  END IF;
+
+  -- Access predicates: revoke anon (authenticated users require them for RLS policies)
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'chatty_has_bot_access') THEN
     REVOKE EXECUTE ON FUNCTION public.chatty_has_bot_access(uuid) FROM PUBLIC, anon;
     GRANT EXECUTE ON FUNCTION public.chatty_has_bot_access(uuid) TO authenticated;
@@ -81,21 +101,6 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'chatty_has_bot_permission') THEN
     REVOKE EXECUTE ON FUNCTION public.chatty_has_bot_permission(uuid, text) FROM PUBLIC, anon;
     GRANT EXECUTE ON FUNCTION public.chatty_has_bot_permission(uuid, text) TO authenticated;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'match_document_chunks' AND pronargs = 4) THEN
-    REVOKE EXECUTE ON FUNCTION public.match_document_chunks(vector, uuid, double precision, integer) FROM PUBLIC, anon;
-    GRANT EXECUTE ON FUNCTION public.match_document_chunks(vector, uuid, double precision, integer) TO authenticated, service_role;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'match_document_chunks' AND pronargs = 5) THEN
-    REVOKE EXECUTE ON FUNCTION public.match_document_chunks(vector, uuid, double precision, integer, text) FROM PUBLIC, anon;
-    GRANT EXECUTE ON FUNCTION public.match_document_chunks(vector, uuid, double precision, integer, text) TO authenticated, service_role;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'match_memories' AND pronargs = 4) THEN
-    REVOKE EXECUTE ON FUNCTION public.match_memories(vector, uuid, double precision, integer) FROM PUBLIC, anon;
-    GRANT EXECUTE ON FUNCTION public.match_memories(vector, uuid, double precision, integer) TO authenticated, service_role;
   END IF;
 END $$;
 
@@ -148,14 +153,25 @@ BEGIN
   END IF;
 END $$;
 
--- 6. FIX WARN: Move pg_net extension to extensions schema if available
+-- 6. FIX WARN: Move vector and pg_net extensions to extensions schema (resolves extension_in_public WARN)
 CREATE SCHEMA IF NOT EXISTS extensions;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_net') THEN
-    ALTER EXTENSION pg_net SET SCHEMA extensions;
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector' AND extnamespace = 'public'::regnamespace) THEN
+    ALTER EXTENSION vector SET SCHEMA extensions;
   END IF;
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE NOTICE 'Skipping pg_net schema alteration: %', SQLERRM;
+    RAISE NOTICE 'vector extension schema alteration note: %', SQLERRM;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_net' AND extnamespace = 'public'::regnamespace) THEN
+    DROP EXTENSION IF EXISTS pg_net CASCADE;
+    CREATE EXTENSION pg_net WITH SCHEMA extensions;
+  END IF;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'pg_net extension schema alteration note: %', SQLERRM;
 END $$;
