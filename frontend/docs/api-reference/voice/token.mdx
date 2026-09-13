@@ -1,0 +1,35 @@
+---
+title: "Generate Voice Agent Token"
+api: "POST /api/voice/token"
+description: "Generate a cryptographically signed LiveKit WebRTC access token to connect a visitor to a real-time voice call session."
+---
+
+# Generate Voice Agent Token
+
+Mints a JWT access token granting the client permission to join the designated LiveKit audio room for real-time voice interactions.
+
+## Request Body
+
+<ParamField body="bot_id" type="string" required>
+  The unique ID of the bot.
+</ParamField>
+
+<ParamField body="session_id" type="string">
+  The active visitor chat session ID to link the voice conversation with.
+</ParamField>
+
+<ParamField body="participant_name" type="string">
+  Display name of the visitor inside the WebRTC room (defaults to `Visitor`).
+</ParamField>
+
+---
+
+## Response
+
+```json Response Example
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "url": "wss://livekit.chatty.personaliai.com",
+  "room": "room_v-b66f3c88-8a65-4b3b-865b-04de01284e16"
+}
+```

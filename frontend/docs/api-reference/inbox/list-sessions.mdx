@@ -1,0 +1,62 @@
+---
+title: "List Inbox Sessions"
+api: "GET /api/admin/inbox/sessions"
+description: "Retrieve all tickets and conversations for a bot with SLA timers, status, and assignees."
+---
+
+# List Inbox Sessions
+
+Returns a paginated list of conversations and tickets for the specified bot, including live SLA status, assigned agent details, and priority.
+
+## Query Parameters
+
+<ParamField query="bot_id" type="string" required>
+  The unique ID of the bot.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by ticket status: `open`, `pending`, `resolved`, or `closed`.
+</ParamField>
+
+<ParamField query="priority" type="string">
+  Filter by priority: `urgent`, `high`, `normal`, or `low`.
+</ParamField>
+
+<ParamField query="assignee" type="string">
+  Filter by assigned agent email or `unassigned`.
+</ParamField>
+
+---
+
+## Response
+
+<ResponseField name="sessions" type="array">
+  List of session objects.
+  <Expandable title="Session Properties">
+    <ResponseField name="session_id" type="string">Unique visitor session identifier.</ResponseField>
+    <ResponseField name="status" type="string">Current status (`open`, `pending`, `resolved`, `closed`).</ResponseField>
+    <ResponseField name="priority" type="string">Ticket priority level.</ResponseField>
+    <ResponseField name="assigned_agent_email" type="string">Email of assigned agent, or `null` if unassigned.</ResponseField>
+    <ResponseField name="sla_status" type="string">`on_track`, `breached`, or `met`.</ResponseField>
+    <ResponseField name="first_response_due_at" type="string">ISO timestamp of first response deadline.</ResponseField>
+    <ResponseField name="resolution_due_at" type="string">ISO timestamp of resolution deadline.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json Response Example
+{
+  "sessions": [
+    {
+      "session_id": "v-b66f3c88-8a65-4b3b-865b-04de01284e16",
+      "status": "open",
+      "priority": "urgent",
+      "assigned_agent_email": null,
+      "assigned_agent_name": null,
+      "sla_status": "on_track",
+      "first_response_due_at": "2026-09-13T01:30:00Z",
+      "last_message": "Need pricing clarification.",
+      "created_at": "2026-09-13T01:15:00Z"
+    }
+  ]
+}
+```

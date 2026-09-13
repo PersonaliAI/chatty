@@ -1,0 +1,40 @@
+---
+title: "Team Roster & Granular Permissions"
+description: "Manage team member roles, per-tab access permissions, bookable calendar status, and staff collaboration."
+---
+
+# Team Roster & Granular Permissions
+
+Chatty supports multi-operator collaboration with fine-grained access control so agents see only what they need, while owners maintain full administrative authority.
+
+---
+
+## Role Matrix
+
+| Role | Accessible Tabs | Capabilities |
+| :--- | :--- | :--- |
+| **Owner** | All 21 Tabs | Full control over bot settings, billing, BYOK encryption keys, webhooks, and team invites. |
+| **Admin** | Configurable (Default: Inbox, Sources, Design, Settings, Voice, Team, Meetings) | Can manage knowledge base, edit bot persona, oversee inbox queues, and invite agents. Cannot access Billing or BYOK keys. |
+| **Agent** | Configurable (Default: Inbox) | Can answer live tickets, send messages, claim sessions, and view internal staff notes. |
+
+---
+
+## Granular Tab Permissions
+
+Owners and Admins can toggle individual tab access for each team member:
+
+- `inbox`: Access live chats, take over conversations, mark tickets resolved.
+- `sources`: Upload documents, trigger website crawls.
+- `design`: Customize widget branding, colors, launcher styles.
+- `settings`: Edit system prompts, change AI model parameters.
+- `voice`: Monitor voice call logs and voice configuration.
+- `team`: View roster and manage member availability.
+- `meetings`: View booked meetings calendar and update schedules.
+
+---
+
+## Bookable Calendar Status
+
+In the Team tab, members can be designated as **Bookable**:
+- **Bookable Toggle**: Makes the agent eligible to receive appointments from the round-robin scheduler.
+- **Book on Own Calendar**: Syncs bookings to the agent's personal Google/Outlook calendar instead of the organization's central calendar.

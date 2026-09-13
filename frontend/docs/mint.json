@@ -18,17 +18,21 @@
   "topbarLinks": [
     {
       "name": "Dashboard",
-      "url": "https://chatty.ai/dashboard"
+      "url": "https://chatty.personaliai.com/dashboard"
     }
   ],
   "topbarCtaButton": {
     "name": "Get Started Free",
-    "url": "https://chatty.ai/signup"
+    "url": "https://chatty.personaliai.com/signup"
   },
   "tabs": [
     {
       "name": "API Reference",
       "url": "api-reference"
+    },
+    {
+      "name": "Features",
+      "url": "features"
     },
     {
       "name": "Guides",
@@ -39,17 +43,12 @@
     {
       "name": "API Status",
       "icon": "signal-bars",
-      "url": "https://status.chatty.ai"
-    },
-    {
-      "name": "Community",
-      "icon": "discord",
-      "url": "https://discord.gg/chatty"
+      "url": "https://status.personaliai.com"
     },
     {
       "name": "GitHub",
       "icon": "github",
-      "url": "https://github.com/chatty-ai"
+      "url": "https://github.com/PersonaliAI/chatty"
     }
   ],
   "navigation": [
@@ -64,15 +63,43 @@
       ]
     },
     {
+      "group": "Platform Features",
+      "pages": [
+        "features/inbox-helpdesk",
+        "features/knowledge-base",
+        "features/flow-architect",
+        "features/meeting-scheduler",
+        "features/voice-agent",
+        "features/campaigns",
+        "features/team-permissions",
+        "features/mcp-server"
+      ]
+    },
+    {
       "group": "API Reference",
       "pages": [
         {
-          "group": "Chat",
+          "group": "Chat & Widget",
           "pages": ["api-reference/chat/send-message"]
         },
         {
-          "group": "Bot",
+          "group": "Bot Management",
           "pages": ["api-reference/bot/get-details"]
+        },
+        {
+          "group": "Inbox & Helpdesk",
+          "pages": [
+            "api-reference/inbox/list-sessions",
+            "api-reference/inbox/update-session",
+            "api-reference/inbox/auto-assign"
+          ]
+        },
+        {
+          "group": "Meetings & Calendar",
+          "pages": [
+            "api-reference/meetings/availability",
+            "api-reference/meetings/book"
+          ]
         },
         {
           "group": "Leads",
@@ -87,12 +114,20 @@
           ]
         },
         {
-          "group": "Knowledge",
+          "group": "Knowledge Base",
           "pages": [
             "api-reference/knowledge/list",
             "api-reference/knowledge/add",
             "api-reference/knowledge/delete"
           ]
+        },
+        {
+          "group": "Voice Agent",
+          "pages": ["api-reference/voice/token"]
+        },
+        {
+          "group": "Webhooks",
+          "pages": ["api-reference/webhooks/create"]
         },
         {
           "group": "Analytics",
@@ -120,15 +155,13 @@
     }
   ],
   "footerSocials": {
-    "twitter": "https://twitter.com/chattyai",
-    "github": "https://github.com/chatty-ai",
-    "linkedin": "https://linkedin.com/company/chatty-ai"
+    "github": "https://github.com/PersonaliAI/chatty"
   },
   "api": {
-    "baseUrl": "https://chatty-api-376030619262.us-central1.run.app",
+    "baseUrl": "https://api.chatty.personaliai.com",
     "auth": {
       "method": "bearer"
     }
   },
-  "openapi": "https://chatty-api-376030619262.us-central1.run.app/openapi.json"
+  "openapi": "https://api.chatty.personaliai.com/openapi.json"
 }

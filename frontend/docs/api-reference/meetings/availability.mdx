@@ -1,0 +1,46 @@
+---
+title: "Get Meeting Availability"
+api: "GET /api/widget/availability"
+description: "Query available calendar timeslots for an agent or round-robin team schedule within a date range."
+---
+
+# Get Meeting Availability
+
+Calculates open booking slots by evaluating working hours, existing calendar events (Google Calendar / Microsoft Outlook), buffer times, and maximum daily caps.
+
+## Query Parameters
+
+<ParamField query="bot_id" type="string" required>
+  The unique ID of the bot.
+</ParamField>
+
+<ParamField query="date" type="string" required>
+  Target date in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField query="timezone" type="string">
+  Visitor's IANA timezone (e.g. `America/New_York`, `Europe/London`, `Asia/Colombo`). If omitted, returns slots in the bot's configured primary timezone.
+</ParamField>
+
+---
+
+## Response
+
+```json Response Example
+{
+  "date": "2026-09-15",
+  "timezone": "America/New_York",
+  "slots": [
+    {
+      "start_time": "2026-09-15T09:00:00-04:00",
+      "end_time": "2026-09-15T09:30:00-04:00",
+      "assigned_agent_email": "sarah@company.com"
+    },
+    {
+      "start_time": "2026-09-15T10:00:00-04:00",
+      "end_time": "2026-09-15T10:30:00-04:00",
+      "assigned_agent_email": "david@company.com"
+    }
+  ]
+}
+```

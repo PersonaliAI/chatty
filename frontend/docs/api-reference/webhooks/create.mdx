@@ -1,0 +1,52 @@
+---
+title: "Create Webhook Subscription"
+api: "POST /api/admin/webhooks"
+description: "Register a webhook endpoint to receive real-time event notifications with HMAC-SHA256 signatures."
+---
+
+# Create Webhook Subscription
+
+Registers a new HTTPS callback URL that Chatty will send event payloads to.
+
+## Request Body
+
+<ParamField body="bot_id" type="string" required>
+  The unique ID of the bot.
+</ParamField>
+
+<ParamField body="url" type="string" required>
+  The target HTTPS endpoint URL (must support POST requests).
+</ParamField>
+
+<ParamField body="events" type="string[]" required>
+  Array of event names to subscribe to:
+  - `chat.started`
+  - `chat.ended`
+  - `lead.captured`
+  - `meeting.booked`
+  - `handoff.requested`
+  - `sla.breached`
+</ParamField>
+
+<ParamField body="description" type="string">
+  Internal label or note for this webhook.
+</ParamField>
+
+---
+
+## Response
+
+```json Response Example
+{
+  "id": "wh_78bc34fa-1122",
+  "url": "https://api.yourdomain.com/webhooks/chatty",
+  "events": ["lead.captured", "meeting.booked"],
+  "secret": "whsec_99a8b7c6d5e4f3a2b1c0...",
+  "status": "active",
+  "created_at": "2026-09-13T01:30:00Z"
+}
+```
+
+<Warning>
+Save the returned `secret` securely. It is used to verify HMAC-SHA256 signatures in the `X-Chatty-Signature` header of incoming webhook requests.
+</Warning>

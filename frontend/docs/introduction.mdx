@@ -42,13 +42,13 @@ The **Chatty API** gives you programmatic access to your bots: send messages, re
 All API requests are made to:
 
 ```
-https://chatty-api-376030619262.us-central1.run.app
+https://api.chatty.personaliai.com
 ```
 
 ## Quick example
 
 ```bash
-curl -X POST https://chatty-api-376030619262.us-central1.run.app/api/v1/chat \
+curl -X POST https://api.chatty.personaliai.com/api/v1/chat \
   -H "Authorization: Bearer chatty_sk_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{"text": "What are your pricing plans?", "session_id": "user-abc"}'

@@ -1,0 +1,67 @@
+---
+title: "Model Context Protocol (MCP) Server"
+description: "Connect your Chatty AI bots and knowledge bases directly to Claude Desktop, Cursor, and IDEs via MCP."
+---
+
+# Model Context Protocol (MCP) Server
+
+Chatty implements the **Model Context Protocol (MCP)** standard, allowing external AI coding assistants and desktop agents to query your bots, search knowledge bases, and book meetings.
+
+---
+
+## Connecting Claude Desktop or Cursor
+
+Add Chatty's MCP endpoint to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "chatty": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch",
+        "https://api.chatty.personaliai.com/api/mcp/sse"
+      ],
+      "env": {
+        "CHATTY_API_KEY": "chatty_sk_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Exposed MCP Tools
+
+Once connected, your AI assistant gains access to these native tools:
+
+### `chatty_send_message`
+Sends a message to a specific bot and retrieves the response.
+- `bot_id` (string): Target bot ID.
+- `message` (string): Prompt content.
+- `session_id` (string, optional): Session continuity identifier.
+
+### `chatty_search_knowledge`
+Runs a semantic vector search across all indexed documentation.
+- `bot_id` (string): Target bot ID.
+- `query` (string): Search phrase.
+- `limit` (int, default: 5): Number of chunks to retrieve.
+
+### `chatty_list_leads`
+Queries captured prospects and contact details.
+- `bot_id` (string): Target bot ID.
+- `limit` (int, default: 20): Results limit.
+
+### `chatty_check_availability`
+Inspects open appointment slots across team members.
+- `bot_id` (string): Target bot ID.
+- `date` (string): Target date (`YYYY-MM-DD`).
+
+### `chatty_book_meeting`
+Books a confirmed calendar slot with an assigned agent.
+- `bot_id` (string): Target bot ID.
+- `start_time` (string): ISO timestamp.
+- `name` (string): Attendee name.
+- `email` (string): Attendee email.

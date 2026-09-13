@@ -1,0 +1,61 @@
+---
+title: "Update Ticket / Session"
+api: "PATCH /api/admin/inbox/session"
+description: "Update ticket lifecycle status, priority, tags, or assign/unassign team members."
+---
+
+# Update Ticket / Session
+
+Updates properties of a ticket, including status transitions, priority level changes, agent assignment, or ticket unassignment back to the queue.
+
+## Request Body
+
+<ParamField body="bot_id" type="string" required>
+  The unique ID of the bot.
+</ParamField>
+
+<ParamField body="session_id" type="string" required>
+  The session ID of the ticket to update.
+</ParamField>
+
+<ParamField body="status" type="string">
+  New ticket status: `open`, `pending`, `resolved`, or `closed`.
+</ParamField>
+
+<ParamField body="priority" type="string">
+  New ticket priority: `urgent`, `high`, `normal`, or `low`.
+</ParamField>
+
+<ParamField body="assigned_agent_email" type="string">
+  Email of the agent to assign. To unassign, set to empty string `""` or use `unassign: true`.
+</ParamField>
+
+<ParamField body="unassign" type="boolean">
+  Set to `true` to unassign the ticket and return it to the Queue. Resets `assigned_agent_email` to `null` and resumes AI assistance (`ai_paused = false`).
+</ParamField>
+
+<ParamField body="ai_paused" type="boolean">
+  Set to `true` to pause AI generation for human agent takeover.
+</ParamField>
+
+<ParamField body="tags" type="string[]">
+  Array of ticket tag labels.
+</ParamField>
+
+---
+
+## Response
+
+```json Response Example
+{
+  "success": true,
+  "session": {
+    "session_id": "v-b66f3c88-8a65-4b3b-865b-04de01284e16",
+    "status": "open",
+    "priority": "normal",
+    "assigned_agent_email": null,
+    "assigned_agent_name": null,
+    "ai_paused": false
+  }
+}
+```
