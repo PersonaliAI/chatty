@@ -31,93 +31,363 @@ logger = logging.getLogger("chatty")
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# WhatsApp channel (Meta Cloud API). Fully disabled unless WHATSAPP_ACCESS_TOKEN
-# is set. A bot is linked to a number via chatty_bots.whatsapp_phone_number_id.
+# WhatsApp channel (Meta Cloud API).
+# Supports per-bot credentials stored on chatty_bots (with server env fallbacks),
+# HMAC-SHA256 signature verification, multimodal audio/image/document ingestion,
+# and interactive quick-reply buttons.
 # ---------------------------------------------------------------------------
 WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
 WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET", "")
 WHATSAPP_API_VERSION = os.environ.get("WHATSAPP_API_VERSION", "v21.0")
+
+
+def _verify_meta_signature(raw_payload: bytes, signature_header: str, app_secret: str) -> bool:
+    """Cryptographically verify Meta's X-Hub-Signature-256 HMAC header."""
+    if not (signature_header and app_secret):
+        return False
+    expected = "sha256=" + hmac.new(
+        app_secret.encode("utf-8"),
+        raw_payload,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature_header)
+
+
+async def _download_whatsapp_media(media_id: str, access_token: str) -> tuple[bytes | None, str | None]:
+    """Fetch media metadata from Meta Graph API, then stream the binary content."""
+    if not (media_id and access_token):
+        return None, None
+    meta_url = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}/{media_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        async with httpx.AsyncClient(timeout=25) as client:
+            res = await client.get(meta_url, headers=headers)
+            if res.status_code != 200:
+                logger.error("Failed to query WhatsApp media %s: %s", media_id, res.text)
+                return None, None
+            media_data = res.json()
+            download_url = media_data.get("url")
+            mime_type = (media_data.get("mime_type") or "").split(";")[0]
+            if not download_url:
+                return None, None
+
+            dl_res = await client.get(download_url, headers=headers)
+            if dl_res.status_code != 200:
+                logger.error("Failed to download WhatsApp media binary %s: %s", media_id, dl_res.status_code)
+                return None, None
+            return dl_res.content, mime_type
+    except Exception:
+        logger.exception("Exception downloading WhatsApp media %s", media_id)
+        return None, None
 
 
 @router.get("/webhook/whatsapp")
 async def whatsapp_verify(request: Request):
-    """Meta webhook verification handshake."""
+    """Meta webhook verification handshake (supports server env and per-bot verify tokens)."""
     p = request.query_params
-    if (WHATSAPP_VERIFY_TOKEN and p.get("hub.mode") == "subscribe"
-            and p.get("hub.verify_token") == WHATSAPP_VERIFY_TOKEN):
-        return PlainTextResponse(p.get("hub.challenge") or "")
-    raise HTTPException(status_code=403, detail="verification failed")
+    mode = p.get("hub.mode")
+    token = p.get("hub.verify_token")
+    challenge = p.get("hub.challenge")
 
+    if mode != "subscribe" or not token:
+        raise HTTPException(status_code=403, detail="Invalid verification request")
 
-async def _send_whatsapp(phone_number_id: str, to: str, text: str) -> None:
-    url = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}/{phone_number_id}/messages"
+    # 1. Server-level fallback token
+    if WHATSAPP_VERIFY_TOKEN and token == WHATSAPP_VERIFY_TOKEN:
+        return PlainTextResponse(challenge or "")
+
+    # 2. Check per-bot verify token in database
     try:
-        async with httpx.AsyncClient(timeout=10) as c:
-            await c.post(url, headers={"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"},
-                         json={"messaging_product": "whatsapp", "to": to, "type": "text",
-                               "text": {"body": text[:4096]}})
+        res = await run_db(lambda: supabase.table("chatty_bots")
+            .select("id")
+            .eq("whatsapp_verify_token", token)
+            .limit(1)
+            .execute())
+        if res.data:
+            return PlainTextResponse(challenge or "")
     except Exception:
-        logger.exception("whatsapp send failed")
+        logger.exception("Error verifying per-bot whatsapp token")
+
+    raise HTTPException(status_code=403, detail="Verification token mismatch")
 
 
-async def _handle_whatsapp_message(phone_number_id: str, frm: str, text: str) -> None:
-    if not (phone_number_id and frm and text and text.strip()):
+async def _send_whatsapp(
+    phone_number_id: str,
+    to: str,
+    text: str,
+    access_token: str,
+    quick_replies: list[str] | None = None,
+) -> None:
+    """Send an outbound text or interactive quick-reply message via Meta Cloud API."""
+    if not (phone_number_id and to and access_token):
         return
-    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq(
-        "whatsapp_phone_number_id", phone_number_id).limit(1).execute())
-    if not res.data:
-        return
-    bot = res.data[0]
-    owner = await run_db(lambda: supabase.table("users").select("*").eq(
-        "auth_user_id", bot["user_id"]).limit(1).execute())
-    if not owner.data:
-        return
-    owner_user = owner.data[0]
+    url = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}/{phone_number_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    valid_buttons: list[str] = []
+    if quick_replies and isinstance(quick_replies, list):
+        for b in quick_replies:
+            if isinstance(b, str) and b.strip():
+                valid_buttons.append(b.strip()[:20])
+            if len(valid_buttons) >= 3:
+                break
+
+    # If quick-reply buttons are configured and body fits within 1024 chars, send interactive
+    if valid_buttons and len(text) <= 1024:
+        payload: dict[str, Any] = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {"text": text},
+                "action": {
+                    "buttons": [
+                        {
+                            "type": "reply",
+                            "reply": {
+                                "id": f"btn_{i+1}",
+                                "title": btn_title,
+                            },
+                        }
+                        for i, btn_title in enumerate(valid_buttons)
+                    ]
+                },
+            },
+        }
+    else:
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "text",
+            "text": {"body": text[:4096]},
+        }
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            res = await c.post(url, headers=headers, json=payload)
+            if res.status_code >= 400:
+                logger.error("Meta WhatsApp send failed (%s): %s", res.status_code, res.text)
+    except Exception:
+        logger.exception("WhatsApp send message failed")
+
+
+async def _handle_whatsapp_message(
+    phone_number_id: str,
+    frm: str,
+    bot: dict[str, Any],
+    owner_user: dict[str, Any],
+    access_token: str,
+    text: str = "",
+    media_bytes: bytes | None = None,
+    media_mime: str | None = None,
+    media_filename: str | None = None,
+) -> None:
     session_id = f"wa:{frm}"
+    bot_id = bot["id"]
+
+    # Quota check
     if await chatty_quota_exceeded(owner_user, bot["user_id"]):
-        await _send_whatsapp(phone_number_id, frm, WIDGET_QUOTA_REPLY)
+        await _send_whatsapp(phone_number_id, frm, WIDGET_QUOTA_REPLY, access_token)
         return
+
+    # Record visitor message in chatty_conversations
+    display_content = text
+    if media_bytes and media_mime:
+        tag = f"[attachment: {media_filename or media_mime}]"
+        display_content = (text + "\n" + tag).strip() if text else tag
+
     try:
         await run_db(lambda: supabase.table("chatty_conversations").insert({
-            "bot_id": bot["id"], "session_id": session_id, "role": "user",
-            "content": text, "sender": "visitor"}).execute())
+            "bot_id": bot_id,
+            "session_id": session_id,
+            "role": "user",
+            "content": display_content or "[empty message]",
+            "sender": "visitor",
+        }).execute())
     except Exception:
-        logger.exception("wa save inbound failed")
+        logger.exception("Failed to record inbound WhatsApp message")
+
+    # Run AI assistant (Gemini multimodal)
     try:
         result = await run_widget_assistant(
-            bot_id=bot["id"], owner_user=owner_user, bot=bot,
-            session_id=session_id, text=text, visitor_timezone="UTC")
-        reply = result["reply"]
+            bot_id=bot_id,
+            owner_user=owner_user,
+            bot=bot,
+            session_id=session_id,
+            text=text,
+            visitor_timezone="UTC",
+            media_bytes=media_bytes,
+            media_mime=media_mime,
+        )
+        reply = result.get("reply", "")
     except Exception:
-        logger.exception("wa assistant failed")
+        logger.exception("WhatsApp assistant run failed")
+        reply = "I apologize, but I encountered an error processing your request. Please try again in a moment."
+
+    if not reply:
         return
+
+    # Save AI reply
     try:
         await run_db(lambda: supabase.table("chatty_conversations").insert({
-            "bot_id": bot["id"], "session_id": session_id, "role": "assistant",
-            "content": reply, "sender": "ai"}).execute())
+            "bot_id": bot_id,
+            "session_id": session_id,
+            "role": "assistant",
+            "content": reply,
+            "sender": "ai",
+        }).execute())
     except Exception:
-        logger.exception("wa save reply failed")
-    await _send_whatsapp(phone_number_id, frm, reply)
+        logger.exception("Failed to record WhatsApp AI reply")
+
+    # Quick replies from bot configuration
+    quick_replies = bot.get("whatsapp_quick_replies")
+    btn_list = quick_replies if isinstance(quick_replies, list) else []
+
+    await _send_whatsapp(phone_number_id, frm, reply, access_token, quick_replies=btn_list)
 
 
 @router.post("/webhook/whatsapp")
 async def whatsapp_receive(request: Request):
-    """Inbound WhatsApp messages → routed to the linked bot. Always returns 200
-    so Meta doesn't retry-storm; no-op when the channel is unconfigured."""
-    if not WHATSAPP_ACCESS_TOKEN:
-        return {"ok": True}
+    """Inbound WhatsApp webhook handler (Meta Cloud API).
+    Validates HMAC signature, routes text, interactive buttons, voice clips, and images to Gemini.
+    """
+    raw_body = await request.body()
+    sig_header = request.headers.get("x-hub-signature-256", "")
+
     try:
-        body = await request.json()
-        for entry in body.get("entry", []):
-            for change in entry.get("changes", []):
-                val = change.get("value", {})
-                pnid = (val.get("metadata") or {}).get("phone_number_id")
-                for msg in val.get("messages", []):
-                    if msg.get("type") == "text":
-                        await _handle_whatsapp_message(
-                            pnid, msg.get("from"), (msg.get("text") or {}).get("body", ""))
+        body = json.loads(raw_body.decode("utf-8")) if raw_body else {}
     except Exception:
-        logger.exception("whatsapp receive failed")
+        logger.warning("WhatsApp webhook received non-JSON payload")
+        return {"ok": True}
+
+    entries = body.get("entry", [])
+    for entry in entries:
+        for change in entry.get("changes", []):
+            val = change.get("value", {})
+            pnid = (val.get("metadata") or {}).get("phone_number_id")
+            if not pnid:
+                continue
+
+            # Look up bot linked to this WhatsApp phone number
+            res = await run_db(lambda: supabase.table("chatty_bots")
+                .select("*")
+                .eq("whatsapp_phone_number_id", pnid)
+                .limit(1)
+                .execute())
+            if not res.data:
+                logger.debug("No bot linked to WhatsApp phone_number_id %s", pnid)
+                continue
+
+            bot = res.data[0]
+            # If bot explicitly disabled whatsapp and no override, skip
+            if bot.get("whatsapp_enabled") is False and not os.environ.get("WHATSAPP_FORCE_ENABLED"):
+                logger.debug("WhatsApp channel is disabled for bot %s", bot["id"])
+                continue
+
+            # HMAC-SHA256 signature verification
+            app_secret = bot.get("whatsapp_app_secret") or WHATSAPP_APP_SECRET
+            if app_secret:
+                if not _verify_meta_signature(raw_body, sig_header, app_secret):
+                    logger.warning("WhatsApp webhook invalid HMAC signature for bot %s", bot["id"])
+                    raise HTTPException(status_code=401, detail="Invalid signature")
+
+            # Resolve Access Token
+            access_token = bot.get("whatsapp_access_token") or WHATSAPP_ACCESS_TOKEN
+            if not access_token:
+                logger.warning("No WhatsApp access token configured for bot %s or server", bot["id"])
+                continue
+
+            # Owner user lookup
+            owner_res = await run_db(lambda: supabase.table("users")
+                .select("*")
+                .eq("auth_user_id", bot["user_id"])
+                .limit(1)
+                .execute())
+            if not owner_res.data:
+                logger.error("Owner user not found for bot %s", bot["id"])
+                continue
+            owner_user = owner_res.data[0]
+
+            # Process each message
+            for msg in val.get("messages", []):
+                frm = msg.get("from")
+                msg_type = msg.get("type")
+
+                if msg_type == "text":
+                    user_text = (msg.get("text") or {}).get("body", "")
+                    await _handle_whatsapp_message(
+                        pnid, frm, bot, owner_user, access_token, text=user_text
+                    )
+
+                elif msg_type == "interactive":
+                    # Button or list item reply
+                    interactive = msg.get("interactive", {})
+                    btn_reply = interactive.get("button_reply", {})
+                    list_reply = interactive.get("list_reply", {})
+                    button_text = btn_reply.get("title") or list_reply.get("title") or ""
+                    if button_text:
+                        await _handle_whatsapp_message(
+                            pnid, frm, bot, owner_user, access_token, text=button_text
+                        )
+
+                elif msg_type in ("audio", "voice"):
+                    # Voice note / audio message
+                    media_obj = msg.get("audio") or msg.get("voice") or {}
+                    media_id = media_obj.get("id")
+                    if media_id:
+                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token)
+                        if media_bytes:
+                            clean_mime = (media_mime or "audio/ogg").split(";")[0]
+                            await _handle_whatsapp_message(
+                                pnid, frm, bot, owner_user, access_token,
+                                text="",
+                                media_bytes=media_bytes,
+                                media_mime=clean_mime,
+                                media_filename="voice_note.ogg"
+                            )
+
+                elif msg_type == "image":
+                    # Photo / screenshot
+                    img_obj = msg.get("image") or {}
+                    media_id = img_obj.get("id")
+                    caption = img_obj.get("caption") or ""
+                    if media_id:
+                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token)
+                        if media_bytes:
+                            clean_mime = (media_mime or "image/jpeg").split(";")[0]
+                            await _handle_whatsapp_message(
+                                pnid, frm, bot, owner_user, access_token,
+                                text=caption,
+                                media_bytes=media_bytes,
+                                media_mime=clean_mime,
+                                media_filename="photo.jpg"
+                            )
+
+                elif msg_type == "document":
+                    # PDF, CSV, etc.
+                    doc_obj = msg.get("document") or {}
+                    media_id = doc_obj.get("id")
+                    filename = doc_obj.get("filename") or "document.pdf"
+                    caption = doc_obj.get("caption") or ""
+                    if media_id:
+                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token)
+                        if media_bytes:
+                            clean_mime = (media_mime or "application/pdf").split(";")[0]
+                            await _handle_whatsapp_message(
+                                pnid, frm, bot, owner_user, access_token,
+                                text=caption,
+                                media_bytes=media_bytes,
+                                media_mime=clean_mime,
+                                media_filename=filename
+                            )
+
     return {"ok": True}
 
 

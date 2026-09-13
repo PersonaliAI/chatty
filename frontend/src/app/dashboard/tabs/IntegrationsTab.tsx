@@ -1,6 +1,23 @@
 "use client";
 
-import { Check, Copy, ShieldAlert, Plus, Globe, X, ExternalLink } from "lucide-react";
+import React, { useState } from "react";
+import {
+  Check,
+  Copy,
+  ShieldAlert,
+  Plus,
+  Globe,
+  X,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Key,
+  ShieldCheck,
+  MessageSquare,
+} from "lucide-react";
 
 const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
 
@@ -50,7 +67,24 @@ interface IntegrationsTabProps {
   setNewDomain: (d: string) => void;
   allowedDomains: string[];
   setAllowedDomains: (d: string[]) => void;
-  handleInputChange: (setter: (v: string[]) => void, val: string[]) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handleInputChange: (setter: (v: any) => void, val: any) => void;
+  // WhatsApp Business Channel
+  whatsappEnabled?: boolean;
+  setWhatsappEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  whatsappPhoneNumberId?: string;
+  setWhatsappPhoneNumberId?: (v: string) => void;
+  whatsappWabaId?: string;
+  setWhatsappWabaId?: (v: string) => void;
+  whatsappAccessToken?: string;
+  setWhatsappAccessToken?: (v: string) => void;
+  whatsappVerifyToken?: string;
+  setWhatsappVerifyToken?: (v: string) => void;
+  whatsappAppSecret?: string;
+  setWhatsappAppSecret?: (v: string) => void;
+  whatsappQuickReplies?: string[];
+  setWhatsappQuickReplies?: (v: string[]) => void;
+  showToast?: (msg: string, type?: "success" | "error" | "info") => void;
 }
 
 export function IntegrationsTab({
@@ -69,7 +103,70 @@ export function IntegrationsTab({
   allowedDomains,
   setAllowedDomains,
   handleInputChange,
+  whatsappEnabled = false,
+  setWhatsappEnabled,
+  whatsappPhoneNumberId = "",
+  setWhatsappPhoneNumberId,
+  whatsappWabaId = "",
+  setWhatsappWabaId,
+  whatsappAccessToken = "",
+  setWhatsappAccessToken,
+  whatsappVerifyToken = "",
+  setWhatsappVerifyToken,
+  whatsappAppSecret = "",
+  setWhatsappAppSecret,
+  whatsappQuickReplies = [],
+  setWhatsappQuickReplies,
+  showToast,
 }: IntegrationsTabProps) {
+  const [showToken, setShowToken] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [newQuickReply, setNewQuickReply] = useState("");
+  const [copiedWaUrl, setCopiedWaUrl] = useState(false);
+
+  const WA_CALLBACK_URL = "https://api.chatty.personaliai.com/webhook/whatsapp";
+
+  const handleCopyWaUrl = () => {
+    navigator.clipboard?.writeText(WA_CALLBACK_URL);
+    setCopiedWaUrl(true);
+    setTimeout(() => setCopiedWaUrl(false), 2000);
+    if (showToast) showToast("Callback URL copied to clipboard", "success");
+  };
+
+  const handleGenerateVerifyToken = () => {
+    const randomSecret = "wa_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    if (setWhatsappVerifyToken) {
+      handleInputChange(setWhatsappVerifyToken, randomSecret);
+      if (showToast) showToast("Generated new Webhook Verify Token", "info");
+    }
+  };
+
+  const handleAddQuickReply = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = newQuickReply.trim();
+    if (!trimmed || !setWhatsappQuickReplies) return;
+    if (whatsappQuickReplies.length >= 3) {
+      if (showToast) showToast("Meta allows maximum 3 quick-reply buttons per message", "error");
+      return;
+    }
+    if (!whatsappQuickReplies.includes(trimmed)) {
+      handleInputChange(setWhatsappQuickReplies, [...whatsappQuickReplies, trimmed]);
+      setNewQuickReply("");
+    }
+  };
+
+  const handleRemoveQuickReply = (btn: string) => {
+    if (!setWhatsappQuickReplies) return;
+    handleInputChange(
+      setWhatsappQuickReplies,
+      whatsappQuickReplies.filter((b) => b !== btn)
+    );
+  };
+
+  const isWaConnected = whatsappEnabled && !!whatsappPhoneNumberId && !!whatsappAccessToken;
+  const isWaConfigured = !!whatsappPhoneNumberId || !!whatsappAccessToken;
+
   const platforms: { id: string; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: "html", label: "HTML", icon: <PlatformIcon domain="w3.org" label="HTML" /> },
     { id: "react", label: "React / Next.js", icon: <PlatformIcon domain="react.dev" label="React" /> },
@@ -509,6 +606,293 @@ export function IntegrationsTab({
             ))}
           </div>
         )}
+      </div>
+
+      {/* WhatsApp Business Channel (Meta Cloud API) */}
+      <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-6">
+        {/* Header with status badge and toggle switch */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 dark:border-neutral-800 pb-5">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
+              <svg viewBox="0 0 24 24" className="size-6 fill-current">
+                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M9.53 7.34C9.36 7.34 9.09 7.4 8.87 7.65C8.65 7.89 8.02 8.48 8.02 9.7C8.02 10.92 8.91 12.1 9.03 12.26C9.16 12.43 10.74 14.86 13.17 15.91C13.75 16.16 14.2 16.31 14.55 16.42C15.13 16.61 15.66 16.58 16.08 16.52C16.55 16.45 17.53 15.93 17.73 15.35C17.94 14.78 17.94 14.29 17.88 14.18C17.82 14.07 17.65 14.01 17.4 13.88C17.14 13.76 15.89 13.14 15.66 13.06C15.43 12.97 15.26 12.93 15.09 13.18C14.93 13.43 14.44 14.01 14.29 14.18C14.14 14.36 14 14.38 13.74 14.25C13.49 14.13 12.68 13.86 11.72 13.01C10.97 12.34 10.46 11.52 10.32 11.27C10.17 11.02 10.3 10.88 10.43 10.76C10.54 10.65 10.68 10.47 10.81 10.32C10.94 10.17 10.98 10.07 11.07 9.89C11.15 9.72 11.11 9.57 11.05 9.45C10.98 9.32 10.43 7.97 10.2 7.42C9.98 6.89 9.75 6.96 9.53 7.34Z" />
+              </svg>
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                  WhatsApp Business Integration
+                </h3>
+                {isWaConnected ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 dark:bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live &bull; Connected
+                  </span>
+                ) : isWaConfigured ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 dark:bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    Configured (Disabled)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[10px] font-semibold text-neutral-500 border border-neutral-200 dark:border-neutral-700">
+                    Not Configured
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
+                Connect your official Meta WhatsApp Business phone number. Customers receive instant AI answers, and can send text, voice clips, photos, and documents.
+              </p>
+            </div>
+          </div>
+          {setWhatsappEnabled && (
+            <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
+              <input
+                type="checkbox"
+                checked={whatsappEnabled}
+                onChange={(e) => handleInputChange(setWhatsappEnabled, e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-10 h-5 bg-neutral-200 peer-focus:outline-hidden rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-emerald-500"></div>
+              <span className="ml-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                {whatsappEnabled ? "Enabled" : "Disabled"}
+              </span>
+            </label>
+          )}
+        </div>
+
+        {/* Webhook Callback URL banner */}
+        <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+              <ShieldCheck className="size-3 text-emerald-500" /> Meta Webhook Callback URL
+            </span>
+            <button
+              onClick={handleCopyWaUrl}
+              className="inline-flex items-center gap-1 text-[10px] font-medium text-neutral-600 dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+            >
+              {copiedWaUrl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+              {copiedWaUrl ? "Copied!" : "Copy URL"}
+            </button>
+          </div>
+          <p className="font-mono text-xs text-neutral-800 dark:text-neutral-200 break-all select-all">
+            {WA_CALLBACK_URL}
+          </p>
+          <p className="text-[10px] text-neutral-400">
+            Paste this URL into Meta Developer Dashboard &rarr; <b>WhatsApp &rarr; Configuration &rarr; Webhook Callback URL</b>.
+          </p>
+        </div>
+
+        {/* Credentials Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          {/* Phone Number ID */}
+          <div className="space-y-1.5">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+              <span>Phone Number ID</span>
+              <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
+            </label>
+            <input
+              type="text"
+              value={whatsappPhoneNumberId}
+              onChange={(e) => setWhatsappPhoneNumberId && handleInputChange(setWhatsappPhoneNumberId, e.target.value)}
+              placeholder="e.g. 104859239849201"
+              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+            />
+            <p className="text-[10px] text-neutral-400">15-digit identifier from Meta WhatsApp API Setup screen.</p>
+          </div>
+
+          {/* WABA ID */}
+          <div className="space-y-1.5">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+              WhatsApp Business Account ID (WABA)
+            </label>
+            <input
+              type="text"
+              value={whatsappWabaId}
+              onChange={(e) => setWhatsappWabaId && handleInputChange(setWhatsappWabaId, e.target.value)}
+              placeholder="e.g. 192847291039485"
+              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+            />
+            <p className="text-[10px] text-neutral-400">Your Business Account ID from Meta Business Manager.</p>
+          </div>
+
+          {/* Access Token */}
+          <div className="space-y-1.5">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+              <span>Permanent Access Token</span>
+              <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showToken ? "text" : "password"}
+                value={whatsappAccessToken}
+                onChange={(e) => setWhatsappAccessToken && handleInputChange(setWhatsappAccessToken, e.target.value)}
+                placeholder="EAA..."
+                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+              />
+              <button
+                type="button"
+                onClick={() => setShowToken(!showToken)}
+                className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+              >
+                {showToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              </button>
+            </div>
+            <p className="text-[10px] text-neutral-400">System User permanent token with <code className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded">whatsapp_business_messaging</code>.</p>
+          </div>
+
+          {/* Webhook Verify Token */}
+          <div className="space-y-1.5">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+              <span>Webhook Verify Token</span>
+              <button
+                type="button"
+                onClick={handleGenerateVerifyToken}
+                className="text-[10px] text-[#f97316] hover:underline font-medium flex items-center gap-1"
+              >
+                <Sparkles className="size-2.5" /> Generate Secret
+              </button>
+            </label>
+            <input
+              type="text"
+              value={whatsappVerifyToken}
+              onChange={(e) => setWhatsappVerifyToken && handleInputChange(setWhatsappVerifyToken, e.target.value)}
+              placeholder="e.g. chatty_wa_secret_12345"
+              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+            />
+            <p className="text-[10px] text-neutral-400">Secret string entered in Meta webhook verification modal.</p>
+          </div>
+
+          {/* Meta App Secret */}
+          <div className="space-y-1.5 md:col-span-2">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <Key className="size-3.5 text-emerald-500" /> Meta App Secret (HMAC-SHA256 Verification)
+              </span>
+              <span className="text-[10px] text-neutral-400">Recommended for security</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showSecret ? "text" : "password"}
+                value={whatsappAppSecret}
+                onChange={(e) => setWhatsappAppSecret && handleInputChange(setWhatsappAppSecret, e.target.value)}
+                placeholder="••••••••••••••••••••••••••••••••"
+                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSecret(!showSecret)}
+                className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+              >
+                {showSecret ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              </button>
+            </div>
+            <p className="text-[10px] text-neutral-400">
+              From Meta App Dashboard &rarr; <b>App settings &rarr; Basic &rarr; App secret</b>. Used to cryptographically verify the <code className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded">X-Hub-Signature-256</code> header.
+            </p>
+          </div>
+        </div>
+
+        {/* Quick-Reply Buttons */}
+        <div className="p-4 rounded-xl bg-neutral-50/70 dark:bg-neutral-950/70 border border-neutral-200 dark:border-neutral-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+              <MessageSquare className="size-3.5 text-[#f97316]" /> Interactive Quick-Reply Buttons (Optional)
+            </label>
+            <span className="text-[10px] text-neutral-400">Max 3 buttons (Meta limit)</span>
+          </div>
+          <p className="text-[11px] text-neutral-400 leading-relaxed">
+            Attach interactive quick-reply buttons below AI replies on WhatsApp for one-tap navigation (e.g. <i>"Book a Call"</i>, <i>"Talk to Human"</i>, <i>"Pricing"</i>).
+          </p>
+          <div className="flex flex-wrap gap-2 items-center">
+            {whatsappQuickReplies.map((btn) => (
+              <span
+                key={btn}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-200 shadow-2xs"
+              >
+                {btn}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveQuickReply(btn)}
+                  className="text-neutral-400 hover:text-red-500 transition"
+                  title="Remove button"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+            {whatsappQuickReplies.length < 3 && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={newQuickReply}
+                  onChange={(e) => setNewQuickReply(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddQuickReply();
+                    }
+                  }}
+                  placeholder="Button label..."
+                  maxLength={20}
+                  className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2.5 py-1 text-xs focus:outline-none w-32 focus:border-neutral-400"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddQuickReply}
+                  disabled={!newQuickReply.trim()}
+                  className="px-2.5 py-1 rounded-lg bg-[#f97316] text-white text-xs font-medium hover:opacity-90 disabled:opacity-40 transition"
+                >
+                  Add
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Collapsible Setup Checklist */}
+        <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowSetupGuide(!showSetupGuide)}
+            className="w-full flex items-center justify-between p-3.5 bg-neutral-50 dark:bg-neutral-950 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition"
+          >
+            <span>Step-by-Step Meta Developer Portal Guide</span>
+            {showSetupGuide ? <ChevronUp className="size-4 text-neutral-400" /> : <ChevronDown className="size-4 text-neutral-400" />}
+          </button>
+          {showSetupGuide && (
+            <div className="p-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">
+              <div className="flex items-start gap-2.5">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">1</span>
+                <div>
+                  <b>Create a Meta App</b>: Go to <a href="https://developers.facebook.com/" target="_blank" rel="noopener noreferrer" className="text-[#f97316] hover:underline">developers.facebook.com</a> &rarr; My Apps &rarr; Create App &rarr; select <b>Other &rarr; Business</b>.
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">2</span>
+                <div>
+                  <b>Add WhatsApp</b>: Under Add products to your app, click <b>Set up</b> on the WhatsApp card.
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">3</span>
+                <div>
+                  <b>Configure Webhook</b>: Navigate to <b>WhatsApp &rarr; Configuration &rarr; Webhook &rarr; Edit</b>. Paste the <b>Callback URL</b> and <b>Verify Token</b> from above, then click <b>Verify and Save</b>.
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">4</span>
+                <div>
+                  <b>Subscribe to Messages</b>: Under Webhook fields, click <b>Subscribe</b> next to <code className="bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px]">messages</code>.
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">5</span>
+                <div>
+                  <b>System User Token</b>: In Meta Business Settings &rarr; Users &rarr; System Users, generate a permanent token with <code className="bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px]">whatsapp_business_messaging</code> and paste it into the <b>Permanent Access Token</b> field above. Click <b>Save Changes</b> below.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Security: Allowed Domains */}

@@ -186,3 +186,83 @@ def test_resend_inbound_handles_string_to_field(monkeypatch):
     req = _inbound_request({"to": f"meeting+{meeting_id}@meetings.example.com", "from": "visitor@example.com"})
     result = asyncio.run(webhooks.resend_inbound(req))
     assert result == {"ok": True, "matched": True}
+
+
+# ---------------------------------------------------------------------------
+# WhatsApp Webhook Tests
+# ---------------------------------------------------------------------------
+
+
+def test_verify_meta_signature_accepts_valid():
+    secret = "app_secret_12345"
+    payload = b'{"object":"whatsapp_business_account","entry":[]}'
+    expected_sig = "sha256=" + hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+    assert webhooks._verify_meta_signature(payload, expected_sig, secret) is True
+
+
+def test_verify_meta_signature_rejects_tampered_payload():
+    secret = "app_secret_12345"
+    payload = b'{"object":"whatsapp_business_account","entry":[]}'
+    expected_sig = "sha256=" + hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+    assert webhooks._verify_meta_signature(b'{"tampered":true}', expected_sig, secret) is False
+
+
+def test_verify_meta_signature_rejects_wrong_secret():
+    payload = b'{"object":"whatsapp_business_account","entry":[]}'
+    expected_sig = "sha256=" + hmac.new(b"secret_a", payload, hashlib.sha256).hexdigest()
+    assert webhooks._verify_meta_signature(payload, expected_sig, "secret_b") is False
+
+
+def test_whatsapp_verify_handshake_server_token(monkeypatch):
+    monkeypatch.setattr(webhooks, "WHATSAPP_VERIFY_TOKEN", "global_token_123")
+    req = SimpleNamespace(
+        query_params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": "global_token_123",
+            "hub.challenge": "challenge_string_abc",
+        }
+    )
+    res = asyncio.run(webhooks.whatsapp_verify(req))
+    assert res.body.decode() == "challenge_string_abc"
+
+
+def test_whatsapp_verify_handshake_per_bot_token(monkeypatch):
+    monkeypatch.setattr(webhooks, "WHATSAPP_VERIFY_TOKEN", "other_token")
+    fake_supabase = MagicMock()
+    t = MagicMock()
+    t.select.return_value.eq.return_value.limit.return_value.execute.return_value = SimpleNamespace(
+        data=[{"id": "bot-123"}]
+    )
+    fake_supabase.table.return_value = t
+    monkeypatch.setattr(webhooks, "supabase", fake_supabase)
+
+    req = SimpleNamespace(
+        query_params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": "bot_custom_token_456",
+            "hub.challenge": "challenge_custom_123",
+        }
+    )
+    res = asyncio.run(webhooks.whatsapp_verify(req))
+    assert res.body.decode() == "challenge_custom_123"
+
+
+def test_whatsapp_verify_handshake_rejects_invalid_token(monkeypatch):
+    monkeypatch.setattr(webhooks, "WHATSAPP_VERIFY_TOKEN", "other_token")
+    fake_supabase = MagicMock()
+    t = MagicMock()
+    t.select.return_value.eq.return_value.limit.return_value.execute.return_value = SimpleNamespace(data=[])
+    fake_supabase.table.return_value = t
+    monkeypatch.setattr(webhooks, "supabase", fake_supabase)
+
+    req = SimpleNamespace(
+        query_params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": "wrong_token",
+            "hub.challenge": "challenge_123",
+        }
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(webhooks.whatsapp_verify(req))
+    assert exc_info.value.status_code == 403
+
