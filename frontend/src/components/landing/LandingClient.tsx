@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { gsap } from "gsap";
 import {
   ArrowRight,
   Bot,
@@ -56,60 +57,66 @@ const MEGA_MENU_ENDPOINTS = [
     title: "Knowledge Search",
     desc: "Grounded vector RAG across crawled sitemaps and docs.",
     href: "#capabilities",
-    tags: ["RAG", "Docs"],
+    tags: ["pgvector", "Cosine Cutoff"],
   },
   {
     title: "Calendar Booking",
     desc: "In-chat Google & Outlook meeting scheduling.",
-    href: "#code",
-    tags: ["Google Sync", "Timezones"],
+    href: "https://docs.chatty.personaliai.com/guides/calendar-scheduling",
+    external: true,
+    tags: ["Google Meet", "Outlook"],
   },
   {
     title: "Lead Capture",
-    desc: "Progressive intent profiling and CRM enrichment.",
-    href: "#capabilities",
-    tags: ["CRM", "Webhooks"],
+    desc: "Progressive intent profiling and CRM deal enrichment.",
+    href: "#roi",
+    tags: ["CRM Sync", "Webhooks"],
   },
   {
     title: "Omnichannel Inbox",
     desc: "Live sentiment triage and 1-click human takeover lock.",
-    href: "#capabilities",
-    tags: ["Handoff"],
+    href: "https://docs.chatty.personaliai.com/guides/human-takeover",
+    external: true,
+    tags: ["Handoff", "Triage"],
   },
   {
-    title: "Autonomous Agent",
-    desc: "Multi-step reasoning across your business APIs.",
-    href: "#architecture",
-    badge: "New",
+    title: "Model Context Protocol",
+    desc: "Official MCP server for Claude Desktop and Cursor.",
+    href: "#mcp",
+    badge: "Native",
   },
 ];
 
 const MEGA_MENU_SURFACES = [
   {
     title: "MCP Server",
-    desc: "Official Model Context Protocol for Claude & Cursor.",
+    desc: "Direct tools for autonomous agents over SSE.",
     href: "#mcp",
     badge: "Native",
   },
   {
     title: "Web Chat Widget",
-    desc: "1-line embed script with custom themes & dogfooding.",
-    href: "#code",
+    desc: "1-line embed snippet with live theme customizations.",
+    href: "https://docs.chatty.personaliai.com/guides/embed-widget",
+    external: true,
   },
   {
     title: "REST API",
-    desc: "Programmatic endpoints for bots, sources, and leads.",
-    href: "https://docs.chatty.personaliai.com/api",
+    desc: "Programmatic management of bots, sources, and leads.",
+    href: "https://docs.chatty.personaliai.com/api-reference/chat/send-message",
+    external: true,
   },
   {
     title: "Client SDKs",
-    desc: "Official Python, Node.js, and TypeScript client libraries.",
-    href: "#code",
+    desc: "Official Python and TypeScript client libraries.",
+    href: "https://docs.chatty.personaliai.com/guides/react-sdk",
+    external: true,
   },
   {
-    title: "Workflow Skills",
-    desc: "Drop-in skills for agent orchestration and Slack sync.",
-    href: "https://docs.chatty.personaliai.com/guides/slack",
+    title: "Calendar Sync",
+    desc: "Native OAuth integration for Google Calendar & Outlook.",
+    href: "https://docs.chatty.personaliai.com/guides/calendar-scheduling",
+    external: true,
   },
 ];
 
@@ -133,7 +140,7 @@ const MEGA_MENU_RESOURCES = [
     external: false,
   },
   {
-    title: "Voice AI Playground",
+    title: "Voice AI Demo",
     desc: "Test bidirectional voice agents with LiveKit models.",
     href: "/voice-demo",
     external: false,
@@ -143,6 +150,12 @@ const MEGA_MENU_RESOURCES = [
     desc: "Connect Chatty directly to your Zoom workspaces.",
     href: "/zoom",
     external: false,
+  },
+  {
+    title: "GitHub Repository",
+    desc: "Open source codebase, Docker deployment, and issues.",
+    href: "https://github.com/Damayantha/chatty",
+    external: true,
   },
 ];
 
@@ -676,6 +689,20 @@ export default function LandingClient() {
   const [resourcesMenuOpen, setResourcesMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // GSAP DOM Element Refs
+  const heroSectionRef = useRef<HTMLDivElement>(null);
+  const heroBadgeRef = useRef<HTMLAnchorElement>(null);
+  const heroHeadingRef = useRef<HTMLHeadingElement>(null);
+  const heroSubRef = useRef<HTMLParagraphElement>(null);
+  const heroCtasRef = useRef<HTMLDivElement>(null);
+  const heroBadgesRef = useRef<HTMLDivElement>(null);
+  const mouseAuraRef = useRef<HTMLDivElement>(null);
+  const playIconRef = useRef<SVGSVGElement>(null);
+  const megaMenuProductsRef = useRef<HTMLDivElement>(null);
+  const megaMenuResourcesRef = useRef<HTMLDivElement>(null);
+  const heroCanvasRef = useRef<HTMLCanvasElement>(null);
+  const terminalBoxRef = useRef<HTMLDivElement>(null);
+
   // Feature Code Showcase State (Firecrawl Interactive Code Section)
   const [activeFeatureIdx, setActiveFeatureIdx] = useState(0);
   const [activeLangIdx, setActiveLangIdx] = useState(0);
@@ -704,6 +731,36 @@ export default function LandingClient() {
     };
   }, [monthlyVisitors, monthlyTickets]);
 
+  // Animated Digital Rolling Counters powered by GSAP
+  const [animatedDeflected, setAnimatedDeflected] = useState(calculatedMetrics.deflectedTickets);
+  const [animatedHours, setAnimatedHours] = useState(calculatedMetrics.hoursSaved);
+  const [animatedLeads, setAnimatedLeads] = useState(calculatedMetrics.leadsCaptured);
+  const [animatedSavings, setAnimatedSavings] = useState(calculatedMetrics.estimatedCostSavings);
+
+  const metricTweenRef = useRef({
+    deflected: calculatedMetrics.deflectedTickets,
+    hours: calculatedMetrics.hoursSaved,
+    leads: calculatedMetrics.leadsCaptured,
+    savings: calculatedMetrics.estimatedCostSavings,
+  });
+
+  useEffect(() => {
+    gsap.to(metricTweenRef.current, {
+      deflected: calculatedMetrics.deflectedTickets,
+      hours: calculatedMetrics.hoursSaved,
+      leads: calculatedMetrics.leadsCaptured,
+      savings: calculatedMetrics.estimatedCostSavings,
+      duration: 0.45,
+      ease: "power2.out",
+      onUpdate: () => {
+        setAnimatedDeflected(Math.round(metricTweenRef.current.deflected));
+        setAnimatedHours(Math.round(metricTweenRef.current.hours));
+        setAnimatedLeads(Math.round(metricTweenRef.current.leads));
+        setAnimatedSavings(Math.round(metricTweenRef.current.savings));
+      },
+    });
+  }, [calculatedMetrics]);
+
   // Pricing Toggle State
   const [isAnnual, setIsAnnual] = useState(true);
 
@@ -715,8 +772,15 @@ export default function LandingClient() {
   const activeLang = activeFeature.languages[activeLangIdx] || activeFeature.languages[0];
   const activeResponseLines = useMemo(() => activeLang.response.split("\n"), [activeLang]);
 
-  // Handle running/re-running code execution simulation (Firecrawl style)
+  // Handle running/re-running code execution simulation with GSAP play spin
   const handleTriggerRun = () => {
+    if (playIconRef.current) {
+      gsap.fromTo(
+        playIconRef.current,
+        { rotation: 0 },
+        { rotation: 360, duration: 0.5, ease: "power2.inOut" }
+      );
+    }
     setIsExecuting(true);
     setVisibleLines(0);
     const totalLines = activeLang.response.split("\n").length;
@@ -731,8 +795,8 @@ export default function LandingClient() {
         } else {
           clearInterval(lineInterval);
         }
-      }, 25);
-    }, 450);
+      }, 22);
+    }, 420);
 
     return () => clearTimeout(delayTimer);
   };
@@ -741,6 +805,295 @@ export default function LandingClient() {
   useEffect(() => {
     handleTriggerRun();
   }, [activeFeatureIdx, activeLangIdx]);
+
+  // Interactive Constellation Canvas in Hero
+  useEffect(() => {
+    const canvas = heroCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+    let width = (canvas.width = canvas.parentElement?.clientWidth || window.innerWidth);
+    let height = (canvas.height = canvas.parentElement?.clientHeight || 650);
+
+    const handleResize = () => {
+      if (!canvas || !canvas.parentElement) return;
+      width = canvas.width = canvas.parentElement.clientWidth;
+      height = canvas.height = canvas.parentElement.clientHeight;
+    };
+    window.addEventListener("resize", handleResize);
+
+    const particles: Array<{
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      size: number;
+      color: string;
+    }> = [];
+
+    const PARTICLE_COUNT = 36;
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const isOrange = Math.random() > 0.65;
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        size: isOrange ? 2.2 : 1.6,
+        color: isOrange ? "rgba(249, 87, 33, 0.4)" : "rgba(148, 163, 184, 0.3)",
+      });
+    }
+
+    let mouseX = -9999;
+    let mouseY = -9999;
+    const onMouseMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+    };
+    const onMouseLeave = () => {
+      mouseX = -9999;
+      mouseY = -9999;
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseleave", onMouseLeave);
+
+    const render = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 110) {
+            const alpha = (1 - dist / 110) * 0.2;
+            ctx.strokeStyle = `rgba(249, 87, 33, ${alpha})`;
+            ctx.lineWidth = 0.7;
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (p.x < 0) p.x = width;
+        if (p.x > width) p.x = 0;
+        if (p.y < 0) p.y = height;
+        if (p.y > height) p.y = 0;
+
+        const mdx = mouseX - p.x;
+        const mdy = mouseY - p.y;
+        const mDist = Math.sqrt(mdx * mdx + mdy * mdy);
+        if (mDist < 110) {
+          const force = (1 - mDist / 110) * 0.75;
+          p.x -= (mdx / mDist) * force;
+          p.y -= (mdy / mDist) * force;
+        }
+
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      animId = requestAnimationFrame(render);
+    };
+    render();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseleave", onMouseLeave);
+    };
+  }, []);
+
+  // GSAP Creative Hero Entrance & Timeline
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+
+      if (heroBadgeRef.current) {
+        tl.from(heroBadgeRef.current, {
+          y: -16,
+          opacity: 0,
+          scale: 0.9,
+          duration: 0.6,
+        });
+      }
+
+      // Kinetic 3D word-by-word flip-in
+      tl.fromTo(
+        ".hero-word",
+        {
+          y: 48,
+          rotateX: -70,
+          opacity: 0,
+          scale: 0.92,
+        },
+        {
+          y: 0,
+          rotateX: 0,
+          opacity: 1,
+          scale: 1,
+          duration: 0.8,
+          stagger: 0.045,
+          ease: "back.out(1.8)",
+        },
+        "-=0.3"
+      );
+
+      if (heroSubRef.current) {
+        tl.from(
+          heroSubRef.current,
+          {
+            y: 20,
+            opacity: 0,
+            duration: 0.65,
+          },
+          "-=0.5"
+        );
+      }
+      if (heroCtasRef.current) {
+        tl.from(
+          heroCtasRef.current,
+          {
+            y: 20,
+            opacity: 0,
+            duration: 0.6,
+            ease: "back.out(1.2)",
+          },
+          "-=0.4"
+        );
+      }
+
+      if (terminalBoxRef.current) {
+        tl.from(
+          terminalBoxRef.current,
+          {
+            y: 32,
+            opacity: 0,
+            scale: 0.97,
+            duration: 0.75,
+            ease: "power3.out",
+          },
+          "-=0.3"
+        );
+        tl.fromTo(
+          ".terminal-line",
+          { opacity: 0, x: -8 },
+          { opacity: 1, x: 0, stagger: 0.14, duration: 0.45, ease: "power2.out" },
+          "-=0.4"
+        );
+      }
+
+      if (heroBadgesRef.current) {
+        tl.from(
+          heroBadgesRef.current.children,
+          {
+            opacity: 0,
+            y: 12,
+            duration: 0.5,
+            stagger: 0.08,
+          },
+          "-=0.3"
+        );
+      }
+
+      // Sine-wave floating telemetry pills in hero
+      gsap.to(".telemetry-pill-1", {
+        y: -12,
+        duration: 2.8,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+      });
+      gsap.to(".telemetry-pill-2", {
+        y: 10,
+        duration: 3.4,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        delay: 0.5,
+      });
+      gsap.to(".telemetry-pill-3", {
+        y: -9,
+        duration: 3.0,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        delay: 1,
+      });
+    }, heroSectionRef);
+
+    return () => ctx.revert();
+  }, []);
+
+  // Ambient Cursor Aura & 3D Depth Parallax following mouse in Hero
+  const handleHeroMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!mouseAuraRef.current || !heroSectionRef.current) return;
+    const rect = heroSectionRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const deltaX = (x - centerX) / centerX;
+    const deltaY = (y - centerY) / centerY;
+
+    gsap.to(mouseAuraRef.current, {
+      x: x - 180,
+      y: y - 180,
+      duration: 0.5,
+      ease: "power2.out",
+    });
+
+    gsap.to(".telemetry-pill-1", { x: deltaX * 20, y: deltaY * 20, duration: 0.5, ease: "power2.out" });
+    gsap.to(".telemetry-pill-2", { x: deltaX * -22, y: deltaY * -22, duration: 0.5, ease: "power2.out" });
+    gsap.to(".telemetry-pill-3", { x: deltaX * 16, y: deltaY * 16, duration: 0.5, ease: "power2.out" });
+  };
+
+  // Magnetic Button Physics
+  const handleMagneticMove = (e: React.MouseEvent<HTMLElement>) => {
+    const btn = e.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    const x = (e.clientX - rect.left - rect.width / 2) * 0.28;
+    const y = (e.clientY - rect.top - rect.height / 2) * 0.28;
+    gsap.to(btn, { x, y, duration: 0.25, ease: "power2.out" });
+  };
+
+  const handleMagneticLeave = (e: React.MouseEvent<HTMLElement>) => {
+    gsap.to(e.currentTarget, { x: 0, y: 0, duration: 0.55, ease: "elastic.out(1, 0.45)" });
+  };
+
+  // Mega-menu GSAP entrance
+  useEffect(() => {
+    if (productsMenuOpen && megaMenuProductsRef.current) {
+      gsap.fromTo(
+        megaMenuProductsRef.current,
+        { opacity: 0, y: -8, scale: 0.98 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.2, ease: "power3.out" }
+      );
+    }
+  }, [productsMenuOpen]);
+
+  useEffect(() => {
+    if (resourcesMenuOpen && megaMenuResourcesRef.current) {
+      gsap.fromTo(
+        megaMenuResourcesRef.current,
+        { opacity: 0, y: -8, scale: 0.98 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.2, ease: "power3.out" }
+      );
+    }
+  }, [resourcesMenuOpen]);
 
   // Copy code handlers
   const handleCopyCode = (code: string) => {
@@ -837,11 +1190,11 @@ export default function LandingClient() {
 
               {/* Firecrawl / Nimble Style 3-Column Mega-Menu Card */}
               {productsMenuOpen && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[860px] transition-all duration-200">
+                <div ref={megaMenuProductsRef} className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[860px] transition-all duration-200">
                   <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-2xl shadow-zinc-200/80">
                     <div className="grid grid-cols-12 gap-8">
                       {/* Column 1: Endpoints & Capabilities */}
-                      <div className="col-span-5 space-y-4 border-r border-zinc-100 pr-6">
+                      <div className="col-span-4 space-y-4 border-r border-zinc-100 pr-6">
                         <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
                           Endpoints
                         </span>
@@ -850,6 +1203,8 @@ export default function LandingClient() {
                             <Link
                               key={item.title}
                               href={item.href}
+                              target={item.external ? "_blank" : undefined}
+                              rel={item.external ? "noreferrer" : undefined}
                               onClick={() => setProductsMenuOpen(false)}
                               className="group block rounded-xl p-2 transition-colors hover:bg-orange-50/50"
                             >
@@ -891,6 +1246,8 @@ export default function LandingClient() {
                             <Link
                               key={item.title}
                               href={item.href}
+                              target={item.external ? "_blank" : undefined}
+                              rel={item.external ? "noreferrer" : undefined}
                               onClick={() => setProductsMenuOpen(false)}
                               className="group block rounded-xl p-2 transition-colors hover:bg-orange-50/50"
                             >
@@ -910,28 +1267,33 @@ export default function LandingClient() {
                         </div>
                       </div>
 
-                      {/* Column 3: Featured Customer Story */}
-                      <div className="col-span-3 flex flex-col justify-between rounded-xl border border-zinc-200 bg-zinc-50 p-5">
-                        <div className="space-y-3">
-                          <span className="inline-block text-[10px] font-mono font-bold uppercase tracking-wider text-[#f95721] bg-orange-100 px-2 py-0.5 rounded">
-                            Customer Story
-                          </span>
-                          <h4 className="text-sm font-extrabold text-zinc-950 leading-snug">
-                            How scaling teams use Chatty to automate 84% of support inquiries.
-                          </h4>
-                          <p className="text-xs text-zinc-600 leading-relaxed">
-                            Zero hallucinations, calendar booking in-chat, and full MCP tooling for agents.
-                          </p>
-                        </div>
+                      {/* Column 3: Featured Customer Story (Aligned Header & Layout) */}
+                      <div className="col-span-4 space-y-4 flex flex-col">
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
+                          Featured Story
+                        </span>
+                        <div className="flex-1 flex flex-col justify-between rounded-xl border border-zinc-200 bg-zinc-50/80 p-5">
+                          <div className="space-y-3">
+                            <span className="inline-block text-[10px] font-mono font-bold uppercase tracking-wider text-[#f95721] bg-orange-100 px-2 py-0.5 rounded">
+                              Customer Story
+                            </span>
+                            <h4 className="text-sm font-extrabold text-zinc-950 leading-snug">
+                              How scaling teams use Chatty to automate 84% of support inquiries.
+                            </h4>
+                            <p className="text-xs text-zinc-600 leading-relaxed">
+                              Zero hallucinations, calendar booking in-chat, and full MCP tooling for autonomous AI agents.
+                            </p>
+                          </div>
 
-                        <Link
-                          href="#mcp"
-                          onClick={() => setProductsMenuOpen(false)}
-                          className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#f95721] hover:text-[#ea4815] transition-colors"
-                        >
-                          <span>Explore MCP Section</span>
-                          <ArrowRight className="size-3.5" />
-                        </Link>
+                          <Link
+                            href="#mcp"
+                            onClick={() => setProductsMenuOpen(false)}
+                            className="mt-6 inline-flex items-center gap-1.5 text-xs font-semibold text-[#f95721] hover:text-[#ea4815] transition-colors"
+                          >
+                            <span>Explore MCP Integration</span>
+                            <ArrowRight className="size-3.5" />
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -961,7 +1323,7 @@ export default function LandingClient() {
               </button>
 
               {resourcesMenuOpen && (
-                <div className="absolute top-full left-0 pt-2 w-72 transition-all duration-150">
+                <div ref={megaMenuResourcesRef} className="absolute top-full left-0 pt-2 w-72 transition-all duration-150">
                   <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl space-y-1">
                     {MEGA_MENU_RESOURCES.map((item) => (
                       <Link
@@ -1103,21 +1465,53 @@ export default function LandingClient() {
 
       <main>
         {/* ==========================================
-            HERO SECTION (Spacious, Firecrawl Style)
+            HERO SECTION (Spacious, Firecrawl Style with GSAP)
             ========================================== */}
-        <section className="relative overflow-hidden pt-16 pb-24 sm:pt-24 sm:pb-32 lg:pt-28">
+        <section
+          ref={heroSectionRef}
+          onMouseMove={handleHeroMouseMove}
+          className="relative overflow-hidden pt-16 pb-24 sm:pt-24 sm:pb-32 lg:pt-28"
+        >
+          {/* Interactive Particle Constellation Canvas */}
+          <canvas
+            ref={heroCanvasRef}
+            className="pointer-events-none absolute inset-0 z-0 h-full w-full opacity-65"
+          />
+
+          {/* Ambient Mouse Glow Aura (GSAP Follower) */}
+          <div
+            ref={mouseAuraRef}
+            className="pointer-events-none absolute -top-40 -left-40 size-[460px] rounded-full bg-gradient-to-br from-orange-400/20 via-rose-300/10 to-transparent blur-3xl transition-opacity duration-300"
+            style={{ willChange: "transform" }}
+          />
+
           {/* Subtle Clean Technical Grid Pattern */}
           <div
-            className="absolute inset-0 pointer-events-none opacity-[0.4]"
+            className="absolute inset-0 pointer-events-none opacity-[0.35]"
             style={{
               backgroundImage: `linear-gradient(to right, #f1f5f9 1px, transparent 1px), linear-gradient(to bottom, #f1f5f9 1px, transparent 1px)`,
               backgroundSize: "48px 48px",
             }}
           />
 
-          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
+          {/* Creative Floating Technical Telemetry Badges (GSAP 3D parallax) */}
+          <div className="telemetry-pill-1 pointer-events-none absolute top-12 left-4 sm:left-12 hidden md:inline-flex items-center gap-2 rounded-full border border-zinc-200/90 bg-white/95 px-3.5 py-1.5 text-[11px] font-mono text-zinc-700 shadow-md shadow-zinc-200/50 backdrop-blur-md z-10">
+            <span className="size-2 rounded-full bg-[#f95721] animate-ping" />
+            <span>pgvector · 1536-dim RAG</span>
+          </div>
+          <div className="telemetry-pill-2 pointer-events-none absolute top-20 right-4 sm:right-12 hidden md:inline-flex items-center gap-2 rounded-full border border-zinc-200/90 bg-white/95 px-3.5 py-1.5 text-[11px] font-mono text-zinc-700 shadow-md shadow-zinc-200/50 backdrop-blur-md z-10">
+            <span className="size-2 rounded-full bg-emerald-500" />
+            <span>MCP Protocol · 18 Tools Active</span>
+          </div>
+          <div className="telemetry-pill-3 pointer-events-none absolute bottom-8 left-10 hidden lg:inline-flex items-center gap-2 rounded-full border border-zinc-200/90 bg-white/95 px-3.5 py-1.5 text-[11px] font-mono text-zinc-700 shadow-md shadow-zinc-200/50 backdrop-blur-md z-10">
+            <span className="size-2 rounded-full bg-blue-500" />
+            <span>Google & Outlook Sync · Live</span>
+          </div>
+
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center z-10">
             {/* Announcement Pill */}
             <Link
+              ref={heroBadgeRef}
               href="#pricing"
               className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:border-zinc-300 hover:bg-zinc-50 transition-all mb-8"
             >
@@ -1129,29 +1523,52 @@ export default function LandingClient() {
               </span>
             </Link>
 
-            {/* Spacious Bold Headline */}
-            <h1 className="font-display text-4xl font-extrabold tracking-tight text-zinc-950 sm:text-6xl lg:text-7xl max-w-5xl mx-auto leading-[1.08]">
-              Power AI customer support with{" "}
-              <span className="text-[#f95721]">grounded business data</span>
+            {/* Kinetic 3D Staggered Headline */}
+            <h1
+              ref={heroHeadingRef}
+              className="font-display text-4xl font-extrabold tracking-tight text-zinc-950 sm:text-6xl lg:text-7xl max-w-5xl mx-auto leading-[1.08] [perspective:1200px]"
+            >
+              {["Power", "AI", "customer", "support", "with"].map((w, idx) => (
+                <span key={idx} className="hero-word inline-block mr-2 sm:mr-3.5 origin-bottom">
+                  {w}
+                </span>
+              ))}{" "}
+              <span className="inline-block text-[#f95721]">
+                {["grounded", "business", "data"].map((w, idx) => (
+                  <span key={idx} className="hero-word inline-block mr-2 sm:mr-3.5 origin-bottom">
+                    {w}
+                  </span>
+                ))}
+              </span>
             </h1>
 
             {/* Spacious Clear Subtitle */}
-            <p className="mt-6 max-w-3xl mx-auto text-base sm:text-lg text-zinc-600 leading-relaxed">
+            <p
+              ref={heroSubRef}
+              className="mt-6 max-w-3xl mx-auto text-base sm:text-lg text-zinc-600 leading-relaxed"
+            >
               The context-aware AI platform to answer visitor inquiries, capture high-intent leads, and schedule
               calendar demo meetings at scale. It&apos;s also open source.
             </p>
 
-            {/* CTAs Row */}
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+            {/* CTAs Row with Magnetic Pull Physics */}
+            <div
+              ref={heroCtasRef}
+              className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
+            >
               <Link
                 href="/signup"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#f95721] hover:bg-[#ea4815] px-8 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 active:scale-[0.98] transition-all"
+                onMouseMove={handleMagneticMove}
+                onMouseLeave={handleMagneticLeave}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#f95721] hover:bg-[#ea4815] px-8 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 active:scale-[0.98] transition-shadow"
               >
                 <span>Start for free</span>
               </Link>
               <Link
                 href="#mcp"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-6 py-3.5 text-sm font-semibold text-zinc-800 shadow-sm transition-all"
+                onMouseMove={handleMagneticMove}
+                onMouseLeave={handleMagneticLeave}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-6 py-3.5 text-sm font-semibold text-zinc-800 shadow-sm transition-shadow"
               >
                 <Terminal className="size-4 text-zinc-500" />
                 <span>Setup for agents (MCP)</span>
@@ -1159,6 +1576,8 @@ export default function LandingClient() {
               <Link
                 href="https://github.com/Damayantha/chatty"
                 target="_blank"
+                onMouseMove={handleMagneticMove}
+                onMouseLeave={handleMagneticLeave}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 px-5 py-3.5 text-sm font-semibold text-zinc-800 transition-colors"
               >
                 <GithubIcon className="size-4 text-zinc-700" />
@@ -1166,8 +1585,53 @@ export default function LandingClient() {
               </Link>
             </div>
 
+            {/* Live Autonomous MCP Terminal Window (GSAP Hacking Text Animation) */}
+            <div
+              ref={terminalBoxRef}
+              className="mt-12 mx-auto max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-4 sm:p-5 shadow-2xl text-left font-mono text-xs"
+            >
+              {/* Window Header */}
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800 text-zinc-400">
+                <div className="flex items-center gap-2">
+                  <span className="size-2.5 rounded-full bg-red-500/80 inline-block" />
+                  <span className="size-2.5 rounded-full bg-yellow-500/80 inline-block" />
+                  <span className="size-2.5 rounded-full bg-emerald-500/80 inline-block" />
+                  <span className="ml-2 text-[11px] text-zinc-400 font-medium">chatty-agent@edge:~ // mcp-stream v2.4</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60 font-semibold">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>ONLINE SSE</span>
+                </div>
+              </div>
+
+              {/* Terminal Code Lines */}
+              <div className="space-y-1.5 text-[11px] sm:text-xs">
+                <div className="terminal-line text-zinc-400 flex items-center gap-2">
+                  <span className="text-[#f95721] font-bold">❯</span>
+                  <span>chatty mcp-connect --sse https://api.chatty.personaliai.com/mcp</span>
+                </div>
+                <div className="terminal-line text-zinc-500 pl-4">
+                  [mcp:handshake] Connected to Claude Desktop / Cursor. 18 tools active.
+                </div>
+                <div className="terminal-line text-zinc-300 flex items-center gap-2">
+                  <span className="text-emerald-400 font-bold">❯</span>
+                  <span>tool/call: &quot;knowledge_search&quot; threshold=0.84 query=&quot;Enterprise SLA terms&quot;</span>
+                </div>
+                <div className="terminal-line text-emerald-400 pl-4 flex items-center gap-2">
+                  <span>⚡ [pgvector:1536d] Cosine: 0.942 · 0 hallucinations · 34ms</span>
+                </div>
+                <div className="terminal-line text-orange-300 pl-4 flex items-center gap-1">
+                  <span>✓ Reserved 2:30 PM meeting slot via Google Calendar Sync</span>
+                  <span className="inline-block w-1.5 h-3.5 bg-[#f95721] ml-1 animate-pulse" />
+                </div>
+              </div>
+            </div>
+
             {/* Trust Badges Row */}
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-zinc-500">
+            <div
+              ref={heroBadgesRef}
+              className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-zinc-500"
+            >
               <span className="flex items-center gap-1.5">
                 <Check className="size-4 text-emerald-600" /> No credit card required
               </span>
@@ -1269,7 +1733,7 @@ export default function LandingClient() {
                     disabled={isExecuting}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[#f95721] hover:bg-[#ea4815] text-white px-3 py-1.5 text-xs font-semibold shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
                   >
-                    <Play className={`size-3 fill-current ${isExecuting ? "animate-spin" : ""}`} />
+                    <Play ref={playIconRef} className={`size-3 fill-current ${isExecuting ? "animate-spin" : ""}`} />
                     <span>{isExecuting ? "Executing..." : "Run Query"}</span>
                   </button>
 
@@ -1565,7 +2029,7 @@ export default function LandingClient() {
             INTERACTIVE ROI & DEFLECTION CALCULATOR
             (Clean Light Styling - No Black/Orange Clashing)
             ========================================== */}
-        <section className="py-24 bg-white border-t border-zinc-200/80">
+        <section id="roi" className="py-24 bg-white border-t border-zinc-200/80">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
@@ -1645,26 +2109,26 @@ export default function LandingClient() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm">
                       <p className="font-mono text-2xl font-bold text-zinc-950">
-                        {calculatedMetrics.deflectedTickets.toLocaleString()}
+                        {animatedDeflected.toLocaleString()}
                       </p>
                       <p className="text-[11px] font-semibold text-[#f95721] mt-1">Deflected Inquiries / mo</p>
                     </div>
 
                     <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm">
-                      <p className="font-mono text-2xl font-bold text-zinc-950">{calculatedMetrics.hoursSaved}h</p>
+                      <p className="font-mono text-2xl font-bold text-zinc-950">{animatedHours}h</p>
                       <p className="text-[11px] font-semibold text-[#f95721] mt-1">Support Hours Saved</p>
                     </div>
 
                     <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm">
                       <p className="font-mono text-2xl font-bold text-emerald-600">
-                        {calculatedMetrics.leadsCaptured.toLocaleString()}
+                        {animatedLeads.toLocaleString()}
                       </p>
                       <p className="text-[11px] font-semibold text-zinc-700 mt-1">High-Intent Leads</p>
                     </div>
 
                     <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm">
                       <p className="font-mono text-2xl font-bold text-emerald-600">
-                        ${calculatedMetrics.estimatedCostSavings.toLocaleString()}
+                        ${animatedSavings.toLocaleString()}
                       </p>
                       <p className="text-[11px] font-semibold text-zinc-700 mt-1">Monthly Cost Savings</p>
                     </div>
@@ -1686,7 +2150,7 @@ export default function LandingClient() {
         {/* ==========================================
             ARCHITECTURAL COMPARISON MATRIX
             ========================================== */}
-        <section className="py-20 border-t border-b border-zinc-200/80 bg-[#fbfbfb]">
+        <section id="architecture" className="py-20 border-t border-b border-zinc-200/80 bg-[#fbfbfb]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
@@ -2020,68 +2484,153 @@ export default function LandingClient() {
       </main>
 
       {/* ==========================================
-          FOOTER (Clean Light Theme with All Existing Links)
+          FOOTER (Firecrawl Precision Bordered Grid - Exact Match to Screenshot)
           ========================================== */}
-      <footer className="border-t border-zinc-200 bg-white py-14 text-xs text-zinc-600">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-            {/* Brand Column */}
-            <div className="col-span-2 space-y-4">
-              <Link href="/" className="flex items-center gap-2.5">
-                <Image src="/favicon.png" alt="Chatty Logo" width={24} height={24} className="object-contain" />
-                <span className="font-display text-lg font-bold text-zinc-950">Chatty</span>
+      <footer className="border-t border-zinc-200/80 bg-white">
+        <div className="mx-auto max-w-7xl border-x border-zinc-200/80">
+          {/* Top 3-Column Grid: Left Column, Open Center Space, Right Column */}
+          <div className="grid grid-cols-1 md:grid-cols-4">
+            {/* Left Column (Capabilities & Developer Surfaces) */}
+            <div className="col-span-1 md:border-r border-zinc-200/80 flex flex-col">
+              <Link
+                href="#capabilities"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Grounded RAG & Vectors
               </Link>
-              <p className="text-xs text-zinc-500 leading-relaxed max-w-sm">
-                Autonomous conversational AI that grounds support on real business data, captures qualified leads,
-                and books meetings in-chat. Open source & BYOK-ready.
-              </p>
-              <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-[11px] font-mono text-zinc-700">
-                <span className="size-2 rounded-full bg-emerald-500" />
-                <span>All systems operational · 99.98% uptime</span>
-              </div>
+              <Link
+                href="#mcp"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                MCP Protocol Server
+              </Link>
+              <Link
+                href="#code"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Developer API & SDK
+              </Link>
+              <Link
+                href="#pricing"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Pricing Plans
+              </Link>
+              <Link
+                href="/voice-demo"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Voice AI Demo
+              </Link>
+              <Link
+                href="/zoom"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Zoom Integration
+              </Link>
+              <Link
+                href="https://docs.chatty.personaliai.com/guides/calendar-scheduling"
+                target="_blank"
+                rel="noreferrer"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b md:border-b-0 border-zinc-200/80"
+              >
+                Calendar & Booking Sync
+              </Link>
             </div>
 
-            {/* Column: Product */}
-            <div className="space-y-3">
-              <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-950">Product</p>
-              <ul className="space-y-2">
-                <li><Link href="#code" className="hover:text-zinc-950 transition-colors">Developer API</Link></li>
-                <li><Link href="#mcp" className="hover:text-zinc-950 transition-colors">MCP Platform</Link></li>
-                <li><Link href="#capabilities" className="hover:text-zinc-950 transition-colors">Grounded RAG</Link></li>
-                <li><Link href="#pricing" className="hover:text-zinc-950 transition-colors">Pricing</Link></li>
-                <li><Link href="/affiliates" className="hover:text-zinc-950 transition-colors">Affiliates Program</Link></li>
-                <li><Link href="/dashboard" className="hover:text-zinc-950 transition-colors">Dashboard</Link></li>
-              </ul>
-            </div>
+            {/* Center Column: Open Architectural Negative Space (Firecrawl Style) */}
+            <div className="col-span-2 hidden md:block border-r border-zinc-200/80 bg-white" />
 
-            {/* Column: Resources */}
-            <div className="space-y-3">
-              <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-950">Resources</p>
-              <ul className="space-y-2">
-                <li><Link href="https://docs.chatty.personaliai.com" target="_blank" className="hover:text-zinc-950 transition-colors">Documentation</Link></li>
-                <li><Link href="https://github.com/Damayantha/chatty" target="_blank" className="hover:text-zinc-950 transition-colors">GitHub Repository</Link></li>
-                <li><Link href="/support" className="hover:text-zinc-950 transition-colors">Support Center</Link></li>
-                <li><Link href="/voice-demo" className="hover:text-zinc-950 transition-colors">Voice AI Demo</Link></li>
-                <li><Link href="/zoom" className="hover:text-zinc-950 transition-colors">Zoom Integration</Link></li>
-              </ul>
-            </div>
-
-            {/* Column: Legal & Company */}
-            <div className="space-y-3">
-              <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-950">Legal & Company</p>
-              <ul className="space-y-2">
-                <li><Link href="/privacy" className="hover:text-zinc-950 transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-zinc-950 transition-colors">Terms of Service</Link></li>
-                <li><Link href="mailto:support@personaliai.com" className="hover:text-zinc-950 transition-colors">Contact Support</Link></li>
-                <li><Link href="https://twitter.com/personaliai" target="_blank" className="hover:text-zinc-950 transition-colors">Twitter / X</Link></li>
-                <li><Link href="/login" className="hover:text-zinc-950 transition-colors">Sign In</Link></li>
-              </ul>
+            {/* Right Column (Community, Ecosystem & Trust) */}
+            <div className="col-span-1 flex flex-col">
+              <Link
+                href="/affiliates"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Affiliates Program
+              </Link>
+              <Link
+                href="https://docs.chatty.personaliai.com"
+                target="_blank"
+                rel="noreferrer"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Documentation
+              </Link>
+              <Link
+                href="#architecture"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Chatty vs Zendesk
+              </Link>
+              <Link
+                href="#roi"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Deflection Benchmarks
+              </Link>
+              <Link
+                href="/support"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Support Center
+              </Link>
+              <Link
+                href="https://github.com/Damayantha/chatty"
+                target="_blank"
+                rel="noreferrer"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                GitHub Repository
+              </Link>
+              <Link
+                href="/privacy"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b md:border-b-0 border-zinc-200/80"
+              >
+                Security & Compliance
+              </Link>
             </div>
           </div>
 
-          <div className="mt-12 pt-6 border-t border-zinc-200 flex flex-col sm:flex-row items-center justify-between text-[11px] text-zinc-500 gap-4">
-            <p>© {new Date().getFullYear()} PersonaliAI. All rights reserved.</p>
-            <p className="font-mono text-zinc-500">Built for precision customer communication.</p>
+          {/* 4-Cell Legal & Copyright Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 border-t border-zinc-200/80">
+            <div className="px-6 py-4 text-sm text-zinc-400 border-r border-b md:border-b-0 border-zinc-200/80 flex items-center">
+              © {new Date().getFullYear()} PersonaliAI
+            </div>
+            <Link
+              href="/terms"
+              className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b md:border-b-0 md:border-r border-zinc-200/80 flex items-center"
+            >
+              Terms of Service
+            </Link>
+            <Link
+              href="/privacy"
+              className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-r border-zinc-200/80 flex items-center"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              href="mailto:security@personaliai.com"
+              className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors flex items-center"
+            >
+              Report Abuse
+            </Link>
+          </div>
+
+          {/* Status Bar Row (Blue live indicator matching Firecrawl) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 border-t border-zinc-200/80">
+            <div className="px-6 py-4 md:border-r border-zinc-200/80 flex items-center gap-2 text-sm text-[#2b7fff] font-medium">
+              <span className="size-2 rounded-full bg-[#2b7fff] inline-block animate-pulse" />
+              <a
+                href="https://status.personaliai.com"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:underline"
+              >
+                All systems normal
+              </a>
+            </div>
+            <div className="hidden md:block px-6 py-4 bg-white" />
           </div>
         </div>
       </footer>

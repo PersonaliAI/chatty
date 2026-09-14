@@ -194,20 +194,22 @@ export function ChattyStandaloneApp({
           const norm = normalizeWidgetStyle(styleName);
           setCurrentDesign(norm);
           const preset = LAUNCHER_STYLES[norm];
-          if (preset && !colorAttr) {
+          if (preset) {
             setLauncherBg(preset.bg);
             setLauncherRadius(preset.radius);
             setLauncherShadow(preset.shadow);
           }
           if (logoBg) setCustomLogoBgColor(logoBg);
-        } else if (d.primary_color && !colorAttr) {
+        } else if (d.primary_color) {
           setLauncherBg(d.primary_color);
         }
 
-        if (d.color_scheme?.launcher && !colorAttr) {
-          const lc = d.color_scheme.launcher;
-          if (lc.bg) setLauncherBg(lc.bg);
-          if (lc.text) setLauncherIconOverride(lc.text);
+        // Section Colors launcher overrides from Customizer take precedence
+        if (d.color_scheme?.launcher?.bg) {
+          setLauncherBg(d.color_scheme.launcher.bg);
+          if (d.color_scheme.launcher.text) setLauncherIconOverride(d.color_scheme.launcher.text);
+        } else if (colorAttr) {
+          setLauncherBg(colorAttr);
         }
 
         if (d.avatar_icon) setAvatarIconType(d.avatar_icon);
@@ -272,7 +274,17 @@ export function ChattyStandaloneApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onApiReady]);
 
-  const iconColor = launcherIconOverride || getOnColor(launcherBg);
+  const iconColor = (() => {
+    if (launcherIconOverride && launcherBg && launcherBg.startsWith("#") && launcherIconOverride.startsWith("#")) {
+      const [r1, g1, b1] = hexToRgb(launcherBg);
+      const [r2, g2, b2] = hexToRgb(launcherIconOverride);
+      if (Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2) < 50) {
+        return getOnColor(launcherBg);
+      }
+      return launcherIconOverride;
+    }
+    return launcherIconOverride || getOnColor(launcherBg);
+  })();
   const side = position === "left" ? "left" : "right";
   const panelRadius = (colorAttr ? null : PANEL_RADIUS[currentDesign]) || "16px";
 
