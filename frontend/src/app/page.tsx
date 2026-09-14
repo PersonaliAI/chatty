@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import LandingClient from "@/components/landing/LandingClient";
 
 export const metadata: Metadata = {
@@ -170,6 +171,12 @@ export default function LandingPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
       />
       <LandingClient />
+      {/* Mount Chatty support widget */}
+      <Script
+        src="https://chatty.personaliai.com/widget.js"
+        data-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
+        strategy="afterInteractive"
+      />
     </>
   );
 }

@@ -18,7 +18,7 @@ import {
   Database,
   ExternalLink,
   FileText,
-  Globe2,
+  Globe,
   Headphones,
   HelpCircle,
   Inbox,
@@ -48,108 +48,99 @@ import {
 } from "lucide-react";
 
 // ==========================================
-// STATIC DATA & CONTENT
+// STATIC DATA & DEFINITIONS
 // ==========================================
 
-const MEGA_MENU_PRODUCTS = [
+const MEGA_MENU_ENDPOINTS = [
   {
-    title: "Autonomous Agents",
-    badge: "Core",
-    items: [
-      {
-        icon: Database,
-        title: "Grounded Knowledge RAG",
-        desc: "Strict cosine thresholding with zero hallucinations and verified source citations.",
-        href: "#capabilities",
-        iconColor: "text-orange-500 bg-orange-50 border-orange-100",
-      },
-      {
-        icon: CalendarCheck,
-        title: "In-Chat Calendar Booking",
-        desc: "Google Calendar & Outlook slot picker embedded directly into live conversations.",
-        href: "#playground",
-        iconColor: "text-blue-500 bg-blue-50 border-blue-100",
-      },
-      {
-        icon: MousePointerClick,
-        title: "Intent Lead Capture",
-        desc: "Naturally collect verified email, company, and purchase intent without clunky forms.",
-        href: "#capabilities",
-        iconColor: "text-emerald-500 bg-emerald-50 border-emerald-100",
-      },
-      {
-        icon: Inbox,
-        title: "Omnichannel Team Inbox",
-        desc: "Live visitor monitoring, sentiment alerts, and 1-click human takeover lock.",
-        href: "#capabilities",
-        iconColor: "text-purple-500 bg-purple-50 border-purple-100",
-      },
-    ],
+    title: "Knowledge Search",
+    desc: "Grounded vector RAG across crawled sitemaps and docs.",
+    href: "#capabilities",
+    tags: ["RAG", "Docs"],
   },
   {
-    title: "Developer Platform",
-    badge: "Protocol",
-    items: [
-      {
-        icon: PlugZap,
-        title: "Model Context Protocol (MCP)",
-        desc: "Native MCP server for Claude Desktop, Cursor, and autonomous agent fleets.",
-        href: "https://docs.chatty.personaliai.com",
-        iconColor: "text-amber-500 bg-amber-50 border-amber-100",
-      },
-      {
-        icon: Cpu,
-        title: "Zero-Markup BYOK Engine",
-        desc: "Bring your own OpenAI, Anthropic, Gemini, or OpenRouter keys with zero fee.",
-        href: "#pricing",
-        iconColor: "text-rose-500 bg-rose-50 border-rose-100",
-      },
-      {
-        icon: Terminal,
-        title: "Management API & Webhooks",
-        desc: "Full programmatic control over bots, training data, leads, and transcripts.",
-        href: "https://docs.chatty.personaliai.com",
-        iconColor: "text-indigo-500 bg-indigo-50 border-indigo-100",
-      },
-      {
-        icon: Headphones,
-        title: "Voice AI Assistant Demo",
-        desc: "Experience ultra-low-latency real-time voice conversations with Chatty.",
-        href: "/voice-demo",
-        iconColor: "text-teal-500 bg-teal-50 border-teal-100",
-      },
-    ],
+    title: "Calendar Booking",
+    desc: "In-chat Google & Outlook meeting scheduling.",
+    href: "#playground",
+    tags: ["Google Sync", "Timezones"],
+  },
+  {
+    title: "Lead Capture",
+    desc: "Progressive intent profiling and CRM enrichment.",
+    href: "#capabilities",
+    tags: ["CRM", "Webhooks"],
+  },
+  {
+    title: "Omnichannel Inbox",
+    desc: "Live sentiment triage and 1-click human takeover lock.",
+    href: "#capabilities",
+    tags: ["Handoff"],
+  },
+  {
+    title: "Autonomous Agent",
+    desc: "Multi-step reasoning across your business APIs.",
+    href: "#architecture",
+    badge: "New",
+  },
+];
+
+const MEGA_MENU_SURFACES = [
+  {
+    title: "MCP Server",
+    desc: "Official Model Context Protocol for Claude & Cursor.",
+    href: "#mcp",
+    badge: "Native",
+  },
+  {
+    title: "Web Chat Widget",
+    desc: "1-line embed script with custom themes & dogfooding.",
+    href: "#code",
+  },
+  {
+    title: "REST API",
+    desc: "Programmatic endpoints for bots, sources, and leads.",
+    href: "https://docs.chatty.personaliai.com/api",
+  },
+  {
+    title: "Client SDKs",
+    desc: "Official Python, Node.js, and TypeScript client libraries.",
+    href: "#code",
+  },
+  {
+    title: "Workflow Skills",
+    desc: "Drop-in skills for agent orchestration and Slack sync.",
+    href: "https://docs.chatty.personaliai.com/guides/slack",
   },
 ];
 
 const MEGA_MENU_RESOURCES = [
   {
     title: "Documentation",
-    desc: "Complete guides, embed instructions, and architecture references.",
+    desc: "Complete setup guides, embed snippets, and API references.",
     href: "https://docs.chatty.personaliai.com",
     external: true,
   },
   {
     title: "Affiliates Program",
-    desc: "Earn recurring commissions by referring high-growth businesses.",
+    desc: "Earn 30% recurring commission referring high-growth teams.",
     href: "/affiliates",
     external: false,
   },
   {
-    title: "Support & Help Center",
-    desc: "Get fast answers or contact our engineering and support team.",
+    title: "Support Center",
+    desc: "Get fast answers or contact our engineering team directly.",
     href: "/support",
     external: false,
   },
   {
     title: "Voice AI Playground",
-    desc: "Test bidirectional voice agents with LiveKit and Cartesia models.",
+    desc: "Test bidirectional voice agents with LiveKit models.",
     href: "/voice-demo",
     external: false,
   },
   {
     title: "Zoom App Integration",
-    desc: "Connect Chatty directly to your Zoom team workspaces and meetings.",
+    desc: "Connect Chatty directly to your Zoom workspaces.",
     href: "/zoom",
     external: false,
   },
@@ -200,27 +191,10 @@ const PLAYGROUND_TABS = [
 
 const CODE_EXAMPLES = [
   {
-    lang: "HTML Embed",
-    title: "1-Line Website Script",
-    code: `<!-- Add Chatty to your website <head> -->
-<script
-  src="https://chatty.personaliai.com/widget.js"
-  data-chatty-bot="bot_982b1fa4e8"
-  data-primary-color="#f95721"
-  defer>
-</script>`,
-    response: {
-      status: "initialized",
-      bot_id: "bot_982b1fa4e8",
-      grounding_threshold: 0.78,
-      calendar_sync: "Google Calendar (Active)",
-      latency: "182ms",
-    },
-  },
-  {
-    lang: "Python SDK",
-    title: "Query Trained Knowledge",
-    code: `from chatty import ChattyClient
+    lang: "Python",
+    filename: "client.py",
+    code: `# pip install chatty-python
+from chatty import ChattyClient
 
 client = ChattyClient(api_key="cty_live_92018a...")
 
@@ -233,15 +207,24 @@ response = client.chat.create(
 
 print(response.answer)
 print(response.citations)`,
-    response: {
-      answer: "We guarantee 99.98% uptime with 15-minute response SLA.",
-      grounding_score: 0.992,
-      citations: ["https://personaliai.com/docs/sla#L14"],
-    },
+    jsonResponse: `[
+  {
+    "url": "https://personaliai.com/docs/sla",
+    "title": "Enterprise Service Level Agreement",
+    "similarity_score": 0.942,
+    "grounded": true
+  },
+  {
+    "url": "https://personaliai.com/pricing",
+    "title": "Transparent Flat Pricing",
+    "similarity_score": 0.891,
+    "grounded": true
+  }
+]`,
   },
   {
     lang: "Node.js",
-    title: "Book Meeting Programmatically",
+    filename: "booking.ts",
     code: `import { Chatty } from "@personaliai/chatty";
 
 const chatty = new Chatty({ apiKey: process.env.CHATTY_API_KEY });
@@ -252,102 +235,134 @@ const booking = await chatty.bookings.confirm({
   visitorEmail: "alex@acme.corp",
   slotTime: "2026-09-15T14:30:00Z",
   timezone: "America/New_York"
-});`,
-    response: {
-      booking_id: "bk_77189a",
-      status: "confirmed",
-      calendar_event: "Google Meet link generated",
-      attendees: ["alex@acme.corp", "team@personaliai.com"],
-    },
+});
+
+console.log(booking.calendar_event);`,
+    jsonResponse: `{
+  "booking_id": "bk_77189a",
+  "status": "confirmed",
+  "calendar_event": "https://meet.google.com/abc-defg-hij",
+  "attendees": [
+    "alex@acme.corp",
+    "solutions@personaliai.com"
+  ]
+}`,
   },
   {
-    lang: "MCP Server",
-    title: "Claude & Cursor Protocol Config",
-    code: `{
-  "mcpServers": {
-    "chatty": {
-      "command": "npx",
-      "args": ["-y", "@personaliai/chatty-mcp@latest"],
-      "env": {
-        "CHATTY_API_KEY": "cty_live_92018a..."
-      }
-    }
-  }
+    lang: "cURL",
+    filename: "query.sh",
+    code: `curl -X POST https://api.chatty.personaliai.com/v1/chat \\
+  -H "Authorization: Bearer cty_live_92018a..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "bot_id": "bot_982b1fa4e8",
+    "message": "Can I bring my own OpenAI key?",
+    "stream": false
+  }'`,
+    jsonResponse: `{
+  "status": 200,
+  "bot_id": "bot_982b1fa4e8",
+  "answer": "Yes, Chatty supports 0% markup BYOK.",
+  "latency_ms": 182,
+  "confidence": 0.994
 }`,
-    response: {
-      protocol_version: "2024-11-05",
-      tools_registered: 18,
-      capabilities: ["query_bot", "book_slot", "triage_leads", "update_sources"],
-    },
+  },
+  {
+    lang: "CLI",
+    filename: "terminal",
+    code: `# Test bot response via Chatty CLI
+$ chatty bot test --id bot_982b1fa4e8 \\
+    --query "Do you have calendar booking?" \\
+    --check-grounding
+
+> Checking cosine distance against 1,248 chunks...
+> Grounded with 99.4% confidence.
+> Returned 3 calendar slots for tomorrow.`,
+    jsonResponse: `{
+  "cli_status": "success",
+  "chunks_evaluated": 1248,
+  "grounding_passed": true,
+  "available_slots": [
+    "10:00 AM",
+    "02:30 PM",
+    "04:00 PM"
+  ]
+}`,
+  },
+  {
+    lang: "HTML Embed",
+    filename: "index.html",
+    code: `<!-- 1-line script for your website <head> -->
+<script
+  src="https://chatty.personaliai.com/widget.js"
+  data-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
+  data-primary-color="#f95721"
+  defer>
+</script>`,
+    jsonResponse: `{
+  "widget_initialized": true,
+  "bot_id": "ad32f373-7694-43f4-9465-f8d65ce291e3",
+  "theme": "light",
+  "mcp_enabled": true
+}`,
   },
 ];
 
-const AGENT_NODES = [
+const MCP_TOOLS = [
   {
-    id: "rag",
-    name: "Knowledge RAG Agent",
-    tag: "pgvector · Cosine 0.78",
-    status: "Active",
-    desc: "Retrieves verified chunks from crawled sitemaps, docs, and PDFs with strict anti-hallucination guardrails.",
-    metric: "99.4% Grounding Accuracy",
-    payload: {
-      source: "docs.personaliai.com/api",
-      similarity_score: 0.892,
-      latency_ms: 184,
-      hallucination_guard: "Passed (100%)",
+    name: "chatty_query_knowledge",
+    desc: "Query ingested documentation and vector knowledge base with strict cosine similarity cutoff.",
+    samplePrompt: "Claude, search our internal documentation for our SOC2 compliance and refund policy.",
+    sampleOutput: {
+      tool: "chatty_query_knowledge",
+      arguments: { query: "SOC2 compliance and refund policy", limit: 3 },
+      result: {
+        matches: 3,
+        grounding_score: 0.965,
+        citations: ["docs.personaliai.com/compliance", "personaliai.com/terms#refunds"],
+      },
     },
   },
   {
-    id: "booking",
-    name: "Calendar Booking Agent",
-    tag: "Google · Outlook Sync",
-    status: "Active",
-    desc: "Checks real-time host availability, handles timezone conversion, and confirms calendar invites.",
-    metric: "0% Drop-off Rate",
-    payload: {
-      integration: "Google Calendar v3",
-      timezone: "America/New_York",
-      available_slots: ["10:00 AM", "02:30 PM", "04:00 PM"],
-      confirmation: "Auto-invite dispatched",
+    name: "chatty_book_meeting",
+    desc: "Check real-time host availability on Google & Outlook and reserve demo slots automatically.",
+    samplePrompt: "Claude, check open calendar slots for tomorrow afternoon and book a 15-min demo for alex@acme.corp.",
+    sampleOutput: {
+      tool: "chatty_book_meeting",
+      arguments: { email: "alex@acme.corp", preferred_time: "tomorrow afternoon", duration_min: 15 },
+      result: {
+        status: "confirmed",
+        slot: "Tomorrow at 02:30 PM EST",
+        meeting_link: "https://meet.google.com/xyz-uvwx-rst",
+      },
     },
   },
   {
-    id: "leads",
-    name: "Lead Qualification Agent",
-    tag: "Progressive Profiling",
-    status: "Active",
-    desc: "Evaluates conversational intent, extracts company domain, and routes qualified buyers to CRM.",
-    metric: "3.4x Higher Conversion",
-    payload: {
-      intent_tier: "High (Enterprise Evaluation)",
-      extracted_fields: { email: "alex@acme.corp", company: "Acme Corp", seats: 45 },
-      webhook_status: "Dispatched to Hubspot",
+    name: "chatty_triage_inbox",
+    desc: "Inspect live conversations, identify negative sentiment drops, and pause AI for human takeover.",
+    samplePrompt: "Claude, scan active chat sessions and alert me if any customer expressed frustration.",
+    sampleOutput: {
+      tool: "chatty_triage_inbox",
+      arguments: { filter_sentiment: "negative", threshold: -0.6 },
+      result: {
+        flagged_conversations: 1,
+        user: "Enterprise visitor (Acme Corp)",
+        action_taken: "AI reply paused, ticket locked to Support Lead",
+      },
     },
   },
   {
-    id: "sentinel",
-    name: "Human Takeover Sentinel",
-    tag: "Real-Time Sentiment",
-    status: "Monitoring",
-    desc: "Scans conversation sentiment in real time. Dispatches instant Slack alerts when human judgment is needed.",
-    metric: "< 2s Notification Speed",
-    payload: {
-      sentiment_score: "Frustrated (-0.72)",
-      trigger: "Billing discrepancy detected",
-      action: "AI reply paused · Human assigned",
-    },
-  },
-  {
-    id: "mcp",
-    name: "MCP Fleet Operator",
-    tag: "Claude · Cursor Protocol",
-    status: "Ready",
-    desc: "Enables external AI agents to query analytics, train new sources, and trigger customer broadcasts.",
-    metric: "18 Native Tools",
-    payload: {
-      protocol: "Model Context Protocol v1.0",
-      active_clients: ["Cursor", "Claude Desktop"],
-      permissions: "Bots:ReadWrite, Leads:Read",
+    name: "chatty_sync_sitemap",
+    desc: "Trigger an autonomous sitemap crawl to re-index newly published articles and API documentation.",
+    samplePrompt: "Claude, re-crawl docs.personaliai.com to ingest our newly released API endpoints.",
+    sampleOutput: {
+      tool: "chatty_sync_sitemap",
+      arguments: { url: "https://docs.personaliai.com/sitemap.xml", depth: 3 },
+      result: {
+        pages_crawled: 42,
+        new_chunks_indexed: 186,
+        status: "Knowledge base synchronized",
+      },
     },
   },
 ];
@@ -424,6 +439,14 @@ const FAQS = [
   },
 ];
 
+function GithubIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.07.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .31.21.67.8.56A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
+    </svg>
+  );
+}
+
 // ==========================================
 // MAIN LANDING CLIENT COMPONENT
 // ==========================================
@@ -440,16 +463,34 @@ export default function LandingClient() {
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
 
-  // Code Showcase State
+  // Code Showcase & Hacker Terminal Typewriter State
   const [selectedCodeTab, setSelectedCodeTab] = useState(0);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [typedCode, setTypedCode] = useState("");
+  const [typingIndex, setTypingIndex] = useState(0);
 
-  // Multi-Agent Pipeline State
-  const [selectedAgentId, setSelectedAgentId] = useState("rag");
-  const selectedAgent = useMemo(
-    () => AGENT_NODES.find((a) => a.id === selectedAgentId) || AGENT_NODES[0],
-    [selectedAgentId]
-  );
+  const fullCode = CODE_EXAMPLES[selectedCodeTab].code;
+
+  // Hacker Typewriter Effect for Code
+  useEffect(() => {
+    setTypedCode("");
+    setTypingIndex(0);
+    let current = "";
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i < fullCode.length) {
+        current += fullCode[i];
+        setTypedCode(current);
+        i++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 8); // Fast hacking typewriter speed
+    return () => clearInterval(interval);
+  }, [selectedCodeTab, fullCode]);
+
+  // MCP Tools State
+  const [selectedMcpTool, setSelectedMcpTool] = useState(MCP_TOOLS[0]);
 
   // ROI Calculator State
   const [monthlyVisitors, setMonthlyVisitors] = useState(25000);
@@ -525,14 +566,14 @@ export default function LandingClient() {
               <span className="font-display text-xl font-bold tracking-tight text-zinc-950">Chatty</span>
             </Link>
             <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-[11px] font-mono font-medium text-[#f95721]">
-              <span className="size-1.5 rounded-full bg-[#f95721] animate-pulse" />
+              <span className="size-1.5 rounded-full bg-[#f95721]" />
               Open Source
             </span>
           </div>
 
           {/* Center: Desktop Navigation Links with Mega-Menus */}
           <nav className="hidden md:flex items-center gap-1 text-sm font-medium text-zinc-600">
-            {/* Products Mega-Menu Dropdown */}
+            {/* Products Mega-Menu Dropdown (Spacious 3-column layout matching screenshot 2) */}
             <div
               className="relative"
               onMouseEnter={() => setProductsMenuOpen(true)}
@@ -553,78 +594,101 @@ export default function LandingClient() {
                 />
               </button>
 
-              {/* Firecrawl / Nimble Style 2-Column Mega-Menu Card */}
+              {/* Firecrawl / Nimble Style 3-Column Mega-Menu Card */}
               {productsMenuOpen && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[760px] transition-all duration-150">
-                  <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl shadow-zinc-200/80">
-                    <div className="grid grid-cols-12 gap-6">
-                      {/* Left Two Columns: Products List */}
-                      <div className="col-span-8 grid grid-cols-2 gap-6 border-r border-zinc-100 pr-6">
-                        {MEGA_MENU_PRODUCTS.map((section) => (
-                          <div key={section.title} className="space-y-3">
-                            <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
-                              <span className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-400">
-                                {section.title}
-                              </span>
-                              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500">
-                                {section.badge}
-                              </span>
-                            </div>
-                            <div className="space-y-1">
-                              {section.items.map((item) => {
-                                const Icon = item.icon;
-                                return (
-                                  <Link
-                                    key={item.title}
-                                    href={item.href}
-                                    onClick={() => setProductsMenuOpen(false)}
-                                    className="group flex items-start gap-2.5 rounded-xl p-2 transition-colors hover:bg-orange-50/50"
-                                  >
-                                    <div
-                                      className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border ${item.iconColor}`}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[860px] transition-all duration-200">
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-2xl shadow-zinc-200/80">
+                    <div className="grid grid-cols-12 gap-8">
+                      {/* Column 1: Endpoints & Capabilities */}
+                      <div className="col-span-5 space-y-4 border-r border-zinc-100 pr-6">
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
+                          Endpoints
+                        </span>
+                        <div className="space-y-3">
+                          {MEGA_MENU_ENDPOINTS.map((item) => (
+                            <Link
+                              key={item.title}
+                              href={item.href}
+                              onClick={() => setProductsMenuOpen(false)}
+                              className="group block rounded-xl p-2 transition-colors hover:bg-orange-50/50"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-zinc-900 group-hover:text-[#f95721] transition-colors">
+                                  {item.title}
+                                </span>
+                                {item.badge && (
+                                  <span className="rounded bg-orange-100 text-[#f95721] text-[10px] font-mono font-bold px-1.5 py-0.5">
+                                    {item.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-zinc-500 leading-relaxed mt-0.5">{item.desc}</p>
+                              {item.tags && (
+                                <div className="mt-1.5 flex items-center gap-1.5">
+                                  {item.tags.map((tag) => (
+                                    <span
+                                      key={tag}
+                                      className="inline-flex items-center text-[10px] font-mono text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded"
                                     >
-                                      <Icon className="size-3.5" />
-                                    </div>
-                                    <div>
-                                      <p className="text-xs font-semibold text-zinc-900 group-hover:text-[#f95721] transition-colors">
-                                        {item.title}
-                                      </p>
-                                      <p className="text-[11px] leading-relaxed text-zinc-500 line-clamp-2">
-                                        {item.desc}
-                                      </p>
-                                    </div>
-                                  </Link>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
+                                      {tag} ↗
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </Link>
+                          ))}
+                        </div>
                       </div>
 
-                      {/* Right Column: Firecrawl-Style Open Source Feature Box */}
-                      <div className="col-span-4 flex flex-col justify-between rounded-xl border border-orange-100 bg-orange-50/40 p-4">
+                      {/* Column 2: Surfaces & Protocol */}
+                      <div className="col-span-4 space-y-4 border-r border-zinc-100 pr-6">
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
+                          Surfaces
+                        </span>
                         <div className="space-y-3">
-                          <div className="flex size-9 items-center justify-center rounded-xl bg-[#f95721] text-white shadow-sm">
-                            <Bot className="size-5" />
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#f95721]">
-                              Open Source
-                            </span>
-                            <h4 className="mt-1 text-sm font-bold text-zinc-900">Chatty is 100% open source.</h4>
-                            <p className="mt-1 text-xs text-zinc-600 leading-relaxed">
-                              Star our repository on GitHub to follow weekly releases and contribute tools.
-                            </p>
-                          </div>
+                          {MEGA_MENU_SURFACES.map((item) => (
+                            <Link
+                              key={item.title}
+                              href={item.href}
+                              onClick={() => setProductsMenuOpen(false)}
+                              className="group block rounded-xl p-2 transition-colors hover:bg-orange-50/50"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-zinc-900 group-hover:text-[#f95721] transition-colors">
+                                  {item.title}
+                                </span>
+                                {item.badge && (
+                                  <span className="rounded bg-zinc-100 text-zinc-700 text-[10px] font-mono font-bold px-1.5 py-0.5">
+                                    {item.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-zinc-500 leading-relaxed mt-0.5">{item.desc}</p>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Column 3: Featured Customer Story */}
+                      <div className="col-span-3 flex flex-col justify-between rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+                        <div className="space-y-3">
+                          <span className="inline-block text-[10px] font-mono font-bold uppercase tracking-wider text-[#f95721] bg-orange-100 px-2 py-0.5 rounded">
+                            Customer Story
+                          </span>
+                          <h4 className="text-sm font-extrabold text-zinc-950 leading-snug">
+                            How scaling teams use Chatty to automate 84% of support inquiries.
+                          </h4>
+                          <p className="text-xs text-zinc-600 leading-relaxed">
+                            Zero hallucinations, calendar booking in-chat, and full MCP tooling for agents.
+                          </p>
                         </div>
 
                         <Link
-                          href="https://github.com/Damayantha/chatty"
-                          target="_blank"
-                          rel="noreferrer"
+                          href="#mcp"
+                          onClick={() => setProductsMenuOpen(false)}
                           className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#f95721] hover:text-[#ea4815] transition-colors"
                         >
-                          <span>View GitHub Repository</span>
+                          <span>Explore MCP Section</span>
                           <ArrowRight className="size-3.5" />
                         </Link>
                       </div>
@@ -678,6 +742,17 @@ export default function LandingClient() {
               )}
             </div>
 
+            {/* Highlighted MCP Nav Item */}
+            <Link
+              href="#mcp"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-zinc-800 hover:text-zinc-950 hover:bg-zinc-50 font-semibold transition-colors"
+            >
+              <span>MCP Platform</span>
+              <span className="rounded bg-orange-100 text-[#f95721] text-[10px] font-mono px-1.5 py-0.5 font-bold">
+                Protocol
+              </span>
+            </Link>
+
             <Link href="#pricing" className="px-3.5 py-2 rounded-lg hover:text-zinc-950 hover:bg-zinc-50">
               Pricing
             </Link>
@@ -693,17 +768,17 @@ export default function LandingClient() {
             </Link>
           </nav>
 
-          {/* Right: Actions (GitHub Stars Pill, Sign In, Start for Free) */}
+          {/* Right: Actions (Pure GitHub Icon without Star Count, Sign In, Start for Free) */}
           <div className="hidden sm:flex items-center gap-3">
-            {/* GitHub Stars Pill (Exact Firecrawl Style) */}
+            {/* Pure GitHub Icon Button (No Star Count Indicator) */}
             <Link
               href="https://github.com/Damayantha/chatty"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-800 transition-colors shadow-sm"
+              className="flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 hover:text-zinc-950 transition-colors shadow-sm"
+              title="GitHub Repository"
             >
-              <span>⭐</span>
-              <span>1.2k</span>
+              <GithubIcon className="size-4" />
             </Link>
 
             {/* Sign In Link */}
@@ -753,11 +828,18 @@ export default function LandingClient() {
               Playground
             </Link>
             <Link
+              href="#mcp"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-semibold text-[#f95721] py-1"
+            >
+              MCP Platform
+            </Link>
+            <Link
               href="#capabilities"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-medium text-zinc-700 py-1"
             >
-              Features & RAG
+              Capabilities
             </Link>
             <Link
               href="#pricing"
@@ -781,25 +863,12 @@ export default function LandingClient() {
               Help & Support
             </Link>
             <Link
-              href="/voice-demo"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-zinc-700 py-1"
-            >
-              Voice AI Demo
-            </Link>
-            <Link
-              href="https://docs.chatty.personaliai.com"
-              target="_blank"
-              className="block text-sm font-medium text-zinc-700 py-1"
-            >
-              Documentation
-            </Link>
-            <Link
               href="https://github.com/Damayantha/chatty"
               target="_blank"
               className="flex items-center gap-2 text-sm font-medium text-zinc-700 py-1"
             >
-              <span>⭐ Star on GitHub (1.2k)</span>
+              <GithubIcon className="size-4" />
+              <span>GitHub Repository</span>
             </Link>
             <div className="pt-3 border-t border-zinc-100 flex items-center justify-between">
               <Link href="/login" className="text-sm font-semibold text-zinc-800">
@@ -821,7 +890,7 @@ export default function LandingClient() {
             HERO SECTION (Spacious, Firecrawl Style)
             ========================================== */}
         <section className="relative overflow-hidden pt-16 pb-24 sm:pt-24 sm:pb-32 lg:pt-28">
-          {/* Subtle Clean Technical Grid Pattern with Orange Sparkle Stars (✦) */}
+          {/* Subtle Clean Technical Grid Pattern */}
           <div
             className="absolute inset-0 pointer-events-none opacity-[0.4]"
             style={{
@@ -830,16 +899,8 @@ export default function LandingClient() {
             }}
           />
 
-          {/* Firecrawl Style Orange Sparkle Crosses */}
-          <div className="absolute left-[15%] top-28 hidden lg:block text-[#f95721] text-lg font-bold select-none opacity-80">
-            ✦
-          </div>
-          <div className="absolute right-[18%] top-32 hidden lg:block text-[#f95721] text-lg font-bold select-none opacity-80">
-            ✦
-          </div>
-
           <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-            {/* Announcement Pill (Firecrawl style: 2 Months Free - Annually) */}
+            {/* Announcement Pill */}
             <Link
               href="#pricing"
               className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:border-zinc-300 hover:bg-zinc-50 transition-all mb-8"
@@ -873,8 +934,7 @@ export default function LandingClient() {
                 <span>Start for free</span>
               </Link>
               <Link
-                href="https://docs.chatty.personaliai.com"
-                target="_blank"
+                href="#mcp"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-6 py-3.5 text-sm font-semibold text-zinc-800 shadow-sm transition-all"
               >
                 <Terminal className="size-4 text-zinc-500" />
@@ -885,7 +945,8 @@ export default function LandingClient() {
                 target="_blank"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-5 py-3.5 text-sm font-semibold text-zinc-700 shadow-sm transition-all"
               >
-                <span>⭐ GitHub Repo</span>
+                <GithubIcon className="size-4 text-zinc-700" />
+                <span>GitHub Source</span>
               </Link>
             </div>
 
@@ -907,13 +968,12 @@ export default function LandingClient() {
 
             {/* ==========================================
                 HERO INTERACTIVE SEARCH & SIMULATOR BOX
-                (Firecrawl Style Interactive Input Bar - Image 2)
                 ========================================== */}
             <div id="playground" className="mt-14 max-w-4xl mx-auto text-left">
               <div className="rounded-2xl border border-zinc-200/80 bg-white shadow-2xl shadow-zinc-200/60 p-4 sm:p-5">
                 {/* Search Bar Input Row */}
                 <div className="flex items-center gap-3 pb-3 border-b border-zinc-100">
-                  <Globe2 className="size-5 text-[#f95721] shrink-0 ml-1" />
+                  <Globe className="size-5 text-[#f95721] shrink-0 ml-1" />
                   <span className="text-sm font-medium text-zinc-800 flex-1 truncate">
                     {selectedPlaygroundTab.prompt}
                   </span>
@@ -927,7 +987,7 @@ export default function LandingClient() {
                   </button>
                 </div>
 
-                {/* Firecrawl Style Mode Tabs (Search, Scrape, Map, Crawl equivalent) */}
+                {/* Mode Tabs */}
                 <div className="flex flex-wrap items-center gap-2 pt-3">
                   {PLAYGROUND_TABS.map((tab) => {
                     const isSelected = tab.id === selectedPlaygroundTab.id;
@@ -970,7 +1030,7 @@ export default function LandingClient() {
                         </p>
                       )}
 
-                      {/* INLINE CALENDAR BOOKING CARD (Interactive demonstration) */}
+                      {/* Inline Calendar Booking Card */}
                       {!isTyping && selectedPlaygroundTab.hasCalendar && (
                         <div className="mt-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
                           <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
@@ -984,7 +1044,7 @@ export default function LandingClient() {
                           {bookingConfirmed ? (
                             <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center">
                               <p className="text-xs font-bold text-emerald-800">
-                                ✓ Demo Confirmed for Tomorrow at {simulatedSlot}!
+                                Demo Confirmed for Tomorrow at {simulatedSlot}!
                               </p>
                               <p className="mt-1 text-[11px] text-emerald-600">
                                 Calendar invite and Google Meet link dispatched.
@@ -1047,10 +1107,10 @@ export default function LandingClient() {
         </section>
 
         {/* ==========================================
-            CODE & INTEGRATION SHOWCASE
-            (Firecrawl Style Interactive Code Box - Image 3)
+            CODE SHOWCASE WITH HACKER TERMINAL ANIMATION
+            (Light Background, Line Numbers, Streaming Typing)
             ========================================== */}
-        <section className="py-20 border-t border-b border-zinc-200/80 bg-[#fbfbfb]">
+        <section id="code" className="py-20 border-t border-b border-zinc-200/80 bg-[#fbfbfb]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
@@ -1065,17 +1125,17 @@ export default function LandingClient() {
               </p>
             </div>
 
-            {/* Code Box Container */}
+            {/* Code Box Container on Light Clean Frame */}
             <div className="mt-12 max-w-5xl mx-auto rounded-2xl border border-zinc-200 bg-white shadow-xl overflow-hidden">
-              {/* Language Tabs Row */}
-              <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-2.5">
-                <div className="flex items-center gap-1.5 overflow-x-auto">
+              {/* Language Tabs Bar */}
+              <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50/80 px-4 py-3">
+                <div className="flex items-center gap-2 overflow-x-auto">
                   {CODE_EXAMPLES.map((item, idx) => (
                     <button
                       key={item.lang}
                       type="button"
                       onClick={() => setSelectedCodeTab(idx)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         selectedCodeTab === idx
                           ? "bg-white text-zinc-950 shadow-sm border border-zinc-200"
                           : "text-zinc-600 hover:text-zinc-950"
@@ -1088,36 +1148,55 @@ export default function LandingClient() {
 
                 <button
                   type="button"
-                  onClick={() => handleCopyCode(CODE_EXAMPLES[selectedCodeTab].code)}
-                  className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700 transition-colors shadow-sm"
+                  onClick={() => handleCopyCode(fullCode)}
+                  className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors shadow-sm"
                 >
                   {codeCopied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
                   <span>{codeCopied ? "Copied!" : "Copy code"}</span>
                 </button>
               </div>
 
-              {/* Side-by-Side Code and JSON Result Output */}
-              <div className="grid grid-cols-1 lg:grid-cols-12">
-                {/* Code Block */}
-                <div className="lg:col-span-7 bg-[#0f1117] p-5 font-mono text-xs text-zinc-200 overflow-x-auto">
-                  <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-zinc-400 text-[11px]">
-                    <span>{CODE_EXAMPLES[selectedCodeTab].title}</span>
-                    <span className="text-[#f95721]">{CODE_EXAMPLES[selectedCodeTab].lang}</span>
+              {/* Side-by-Side Light Coding Frame & Formatted JSON Output */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 bg-white">
+                {/* Left: Animated Code Block with Light Line Numbers (NOT black) */}
+                <div className="lg:col-span-7 border-b lg:border-b-0 lg:border-r border-zinc-200 p-5 bg-white font-mono text-xs text-zinc-800 overflow-x-auto min-h-[320px]">
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-100 text-zinc-400 text-[11px]">
+                    <span className="font-semibold text-zinc-700">{CODE_EXAMPLES[selectedCodeTab].filename}</span>
+                    <span className="text-[#f95721] font-bold">{CODE_EXAMPLES[selectedCodeTab].lang}</span>
                   </div>
-                  <pre className="pt-4 leading-relaxed whitespace-pre font-mono">
-                    {CODE_EXAMPLES[selectedCodeTab].code}
-                  </pre>
+                  <div className="flex gap-4">
+                    {/* Line Numbers */}
+                    <div className="select-none text-zinc-300 text-right pr-2 border-r border-zinc-100">
+                      {fullCode.split("\n").map((_, lineIdx) => (
+                        <div key={lineIdx}>{lineIdx + 1}</div>
+                      ))}
+                    </div>
+                    {/* Animated Typing Code Content */}
+                    <div className="flex-1 whitespace-pre leading-relaxed text-zinc-800">
+                      {typedCode}
+                      <span className="inline-block w-2 h-4 bg-[#f95721] ml-0.5 animate-pulse align-middle" />
+                    </div>
+                  </div>
                 </div>
 
-                {/* API Response JSON Output */}
-                <div className="lg:col-span-5 bg-[#161822] border-t lg:border-t-0 lg:border-l border-zinc-800 p-5 font-mono text-xs text-emerald-400 overflow-x-auto">
-                  <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-zinc-400 text-[11px]">
-                    <span>RESPONSE :: HTTP 200 OK</span>
-                    <span className="text-emerald-400">Grounded</span>
+                {/* Right: Clean JSON Output on Light Background with Line Numbers */}
+                <div className="lg:col-span-5 p-5 bg-[#fafafa] font-mono text-xs text-zinc-700 overflow-x-auto min-h-[320px]">
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-200 text-zinc-400 text-[11px]">
+                    <span className="font-semibold text-zinc-700">RESPONSE</span>
+                    <span className="text-zinc-500 font-mono">[ .JSON ]</span>
                   </div>
-                  <pre className="pt-4 leading-relaxed font-mono">
-                    {JSON.stringify(CODE_EXAMPLES[selectedCodeTab].response, null, 2)}
-                  </pre>
+                  <div className="flex gap-4">
+                    {/* Line Numbers */}
+                    <div className="select-none text-zinc-300 text-right pr-2 border-r border-zinc-200">
+                      {CODE_EXAMPLES[selectedCodeTab].jsonResponse.split("\n").map((_, lineIdx) => (
+                        <div key={lineIdx}>{lineIdx + 1}</div>
+                      ))}
+                    </div>
+                    {/* JSON Body */}
+                    <pre className="flex-1 leading-relaxed text-zinc-700 whitespace-pre">
+                      {CODE_EXAMPLES[selectedCodeTab].jsonResponse}
+                    </pre>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1125,117 +1204,90 @@ export default function LandingClient() {
         </section>
 
         {/* ==========================================
-            MULTI-AGENT ARCHITECTURE PIPELINE (Nimble Style)
+            BEAUTIFUL DEDICATED MCP SECTION (#mcp)
+            (No redirects - In-depth interactive protocol showcase)
             ========================================== */}
-        <section className="py-24 bg-white">
+        <section id="mcp" className="py-24 bg-white border-b border-zinc-200/80">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
-              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
-                // MULTI-AGENT ORCHESTRATION
-              </p>
-              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
-                Specialized agents. Coordinated resolution.
+              <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3.5 py-1 text-xs font-mono font-semibold text-[#f95721]">
+                <PlugZap className="size-3.5" />
+                MODEL CONTEXT PROTOCOL (MCP) NATIVE
+              </div>
+              <h2 className="mt-4 font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-zinc-950">
+                Give Claude & Cursor direct control of your support fleet.
               </h2>
-              <p className="mt-3 text-sm sm:text-base text-zinc-600">
-                Instead of a single brittle prompt, incoming visitor messages pass through specialized autonomous
-                agents for vector retrieval, calendar coordination, CRM enrichment, and human fallback.
+              <p className="mt-3 text-sm sm:text-base text-zinc-600 leading-relaxed">
+                Connect Claude Desktop, Cursor IDE, and Codex directly to your Chatty instance via native MCP tools.
+                Inspect live conversations, re-index sitemaps, triage leads, and schedule customer calls using natural
+                language.
               </p>
             </div>
 
-            <div className="mt-14 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start max-w-5xl mx-auto">
-              {/* Left Column: Interactive Agent List */}
-              <div className="lg:col-span-5 space-y-3">
-                {AGENT_NODES.map((agent) => {
-                  const isSelected = agent.id === selectedAgentId;
-                  return (
-                    <button
-                      key={agent.id}
-                      type="button"
-                      onClick={() => setSelectedAgentId(agent.id)}
-                      className={`w-full text-left p-4 rounded-xl border transition-all ${
-                        isSelected
-                          ? "border-[#f95721] bg-orange-50/50 shadow-md shadow-orange-500/10"
-                          : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm text-zinc-900">{agent.name}</span>
-                        <span
-                          className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                            isSelected
-                              ? "bg-[#f95721] text-white border-[#f95721]"
-                              : "bg-zinc-100 text-zinc-600 border-zinc-200"
-                          }`}
-                        >
-                          {agent.tag}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs text-zinc-600 leading-relaxed">{agent.desc}</p>
-                      <div className="mt-3 flex items-center justify-between text-[11px] font-mono font-medium">
-                        <span className="text-emerald-600 flex items-center gap-1">
-                          <span className="size-1.5 rounded-full bg-emerald-500" />
-                          {agent.status}
-                        </span>
-                        <span className="text-zinc-700">{agent.metric}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Right Column: Active Agent Telemetry & Pipeline */}
-              <div className="lg:col-span-7 rounded-2xl border border-zinc-200 bg-[#0f1117] p-6 text-zinc-100 shadow-xl">
-                <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
-                  <div className="flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-red-500" />
-                    <span className="size-2.5 rounded-full bg-yellow-500" />
-                    <span className="size-2.5 rounded-full bg-green-500" />
-                    <span className="ml-2 font-mono text-xs text-zinc-400">
-                      agent_telemetry :: {selectedAgent.id}.spec.json
-                    </span>
-                  </div>
-                  <span className="rounded bg-emerald-950 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-mono text-emerald-400">
-                    ONLINE
+            {/* Interactive MCP Tools Registry Showcase */}
+            <div className="mt-14 max-w-5xl mx-auto rounded-2xl border border-zinc-200 bg-zinc-50/70 p-6 sm:p-8 shadow-xl">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Selectable Tools List */}
+                <div className="lg:col-span-5 space-y-2.5">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400 block mb-2">
+                    Registered MCP Tools
                   </span>
+                  {MCP_TOOLS.map((tool) => {
+                    const isSelected = tool.name === selectedMcpTool.name;
+                    return (
+                      <button
+                        key={tool.name}
+                        type="button"
+                        onClick={() => setSelectedMcpTool(tool)}
+                        className={`w-full text-left p-3.5 rounded-xl border transition-all ${
+                          isSelected
+                            ? "bg-white border-[#f95721] shadow-md shadow-orange-500/10 text-zinc-950"
+                            : "bg-white/60 border-zinc-200 text-zinc-700 hover:bg-white hover:border-zinc-300"
+                        }`}
+                      >
+                        <p className="font-mono text-xs font-bold text-[#f95721]">{tool.name}</p>
+                        <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed line-clamp-2">{tool.desc}</p>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className="mt-5 space-y-4">
-                  <div>
-                    <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <span>{selectedAgent.name}</span>
-                      <span className="text-xs font-mono font-normal text-zinc-400">({selectedAgent.tag})</span>
-                    </h3>
-                    <p className="mt-1 text-xs text-zinc-400 leading-relaxed">{selectedAgent.desc}</p>
+                {/* Right Column: Live Claude / Cursor Interaction Inspector */}
+                <div className="lg:col-span-7 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+                    <span className="text-xs font-mono font-bold text-zinc-700">Claude Desktop Session</span>
+                    <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold">
+                      Tool Call Verified
+                    </span>
                   </div>
 
-                  {/* Visual Pipeline Trace */}
-                  <div className="rounded-xl border border-zinc-800 bg-[#090a0f] p-4">
-                    <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 mb-3">
-                      <span>ORCHESTRATION STAGE</span>
-                      <span className="text-[#f95721]">Active</span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="rounded-lg border border-zinc-800 bg-[#161822] p-2.5">
-                        <span className="block text-[10px] font-mono text-zinc-500">STAGE 01</span>
-                        <span className="font-semibold text-white">Ingestion</span>
-                      </div>
-                      <div className="rounded-lg border border-[#f95721]/60 bg-[#f95721]/10 p-2.5">
-                        <span className="block text-[10px] font-mono text-[#f95721]">STAGE 02</span>
-                        <span className="font-semibold text-white">{selectedAgent.name.split(" ")[0]}</span>
-                      </div>
-                      <div className="rounded-lg border border-zinc-800 bg-[#161822] p-2.5">
-                        <span className="block text-[10px] font-mono text-zinc-500">STAGE 03</span>
-                        <span className="font-semibold text-white">Resolution</span>
-                      </div>
-                    </div>
+                  {/* Natural Language Prompt from User */}
+                  <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3.5 text-xs text-zinc-800">
+                    <p className="font-mono text-[10px] uppercase font-bold text-zinc-400 mb-1">User Instruction:</p>
+                    <p className="font-medium">{selectedMcpTool.samplePrompt}</p>
                   </div>
 
-                  <div>
-                    <p className="text-[11px] font-mono text-zinc-400 uppercase mb-2">Live Agent Payload:</p>
-                    <pre className="rounded-xl border border-zinc-800 bg-[#07080c] p-4 font-mono text-xs text-emerald-400 overflow-x-auto">
-                      {JSON.stringify(selectedAgent.payload, null, 2)}
+                  {/* Tool Call and Output Details */}
+                  <div className="rounded-lg bg-[#fafafa] border border-zinc-200 p-3.5 font-mono text-xs text-zinc-800">
+                    <p className="font-mono text-[10px] uppercase font-bold text-[#f95721] mb-1">
+                      MCP Server Execution Output:
+                    </p>
+                    <pre className="text-xs overflow-x-auto leading-relaxed text-zinc-700">
+                      {JSON.stringify(selectedMcpTool.sampleOutput, null, 2)}
                     </pre>
+                  </div>
+
+                  {/* Fast Config Snippet */}
+                  <div className="pt-2 border-t border-zinc-100 flex items-center justify-between text-xs text-zinc-500">
+                    <span>Config: <code>claude_desktop_config.json</code></span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCode('npx -y @personaliai/chatty-mcp@latest')}
+                      className="inline-flex items-center gap-1 font-mono text-xs text-[#f95721] font-semibold hover:underline"
+                    >
+                      <span>npx @personaliai/chatty-mcp</span>
+                      <Copy className="size-3" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1246,7 +1298,7 @@ export default function LandingClient() {
         {/* ==========================================
             CORE INDUSTRIAL CAPABILITIES
             ========================================== */}
-        <section id="capabilities" className="py-24 border-t border-b border-zinc-200/80 bg-[#fbfbfb]">
+        <section id="capabilities" className="py-24 bg-[#fbfbfb]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
@@ -1357,8 +1409,9 @@ export default function LandingClient() {
 
         {/* ==========================================
             INTERACTIVE ROI & DEFLECTION CALCULATOR
+            (Clean Light Styling - No Black/Orange Clashing)
             ========================================== */}
-        <section className="py-24 bg-white">
+        <section className="py-24 bg-white border-t border-zinc-200/80">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
@@ -1375,7 +1428,7 @@ export default function LandingClient() {
 
             <div className="mt-12 max-w-4xl mx-auto rounded-2xl border border-zinc-200 bg-white p-6 sm:p-10 shadow-xl">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                {/* Sliders Area */}
+                {/* Sliders Area (Clean Light Styling) */}
                 <div className="lg:col-span-6 space-y-7">
                   {/* Slider 1: Monthly Visitors */}
                   <div>
@@ -1392,7 +1445,7 @@ export default function LandingClient() {
                       step="2000"
                       value={monthlyVisitors}
                       onChange={(e) => setMonthlyVisitors(Number(e.target.value))}
-                      className="w-full accent-[#f95721] cursor-pointer"
+                      className="w-full h-2 rounded-lg bg-zinc-200 appearance-none cursor-pointer accent-[#f95721]"
                     />
                     <div className="flex justify-between text-[10px] font-mono text-zinc-400 mt-1">
                       <span>2,000</span>
@@ -1416,7 +1469,7 @@ export default function LandingClient() {
                       step="100"
                       value={monthlyTickets}
                       onChange={(e) => setMonthlyTickets(Number(e.target.value))}
-                      className="w-full accent-[#f95721] cursor-pointer"
+                      className="w-full h-2 rounded-lg bg-zinc-200 appearance-none cursor-pointer accent-[#f95721]"
                     />
                     <div className="flex justify-between text-[10px] font-mono text-zinc-400 mt-1">
                       <span>100</span>
@@ -1433,8 +1486,8 @@ export default function LandingClient() {
                   </div>
                 </div>
 
-                {/* Calculation Outputs Card */}
-                <div className="lg:col-span-6 rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-left">
+                {/* Calculation Outputs Card (Clean Light Styling) */}
+                <div className="lg:col-span-6 rounded-xl border border-zinc-200 bg-zinc-50/80 p-6 text-left">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm">
                       <p className="font-mono text-2xl font-bold text-zinc-950">
@@ -1779,7 +1832,7 @@ export default function LandingClient() {
         </section>
 
         {/* ==========================================
-            PRE-FOOTER CALL TO ACTION (Vibrant Warm Orange)
+            PRE-FOOTER CALL TO ACTION (Vibrant Fire Orange)
             ========================================== */}
         <section className="py-20 bg-white">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
@@ -1803,7 +1856,8 @@ export default function LandingClient() {
                   target="_blank"
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 hover:bg-white/20 px-6 py-3.5 text-sm font-semibold text-white transition-all"
                 >
-                  <span>⭐ Star on GitHub</span>
+                  <GithubIcon className="size-4" />
+                  <span>GitHub Repository</span>
                 </Link>
               </div>
             </div>
@@ -1838,6 +1892,7 @@ export default function LandingClient() {
               <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-950">Product</p>
               <ul className="space-y-2">
                 <li><Link href="#playground" className="hover:text-zinc-950 transition-colors">Playground</Link></li>
+                <li><Link href="#mcp" className="hover:text-zinc-950 transition-colors">MCP Platform</Link></li>
                 <li><Link href="#capabilities" className="hover:text-zinc-950 transition-colors">Grounded RAG</Link></li>
                 <li><Link href="#pricing" className="hover:text-zinc-950 transition-colors">Pricing</Link></li>
                 <li><Link href="/affiliates" className="hover:text-zinc-950 transition-colors">Affiliates Program</Link></li>
