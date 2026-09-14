@@ -1559,7 +1559,7 @@ export default function LandingClient() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
-                // CAPABILITY CODE MATRIX
+                {"// CAPABILITY CODE MATRIX"}
               </p>
               <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 Interactive Engine & Live Response
@@ -1824,7 +1824,7 @@ export default function LandingClient() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
-                // INDUSTRIAL CAPABILITIES
+                {"// INDUSTRIAL CAPABILITIES"}
               </p>
               <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 Engineered for conversion, accuracy, and scale.
@@ -1937,7 +1937,7 @@ export default function LandingClient() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
-                // ROI & DEFLECTION ESTIMATOR
+                {"// ROI & DEFLECTION ESTIMATOR"}
               </p>
               <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 Calculate your monthly time and cost savings.
@@ -2058,7 +2058,7 @@ export default function LandingClient() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
-                // ARCHITECTURAL COMPARISON
+                {"// ARCHITECTURAL COMPARISON"}
               </p>
               <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 How Chatty compares to legacy platforms.
@@ -2106,7 +2106,7 @@ export default function LandingClient() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
-                // TRANSPARENT PRICING
+                {"// TRANSPARENT PRICING"}
               </p>
               <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 Predictable plans. No hidden per-resolution tax.
@@ -2314,7 +2314,7 @@ export default function LandingClient() {
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <div className="text-center">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
-                // FREQUENTLY ASKED QUESTIONS
+                {"// FREQUENTLY ASKED QUESTIONS"}
               </p>
               <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 Everything you need to know about Chatty.
