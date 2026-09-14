@@ -61,7 +61,7 @@ const MEGA_MENU_ENDPOINTS = [
   {
     title: "Calendar Booking",
     desc: "In-chat Google & Outlook meeting scheduling.",
-    href: "#playground",
+    href: "#code",
     tags: ["Google Sync", "Timezones"],
   },
   {
@@ -146,226 +146,445 @@ const MEGA_MENU_RESOURCES = [
   },
 ];
 
-const PLAYGROUND_TABS = [
-  {
-    id: "booking",
-    label: "Demo Calendar Booking",
-    icon: CalendarCheck,
-    prompt: "I'd like to book a 15-minute live demo with your solutions team this week.",
-    response:
-      "I'd love to set that up! You can pick an open slot with our engineering team directly on my calendar below. Timezones are automatically detected.",
-    hasCalendar: true,
-    citations: ["personaliai.com/team-calendar", "docs.chatty.personaliai.com/booking"],
-  },
+const CODE_FEATURES = [
   {
     id: "rag",
-    label: "Grounded Knowledge RAG",
+    title: "Knowledge Vector RAG",
+    tag: "Search Grounding",
+    desc: "Query ingested docs with cosine distance threshold cutoff.",
     icon: Database,
-    prompt: "How does Chatty ensure answers are grounded without AI hallucinations?",
-    response:
-      "Chatty uses pgvector cosine similarity cutoff (0.78 threshold). If visitor questions cannot be matched to verified chunks from your crawled sitemap or uploaded docs, the assistant admits uncertainty and routes to a human instead of hallucinating.",
-    hasCalendar: false,
-    citations: ["docs.chatty.personaliai.com/rag-pipeline", "personaliai.com/security"],
-  },
-  {
-    id: "compare",
-    label: "Compare Intercom & Crisp",
-    icon: LayoutGrid,
-    prompt: "How does Chatty compare to Intercom Fin and Crisp on pricing and AI markup?",
-    response:
-      "Unlike Intercom Fin which adds a $0.99 tax on every single AI resolution plus per-seat pricing, Chatty offers a Free BYOK tier ($0) with unlimited tokens, and flat plans starting at $19/mo with full calendar booking, lead capture, and MCP tooling included.",
-    hasCalendar: false,
-    citations: ["personaliai.com/pricing", "docs.chatty.personaliai.com/comparison"],
-  },
-  {
-    id: "byok",
-    label: "Zero-Markup BYOK",
-    icon: Cpu,
-    prompt: "Can I bring my own OpenAI or Anthropic API key without platform fees?",
-    response:
-      "Yes. Under our Free BYOK tier, you paste your provider key into the dashboard. We stream tokens directly with 0% platform markup, giving you complete cost control and access to your provider volume discounts.",
-    hasCalendar: false,
-    citations: ["docs.chatty.personaliai.com/providers/byok", "github.com/Damayantha/chatty"],
-  },
-];
-
-const CODE_EXAMPLES = [
-  {
-    lang: "Python",
-    filename: "client.py",
-    code: `# pip install chatty-python
+    languages: [
+      {
+        lang: "Python",
+        filename: "query_rag.py",
+        code: `# pip install chatty-python
 from chatty import ChattyClient
 
-client = ChattyClient(api_key="cty_live_92018a...")
+client = ChattyClient(api_key="chatty_sk_live_9a8f...")
 
-# Query grounded knowledge base
-response = client.chat.create(
-    bot_id="bot_982b1fa4e8",
-    message="What is your enterprise SLA policy?",
-    enable_citations=True
+response = client.knowledge.search(
+    bot_id="ad32f373-7694-43f4-9465-f8d65ce291e3",
+    query="What is your enterprise SLA and pricing terms?",
+    strict_grounding=True
 )
 
-print(response.answer)
 print(response.citations)`,
-    jsonResponse: `[
+        response: `[
   {
-    "url": "https://personaliai.com/docs/sla",
+    "source": "https://personaliai.com/docs/sla",
     "title": "Enterprise Service Level Agreement",
     "similarity_score": 0.942,
     "grounded": true
   },
   {
-    "url": "https://personaliai.com/pricing",
+    "source": "https://personaliai.com/pricing",
     "title": "Transparent Flat Pricing",
     "similarity_score": 0.891,
     "grounded": true
   }
 ]`,
-  },
-  {
-    lang: "Node.js",
-    filename: "booking.ts",
-    code: `import { Chatty } from "@personaliai/chatty";
+      },
+      {
+        lang: "Node.js",
+        filename: "search.ts",
+        code: `import { ChattyClient } from "@personaliai/chatty";
 
-const chatty = new Chatty({ apiKey: process.env.CHATTY_API_KEY });
+const client = new ChattyClient({ apiKey: process.env.CHATTY_API_KEY });
 
-// Retrieve available slots and book
-const booking = await chatty.bookings.confirm({
-  botId: "bot_982b1fa4e8",
-  visitorEmail: "alex@acme.corp",
-  slotTime: "2026-09-15T14:30:00Z",
-  timezone: "America/New_York"
+const results = await client.knowledge.search({
+  botId: "ad32f373-7694-43f4-9465-f8d65ce291e3",
+  query: "Enterprise SLA and pricing terms",
+  limit: 2
 });
 
-console.log(booking.calendar_event);`,
-    jsonResponse: `{
-  "booking_id": "bk_77189a",
+console.log(results.matches);`,
+        response: `{
+  "status": "success",
+  "bot_id": "ad32f373-7694-43f4-9465-f8d65ce291e3",
+  "query_tokens": 8,
+  "matches": [
+    {
+      "title": "Enterprise SLA",
+      "url": "https://personaliai.com/docs/sla",
+      "cosine_score": 0.942
+    },
+    {
+      "title": "Pricing Plans",
+      "url": "https://personaliai.com/pricing",
+      "cosine_score": 0.891
+    }
+  ]
+}`,
+      },
+      {
+        lang: "cURL",
+        filename: "search.sh",
+        code: `curl -X POST https://api.chatty.personaliai.com/v1/knowledge/search \\
+  -H "Authorization: Bearer chatty_sk_live_9a8f..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "bot_id": "ad32f373-7694-43f4-9465-f8d65ce291e3",
+    "query": "Enterprise SLA policy",
+    "threshold": 0.78
+  }'`,
+        response: `{
+  "grounded": true,
+  "confidence": 0.942,
+  "chunks_evaluated": 1248,
+  "matched_sources": [
+    "https://personaliai.com/docs/sla"
+  ]
+}`,
+      },
+    ],
+  },
+  {
+    id: "booking",
+    title: "Calendar Booking",
+    tag: "Calendar Sync",
+    desc: "Confirm Google & Outlook meeting slots in live chat.",
+    icon: CalendarCheck,
+    languages: [
+      {
+        lang: "Python",
+        filename: "book_meeting.py",
+        code: `# Reserve calendar slot directly in conversation
+booking = client.calendar.create_event(
+    bot_id="ad32f373-7694-43f4-9465-f8d65ce291e3",
+    visitor_email="alex@acme.corp",
+    slot_iso="2026-09-15T14:30:00Z",
+    timezone="America/New_York"
+)
+
+print(booking.meet_link)`,
+        response: `{
+  "booking_id": "bk_9012a",
   "status": "confirmed",
-  "calendar_event": "https://meet.google.com/abc-defg-hij",
   "attendees": [
     "alex@acme.corp",
     "solutions@personaliai.com"
-  ]
+  ],
+  "calendar_event": "https://meet.google.com/abc-defg-hij",
+  "synced_provider": "google_calendar"
 }`,
-  },
-  {
-    lang: "cURL",
-    filename: "query.sh",
-    code: `curl -X POST https://api.chatty.personaliai.com/v1/chat \\
-  -H "Authorization: Bearer cty_live_92018a..." \\
+      },
+      {
+        lang: "Node.js",
+        filename: "booking.ts",
+        code: `import { Chatty } from "@personaliai/chatty";
+
+const chatty = new Chatty({ apiKey: process.env.CHATTY_API_KEY });
+
+const booking = await chatty.bookings.confirm({
+  botId: "ad32f373-7694-43f4-9465-f8d65ce291e3",
+  visitorEmail: "alex@acme.corp",
+  slotTime: "2026-09-15T14:30:00Z"
+});
+
+console.log(booking.calendar_event);`,
+        response: `{
+  "booking_id": "bk_9012a",
+  "status": "confirmed",
+  "calendar_event": "https://meet.google.com/abc-defg-hij",
+  "duration_minutes": 15
+}`,
+      },
+      {
+        lang: "cURL",
+        filename: "confirm.sh",
+        code: `curl -X POST https://api.chatty.personaliai.com/v1/calendar/confirm \\
+  -H "Authorization: Bearer chatty_sk_live_9a8f..." \\
   -H "Content-Type: application/json" \\
   -d '{
-    "bot_id": "bot_982b1fa4e8",
-    "message": "Can I bring my own OpenAI key?",
-    "stream": false
+    "bot_id": "ad32f373-7694-43f4-9465-f8d65ce291e3",
+    "email": "alex@acme.corp",
+    "slot": "2026-09-15T14:30:00Z"
   }'`,
-    jsonResponse: `{
-  "status": 200,
-  "bot_id": "bot_982b1fa4e8",
-  "answer": "Yes, Chatty supports 0% markup BYOK.",
-  "latency_ms": 182,
-  "confidence": 0.994
+        response: `{
+  "status": "confirmed",
+  "calendar_link": "https://meet.google.com/abc-defg-hij",
+  "confirmation_email_dispatched": true
 }`,
+      },
+    ],
   },
   {
-    lang: "CLI",
-    filename: "terminal",
-    code: `# Test bot response via Chatty CLI
-$ chatty bot test --id bot_982b1fa4e8 \\
-    --query "Do you have calendar booking?" \\
-    --check-grounding
+    id: "leads",
+    title: "Lead Qualification",
+    tag: "Intent Profiling",
+    desc: "Enrich visitor budget and sync deals directly to CRM.",
+    icon: UserCheck,
+    languages: [
+      {
+        lang: "Python",
+        filename: "qualify_lead.py",
+        code: `# Automatically score intent and enrich lead
+lead = client.leads.qualify(
+    bot_id="ad32f373-7694-43f4-9465-f8d65ce291e3",
+    conversation_id="conv_8819a",
+    sync_crm="hubspot"
+)
 
-> Checking cosine distance against 1,248 chunks...
-> Grounded with 99.4% confidence.
-> Returned 3 calendar slots for tomorrow.`,
-    jsonResponse: `{
-  "cli_status": "success",
-  "chunks_evaluated": 1248,
-  "grounding_passed": true,
-  "available_slots": [
-    "10:00 AM",
-    "02:30 PM",
-    "04:00 PM"
-  ]
+print(lead.qualification_score)`,
+        response: `{
+  "lead_id": "ld_3309a",
+  "email": "sarah@venture.io",
+  "company_size": "100-500",
+  "intent_score": 0.95,
+  "budget_verified": true,
+  "crm_synced": true
 }`,
+      },
+      {
+        lang: "Node.js",
+        filename: "lead.ts",
+        code: `const lead = await client.leads.capture({
+  botId: "ad32f373-7694-43f4-9465-f8d65ce291e3",
+  visitorData: { email: "sarah@venture.io", plan: "Enterprise" }
+});
+
+console.log(lead.status);`,
+        response: `{
+  "status": "qualified",
+  "crm_destination": "HubSpot Deals",
+  "deal_value_estimate": 12000,
+  "sales_rep_assigned": "Enterprise Pod A"
+}`,
+      },
+      {
+        lang: "cURL",
+        filename: "qualify.sh",
+        code: `curl -X POST https://api.chatty.personaliai.com/v1/leads/qualify \\
+  -H "Authorization: Bearer chatty_sk_live_9a8f..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"bot_id":"ad32f373-7694-43f4-9465-f8d65ce291e3","sync":true}'`,
+        response: `{
+  "qualified": true,
+  "score": 0.95,
+  "webhook_triggered": "https://hooks.zapier.com/lead-sync"
+}`,
+      },
+    ],
   },
   {
-    lang: "HTML Embed",
-    filename: "index.html",
-    code: `<!-- 1-line script for your website <head> -->
-<script
-  src="https://chatty.personaliai.com/widget.js"
-  data-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
-  data-primary-color="#f95721"
-  defer>
-</script>`,
-    jsonResponse: `{
-  "widget_initialized": true,
-  "bot_id": "ad32f373-7694-43f4-9465-f8d65ce291e3",
-  "theme": "light",
-  "mcp_enabled": true
+    id: "mcp",
+    title: "MCP Protocol Call",
+    tag: "Native Protocol",
+    desc: "Autonomous bot management over streamable HTTP SSE.",
+    icon: PlugZap,
+    languages: [
+      {
+        lang: "Python",
+        filename: "mcp_call.py",
+        code: `from mcp import ClientSession
+from mcp.client.sse import sse_client
+
+headers = {"Authorization": "Bearer chatty_sk_..."}
+async with sse_client("https://api.chatty.personaliai.com/mcp", headers=headers) as (r, w):
+    async with ClientSession(r, w) as session:
+        await session.initialize()
+        result = await session.call_tool("customize_widget_styling", {
+            "bot_id": "ad32f373-7694-43f4-9465-f8d65ce291e3",
+            "primary_color": "#f95721"
+        })
+        print(result)`,
+        response: `{
+  "tool": "customize_widget_styling",
+  "status": "success",
+  "primary_color": "#f95721",
+  "color_scheme": {
+    "header": { "bg": "#f95721", "text": "#ffffff" },
+    "launcher": { "bg": "#f95721", "text": "#ffffff" },
+    "sendBtn": { "bg": "#f95721", "text": "#ffffff" }
+  }
 }`,
+      },
+      {
+        lang: "Node.js",
+        filename: "mcp_rpc.ts",
+        code: `// Direct JSON-RPC protocol execution
+const response = await fetch("https://api.chatty.personaliai.com/mcp", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream",
+    "Authorization": "Bearer chatty_sk_..."
+  },
+  body: JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tools/call",
+    params: { name: "list_chatbots", arguments: {} }
+  })
+});`,
+        response: `{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "bots": [
+      {
+        "id": "ad32f373-7694-43f4-9465-f8d65ce291e3",
+        "name": "Chatty Support Agent",
+        "status": "active"
+      }
+    ]
+  }
+}`,
+      },
+      {
+        lang: "cURL",
+        filename: "mcp_list.sh",
+        code: `curl -X POST https://api.chatty.personaliai.com/mcp \\
+  -H "Content-Type: application/json" \\
+  -H "Accept: application/json, text/event-stream" \\
+  -H "Authorization: Bearer chatty_sk_..." \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'`,
+        response: `{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools_count": 65,
+    "suites": [
+      "bot_lifecycle",
+      "styling_theme",
+      "calendar_booking",
+      "knowledge_rag"
+    ]
+  }
+}`,
+      },
+    ],
   },
 ];
 
-const MCP_TOOLS = [
+const MCP_INTEGRATIONS = [
   {
-    name: "chatty_query_knowledge",
-    desc: "Query ingested documentation and vector knowledge base with strict cosine similarity cutoff.",
-    samplePrompt: "Claude, search our internal documentation for our SOC2 compliance and refund policy.",
-    sampleOutput: {
-      tool: "chatty_query_knowledge",
-      arguments: { query: "SOC2 compliance and refund policy", limit: 3 },
-      result: {
-        matches: 3,
-        grounding_score: 0.965,
-        citations: ["docs.personaliai.com/compliance", "personaliai.com/terms#refunds"],
-      },
-    },
+    name: "Claude Desktop",
+    file: "%APPDATA%\\Claude\\claude_desktop_config.json",
+    badge: "OAuth / Direct",
+    code: `{
+  "mcpServers": {
+    "chatty": {
+      "url": "https://api.chatty.personaliai.com/mcp"
+    }
+  }
+}`,
   },
   {
-    name: "chatty_book_meeting",
-    desc: "Check real-time host availability on Google & Outlook and reserve demo slots automatically.",
-    samplePrompt: "Claude, check open calendar slots for tomorrow afternoon and book a 15-min demo for alex@acme.corp.",
-    sampleOutput: {
-      tool: "chatty_book_meeting",
-      arguments: { email: "alex@acme.corp", preferred_time: "tomorrow afternoon", duration_min: 15 },
-      result: {
-        status: "confirmed",
-        slot: "Tomorrow at 02:30 PM EST",
-        meeting_link: "https://meet.google.com/xyz-uvwx-rst",
-      },
-    },
+    name: "Cursor IDE",
+    file: ".cursor/mcp.json",
+    badge: "API Key",
+    code: `{
+  "mcpServers": {
+    "chatty": {
+      "url": "https://api.chatty.personaliai.com/mcp",
+      "headers": {
+        "Authorization": "Bearer chatty_sk_your_api_key_here"
+      }
+    }
+  }
+}`,
   },
   {
-    name: "chatty_triage_inbox",
-    desc: "Inspect live conversations, identify negative sentiment drops, and pause AI for human takeover.",
-    samplePrompt: "Claude, scan active chat sessions and alert me if any customer expressed frustration.",
-    sampleOutput: {
-      tool: "chatty_triage_inbox",
-      arguments: { filter_sentiment: "negative", threshold: -0.6 },
-      result: {
-        flagged_conversations: 1,
-        user: "Enterprise visitor (Acme Corp)",
-        action_taken: "AI reply paused, ticket locked to Support Lead",
-      },
-    },
+    name: "Claude Code CLI",
+    file: "Terminal Command",
+    badge: "CLI",
+    code: `claude mcp add chatty https://api.chatty.personaliai.com/mcp`,
   },
   {
-    name: "chatty_sync_sitemap",
-    desc: "Trigger an autonomous sitemap crawl to re-index newly published articles and API documentation.",
-    samplePrompt: "Claude, re-crawl docs.personaliai.com to ingest our newly released API endpoints.",
-    sampleOutput: {
-      tool: "chatty_sync_sitemap",
-      arguments: { url: "https://docs.personaliai.com/sitemap.xml", depth: 3 },
-      result: {
-        pages_crawled: 42,
-        new_chunks_indexed: 186,
-        status: "Knowledge base synchronized",
-      },
-    },
+    name: "cURL / HTTP JSON-RPC",
+    file: "Direct Protocol Call",
+    badge: "HTTP",
+    code: `curl -X POST https://api.chatty.personaliai.com/mcp \\
+  -H "Content-Type: application/json" \\
+  -H "Accept: application/json, text/event-stream" \\
+  -H "Authorization: Bearer chatty_sk_your_api_key_here" \\
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "customize_widget_styling",
+      "arguments": {
+        "bot_id": "YOUR_BOT_UUID",
+        "primary_color": "#f95721"
+      }
+    }
+  }'`,
+  },
+  {
+    name: "Python MCP Client",
+    file: "mcp_client.py",
+    badge: "FastMCP",
+    code: `import asyncio
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+
+async def main():
+    headers = {"Authorization": "Bearer chatty_sk_your_api_key_here"}
+    async with sse_client("https://api.chatty.personaliai.com/mcp", headers=headers) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tools = await session.list_tools()
+            print(f"Connected to Chatty: {len(tools.tools)} tools available")
+
+asyncio.run(main())`,
   },
 ];
+
+function renderSyntaxTokens(line: string) {
+  const trimmed = line.trim();
+  if (trimmed.startsWith("#") || trimmed.startsWith("//") || trimmed.startsWith("<!--")) {
+    return <span className="text-zinc-400 italic">{line}</span>;
+  }
+
+  const jsonKeyMatch = line.match(/^(\s*)(".*?")(\s*:\s*)(.*)$/);
+  if (jsonKeyMatch) {
+    const [, indent, key, colon, value] = jsonKeyMatch;
+    return (
+      <>
+        <span>{indent}</span>
+        <span className="text-blue-600 font-medium">{key}</span>
+        <span className="text-zinc-400">{colon}</span>
+        {renderJsonValue(value)}
+      </>
+    );
+  }
+
+  const tokens = line.split(/(\s+|[(){}[\]:;,])/);
+  return tokens.map((token, i) => {
+    if (/^(import|from|const|await|async|def|class|return|curl|export|function)$/.test(token)) {
+      return <span key={i} className="text-purple-600 font-semibold">{token}</span>;
+    }
+    if (/^(".*"|'.*')$/.test(token)) {
+      return <span key={i} className="text-emerald-700">{token}</span>;
+    }
+    if (/^(true|false|null|None)$/.test(token)) {
+      return <span key={i} className="text-rose-600 font-semibold">{token}</span>;
+    }
+    if (/^\d+(\.\d+)?$/.test(token)) {
+      return <span key={i} className="text-amber-600">{token}</span>;
+    }
+    if (/^[(){}[\]:;,]$/.test(token)) {
+      return <span key={i} className="text-zinc-400">{token}</span>;
+    }
+    return <span key={i}>{token}</span>;
+  });
+}
+
+function renderJsonValue(val: string) {
+  const trimmed = val.trim();
+  if (/^".*"[,\s]*$/.test(trimmed)) {
+    return <span className="text-emerald-700">{val}</span>;
+  }
+  if (/^(true|false|null)[,\s]*$/.test(trimmed)) {
+    return <span className="text-rose-600 font-semibold">{val}</span>;
+  }
+  if (/^-?\d+(\.\d+)?[,\s]*$/.test(trimmed)) {
+    return <span className="text-amber-600">{val}</span>;
+  }
+  return <span className="text-zinc-800">{val}</span>;
+}
 
 const COMPARISONS = [
   {
@@ -457,40 +676,16 @@ export default function LandingClient() {
   const [resourcesMenuOpen, setResourcesMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Playground Simulator State
-  const [selectedPlaygroundTab, setSelectedPlaygroundTab] = useState(PLAYGROUND_TABS[0]);
-  const [simulatedSlot, setSimulatedSlot] = useState<string | null>(null);
-  const [bookingConfirmed, setBookingConfirmed] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-
-  // Code Showcase & Hacker Terminal Typewriter State
-  const [selectedCodeTab, setSelectedCodeTab] = useState(0);
+  // Feature Code Showcase State (Firecrawl Interactive Code Section)
+  const [activeFeatureIdx, setActiveFeatureIdx] = useState(0);
+  const [activeLangIdx, setActiveLangIdx] = useState(0);
   const [codeCopied, setCodeCopied] = useState(false);
-  const [typedCode, setTypedCode] = useState("");
-  const [typingIndex, setTypingIndex] = useState(0);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [visibleLines, setVisibleLines] = useState<number>(999);
 
-  const fullCode = CODE_EXAMPLES[selectedCodeTab].code;
-
-  // Hacker Typewriter Effect for Code
-  useEffect(() => {
-    setTypedCode("");
-    setTypingIndex(0);
-    let current = "";
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < fullCode.length) {
-        current += fullCode[i];
-        setTypedCode(current);
-        i++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 8); // Fast hacking typewriter speed
-    return () => clearInterval(interval);
-  }, [selectedCodeTab, fullCode]);
-
-  // MCP Tools State
-  const [selectedMcpTool, setSelectedMcpTool] = useState(MCP_TOOLS[0]);
+  // MCP Integration Code State
+  const [selectedMcpIdx, setSelectedMcpIdx] = useState(0);
+  const [mcpCodeCopied, setMcpCodeCopied] = useState(false);
 
   // ROI Calculator State
   const [monthlyVisitors, setMonthlyVisitors] = useState(25000);
@@ -515,22 +710,49 @@ export default function LandingClient() {
   // FAQ Accordion State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
-  // Switch playground tab with typing simulation
-  const handleSelectTab = (tab: typeof PLAYGROUND_TABS[0]) => {
-    setSelectedPlaygroundTab(tab);
-    setSimulatedSlot(null);
-    setBookingConfirmed(false);
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-    }, 280);
+  // Active Feature & Language objects
+  const activeFeature = CODE_FEATURES[activeFeatureIdx] || CODE_FEATURES[0];
+  const activeLang = activeFeature.languages[activeLangIdx] || activeFeature.languages[0];
+  const activeResponseLines = useMemo(() => activeLang.response.split("\n"), [activeLang]);
+
+  // Handle running/re-running code execution simulation (Firecrawl style)
+  const handleTriggerRun = () => {
+    setIsExecuting(true);
+    setVisibleLines(0);
+    const totalLines = activeLang.response.split("\n").length;
+    let currentLine = 0;
+
+    const delayTimer = setTimeout(() => {
+      setIsExecuting(false);
+      const lineInterval = setInterval(() => {
+        if (currentLine <= totalLines) {
+          setVisibleLines(currentLine);
+          currentLine++;
+        } else {
+          clearInterval(lineInterval);
+        }
+      }, 25);
+    }, 450);
+
+    return () => clearTimeout(delayTimer);
   };
 
-  // Copy code handler
+  // Trigger animation on feature or language tab switch
+  useEffect(() => {
+    handleTriggerRun();
+  }, [activeFeatureIdx, activeLangIdx]);
+
+  // Copy code handlers
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  const handleCopyMcp = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setMcpCodeCopied(true);
+    setTimeout(() => setMcpCodeCopied(false), 2000);
   };
 
   // Close menus on Escape
@@ -547,6 +769,25 @@ export default function LandingClient() {
 
   return (
     <div className="min-h-screen bg-white text-zinc-900 font-sans selection:bg-[#f95721] selection:text-white antialiased">
+      {/* Top Announcement Bar (Firecrawl Style) */}
+      <aside className="border-b border-orange-200/80 bg-orange-50/90 py-2.5 px-4 text-center text-xs font-medium text-zinc-800 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-7xl items-center justify-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#f95721] px-2 py-0.5 text-[10px] font-mono font-bold text-white uppercase tracking-wider">
+            New
+          </span>
+          <span>
+            Introducing Chatty Model Context Protocol (MCP) — Connect Claude Desktop, Cursor & agents.
+          </span>
+          <Link
+            href="#mcp"
+            className="inline-flex items-center gap-1 font-semibold text-[#f95721] hover:underline"
+          >
+            <span>View integration code</span>
+            <ArrowRight className="size-3" />
+          </Link>
+        </div>
+      </aside>
+
       {/* ==========================================
           TOP NAVIGATION (Spacious, Firecrawl + Nimble Style)
           ========================================== */}
@@ -742,17 +983,9 @@ export default function LandingClient() {
               )}
             </div>
 
-            {/* Highlighted MCP Nav Item */}
-            <Link
-              href="#mcp"
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-zinc-800 hover:text-zinc-950 hover:bg-zinc-50 font-semibold transition-colors"
-            >
-              <span>MCP Platform</span>
-              <span className="rounded bg-orange-100 text-[#f95721] text-[10px] font-mono px-1.5 py-0.5 font-bold">
-                Protocol
-              </span>
+            <Link href="#capabilities" className="px-3.5 py-2 rounded-lg hover:text-zinc-950 hover:bg-zinc-50">
+              Capabilities
             </Link>
-
             <Link href="#pricing" className="px-3.5 py-2 rounded-lg hover:text-zinc-950 hover:bg-zinc-50">
               Pricing
             </Link>
@@ -763,19 +996,16 @@ export default function LandingClient() {
             >
               Docs
             </Link>
-            <Link href="#playground" className="px-3.5 py-2 rounded-lg hover:text-zinc-950 hover:bg-zinc-50">
-              Playground
-            </Link>
           </nav>
 
-          {/* Right: Actions (Pure GitHub Icon without Star Count, Sign In, Start for Free) */}
+          {/* Right: Actions (Pure Flat GitHub Icon, Sign In, Start for Free) */}
           <div className="hidden sm:flex items-center gap-3">
-            {/* Pure GitHub Icon Button (No Star Count Indicator) */}
+            {/* Pure GitHub Icon Button (Flat minimal, no elevation) */}
             <Link
               href="https://github.com/Damayantha/chatty"
               target="_blank"
               rel="noreferrer"
-              className="flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 hover:text-zinc-950 transition-colors shadow-sm"
+              className="flex size-9 items-center justify-center rounded-lg hover:bg-zinc-100 text-zinc-700 hover:text-zinc-950 transition-colors"
               title="GitHub Repository"
             >
               <GithubIcon className="size-4" />
@@ -820,20 +1050,6 @@ export default function LandingClient() {
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
           <div className="sm:hidden border-b border-zinc-200 bg-white px-4 py-5 space-y-3">
-            <Link
-              href="#playground"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-zinc-700 py-1"
-            >
-              Playground
-            </Link>
-            <Link
-              href="#mcp"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-semibold text-[#f95721] py-1"
-            >
-              MCP Platform
-            </Link>
             <Link
               href="#capabilities"
               onClick={() => setMobileMenuOpen(false)}
@@ -943,7 +1159,7 @@ export default function LandingClient() {
               <Link
                 href="https://github.com/Damayantha/chatty"
                 target="_blank"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-5 py-3.5 text-sm font-semibold text-zinc-700 shadow-sm transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 px-5 py-3.5 text-sm font-semibold text-zinc-800 transition-colors"
               >
                 <GithubIcon className="size-4 text-zinc-700" />
                 <span>GitHub Source</span>
@@ -965,237 +1181,178 @@ export default function LandingClient() {
                 <Check className="size-4 text-emerald-600" /> Google & Outlook calendar sync
               </span>
             </div>
-
-            {/* ==========================================
-                HERO INTERACTIVE SEARCH & SIMULATOR BOX
-                ========================================== */}
-            <div id="playground" className="mt-14 max-w-4xl mx-auto text-left">
-              <div className="rounded-2xl border border-zinc-200/80 bg-white shadow-2xl shadow-zinc-200/60 p-4 sm:p-5">
-                {/* Search Bar Input Row */}
-                <div className="flex items-center gap-3 pb-3 border-b border-zinc-100">
-                  <Globe className="size-5 text-[#f95721] shrink-0 ml-1" />
-                  <span className="text-sm font-medium text-zinc-800 flex-1 truncate">
-                    {selectedPlaygroundTab.prompt}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectTab(selectedPlaygroundTab)}
-                    className="flex size-9 items-center justify-center rounded-xl bg-[#f95721] hover:bg-[#ea4815] text-white shadow-sm shrink-0 transition-all"
-                    title="Send Prompt"
-                  >
-                    <ArrowRight className="size-4" />
-                  </button>
-                </div>
-
-                {/* Mode Tabs */}
-                <div className="flex flex-wrap items-center gap-2 pt-3">
-                  {PLAYGROUND_TABS.map((tab) => {
-                    const isSelected = tab.id === selectedPlaygroundTab.id;
-                    const Icon = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => handleSelectTab(tab)}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                          isSelected
-                            ? "bg-[#f95721] text-white shadow-sm shadow-orange-500/20"
-                            : "bg-zinc-100/80 text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900"
-                        }`}
-                      >
-                        <Icon className="size-3.5" />
-                        <span>{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Assistant Output Result Box */}
-                <div className="mt-4 rounded-xl border border-zinc-100 bg-zinc-50/70 p-4 sm:p-5">
-                  <div className="flex items-start gap-3.5">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#f95721] text-white font-bold shadow-sm">
-                      <Bot className="size-4" />
-                    </div>
-                    <div className="flex-1 space-y-3">
-                      {isTyping ? (
-                        <div className="flex items-center gap-1.5 py-1 text-xs font-mono text-zinc-500">
-                          <span className="size-2 rounded-full bg-[#f95721] animate-bounce" />
-                          <span className="size-2 rounded-full bg-[#f95721] animate-bounce [animation-delay:150ms]" />
-                          <span className="size-2 rounded-full bg-[#f95721] animate-bounce [animation-delay:300ms]" />
-                          <span className="ml-1">Retrieving grounded knowledge...</span>
-                        </div>
-                      ) : (
-                        <p className="text-xs sm:text-sm text-zinc-800 leading-relaxed">
-                          {selectedPlaygroundTab.response}
-                        </p>
-                      )}
-
-                      {/* Inline Calendar Booking Card */}
-                      {!isTyping && selectedPlaygroundTab.hasCalendar && (
-                        <div className="mt-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-                          <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
-                            <span className="font-semibold text-xs text-zinc-900 flex items-center gap-1.5">
-                              <CalendarCheck className="size-4 text-[#f95721]" />
-                              Engineering Demo (15 min)
-                            </span>
-                            <span className="text-[11px] font-mono text-zinc-400">Timezone: Auto-detected</span>
-                          </div>
-
-                          {bookingConfirmed ? (
-                            <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center">
-                              <p className="text-xs font-bold text-emerald-800">
-                                Demo Confirmed for Tomorrow at {simulatedSlot}!
-                              </p>
-                              <p className="mt-1 text-[11px] text-emerald-600">
-                                Calendar invite and Google Meet link dispatched.
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="mt-3 space-y-3">
-                              <p className="text-[11px] text-zinc-500">Select an available open slot:</p>
-                              <div className="grid grid-cols-3 gap-2">
-                                {["10:00 AM", "02:30 PM", "04:00 PM"].map((slot) => (
-                                  <button
-                                    key={slot}
-                                    type="button"
-                                    onClick={() => setSimulatedSlot(slot)}
-                                    className={`py-2 px-1 rounded-lg font-mono text-xs font-semibold transition-all border ${
-                                      simulatedSlot === slot
-                                        ? "bg-[#f95721] text-white border-[#f95721] shadow-sm"
-                                        : "bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300"
-                                    }`}
-                                  >
-                                    {slot}
-                                  </button>
-                                ))}
-                              </div>
-                              {simulatedSlot && (
-                                <button
-                                  type="button"
-                                  onClick={() => setBookingConfirmed(true)}
-                                  className="w-full mt-2 rounded-lg bg-[#f95721] hover:bg-[#ea4815] py-2 text-xs font-bold text-white transition-colors shadow-sm"
-                                >
-                                  Confirm Demo Slot at {simulatedSlot}
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Verified Citation Pill Badges */}
-                      {!isTyping && (
-                        <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono text-zinc-500">
-                          <span>Grounding Sources:</span>
-                          {selectedPlaygroundTab.citations.map((c) => (
-                            <span
-                              key={c}
-                              className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-white px-2 py-0.5 text-zinc-700 font-medium"
-                            >
-                              <Database className="size-2.5 text-[#f95721]" />
-                              {c}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 
         {/* ==========================================
-            CODE SHOWCASE WITH HACKER TERMINAL ANIMATION
-            (Light Background, Line Numbers, Streaming Typing)
+            INTERACTIVE CODE MATRIX (Firecrawl Style)
             ========================================== */}
         <section id="code" className="py-20 border-t border-b border-zinc-200/80 bg-[#fbfbfb]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
-                // DEVELOPER INTEGRATIONS
+                // CAPABILITY CODE MATRIX
               </p>
               <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
-                Embed in one line. Or build on the API.
+                Interactive Engine & Live Response
               </h2>
               <p className="mt-3 text-sm sm:text-base text-zinc-600">
-                Drop the script tag on your website, query trained knowledge with Python/Node.js, or manage everything
-                autonomously via the Model Context Protocol.
+                Select a capability below and test the real-time API execution and formatted JSON response.
               </p>
             </div>
 
-            {/* Code Box Container on Light Clean Frame */}
-            <div className="mt-12 max-w-5xl mx-auto rounded-2xl border border-zinc-200 bg-white shadow-xl overflow-hidden">
-              {/* Language Tabs Bar */}
-              <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50/80 px-4 py-3">
-                <div className="flex items-center gap-2 overflow-x-auto">
-                  {CODE_EXAMPLES.map((item, idx) => (
+            {/* 4 Feature Selector Cards (Firecrawl Style) */}
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 max-w-5xl mx-auto">
+              {CODE_FEATURES.map((feat, idx) => {
+                const isSelected = activeFeatureIdx === idx;
+                const Icon = feat.icon;
+                return (
+                  <button
+                    key={feat.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveFeatureIdx(idx);
+                      setActiveLangIdx(0);
+                    }}
+                    className={`text-left p-4 rounded-xl border transition-all ${
+                      isSelected
+                        ? "bg-white border-[#f95721] shadow-md shadow-orange-500/10 ring-1 ring-[#f95721]"
+                        : "bg-white/80 border-zinc-200 text-zinc-700 hover:bg-white hover:border-zinc-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div
+                        className={`flex size-8 items-center justify-center rounded-lg ${
+                          isSelected ? "bg-[#f95721] text-white" : "bg-zinc-100 text-zinc-600"
+                        }`}
+                      >
+                        <Icon className="size-4" />
+                      </div>
+                      <span className="text-[10px] font-mono font-semibold text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
+                        {feat.tag}
+                      </span>
+                    </div>
+                    <p className="mt-3 font-bold text-xs text-zinc-950">{feat.title}</p>
+                    <p className="mt-1 text-[11px] text-zinc-500 leading-snug line-clamp-2">{feat.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Dual Terminal Frame (Firecrawl Style) */}
+            <div className="mt-6 max-w-5xl mx-auto rounded-2xl border border-zinc-200 bg-white shadow-xl overflow-hidden">
+              {/* Top Controls Bar */}
+              <div className="flex flex-wrap items-center justify-between border-b border-zinc-200 bg-zinc-50/90 px-4 py-2.5 gap-3">
+                {/* Language Tabs */}
+                <div className="flex items-center gap-1.5">
+                  {activeFeature.languages.map((l, idx) => (
                     <button
-                      key={item.lang}
+                      key={l.lang}
                       type="button"
-                      onClick={() => setSelectedCodeTab(idx)}
-                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        selectedCodeTab === idx
+                      onClick={() => setActiveLangIdx(idx)}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        activeLangIdx === idx
                           ? "bg-white text-zinc-950 shadow-sm border border-zinc-200"
                           : "text-zinc-600 hover:text-zinc-950"
                       }`}
                     >
-                      {item.lang}
+                      {l.lang}
                     </button>
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleCopyCode(fullCode)}
-                  className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors shadow-sm"
-                >
-                  {codeCopied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
-                  <span>{codeCopied ? "Copied!" : "Copy code"}</span>
-                </button>
+                {/* Action Buttons: Run Query + Copy Code */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTriggerRun}
+                    disabled={isExecuting}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#f95721] hover:bg-[#ea4815] text-white px-3 py-1.5 text-xs font-semibold shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+                  >
+                    <Play className={`size-3 fill-current ${isExecuting ? "animate-spin" : ""}`} />
+                    <span>{isExecuting ? "Executing..." : "Run Query"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCode(activeLang.code)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors shadow-sm"
+                  >
+                    {codeCopied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                    <span>{codeCopied ? "Copied!" : "Copy"}</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Side-by-Side Light Coding Frame & Formatted JSON Output */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 bg-white">
-                {/* Left: Animated Code Block with Light Line Numbers (NOT black) */}
-                <div className="lg:col-span-7 border-b lg:border-b-0 lg:border-r border-zinc-200 p-5 bg-white font-mono text-xs text-zinc-800 overflow-x-auto min-h-[320px]">
+              {/* Side-by-Side Dual Terminal */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 bg-white divide-y lg:divide-y-0 lg:divide-x divide-zinc-200">
+                {/* Left: Request / Integration Code */}
+                <div className="lg:col-span-7 p-5 bg-white font-mono text-xs text-zinc-800 overflow-x-auto min-h-[340px]">
                   <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-100 text-zinc-400 text-[11px]">
-                    <span className="font-semibold text-zinc-700">{CODE_EXAMPLES[selectedCodeTab].filename}</span>
-                    <span className="text-[#f95721] font-bold">{CODE_EXAMPLES[selectedCodeTab].lang}</span>
+                    <span className="font-semibold text-zinc-700">{activeLang.filename}</span>
+                    <span className="text-[#f95721] font-bold font-mono">{activeLang.lang}</span>
                   </div>
                   <div className="flex gap-4">
-                    {/* Line Numbers */}
-                    <div className="select-none text-zinc-300 text-right pr-2 border-r border-zinc-100">
-                      {fullCode.split("\n").map((_, lineIdx) => (
-                        <div key={lineIdx}>{lineIdx + 1}</div>
+                    <div className="select-none text-zinc-300 text-right pr-3 border-r border-zinc-100 min-w-[2rem]">
+                      {activeLang.code.split("\n").map((_, i) => (
+                        <div key={i}>{i + 1}</div>
                       ))}
                     </div>
-                    {/* Animated Typing Code Content */}
-                    <div className="flex-1 whitespace-pre leading-relaxed text-zinc-800">
-                      {typedCode}
-                      <span className="inline-block w-2 h-4 bg-[#f95721] ml-0.5 animate-pulse align-middle" />
+                    <div className="flex-1 leading-relaxed whitespace-pre">
+                      {activeLang.code.split("\n").map((line, i) => (
+                        <div key={i}>{renderSyntaxTokens(line)}</div>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                {/* Right: Clean JSON Output on Light Background with Line Numbers */}
-                <div className="lg:col-span-5 p-5 bg-[#fafafa] font-mono text-xs text-zinc-700 overflow-x-auto min-h-[320px]">
-                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-200 text-zinc-400 text-[11px]">
-                    <span className="font-semibold text-zinc-700">RESPONSE</span>
-                    <span className="text-zinc-500 font-mono">[ .JSON ]</span>
-                  </div>
-                  <div className="flex gap-4">
-                    {/* Line Numbers */}
-                    <div className="select-none text-zinc-300 text-right pr-2 border-r border-zinc-200">
-                      {CODE_EXAMPLES[selectedCodeTab].jsonResponse.split("\n").map((_, lineIdx) => (
-                        <div key={lineIdx}>{lineIdx + 1}</div>
-                      ))}
+                {/* Right: Live Response Window with Streaming Reveal and Status Badge */}
+                <div className="lg:col-span-5 p-5 bg-[#fafafa] font-mono text-xs text-zinc-800 overflow-x-auto min-h-[340px] flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-200 text-zinc-400 text-[11px]">
+                      <span className="font-semibold text-zinc-700">RESPONSE</span>
+                      <div className="flex items-center gap-2">
+                        {isExecuting ? (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                            <span className="size-1.5 rounded-full bg-amber-500 animate-ping" />
+                            <span>Evaluating...</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            <span className="size-1.5 rounded-full bg-emerald-500" />
+                            <span>200 OK · 142ms</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {/* JSON Body */}
-                    <pre className="flex-1 leading-relaxed text-zinc-700 whitespace-pre">
-                      {CODE_EXAMPLES[selectedCodeTab].jsonResponse}
-                    </pre>
+
+                    {/* Response Output with Line-by-Line Reveal */}
+                    <div className="flex gap-4">
+                      <div className="select-none text-zinc-300 text-right pr-3 border-r border-zinc-200 min-w-[2rem]">
+                        {activeResponseLines.map((_, i) => (
+                          <div key={i} className={i <= visibleLines ? "opacity-100" : "opacity-0"}>
+                            {i + 1}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex-1 leading-relaxed whitespace-pre">
+                        {activeResponseLines.map((line, i) => (
+                          <div
+                            key={i}
+                            className={`transition-opacity duration-100 ${
+                              i <= visibleLines ? "opacity-100" : "opacity-0"
+                            }`}
+                          >
+                            {renderSyntaxTokens(line)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-zinc-200 flex items-center justify-between text-[11px] text-zinc-400">
+                    <span>Payload: JSON-RPC 2.0</span>
+                    <span className="text-zinc-600 font-mono">Status: Verified Grounded</span>
                   </div>
                 </div>
               </div>
@@ -1204,90 +1361,87 @@ export default function LandingClient() {
         </section>
 
         {/* ==========================================
-            BEAUTIFUL DEDICATED MCP SECTION (#mcp)
-            (No redirects - In-depth interactive protocol showcase)
+            MCP INTEGRATION CODE ONLY (No Descriptions)
             ========================================== */}
-        <section id="mcp" className="py-24 bg-white border-b border-zinc-200/80">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-3xl mx-auto">
-              <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3.5 py-1 text-xs font-mono font-semibold text-[#f95721]">
-                <PlugZap className="size-3.5" />
-                MODEL CONTEXT PROTOCOL (MCP) NATIVE
+        <section id="mcp" className="py-20 bg-white border-b border-zinc-200/80">
+          <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-200">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-[11px] font-mono font-bold text-[#f95721] mb-2">
+                  <PlugZap className="size-3" />
+                  MODEL CONTEXT PROTOCOL
+                </div>
+                <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-zinc-950">
+                  MCP Integration Code
+                </h2>
+                <p className="mt-1 font-mono text-xs text-zinc-500">
+                  Endpoint: <span className="text-zinc-900 font-semibold">https://api.chatty.personaliai.com/mcp</span>
+                </p>
               </div>
-              <h2 className="mt-4 font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-zinc-950">
-                Give Claude & Cursor direct control of your support fleet.
-              </h2>
-              <p className="mt-3 text-sm sm:text-base text-zinc-600 leading-relaxed">
-                Connect Claude Desktop, Cursor IDE, and Codex directly to your Chatty instance via native MCP tools.
-                Inspect live conversations, re-index sitemaps, triage leads, and schedule customer calls using natural
-                language.
-              </p>
+
+              <div className="flex items-center gap-2">
+                <Link
+                  href="https://docs.chatty.personaliai.com/guides/mcp"
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-600 hover:text-zinc-950 px-3 py-2 rounded-lg border border-zinc-200 hover:bg-zinc-50 transition-colors"
+                >
+                  <span>Protocol Spec</span>
+                  <ExternalLink className="size-3 text-zinc-400" />
+                </Link>
+              </div>
             </div>
 
-            {/* Interactive MCP Tools Registry Showcase */}
-            <div className="mt-14 max-w-5xl mx-auto rounded-2xl border border-zinc-200 bg-zinc-50/70 p-6 sm:p-8 shadow-xl">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Left Column: Selectable Tools List */}
-                <div className="lg:col-span-5 space-y-2.5">
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400 block mb-2">
-                    Registered MCP Tools
+            {/* MCP Target Platforms Tabs */}
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              {MCP_INTEGRATIONS.map((target, idx) => (
+                <button
+                  key={target.name}
+                  type="button"
+                  onClick={() => setSelectedMcpIdx(idx)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                    selectedMcpIdx === idx
+                      ? "bg-[#f95721] text-white border-[#f95721] shadow-sm shadow-orange-500/20"
+                      : "bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100 hover:text-zinc-950"
+                  }`}
+                >
+                  {target.name}
+                </button>
+              ))}
+            </div>
+
+            {/* MCP Code Viewer Box */}
+            <div className="mt-4 rounded-2xl border border-zinc-200 bg-white shadow-lg overflow-hidden">
+              <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50/90 px-4 py-3 text-xs">
+                <div className="flex items-center gap-2 font-mono text-[11px] text-zinc-600">
+                  <span className="font-semibold text-zinc-900">{MCP_INTEGRATIONS[selectedMcpIdx].file}</span>
+                  <span className="rounded bg-zinc-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700">
+                    {MCP_INTEGRATIONS[selectedMcpIdx].badge}
                   </span>
-                  {MCP_TOOLS.map((tool) => {
-                    const isSelected = tool.name === selectedMcpTool.name;
-                    return (
-                      <button
-                        key={tool.name}
-                        type="button"
-                        onClick={() => setSelectedMcpTool(tool)}
-                        className={`w-full text-left p-3.5 rounded-xl border transition-all ${
-                          isSelected
-                            ? "bg-white border-[#f95721] shadow-md shadow-orange-500/10 text-zinc-950"
-                            : "bg-white/60 border-zinc-200 text-zinc-700 hover:bg-white hover:border-zinc-300"
-                        }`}
-                      >
-                        <p className="font-mono text-xs font-bold text-[#f95721]">{tool.name}</p>
-                        <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed line-clamp-2">{tool.desc}</p>
-                      </button>
-                    );
-                  })}
                 </div>
 
-                {/* Right Column: Live Claude / Cursor Interaction Inspector */}
-                <div className="lg:col-span-7 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
-                    <span className="text-xs font-mono font-bold text-zinc-700">Claude Desktop Session</span>
-                    <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold">
-                      Tool Call Verified
-                    </span>
-                  </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopyMcp(MCP_INTEGRATIONS[selectedMcpIdx].code)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors shadow-sm"
+                >
+                  {mcpCodeCopied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                  <span>{mcpCodeCopied ? "Copied!" : "Copy Code"}</span>
+                </button>
+              </div>
 
-                  {/* Natural Language Prompt from User */}
-                  <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3.5 text-xs text-zinc-800">
-                    <p className="font-mono text-[10px] uppercase font-bold text-zinc-400 mb-1">User Instruction:</p>
-                    <p className="font-medium">{selectedMcpTool.samplePrompt}</p>
+              <div className="p-5 font-mono text-xs text-zinc-800 bg-white overflow-x-auto">
+                <div className="flex gap-4">
+                  {/* Line Numbers */}
+                  <div className="select-none text-zinc-300 text-right pr-3 border-r border-zinc-100 min-w-[2rem]">
+                    {MCP_INTEGRATIONS[selectedMcpIdx].code.split("\n").map((_, i) => (
+                      <div key={i}>{i + 1}</div>
+                    ))}
                   </div>
-
-                  {/* Tool Call and Output Details */}
-                  <div className="rounded-lg bg-[#fafafa] border border-zinc-200 p-3.5 font-mono text-xs text-zinc-800">
-                    <p className="font-mono text-[10px] uppercase font-bold text-[#f95721] mb-1">
-                      MCP Server Execution Output:
-                    </p>
-                    <pre className="text-xs overflow-x-auto leading-relaxed text-zinc-700">
-                      {JSON.stringify(selectedMcpTool.sampleOutput, null, 2)}
-                    </pre>
-                  </div>
-
-                  {/* Fast Config Snippet */}
-                  <div className="pt-2 border-t border-zinc-100 flex items-center justify-between text-xs text-zinc-500">
-                    <span>Config: <code>claude_desktop_config.json</code></span>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyCode('npx -y @personaliai/chatty-mcp@latest')}
-                      className="inline-flex items-center gap-1 font-mono text-xs text-[#f95721] font-semibold hover:underline"
-                    >
-                      <span>npx @personaliai/chatty-mcp</span>
-                      <Copy className="size-3" />
-                    </button>
+                  {/* Code Lines */}
+                  <div className="flex-1 leading-relaxed whitespace-pre">
+                    {MCP_INTEGRATIONS[selectedMcpIdx].code.split("\n").map((line, i) => (
+                      <div key={i}>{renderSyntaxTokens(line)}</div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1891,7 +2045,7 @@ export default function LandingClient() {
             <div className="space-y-3">
               <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-950">Product</p>
               <ul className="space-y-2">
-                <li><Link href="#playground" className="hover:text-zinc-950 transition-colors">Playground</Link></li>
+                <li><Link href="#code" className="hover:text-zinc-950 transition-colors">Developer API</Link></li>
                 <li><Link href="#mcp" className="hover:text-zinc-950 transition-colors">MCP Platform</Link></li>
                 <li><Link href="#capabilities" className="hover:text-zinc-950 transition-colors">Grounded RAG</Link></li>
                 <li><Link href="#pricing" className="hover:text-zinc-950 transition-colors">Pricing</Link></li>
