@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Clock3,
   Code2,
+  Copy,
   Cpu,
   Database,
   ExternalLink,
@@ -47,69 +48,237 @@ import {
 } from "lucide-react";
 
 // ==========================================
-// STATIC DATA & DEFINITIONS
+// STATIC DATA & CONTENT
 // ==========================================
 
 const MEGA_MENU_PRODUCTS = [
   {
-    title: "Autonomous Agent Fleet",
+    title: "Autonomous Agents",
     badge: "Core",
     items: [
       {
         icon: Database,
         title: "Grounded Knowledge RAG",
         desc: "Strict cosine thresholding with zero hallucinations and verified source citations.",
-        href: "#architecture",
+        href: "#capabilities",
+        iconColor: "text-orange-500 bg-orange-50 border-orange-100",
       },
       {
         icon: CalendarCheck,
         title: "In-Chat Calendar Booking",
-        desc: "Google Calendar & Outlook slot picker embedded directly into live chat conversations.",
-        href: "#simulator",
+        desc: "Google Calendar & Outlook slot picker embedded directly into live conversations.",
+        href: "#playground",
+        iconColor: "text-blue-500 bg-blue-50 border-blue-100",
       },
       {
         icon: MousePointerClick,
         title: "Intent Lead Capture",
         desc: "Naturally collect verified email, company, and purchase intent without clunky forms.",
         href: "#capabilities",
+        iconColor: "text-emerald-500 bg-emerald-50 border-emerald-100",
       },
       {
         icon: Inbox,
         title: "Omnichannel Team Inbox",
         desc: "Live visitor monitoring, sentiment alerts, and 1-click human takeover lock.",
         href: "#capabilities",
+        iconColor: "text-purple-500 bg-purple-50 border-purple-100",
       },
     ],
   },
   {
-    title: "Developer Platform & Protocol",
-    badge: "Open Source",
+    title: "Developer Platform",
+    badge: "Protocol",
     items: [
       {
         icon: PlugZap,
         title: "Model Context Protocol (MCP)",
-        desc: "Native MCP server for Claude Desktop, Cursor, and autonomous agent orchestration.",
-        href: "#mcp",
+        desc: "Native MCP server for Claude Desktop, Cursor, and autonomous agent fleets.",
+        href: "https://docs.chatty.personaliai.com",
+        iconColor: "text-amber-500 bg-amber-50 border-amber-100",
       },
       {
         icon: Cpu,
         title: "Zero-Markup BYOK Engine",
-        desc: "Bring your own OpenAI, Anthropic, Gemini, or OpenRouter keys with zero platform fee.",
+        desc: "Bring your own OpenAI, Anthropic, Gemini, or OpenRouter keys with zero fee.",
         href: "#pricing",
+        iconColor: "text-rose-500 bg-rose-50 border-rose-100",
       },
       {
         icon: Terminal,
         title: "Management API & Webhooks",
-        desc: "Full programmatic control over bots, training data, leads, and transcript exports.",
+        desc: "Full programmatic control over bots, training data, leads, and transcripts.",
         href: "https://docs.chatty.personaliai.com",
+        iconColor: "text-indigo-500 bg-indigo-50 border-indigo-100",
       },
       {
-        icon: Code2,
-        title: "Public GitHub Repository",
-        desc: "Inspect source code, self-host via Docker, or contribute to the open-source community.",
-        href: "https://github.com/Damayantha/chatty",
+        icon: Headphones,
+        title: "Voice AI Assistant Demo",
+        desc: "Experience ultra-low-latency real-time voice conversations with Chatty.",
+        href: "/voice-demo",
+        iconColor: "text-teal-500 bg-teal-50 border-teal-100",
       },
     ],
+  },
+];
+
+const MEGA_MENU_RESOURCES = [
+  {
+    title: "Documentation",
+    desc: "Complete guides, embed instructions, and architecture references.",
+    href: "https://docs.chatty.personaliai.com",
+    external: true,
+  },
+  {
+    title: "Affiliates Program",
+    desc: "Earn recurring commissions by referring high-growth businesses.",
+    href: "/affiliates",
+    external: false,
+  },
+  {
+    title: "Support & Help Center",
+    desc: "Get fast answers or contact our engineering and support team.",
+    href: "/support",
+    external: false,
+  },
+  {
+    title: "Voice AI Playground",
+    desc: "Test bidirectional voice agents with LiveKit and Cartesia models.",
+    href: "/voice-demo",
+    external: false,
+  },
+  {
+    title: "Zoom App Integration",
+    desc: "Connect Chatty directly to your Zoom team workspaces and meetings.",
+    href: "/zoom",
+    external: false,
+  },
+];
+
+const PLAYGROUND_TABS = [
+  {
+    id: "booking",
+    label: "Demo Calendar Booking",
+    icon: CalendarCheck,
+    prompt: "I'd like to book a 15-minute live demo with your solutions team this week.",
+    response:
+      "I'd love to set that up! You can pick an open slot with our engineering team directly on my calendar below. Timezones are automatically detected.",
+    hasCalendar: true,
+    citations: ["personaliai.com/team-calendar", "docs.chatty.personaliai.com/booking"],
+  },
+  {
+    id: "rag",
+    label: "Grounded Knowledge RAG",
+    icon: Database,
+    prompt: "How does Chatty ensure answers are grounded without AI hallucinations?",
+    response:
+      "Chatty uses pgvector cosine similarity cutoff (0.78 threshold). If visitor questions cannot be matched to verified chunks from your crawled sitemap or uploaded docs, the assistant admits uncertainty and routes to a human instead of hallucinating.",
+    hasCalendar: false,
+    citations: ["docs.chatty.personaliai.com/rag-pipeline", "personaliai.com/security"],
+  },
+  {
+    id: "compare",
+    label: "Compare Intercom & Crisp",
+    icon: LayoutGrid,
+    prompt: "How does Chatty compare to Intercom Fin and Crisp on pricing and AI markup?",
+    response:
+      "Unlike Intercom Fin which adds a $0.99 tax on every single AI resolution plus per-seat pricing, Chatty offers a Free BYOK tier ($0) with unlimited tokens, and flat plans starting at $19/mo with full calendar booking, lead capture, and MCP tooling included.",
+    hasCalendar: false,
+    citations: ["personaliai.com/pricing", "docs.chatty.personaliai.com/comparison"],
+  },
+  {
+    id: "byok",
+    label: "Zero-Markup BYOK",
+    icon: Cpu,
+    prompt: "Can I bring my own OpenAI or Anthropic API key without platform fees?",
+    response:
+      "Yes. Under our Free BYOK tier, you paste your provider key into the dashboard. We stream tokens directly with 0% platform markup, giving you complete cost control and access to your provider volume discounts.",
+    hasCalendar: false,
+    citations: ["docs.chatty.personaliai.com/providers/byok", "github.com/Damayantha/chatty"],
+  },
+];
+
+const CODE_EXAMPLES = [
+  {
+    lang: "HTML Embed",
+    title: "1-Line Website Script",
+    code: `<!-- Add Chatty to your website <head> -->
+<script
+  src="https://chatty.personaliai.com/widget.js"
+  data-chatty-bot="bot_982b1fa4e8"
+  data-primary-color="#f95721"
+  defer>
+</script>`,
+    response: {
+      status: "initialized",
+      bot_id: "bot_982b1fa4e8",
+      grounding_threshold: 0.78,
+      calendar_sync: "Google Calendar (Active)",
+      latency: "182ms",
+    },
+  },
+  {
+    lang: "Python SDK",
+    title: "Query Trained Knowledge",
+    code: `from chatty import ChattyClient
+
+client = ChattyClient(api_key="cty_live_92018a...")
+
+# Query grounded knowledge base
+response = client.chat.create(
+    bot_id="bot_982b1fa4e8",
+    message="What is your enterprise SLA policy?",
+    enable_citations=True
+)
+
+print(response.answer)
+print(response.citations)`,
+    response: {
+      answer: "We guarantee 99.98% uptime with 15-minute response SLA.",
+      grounding_score: 0.992,
+      citations: ["https://personaliai.com/docs/sla#L14"],
+    },
+  },
+  {
+    lang: "Node.js",
+    title: "Book Meeting Programmatically",
+    code: `import { Chatty } from "@personaliai/chatty";
+
+const chatty = new Chatty({ apiKey: process.env.CHATTY_API_KEY });
+
+// Retrieve available slots and book
+const booking = await chatty.bookings.confirm({
+  botId: "bot_982b1fa4e8",
+  visitorEmail: "alex@acme.corp",
+  slotTime: "2026-09-15T14:30:00Z",
+  timezone: "America/New_York"
+});`,
+    response: {
+      booking_id: "bk_77189a",
+      status: "confirmed",
+      calendar_event: "Google Meet link generated",
+      attendees: ["alex@acme.corp", "team@personaliai.com"],
+    },
+  },
+  {
+    lang: "MCP Server",
+    title: "Claude & Cursor Protocol Config",
+    code: `{
+  "mcpServers": {
+    "chatty": {
+      "command": "npx",
+      "args": ["-y", "@personaliai/chatty-mcp@latest"],
+      "env": {
+        "CHATTY_API_KEY": "cty_live_92018a..."
+      }
+    }
+  }
+}`,
+    response: {
+      protocol_version: "2024-11-05",
+      tools_registered: 18,
+      capabilities: ["query_bot", "book_slot", "triage_leads", "update_sources"],
+    },
   },
 ];
 
@@ -119,9 +288,9 @@ const AGENT_NODES = [
     name: "Knowledge RAG Agent",
     tag: "pgvector · Cosine 0.78",
     status: "Active",
-    desc: "Retrieves verified chunks from crawled sitemaps, docs, and PDFs with strict grounding guardrails.",
+    desc: "Retrieves verified chunks from crawled sitemaps, docs, and PDFs with strict anti-hallucination guardrails.",
     metric: "99.4% Grounding Accuracy",
-    samplePayload: {
+    payload: {
       source: "docs.personaliai.com/api",
       similarity_score: 0.892,
       latency_ms: 184,
@@ -135,7 +304,7 @@ const AGENT_NODES = [
     status: "Active",
     desc: "Checks real-time host availability, handles timezone conversion, and confirms calendar invites.",
     metric: "0% Drop-off Rate",
-    samplePayload: {
+    payload: {
       integration: "Google Calendar v3",
       timezone: "America/New_York",
       available_slots: ["10:00 AM", "02:30 PM", "04:00 PM"],
@@ -145,11 +314,11 @@ const AGENT_NODES = [
   {
     id: "leads",
     name: "Lead Qualification Agent",
-    tag: "Progressive Enrichment",
+    tag: "Progressive Profiling",
     status: "Active",
     desc: "Evaluates conversational intent, extracts company domain, and routes qualified buyers to CRM.",
     metric: "3.4x Higher Conversion",
-    samplePayload: {
+    payload: {
       intent_tier: "High (Enterprise Evaluation)",
       extracted_fields: { email: "alex@acme.corp", company: "Acme Corp", seats: 45 },
       webhook_status: "Dispatched to Hubspot",
@@ -162,7 +331,7 @@ const AGENT_NODES = [
     status: "Monitoring",
     desc: "Scans conversation sentiment in real time. Dispatches instant Slack alerts when human judgment is needed.",
     metric: "< 2s Notification Speed",
-    samplePayload: {
+    payload: {
       sentiment_score: "Frustrated (-0.72)",
       trigger: "Billing discrepancy detected",
       action: "AI reply paused · Human assigned",
@@ -171,11 +340,11 @@ const AGENT_NODES = [
   {
     id: "mcp",
     name: "MCP Fleet Operator",
-    tag: "Claude · Cursor Tools",
+    tag: "Claude · Cursor Protocol",
     status: "Ready",
     desc: "Enables external AI agents to query analytics, train new sources, and trigger customer broadcasts.",
-    metric: "18 Native Tool Definitions",
-    samplePayload: {
+    metric: "18 Native Tools",
+    payload: {
       protocol: "Model Context Protocol v1.0",
       active_clients: ["Cursor", "Claude Desktop"],
       permissions: "Bots:ReadWrite, Leads:Read",
@@ -183,51 +352,13 @@ const AGENT_NODES = [
   },
 ];
 
-const SIMULATOR_PROMPTS = [
-  {
-    id: "calendar",
-    pill: "Demo Calendar Booking",
-    query: "I want to see a live demo of Chatty with our engineering team. Do you have 15 minutes this week?",
-    response:
-      "I'd love to set that up! You can pick an open slot with our solutions engineering team directly on my calendar below. Timezones are automatically synchronized with your browser.",
-    hasCalendar: true,
-    citations: ["personaliai.com/team-schedule", "calendar.personaliai.com/se-demo"],
-  },
-  {
-    id: "pricing",
-    pill: "Compare Intercom & Crisp",
-    query: "How does Chatty compare to Intercom Fin and Crisp on pricing and AI markup?",
-    response:
-      "Unlike Intercom Fin which charges $0.99 for every single AI resolution on top of heavy seat fees, Chatty offers a Free BYOK (Bring Your Own Key) tier with zero token markup. Our paid plans start at a predictable flat rate ($19 - $99/mo) with full calendar booking, lead capture, and MCP tooling included.",
-    hasCalendar: false,
-    citations: ["personaliai.com/pricing", "docs.chatty.personaliai.com/byok-guide"],
-  },
-  {
-    id: "byok",
-    pill: "Zero-Markup BYOK Setup",
-    query: "Can I connect my own OpenAI, Gemini, or Anthropic API key without platform fees?",
-    response:
-      "Yes. With Chatty's BYOK architecture, you paste your provider API key into the dashboard. We stream tokens directly between your provider and your visitors. We charge zero platform markup on your tokens, giving you full control over rate limits and enterprise discounts.",
-    hasCalendar: false,
-    citations: ["docs.chatty.personaliai.com/providers/byok", "github.com/Damayantha/chatty"],
-  },
-];
-
-const METRICS = [
-  { label: "First Token Latency", value: "< 400ms", detail: "Streaming pgvector RAG pipeline" },
-  { label: "Ticket Deflection Rate", value: "84%", detail: "Autonomous first-contact resolution" },
-  { label: "Cross-Lingual Reasoning", value: "95+", detail: "Native multilingual embeddings" },
-  { label: "Free BYOK Tier", value: "$0", detail: "Zero platform markup on your API keys" },
-];
-
-const COMPARISON_ROWS = [
+const COMPARISONS = [
   {
     feature: "Open-Source & Self-Hostable",
     chatty: "Full GitHub Repo & Docker",
     intercom: "Closed Proprietary",
     zendesk: "Closed Proprietary",
     crisp: "Closed Proprietary",
-    chattyHighlight: true,
   },
   {
     feature: "Zero-Markup BYOK (OpenAI/Anthropic)",
@@ -235,15 +366,13 @@ const COMPARISON_ROWS = [
     intercom: "Not Supported",
     zendesk: "Not Supported",
     crisp: "Not Supported",
-    chattyHighlight: true,
   },
   {
     feature: "Native In-Chat Calendar Booking",
     chatty: "Google & Outlook Direct",
-    intercom: "Paid App Add-on",
+    intercom: "Paid Add-on App",
     zendesk: "Third-party redirect",
     crisp: "Third-party redirect",
-    chattyHighlight: true,
   },
   {
     feature: "Model Context Protocol (MCP) Server",
@@ -251,7 +380,6 @@ const COMPARISON_ROWS = [
     intercom: "No MCP support",
     zendesk: "No MCP support",
     crisp: "No MCP support",
-    chattyHighlight: true,
   },
   {
     feature: "Grounded Anti-Hallucination Citations",
@@ -259,7 +387,6 @@ const COMPARISON_ROWS = [
     intercom: "Basic Fin Summary",
     zendesk: "Generic KB search",
     crisp: "Generic KB search",
-    chattyHighlight: true,
   },
   {
     feature: "Pricing Model",
@@ -267,17 +394,16 @@ const COMPARISON_ROWS = [
     intercom: "$39/seat + $0.99/resolution",
     zendesk: "$55/seat + AI add-on",
     crisp: "$95/mo + limited AI",
-    chattyHighlight: true,
   },
 ];
 
 const FAQS = [
   {
     q: "How fast can I deploy Chatty on my live website?",
-    a: "Most teams are fully live in under 3 minutes. Simply create an account, paste your website URL or upload your help documentation, let our crawler index your knowledge chunks, and copy-paste one `<script>` snippet into your HTML head or Google Tag Manager.",
+    a: "Most teams are fully live in under 3 minutes. Simply create an account, paste your website URL or upload your help documentation, let our crawler index your knowledge chunks, and copy-paste one <script> snippet into your HTML head or Google Tag Manager.",
   },
   {
-    q: "How does Chatty guarantee zero hallucinations?",
+    q: "How does Chatty prevent AI hallucinations?",
     a: "Chatty implements strict cosine similarity thresholding with pgvector. If a visitor's question cannot be grounded with high mathematical confidence in your ingested data sources, the assistant transparently admits it doesn't know and offers to schedule a call or route to a human team member.",
   },
   {
@@ -299,60 +425,41 @@ const FAQS = [
 ];
 
 // ==========================================
-// SUB-COMPONENTS
-// ==========================================
-
-function GithubStarIcon({ className = "size-4" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.07.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .31.21.67.8.56A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
-    </svg>
-  );
-}
-
-// ==========================================
 // MAIN LANDING CLIENT COMPONENT
 // ==========================================
 
 export default function LandingClient() {
-  // Navigation & Mega-Menu State
-  const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Navigation Menus State
+  const [productsMenuOpen, setProductsMenuOpen] = useState(false);
+  const [resourcesMenuOpen, setResourcesMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Agent Architecture Node Switcher
-  const [activeNodeId, setActiveNodeId] = useState("rag");
-  const activeNode = useMemo(
-    () => AGENT_NODES.find((n) => n.id === activeNodeId) || AGENT_NODES[0],
-    [activeNodeId]
-  );
-
-  // Simulator State
-  const [selectedPrompt, setSelectedPrompt] = useState(SIMULATOR_PROMPTS[0]);
+  // Playground Simulator State
+  const [selectedPlaygroundTab, setSelectedPlaygroundTab] = useState(PLAYGROUND_TABS[0]);
   const [simulatedSlot, setSimulatedSlot] = useState<string | null>(null);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
 
-  // Switch prompt with simulated typing latency
-  const handleSelectPrompt = (prompt: typeof SIMULATOR_PROMPTS[0]) => {
-    setSelectedPrompt(prompt);
-    setSimulatedSlot(null);
-    setBookingConfirmed(false);
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-    }, 350);
-  };
+  // Code Showcase State
+  const [selectedCodeTab, setSelectedCodeTab] = useState(0);
+  const [codeCopied, setCodeCopied] = useState(false);
+
+  // Multi-Agent Pipeline State
+  const [selectedAgentId, setSelectedAgentId] = useState("rag");
+  const selectedAgent = useMemo(
+    () => AGENT_NODES.find((a) => a.id === selectedAgentId) || AGENT_NODES[0],
+    [selectedAgentId]
+  );
 
   // ROI Calculator State
   const [monthlyVisitors, setMonthlyVisitors] = useState(25000);
   const [monthlyTickets, setMonthlyTickets] = useState(1200);
 
-  // Calculated ROI Metrics
   const calculatedMetrics = useMemo(() => {
     const deflectedTickets = Math.round(monthlyTickets * 0.84);
-    const hoursSaved = Math.round((deflectedTickets * 14) / 60); // 14 mins avg handle time
-    const leadsCaptured = Math.round(monthlyVisitors * 0.038); // 3.8% conversion
-    const estimatedCostSavings = Math.round(deflectedTickets * 3.4); // ~$3.40 avg cost per tier 1 ticket
+    const hoursSaved = Math.round((deflectedTickets * 14) / 60);
+    const leadsCaptured = Math.round(monthlyVisitors * 0.038);
+    const estimatedCostSavings = Math.round(deflectedTickets * 3.4);
     return {
       deflectedTickets,
       hoursSaved,
@@ -361,262 +468,348 @@ export default function LandingClient() {
     };
   }, [monthlyVisitors, monthlyTickets]);
 
-  // Pricing Billing Toggle
+  // Pricing Toggle State
   const [isAnnual, setIsAnnual] = useState(true);
 
   // FAQ Accordion State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
-  // Close mega-menu on escape
+  // Switch playground tab with typing simulation
+  const handleSelectTab = (tab: typeof PLAYGROUND_TABS[0]) => {
+    setSelectedPlaygroundTab(tab);
+    setSimulatedSlot(null);
+    setBookingConfirmed(false);
+    setIsTyping(true);
+    setTimeout(() => {
+      setIsTyping(false);
+    }, 280);
+  };
+
+  // Copy code handler
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  // Close menus on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsMegaMenuOpen(false);
+      if (e.key === "Escape") {
+        setProductsMenuOpen(false);
+        setResourcesMenuOpen(false);
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#090a0f] text-zinc-100 font-sans selection:bg-[#facc15] selection:text-black antialiased">
+    <div className="min-h-screen bg-white text-zinc-900 font-sans selection:bg-[#f95721] selection:text-white antialiased">
       {/* ==========================================
-          HEADER & INDUSTRIAL MEGA-MENU
+          TOP NAVIGATION (Spacious, Firecrawl + Nimble Style)
           ========================================== */}
-      <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#090a0f]/90 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Logo & Version Tag */}
+      <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          {/* Left: Brand Logo & Open Source Badge */}
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2.5 focus:outline-none">
-              <div className="relative flex size-8 items-center justify-center rounded-lg border border-white/10 bg-[#131722]">
-                <Image
-                  src="/favicon.png"
-                  alt="Chatty Logo"
-                  width={22}
-                  height={22}
-                  className="object-contain"
-                  priority
-                />
-              </div>
-              <span className="font-display text-lg font-bold tracking-tight text-white">Chatty</span>
+              <Image
+                src="/favicon.png"
+                alt="Chatty Logo"
+                width={32}
+                height={32}
+                className="object-contain"
+                priority
+              />
+              <span className="font-display text-xl font-bold tracking-tight text-zinc-950">Chatty</span>
             </Link>
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded border border-white/10 bg-[#131722] px-2 py-0.5 text-[11px] font-mono text-zinc-400">
-              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              v2.4.0 · OSS
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-[11px] font-mono font-medium text-[#f95721]">
+              <span className="size-1.5 rounded-full bg-[#f95721] animate-pulse" />
+              Open Source
             </span>
           </div>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1 text-sm font-medium text-zinc-300">
-            {/* Products Mega-Menu Button */}
+          {/* Center: Desktop Navigation Links with Mega-Menus */}
+          <nav className="hidden md:flex items-center gap-1 text-sm font-medium text-zinc-600">
+            {/* Products Mega-Menu Dropdown */}
             <div
               className="relative"
-              onMouseEnter={() => setIsMegaMenuOpen(true)}
-              onMouseLeave={() => setIsMegaMenuOpen(false)}
+              onMouseEnter={() => setProductsMenuOpen(true)}
+              onMouseLeave={() => setProductsMenuOpen(false)}
             >
               <button
                 type="button"
-                onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
-                  isMegaMenuOpen ? "text-white bg-white/[0.06]" : "hover:text-white hover:bg-white/[0.04]"
+                onClick={() => setProductsMenuOpen(!productsMenuOpen)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-colors ${
+                  productsMenuOpen ? "text-zinc-950 bg-zinc-100" : "hover:text-zinc-950 hover:bg-zinc-50"
                 }`}
-                aria-expanded={isMegaMenuOpen}
               >
                 <span>Products</span>
                 <ChevronDown
                   className={`size-3.5 text-zinc-400 transition-transform duration-200 ${
-                    isMegaMenuOpen ? "rotate-180 text-yellow-400" : ""
+                    productsMenuOpen ? "rotate-180 text-[#f95721]" : ""
                   }`}
                 />
               </button>
 
-              {/* Mega-Menu Dropdown Panel */}
-              {isMegaMenuOpen && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[720px] transition-all duration-150">
-                  <div className="rounded-2xl border border-white/[0.12] bg-[#0d0f17] p-6 shadow-2xl shadow-black/80">
-                    <div className="grid grid-cols-2 gap-8">
-                      {MEGA_MENU_PRODUCTS.map((col) => (
-                        <div key={col.title}>
-                          <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
-                            <span className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-400">
-                              {col.title}
-                            </span>
-                            <span className="rounded bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-mono text-zinc-300">
-                              {col.badge}
-                            </span>
+              {/* Firecrawl / Nimble Style 2-Column Mega-Menu Card */}
+              {productsMenuOpen && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[760px] transition-all duration-150">
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl shadow-zinc-200/80">
+                    <div className="grid grid-cols-12 gap-6">
+                      {/* Left Two Columns: Products List */}
+                      <div className="col-span-8 grid grid-cols-2 gap-6 border-r border-zinc-100 pr-6">
+                        {MEGA_MENU_PRODUCTS.map((section) => (
+                          <div key={section.title} className="space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                              <span className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-400">
+                                {section.title}
+                              </span>
+                              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500">
+                                {section.badge}
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {section.items.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                  <Link
+                                    key={item.title}
+                                    href={item.href}
+                                    onClick={() => setProductsMenuOpen(false)}
+                                    className="group flex items-start gap-2.5 rounded-xl p-2 transition-colors hover:bg-orange-50/50"
+                                  >
+                                    <div
+                                      className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border ${item.iconColor}`}
+                                    >
+                                      <Icon className="size-3.5" />
+                                    </div>
+                                    <div>
+                                      <p className="text-xs font-semibold text-zinc-900 group-hover:text-[#f95721] transition-colors">
+                                        {item.title}
+                                      </p>
+                                      <p className="text-[11px] leading-relaxed text-zinc-500 line-clamp-2">
+                                        {item.desc}
+                                      </p>
+                                    </div>
+                                  </Link>
+                                );
+                              })}
+                            </div>
                           </div>
-                          <div className="mt-3 space-y-1">
-                            {col.items.map((item) => {
-                              const Icon = item.icon;
-                              return (
-                                <Link
-                                  key={item.title}
-                                  href={item.href}
-                                  onClick={() => setIsMegaMenuOpen(false)}
-                                  className="group flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-white/[0.05]"
-                                >
-                                  <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-[#141824] text-zinc-300 group-hover:border-yellow-400/50 group-hover:text-yellow-400 transition-colors">
-                                    <Icon className="size-4" />
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-semibold text-white group-hover:text-yellow-300 transition-colors">
-                                      {item.title}
-                                    </p>
-                                    <p className="text-[11px] leading-relaxed text-zinc-400 line-clamp-2">
-                                      {item.desc}
-                                    </p>
-                                  </div>
-                                </Link>
-                              );
-                            })}
+                        ))}
+                      </div>
+
+                      {/* Right Column: Firecrawl-Style Open Source Feature Box */}
+                      <div className="col-span-4 flex flex-col justify-between rounded-xl border border-orange-100 bg-orange-50/40 p-4">
+                        <div className="space-y-3">
+                          <div className="flex size-9 items-center justify-center rounded-xl bg-[#f95721] text-white shadow-sm">
+                            <Bot className="size-5" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#f95721]">
+                              Open Source
+                            </span>
+                            <h4 className="mt-1 text-sm font-bold text-zinc-900">Chatty is 100% open source.</h4>
+                            <p className="mt-1 text-xs text-zinc-600 leading-relaxed">
+                              Star our repository on GitHub to follow weekly releases and contribute tools.
+                            </p>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                    {/* Mega Menu Footer Banner */}
-                    <div className="mt-5 pt-4 border-t border-white/[0.06] flex items-center justify-between text-xs text-zinc-400">
-                      <div className="flex items-center gap-2">
-                        <span className="size-2 rounded-full bg-emerald-400" />
-                        <span>Zero hallucinations with strict cosine distance cutoff</span>
+
+                        <Link
+                          href="https://github.com/Damayantha/chatty"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#f95721] hover:text-[#ea4815] transition-colors"
+                        >
+                          <span>View GitHub Repository</span>
+                          <ArrowRight className="size-3.5" />
+                        </Link>
                       </div>
-                      <Link
-                        href="https://github.com/Damayantha/chatty"
-                        target="_blank"
-                        className="inline-flex items-center gap-1 font-mono text-yellow-400 hover:text-yellow-300"
-                      >
-                        <span>GitHub Repository</span>
-                        <ChevronRight className="size-3" />
-                      </Link>
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            <Link href="#architecture" className="px-3 py-1.5 rounded-md hover:text-white hover:bg-white/[0.04]">
-              Architecture
-            </Link>
-            <Link href="#simulator" className="px-3 py-1.5 rounded-md hover:text-white hover:bg-white/[0.04]">
-              Simulator
-            </Link>
-            <Link href="#calculator" className="px-3 py-1.5 rounded-md hover:text-white hover:bg-white/[0.04]">
-              ROI Calculator
-            </Link>
-            <Link href="#pricing" className="px-3 py-1.5 rounded-md hover:text-white hover:bg-white/[0.04]">
+            {/* Resources Dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={() => setResourcesMenuOpen(true)}
+              onMouseLeave={() => setResourcesMenuOpen(false)}
+            >
+              <button
+                type="button"
+                onClick={() => setResourcesMenuOpen(!resourcesMenuOpen)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-colors ${
+                  resourcesMenuOpen ? "text-zinc-950 bg-zinc-100" : "hover:text-zinc-950 hover:bg-zinc-50"
+                }`}
+              >
+                <span>Resources</span>
+                <ChevronDown
+                  className={`size-3.5 text-zinc-400 transition-transform duration-200 ${
+                    resourcesMenuOpen ? "rotate-180 text-[#f95721]" : ""
+                  }`}
+                />
+              </button>
+
+              {resourcesMenuOpen && (
+                <div className="absolute top-full left-0 pt-2 w-72 transition-all duration-150">
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl space-y-1">
+                    {MEGA_MENU_RESOURCES.map((item) => (
+                      <Link
+                        key={item.title}
+                        href={item.href}
+                        target={item.external ? "_blank" : undefined}
+                        onClick={() => setResourcesMenuOpen(false)}
+                        className="block rounded-xl p-2.5 transition-colors hover:bg-zinc-50"
+                      >
+                        <p className="text-xs font-semibold text-zinc-900 flex items-center justify-between">
+                          <span>{item.title}</span>
+                          {item.external && <ExternalLink className="size-3 text-zinc-400" />}
+                        </p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">{item.desc}</p>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Link href="#pricing" className="px-3.5 py-2 rounded-lg hover:text-zinc-950 hover:bg-zinc-50">
               Pricing
             </Link>
             <Link
               href="https://docs.chatty.personaliai.com"
               target="_blank"
-              className="px-3 py-1.5 rounded-md hover:text-white hover:bg-white/[0.04]"
+              className="px-3.5 py-2 rounded-lg hover:text-zinc-950 hover:bg-zinc-50"
             >
               Docs
             </Link>
+            <Link href="#playground" className="px-3.5 py-2 rounded-lg hover:text-zinc-950 hover:bg-zinc-50">
+              Playground
+            </Link>
           </nav>
 
-          {/* Right Action Items */}
+          {/* Right: Actions (GitHub Stars Pill, Sign In, Start for Free) */}
           <div className="hidden sm:flex items-center gap-3">
-            {/* GitHub Repo Button */}
+            {/* GitHub Stars Pill (Exact Firecrawl Style) */}
             <Link
               href="https://github.com/Damayantha/chatty"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#131722] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:border-white/20 hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-800 transition-colors shadow-sm"
             >
-              <GithubStarIcon className="size-3.5" />
-              <span>Star</span>
-              <span className="border-l border-white/10 pl-1.5 font-mono text-[11px] text-zinc-400">1.2k</span>
+              <span>⭐</span>
+              <span>1.2k</span>
             </Link>
 
             {/* Sign In Link */}
             <Link
-              href="/auth/login"
-              className="text-xs font-medium text-zinc-300 hover:text-white px-2 py-1.5 transition-colors"
+              href="/login"
+              className="text-xs font-semibold text-zinc-700 hover:text-zinc-950 px-2 py-1.5 transition-colors"
             >
               Sign In
             </Link>
 
-            {/* Primary Solar Yellow CTA Button */}
+            {/* Vibrant Orange Primary Button */}
             <Link
-              href="/auth/login"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#facc15] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#eab308] active:scale-[0.98] transition-all"
+              href="/signup"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#f95721] hover:bg-[#ea4815] px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-orange-500/20 active:scale-[0.98] transition-all"
             >
-              <span>Deploy Free</span>
+              <span>Start for free</span>
               <ArrowRight className="size-3.5" />
             </Link>
           </div>
 
-          {/* Mobile Menu Toggle */}
+          {/* Mobile Menu Button */}
           <div className="flex sm:hidden items-center gap-2">
             <Link
-              href="/auth/login"
-              className="rounded-lg bg-[#facc15] px-3 py-1 text-xs font-semibold text-black"
+              href="/signup"
+              className="rounded-lg bg-[#f95721] px-3 py-1 text-xs font-semibold text-white"
             >
-              Deploy
+              Sign up
             </Link>
             <button
               type="button"
-              onClick={() => setMobileNavOpen(!mobileNavOpen)}
-              className="p-1.5 text-zinc-400 hover:text-white"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-zinc-600 hover:text-zinc-950"
             >
-              {mobileNavOpen ? <X className="size-6" /> : <Menu className="size-6" />}
+              {mobileMenuOpen ? <X className="size-6" /> : <Menu className="size-6" />}
             </button>
           </div>
         </div>
 
         {/* Mobile Navigation Drawer */}
-        {mobileNavOpen && (
-          <div className="sm:hidden border-b border-white/[0.08] bg-[#0d0f17] px-4 py-5 space-y-3">
+        {mobileMenuOpen && (
+          <div className="sm:hidden border-b border-zinc-200 bg-white px-4 py-5 space-y-3">
             <Link
-              href="#architecture"
-              onClick={() => setMobileNavOpen(false)}
-              className="block text-sm font-medium text-zinc-300 py-1"
+              href="#playground"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-zinc-700 py-1"
             >
-              Architecture
+              Playground
             </Link>
             <Link
-              href="#simulator"
-              onClick={() => setMobileNavOpen(false)}
-              className="block text-sm font-medium text-zinc-300 py-1"
+              href="#capabilities"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-zinc-700 py-1"
             >
-              Simulator
-            </Link>
-            <Link
-              href="#calculator"
-              onClick={() => setMobileNavOpen(false)}
-              className="block text-sm font-medium text-zinc-300 py-1"
-            >
-              ROI Calculator
+              Features & RAG
             </Link>
             <Link
               href="#pricing"
-              onClick={() => setMobileNavOpen(false)}
-              className="block text-sm font-medium text-zinc-300 py-1"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-zinc-700 py-1"
             >
               Pricing
             </Link>
             <Link
+              href="/affiliates"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-zinc-700 py-1"
+            >
+              Affiliates Program
+            </Link>
+            <Link
+              href="/support"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-zinc-700 py-1"
+            >
+              Help & Support
+            </Link>
+            <Link
+              href="/voice-demo"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-zinc-700 py-1"
+            >
+              Voice AI Demo
+            </Link>
+            <Link
               href="https://docs.chatty.personaliai.com"
               target="_blank"
-              className="block text-sm font-medium text-zinc-300 py-1"
+              className="block text-sm font-medium text-zinc-700 py-1"
             >
               Documentation
             </Link>
             <Link
               href="https://github.com/Damayantha/chatty"
               target="_blank"
-              className="flex items-center gap-2 text-sm font-medium text-zinc-300 py-1"
+              className="flex items-center gap-2 text-sm font-medium text-zinc-700 py-1"
             >
-              <GithubStarIcon className="size-4" />
-              <span>GitHub (1.2k Stars)</span>
+              <span>⭐ Star on GitHub (1.2k)</span>
             </Link>
-            <div className="pt-3 border-t border-white/[0.08] flex items-center justify-between">
-              <Link href="/auth/login" className="text-sm font-medium text-zinc-300">
+            <div className="pt-3 border-t border-zinc-100 flex items-center justify-between">
+              <Link href="/login" className="text-sm font-semibold text-zinc-800">
                 Sign In
               </Link>
               <Link
-                href="/auth/login"
-                className="rounded-lg bg-[#facc15] px-4 py-2 text-xs font-semibold text-black"
+                href="/signup"
+                className="rounded-xl bg-[#f95721] px-4 py-2 text-xs font-semibold text-white shadow-sm"
               >
-                Deploy Free Assistant
+                Start for free
               </Link>
             </div>
           </div>
@@ -625,471 +818,424 @@ export default function LandingClient() {
 
       <main>
         {/* ==========================================
-            HERO SECTION (High Impact, Solid, Zero Gradient)
+            HERO SECTION (Spacious, Firecrawl Style)
             ========================================== */}
-        <section className="relative overflow-hidden pt-12 pb-20 sm:pt-16 sm:pb-28 lg:pt-20">
-          {/* Subtle Industrial Grid Background Pattern */}
+        <section className="relative overflow-hidden pt-16 pb-24 sm:pt-24 sm:pb-32 lg:pt-28">
+          {/* Subtle Clean Technical Grid Pattern with Orange Sparkle Stars (✦) */}
           <div
-            className="absolute inset-0 pointer-events-none opacity-[0.03]"
+            className="absolute inset-0 pointer-events-none opacity-[0.4]"
             style={{
-              backgroundImage: `linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(to right, #ffffff 1px, transparent 1px)`,
+              backgroundImage: `linear-gradient(to right, #f1f5f9 1px, transparent 1px), linear-gradient(to bottom, #f1f5f9 1px, transparent 1px)`,
               backgroundSize: "48px 48px",
             }}
           />
 
-          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-            {/* Status Pill Badge */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#131722] px-3.5 py-1 text-xs font-mono text-zinc-300 shadow-sm">
-              <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-zinc-400">OPEN-SOURCE CONVERSATIONAL AI</span>
-              <span className="text-zinc-600">·</span>
-              <span className="text-yellow-400 font-semibold">ZERO HALLUCINATIONS</span>
-              <span className="text-zinc-600">·</span>
-              <span>FREE BYOK</span>
-            </div>
+          {/* Firecrawl Style Orange Sparkle Crosses */}
+          <div className="absolute left-[15%] top-28 hidden lg:block text-[#f95721] text-lg font-bold select-none opacity-80">
+            ✦
+          </div>
+          <div className="absolute right-[18%] top-32 hidden lg:block text-[#f95721] text-lg font-bold select-none opacity-80">
+            ✦
+          </div>
 
-            {/* Industrial Headline */}
-            <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl max-w-5xl mx-auto leading-[1.08]">
-              Autonomous customer support that captures leads and books meetings.
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
+            {/* Announcement Pill (Firecrawl style: 2 Months Free - Annually) */}
+            <Link
+              href="#pricing"
+              className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:border-zinc-300 hover:bg-zinc-50 transition-all mb-8"
+            >
+              <span className="font-semibold text-[#f95721]">2 Months Free</span>
+              <span className="text-zinc-300">·</span>
+              <span>Annually Billed</span>
+              <span className="flex size-4 items-center justify-center rounded-full bg-zinc-900 text-white text-[10px] ml-1">
+                ›
+              </span>
+            </Link>
+
+            {/* Spacious Bold Headline */}
+            <h1 className="font-display text-4xl font-extrabold tracking-tight text-zinc-950 sm:text-6xl lg:text-7xl max-w-5xl mx-auto leading-[1.08]">
+              Power AI customer support with{" "}
+              <span className="text-[#f95721]">grounded business data</span>
             </h1>
 
-            {/* High-Converting Subtitle */}
-            <p className="mt-6 max-w-3xl mx-auto text-base sm:text-lg text-zinc-400 leading-relaxed font-normal">
-              Chatty grounds autonomous AI agents on your real business data—website sitemaps, help documents,
-              and APIs. Resolve <span className="text-white font-medium">84%+ of customer inquiries</span>, book demo
-              slots directly inside live chat, and hand off seamlessly to humans.
+            {/* Spacious Clear Subtitle */}
+            <p className="mt-6 max-w-3xl mx-auto text-base sm:text-lg text-zinc-600 leading-relaxed">
+              The context-aware AI platform to answer visitor inquiries, capture high-intent leads, and schedule
+              calendar demo meetings at scale. It&apos;s also open source.
             </p>
 
-            {/* CTA Buttons Row */}
-            <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-4">
+            {/* CTAs Row */}
+            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                href="/auth/login"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#facc15] px-7 py-3.5 text-sm font-bold text-black shadow-lg hover:bg-[#eab308] active:scale-[0.98] transition-all"
+                href="/signup"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#f95721] hover:bg-[#ea4815] px-8 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 active:scale-[0.98] transition-all"
               >
-                <span>Deploy Free Assistant</span>
-                <ArrowRight className="size-4" />
+                <span>Start for free</span>
+              </Link>
+              <Link
+                href="https://docs.chatty.personaliai.com"
+                target="_blank"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-6 py-3.5 text-sm font-semibold text-zinc-800 shadow-sm transition-all"
+              >
+                <Terminal className="size-4 text-zinc-500" />
+                <span>Setup for agents (MCP)</span>
               </Link>
               <Link
                 href="https://github.com/Damayantha/chatty"
                 target="_blank"
-                rel="noreferrer"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#12151f] px-6 py-3.5 text-sm font-semibold text-zinc-200 hover:border-white/25 hover:text-white transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-5 py-3.5 text-sm font-semibold text-zinc-700 shadow-sm transition-all"
               >
-                <GithubStarIcon className="size-4 text-zinc-400" />
-                <span>Inspect GitHub Source</span>
-              </Link>
-              <Link
-                href="#simulator"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-transparent px-5 py-3.5 text-sm font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
-              >
-                <Play className="size-3.5 fill-current" />
-                <span>Test Live Simulator</span>
+                <span>⭐ GitHub Repo</span>
               </Link>
             </div>
 
-            {/* Micro Trust Signals */}
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-mono text-zinc-400">
+            {/* Trust Badges Row */}
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-zinc-500">
               <span className="flex items-center gap-1.5">
-                <Check className="size-3.5 text-emerald-400" /> No credit card required
+                <Check className="size-4 text-emerald-600" /> No credit card required
               </span>
               <span className="flex items-center gap-1.5">
-                <Check className="size-3.5 text-emerald-400" /> Free BYOK tier forever
+                <Check className="size-4 text-emerald-600" /> Free BYOK tier forever
               </span>
               <span className="flex items-center gap-1.5">
-                <Check className="size-3.5 text-emerald-400" /> 2-minute embed script
+                <Check className="size-4 text-emerald-600" /> 2-minute embed script
               </span>
               <span className="flex items-center gap-1.5">
-                <Check className="size-3.5 text-emerald-400" /> Native MCP server support
+                <Check className="size-4 text-emerald-600" /> Google & Outlook calendar sync
               </span>
             </div>
 
             {/* ==========================================
-                TECHNICAL METRICS STRIP
+                HERO INTERACTIVE SEARCH & SIMULATOR BOX
+                (Firecrawl Style Interactive Input Bar - Image 2)
                 ========================================== */}
-            <div className="mt-14 grid grid-cols-2 gap-4 lg:grid-cols-4 max-w-5xl mx-auto">
-              {METRICS.map((m) => (
-                <div
-                  key={m.label}
-                  className="rounded-xl border border-white/[0.08] bg-[#0e1017] p-5 text-left transition-colors hover:border-white/20"
-                >
-                  <p className="font-mono text-2xl sm:text-3xl font-bold tracking-tight text-white">{m.value}</p>
-                  <p className="mt-1 text-xs font-semibold text-yellow-400/90">{m.label}</p>
-                  <p className="mt-1 text-[11px] text-zinc-400 leading-tight">{m.detail}</p>
+            <div id="playground" className="mt-14 max-w-4xl mx-auto text-left">
+              <div className="rounded-2xl border border-zinc-200/80 bg-white shadow-2xl shadow-zinc-200/60 p-4 sm:p-5">
+                {/* Search Bar Input Row */}
+                <div className="flex items-center gap-3 pb-3 border-b border-zinc-100">
+                  <Globe2 className="size-5 text-[#f95721] shrink-0 ml-1" />
+                  <span className="text-sm font-medium text-zinc-800 flex-1 truncate">
+                    {selectedPlaygroundTab.prompt}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTab(selectedPlaygroundTab)}
+                    className="flex size-9 items-center justify-center rounded-xl bg-[#f95721] hover:bg-[#ea4815] text-white shadow-sm shrink-0 transition-all"
+                    title="Send Prompt"
+                  >
+                    <ArrowRight className="size-4" />
+                  </button>
                 </div>
-              ))}
+
+                {/* Firecrawl Style Mode Tabs (Search, Scrape, Map, Crawl equivalent) */}
+                <div className="flex flex-wrap items-center gap-2 pt-3">
+                  {PLAYGROUND_TABS.map((tab) => {
+                    const isSelected = tab.id === selectedPlaygroundTab.id;
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => handleSelectTab(tab)}
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                          isSelected
+                            ? "bg-[#f95721] text-white shadow-sm shadow-orange-500/20"
+                            : "bg-zinc-100/80 text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900"
+                        }`}
+                      >
+                        <Icon className="size-3.5" />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Assistant Output Result Box */}
+                <div className="mt-4 rounded-xl border border-zinc-100 bg-zinc-50/70 p-4 sm:p-5">
+                  <div className="flex items-start gap-3.5">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#f95721] text-white font-bold shadow-sm">
+                      <Bot className="size-4" />
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      {isTyping ? (
+                        <div className="flex items-center gap-1.5 py-1 text-xs font-mono text-zinc-500">
+                          <span className="size-2 rounded-full bg-[#f95721] animate-bounce" />
+                          <span className="size-2 rounded-full bg-[#f95721] animate-bounce [animation-delay:150ms]" />
+                          <span className="size-2 rounded-full bg-[#f95721] animate-bounce [animation-delay:300ms]" />
+                          <span className="ml-1">Retrieving grounded knowledge...</span>
+                        </div>
+                      ) : (
+                        <p className="text-xs sm:text-sm text-zinc-800 leading-relaxed">
+                          {selectedPlaygroundTab.response}
+                        </p>
+                      )}
+
+                      {/* INLINE CALENDAR BOOKING CARD (Interactive demonstration) */}
+                      {!isTyping && selectedPlaygroundTab.hasCalendar && (
+                        <div className="mt-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+                          <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                            <span className="font-semibold text-xs text-zinc-900 flex items-center gap-1.5">
+                              <CalendarCheck className="size-4 text-[#f95721]" />
+                              Engineering Demo (15 min)
+                            </span>
+                            <span className="text-[11px] font-mono text-zinc-400">Timezone: Auto-detected</span>
+                          </div>
+
+                          {bookingConfirmed ? (
+                            <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center">
+                              <p className="text-xs font-bold text-emerald-800">
+                                ✓ Demo Confirmed for Tomorrow at {simulatedSlot}!
+                              </p>
+                              <p className="mt-1 text-[11px] text-emerald-600">
+                                Calendar invite and Google Meet link dispatched.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="mt-3 space-y-3">
+                              <p className="text-[11px] text-zinc-500">Select an available open slot:</p>
+                              <div className="grid grid-cols-3 gap-2">
+                                {["10:00 AM", "02:30 PM", "04:00 PM"].map((slot) => (
+                                  <button
+                                    key={slot}
+                                    type="button"
+                                    onClick={() => setSimulatedSlot(slot)}
+                                    className={`py-2 px-1 rounded-lg font-mono text-xs font-semibold transition-all border ${
+                                      simulatedSlot === slot
+                                        ? "bg-[#f95721] text-white border-[#f95721] shadow-sm"
+                                        : "bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300"
+                                    }`}
+                                  >
+                                    {slot}
+                                  </button>
+                                ))}
+                              </div>
+                              {simulatedSlot && (
+                                <button
+                                  type="button"
+                                  onClick={() => setBookingConfirmed(true)}
+                                  className="w-full mt-2 rounded-lg bg-[#f95721] hover:bg-[#ea4815] py-2 text-xs font-bold text-white transition-colors shadow-sm"
+                                >
+                                  Confirm Demo Slot at {simulatedSlot}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Verified Citation Pill Badges */}
+                      {!isTyping && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono text-zinc-500">
+                          <span>Grounding Sources:</span>
+                          {selectedPlaygroundTab.citations.map((c) => (
+                            <span
+                              key={c}
+                              className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-white px-2 py-0.5 text-zinc-700 font-medium"
+                            >
+                              <Database className="size-2.5 text-[#f95721]" />
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
         {/* ==========================================
-            CONNECTED AGENT NODE ARCHITECTURE
-            (Inspired by Nimble's agent ecosystem)
+            CODE & INTEGRATION SHOWCASE
+            (Firecrawl Style Interactive Code Box - Image 3)
             ========================================== */}
-        <section id="architecture" className="py-20 border-t border-b border-white/[0.08] bg-[#0c0d12]">
+        <section className="py-20 border-t border-b border-zinc-200/80 bg-[#fbfbfb]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
-              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-yellow-400">
-                // MULTI-AGENT ORCHESTRATION PIPELINE
+              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
+                // DEVELOPER INTEGRATIONS
               </p>
-              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
-                How Chatty coordinates specialized AI agents.
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
+                Embed in one line. Or build on the API.
               </h2>
-              <p className="mt-3 text-sm sm:text-base text-zinc-400">
+              <p className="mt-3 text-sm sm:text-base text-zinc-600">
+                Drop the script tag on your website, query trained knowledge with Python/Node.js, or manage everything
+                autonomously via the Model Context Protocol.
+              </p>
+            </div>
+
+            {/* Code Box Container */}
+            <div className="mt-12 max-w-5xl mx-auto rounded-2xl border border-zinc-200 bg-white shadow-xl overflow-hidden">
+              {/* Language Tabs Row */}
+              <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-2.5">
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  {CODE_EXAMPLES.map((item, idx) => (
+                    <button
+                      key={item.lang}
+                      type="button"
+                      onClick={() => setSelectedCodeTab(idx)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        selectedCodeTab === idx
+                          ? "bg-white text-zinc-950 shadow-sm border border-zinc-200"
+                          : "text-zinc-600 hover:text-zinc-950"
+                      }`}
+                    >
+                      {item.lang}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleCopyCode(CODE_EXAMPLES[selectedCodeTab].code)}
+                  className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700 transition-colors shadow-sm"
+                >
+                  {codeCopied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                  <span>{codeCopied ? "Copied!" : "Copy code"}</span>
+                </button>
+              </div>
+
+              {/* Side-by-Side Code and JSON Result Output */}
+              <div className="grid grid-cols-1 lg:grid-cols-12">
+                {/* Code Block */}
+                <div className="lg:col-span-7 bg-[#0f1117] p-5 font-mono text-xs text-zinc-200 overflow-x-auto">
+                  <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-zinc-400 text-[11px]">
+                    <span>{CODE_EXAMPLES[selectedCodeTab].title}</span>
+                    <span className="text-[#f95721]">{CODE_EXAMPLES[selectedCodeTab].lang}</span>
+                  </div>
+                  <pre className="pt-4 leading-relaxed whitespace-pre font-mono">
+                    {CODE_EXAMPLES[selectedCodeTab].code}
+                  </pre>
+                </div>
+
+                {/* API Response JSON Output */}
+                <div className="lg:col-span-5 bg-[#161822] border-t lg:border-t-0 lg:border-l border-zinc-800 p-5 font-mono text-xs text-emerald-400 overflow-x-auto">
+                  <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-zinc-400 text-[11px]">
+                    <span>RESPONSE :: HTTP 200 OK</span>
+                    <span className="text-emerald-400">Grounded</span>
+                  </div>
+                  <pre className="pt-4 leading-relaxed font-mono">
+                    {JSON.stringify(CODE_EXAMPLES[selectedCodeTab].response, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ==========================================
+            MULTI-AGENT ARCHITECTURE PIPELINE (Nimble Style)
+            ========================================== */}
+        <section className="py-24 bg-white">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-3xl mx-auto">
+              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
+                // MULTI-AGENT ORCHESTRATION
+              </p>
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
+                Specialized agents. Coordinated resolution.
+              </h2>
+              <p className="mt-3 text-sm sm:text-base text-zinc-600">
                 Instead of a single brittle prompt, incoming visitor messages pass through specialized autonomous
                 agents for vector retrieval, calendar coordination, CRM enrichment, and human fallback.
               </p>
             </div>
 
-            {/* Visual Node Workflow Stage */}
-            <div className="mt-12 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left Column: Interactive Agent Selector Buttons */}
+            <div className="mt-14 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start max-w-5xl mx-auto">
+              {/* Left Column: Interactive Agent List */}
               <div className="lg:col-span-5 space-y-3">
-                {AGENT_NODES.map((node) => {
-                  const isSelected = node.id === activeNodeId;
+                {AGENT_NODES.map((agent) => {
+                  const isSelected = agent.id === selectedAgentId;
                   return (
                     <button
-                      key={node.id}
+                      key={agent.id}
                       type="button"
-                      onClick={() => setActiveNodeId(node.id)}
+                      onClick={() => setSelectedAgentId(agent.id)}
                       className={`w-full text-left p-4 rounded-xl border transition-all ${
                         isSelected
-                          ? "border-yellow-400/60 bg-[#151926] shadow-lg shadow-black/40"
-                          : "border-white/[0.08] bg-[#0f111a] hover:border-white/20 hover:bg-[#121520]"
+                          ? "border-[#f95721] bg-orange-50/50 shadow-md shadow-orange-500/10"
+                          : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm text-white">{node.name}</span>
+                        <span className="font-bold text-sm text-zinc-900">{agent.name}</span>
                         <span
                           className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
                             isSelected
-                              ? "bg-yellow-400/10 text-yellow-400 border-yellow-400/30"
-                              : "bg-white/[0.04] text-zinc-400 border-white/10"
+                              ? "bg-[#f95721] text-white border-[#f95721]"
+                              : "bg-zinc-100 text-zinc-600 border-zinc-200"
                           }`}
                         >
-                          {node.tag}
+                          {agent.tag}
                         </span>
                       </div>
-                      <p className="mt-2 text-xs text-zinc-400 leading-relaxed">{node.desc}</p>
-                      <div className="mt-3 flex items-center justify-between text-[11px] font-mono">
-                        <span className="text-emerald-400 flex items-center gap-1">
-                          <span className="size-1.5 rounded-full bg-emerald-400" />
-                          {node.status}
+                      <p className="mt-2 text-xs text-zinc-600 leading-relaxed">{agent.desc}</p>
+                      <div className="mt-3 flex items-center justify-between text-[11px] font-mono font-medium">
+                        <span className="text-emerald-600 flex items-center gap-1">
+                          <span className="size-1.5 rounded-full bg-emerald-500" />
+                          {agent.status}
                         </span>
-                        <span className="text-zinc-300 font-medium">{node.metric}</span>
+                        <span className="text-zinc-700">{agent.metric}</span>
                       </div>
                     </button>
                   );
                 })}
               </div>
 
-              {/* Right Column: Active Node Telemetry & JSON Inspector */}
-              <div className="lg:col-span-7 rounded-2xl border border-white/[0.12] bg-[#090b10] p-6 shadow-2xl">
-                <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
+              {/* Right Column: Active Agent Telemetry & Pipeline */}
+              <div className="lg:col-span-7 rounded-2xl border border-zinc-200 bg-[#0f1117] p-6 text-zinc-100 shadow-xl">
+                <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
                   <div className="flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-red-500/80" />
-                    <span className="size-2.5 rounded-full bg-yellow-500/80" />
-                    <span className="size-2.5 rounded-full bg-green-500/80" />
+                    <span className="size-2.5 rounded-full bg-red-500" />
+                    <span className="size-2.5 rounded-full bg-yellow-500" />
+                    <span className="size-2.5 rounded-full bg-green-500" />
                     <span className="ml-2 font-mono text-xs text-zinc-400">
-                      agent_telemetry :: {activeNode.id}.spec.json
+                      agent_telemetry :: {selectedAgent.id}.spec.json
                     </span>
                   </div>
-                  <span className="rounded bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-mono text-emerald-400">
-                    REALTIME DISPATCHED
+                  <span className="rounded bg-emerald-950 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-mono text-emerald-400">
+                    ONLINE
                   </span>
                 </div>
 
                 <div className="mt-5 space-y-4">
                   <div>
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <span>{activeNode.name}</span>
-                      <span className="text-xs font-mono font-normal text-zinc-400">({activeNode.tag})</span>
+                      <span>{selectedAgent.name}</span>
+                      <span className="text-xs font-mono font-normal text-zinc-400">({selectedAgent.tag})</span>
                     </h3>
-                    <p className="mt-1 text-xs text-zinc-400 leading-relaxed">{activeNode.desc}</p>
+                    <p className="mt-1 text-xs text-zinc-400 leading-relaxed">{selectedAgent.desc}</p>
                   </div>
 
-                  {/* Architecture Diagram Representation */}
-                  <div className="rounded-xl border border-white/[0.06] bg-[#06070a] p-4">
+                  {/* Visual Pipeline Trace */}
+                  <div className="rounded-xl border border-zinc-800 bg-[#090a0f] p-4">
                     <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 mb-3">
-                      <span>DATA PIPELINE TRACE</span>
-                      <span className="text-yellow-400">Active Stage</span>
+                      <span>ORCHESTRATION STAGE</span>
+                      <span className="text-[#f95721]">Active</span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="rounded-lg border border-white/10 bg-[#0d0f17] p-2.5">
-                        <span className="block text-[10px] font-mono text-zinc-400">STAGE 01</span>
+                      <div className="rounded-lg border border-zinc-800 bg-[#161822] p-2.5">
+                        <span className="block text-[10px] font-mono text-zinc-500">STAGE 01</span>
                         <span className="font-semibold text-white">Ingestion</span>
                       </div>
-                      <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-2.5">
-                        <span className="block text-[10px] font-mono text-yellow-400">STAGE 02</span>
-                        <span className="font-semibold text-yellow-300">{activeNode.name.split(" ")[0]}</span>
+                      <div className="rounded-lg border border-[#f95721]/60 bg-[#f95721]/10 p-2.5">
+                        <span className="block text-[10px] font-mono text-[#f95721]">STAGE 02</span>
+                        <span className="font-semibold text-white">{selectedAgent.name.split(" ")[0]}</span>
                       </div>
-                      <div className="rounded-lg border border-white/10 bg-[#0d0f17] p-2.5">
-                        <span className="block text-[10px] font-mono text-zinc-400">STAGE 03</span>
+                      <div className="rounded-lg border border-zinc-800 bg-[#161822] p-2.5">
+                        <span className="block text-[10px] font-mono text-zinc-500">STAGE 03</span>
                         <span className="font-semibold text-white">Resolution</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* JSON Payload Inspector */}
                   <div>
-                    <p className="text-[11px] font-mono text-zinc-400 uppercase mb-2">Live Agent Payload & Context:</p>
-                    <pre className="rounded-xl border border-white/[0.08] bg-[#050608] p-4 font-mono text-xs text-emerald-400 overflow-x-auto">
-                      {JSON.stringify(activeNode.samplePayload, null, 2)}
+                    <p className="text-[11px] font-mono text-zinc-400 uppercase mb-2">Live Agent Payload:</p>
+                    <pre className="rounded-xl border border-zinc-800 bg-[#07080c] p-4 font-mono text-xs text-emerald-400 overflow-x-auto">
+                      {JSON.stringify(selectedAgent.payload, null, 2)}
                     </pre>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ==========================================
-            INTERACTIVE ASSISTANT SIMULATOR
-            (Replacing passive video with live interactive product stage)
-            ========================================== */}
-        <section id="simulator" className="py-24 bg-[#090a0f] relative overflow-hidden">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-3xl mx-auto">
-              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-yellow-400">
-                // INTERACTIVE PRODUCT STAGE
-              </p>
-              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
-                Experience Chatty live in your browser.
-              </h2>
-              <p className="mt-3 text-sm sm:text-base text-zinc-400">
-                Click any prompt pill below to test live vector retrieval, citation grounding, and frictionless
-                in-chat calendar scheduling.
-              </p>
-            </div>
-
-            {/* Prompt Selector Pills */}
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              {SIMULATOR_PROMPTS.map((p) => {
-                const isActive = p.id === selectedPrompt.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => handleSelectPrompt(p)}
-                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
-                      isActive
-                        ? "bg-[#facc15] text-black shadow-md shadow-yellow-500/10"
-                        : "border border-white/10 bg-[#121520] text-zinc-300 hover:border-white/20 hover:text-white"
-                    }`}
-                  >
-                    <Sparkles className="size-3" />
-                    <span>{p.pill}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* The Dual-Pane Command Simulator */}
-            <div className="mt-10 rounded-2xl border border-white/[0.12] bg-[#0c0e15] shadow-2xl overflow-hidden max-w-5xl mx-auto">
-              {/* Simulator Window Header */}
-              <div className="flex items-center justify-between border-b border-white/[0.08] bg-[#11131c] px-5 py-3 text-xs">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="size-3 rounded-full bg-red-500/80" />
-                    <span className="size-3 rounded-full bg-yellow-500/80" />
-                    <span className="size-3 rounded-full bg-green-500/80" />
-                  </div>
-                  <span className="font-mono text-zinc-400">chatty-widget-v2 :: runtime_environment</span>
-                </div>
-                <div className="flex items-center gap-3 font-mono text-[11px] text-zinc-400">
-                  <span className="hidden sm:inline">Stream Latency: <strong className="text-emerald-400">182ms</strong></span>
-                  <span className="inline-flex items-center gap-1 text-yellow-400">
-                    <ShieldCheck className="size-3.5" />
-                    Grounding: 100%
-                  </span>
-                </div>
-              </div>
-
-              {/* Dual-Pane Layout */}
-              <div className="grid grid-cols-1 md:grid-cols-12">
-                {/* Left Pane: Ingested Knowledge Health */}
-                <div className="md:col-span-4 border-b md:border-b-0 md:border-r border-white/[0.08] bg-[#0a0c12] p-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
-                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300">
-                      Ingested Sources
-                    </span>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                      LIVE SYNC
-                    </span>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    <div className="rounded-lg border border-white/[0.06] bg-[#10131d] p-3 text-xs">
-                      <div className="flex items-center justify-between font-semibold text-white">
-                        <span className="flex items-center gap-2 truncate">
-                          <Globe2 className="size-3.5 text-sky-400 shrink-0" />
-                          <span>personaliai.com/docs</span>
-                        </span>
-                        <span className="font-mono text-[10px] text-zinc-400">1,248 chunks</span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-zinc-400">Auto-crawled sitemap & API endpoints</p>
-                    </div>
-
-                    <div className="rounded-lg border border-white/[0.06] bg-[#10131d] p-3 text-xs">
-                      <div className="flex items-center justify-between font-semibold text-white">
-                        <span className="flex items-center gap-2 truncate">
-                          <FileText className="size-3.5 text-yellow-400 shrink-0" />
-                          <span>Pricing_SLA_2026.pdf</span>
-                        </span>
-                        <span className="font-mono text-[10px] text-zinc-400">84 chunks</span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-zinc-400">Extracted tables & BYOK policies</p>
-                    </div>
-
-                    <div className="rounded-lg border border-white/[0.06] bg-[#10131d] p-3 text-xs">
-                      <div className="flex items-center justify-between font-semibold text-white">
-                        <span className="flex items-center gap-2 truncate">
-                          <Calendar className="size-3.5 text-emerald-400 shrink-0" />
-                          <span>Google Calendar Sync</span>
-                        </span>
-                        <span className="font-mono text-[10px] text-emerald-400">Connected</span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-zinc-400">Live availability & timezone detection</p>
-                    </div>
-                  </div>
-
-                  {/* Guardrail Metrics */}
-                  <div className="mt-6 pt-4 border-t border-white/[0.06] space-y-2 text-[11px] font-mono">
-                    <div className="flex justify-between text-zinc-400">
-                      <span>Cosine Distance Cutoff:</span>
-                      <span className="text-white">0.78</span>
-                    </div>
-                    <div className="flex justify-between text-zinc-400">
-                      <span>Hallucination Filter:</span>
-                      <span className="text-emerald-400">STRICT</span>
-                    </div>
-                    <div className="flex justify-between text-zinc-400">
-                      <span>Model Engine:</span>
-                      <span className="text-yellow-400">Claude 3.5 / GPT-4o</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Pane: Live Interactive Chat Mockup */}
-                <div className="md:col-span-8 p-6 flex flex-col justify-between bg-[#0e1017]">
-                  <div className="space-y-4">
-                    {/* Visitor Question Bubble */}
-                    <div className="flex items-start justify-end gap-3">
-                      <div className="rounded-2xl rounded-tr-sm bg-white/[0.1] px-4 py-3 text-xs sm:text-sm text-white max-w-[85%] border border-white/10">
-                        {selectedPrompt.query}
-                      </div>
-                      <div className="size-8 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                        You
-                      </div>
-                    </div>
-
-                    {/* Chatty Assistant Response Bubble */}
-                    <div className="flex items-start gap-3">
-                      <div className="size-8 rounded-lg bg-[#facc15] flex items-center justify-center text-black shrink-0 font-bold">
-                        <Bot className="size-5" />
-                      </div>
-                      <div className="space-y-3 max-w-[90%]">
-                        <div className="rounded-2xl rounded-tl-sm border border-white/[0.08] bg-[#141724] p-4 text-xs sm:text-sm text-zinc-200 leading-relaxed shadow-sm">
-                          {isTyping ? (
-                            <div className="flex items-center gap-1.5 py-1 text-zinc-400 font-mono text-xs">
-                              <span className="size-2 rounded-full bg-yellow-400 animate-bounce" />
-                              <span className="size-2 rounded-full bg-yellow-400 animate-bounce [animation-delay:150ms]" />
-                              <span className="size-2 rounded-full bg-yellow-400 animate-bounce [animation-delay:300ms]" />
-                              <span className="ml-1">Synthesizing grounded response...</span>
-                            </div>
-                          ) : (
-                            <p>{selectedPrompt.response}</p>
-                          )}
-                        </div>
-
-                        {/* Interactive In-Chat Calendar Card (if selected prompt has calendar) */}
-                        {!isTyping && selectedPrompt.hasCalendar && (
-                          <div className="rounded-xl border border-white/10 bg-[#161a28] p-4 text-xs">
-                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
-                              <span className="font-semibold text-white flex items-center gap-2">
-                                <CalendarCheck className="size-4 text-yellow-400" />
-                                Solutions Engineering Demo (15 min)
-                              </span>
-                              <span className="text-[10px] font-mono text-zinc-400">Your Timezone: Local</span>
-                            </div>
-
-                            {bookingConfirmed ? (
-                              <div className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-950/40 p-3 text-center">
-                                <p className="text-xs font-bold text-emerald-400">
-                                  ✓ Demo Confirmed for Tomorrow at {simulatedSlot}!
-                                </p>
-                                <p className="mt-1 text-[11px] text-zinc-300">
-                                  Calendar invite and Google Meet link dispatched to your email.
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="mt-3 space-y-3">
-                                <p className="text-zinc-400 text-[11px]">Select a confirmed slot for tomorrow:</p>
-                                <div className="grid grid-cols-3 gap-2">
-                                  {["10:00 AM", "02:30 PM", "04:00 PM"].map((slot) => (
-                                    <button
-                                      key={slot}
-                                      type="button"
-                                      onClick={() => setSimulatedSlot(slot)}
-                                      className={`py-2 px-1 rounded-lg font-mono text-xs font-semibold transition-all border ${
-                                        simulatedSlot === slot
-                                          ? "bg-yellow-400 text-black border-yellow-400 shadow-sm"
-                                          : "bg-[#0f111a] text-zinc-200 border-white/10 hover:border-white/20"
-                                      }`}
-                                    >
-                                      {slot}
-                                    </button>
-                                  ))}
-                                </div>
-                                {simulatedSlot && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setBookingConfirmed(true)}
-                                    className="w-full mt-2 rounded-lg bg-[#facc15] py-2 text-xs font-bold text-black hover:bg-[#eab308] transition-colors"
-                                  >
-                                    Confirm Demo at {simulatedSlot}
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Verified Grounding Citations */}
-                        {!isTyping && (
-                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-zinc-400">
-                            <span className="text-zinc-500">Verified Sources:</span>
-                            {selectedPrompt.citations.map((c) => (
-                              <span
-                                key={c}
-                                className="inline-flex items-center gap-1 rounded bg-white/[0.06] border border-white/10 px-2 py-0.5 text-sky-400"
-                              >
-                                <Database className="size-2.5" />
-                                {c}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Simulator Bottom Input Bar */}
-                  <div className="mt-6 pt-4 border-t border-white/[0.08] flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value="Ask Chatty about integrations, SLAs, calendar setup, or BYOK..."
-                      className="w-full rounded-xl border border-white/10 bg-[#090b10] px-4 py-2.5 text-xs text-zinc-500 cursor-not-allowed font-sans focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSelectPrompt(SIMULATOR_PROMPTS[0])}
-                      className="rounded-xl bg-[#facc15] p-2.5 text-black hover:bg-[#eab308] shrink-0 font-semibold"
-                      title="Test Booking"
-                    >
-                      <ArrowRight className="size-4" />
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1100,109 +1246,109 @@ export default function LandingClient() {
         {/* ==========================================
             CORE INDUSTRIAL CAPABILITIES
             ========================================== */}
-        <section id="capabilities" className="py-20 border-t border-b border-white/[0.08] bg-[#0c0d12]">
+        <section id="capabilities" className="py-24 border-t border-b border-zinc-200/80 bg-[#fbfbfb]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
-              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-yellow-400">
+              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
                 // INDUSTRIAL CAPABILITIES
               </p>
-              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 Engineered for conversion, accuracy, and scale.
               </h2>
-              <p className="mt-3 text-sm sm:text-base text-zinc-400">
-                Traditional chatbots ask visitors to fill out form fields or wait for an email. Chatty answers instantly,
-                captures intent, and completes bookings in the conversation.
+              <p className="mt-3 text-sm sm:text-base text-zinc-600">
+                Traditional chatbots ask visitors to wait for an email. Chatty answers instantly, captures intent, and
+                completes calendar bookings in the live conversation.
               </p>
             </div>
 
-            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
               {/* Feature 1 */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#0f111a] p-6 hover:border-white/20 transition-all">
-                <div className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-[#161a26] text-yellow-400">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-sm hover:shadow-md hover:border-orange-200 transition-all">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-orange-50 text-[#f95721] border border-orange-100">
                   <Database className="size-5" />
                 </div>
-                <h3 className="mt-4 font-bold text-base text-white">Grounded Vector RAG</h3>
-                <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
-                  Indexed with pgvector and cosine distance cutoff. Chatty never fabricates features, pricing, or
-                  promises. Every answer references exact source documents.
+                <h3 className="mt-5 font-bold text-base text-zinc-900">Grounded Vector RAG</h3>
+                <p className="mt-2 text-xs text-zinc-600 leading-relaxed">
+                  Indexed with pgvector and cosine distance cutoff. Chatty never fabricates features or pricing. Every
+                  answer references exact source documents.
                 </p>
-                <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center gap-2 text-[11px] font-mono text-zinc-400">
-                  <Check className="size-3.5 text-emerald-400" /> Cosine similarity threshold 0.78
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2 text-[11px] font-mono text-zinc-600">
+                  <Check className="size-3.5 text-emerald-600" /> Cosine similarity threshold 0.78
                 </div>
               </div>
 
               {/* Feature 2 */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#0f111a] p-6 hover:border-white/20 transition-all">
-                <div className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-[#161a26] text-yellow-400">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-sm hover:shadow-md hover:border-blue-200 transition-all">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
                   <CalendarCheck className="size-5" />
                 </div>
-                <h3 className="mt-4 font-bold text-base text-white">In-Chat Calendar Booking</h3>
-                <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
-                  Eliminate Calendly redirects that leak leads. Qualified prospects choose real open calendar slots
+                <h3 className="mt-5 font-bold text-base text-zinc-900">In-Chat Calendar Booking</h3>
+                <p className="mt-2 text-xs text-zinc-600 leading-relaxed">
+                  Eliminate external redirects that lose high-intent leads. Prospects choose real open calendar slots
                   directly inside the chat window with instant Google & Outlook sync.
                 </p>
-                <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center gap-2 text-[11px] font-mono text-zinc-400">
-                  <Check className="size-3.5 text-emerald-400" /> Automatic timezone detection
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2 text-[11px] font-mono text-zinc-600">
+                  <Check className="size-3.5 text-emerald-600" /> Automatic timezone detection
                 </div>
               </div>
 
               {/* Feature 3 */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#0f111a] p-6 hover:border-white/20 transition-all">
-                <div className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-[#161a26] text-yellow-400">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-sm hover:shadow-md hover:border-purple-200 transition-all">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-100">
                   <Inbox className="size-5" />
                 </div>
-                <h3 className="mt-4 font-bold text-base text-white">Omnichannel Team Inbox</h3>
-                <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
+                <h3 className="mt-5 font-bold text-base text-zinc-900">Omnichannel Team Inbox</h3>
+                <p className="mt-2 text-xs text-zinc-600 leading-relaxed">
                   Review live chats in real time. If a conversation requires human nuance, pause the bot with 1 click,
                   assign the ticket to a teammate, and take over seamlessly.
                 </p>
-                <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center gap-2 text-[11px] font-mono text-zinc-400">
-                  <Check className="size-3.5 text-emerald-400" /> Collision lock & sentiment triage
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2 text-[11px] font-mono text-zinc-600">
+                  <Check className="size-3.5 text-emerald-600" /> Collision lock & sentiment alerts
                 </div>
               </div>
 
               {/* Feature 4 */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#0f111a] p-6 hover:border-white/20 transition-all">
-                <div className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-[#161a26] text-yellow-400">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-100">
                   <PlugZap className="size-5" />
                 </div>
-                <h3 className="mt-4 font-bold text-base text-white">Model Context Protocol (MCP)</h3>
-                <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
-                  First-class MCP server support. Connect Claude Desktop, Cursor, or Codex to manage bots, inspect
+                <h3 className="mt-5 font-bold text-base text-zinc-900">Model Context Protocol (MCP)</h3>
+                <p className="mt-2 text-xs text-zinc-600 leading-relaxed">
+                  Official MCP server support. Connect Claude Desktop, Cursor, or Codex to manage bots, inspect
                   transcripts, update sources, and trigger broadcasts via natural language.
                 </p>
-                <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center gap-2 text-[11px] font-mono text-zinc-400">
-                  <Check className="size-3.5 text-emerald-400" /> 18 official MCP tool definitions
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2 text-[11px] font-mono text-zinc-600">
+                  <Check className="size-3.5 text-emerald-600" /> 18 official MCP tool definitions
                 </div>
               </div>
 
               {/* Feature 5 */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#0f111a] p-6 hover:border-white/20 transition-all">
-                <div className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-[#161a26] text-yellow-400">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
                   <MousePointerClick className="size-5" />
                 </div>
-                <h3 className="mt-4 font-bold text-base text-white">Natural Lead Qualification</h3>
-                <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
+                <h3 className="mt-5 font-bold text-base text-zinc-900">Natural Lead Qualification</h3>
+                <p className="mt-2 text-xs text-zinc-600 leading-relaxed">
                   Collect email, company name, team size, and specific pain points organically during conversations.
                   Automatically enrich domain data and sync to your CRM via webhooks.
                 </p>
-                <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center gap-2 text-[11px] font-mono text-zinc-400">
-                  <Check className="size-3.5 text-emerald-400" /> Webhook dispatch & CSV export
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2 text-[11px] font-mono text-zinc-600">
+                  <Check className="size-3.5 text-emerald-600" /> Webhooks dispatch & CSV export
                 </div>
               </div>
 
               {/* Feature 6 */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#0f111a] p-6 hover:border-white/20 transition-all">
-                <div className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-[#161a26] text-yellow-400">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-sm hover:shadow-md hover:border-rose-200 transition-all">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-rose-50 text-rose-600 border border-rose-100">
                   <Cpu className="size-5" />
                 </div>
-                <h3 className="mt-4 font-bold text-base text-white">Zero-Markup BYOK Engine</h3>
-                <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
+                <h3 className="mt-5 font-bold text-base text-zinc-900">Zero-Markup BYOK Engine</h3>
+                <p className="mt-2 text-xs text-zinc-600 leading-relaxed">
                   Plug in your own API key from OpenAI, Anthropic, Gemini, or OpenRouter. Chatty charges $0 platform
                   markup on tokens, providing total cost predictability.
                 </p>
-                <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center gap-2 text-[11px] font-mono text-zinc-400">
-                  <Check className="size-3.5 text-emerald-400" /> Free forever tier available
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2 text-[11px] font-mono text-zinc-600">
+                  <Check className="size-3.5 text-emerald-600" /> Free forever tier available
                 </div>
               </div>
             </div>
@@ -1212,30 +1358,32 @@ export default function LandingClient() {
         {/* ==========================================
             INTERACTIVE ROI & DEFLECTION CALCULATOR
             ========================================== */}
-        <section id="calculator" className="py-24 bg-[#090a0f]">
+        <section className="py-24 bg-white">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
-              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-yellow-400">
+              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
                 // ROI & DEFLECTION ESTIMATOR
               </p>
-              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 Calculate your monthly time and cost savings.
               </h2>
-              <p className="mt-3 text-sm sm:text-base text-zinc-400">
+              <p className="mt-3 text-sm sm:text-base text-zinc-600">
                 Adjust your monthly website visitors and support volume to calculate estimated ticket deflection,
                 hours saved, and high-intent sales leads captured.
               </p>
             </div>
 
-            <div className="mt-12 max-w-4xl mx-auto rounded-2xl border border-white/[0.12] bg-[#0e1017] p-6 sm:p-10 shadow-2xl">
+            <div className="mt-12 max-w-4xl mx-auto rounded-2xl border border-zinc-200 bg-white p-6 sm:p-10 shadow-xl">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                 {/* Sliders Area */}
                 <div className="lg:col-span-6 space-y-7">
                   {/* Slider 1: Monthly Visitors */}
                   <div>
                     <div className="flex justify-between items-center text-xs font-semibold mb-2">
-                      <span className="text-zinc-300">Monthly Website Visitors:</span>
-                      <span className="font-mono text-yellow-400 text-sm">{monthlyVisitors.toLocaleString()}</span>
+                      <span className="text-zinc-700">Monthly Website Visitors:</span>
+                      <span className="font-mono text-[#f95721] text-sm font-bold">
+                        {monthlyVisitors.toLocaleString()}
+                      </span>
                     </div>
                     <input
                       type="range"
@@ -1244,7 +1392,7 @@ export default function LandingClient() {
                       step="2000"
                       value={monthlyVisitors}
                       onChange={(e) => setMonthlyVisitors(Number(e.target.value))}
-                      className="w-full accent-yellow-400 cursor-pointer"
+                      className="w-full accent-[#f95721] cursor-pointer"
                     />
                     <div className="flex justify-between text-[10px] font-mono text-zinc-400 mt-1">
                       <span>2,000</span>
@@ -1256,8 +1404,10 @@ export default function LandingClient() {
                   {/* Slider 2: Monthly Support Inquiries */}
                   <div>
                     <div className="flex justify-between items-center text-xs font-semibold mb-2">
-                      <span className="text-zinc-300">Monthly Support Inquiries:</span>
-                      <span className="font-mono text-yellow-400 text-sm">{monthlyTickets.toLocaleString()}</span>
+                      <span className="text-zinc-700">Monthly Support Inquiries:</span>
+                      <span className="font-mono text-[#f95721] text-sm font-bold">
+                        {monthlyTickets.toLocaleString()}
+                      </span>
                     </div>
                     <input
                       type="range"
@@ -1266,7 +1416,7 @@ export default function LandingClient() {
                       step="100"
                       value={monthlyTickets}
                       onChange={(e) => setMonthlyTickets(Number(e.target.value))}
-                      className="w-full accent-yellow-400 cursor-pointer"
+                      className="w-full accent-[#f95721] cursor-pointer"
                     />
                     <div className="flex justify-between text-[10px] font-mono text-zinc-400 mt-1">
                       <span>100</span>
@@ -1275,47 +1425,47 @@ export default function LandingClient() {
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-white/[0.08] text-xs text-zinc-400">
+                  <div className="pt-4 border-t border-zinc-100 text-xs text-zinc-500">
                     <p className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" />
+                      <Check className="size-4 text-emerald-600 shrink-0" />
                       Assumes standard 84% deflection rate based on grounded documentation.
                     </p>
                   </div>
                 </div>
 
                 {/* Calculation Outputs Card */}
-                <div className="lg:col-span-6 rounded-xl border border-white/[0.08] bg-[#141724] p-6 text-left">
+                <div className="lg:col-span-6 rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-left">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="rounded-lg border border-white/0.06 bg-[#0c0e15] p-3.5">
-                      <p className="font-mono text-2xl font-bold text-white">
+                    <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm">
+                      <p className="font-mono text-2xl font-bold text-zinc-950">
                         {calculatedMetrics.deflectedTickets.toLocaleString()}
                       </p>
-                      <p className="text-[11px] font-semibold text-yellow-400 mt-1">Deflected Inquiries / mo</p>
+                      <p className="text-[11px] font-semibold text-[#f95721] mt-1">Deflected Inquiries / mo</p>
                     </div>
 
-                    <div className="rounded-lg border border-white/0.06 bg-[#0c0e15] p-3.5">
-                      <p className="font-mono text-2xl font-bold text-white">{calculatedMetrics.hoursSaved}h</p>
-                      <p className="text-[11px] font-semibold text-yellow-400 mt-1">Support Hours Saved</p>
+                    <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm">
+                      <p className="font-mono text-2xl font-bold text-zinc-950">{calculatedMetrics.hoursSaved}h</p>
+                      <p className="text-[11px] font-semibold text-[#f95721] mt-1">Support Hours Saved</p>
                     </div>
 
-                    <div className="rounded-lg border border-white/0.06 bg-[#0c0e15] p-3.5">
-                      <p className="font-mono text-2xl font-bold text-emerald-400">
+                    <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm">
+                      <p className="font-mono text-2xl font-bold text-emerald-600">
                         {calculatedMetrics.leadsCaptured.toLocaleString()}
                       </p>
-                      <p className="text-[11px] font-semibold text-zinc-300 mt-1">High-Intent Leads</p>
+                      <p className="text-[11px] font-semibold text-zinc-700 mt-1">High-Intent Leads</p>
                     </div>
 
-                    <div className="rounded-lg border border-white/0.06 bg-[#0c0e15] p-3.5">
-                      <p className="font-mono text-2xl font-bold text-emerald-400">
+                    <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm">
+                      <p className="font-mono text-2xl font-bold text-emerald-600">
                         ${calculatedMetrics.estimatedCostSavings.toLocaleString()}
                       </p>
-                      <p className="text-[11px] font-semibold text-zinc-300 mt-1">Estimated Monthly Savings</p>
+                      <p className="text-[11px] font-semibold text-zinc-700 mt-1">Monthly Cost Savings</p>
                     </div>
                   </div>
 
                   <Link
-                    href="/auth/login"
-                    className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#facc15] py-3 text-xs font-bold text-black hover:bg-[#eab308] transition-colors"
+                    href="/signup"
+                    className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#f95721] hover:bg-[#ea4815] py-3 text-xs font-bold text-white transition-colors shadow-md shadow-orange-500/20"
                   >
                     <span>Start Deflecting Today (Free)</span>
                     <ArrowRight className="size-3.5" />
@@ -1327,45 +1477,45 @@ export default function LandingClient() {
         </section>
 
         {/* ==========================================
-            INDUSTRIAL COMPETITOR COMPARISON MATRIX
+            ARCHITECTURAL COMPARISON MATRIX
             ========================================== */}
-        <section className="py-20 border-t border-b border-white/[0.08] bg-[#0c0d12]">
+        <section className="py-20 border-t border-b border-zinc-200/80 bg-[#fbfbfb]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
-              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-yellow-400">
+              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
                 // ARCHITECTURAL COMPARISON
               </p>
-              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 How Chatty compares to legacy platforms.
               </h2>
-              <p className="mt-3 text-sm sm:text-base text-zinc-400">
+              <p className="mt-3 text-sm sm:text-base text-zinc-600">
                 See why modern engineering and support teams are choosing an open-source, BYOK-first architecture.
               </p>
             </div>
 
-            <div className="mt-12 overflow-x-auto">
+            <div className="mt-12 overflow-x-auto max-w-5xl mx-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
               <table className="w-full text-left border-collapse min-w-[640px]">
                 <thead>
-                  <tr className="border-b border-white/[0.12] text-xs font-mono uppercase tracking-wider text-zinc-400">
-                    <th className="py-4 px-4">Feature / Protocol</th>
-                    <th className="py-4 px-4 bg-yellow-400/5 text-yellow-400 font-bold border-l border-r border-yellow-400/20">
+                  <tr className="border-b border-zinc-200 text-xs font-mono uppercase tracking-wider text-zinc-500 bg-zinc-50">
+                    <th className="py-4 px-5">Feature / Protocol</th>
+                    <th className="py-4 px-5 bg-orange-50/70 text-[#f95721] font-bold border-l border-r border-orange-200">
                       Chatty (OSS)
                     </th>
-                    <th className="py-4 px-4 text-zinc-400">Intercom Fin</th>
-                    <th className="py-4 px-4 text-zinc-400">Zendesk AI</th>
-                    <th className="py-4 px-4 text-zinc-400">Crisp</th>
+                    <th className="py-4 px-5 text-zinc-600">Intercom Fin</th>
+                    <th className="py-4 px-5 text-zinc-600">Zendesk AI</th>
+                    <th className="py-4 px-5 text-zinc-600">Crisp</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/[0.06] text-xs">
-                  {COMPARISON_ROWS.map((row) => (
-                    <tr key={row.feature} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-4 px-4 font-semibold text-white">{row.feature}</td>
-                      <td className="py-4 px-4 bg-yellow-400/5 font-bold text-yellow-300 border-l border-r border-yellow-400/20">
+                <tbody className="divide-y divide-zinc-100 text-xs">
+                  {COMPARISONS.map((row) => (
+                    <tr key={row.feature} className="hover:bg-zinc-50/60 transition-colors">
+                      <td className="py-4 px-5 font-semibold text-zinc-900">{row.feature}</td>
+                      <td className="py-4 px-5 bg-orange-50/50 font-bold text-[#f95721] border-l border-r border-orange-200">
                         {row.chatty}
                       </td>
-                      <td className="py-4 px-4 text-zinc-400">{row.intercom}</td>
-                      <td className="py-4 px-4 text-zinc-400">{row.zendesk}</td>
-                      <td className="py-4 px-4 text-zinc-400">{row.crisp}</td>
+                      <td className="py-4 px-5 text-zinc-600">{row.intercom}</td>
+                      <td className="py-4 px-5 text-zinc-600">{row.zendesk}</td>
+                      <td className="py-4 px-5 text-zinc-600">{row.crisp}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1377,27 +1527,27 @@ export default function LandingClient() {
         {/* ==========================================
             TRANSPARENT PRICING TIERS
             ========================================== */}
-        <section id="pricing" className="py-24 bg-[#090a0f]">
+        <section id="pricing" className="py-24 bg-white">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
-              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-yellow-400">
-                // TRANSPARENT FLAT PRICING
+              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
+                // TRANSPARENT PRICING
               </p>
-              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 Predictable plans. No hidden per-resolution tax.
               </h2>
-              <p className="mt-3 text-sm sm:text-base text-zinc-400">
+              <p className="mt-3 text-sm sm:text-base text-zinc-600">
                 Start completely free with your own API keys, or upgrade for managed AI credits, multi-bot fleets, and
                 white-label branding.
               </p>
 
               {/* Monthly vs Annual Toggle */}
-              <div className="mt-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-[#121520] p-1.5 text-xs font-semibold">
+              <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-100 p-1 text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setIsAnnual(false)}
                   className={`rounded-full px-4 py-1.5 transition-colors ${
-                    !isAnnual ? "bg-white/[0.12] text-white" : "text-zinc-400 hover:text-white"
+                    !isAnnual ? "bg-white text-zinc-950 shadow-sm" : "text-zinc-600 hover:text-zinc-950"
                   }`}
                 >
                   Monthly Billing
@@ -1406,11 +1556,11 @@ export default function LandingClient() {
                   type="button"
                   onClick={() => setIsAnnual(true)}
                   className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 transition-colors ${
-                    isAnnual ? "bg-[#facc15] text-black" : "text-zinc-400 hover:text-white"
+                    isAnnual ? "bg-[#f95721] text-white shadow-sm" : "text-zinc-600 hover:text-zinc-950"
                   }`}
                 >
                   <span>Annual Billing</span>
-                  <span className="rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-bold uppercase">
+                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-bold uppercase">
                     Save 20%
                   </span>
                 </button>
@@ -1418,162 +1568,162 @@ export default function LandingClient() {
             </div>
 
             {/* Pricing Cards Grid */}
-            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch max-w-7xl mx-auto">
               {/* Plan 1: Free BYOK */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#0e1017] p-6 flex flex-col justify-between hover:border-white/20 transition-all">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
                 <div>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">Free BYOK</span>
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-500">Free BYOK</span>
                   <div className="mt-3 flex items-baseline gap-1">
-                    <span className="font-display text-4xl font-bold text-white">$0</span>
+                    <span className="font-display text-4xl font-bold text-zinc-950">$0</span>
                     <span className="text-xs font-mono text-zinc-400">/ forever</span>
                   </div>
-                  <p className="mt-2 text-xs text-zinc-400">Bring your own model keys with zero platform fee.</p>
+                  <p className="mt-2 text-xs text-zinc-600">Bring your own model keys with zero platform fee.</p>
 
-                  <ul className="mt-6 space-y-2.5 text-xs text-zinc-300">
+                  <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> 1 Live Chatbot
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 1 Live Chatbot
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Bring OpenAI, Anthropic, Gemini
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Bring OpenAI, Anthropic, Gemini
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Knowledge RAG training
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Knowledge RAG training
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Conversational lead capture
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Conversational lead capture
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Zero token markup
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Zero token markup
                     </li>
                   </ul>
                 </div>
 
                 <Link
-                  href="/auth/login"
-                  className="mt-8 block w-full rounded-xl border border-white/10 bg-[#141724] py-2.5 text-center text-xs font-bold text-white hover:border-white/25 transition-all"
+                  href="/signup"
+                  className="mt-8 block w-full rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 py-2.5 text-center text-xs font-bold text-zinc-900 transition-all shadow-sm"
                 >
                   Deploy Free BYOK
                 </Link>
               </div>
 
               {/* Plan 2: Hobby */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#0e1017] p-6 flex flex-col justify-between hover:border-white/20 transition-all">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
                 <div>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">Hobby</span>
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-500">Hobby</span>
                   <div className="mt-3 flex items-baseline gap-1">
-                    <span className="font-display text-4xl font-bold text-white">{isAnnual ? "$15" : "$19"}</span>
+                    <span className="font-display text-4xl font-bold text-zinc-950">{isAnnual ? "$15" : "$19"}</span>
                     <span className="text-xs font-mono text-zinc-400">/ mo</span>
                   </div>
-                  <p className="mt-2 text-xs text-zinc-400">For indie founders & single websites.</p>
+                  <p className="mt-2 text-xs text-zinc-600">For indie builders & solo founders.</p>
 
-                  <ul className="mt-6 space-y-2.5 text-xs text-zinc-300">
+                  <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> 3 Live Chatbots
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 3 Live Chatbots
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Included AI message credits
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Included AI message credits
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> 10M characters knowledge base
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 10M characters knowledge base
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Analytics & visitor logs
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Analytics & visitor logs
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Calendar booking integration
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Calendar booking integration
                     </li>
                   </ul>
                 </div>
 
                 <Link
-                  href="/auth/login"
-                  className="mt-8 block w-full rounded-xl border border-white/10 bg-[#141724] py-2.5 text-center text-xs font-bold text-white hover:border-white/25 transition-all"
+                  href="/signup"
+                  className="mt-8 block w-full rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 py-2.5 text-center text-xs font-bold text-zinc-900 transition-all shadow-sm"
                 >
                   Get Started
                 </Link>
               </div>
 
               {/* Plan 3: Standard (Highlighted) */}
-              <div className="rounded-2xl border-2 border-yellow-400 bg-[#121522] p-6 flex flex-col justify-between shadow-xl relative">
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#facc15] px-3 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-black">
+              <div className="rounded-2xl border-2 border-[#f95721] bg-white p-6 flex flex-col justify-between shadow-xl relative">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#f95721] px-3 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-white">
                   MOST POPULAR
                 </span>
 
                 <div>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-yellow-400">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#f95721]">
                     Standard
                   </span>
                   <div className="mt-3 flex items-baseline gap-1">
-                    <span className="font-display text-4xl font-bold text-white">{isAnnual ? "$79" : "$99"}</span>
+                    <span className="font-display text-4xl font-bold text-zinc-950">{isAnnual ? "$79" : "$99"}</span>
                     <span className="text-xs font-mono text-zinc-400">/ mo</span>
                   </div>
-                  <p className="mt-2 text-xs text-zinc-400">For fast-growing SaaS & support teams.</p>
+                  <p className="mt-2 text-xs text-zinc-600">For fast-growing SaaS & support teams.</p>
 
-                  <ul className="mt-6 space-y-2.5 text-xs text-zinc-200">
+                  <ul className="mt-6 space-y-2.5 text-xs text-zinc-800">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-yellow-400 shrink-0" /> 6 Live Chatbots
+                      <Check className="size-4 text-[#f95721] shrink-0" /> 6 Live Chatbots
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-yellow-400 shrink-0" /> 10,000 Included AI credits
+                      <Check className="size-4 text-[#f95721] shrink-0" /> 10,000 Included AI credits
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-yellow-400 shrink-0" /> Daily auto-sync crawler
+                      <Check className="size-4 text-[#f95721] shrink-0" /> Daily auto-sync crawler
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-yellow-400 shrink-0" /> Remove &quot;Powered by Chatty&quot;
+                      <Check className="size-4 text-[#f95721] shrink-0" /> Remove &quot;Powered by Chatty&quot;
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-yellow-400 shrink-0" /> Unlimited team inbox members
+                      <Check className="size-4 text-[#f95721] shrink-0" /> Unlimited team inbox members
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-yellow-400 shrink-0" /> Full MCP Server access
+                      <Check className="size-4 text-[#f95721] shrink-0" /> Full MCP Server access
                     </li>
                   </ul>
                 </div>
 
                 <Link
-                  href="/auth/login"
-                  className="mt-8 block w-full rounded-xl bg-[#facc15] py-2.5 text-center text-xs font-bold text-black hover:bg-[#eab308] transition-all shadow-md"
+                  href="/signup"
+                  className="mt-8 block w-full rounded-xl bg-[#f95721] hover:bg-[#ea4815] py-2.5 text-center text-xs font-bold text-white transition-all shadow-md shadow-orange-500/20"
                 >
                   Start 14-Day Free Trial
                 </Link>
               </div>
 
               {/* Plan 4: Business */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#0e1017] p-6 flex flex-col justify-between hover:border-white/20 transition-all">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
                 <div>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">Business</span>
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-500">Business</span>
                   <div className="mt-3 flex items-baseline gap-1">
-                    <span className="font-display text-4xl font-bold text-white">{isAnnual ? "$319" : "$399"}</span>
+                    <span className="font-display text-4xl font-bold text-zinc-950">{isAnnual ? "$319" : "$399"}</span>
                     <span className="text-xs font-mono text-zinc-400">/ mo</span>
                   </div>
-                  <p className="mt-2 text-xs text-zinc-400">For high-volume enterprises & agencies.</p>
+                  <p className="mt-2 text-xs text-zinc-600">For high-volume enterprises & agencies.</p>
 
-                  <ul className="mt-6 space-y-2.5 text-xs text-zinc-300">
+                  <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Unlimited Chatbots
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Unlimited Chatbots
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> 40,000 Included AI credits
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 40,000 Included AI credits
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> 50M characters knowledge base
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 50M characters knowledge base
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Full white-label controls
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Full white-label controls
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Management API & Webhooks
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Management API & Webhooks
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-400 shrink-0" /> Priority 99.9% uptime SLA
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Priority 99.9% uptime SLA
                     </li>
                   </ul>
                 </div>
 
                 <Link
-                  href="/auth/login"
-                  className="mt-8 block w-full rounded-xl border border-white/10 bg-[#141724] py-2.5 text-center text-xs font-bold text-white hover:border-white/25 transition-all"
+                  href="/signup"
+                  className="mt-8 block w-full rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 py-2.5 text-center text-xs font-bold text-zinc-900 transition-all shadow-sm"
                 >
                   Deploy Business
                 </Link>
@@ -1585,13 +1735,13 @@ export default function LandingClient() {
         {/* ==========================================
             SEO FAQ ACCORDION SECTION
             ========================================== */}
-        <section id="faq" className="py-20 border-t border-white/[0.08] bg-[#0c0d12]">
+        <section id="faq" className="py-20 border-t border-zinc-200/80 bg-[#fbfbfb]">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <div className="text-center">
-              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-yellow-400">
+              <p className="text-xs font-mono font-semibold uppercase tracking-wider text-[#f95721]">
                 // FREQUENTLY ASKED QUESTIONS
               </p>
-              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
                 Everything you need to know about Chatty.
               </h2>
             </div>
@@ -1602,22 +1752,22 @@ export default function LandingClient() {
                 return (
                   <div
                     key={faq.q}
-                    className="rounded-xl border border-white/[0.08] bg-[#0e1017] overflow-hidden transition-colors"
+                    className="rounded-xl border border-zinc-200 bg-white overflow-hidden shadow-sm transition-colors"
                   >
                     <button
                       type="button"
                       onClick={() => setOpenFaqIndex(isOpen ? null : index)}
-                      className="flex w-full items-center justify-between p-5 text-left text-sm font-semibold text-white hover:bg-white/[0.02]"
+                      className="flex w-full items-center justify-between p-5 text-left text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
                     >
                       <span>{faq.q}</span>
                       <ChevronDown
                         className={`size-4 text-zinc-400 transition-transform duration-200 shrink-0 ml-4 ${
-                          isOpen ? "rotate-180 text-yellow-400" : ""
+                          isOpen ? "rotate-180 text-[#f95721]" : ""
                         }`}
                       />
                     </button>
                     {isOpen && (
-                      <div className="px-5 pb-5 pt-1 text-xs text-zinc-400 leading-relaxed border-t border-white/[0.04]">
+                      <div className="px-5 pb-5 pt-1 text-xs text-zinc-600 leading-relaxed border-t border-zinc-100">
                         {faq.a}
                       </div>
                     )}
@@ -1629,33 +1779,31 @@ export default function LandingClient() {
         </section>
 
         {/* ==========================================
-            PRE-FOOTER CALL TO ACTION
+            PRE-FOOTER CALL TO ACTION (Vibrant Warm Orange)
             ========================================== */}
-        <section className="py-20 bg-[#090a0f] border-t border-white/[0.08]">
+        <section className="py-20 bg-white">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-            <div className="rounded-3xl border border-white/[0.12] bg-[#0f121d] p-8 sm:p-14 max-w-4xl mx-auto shadow-2xl relative overflow-hidden">
-              <span className="size-2 rounded-full bg-emerald-400 inline-block mb-3 animate-pulse" />
-              <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white max-w-2xl mx-auto">
+            <div className="rounded-3xl bg-[#f95721] p-8 sm:p-14 max-w-4xl mx-auto shadow-2xl shadow-orange-500/30 text-white relative overflow-hidden">
+              <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight max-w-2xl mx-auto">
                 Ready to automate customer support with zero hallucinations?
               </h2>
-              <p className="mt-4 text-sm sm:text-base text-zinc-400 max-w-xl mx-auto">
+              <p className="mt-4 text-sm sm:text-base text-orange-100 max-w-xl mx-auto">
                 Deploy your first grounded website assistant in under 3 minutes. Zero coding required.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link
-                  href="/auth/login"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#facc15] px-8 py-3.5 text-sm font-bold text-black hover:bg-[#eab308] transition-all"
+                  href="/signup"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-white text-[#f95721] hover:bg-orange-50 px-8 py-3.5 text-sm font-bold shadow-md transition-all"
                 >
-                  <span>Deploy Free Assistant</span>
+                  <span>Start free</span>
                   <ArrowRight className="size-4" />
                 </Link>
                 <Link
                   href="https://github.com/Damayantha/chatty"
                   target="_blank"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#161a26] px-6 py-3.5 text-sm font-semibold text-zinc-200 hover:border-white/20 transition-all"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 hover:bg-white/20 px-6 py-3.5 text-sm font-semibold text-white transition-all"
                 >
-                  <GithubStarIcon className="size-4" />
-                  <span>Star on GitHub</span>
+                  <span>⭐ Star on GitHub</span>
                 </Link>
               </div>
             </div>
@@ -1664,66 +1812,67 @@ export default function LandingClient() {
       </main>
 
       {/* ==========================================
-          INDUSTRIAL FOOTER
+          FOOTER (Clean Light Theme with All Existing Links)
           ========================================== */}
-      <footer className="border-t border-white/[0.08] bg-[#06070a] py-14 text-xs text-zinc-400">
+      <footer className="border-t border-zinc-200 bg-white py-14 text-xs text-zinc-600">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-            {/* Brand column */}
+            {/* Brand Column */}
             <div className="col-span-2 space-y-4">
               <Link href="/" className="flex items-center gap-2.5">
-                <div className="flex size-7 items-center justify-center rounded-lg border border-white/10 bg-[#131722]">
-                  <Image src="/favicon.png" alt="Chatty Logo" width={18} height={18} className="object-contain" />
-                </div>
-                <span className="font-display text-base font-bold text-white">Chatty</span>
+                <Image src="/favicon.png" alt="Chatty Logo" width={24} height={24} className="object-contain" />
+                <span className="font-display text-lg font-bold text-zinc-950">Chatty</span>
               </Link>
-              <p className="text-xs text-zinc-400 leading-relaxed max-w-sm">
+              <p className="text-xs text-zinc-500 leading-relaxed max-w-sm">
                 Autonomous conversational AI that grounds support on real business data, captures qualified leads,
                 and books meetings in-chat. Open source & BYOK-ready.
               </p>
-              <div className="inline-flex items-center gap-2 rounded border border-white/10 bg-[#0d0f17] px-2.5 py-1 text-[11px] font-mono text-zinc-300">
-                <span className="size-2 rounded-full bg-emerald-400" />
+              <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-[11px] font-mono text-zinc-700">
+                <span className="size-2 rounded-full bg-emerald-500" />
                 <span>All systems operational · 99.98% uptime</span>
               </div>
             </div>
 
             {/* Column: Product */}
             <div className="space-y-3">
-              <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-300">Product</p>
+              <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-950">Product</p>
               <ul className="space-y-2">
-                <li><Link href="#architecture" className="hover:text-white transition-colors">Agent Pipeline</Link></li>
-                <li><Link href="#simulator" className="hover:text-white transition-colors">Live Simulator</Link></li>
-                <li><Link href="#capabilities" className="hover:text-white transition-colors">Grounded RAG</Link></li>
-                <li><Link href="#pricing" className="hover:text-white transition-colors">Pricing & BYOK</Link></li>
+                <li><Link href="#playground" className="hover:text-zinc-950 transition-colors">Playground</Link></li>
+                <li><Link href="#capabilities" className="hover:text-zinc-950 transition-colors">Grounded RAG</Link></li>
+                <li><Link href="#pricing" className="hover:text-zinc-950 transition-colors">Pricing</Link></li>
+                <li><Link href="/affiliates" className="hover:text-zinc-950 transition-colors">Affiliates Program</Link></li>
+                <li><Link href="/dashboard" className="hover:text-zinc-950 transition-colors">Dashboard</Link></li>
               </ul>
             </div>
 
-            {/* Column: Developers */}
+            {/* Column: Resources */}
             <div className="space-y-3">
-              <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-300">Developers</p>
+              <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-950">Resources</p>
               <ul className="space-y-2">
-                <li><Link href="https://github.com/Damayantha/chatty" target="_blank" className="hover:text-white transition-colors">GitHub Repository</Link></li>
-                <li><Link href="https://docs.chatty.personaliai.com" target="_blank" className="hover:text-white transition-colors">Documentation</Link></li>
-                <li><Link href="https://docs.chatty.personaliai.com/mcp" target="_blank" className="hover:text-white transition-colors">MCP Protocol Spec</Link></li>
-                <li><Link href="https://docs.chatty.personaliai.com/api" target="_blank" className="hover:text-white transition-colors">Management API</Link></li>
+                <li><Link href="https://docs.chatty.personaliai.com" target="_blank" className="hover:text-zinc-950 transition-colors">Documentation</Link></li>
+                <li><Link href="https://github.com/Damayantha/chatty" target="_blank" className="hover:text-zinc-950 transition-colors">GitHub Repository</Link></li>
+                <li><Link href="/support" className="hover:text-zinc-950 transition-colors">Support Center</Link></li>
+                <li><Link href="/voice-demo" className="hover:text-zinc-950 transition-colors">Voice AI Demo</Link></li>
+                <li><Link href="/zoom" className="hover:text-zinc-950 transition-colors">Zoom Integration</Link></li>
               </ul>
             </div>
 
             {/* Column: Legal & Company */}
             <div className="space-y-3">
-              <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-300">Legal & Company</p>
+              <p className="font-mono text-xs font-bold uppercase tracking-wider text-zinc-950">Legal & Company</p>
               <ul className="space-y-2">
-                <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
-                <li><Link href="mailto:support@personaliai.com" className="hover:text-white transition-colors">Contact Support</Link></li>
-                <li><Link href="https://twitter.com/personaliai" target="_blank" className="hover:text-white transition-colors">Twitter / X</Link></li>
+                <li><Link href="/privacy" className="hover:text-zinc-950 transition-colors">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="hover:text-zinc-950 transition-colors">Terms of Service</Link></li>
+                <li><Link href="mailto:support@personaliai.com" className="hover:text-zinc-950 transition-colors">Contact Support</Link></li>
+                <li><Link href="https://twitter.com/personaliai" target="_blank" className="hover:text-zinc-950 transition-colors">Twitter / X</Link></li>
+                <li><Link href="/login" className="hover:text-zinc-950 transition-colors">Sign In</Link></li>
               </ul>
             </div>
           </div>
 
-          <div className="mt-12 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between text-[11px] text-zinc-400 gap-4">
+          <div className="mt-12 pt-6 border-t border-zinc-200 flex flex-col sm:flex-row items-center justify-between text-[11px] text-zinc-500 gap-4">
             <p>© {new Date().getFullYear()} PersonaliAI. All rights reserved.</p>
-            <p className="font-mono text-zinc-400">Built for precision customer communication.</p>
+            <p className="font-mono text-zinc-500">Built for precision customer communication.</p>
           </div>
         </div>
       </footer>
