@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import ChatWidgetCore, { type ChatWidgetCoreProps } from "./ChatWidgetCore";
-import { getOnColor } from "./color-contrast";
+import { getOnColor, hexToRgb } from "./color-contrast";
 import { normalizeWidgetStyle } from "./widget-style";
 import "./standalone.css";
 import "katex/dist/katex.min.css";

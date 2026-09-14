@@ -52,71 +52,63 @@ import {
 // STATIC DATA & DEFINITIONS
 // ==========================================
 
-const MEGA_MENU_ENDPOINTS = [
+const MEGA_MENU_CAPABILITIES = [
   {
     title: "Knowledge Search",
-    desc: "Grounded vector RAG across crawled sitemaps and docs.",
+    desc: "Grounded vector RAG across docs and crawled sites.",
     href: "#capabilities",
-    tags: ["pgvector", "Cosine Cutoff"],
+    icon: Search,
   },
   {
     title: "Calendar Booking",
     desc: "In-chat Google & Outlook meeting scheduling.",
     href: "https://docs.chatty.personaliai.com/guides/calendar-scheduling",
     external: true,
-    tags: ["Google Meet", "Outlook"],
-  },
-  {
-    title: "Lead Capture",
-    desc: "Progressive intent profiling and CRM deal enrichment.",
-    href: "#roi",
-    tags: ["CRM Sync", "Webhooks"],
+    icon: CalendarCheck,
   },
   {
     title: "Omnichannel Inbox",
-    desc: "Live sentiment triage and 1-click human takeover lock.",
+    desc: "Live sentiment triage & 1-click human takeover.",
     href: "https://docs.chatty.personaliai.com/guides/human-takeover",
     external: true,
-    tags: ["Handoff", "Triage"],
+    icon: Inbox,
   },
   {
-    title: "Model Context Protocol",
-    desc: "Official MCP server for Claude Desktop and Cursor.",
-    href: "#mcp",
-    badge: "Native",
+    title: "Lead Capture",
+    desc: "Progressive intent profiling and CRM enrichment.",
+    href: "#roi",
+    icon: UserCheck,
   },
 ];
 
 const MEGA_MENU_SURFACES = [
   {
     title: "MCP Server",
-    desc: "Direct tools for autonomous agents over SSE.",
+    desc: "Connect Claude Desktop, Cursor & agents.",
     href: "#mcp",
     badge: "Native",
+    icon: Server,
   },
   {
     title: "Web Chat Widget",
-    desc: "1-line embed snippet with live theme customizations.",
+    desc: "1-line embed snippet with live theme styling.",
     href: "https://docs.chatty.personaliai.com/guides/embed-widget",
     external: true,
+    icon: MessageCircle,
   },
   {
     title: "REST API",
-    desc: "Programmatic management of bots, sources, and leads.",
+    desc: "Programmatic management of bots and leads.",
     href: "https://docs.chatty.personaliai.com/api-reference/chat/send-message",
     external: true,
+    icon: Code2,
   },
   {
     title: "Client SDKs",
-    desc: "Official Python and TypeScript client libraries.",
+    desc: "Official Python and TypeScript libraries.",
     href: "https://docs.chatty.personaliai.com/guides/react-sdk",
     external: true,
-  },
-  {
-    title: "Calendar Sync",
-    desc: "Native OAuth integration for Google Calendar & Outlook.",
-    href: "https://docs.chatty.personaliai.com/guides/calendar-scheduling",
-    external: true,
+    icon: Layers,
   },
 ];
 
@@ -701,7 +693,6 @@ export default function LandingClient() {
   const megaMenuProductsRef = useRef<HTMLDivElement>(null);
   const megaMenuResourcesRef = useRef<HTMLDivElement>(null);
   const heroCanvasRef = useRef<HTMLCanvasElement>(null);
-  const terminalBoxRef = useRef<HTMLDivElement>(null);
 
   // Feature Code Showcase State (Firecrawl Interactive Code Section)
   const [activeFeatureIdx, setActiveFeatureIdx] = useState(0);
@@ -976,26 +967,6 @@ export default function LandingClient() {
         );
       }
 
-      if (terminalBoxRef.current) {
-        tl.from(
-          terminalBoxRef.current,
-          {
-            y: 32,
-            opacity: 0,
-            scale: 0.97,
-            duration: 0.75,
-            ease: "power3.out",
-          },
-          "-=0.3"
-        );
-        tl.fromTo(
-          ".terminal-line",
-          { opacity: 0, x: -8 },
-          { opacity: 1, x: 0, stagger: 0.14, duration: 0.45, ease: "power2.out" },
-          "-=0.4"
-        );
-      }
-
       if (heroBadgesRef.current) {
         tl.from(
           heroBadgesRef.current.children,
@@ -1188,111 +1159,86 @@ export default function LandingClient() {
                 />
               </button>
 
-              {/* Firecrawl / Nimble Style 3-Column Mega-Menu Card */}
+              {/* Nimble Style 2-Column Mega-Menu Card */}
               {productsMenuOpen && (
-                <div ref={megaMenuProductsRef} className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[860px] transition-all duration-200">
-                  <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-2xl shadow-zinc-200/80">
-                    <div className="grid grid-cols-12 gap-8">
-                      {/* Column 1: Endpoints & Capabilities */}
-                      <div className="col-span-4 space-y-4 border-r border-zinc-100 pr-6">
-                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
-                          Endpoints
+                <div
+                  ref={megaMenuProductsRef}
+                  className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[580px] max-w-[calc(100vw-2rem)] transition-all duration-200"
+                >
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-200/80">
+                    <div className="grid grid-cols-2 gap-5">
+                      {/* Column 1: Featured Products */}
+                      <div className="space-y-3 border-r border-zinc-100 pr-4">
+                        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-zinc-400 block px-2">
+                          Featured Products
                         </span>
-                        <div className="space-y-3">
-                          {MEGA_MENU_ENDPOINTS.map((item) => (
-                            <Link
-                              key={item.title}
-                              href={item.href}
-                              target={item.external ? "_blank" : undefined}
-                              rel={item.external ? "noreferrer" : undefined}
-                              onClick={() => setProductsMenuOpen(false)}
-                              className="group block rounded-xl p-2 transition-colors hover:bg-orange-50/50"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-zinc-900 group-hover:text-[#f95721] transition-colors">
-                                  {item.title}
-                                </span>
-                                {item.badge && (
-                                  <span className="rounded bg-orange-100 text-[#f95721] text-[10px] font-mono font-bold px-1.5 py-0.5">
-                                    {item.badge}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-zinc-500 leading-relaxed mt-0.5">{item.desc}</p>
-                              {item.tags && (
-                                <div className="mt-1.5 flex items-center gap-1.5">
-                                  {item.tags.map((tag) => (
-                                    <span
-                                      key={tag}
-                                      className="inline-flex items-center text-[10px] font-mono text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded"
-                                    >
-                                      {tag} ↗
-                                    </span>
-                                  ))}
+                        <div className="space-y-1">
+                          {MEGA_MENU_CAPABILITIES.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <Link
+                                key={item.title}
+                                href={item.href}
+                                target={item.external ? "_blank" : undefined}
+                                rel={item.external ? "noreferrer" : undefined}
+                                onClick={() => setProductsMenuOpen(false)}
+                                className="group flex items-start gap-3 rounded-xl p-2 transition-colors hover:bg-orange-50/60"
+                              >
+                                <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600 group-hover:bg-orange-100 group-hover:text-[#f95721] transition-colors">
+                                  <Icon className="size-3.5" />
                                 </div>
-                              )}
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Column 2: Surfaces & Protocol */}
-                      <div className="col-span-4 space-y-4 border-r border-zinc-100 pr-6">
-                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
-                          Surfaces
-                        </span>
-                        <div className="space-y-3">
-                          {MEGA_MENU_SURFACES.map((item) => (
-                            <Link
-                              key={item.title}
-                              href={item.href}
-                              target={item.external ? "_blank" : undefined}
-                              rel={item.external ? "noreferrer" : undefined}
-                              onClick={() => setProductsMenuOpen(false)}
-                              className="group block rounded-xl p-2 transition-colors hover:bg-orange-50/50"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-zinc-900 group-hover:text-[#f95721] transition-colors">
-                                  {item.title}
-                                </span>
-                                {item.badge && (
-                                  <span className="rounded bg-zinc-100 text-zinc-700 text-[10px] font-mono font-bold px-1.5 py-0.5">
-                                    {item.badge}
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-xs font-bold text-zinc-900 group-hover:text-[#f95721] transition-colors block">
+                                    {item.title}
                                   </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-zinc-500 leading-relaxed mt-0.5">{item.desc}</p>
-                            </Link>
-                          ))}
+                                  <p className="text-[11px] text-zinc-500 leading-tight mt-0.5">
+                                    {item.desc}
+                                  </p>
+                                </div>
+                              </Link>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      {/* Column 3: Featured Customer Story (Aligned Header & Layout) */}
-                      <div className="col-span-4 space-y-4 flex flex-col">
-                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
-                          Featured Story
+                      {/* Column 2: Surfaces & Protocols */}
+                      <div className="space-y-3">
+                        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-zinc-400 block px-2">
+                          Using Chatty
                         </span>
-                        <div className="flex-1 flex flex-col justify-between rounded-xl border border-zinc-200 bg-zinc-50/80 p-5">
-                          <div className="space-y-3">
-                            <span className="inline-block text-[10px] font-mono font-bold uppercase tracking-wider text-[#f95721] bg-orange-100 px-2 py-0.5 rounded">
-                              Customer Story
-                            </span>
-                            <h4 className="text-sm font-extrabold text-zinc-950 leading-snug">
-                              How scaling teams use Chatty to automate 84% of support inquiries.
-                            </h4>
-                            <p className="text-xs text-zinc-600 leading-relaxed">
-                              Zero hallucinations, calendar booking in-chat, and full MCP tooling for autonomous AI agents.
-                            </p>
-                          </div>
-
-                          <Link
-                            href="#mcp"
-                            onClick={() => setProductsMenuOpen(false)}
-                            className="mt-6 inline-flex items-center gap-1.5 text-xs font-semibold text-[#f95721] hover:text-[#ea4815] transition-colors"
-                          >
-                            <span>Explore MCP Integration</span>
-                            <ArrowRight className="size-3.5" />
-                          </Link>
+                        <div className="space-y-1">
+                          {MEGA_MENU_SURFACES.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <Link
+                                key={item.title}
+                                href={item.href}
+                                target={item.external ? "_blank" : undefined}
+                                rel={item.external ? "noreferrer" : undefined}
+                                onClick={() => setProductsMenuOpen(false)}
+                                className="group flex items-start gap-3 rounded-xl p-2 transition-colors hover:bg-orange-50/60"
+                              >
+                                <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600 group-hover:bg-orange-100 group-hover:text-[#f95721] transition-colors">
+                                  <Icon className="size-3.5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-zinc-900 group-hover:text-[#f95721] transition-colors">
+                                      {item.title}
+                                    </span>
+                                    {item.badge && (
+                                      <span className="rounded bg-orange-100 text-[#f95721] text-[9px] font-mono font-bold px-1.5 py-0.5">
+                                        {item.badge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-zinc-500 leading-tight mt-0.5">
+                                    {item.desc}
+                                  </p>
+                                </div>
+                              </Link>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -1583,48 +1529,6 @@ export default function LandingClient() {
                 <GithubIcon className="size-4 text-zinc-700" />
                 <span>GitHub Source</span>
               </Link>
-            </div>
-
-            {/* Live Autonomous MCP Terminal Window (GSAP Hacking Text Animation) */}
-            <div
-              ref={terminalBoxRef}
-              className="mt-12 mx-auto max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-4 sm:p-5 shadow-2xl text-left font-mono text-xs"
-            >
-              {/* Window Header */}
-              <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800 text-zinc-400">
-                <div className="flex items-center gap-2">
-                  <span className="size-2.5 rounded-full bg-red-500/80 inline-block" />
-                  <span className="size-2.5 rounded-full bg-yellow-500/80 inline-block" />
-                  <span className="size-2.5 rounded-full bg-emerald-500/80 inline-block" />
-                  <span className="ml-2 text-[11px] text-zinc-400 font-medium">chatty-agent@edge:~ // mcp-stream v2.4</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60 font-semibold">
-                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>ONLINE SSE</span>
-                </div>
-              </div>
-
-              {/* Terminal Code Lines */}
-              <div className="space-y-1.5 text-[11px] sm:text-xs">
-                <div className="terminal-line text-zinc-400 flex items-center gap-2">
-                  <span className="text-[#f95721] font-bold">❯</span>
-                  <span>chatty mcp-connect --sse https://api.chatty.personaliai.com/mcp</span>
-                </div>
-                <div className="terminal-line text-zinc-500 pl-4">
-                  [mcp:handshake] Connected to Claude Desktop / Cursor. 18 tools active.
-                </div>
-                <div className="terminal-line text-zinc-300 flex items-center gap-2">
-                  <span className="text-emerald-400 font-bold">❯</span>
-                  <span>tool/call: &quot;knowledge_search&quot; threshold=0.84 query=&quot;Enterprise SLA terms&quot;</span>
-                </div>
-                <div className="terminal-line text-emerald-400 pl-4 flex items-center gap-2">
-                  <span>⚡ [pgvector:1536d] Cosine: 0.942 · 0 hallucinations · 34ms</span>
-                </div>
-                <div className="terminal-line text-orange-300 pl-4 flex items-center gap-1">
-                  <span>✓ Reserved 2:30 PM meeting slot via Google Calendar Sync</span>
-                  <span className="inline-block w-1.5 h-3.5 bg-[#f95721] ml-1 animate-pulse" />
-                </div>
-              </div>
             </div>
 
             {/* Trust Badges Row */}
