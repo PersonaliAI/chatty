@@ -40,7 +40,7 @@
     "firebase": "^12.18.0",
     "framer-motion": "^12.38.0",
     "gsap": "^3.15.0",
-    "katex": "^0.16.45",
+    "katex": "^0.18.7",
     "livekit-client": "^2.22.0",
     "lucide-react": "^1.14.0",
     "moment-timezone": "^0.6.3",
