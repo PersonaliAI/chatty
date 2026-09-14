@@ -2,28 +2,28 @@ import React from "react";
 
 export function PageTitle({ children, updated }: { children: React.ReactNode; updated?: string }) {
   return (
-    <header className="mb-8">
-      <h1 className="text-3xl font-bold text-gray-900">{children}</h1>
-      {updated && <p className="mt-2 text-sm text-gray-400">Last updated: {updated}</p>}
+    <header className="mb-10 pb-6 border-b border-zinc-200">
+      <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-zinc-950">{children}</h1>
+      {updated && <p className="mt-2 text-xs font-mono text-zinc-500">Last updated: {updated}</p>}
     </header>
   );
 }
 
 export function H2({ children }: { children: React.ReactNode }) {
-  return <h2 className="mt-10 mb-3 text-xl font-semibold text-gray-900">{children}</h2>;
+  return <h2 className="mt-10 mb-4 font-display text-xl font-bold tracking-tight text-zinc-900">{children}</h2>;
 }
 
 export function P({ children }: { children: React.ReactNode }) {
-  return <p className="mb-4 leading-relaxed text-gray-600">{children}</p>;
+  return <p className="mb-4 leading-relaxed text-sm text-zinc-600">{children}</p>;
 }
 
 export function UL({ children }: { children: React.ReactNode }) {
-  return <ul className="mb-4 list-disc space-y-2 pl-6 text-gray-600">{children}</ul>;
+  return <ul className="mb-4 list-disc space-y-2 pl-6 text-sm text-zinc-600">{children}</ul>;
 }
 
 export function Mail({ user = "support" }: { user?: string }) {
   return (
-    <a href={`mailto:${user}@personaliai.com`} className="text-orange-600 hover:underline">
+    <a href={`mailto:${user}@personaliai.com`} className="font-medium text-[#f95721] hover:underline">
       {user}@personaliai.com
     </a>
   );

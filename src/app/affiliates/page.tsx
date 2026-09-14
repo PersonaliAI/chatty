@@ -1,115 +1,137 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, CheckCircle2, Clock, DollarSign, ShieldCheck } from "lucide-react";
-
-const affiliateUrl = "/affiliate";
 
 const terms = [
   { label: "Commission", value: "30% recurring for 12 months", icon: DollarSign },
-  { label: "Cookie window", value: "60 days", icon: Clock },
-  { label: "Payout hold", value: "30 days for refunds and review", icon: ShieldCheck },
+  { label: "Cookie window", value: "60 days attribution window", icon: Clock },
+  { label: "Payout schedule", value: "30 days for refunds & automated verification", icon: ShieldCheck },
 ];
 
 const fit = [
-  "AI and SaaS creators",
-  "Web agencies and freelancers",
-  "Customer support consultants",
-  "Startup communities and newsletters",
+  "AI & SaaS builders and creators",
+  "Web design agencies and freelancers",
+  "Customer support & operations consultants",
+  "Developer communities & newsletters",
 ];
 
 export const metadata = {
-  title: "Chatty Affiliate Program",
-  description: "Earn recurring commission by sharing Chatty, the open-source AI customer support bot for websites.",
+  title: "Chatty Affiliate Program | Earn 30% Recurring Commission",
+  description: "Earn recurring commission by sharing Chatty, the open-source AI customer support chatbot for websites.",
 };
 
 export default function AffiliatesPage() {
   return (
-    <main className="min-h-screen bg-[#f5ead8] text-[#201e1d]">
-      <section className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8">
-        <nav className="flex items-center justify-between">
-          <Link href="/" className="font-serif text-2xl font-bold">
-            Chatty
+    <main className="min-h-screen bg-white text-zinc-900 font-sans antialiased">
+      {/* Top Nav */}
+      <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/90 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="object-contain" priority />
+            <span className="font-display font-bold text-lg text-zinc-950">Chatty</span>
           </Link>
           <div className="flex items-center gap-3">
             <Link
+              href="/"
+              className="text-xs font-semibold text-zinc-600 hover:text-zinc-950 px-3 py-1.5 transition-colors"
+            >
+              Back to Home
+            </Link>
+            <Link
               href="/affiliate"
-              className="rounded-full bg-[#c67139] text-white px-4 py-2 text-sm font-semibold hover:bg-[#b2622d] transition-colors"
+              className="rounded-xl bg-[#f95721] hover:bg-[#ea4815] text-white px-4 py-2 text-xs font-semibold shadow-sm shadow-orange-500/20 transition-all"
             >
               Partner Portal
             </Link>
-            <Link
-              href="/"
-              className="rounded-full border border-[#201e1d]/15 px-4 py-2 text-sm font-medium hover:bg-white/40 transition-colors"
-            >
-              Back to Chatty
-            </Link>
           </div>
-        </nav>
+        </div>
+      </header>
 
-        <div className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[1fr_440px]">
+      {/* Main Content */}
+      <section className="mx-auto max-w-6xl px-6 py-16 sm:py-24">
+        <div className="grid gap-12 lg:grid-cols-[1fr_420px] items-center">
           <div>
-            <p className="mb-5 text-sm font-bold uppercase tracking-wide text-[#c67139]">
-              Affiliate Program
-            </p>
-            <h1 className="max-w-4xl font-serif text-5xl font-black leading-[1.05] md:text-7xl">
-              Earn by sharing open-source AI support.
+            <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-mono font-medium text-[#f95721]">
+              <span className="size-1.5 rounded-full bg-[#f95721]" />
+              Affiliate Partner Program
+            </div>
+
+            <h1 className="mt-6 font-display text-4xl sm:text-6xl font-extrabold tracking-tight text-zinc-950 leading-[1.08]">
+              Earn by sharing open-source <span className="text-[#f95721]">conversational AI</span>.
             </h1>
-            <p className="mt-8 max-w-2xl text-xl leading-8 text-[#706c67]">
-              Refer teams to Chatty and earn recurring commission when they launch
-              AI customer support on their website. Good for makers, agencies,
-              consultants, and creators who help businesses improve customer communication.
+
+            <p className="mt-6 text-base sm:text-lg text-zinc-600 leading-relaxed max-w-xl">
+              Refer teams to Chatty and earn 30% recurring commission when they launch
+              autonomous AI customer support on their website. Built for makers, agencies,
+              and consultants helping businesses scale customer communication.
             </p>
-            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+
+            <div className="mt-10 flex flex-col sm:flex-row gap-4">
               <Link
                 href="/affiliate"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#c67139] px-7 py-4 text-sm font-bold text-white shadow-sm hover:bg-[#b2622d] transition-colors"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#f95721] hover:bg-[#ea4815] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all"
               >
-                Join or Open Partner Portal
+                <span>Join Partner Portal</span>
                 <ArrowRight className="size-4" />
               </Link>
               <Link
                 href="/#pricing"
-                className="inline-flex items-center justify-center rounded-full border border-[#201e1d]/15 px-7 py-4 text-sm font-bold hover:bg-white/40 transition-colors"
+                className="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 px-6 py-3.5 text-sm font-semibold text-zinc-800 shadow-sm transition-all"
               >
-                View product pricing
+                View Product Pricing
               </Link>
             </div>
           </div>
 
-          <aside className="rounded-[28px] border border-[#201e1d]/10 bg-[#fffaf6] p-6 shadow-[0_20px_60px_rgba(42,37,33,0.12)]">
-            <h2 className="text-2xl font-bold">Program terms</h2>
-            <div className="mt-6 space-y-4">
+          {/* Program Terms Card */}
+          <aside className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-6 sm:p-7 shadow-lg">
+            <h2 className="font-display text-xl font-bold text-zinc-950">Program Terms</h2>
+            <div className="mt-6 space-y-3">
               {terms.map(({ label, value, icon: Icon }) => (
-                <div key={label} className="flex gap-4 rounded-2xl border border-[#201e1d]/10 bg-white p-4">
-                  <div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#fbefe5] text-[#c67139]">
-                    <Icon className="size-5" />
+                <div key={label} className="flex items-start gap-3.5 rounded-xl border border-zinc-200 bg-white p-3.5 shadow-sm">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-[#f95721] border border-orange-100">
+                    <Icon className="size-4" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold">{label}</p>
-                    <p className="mt-1 text-sm leading-6 text-[#706c67]">{value}</p>
+                    <p className="text-xs font-bold text-zinc-900">{label}</p>
+                    <p className="mt-0.5 text-xs text-zinc-600 leading-relaxed">{value}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-7 rounded-2xl bg-[#eaf6ef] p-5">
-              <p className="text-sm font-bold text-[#168565]">Best fit</p>
-              <ul className="mt-3 space-y-2">
+            <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xs font-bold text-emerald-900">Who it&apos;s best for</p>
+              <ul className="mt-2.5 space-y-1.5">
                 {fit.map((item) => (
-                  <li key={item} className="flex items-center gap-2 text-sm text-[#201e1d]">
-                    <CheckCircle2 className="size-4 text-[#168565]" />
-                    {item}
+                  <li key={item} className="flex items-center gap-2 text-xs text-emerald-800">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            <p className="mt-6 text-xs leading-6 text-[#706c67]">
-              No self-referrals. No paid search bidding on Chatty or PersonaliAI
-              brand terms. Payouts are reviewed before approval.
+            <p className="mt-5 text-[11px] text-zinc-500 leading-relaxed">
+              No self-referrals. No paid search bidding on Chatty or PersonaliAI brand terms.
+              Payouts are verified via automated audit.
             </p>
           </aside>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-200 bg-white py-8 text-xs text-zinc-500">
+        <div className="mx-auto max-w-6xl px-6 flex flex-wrap items-center justify-between gap-4">
+          <span>© {new Date().getFullYear()} PersonaliAI. All rights reserved.</span>
+          <div className="flex items-center gap-4">
+            <Link href="/" className="hover:text-zinc-900">Home</Link>
+            <Link href="/privacy" className="hover:text-zinc-900">Privacy</Link>
+            <Link href="/terms" className="hover:text-zinc-900">Terms</Link>
+            <Link href="/support" className="hover:text-zinc-900">Support</Link>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
