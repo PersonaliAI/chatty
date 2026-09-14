@@ -1,155 +1,50 @@
-import type { Metadata } from "next";
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import Script from "next/script";
+import { Caprasimo, Figtree } from "next/font/google";
 import {
   ArrowRight,
-  BarChart3,
-  BookOpen,
-  CalendarCheck,
-  Check,
-  ChevronRight,
-  Inbox,
-  MessageCircle,
-  MousePointerClick,
-  PlugZap,
-  ShieldCheck,
-  Sparkles,
-  Users,
   Zap,
+  UserCheck,
+  CalendarCheck,
+  Menu,
+  X,
+  BookOpen,
+  ChevronDown,
+  type LucideIcon,
 } from "lucide-react";
+import { captureAffiliateReferral } from "@/lib/affiliate-referral";
 
-export const metadata: Metadata = {
-  title: "Chatty | AI Customer Support Chatbot for Your Website",
-  description:
-    "Chatty is an AI customer support chatbot trained on your website, files, and help docs. Capture leads, book meetings, automate answers, and manage conversations from one dashboard.",
-  keywords: [
-    "AI customer support chatbot",
-    "website chatbot",
-    "AI live chat",
-    "customer communication software",
-    "Crisp alternative",
-    "Intercom alternative",
-    "lead capture chatbot",
-    "AI booking assistant",
-    "open source chatbot",
-    "MCP chatbot",
-  ],
-  alternates: { canonical: "https://chatty.personaliai.com" },
-  openGraph: {
-    title: "Chatty — AI customer support for your website",
-    description: "Train Chatty on your website, files, and docs. Answer visitors instantly, capture leads, book meetings, and hand off to your team.",
-    url: "https://chatty.personaliai.com",
-    siteName: "Chatty",
-    type: "website",
-    images: [{ url: "/chatty-hero-product.webp", width: 1270, height: 760, alt: "Chatty AI customer support dashboard and website chatbot" }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Chatty — AI customer support for your website",
-    description: "A website chatbot that answers, captures leads, books meetings, and works with Codex through MCP.",
-    images: ["/chatty-hero-product.webp"],
-  },
-};
+const caprasimo = Caprasimo({ weight: "400", subsets: ["latin"], variable: "--font-heading", display: "swap" });
+const figtree = Figtree({ weight: ["400", "600", "700"], subsets: ["latin"], variable: "--font-body", display: "swap" });
 
-const productJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "Chatty",
-  applicationCategory: "BusinessApplication",
-  operatingSystem: "Web",
-  description: "AI customer support chatbot trained on websites, files, and help docs with lead capture, booking, team inbox, analytics, and MCP support.",
-  url: "https://chatty.personaliai.com",
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free BYOK plan and paid hosted AI plans." },
-};
+// Color tokens - a single warm, organic palette (this design has no dark
+// mode, matching the reference it was redesigned from).
+const colorVars = {
+  "--color-bg": "#f5ead8",
+  "--color-surface": "#ebddc5",
+  "--color-text": "#201e1d",
+  "--color-accent": "#c67139",
+  "--color-accent-2": "#7a8a5e",
+  "--color-divider": "color-mix(in srgb, #201e1d 16%, transparent)",
+  "--color-accent-100": "#fff2eb",
+  "--color-accent-200": "#ffe1d0",
+  "--color-accent-600": "#b2622d",
+  "--color-accent-700": "#8c491a",
+  "--color-accent-800": "#643312",
+  "--color-accent-2-100": "#f0fae1",
+  "--color-accent-2-200": "#e1eecc",
+  "--color-accent-2-800": "#3d472b",
+  "--color-neutral-900": "#2e2b25",
+  "--shadow-sm": "0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent)",
+  "--shadow-md": "0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent)",
+  "--shadow-lg": "0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent)",
+} as React.CSSProperties;
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What is Chatty?",
-      acceptedAnswer: { "@type": "Answer", text: "Chatty is an AI customer support chatbot for websites. It trains on your content, answers questions, captures leads, books meetings, and routes conversations to your team." },
-    },
-    {
-      "@type": "Question",
-      name: "Can Chatty be an alternative to Crisp or Intercom?",
-      acceptedAnswer: { "@type": "Answer", text: "Chatty is best for teams that want an AI-first customer communication product with website chat, trained answers, lead capture, booking, inbox workflows, analytics, and MCP automation." },
-    },
-    {
-      "@type": "Question",
-      name: "Is Chatty open source?",
-      acceptedAnswer: { "@type": "Answer", text: "Yes. Chatty has a public open source repository on GitHub, plus a hosted cloud product for teams that want a managed deployment." },
-    },
-  ],
-};
-
-const nav = [
-  ["Product", "#product"],
-  ["Use cases", "#use-cases"],
-  ["MCP", "#mcp"],
-  ["Pricing", "#pricing"],
-  ["FAQ", "#faq"],
-];
-
-const metrics = [
-  ["5 min", "to launch a trained bot"],
-  ["95+", "languages supported"],
-  ["24/7", "instant visitor replies"],
-  ["BYOK", "free forever option"],
-];
-
-const capabilities = [
-  [BookOpen, "Train on real content", "Import websites, help articles, PDFs, files, and notes so answers come from your business, not generic AI memory."],
-  [MessageCircle, "Answer every visitor", "Give fast, consistent help on pricing, setup, policy, troubleshooting, onboarding, and product questions."],
-  [Inbox, "Human inbox when needed", "Review conversations, pause AI replies, assign owners, and keep context when a human should take over."],
-  [CalendarCheck, "Book meetings in context", "Let qualified visitors choose real available calendar slots in their timezone before they leave your website."],
-  [MousePointerClick, "Capture leads naturally", "Collect name, email, phone, company, and conversation intent only when the visitor shows real intent."],
-  [PlugZap, "Connect through MCP", "Use Codex and other MCP clients to manage bots, knowledge, inboxes, campaigns, bookings, analytics, and team settings."],
-] as const;
-
-const workflows = [
-  ["1", "Train", "Add your site, files, help docs, policies, and product details."],
-  ["2", "Publish", "Copy one script, allow-list your domain, and launch the assistant."],
-  ["3", "Convert", "Chatty answers, captures leads, books calls, and routes exceptions."],
-  ["4", "Improve", "Review analytics and update knowledge from real visitor questions."],
-];
-
-const useCases = [
-  ["SaaS support", "Answer setup, billing, integration, and account questions before they become tickets.", ["Help docs", "Product onboarding", "Human handoff"]],
-  ["Sales qualification", "Turn high-intent website chats into qualified leads with meeting booking and transcript context.", ["Lead fields", "Calendar booking", "CRM/webhook handoff"]],
-  ["Agencies & resellers", "Create branded bots for multiple client websites and manage them from one dashboard.", ["Multiple bots", "White label", "Team roles"]],
-  ["Self-hosted teams", "Use the open source project when your team needs more control over hosting and architecture.", ["GitHub source", "BYOK models", "API access"]],
-] as const;
-
-const comparisons = [
-  ["AI-first website support", "Purpose-built around trained website answers, not just live chat with an AI add-on."],
-  ["Lead capture + booking", "Capture intent, contact details, and a meeting slot in the same conversation."],
-  ["Open source path", "Use the hosted product or inspect and extend the public repository."],
-  ["Codex/MCP control", "Manage real Chatty operations from an agent workflow instead of only clicking UI."],
-];
-
-const plans = [
-  ["Free BYOK", "$0", "Use your own model key", ["1 chatbot", "Bring OpenAI, Gemini, Anthropic, or OpenRouter", "Knowledge training", "Lead capture", "No platform AI markup"], false],
-  ["Hobby", "$19", "For solo builders", ["3 chatbots", "Included AI credits", "10M training characters", "Analytics", "API and notifications"], true],
-  ["Standard", "$99", "For growing teams", ["6 chatbots", "10,000 message credits", "Daily auto-train", "Remove branding", "Unlimited team members"], false],
-  ["Business", "$399", "For scale and resellers", ["Unlimited chatbots", "40,000 message credits", "50M training characters", "White-label controls", "Management API"], false],
-] as const;
-
-const faqs = [
-  ["How fast can I launch Chatty?", "Most teams can launch the first trained website bot in minutes: create a bot, add sources, test common questions, then paste the embed script on the site."],
-  ["Can Chatty be an alternative to Crisp?", "Yes, especially if you want an AI-first website communication product with trained answers, leads, booking, inbox, analytics, and a lower-complexity setup."],
-  ["Does Chatty support human takeover?", "Yes. Your team can review conversations, pause AI replies, assign ownership, and use the inbox as the control room for conversations that need judgment."],
-  ["Can I use my own AI provider key?", "Yes. The free BYOK option lets you use your own OpenAI, Anthropic, Gemini, or OpenRouter key without paying Chatty for model usage."],
-  ["Does it work with Codex?", "Yes. Chatty ships a Codex plugin and hosted MCP server so agents can manage bots, knowledge, leads, bookings, inboxes, campaigns, and analytics."],
-];
-
-function LogoMark({ className = "size-8" }: { className?: string }) {
-  return <Image src="/favicon.png" alt="" width={32} height={32} className={`${className} object-contain`} priority />;
-}
-
-function GithubMark({ className = "size-4" }: { className?: string }) {
+function GithubIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
       <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.76.12 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.07.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .31.21.67.8.56A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
@@ -157,293 +52,754 @@ function GithubMark({ className = "size-4" }: { className?: string }) {
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs font-black uppercase tracking-[0.24em] text-[#9c643f]">{children}</p>;
+interface Feature {
+  title: string;
+  desc: string;
 }
 
+const featuresList: Feature[] = [
+  { title: "Knowledge", desc: "Train the chatbot to answer questions about your website, files, and more." },
+  { title: "Actions", desc: "Go beyond just Q&A and let the chatbot use any of your apps." },
+  { title: "Refine answers", desc: "Review conversations and correct the chatbot to give better answers." },
+  { title: "Analytics", desc: "Learn how your customers are interacting with your chatbot." },
+  { title: "Multiple chatbots", desc: "Create multiple chatbots for different use cases or different websites." },
+  { title: "White-label", desc: "Features that help you resell chatbots as part of your business." },
+  { title: "Inbox", desc: "Access conversations between your chatbot and page visitors." },
+  { title: "AI Models", desc: "GPT-5.3, Claude Opus, Mistral, Gemini... Switch between AI models at any time." },
+  { title: "Chatbot API", desc: "Use our powerful API and access your chatbot from other apps." },
+  { title: "BYOK (Free Forever)", desc: "Provide your own OpenAI, Anthropic, Gemini, or OpenRouter API key. 100% free option - no paid plan required." },
+  { title: "Multilingual", desc: "Our chatbots can use over 95 languages out of the box." },
+  { title: "Customizable", desc: "Change name, icon, theme, position, color, CSS, JS... make it yours." },
+  { title: "Guardrails", desc: "Prevent abuse. Get a reliable and assertive chatbot, not 'ChatGPT for free'." },
+  { title: "Auto train", desc: "Automatically keep your chatbot up to date: daily, weekly and monthly." },
+  { title: "Allow list", desc: "Secure your chatbot to work only on domains under your control." },
+  { title: "Leads", desc: "Collect name, email, phone number of the chat visitor." },
+  { title: "Bulk", desc: "Bulk operations to handle any amount of training." },
+  { title: "Notifications", desc: "Receive email & webhook updates with recent conversations." },
+];
+
+const faqs = [
+  { question: "How do I train my chatbot?", answer: "Point Chatty at your website, upload files (PDF, DOCX, CSV), or paste in text - it crawls and indexes everything automatically. Auto Train keeps it in sync on a daily, weekly, or monthly schedule so answers never go stale." },
+  { question: "Can I use my own API keys?", answer: "Yes! BYOK (Bring Your Own Key) is 100% free forever - there is no need to buy a plan for BYOK. Simply plug in your own OpenAI, Anthropic, Gemini, or OpenRouter key and pay only your model provider directly with zero platform markup." },
+  { question: "What counts as a 'message credit'?", answer: "Each reply your chatbot sends to a visitor uses one message credit. Credits reset every billing cycle, and unused credits don't roll over." },
+  { question: "How does lead collection work?", answer: "Chatty can ask for a visitor's name, email, and phone number mid-conversation, save it automatically to your dashboard, and push it to your CRM or inbox via webhook or API." },
+  { question: "Can I embed the chatbot on multiple sites?", answer: "Yes - each chatbot can be embedded anywhere, and the Allow List lets you restrict it to run only on domains you control." },
+];
+
+const helpArticles = [
+  {
+    category: "Getting started",
+    title: "Launch your first Chatty bot",
+    outcome: "A trained, branded assistant live on a production page with a tested fallback path.",
+    summary: "Start with one focused use case: answer product questions, qualify visitors, or route support requests. Give the bot a clear identity, train it from trusted sources, then test it like a real visitor before publishing.",
+    sections: [
+      { heading: "Create the bot", body: "Open the dashboard, create a bot, and set the name, welcome message, tone, language behavior, and first suggested prompts. Keep the first welcome short and action-oriented so visitors know exactly what to ask." },
+      { heading: "Train the source of truth", body: "Add your website, help docs, pricing page, policy pages, PDFs, or pasted text. Wait for indexing to finish, then ask the bot ten questions your customers actually ask." },
+      { heading: "Publish safely", body: "Copy the embed script from the Embed tab and place it before the closing body tag. Add your production domain to the allow list before sending traffic to the widget." },
+    ],
+    checklist: ["Bot identity and welcome message are set", "At least one authoritative knowledge source is indexed", "Embed script works on a staging or production page", "Fallback contact or handoff route is visible"],
+  },
+  {
+    category: "Knowledge",
+    title: "Keep answers accurate with a healthy knowledge base",
+    outcome: "Reliable answers that stay aligned with your current product, pricing, and policies.",
+    summary: "A strong bot is only as good as the material it can cite. Treat the knowledge base like a living help center: structured, current, and biased toward canonical sources instead of broad crawls.",
+    sections: [
+      { heading: "Use canonical sources", body: "Train from pages that contain final policy, pricing, setup, billing, delivery, return, and troubleshooting information. Avoid duplicate drafts and outdated campaign pages." },
+      { heading: "Close missing-answer gaps", body: "Review unanswered questions and low-confidence conversations weekly. Add a short article or source snippet for every recurring gap instead of relying on prompt changes alone." },
+      { heading: "Automate freshness", body: "Enable Auto Train for sources that change often. Daily sync is best for pricing, inventory, status, and policy pages; weekly or monthly works for slower documentation." },
+    ],
+    checklist: ["Pricing and policy pages are indexed", "Old or duplicate sources are removed", "Unanswered questions are reviewed regularly", "Auto Train is enabled for changing content"],
+  },
+  {
+    category: "Safety",
+    title: "Secure a bot before publishing",
+    outcome: "A public assistant that answers confidently without leaking access or pretending to be a human.",
+    summary: "Security is part of the customer experience. Lock the widget to approved domains, keep integration keys scoped, and define exactly when Chatty should stop and hand the conversation to your team.",
+    sections: [
+      { heading: "Restrict where it runs", body: "Add every approved website to the Allow List before sharing the embed code. This prevents copied scripts from being used on unknown domains." },
+      { heading: "Limit integration access", body: "Use separate API keys for separate systems and grant only the scopes each workflow needs. Rotate keys when a teammate or vendor no longer needs access." },
+      { heading: "Design the handoff", body: "Add clear escalation rules for billing disputes, account access, urgent issues, sensitive personal data, and questions the bot cannot answer with confidence." },
+    ],
+    checklist: ["Production domains are allow-listed", "API keys are scoped by integration", "Human handoff rules are written", "Abuse and off-topic guardrails are enabled"],
+  },
+  {
+    category: "Conversions",
+    title: "Turn useful conversations into qualified leads",
+    outcome: "More qualified conversations reaching your inbox, CRM, calendar, or sales team with context intact.",
+    summary: "Lead capture works best when it feels like the natural next step, not a form dropped in front of the visitor. Ask for contact details only when the conversation has enough intent to justify it.",
+    sections: [
+      { heading: "Ask at the right moment", body: "Trigger lead collection after pricing, demo, custom quote, support escalation, or availability questions. Keep the form short: name, email, and phone only when phone follow-up is useful." },
+      { heading: "Preserve conversation context", body: "Send the transcript, visitor page, lead fields, and detected intent to your team so follow-up starts from the conversation instead of a blank record." },
+      { heading: "Book when intent is high", body: "Use calendar booking for demo requests, consultations, onboarding calls, and urgent support. Let the visitor choose a real available slot before they leave the site." },
+    ],
+    checklist: ["Lead trigger is tied to intent", "Required fields are minimal", "Email or webhook delivery is tested", "Booking is connected for high-intent flows"],
+  },
+  {
+    category: "Operations",
+    title: "Run the inbox and human handoff well",
+    outcome: "A clean support rhythm where AI handles repeat questions and humans own the conversations that need judgment.",
+    summary: "The inbox is where automation meets real customers. Use ownership, status, and feedback consistently so the bot improves instead of burying work.",
+    sections: [
+      { heading: "Own active conversations", body: "Assign conversations deliberately and keep team availability current. When a teammate takes over, pause AI replies so the visitor does not receive conflicting answers." },
+      { heading: "Use statuses consistently", body: "Separate open, pending, resolved, and follow-up conversations. This makes response time, missed handoffs, and unresolved issues visible." },
+      { heading: "Turn corrections into training", body: "When a human fixes an answer, capture that correction as a knowledge improvement. Repeated inbox fixes should become articles, sources, or guardrail changes." },
+    ],
+    checklist: ["Conversation ownership is assigned", "AI pause is used during human takeover", "Resolved status is applied after follow-up", "Corrections feed the knowledge base"],
+  },
+  {
+    category: "Codex plugin",
+    title: "Add Chatty to Codex with the plugin",
+    outcome: "Codex can manage Chatty bots, knowledge, inboxes, campaigns, bookings, and analytics through the hosted MCP server.",
+    summary: "Use the public Chatty plugin when you want the easiest Codex setup. The plugin contains the MCP endpoint and Chatty instructions, so users only add the marketplace source once and approve OAuth when Codex connects.",
+    sections: [
+      { heading: "Add the marketplace", body: "In Codex, open Settings, Plugins, Add, then Add plugin marketplace. Use source https://github.com/PersonaliAI/chatty.git, git ref main, and sparse paths .agents/plugins/marketplace.json and plugins/chatty-integration." },
+      { heading: "Install Chatty", body: "After the marketplace loads, install the Chatty integration. Codex will show it as a normal plugin with the Chatty icon, description, starter prompts, and MCP connection." },
+      { heading: "Connect your account", body: "Ask Codex to use Chatty. The first run opens OAuth; approve only the scopes you want, then Codex can audit bots, update articles, triage inboxes, and manage booking flows." },
+    ],
+    checklist: ["Marketplace source is the public GitHub repo", "Sparse path is plugins/chatty-integration", "Chatty plugin is installed and enabled", "OAuth approval completes on first use"],
+  },
+];
+
+const plans = [
+  {
+    key: "byok", tag: "FREE FOREVER", name: "Free (BYOK)", monthly: 0, popular: false,
+    desc: "Bring your own API key. 100% free forever - zero subscription fee.",
+    features: [
+      "100% Free - No paid plan needed",
+      "BYOK (Bring-Your-Own-Key)",
+      "OpenAI, Anthropic, Gemini, OpenRouter",
+      "1 chatbot",
+      "Unlimited chats (pay LLM directly)",
+      "Knowledge base training (5M chars)",
+      "Lead collection & Contact forms",
+      "No credit card required",
+    ],
+  },
+  {
+    key: "hobby", tag: "HOBBY", name: "Hobby", monthly: 19, popular: false,
+    desc: "Perfect for individuals, developers, and side projects.",
+    features: ["1,000 message credits/mo", "10M training characters", "3 chatbots", "Fast & Advanced AI models", "AI Actions & Analytics", "Guardrails & Notifications", "Lead collection & API", "Included AI credits"],
+  },
+  {
+    key: "standard", tag: "STANDARD", name: "Standard", monthly: 99, popular: true,
+    desc: "All in Hobby, plus advanced automation and multi-bot systems.",
+    features: ["10,000 message credits/mo", "20M training characters", "6 chatbots", "Daily Auto Train sync", "Remove branding completely", "Unlimited team members"],
+  },
+  {
+    key: "business", tag: "BUSINESS", name: "Business", monthly: 399, popular: false,
+    desc: "For enterprise scale, heavy traffic, and reseller options.",
+    features: ["40,000 message credits/mo", "50M training characters", "Unlimited chatbots", "White-label configuration", "Management Admin API"],
+  },
+];
+
+const chips: { icon: LucideIcon; title: string; desc: string; bg: string; fg: string }[] = [
+  { icon: Zap, title: "Zero-Code, Full Control", desc: "Or drive it all through MCP", bg: "var(--color-accent-100)", fg: "var(--color-accent-700)" },
+  { icon: UserCheck, title: "Captures Every Lead", desc: "Name, email, phone - automatically", bg: "var(--color-accent-2-100)", fg: "var(--color-accent-2-800)" },
+  { icon: CalendarCheck, title: "Books Its Own Meetings", desc: "Straight onto your calendar", bg: "#eee7db", fg: "#474238" },
+];
+
+const mcpPoints = [
+  { title: "OAuth 2.0 + PKCE", desc: "RFC 7591/8414-compliant dynamic client registration - no shared secrets pasted into a config file." },
+  { title: "55 real tools", desc: "Bots, flows, campaigns, voice, knowledge, inbox, leads, calendar, guardrails, team, billing, GDPR export." },
+  { title: "Same data, same rules", desc: "Every tool reads and writes the exact tables the dashboard does - nothing simulated, nothing mocked." },
+  { title: "Scoped access", desc: "read / write / knowledge / voice / actions / admin scopes, so an agent only gets what it needs." },
+];
+
+type McpInstallTab = "plugin" | "hosted" | "manual";
+
+const mcpInstallTabs: {
+  id: McpInstallTab;
+  label: string;
+  eyebrow: string;
+  title: string;
+  desc: string;
+  steps: string[];
+  code?: string;
+  cta?: { label: string; href: string };
+}[] = [
+  {
+    id: "plugin",
+    label: "Codex plugin",
+    eyebrow: "Recommended",
+    title: "Install the Chatty Codex integration",
+    desc: "The public plugin lets any Codex user add Chatty from GitHub. It ships the Chatty icon, starter prompts, skill guidance, and the hosted MCP endpoint in one integration.",
+    steps: [
+      "Open Codex, then go to Settings, Plugins, Add, and choose Add plugin marketplace.",
+      "Paste the public Chatty repository values shown here, then add the marketplace.",
+      "Install the Chatty integration, keep it enabled, and approve OAuth on first use.",
+      "Ask Codex to audit bots, update knowledge, triage inboxes, manage campaigns, or create booking-ready assistants.",
+    ],
+    code: `Source\nhttps://github.com/PersonaliAI/chatty.git\n\nGit ref\nmain\n\nSparse paths\n.agents/plugins/marketplace.json\nplugins/chatty-integration`,
+    cta: { label: "Open dashboard", href: "/dashboard" },
+  },
+  {
+    id: "hosted",
+    label: "Hosted MCP",
+    eyebrow: "No self-hosting",
+    title: "Connect directly to Chatty's hosted MCP server",
+    desc: "Use the managed endpoint for Claude, ChatGPT, Cursor, Windsurf, or any client that supports remote MCP over OAuth.",
+    steps: [
+      "Add the hosted Chatty MCP URL to your client.",
+      "Sign in with your Chatty account during OAuth authorization.",
+      "Keep using the dashboard and MCP together - they read and write the same production data.",
+    ],
+    code: `https://api.chatty.personaliai.com/mcp`,
+  },
+  {
+    id: "manual",
+    label: "Manual config",
+    eyebrow: "Universal",
+    title: "Paste the JSON into any MCP-compatible client",
+    desc: "For clients that still expect a JSON block, use this config exactly. The first connection opens the same OAuth consent flow.",
+    steps: [
+      "Open your MCP client configuration file.",
+      "Paste the Chatty server block and save.",
+      "Restart the client if it does not hot-reload MCP servers.",
+    ],
+    code: `{\n  "mcpServers": {\n    "chatty": {\n      "url": "https://api.chatty.personaliai.com/mcp"\n    }\n  }\n}`,
+  },
+];
+
 export default function Home() {
+  const [isYearly, setIsYearly] = useState(false);
+  const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeMcpInstallTab, setActiveMcpInstallTab] = useState<McpInstallTab>("plugin");
+
+  useEffect(() => {
+    captureAffiliateReferral(new URLSearchParams(window.location.search));
+  }, []);
+  const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
+
+  // widget.js cleanup on unmount
+  useEffect(() => {
+    return () => {
+      document.getElementById("chatty-widget-host")?.remove();
+      delete (window as unknown as { Chatty?: unknown }).Chatty;
+      delete (window as unknown as { __chattyWidgetLoaded?: unknown }).__chattyWidgetLoaded;
+    };
+  }, []);
+
+  const navLinks = (
+    <>
+      <Link href="#features" className="hover:opacity-70 transition-opacity">Features</Link>
+      <Link href="#pricing" className="hover:opacity-70 transition-opacity">Pricing</Link>
+      <Link href="#help-center" className="hover:opacity-70 transition-opacity">Help center</Link>
+      <Link href="/affiliates" className="hover:opacity-70 transition-opacity">Affiliates</Link>
+      <Link href="#faq" className="hover:opacity-70 transition-opacity">FAQ</Link>
+    </>
+  );
+
   return (
-    <main className="min-h-screen bg-[#f6ebdb] text-[#201e1d]">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
-      <style>{`
-        @keyframes chatty-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes chatty-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        @keyframes chatty-pulse-line { 0%, 100% { width: 34%; } 50% { width: 92%; } }
-        .chatty-rise { animation: chatty-rise .75s ease both; }
-        .chatty-float { animation: chatty-float 5s ease-in-out infinite; }
-        .chatty-line { animation: chatty-pulse-line 4.5s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .chatty-rise, .chatty-float, .chatty-line { animation: none; } }
-      `}</style>
+    <div className={`${caprasimo.variable} ${figtree.variable} antialiased`} style={{ ...colorVars, fontFamily: "var(--font-body)", background: "var(--color-bg)", color: "var(--color-text)", overflowX: "clip" }}>
+      {/* Announcement bar */}
+      <div className="text-center px-5 py-2.5 text-[13px] sm:text-[13.5px]" style={{ background: "var(--color-accent-2-100)" }}>
+        <span className="font-semibold" style={{ color: "var(--color-accent-2-800)" }}>NEW</span>
+        <span className="hidden sm:inline" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Chatty now ships a full MCP server: run your whole dashboard from a conversation.</span>
+        <span className="sm:hidden" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Chatty now ships a full MCP server.</span>
+        <a href="#mcp" className="ml-1.5 font-semibold whitespace-nowrap" style={{ color: "var(--color-accent)" }}>Learn more →</a>
+      </div>
 
-      <header className="sticky top-0 z-40 border-b border-[#e2d2bd] bg-[#f6ebdb]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="Chatty home">
-            <LogoMark />
-            <span className="text-xl font-black tracking-[-0.04em]">Chatty</span>
+      {/* Nav */}
+      <nav className="max-w-[1200px] mx-auto flex items-center gap-4 px-5 sm:px-9 py-4 relative">
+        <Link href="/" className="flex items-center gap-2.5 mr-auto shrink-0" style={{ fontFamily: "var(--font-heading)", fontSize: "18px" }}>
+          <Image src="/favicon.png" alt="Chatty" width={28} height={28} className="size-7 object-contain shrink-0" />
+          Chatty
+        </Link>
+        <div className="hidden md:flex items-center gap-8 text-sm">
+          {navLinks}
+          <a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="flex items-center hover:opacity-70 transition-opacity">
+            <GithubIcon className="size-[19px]" />
+          </a>
+          <Link href="/dashboard" className="hover:opacity-70 transition-opacity">Log in</Link>
+          <Link href="/signup" className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-colors" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}>
+            Start Free Trial
+            <ArrowRight className="size-3.5" />
           </Link>
-          <nav className="hidden items-center gap-7 text-sm font-medium text-[#51463a] md:flex">
-            {nav.map(([label, href]) => <Link key={label} href={href} className="hover:text-[#b2622d]">{label}</Link>)}
-          </nav>
-          <div className="flex items-center gap-3">
-            <a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noreferrer" className="hidden rounded-full border border-[#d7c7b2] px-4 py-2 text-sm font-black text-[#51463a] hover:bg-[#efe0cc] sm:inline-flex">
-              <GithubMark className="mr-2 size-4" /> GitHub
-            </a>
-            <Link href="/signup" className="rounded-full bg-[#201e1d] px-5 py-2.5 text-sm font-black text-[#fff7ed] shadow-[0_8px_24px_rgba(32,30,29,0.18)]">Start free</Link>
-          </div>
         </div>
-      </header>
+        <button
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          className="md:hidden p-2 -mr-2 cursor-pointer"
+          aria-label="Toggle menu"
+          aria-expanded={mobileMenuOpen}
+        >
+          {mobileMenuOpen ? <X className="size-6" /> : <Menu className="size-6" />}
+        </button>
 
-      <section className="mx-auto max-w-7xl px-5 pb-20 pt-16 lg:px-8 lg:pb-28 lg:pt-24">
-        <div className="chatty-rise max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#d8c6ae] bg-[#fff7ec] px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-[#7a4a28]">
-            <Sparkles className="size-3.5" /> AI support · live chat · leads · booking
-          </div>
-          <h1 className="mt-7 max-w-[18ch] text-6xl font-black leading-[0.9] tracking-[-0.075em] text-[#201e1d] sm:text-7xl lg:text-[92px]">
-            Customer support that sells while it helps.
-          </h1>
-          <p className="mt-7 max-w-xl text-lg leading-8 text-[#5f5144]">
-            Chatty is an AI customer support chatbot for your website. Train it on your content, answer visitors instantly, capture qualified leads, and book meetings from one calm dashboard.
-          </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link href="/signup" className="inline-flex items-center justify-center rounded-full bg-[#c67139] px-7 py-4 text-base font-black text-white shadow-[0_14px_34px_rgba(198,113,57,0.26)]">
-              Launch your bot <ArrowRight className="ml-2 size-4" />
+        {mobileMenuOpen && (
+          <div
+            className="md:hidden absolute top-full left-0 right-0 mx-5 mt-1 rounded-3xl p-6 flex flex-col gap-5 text-base z-40"
+            style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-lg)" }}
+          >
+            <Link href="#features" onClick={() => setMobileMenuOpen(false)}>Features</Link>
+            <Link href="#pricing" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
+            <Link href="#help-center" onClick={() => setMobileMenuOpen(false)}>Help center</Link>
+            <Link href="/affiliates" onClick={() => setMobileMenuOpen(false)}>Affiliates</Link>
+            <Link href="#faq" onClick={() => setMobileMenuOpen(false)}>FAQ</Link>
+            <a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+              <GithubIcon className="size-[18px]" /> GitHub
+            </a>
+            <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>Log in</Link>
+            <Link
+              href="/signup"
+              onClick={() => setMobileMenuOpen(false)}
+              className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-medium"
+              style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
+            >
+              Start Free Trial
+              <ArrowRight className="size-3.5" />
             </Link>
-            <Link href="#product" className="inline-flex items-center justify-center rounded-full border border-[#cdbca6] px-7 py-4 text-base font-black text-[#3c332b] hover:bg-[#efe0cc]">See how it works</Link>
           </div>
-          <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {metrics.map(([value, label]) => (
-              <div key={value} className="rounded-2xl border border-[#ddccb5] bg-[#f9f0e3] p-4">
-                <p className="text-xl font-black tracking-[-0.04em] text-[#201e1d]">{value}</p>
-                <p className="mt-1 text-xs leading-snug text-[#756654]">{label}</p>
+        )}
+      </nav>
+
+      <div className="max-w-[1200px] mx-auto px-5 sm:px-9">
+        {/* Hero */}
+        <section className="relative pt-8 sm:pt-12 pb-14 sm:pb-18 text-center">
+          <div className="absolute left-1/2 -top-24 -translate-x-1/2 w-[500px] h-[340px] sm:w-[720px] sm:h-[480px] rounded-full -z-10 pointer-events-none opacity-65 blur-[2px]" style={{ background: "var(--color-accent-2-200)" }} />
+          <div className="absolute -left-32 top-24 w-40 h-40 sm:w-64 sm:h-64 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-200)" }} />
+          <div className="absolute -right-28 top-64 w-32 h-32 sm:w-56 sm:h-56 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-2-100)" }} />
+
+          <h1 className="mx-auto max-w-[16ch] leading-[1.1] tracking-tight text-[clamp(34px,8vw,72px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
+            Trained on your content. <span style={{ color: "var(--color-accent-600)" }}>Optimized for conversion.</span>
+          </h1>
+          <p className="text-base sm:text-[17px] leading-relaxed max-w-[56ch] mx-auto mt-6" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
+            An AI chatbot that captures leads and triggers actions. Zero coding, live on your site in five minutes.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 text-left max-w-[900px] mx-auto">
+            {chips.map((c, i) => {
+              const Icon = c.icon;
+              return (
+                <div key={i} className="rounded-3xl p-5" style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-sm)" }}>
+                  <span className="size-9 rounded-full flex items-center justify-center" style={{ background: c.bg, color: c.fg }}>
+                    <Icon className="size-[18px]" strokeWidth={2.25} />
+                  </span>
+                  <p className="mt-3.5 text-base" style={{ fontFamily: "var(--font-heading)" }}>{c.title}</p>
+                  <p className="mt-1.5 text-[13px] leading-snug" style={{ color: "color-mix(in srgb, var(--color-text) 68%, transparent)" }}>{c.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap gap-3.5 items-center justify-center mt-9">
+            <Link href="/signup" className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}>
+              Start free 14-day trial
+              <ArrowRight className="size-[15px]" />
+            </Link>
+            <Link href="#features" className="inline-flex items-center rounded-full px-5 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent)" }}>
+              Explore features
+            </Link>
+          </div>
+          <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
+        </section>
+
+        {/* Pricing */}
+        <section id="pricing" className="py-14 sm:py-16">
+          <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 01 / Transparent Fees ]</span>
+          <h2 className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Pricing plans</h2>
+          <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[56ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
+            Start with our 100% free BYOK option (no credit card required), or choose a tier with bundled AI credits and a 14-day free trial.
+          </p>
+
+          <div className="inline-flex rounded-full overflow-hidden border mt-7" style={{ borderColor: "var(--color-divider)" }}>
+            <button
+              onClick={() => setIsYearly(false)}
+              className={`px-4 py-2 text-[13px] cursor-pointer transition-colors ${!isYearly ? "font-semibold" : ""}`}
+              style={!isYearly ? { background: "var(--color-accent)", color: "var(--color-bg)" } : {}}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setIsYearly(true)}
+              className={`flex items-center gap-2 px-4 py-2 text-[13px] cursor-pointer transition-colors border-l ${isYearly ? "font-semibold" : ""}`}
+              style={{ borderColor: "var(--color-divider)", ...(isYearly ? { background: "var(--color-accent)", color: "var(--color-bg)" } : {}) }}
+            >
+              Yearly
+              <span className="rounded-full text-[10px] px-1.5 py-0.5 font-bold" style={{ background: isYearly ? "var(--color-bg)" : "var(--color-accent-100)", color: isYearly ? "var(--color-accent-700)" : "var(--color-accent-800)" }}>
+                2 months free
+              </span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-9">
+            {plans.map((plan) => (
+              <div
+                key={plan.key}
+                className="flex flex-col p-6 rounded-[28px]"
+                style={
+                  plan.popular
+                    ? { background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", border: "2px solid var(--color-accent)" }
+                    : { background: "var(--color-surface)" }
+                }
+              >
+                {plan.popular && (
+                  <span className="self-start rounded-full text-[11px] font-semibold px-3 py-1 mb-1.5" style={{ background: "var(--color-accent-100)", color: "var(--color-accent-800)" }}>
+                    Popular choice
+                  </span>
+                )}
+                {plan.monthly === 0 && (
+                  <span className="self-start rounded-full text-[11px] font-semibold px-3 py-1 mb-1.5" style={{ background: "var(--color-accent-2-100)", color: "var(--color-accent-2-800)" }}>
+                    100% Free Forever
+                  </span>
+                )}
+                <span className="text-xs tracking-wide uppercase mt-1.5" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>[ PLAN: {plan.tag} ]</span>
+                <h3 className="text-2xl mt-2" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{plan.name}</h3>
+                <div className="mt-2.5 flex items-baseline gap-1.5">
+                  <p className="text-[32px]" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent-700)" }}>
+                    {plan.monthly === 0 ? "$0" : (isYearly ? `$${plan.monthly * 10}/yr` : `$${plan.monthly}/mo`)}
+                  </p>
+                  <span className="text-xs" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>
+                    {plan.monthly === 0 ? "forever" : (isYearly ? "billed annually" : "billed monthly")}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed min-h-[44px]" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{plan.desc}</p>
+                <ul className="list-none m-0 p-0 mt-4.5 flex flex-col gap-3 flex-1">
+                  {plan.features.map((feat) => (
+                    <li key={feat} className="flex gap-2 items-start text-[13px] leading-snug">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-600)" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5"><polyline points="20 6 9 17 4 12" /></svg>
+                      <span>{feat}</span>
+                    </li>
+                  ))}
+                </ul>
+                {plan.monthly === 0 ? (
+                  <Link
+                    href="/signup"
+                    className="mt-5 w-full text-center rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90"
+                    style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
+                  >
+                    Start Free (No Card)
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/checkout?plan=${plan.key}&interval=${isYearly ? "yearly" : "monthly"}`}
+                    className="mt-5 w-full text-center rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90"
+                    style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
+                  >
+                    Start 14-day trial
+                  </Link>
+                )}
               </div>
             ))}
           </div>
-        </div>
-      </section>
+          <p className="mt-7 text-[11px] tracking-wide uppercase" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>
+            [ Taxes &amp; Compliance ] All plans are subject to local tax system regulation.
+          </p>
+        </section>
 
-      <section className="border-y border-[#e0ceb6] bg-[#fff7ec]">
-        <div className="mx-auto grid max-w-7xl gap-4 px-5 py-6 text-center text-sm font-black text-[#756654] sm:grid-cols-4 lg:px-8">
-          <span>Open source option</span>
-          <span>Hosted cloud product</span>
-          <span>Codex MCP integration</span>
-          <span>Built for customer communication</span>
-        </div>
-      </section>
+        {/* Features grid */}
+        <section id="features" className="py-8 sm:py-10 pb-14 sm:pb-16">
+          <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 02 / Capabilities ]</span>
+          <h2 className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Core features</h2>
+          <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[64ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
+            A granular index of Chatty&apos;s feature set. Click on any block to see detailed configuration parameters and dashboard instructions.
+          </p>
 
-      <section id="product" className="mx-auto max-w-7xl px-5 py-24 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[0.72fr_1fr]">
-          <div>
-            <SectionLabel>Product</SectionLabel>
-            <h2 className="mt-4 max-w-[12ch] text-5xl font-black leading-[0.95] tracking-[-0.065em]">Everything a website conversation needs.</h2>
-            <p className="mt-6 max-w-md text-base leading-7 text-[#625649]">
-              Strong chatbot products sell a complete support system, not only a floating bubble. Chatty brings the system into one focused product: knowledge, inbox, leads, booking, analytics, and agent control.
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {capabilities.map(([Icon, title, body], index) => (
-              <article key={title} className="chatty-rise rounded-[28px] border border-[#decdb6] bg-[#fbf2e6] p-6 shadow-[0_10px_28px_rgba(68,48,30,0.07)]" style={{ animationDelay: `${index * 60}ms` }}>
-                <span className="flex size-11 items-center justify-center rounded-2xl bg-[#e8d9c3] text-[#b2622d]"><Icon className="size-5" /></span>
-                <h3 className="mt-5 text-xl font-black tracking-[-0.035em]">{title}</h3>
-                <p className="mt-3 text-sm leading-6 text-[#625649]">{body}</p>
-              </article>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+            {featuresList.map((f, i) => (
+              <button
+                key={f.title}
+                onClick={() => setSelectedFeature(f)}
+                className="text-left flex flex-col gap-2.5 p-5 rounded-[22px] cursor-pointer transition-transform hover:-translate-y-0.5"
+                style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-sm)" }}
+              >
+                <span
+                  className="size-[34px] rounded-full flex items-center justify-center text-xs"
+                  style={{ fontFamily: "var(--font-heading)", background: i % 2 === 0 ? "var(--color-accent-100)" : "var(--color-accent-2-100)", color: i % 2 === 0 ? "var(--color-accent-700)" : "var(--color-accent-2-800)" }}
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <p className="text-[17px]" style={{ fontFamily: "var(--font-heading)" }}>{f.title}</p>
+                <p className="text-[13px] leading-snug opacity-75">{f.desc}</p>
+              </button>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="bg-[#201e1d] py-24 text-[#fff4e7]">
-        <div className="mx-auto max-w-7xl px-5 lg:px-8">
-          <div className="grid gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+        {/* MCP */}
+        <section id="mcp" className="py-8 sm:py-10 pb-16 sm:pb-20">
+          <div className="rounded-[28px] sm:rounded-[40px] p-7 sm:p-14" style={{ background: "var(--color-accent-2-100)" }}>
+            <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-2-800)" }}>[ 03 / Agent Control ]</span>
+            <h2 className="max-w-[22ch] text-[26px] sm:text-[30px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Start with MCP</h2>
+            <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[62ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
+              Chatty ships a full Model Context Protocol server. Point Claude, ChatGPT, or any MCP-compatible client at your account and run the entire dashboard - every bot, flow, campaign, and integration - from a conversation instead of clicking through screens.
+            </p>
+            <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-full px-6.5 py-3.5 text-sm font-medium mt-6" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}>
+              Connect your agent
+            </Link>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
+              {mcpPoints.map((p) => (
+                <div key={p.title}>
+                  <h4 className="text-[17px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{p.title}</h4>
+                  <p className="text-[13.5px] leading-snug mt-2" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{p.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-10 rounded-[24px] p-4 sm:p-5" style={{ background: "color-mix(in srgb, var(--color-bg) 72%, white 8%)", boxShadow: "var(--shadow-sm)" }}>
+              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Chatty MCP integration options">
+                {mcpInstallTabs.map((tab) => {
+                  const isActive = activeMcpInstallTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-controls="mcp-install-panel"
+                      onClick={() => setActiveMcpInstallTab(tab.id)}
+                      className="rounded-full border px-4 py-2 text-[12.5px] font-semibold transition-colors cursor-pointer"
+                      style={{
+                        borderColor: isActive ? "var(--color-accent)" : "var(--color-divider)",
+                        background: isActive ? "var(--color-accent)" : "transparent",
+                        color: isActive ? "var(--color-bg)" : "color-mix(in srgb, var(--color-text) 78%, transparent)",
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div id="mcp-install-panel" role="tabpanel" className="grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr] gap-5 mt-5">
+                <div>
+                  <p className="text-xs tracking-wide uppercase font-semibold" style={{ color: "var(--color-accent-2-800)" }}>{activeMcpInstall.eyebrow}</p>
+                  <h3 className="mt-2 text-[21px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{activeMcpInstall.title}</h3>
+                  <p className="mt-2.5 text-[13.5px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{activeMcpInstall.desc}</p>
+                  <ol className="mt-4 space-y-2.5 pl-5 text-[13px] leading-relaxed marker:font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 84%, transparent)" }}>
+                    {activeMcpInstall.steps.map((step) => <li key={step} className="pl-1">{step}</li>)}
+                  </ol>
+                  {activeMcpInstall.cta && (
+                    <Link href={activeMcpInstall.cta.href} className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium mt-5" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent-2)", color: "var(--color-bg)" }}>
+                      {activeMcpInstall.cta.label}
+                      <ArrowRight className="size-3.5" />
+                    </Link>
+                  )}
+                </div>
+                {activeMcpInstall.code && (
+                  <div>
+                    <p className="text-xs tracking-wide uppercase mb-2.5" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>Connection value</p>
+                    <pre className="rounded-[18px] p-5 sm:p-6 text-[12px] sm:text-[13.5px] leading-relaxed overflow-x-auto m-0 font-mono" style={{ background: "var(--color-neutral-900)", color: "#f9f4ed" }}>
+                      {activeMcpInstall.code}
+                    </pre>
+                    <p className="text-[13px] leading-snug mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 72%, transparent)" }}>
+                      The client opens a standard OAuth 2.0 authorization flow on first connect - approve it once, no API key to copy anywhere.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Help center */}
+        <section id="help-center" className="py-8 sm:py-10 pb-14 sm:pb-16" aria-labelledby="help-center-heading">
+          <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 04 / Help Center ]</span>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#dfa66f]">Why teams switch</p>
-              <h2 className="mt-4 max-w-[13ch] text-5xl font-black leading-[0.95] tracking-[-0.065em]">A lighter alternative to bulky helpdesks.</h2>
-              <p className="mt-6 max-w-xl text-base leading-7 text-[#d7c8b7]">
-                Crisp, Intercom, Tidio, and Zendesk prove the same market truth: customers want answers now, and teams need a workspace behind the bot. Chatty focuses that idea for founders, SaaS teams, agencies, and operators who want AI-first communication without enterprise sprawl.
+              <h2 id="help-center-heading" className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Build a bot people trust</h2>
+              <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[64ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
+                Practical operating guides for a useful, safe, and conversion-ready Chatty deployment. Each guide is written for the person responsible for the customer experience - not just the installation.
               </p>
             </div>
-            <div className="grid gap-4">
-              {comparisons.map(([title, body]) => (
-                <div key={title} className="rounded-[24px] border border-[#493f35] bg-[#2a2723] p-5">
-                  <h3 className="font-black tracking-[-0.03em] text-[#fff4e7]">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#d7c8b7]">{body}</p>
+            <a href="https://docs.chatty.personaliai.com" target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium" style={{ borderColor: "var(--color-divider)", color: "var(--color-accent-800)" }}>
+              <BookOpen className="size-4" aria-hidden="true" /> Browse documentation
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-8">
+            {helpArticles.map((article, index) => (
+              <article key={article.title} className="rounded-[28px] p-5 sm:p-7" style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-sm)" }}>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    className="inline-flex size-9 items-center justify-center rounded-full text-xs"
+                    style={{
+                      fontFamily: "var(--font-heading)",
+                      background: index % 2 === 0 ? "var(--color-accent-100)" : "var(--color-accent-2-100)",
+                      color: index % 2 === 0 ? "var(--color-accent-700)" : "var(--color-accent-2-800)",
+                    }}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide" style={{ borderColor: "var(--color-divider)", color: "color-mix(in srgb, var(--color-text) 62%, transparent)" }}>{article.category}</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 py-24 lg:px-8">
-        <div className="rounded-[36px] border border-[#d9c7ae] bg-[#efe0cc] p-6 sm:p-10 lg:p-12">
-          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
-            <div>
-              <SectionLabel>Workflow</SectionLabel>
-              <h2 className="mt-4 text-5xl font-black leading-[0.95] tracking-[-0.065em]">Launch once. Improve from every chat.</h2>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {workflows.map(([num, title, body]) => (
-                <div key={num} className="rounded-[26px] border border-[#d1bea5] bg-[#fff7ec] p-5">
-                  <span className="flex size-10 items-center justify-center rounded-full bg-[#c67139] text-sm font-black text-white">{num}</span>
-                  <h3 className="mt-5 text-xl font-black tracking-[-0.04em]">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#625649]">{body}</p>
+                <h3 className="mt-5 text-[22px] leading-tight" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{article.title}</h3>
+                <p className="mt-2.5 text-sm leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{article.summary}</p>
+                <div className="mt-4 rounded-[18px] px-4 py-3 text-[13.5px] leading-relaxed" style={{ background: index % 2 === 0 ? "var(--color-accent-100)" : "var(--color-accent-2-100)", color: "color-mix(in srgb, var(--color-text) 84%, transparent)" }}>
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide mb-1" style={{ color: index % 2 === 0 ? "var(--color-accent-700)" : "var(--color-accent-2-800)" }}>Outcome</span>
+                  {article.outcome}
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="use-cases" className="mx-auto max-w-7xl px-5 pb-24 lg:px-8">
-        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div>
-            <SectionLabel>Use cases</SectionLabel>
-            <h2 className="mt-4 max-w-[13ch] text-5xl font-black leading-[0.95] tracking-[-0.065em]">Built for real website teams.</h2>
-          </div>
-          <p className="max-w-xl text-base leading-7 text-[#625649]">
-            The best AI customer support chatbot is not just accurate. It fits the operating model: sales, support, agencies, or self-hosted product teams.
-          </p>
-        </div>
-        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {useCases.map(([title, body, items]) => (
-            <article key={title} className="rounded-[28px] border border-[#decdb6] bg-[#fbf2e6] p-6">
-              <h3 className="text-xl font-black tracking-[-0.035em]">{title}</h3>
-              <p className="mt-3 text-sm leading-6 text-[#625649]">{body}</p>
-              <ul className="mt-6 space-y-2">
-                {items.map((item) => (
-                  <li key={item} className="flex items-center gap-2 text-sm font-black text-[#51463a]"><Check className="size-4 text-[#7a8a5e]" /> {item}</li>
-                ))}
-              </ul>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="mcp" className="border-y border-[#d8c6ae] bg-[#fff7ec] py-24">
-        <div className="mx-auto grid max-w-7xl gap-12 px-5 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-          <div>
-            <SectionLabel>MCP + Codex</SectionLabel>
-            <h2 className="mt-4 max-w-[12ch] text-5xl font-black leading-[0.95] tracking-[-0.065em]">Run Chatty from a conversation.</h2>
-            <p className="mt-6 max-w-xl text-base leading-7 text-[#625649]">
-              Install the Chatty Codex plugin or connect the hosted MCP server. Agents can audit bots, update knowledge, review leads, manage campaigns, inspect analytics, and operate bookings with scoped OAuth access.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/signup" className="rounded-full bg-[#201e1d] px-6 py-3 text-sm font-black text-[#fff7ec]">Connect account</Link>
-              <a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noreferrer" className="rounded-full border border-[#ccb89d] px-6 py-3 text-sm font-black text-[#3c332b]">View plugin source</a>
-            </div>
-          </div>
-          <div className="rounded-[32px] border border-[#d6c5ad] bg-[#f5ead8] p-5">
-            <div className="rounded-[24px] bg-[#201e1d] p-5 font-mono text-sm text-[#fff4e7]">
-              <p className="text-[#dfa66f]">Codex → Chatty MCP</p>
-              <div className="mt-5 space-y-3">
-                {["Audit my lead-capture bot", "Update help articles from support gaps", "Show bookings by team member timezone", "Export unanswered questions this week"].map((line) => (
-                  <div key={line} className="rounded-2xl border border-[#4c4137] bg-[#2a2723] px-4 py-3"><span className="text-[#dfa66f]">$</span> {line}</div>
-                ))}
-              </div>
-              <div className="chatty-line mt-6 h-1.5 rounded-full bg-[#c67139]" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 py-24 lg:px-8">
-        <div className="grid gap-8 lg:grid-cols-3">
-          {[
-            [ShieldCheck, "Safe by design", "Domain allow-lists, scoped integrations, business email checks, handoff rules, and visibility for admin teams."],
-            [Users, "Team-ready", "Invite teammates, share inbox work, route meetings, and keep availability aligned across timezones."],
-            [BarChart3, "Measured outcomes", "Track conversations, leads, unanswered questions, bookings, model usage, and customer intent."],
-          ].map(([Icon, title, body]) => {
-            const Cmp = Icon as typeof ShieldCheck;
-            return (
-              <article key={String(title)} className="rounded-[32px] border border-[#decdb6] bg-[#fbf2e6] p-7">
-                <Cmp className="size-7 text-[#b2622d]" />
-                <h3 className="mt-5 text-2xl font-black tracking-[-0.045em]">{title as string}</h3>
-                <p className="mt-3 text-sm leading-6 text-[#625649]">{body as string}</p>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section id="pricing" className="bg-[#efe0cc] py-24">
-        <div className="mx-auto max-w-7xl px-5 lg:px-8">
-          <div className="max-w-2xl">
-            <SectionLabel>Pricing</SectionLabel>
-            <h2 className="mt-4 text-5xl font-black leading-[0.95] tracking-[-0.065em]">Start free. Scale when support grows.</h2>
-          </div>
-          <div className="mt-10 grid gap-4 lg:grid-cols-4">
-            {plans.map(([name, price, note, features, highlighted]) => (
-              <article key={name} className={`rounded-[30px] border p-6 ${highlighted ? "border-[#201e1d] bg-[#201e1d] text-[#fff7ec]" : "border-[#d1bea5] bg-[#fff7ec]"}`}>
-                {highlighted && <span className="rounded-full bg-[#c67139] px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-white">Popular</span>}
-                <h3 className="mt-5 text-2xl font-black tracking-[-0.04em]">{name}</h3>
-                <p className={`mt-2 text-sm ${highlighted ? "text-[#d7c8b7]" : "text-[#756654]"}`}>{note}</p>
-                <p className="mt-6 text-4xl font-black tracking-[-0.06em]">{price}<span className="text-base font-semibold">/mo</span></p>
-                <ul className="mt-6 space-y-3">
-                  {features.map((feature) => <li key={feature} className={`flex gap-2 text-sm ${highlighted ? "text-[#f4e7d6]" : "text-[#51463a]"}`}><Check className="mt-0.5 size-4 shrink-0 text-[#7a8a5e]" /> {feature}</li>)}
-                </ul>
+                <div className="mt-5 space-y-4">
+                  {article.sections.map((section) => (
+                    <section key={section.heading}>
+                      <h4 className="text-[15px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{section.heading}</h4>
+                      <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 76%, transparent)" }}>{section.body}</p>
+                    </section>
+                  ))}
+                </div>
+                <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--color-divider)" }}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "color-mix(in srgb, var(--color-text) 58%, transparent)" }}>Before you ship</p>
+                  <ul className="mt-3 grid gap-2 text-[13px] leading-snug" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
+                    {article.checklist.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-1 size-1.5 shrink-0 rounded-full" style={{ background: index % 2 === 0 ? "var(--color-accent)" : "var(--color-accent-2)" }} />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </article>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section id="faq" className="mx-auto max-w-5xl px-5 py-24 lg:px-8">
-        <div className="text-center">
-          <SectionLabel>FAQ</SectionLabel>
-          <h2 className="mt-4 text-5xl font-black leading-[0.95] tracking-[-0.065em]">Questions buyers search before they choose.</h2>
-        </div>
-        <div className="mt-10 divide-y divide-[#dcc9b0] rounded-[32px] border border-[#dcc9b0] bg-[#fbf2e6]">
-          {faqs.map(([question, answer]) => (
-            <article key={question} className="grid gap-3 p-6 md:grid-cols-[0.42fr_0.58fr]">
-              <h3 className="text-lg font-black tracking-[-0.03em]">{question}</h3>
-              <p className="text-sm leading-6 text-[#625649]">{answer}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+        {/* FAQ */}
+        <section id="faq" className="py-8 sm:py-10 pb-14 sm:pb-16">
+          <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 05 / Common Inquiries ]</span>
+          <h2 className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Questions</h2>
+          <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[60ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
+            Everything you need to know about Chatty&apos;s training mechanics, costs, safety layers, and white-label setups.
+          </p>
 
-      <section className="mx-auto max-w-7xl px-5 pb-24 lg:px-8">
-        <div className="relative overflow-hidden rounded-[40px] bg-[#c67139] p-8 text-white sm:p-12 lg:p-16">
-          <div className="absolute right-8 top-8 hidden rounded-full border border-white/25 px-4 py-2 text-sm font-black lg:block"><Zap className="mr-2 inline size-4" /> No code required</div>
-          <h2 className="max-w-[14ch] text-5xl font-black leading-[0.95] tracking-[-0.065em]">Put Chatty on your website today.</h2>
-          <p className="mt-5 max-w-xl text-base leading-7 text-[#fff0df]">Build an AI customer support chatbot that answers accurately, captures every serious lead, books meetings, and gives your team the context to follow up.</p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/signup" className="inline-flex items-center justify-center rounded-full bg-white px-7 py-4 font-black text-[#9c4f1c]">Start free <ChevronRight className="ml-1 size-5" /></Link>
-            <a href="https://docs.chatty.personaliai.com" target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-full border border-white/45 px-7 py-4 font-black text-white">Read docs</a>
+          <div className="mt-8 w-full">
+            {faqs.map((faq, i) => (
+              <div key={faq.question} className="border-b" style={{ borderColor: "var(--color-divider)" }}>
+                <button
+                  onClick={() => setActiveFaq(activeFaq === i ? null : i)}
+                  aria-expanded={activeFaq === i}
+                  className="w-full flex justify-between items-center gap-4 bg-transparent border-0 cursor-pointer py-5 text-left"
+                  style={{ fontFamily: "var(--font-heading)", fontSize: "16px sm:17px", color: "var(--color-text)" }}
+                >
+                  <span className="text-[15.5px] sm:text-[17px]">{faq.question}</span>
+                  <ChevronDown className={`size-5 shrink-0 transition-transform ${activeFaq === i ? "rotate-180" : ""}`} style={{ color: "var(--color-accent)" }} strokeWidth={2.75} />
+                </button>
+                {activeFaq === i && (
+                  <p className="m-0 mb-5 text-sm leading-relaxed max-w-[64ch]" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{faq.answer}</p>
+                )}
+              </div>
+            ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <footer className="border-t border-[#d8c6ae] bg-[#fff7ec]">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
-          <div>
-            <Link href="/" className="flex items-center gap-3"><LogoMark /><span className="text-xl font-black tracking-[-0.04em]">Chatty</span></Link>
-            <p className="mt-4 max-w-xs text-sm leading-6 text-[#625649]">AI customer communication software for websites that need support, lead capture, booking, and real human handoff.</p>
+        {/* Final CTA */}
+        <section className="py-8 pb-16 sm:pb-20">
+          <div className="rounded-[28px] sm:rounded-[44px] py-12 sm:py-16 px-7 sm:px-16 text-center relative overflow-hidden" style={{ background: "var(--color-accent)" }}>
+            <div className="absolute -left-24 -bottom-28 w-56 h-56 sm:w-[300px] sm:h-[300px] rounded-full opacity-50 pointer-events-none" style={{ background: "var(--color-accent-600)" }} />
+            <h2 className="mx-auto max-w-[20ch] text-[26px] sm:text-[clamp(28px,3.4vw,40px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400, color: "var(--color-bg)" }}>
+              Ready to convert more visitors?
+            </h2>
+            <p className="text-[15px] sm:text-[15.5px] leading-relaxed mx-auto mt-4 max-w-[48ch]" style={{ color: "color-mix(in srgb, #f5ead8 85%, transparent)" }}>
+              Zero coding. Live on your site in five minutes. Cancel any time during your trial.
+            </p>
+            <div className="flex gap-3.5 justify-center flex-wrap mt-7">
+              <Link href="/signup" className="rounded-full px-7 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", background: "var(--color-bg)", color: "var(--color-accent-700)" }}>
+                Start free 14-day trial
+              </Link>
+              <Link href="#features" className="rounded-full px-6 py-3.5 text-[15px] font-medium border" style={{ fontFamily: "var(--font-heading)", borderColor: "color-mix(in srgb, var(--color-bg) 60%, transparent)", color: "var(--color-bg)" }}>
+                Explore features
+              </Link>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Footer */}
+      <footer className="max-w-[1200px] mx-auto px-5 sm:px-9 pb-10 sm:pb-12">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 pb-9 border-b" style={{ borderColor: "var(--color-divider)" }}>
+          <div className="col-span-2 sm:col-span-1">
+            <span className="flex items-center gap-2.5 text-[17px]" style={{ fontFamily: "var(--font-heading)" }}>
+              <Image src="/favicon.png" alt="Chatty" width={26} height={26} className="size-[26px] object-contain shrink-0" />
+              Chatty
+            </span>
+            <p className="text-[13.5px] leading-relaxed mt-3.5 max-w-[26ch]" style={{ color: "color-mix(in srgb, var(--color-text) 70%, transparent)" }}>
+              Custom AI chatbots that train on your content and convert your visitors.
+            </p>
+            <span className="inline-block mt-3.5 text-[11px] tracking-wide uppercase" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>By PersonaliAI</span>
           </div>
           <div>
-            <h3 className="font-black">Product</h3>
-            <div className="mt-4 grid gap-2 text-sm text-[#625649]"><Link href="#product">Features</Link><Link href="#use-cases">Use cases</Link><Link href="#pricing">Pricing</Link><Link href="/affiliates">Affiliates</Link></div>
+            <p className="text-xs tracking-wide uppercase mb-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Product</p>
+            <div className="flex flex-col gap-2.5 text-sm">
+              <Link href="#features">Features</Link>
+              <Link href="#pricing">Pricing</Link>
+              <Link href="#help-center">Help center</Link>
+              <Link href="/affiliates">Affiliates</Link>
+              <Link href="#faq">FAQ</Link>
+              <Link href="#mcp">MCP server</Link>
+            </div>
           </div>
           <div>
-            <h3 className="font-black">Resources</h3>
-            <div className="mt-4 grid gap-2 text-sm text-[#625649]"><a href="https://docs.chatty.personaliai.com" target="_blank" rel="noreferrer">Documentation</a><a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noreferrer">GitHub</a><Link href="/support">Support</Link></div>
+            <p className="text-xs tracking-wide uppercase mb-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Company</p>
+            <div className="flex flex-col gap-2.5 text-sm">
+              <Link href="/privacy">Privacy</Link>
+              <Link href="/terms">Terms</Link>
+              <Link href="/dashboard">Dashboard</Link>
+            </div>
           </div>
           <div>
-            <h3 className="font-black">Legal</h3>
-            <div className="mt-4 grid gap-2 text-sm text-[#625649]"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/zoom">Zoom app</Link></div>
+            <p className="text-xs tracking-wide uppercase mb-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Connect</p>
+            <div className="flex flex-col gap-2.5 text-sm">
+              <a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noopener noreferrer">GitHub</a>
+              <Link href="/dashboard">Log in</Link>
+            </div>
           </div>
         </div>
-        <div className="mx-auto max-w-7xl border-t border-[#e1cfb8] px-5 py-6 text-sm text-[#756654] lg:px-8">
-          © {new Date().getFullYear()} PersonaliAI. Chatty is built for fast, accountable customer conversations.
-        </div>
+        <p className="mt-6 text-[12.5px]" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>&copy; {new Date().getFullYear()} PersonaliAI. All rights reserved.</p>
       </footer>
 
-      {/* Mount Chatty support widget */}
+      {/* Feature detail modal */}
+      {selectedFeature && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "color-mix(in srgb, var(--color-neutral-900) 55%, transparent)" }}>
+          <div onClick={() => setSelectedFeature(null)} className="absolute inset-0" />
+          <div className="relative w-full max-w-md p-6 sm:p-7 z-10 text-left rounded-[28px]" style={{ background: "var(--color-bg)", boxShadow: "var(--shadow-lg)" }}>
+            <button
+              onClick={() => setSelectedFeature(null)}
+              className="absolute top-5 right-5 p-1.5 rounded-full cursor-pointer transition-colors"
+              style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}
+              aria-label="Close modal"
+            >
+              <X className="size-4" />
+            </button>
+            <span
+              className="inline-flex size-9 rounded-full items-center justify-center text-xs"
+              style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent-100)", color: "var(--color-accent-700)" }}
+            >
+              {String(featuresList.findIndex((f) => f.title === selectedFeature.title) + 1).padStart(2, "0")}
+            </span>
+            <h3 className="mt-4 text-xl" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{selectedFeature.title}</h3>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 80%, transparent)" }}>{selectedFeature.desc}</p>
+            <div className="mt-5 p-4 rounded-2xl text-[13px] leading-relaxed" style={{ background: "var(--color-surface)", color: "color-mix(in srgb, var(--color-text) 75%, transparent)" }}>
+              Configure this from the dashboard - no code, no server-side setup.
+            </div>
+            <div className="mt-6 flex justify-end gap-2.5">
+              <button
+                onClick={() => setSelectedFeature(null)}
+                className="px-4 py-2.5 text-sm rounded-full cursor-pointer border"
+                style={{ borderColor: "var(--color-divider)" }}
+              >
+                Dismiss
+              </button>
+              <Link
+                href="/dashboard"
+                onClick={() => setSelectedFeature(null)}
+                className="px-4 py-2.5 text-sm rounded-full"
+                style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
+              >
+                Try feature
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chatty on Chatty support widget */}
       <Script
         src="https://chatty.personaliai.com/widget.js"
         data-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
         strategy="afterInteractive"
       />
-    </main>
+    </div>
   );
 }
