@@ -22,7 +22,7 @@
     "@fullcalendar/react": "^6.1.21",
     "@fullcalendar/timegrid": "^6.1.21",
     "@livekit/components-react": "^2.9.24",
-    "@supabase/ssr": "^0.10.3",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.105.4",
     "@tiptap/extension-highlight": "^3.31.3",
     "@tiptap/extension-link": "^3.31.3",
