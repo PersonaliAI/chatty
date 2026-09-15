@@ -3834,7 +3834,7 @@ export default function Dashboard() {
               { id: "feedback", label: "Feedback", icon: Star },
               { id: "map", label: "Map", icon: MapPin },
               { id: "meetings", label: t("meetings"), icon: Calendar },
-              { id: "voice_agent", label: "Voice Agent", icon: Phone },
+              { id: "voice_agent", label: "Voice Agent", icon: Phone, badgeText: "Launching soon" },
               { id: "mailbox", label: "Mailbox", icon: Mail },
               { id: "notifications", label: t("notifications"), icon: Bell },
               { id: "audit_log", label: t("audit_log"), icon: FileText },
@@ -3862,9 +3862,14 @@ export default function Dashboard() {
                       : "text-neutral-500 hover:text-neutral-950 dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800/30"
                   }`}
                 >
-                  <Icon className="size-4" />
-                  {link.label}
+                  <Icon className="size-4 shrink-0" />
+                  <span className="truncate">{link.label}</span>
                   {link.badge && <span className="absolute right-2 size-2 rounded-full bg-[#f97316]"></span>}
+                  {link.badgeText && (
+                    <span className="ml-auto text-[9px] font-semibold tracking-tight px-1.5 py-0.5 rounded-md bg-[#f97316]/10 text-[#f97316] border border-[#f97316]/20 shrink-0">
+                      {link.badgeText}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -3923,7 +3928,14 @@ export default function Dashboard() {
             </button>
             <div className="min-w-0">
               <span className="block text-[10px] uppercase tracking-wider text-neutral-400 font-semibold whitespace-nowrap">Chatty Console</span>
-              <h2 className="text-sm font-semibold capitalize mt-0.5 whitespace-nowrap">{activeTab === "home" ? "Overview" : activeTab.replace("_", " ")}</h2>
+              <div className="flex items-center gap-2 mt-0.5">
+                <h2 className="text-sm font-semibold capitalize whitespace-nowrap">{activeTab === "home" ? "Overview" : activeTab.replace("_", " ")}</h2>
+                {activeTab === "voice_agent" && (
+                  <span className="text-[10px] font-semibold tracking-tight px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] border border-[#f97316]/20 whitespace-nowrap">
+                    Launching soon
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 text-xs text-neutral-500">
