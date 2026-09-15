@@ -83,6 +83,9 @@ export function VoiceAgentTab({
         <div>
           <h2 className="text-sm font-bold flex items-center gap-2">
             <Phone className="size-4 text-[#f97316]" /> Voice Agent
+            <span className="text-[10px] font-semibold tracking-tight px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] border border-[#f97316]/20">
+              Launching soon
+            </span>
           </h2>
           <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
             Let visitors talk to your bot instead of typing - configure speech recognition, voice
@@ -90,12 +93,26 @@ export function VoiceAgentTab({
           </p>
         </div>
 
+        <div className="flex items-center gap-3 p-3.5 bg-[#f97316]/5 border border-[#f97316]/20 rounded-2xl text-xs">
+          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#f97316] text-white shrink-0">
+            Launching soon
+          </span>
+          <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-400">
+            Real-time interactive voice agents with WebRTC &amp; LiveKit are currently in final testing. You can preview configurations and provider keys now in preparation for rollout.
+          </p>
+        </div>
+
         <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-            <Mic className="size-4 text-[#f97316]" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
-              Voice Agent
-            </h3>
+          <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+            <div className="flex items-center gap-2">
+              <Mic className="size-4 text-[#f97316]" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+                Voice Agent
+              </h3>
+            </div>
+            <span className="text-[10px] font-semibold tracking-tight px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] border border-[#f97316]/20">
+              Launching soon
+            </span>
           </div>
 
           <div className="flex items-center justify-between">
