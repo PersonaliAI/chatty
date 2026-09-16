@@ -23,9 +23,11 @@ import {
   Layers,
   Calendar,
   Type,
+  ShoppingBag,
 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import { KBManager } from "@/components/kb-manager";
+import { ProductsMediaCatalog } from "@/components/products-media-catalog";
 import { CloudProviderMenu } from "../dashboard-controls";
 import { KnowledgeProgressBar, type KnowledgeProgress } from "../knowledge-progress-bar";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -69,8 +71,8 @@ export interface KnowledgeTabProps {
   sources: Source[];
   knowledgeProgress: KnowledgeProgress | null;
   setKnowledgeProgress: React.Dispatch<React.SetStateAction<KnowledgeProgress | null>>;
-  kbSourceTab: "text" | "url" | "file" | "drive" | "onedrive";
-  setKbSourceTab: (tab: "text" | "url" | "file" | "drive" | "onedrive") => void;
+  kbSourceTab: "text" | "url" | "file" | "drive" | "onedrive" | "products";
+  setKbSourceTab: (tab: "text" | "url" | "file" | "drive" | "onedrive" | "products") => void;
   inputTitle: string;
   setInputTitle: (t: string) => void;
   inputText: string;
@@ -451,12 +453,13 @@ export function KnowledgeTab({
                     { id: "file", label: "Upload File", icon: FileUp },
                     { id: "drive", label: "Google Drive", icon: FolderOpen },
                     { id: "onedrive", label: "OneDrive", icon: HardDrive },
+                    { id: "products", label: "Products & Media", icon: ShoppingBag },
                   ].map((tab) => {
                     const Icon = tab.icon;
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setKbSourceTab(tab.id as "text" | "url" | "file" | "drive" | "onedrive")}
+                        onClick={() => setKbSourceTab(tab.id as "text" | "url" | "file" | "drive" | "onedrive" | "products")}
                         className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
                           kbSourceTab === tab.id
                             ? "bg-[#f97316]/10 text-[#f97316]"
@@ -784,6 +787,15 @@ export function KnowledgeTab({
                       </div>
                       <p className="text-[9px] text-neutral-400">Auto re-sync requires indexing this folder at least once first.</p>
                     </form>
+                  )}
+
+                  {/* Products & Media Catalog */}
+                  {kbSourceTab === "products" && (
+                    <ProductsMediaCatalog
+                      botId={botId}
+                      fetchWithFallback={fetchWithFallback}
+                      primaryColor={primaryColor}
+                    />
                   )}
                 </div>
               </div>

@@ -197,6 +197,7 @@ export default function Dashboard() {
 
   // User State
   const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [userPlatformRole, setUserPlatformRole] = useState<string | null>(null);
   const [botId, setBotId] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string>("");
   const [loadingSession, setLoadingSession] = useState(true);
@@ -723,7 +724,7 @@ export default function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Knowledge Base tab UI state
-  const [kbSourceTab, setKbSourceTab] = useState<"text" | "url" | "file" | "drive" | "onedrive">("text");
+  const [kbSourceTab, setKbSourceTab] = useState<"text" | "url" | "file" | "drive" | "onedrive" | "products">("text");
   const [discoveredUrls, setDiscoveredUrls] = useState<string[]>([]);
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [scanningSitemap, setScanningSitemap] = useState(false);
@@ -850,10 +851,11 @@ export default function Dashboard() {
           if (session.access_token) setAuthToken(session.access_token);
           supabase
             .from("users")
-            .select("plan, subscription_status, subscription_renews_at")
+            .select("plan, subscription_status, subscription_renews_at, role")
             .eq("auth_user_id", session.user.id)
             .maybeSingle()
             .then(({ data }) => {
+              if (data?.role) setUserPlatformRole(data.role as string);
               setBillingInfo({
                 plan: (data?.plan as string) || "free",
                 status: (data?.subscription_status as string) || null,
@@ -1754,6 +1756,12 @@ export default function Dashboard() {
   function canAccessTab(tab: ChattyTeamTab | null): boolean {
     return !tab || myRole === "owner" || myPermissions.includes(tab);
   }
+
+  const isPlatformAdmin = Boolean(
+    (user?.email && ["personaliai.com@gmail.com"].includes(user.email.toLowerCase())) ||
+    userPlatformRole === "admin" ||
+    userPlatformRole === "superadmin"
+  );
 
   // Team members (seats) for the active bot.
   async function loadTeam() {
@@ -3375,15 +3383,23 @@ export default function Dashboard() {
     }
   };
 
-  const handleCreateApiKey = async () => {
+  const handleCreateApiKey = async (name?: string, scopes?: string[], allowedIps?: string) => {
     if (!botId) return;
     setCreatingApiKey(true);
     setNewApiKey(null);
     try {
+      const ipList = allowedIps
+        ? allowedIps.split(",").map(s => s.trim()).filter(Boolean)
+        : null;
       const res = await fetchWithFallback("/api/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, name: "API Key" }),
+        body: JSON.stringify({
+          bot_id: botId,
+          name: name || "API Key",
+          scopes: scopes || ["chat", "read"],
+          allowed_ips: ipList?.length ? ipList : null,
+        }),
       });
       if (res.ok) {
         const d = await res.json();
@@ -3845,7 +3861,7 @@ export default function Dashboard() {
               { id: "mcp", label: "MCP", icon: Cpu },
               { id: "developer", label: "Developer API", icon: Puzzle },
               { id: "billing", label: "Billing", icon: CreditCard },
-              ...(user?.email && ["personaliai.com@gmail.com"].includes(user.email.toLowerCase())
+              ...(isPlatformAdmin
                 ? [{ id: "admin_affiliates", label: "Admin Affiliates", icon: ShieldAlert }]
                 : []),
               { id: "settings", label: t("settings"), icon: Settings },
@@ -3890,18 +3906,6 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="space-y-1">
-            <Link
-              href="/affiliate"
-              className="w-full flex items-center justify-between text-[11px] font-medium text-neutral-600 dark:text-neutral-400 hover:text-[#f97316] dark:hover:text-[#f97316] transition-colors py-1.5 px-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            >
-              <span className="flex items-center gap-2">
-                <DollarSign className="size-3.5 text-[#f97316]" />
-                Affiliate Program
-              </span>
-              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#f97316]/10 text-[#f97316]">
-                30%
-              </span>
-            </Link>
             {user ? (
               <button
                 onClick={handleSignOut}
@@ -4356,6 +4360,7 @@ export default function Dashboard() {
               webhooks={webhooks}
               loadingWebhooks={loadingWebhooks}
               handleDeleteWebhook={handleDeleteWebhook}
+              authToken={authToken}
             />
           )}
 
@@ -4369,8 +4374,8 @@ export default function Dashboard() {
             />
           )}
 
-          {/* TAB: ADMIN AFFILIATES */}
-          {activeTab === "admin_affiliates" && (
+          {/* TAB: ADMIN AFFILIATES (Platform SuperAdmin) */}
+          {activeTab === "admin_affiliates" && isPlatformAdmin && (
             <AdminAffiliatesTab />
           )}
 
