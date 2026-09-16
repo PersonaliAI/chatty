@@ -152,4 +152,7 @@ export function useChatty() {
   return { open, close, toggle };
 }
 
+export { ProductCard, type ProductCardData } from "./product-card";
+export { VideoCard, type VideoClipData } from "./video-card";
+
 export default ChattyWidget;

@@ -11,6 +11,8 @@ import { QuickEmojiPicker } from "./quick-emoji-picker";
 import { AttachMenu } from "./attach-menu";
 import VoiceCallWidget from "./voice-call-widget";
 import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
+import { ProductCard, type ProductCardData } from "./product-card";
+import { VideoCard, type VideoClipData } from "./video-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
 import { normalizeWidgetStyle } from "./widget-style";
 // CSS is shipped separately (dist/styles.css, plus katex's own CSS) instead
@@ -133,6 +135,31 @@ function AudioBubble({ src }: { src: string }) {
       </span>
     </div>
   );
+}
+
+function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[] } {
+  const products: ProductCardData[] = [];
+  const videoClips: VideoClipData[] = [];
+
+  let clean = content.replace(/\[PRODUCT_CARD:(\{.*?\})\]/g, (_, jsonStr) => {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed && typeof parsed === "object") products.push(parsed);
+    } catch {}
+    return "";
+  });
+
+  clean = clean.replace(/\[VIDEO_CLIP:(\{.*?\})\]/g, (_, jsonStr) => {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed && typeof parsed === "object") videoClips.push(parsed);
+    } catch {}
+    return "";
+  });
+
+  clean = clean.replace(/\[BOOKING_WIDGET\]/g, "").trim();
+
+  return { cleanContent: clean, products, videoClips };
 }
 
 // Preset assistant avatar icons (selectable in the customizer).
@@ -2344,11 +2371,37 @@ export default function ChatWidgetCore({
                           {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
                           {msg.role === "assistant" ? (
                             <>
-                              {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim() && (
-                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
-                                  {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
-                                </ReactMarkdown>
-                              )}
+                              {(() => {
+                                const { cleanContent, products, videoClips } = parseProductCards(msg.content);
+                                return (
+                                  <>
+                                    {cleanContent && (
+                                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                                        {cleanContent}
+                                      </ReactMarkdown>
+                                    )}
+                                    {products.length > 0 && (
+                                      <div className="flex flex-col gap-2 my-2 w-full">
+                                        {products.map((p, pIdx) => (
+                                          <ProductCard
+                                            key={p.id || pIdx}
+                                            product={p}
+                                            primaryColor={primaryColor}
+                                            onSelect={(prod) => setInputValue(`Is ${prod.title} available?`)}
+                                          />
+                                        ))}
+                                      </div>
+                                    )}
+                                    {videoClips.length > 0 && (
+                                      <div className="flex flex-col gap-2 my-2 w-full">
+                                        {videoClips.map((c, cIdx) => (
+                                          <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                               {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
                                 <InlineBookingCard
                                   botId={String(botId)}

@@ -12,6 +12,8 @@ import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import VoiceCallWidget from "@/components/voice-call-widget";
 import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
+import { ProductCard, type ProductCardData } from "@/components/product-card";
+import { VideoCard, type VideoClipData } from "@/components/video-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle } from "@/lib/widget-style";
 import { AudioBubble, RECORD_BAR_COUNT, VOICE_MESSAGE_PLACEHOLDER, audioBlobToWav } from "./widget-media";
@@ -39,6 +41,31 @@ interface Message {
   confirmedMeeting?: ConfirmedMeeting;
 }
 interface Source { id: string; name: string; content: string; }
+
+function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[] } {
+  const products: ProductCardData[] = [];
+  const videoClips: VideoClipData[] = [];
+
+  let clean = content.replace(/\[PRODUCT_CARD:(\{.*?\})\]/g, (_, jsonStr) => {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed && typeof parsed === "object") products.push(parsed);
+    } catch {}
+    return "";
+  });
+
+  clean = clean.replace(/\[VIDEO_CLIP:(\{.*?\})\]/g, (_, jsonStr) => {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed && typeof parsed === "object") videoClips.push(parsed);
+    } catch {}
+    return "";
+  });
+
+  clean = clean.replace(/\[BOOKING_WIDGET\]/g, "").trim();
+
+  return { cleanContent: clean, products, videoClips };
+}
 
 interface FlowNode {
   id: string;
@@ -2339,11 +2366,37 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                           {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
                           {msg.role === "assistant" ? (
                             <>
-                              {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim() && (
-                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
-                                  {msg.content.replace(/\[BOOKING_WIDGET\]/g, "").trim()}
-                                </ReactMarkdown>
-                              )}
+                              {(() => {
+                                const { cleanContent, products, videoClips } = parseProductCards(msg.content);
+                                return (
+                                  <>
+                                    {cleanContent && (
+                                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                                        {cleanContent}
+                                      </ReactMarkdown>
+                                    )}
+                                    {products.length > 0 && (
+                                      <div className="flex flex-col gap-2 my-2 w-full">
+                                        {products.map((p, pIdx) => (
+                                          <ProductCard
+                                            key={p.id || pIdx}
+                                            product={p}
+                                            primaryColor={primaryColor}
+                                            onSelect={(prod) => setInputValue(`Is ${prod.title} available?`)}
+                                          />
+                                        ))}
+                                      </div>
+                                    )}
+                                    {videoClips.length > 0 && (
+                                      <div className="flex flex-col gap-2 my-2 w-full">
+                                        {videoClips.map((c, cIdx) => (
+                                          <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                               {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
                                 <InlineBookingCard
                                   botId={String(botId)}
