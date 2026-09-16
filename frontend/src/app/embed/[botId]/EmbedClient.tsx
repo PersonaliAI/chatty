@@ -1515,9 +1515,23 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       fd.append("file", file, filename);
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/media`, { method: "POST", headers: widgetTokenHeader, body: fd });
       const body = await res.json();
-      setMessages((p) => [...p, res.ok
-        ? { role: "assistant", content: body.reply, sender: "ai" }
-        : { role: "assistant", content: `⚠️ ${body.detail || "Couldn't process that file."}` }]);
+      if (res.ok) {
+        if (body.transcript) {
+          setMessages((p) => {
+            const copy = [...p];
+            for (let i = copy.length - 1; i >= 0; i--) {
+              if (copy[i].role === "user" && (copy[i].content === VOICE_MESSAGE_PLACEHOLDER || !copy[i].content)) {
+                copy[i] = { ...copy[i], content: `🎤 ${body.transcript}` };
+                break;
+              }
+            }
+            return copy;
+          });
+        }
+        setMessages((p) => [...p, { role: "assistant", content: body.reply, sender: "ai" }]);
+      } else {
+        setMessages((p) => [...p, { role: "assistant", content: `⚠️ ${body.detail || "Couldn't process that file."}` }]);
+      }
       notifyParent();
     } catch {
       setMessages((p) => [...p, { role: "assistant", content: "Sorry, I couldn't upload that." }]);

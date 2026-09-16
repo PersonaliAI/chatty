@@ -236,6 +236,21 @@ def scheduling_tool_names(bot: dict[str, Any], owner_user: dict[str, Any]) -> li
     return names
 
 
+def _extract_user_text(m: dict) -> str:
+    """Safely extract text content from a message, whether m['content'] is a
+    string or a multimodal list of parts (e.g. [{'type': 'text', 'text': ...}])."""
+    c = m.get("content")
+    if isinstance(c, str):
+        return c
+    if isinstance(c, list):
+        parts: list[str] = []
+        for p in c:
+            if isinstance(p, dict) and isinstance(p.get("text"), str):
+                parts.append(p["text"])
+        return " ".join(parts)
+    return ""
+
+
 async def run_widget_assistant(
     *,
     bot_id: str,
@@ -276,47 +291,139 @@ async def run_widget_assistant(
     while messages and messages[0]["role"] != "user":
         messages.pop(0)
 
+    transcribed_voice: Optional[str] = None
     if media_bytes and media_mime:
         if media_mime.startswith("audio/"):
-            media_instruction = (
-                "The visitor sent a VOICE MESSAGE and the audio is attached below. "
-                "You ARE able to hear and understand audio - listen to it, interpret what "
-                "the visitor is asking, and answer their question normally. Don't refuse to "
-                "engage with it or claim you can't process audio in general. "
-                "However, if the recording is silent, too quiet, or has no discernible "
-                "speech, say so plainly - e.g. \"I couldn't quite catch that - could you "
-                "try recording again, or type your message instead?\" - instead of "
-                "guessing or answering a question they never actually asked."
+            raw_fmt = (media_mime.split("/", 1)[1] if "/" in media_mime else "wav").split(";")[0].strip().lower()
+            if raw_fmt in ("x-wav", "vnd.wave", "wave"):
+                raw_fmt = "wav"
+            elif raw_fmt in ("mp3", "mpeg"):
+                raw_fmt = "mp3"
+            elif raw_fmt in ("ogg", "vorbis", "opus"):
+                raw_fmt = "ogg"
+            elif raw_fmt not in ("wav", "mp3", "ogg", "aac", "aiff", "flac"):
+                raw_fmt = "wav"
+
+            # Auto-transcribe audio via Gemini STT so that:
+            # 1. RAG knowledge search (search_knowledge) gets the visitor's actual spoken question.
+            # 2. Multimodal catalog search can match products/videos.
+            # 3. All models (Gemini Flash, Flash-Lite, and BYOK models) can answer accurately.
+            _TRANSCRIBE_PROMPT = (
+                "Transcribe the spoken words in this audio to plain text, as best you "
+                "can even if it's unclear or partial. Output ONLY the transcription - "
+                "no commentary, no markdown, no quotes, no translation. Only output "
+                "nothing if the audio is truly silent with no speech at all."
             )
+            try:
+                stt_resp = await ai_client.chat(
+                    model=ai_client.resolve_gemini_model("gemini-2.5-flash"),
+                    fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": _TRANSCRIBE_PROMPT},
+                            {"type": "input_audio", "input_audio": {
+                                "data": base64.b64encode(media_bytes).decode(),
+                                "format": raw_fmt,
+                            }},
+                        ],
+                    }],
+                    temperature=0,
+                    max_tokens=1024,
+                    bot_id=bot_id,
+                    session_id=session_id,
+                    call_type="widget_voice_transcribe",
+                )
+                if stt_resp and stt_resp.choices:
+                    transcribed_voice = (stt_resp.choices[0].message.content or "").strip()
+            except Exception:
+                logger.warning("Voice auto-transcription failed for bot %s", bot_id, exc_info=True)
+
+            if transcribed_voice:
+                if not text.strip():
+                    text = transcribed_voice
+                else:
+                    text = f"{text} (Voice: {transcribed_voice})"
+                media_instruction = (
+                    f"The visitor sent a VOICE MESSAGE. Transcribed speech: \"{transcribed_voice}\". "
+                    "Respond helpfully to their spoken message."
+                )
+            elif not text.strip():
+                # The voice recording was silent or speech was completely inaudible
+                silent_reply = "I couldn't quite catch that - could you try recording again, or type your message instead?"
+                if on_token:
+                    await on_token(silent_reply)
+                return {"reply": silent_reply, "thinking": "", "sources": [], "transcript": ""}
+            else:
+                media_instruction = (
+                    "The visitor sent a VOICE MESSAGE and the audio is attached below. "
+                    "Listen to it and respond helpfully."
+                )
+
+            prompt_text = (text.strip() + "\n\n" + media_instruction) if text.strip() else media_instruction
+            content_blocks: list[dict] = [{"type": "text", "text": prompt_text}]
+            try:
+                content_blocks.append({"type": "input_audio", "input_audio": {
+                    "data": base64.b64encode(media_bytes).decode(),
+                    "format": raw_fmt,
+                }})
+            except Exception:
+                logger.exception("Failed to attach media part to widget message")
+            messages.append({"role": "user", "content": content_blocks})
         elif media_mime.startswith("image/"):
             media_instruction = (
                 "The visitor sent an IMAGE, attached below. You can see images - "
                 "look at it and respond helpfully."
             )
+            prompt_text = (text.strip() + "\n\n" + media_instruction) if text.strip() else media_instruction
+            content_blocks: list[dict] = [{"type": "text", "text": prompt_text}]
+            try:
+                content_blocks.append({"type": "image_url", "image_url": {
+                    "url": f"data:{media_mime};base64,{base64.b64encode(media_bytes).decode()}"
+                }})
+            except Exception:
+                logger.exception("Failed to attach media part to widget message")
+            messages.append({"role": "user", "content": content_blocks})
         else:
             media_instruction = (
                 "The visitor attached a FILE below. Read its content and respond helpfully."
             )
-        prompt_text = (text.strip() + "\n\n" + media_instruction) if text.strip() else media_instruction
-        content_blocks: list[dict] = [{"type": "text", "text": prompt_text}]
-        try:
-            if media_mime.startswith("audio/"):
-                content_blocks.append({"type": "input_audio", "input_audio": {
-                    "data": base64.b64encode(media_bytes).decode(),
-                    "format": media_mime.split("/", 1)[1],
-                }})
-            else:
+            prompt_text = (text.strip() + "\n\n" + media_instruction) if text.strip() else media_instruction
+            content_blocks: list[dict] = [{"type": "text", "text": prompt_text}]
+            try:
                 content_blocks.append({"type": "image_url", "image_url": {
                     "url": f"data:{media_mime};base64,{base64.b64encode(media_bytes).decode()}"
                 }})
-        except Exception:
-            logger.exception("Failed to attach media part to widget message")
-        messages.append({"role": "user", "content": content_blocks})
+            except Exception:
+                logger.exception("Failed to attach media part to widget message")
+            messages.append({"role": "user", "content": content_blocks})
     else:
         messages.append({"role": "user", "content": text or "(the visitor sent an attachment)"})
 
     # 2. RAG Context
     knowledge_context, source_refs = await search_knowledge(bot_id, owner_user, bot, text)
+
+    # Multimodal RAG: Image/Video/Product Catalog search
+    try:
+        from app.services import multimodal_service
+        is_visual = bool(media_bytes and media_mime and media_mime.startswith("image/"))
+        is_media_query = is_visual or any(k in (text or "").lower() for k in [
+            "available", "product", "price", "cloth", "dress", "shirt", "shoe", "pant", "jacket",
+            "stock", "buy", "catalog", "video", "demo", "photo", "look like", "show me", "size"
+        ])
+        if is_media_query:
+            mm_items, visual_attrs = await multimodal_service.search_multimodal_catalog(
+                bot_id=bot_id,
+                image_bytes=media_bytes if is_visual else None,
+                mime_type=media_mime if is_visual else None,
+                query_text=text or "",
+                top_k=5,
+            )
+            if mm_items or visual_attrs:
+                mm_block = multimodal_service.format_multimodal_context_for_prompt(mm_items, visual_attrs)
+                knowledge_context = (knowledge_context + "\n\n" + mm_block).strip()
+    except Exception:
+        logger.exception("Multimodal RAG search failed")
 
     # 3. Timezone Calculations
     import pytz
@@ -665,6 +772,11 @@ async def run_widget_assistant(
         + "- If the visitor attaches an image, screenshot, document, or voice message, USE its contents to understand and help "
         "with their support request (e.g. read an error screenshot, an invoice, or a photo; transcribe and act on a voice note). "
         "Don't refuse attachments - interpret them in the context of helping this customer.\n"
+        + "- MULTIMODAL & PRODUCT CARDS: When recommending, showing, or answering about available products or inventory items, "
+        "always include the structured token [PRODUCT_CARD:{\"id\":\"...\",\"title\":\"...\",\"price\":\"...\",\"currency\":\"...\",\"url\":\"...\",\"image_url\":\"...\",\"in_stock\":true}] "
+        "so the widget displays an interactive product card with photo and purchase link. "
+        "If a video demonstration or clip is relevant, include [VIDEO_CLIP:{\"title\":\"...\",\"video_url\":\"...\",\"timestamp\":15,\"thumbnail_url\":\"...\"}] "
+        "so the visitor can watch the video clip directly in the chat.\n"
         + ("- Stay strictly on-topic for this business. Politely decline off-topic, unsafe, or abusive requests.\n"
            if answer_mode == "strict" else
            "- Keep the focus on this business, but you may answer reasonable general questions too. Politely decline unsafe or abusive requests.\n")
@@ -824,7 +936,7 @@ async def run_widget_assistant(
                 session_id=session_id,
             )
             if byok_reply:
-                return {"reply": byok_reply, "thinking": "", "sources": _refs_grounded_in_reply(source_refs, byok_reply)}
+                return {"reply": byok_reply, "thinking": "", "sources": _refs_grounded_in_reply(source_refs, byok_reply), "transcript": transcribed_voice or ""}
             logger.warning("BYOK provider %s returned an empty reply for bot %s - falling back to Gemini", byok_provider, bot_id)
         except Exception as exc:
             # api_key is a customer's own third-party LLM credential - some
@@ -888,10 +1000,10 @@ async def run_widget_assistant(
     booking_correction_attempted = False
     called_tools_this_turn: set[str] = set()
 
-    # Model to try first - GEMINI_VOICE_MODEL for voice-mode requests, MODEL_NAME
-    # (today's default) otherwise - falling through to the same fallback chain
-    # unchanged either way. voice_mode=False is byte-for-byte identical to before.
-    primary_model = ai_client.resolve_gemini_model(GEMINI_VOICE_MODEL if voice_mode else MODEL_NAME)
+    # Model to try first - GEMINI_VOICE_MODEL for voice-mode requests or audio attachments,
+    # MODEL_NAME (today's default) otherwise - falling through to the same fallback chain.
+    is_audio_req = bool(media_bytes and media_mime and media_mime.startswith("audio/"))
+    primary_model = ai_client.resolve_gemini_model(GEMINI_VOICE_MODEL if (voice_mode or is_audio_req) else MODEL_NAME)
     fallback_models = [ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS]
 
     # 6. Tool-calling Loop.
@@ -958,7 +1070,7 @@ async def run_widget_assistant(
                 )
             booking_mode = str(bot.get("booking_mode") or "hybrid").lower()
             if scheduling_enabled and booking_mode != "conversational_only" and not booking_tool_succeeded:
-                user_msg_str = (text or "") + " " + " ".join([m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"])
+                user_msg_str = (text or "") + " " + " ".join([_extract_user_text(m) for m in messages if isinstance(m, dict) and m.get("role") == "user"])
                 should_attach = (
                     booking_mode == "interactive_only"
                     or "get_available_slots" in called_tools_this_turn
@@ -973,7 +1085,7 @@ async def run_widget_assistant(
             if on_token and not stream_live:
                 # Held back for validation above - release it now as one chunk.
                 await on_token(reply)
-            return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply)}
+            return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply), "transcript": transcribed_voice or ""}
 
         messages.append(gen["message"])
 
@@ -1051,7 +1163,7 @@ async def run_widget_assistant(
         )
     booking_mode = str(bot.get("booking_mode") or "hybrid").lower()
     if scheduling_enabled and booking_mode != "conversational_only" and not booking_tool_succeeded:
-        user_msg_str = (text or "") + " " + " ".join([m.get("content", "") for m in messages if isinstance(m, dict) and m.get("role") == "user"])
+        user_msg_str = (text or "") + " " + " ".join([_extract_user_text(m) for m in messages if isinstance(m, dict) and m.get("role") == "user"])
         should_attach = (
             booking_mode == "interactive_only"
             or "get_available_slots" in called_tools_this_turn
@@ -1065,7 +1177,7 @@ async def run_widget_assistant(
 
     if on_token and not stream_live:
         await on_token(reply)
-    return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply)}
+    return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply), "transcript": transcribed_voice or ""}
 
 
 _STOPWORDS = {

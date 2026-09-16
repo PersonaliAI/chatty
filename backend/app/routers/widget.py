@@ -611,6 +611,18 @@ async def widget_chat_media(
         raise HTTPException(status_code=502, detail="assistant failed")
 
     reply = result["reply"]
+    transcript = result.get("transcript") or ""
+
+    # If audio was transcribed and visitor had not typed a caption, update the user's conversation row
+    if transcript and not (text or "").strip():
+        try:
+            transcript_display = f"🎤 {transcript}\n[attachment: {file.filename or mime}]" + (f"\n{file_url}" if file_url else "")
+            await run_db(lambda: supabase.table("chatty_conversations").update({
+                "content": transcript_display,
+            }).eq("bot_id", bot_id).eq("session_id", session_id).eq("role", "user").order("created_at", desc=True).limit(1).execute())
+        except Exception:
+            logger.warning("Failed to update user conversation with transcript", exc_info=True)
+
     try:
         await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "assistant", "content": reply,
@@ -622,9 +634,9 @@ async def widget_chat_media(
         session_id=session_id, data={"content": reply},
     )
 
-    background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
+    background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, transcript or text, reply)
 
-    return WidgetMediaResponse(reply=reply, session_id=session_id, file_url=file_url, file_type=mime)
+    return WidgetMediaResponse(reply=reply, session_id=session_id, file_url=file_url, file_type=mime, transcript=transcript or None)
 
 
 @router.post("/api/widget/feedback")

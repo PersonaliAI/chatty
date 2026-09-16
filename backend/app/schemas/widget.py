@@ -34,6 +34,7 @@ class WidgetChatResponse(BaseModel):
 class WidgetMediaResponse(WidgetChatResponse):
     file_url: Optional[str] = None
     file_type: Optional[str] = None
+    transcript: Optional[str] = None
 
 
 class WidgetFeedbackRequest(BaseModel):
