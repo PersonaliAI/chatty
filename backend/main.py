@@ -545,6 +545,7 @@ def _update_key_usage(key_row: dict[str, Any]) -> None:
 # partially-initialized `main` module yet) would raise a circular ImportError.
 # ---------------------------------------------------------------------------
 from app.routers import admin as _router_admin  # noqa: E402
+from app.routers import analytics as _router_analytics  # noqa: E402
 from app.routers import bots as _router_bots  # noqa: E402
 from app.routers import bots_api as _router_bots_api  # noqa: E402
 from app.routers import crawl as _router_crawl  # noqa: E402
@@ -562,14 +563,19 @@ from app.routers import webhooks as _router_webhooks  # noqa: E402
 from app.routers import widget as _router_widget  # noqa: E402
 from app.routers import email_inbound as _router_email_inbound  # noqa: E402
 from app.routers import affiliate as _router_affiliate  # noqa: E402
+from app.routers import multimodal as _router_multimodal  # noqa: E402
+from app.routers import woocommerce as _router_woocommerce  # noqa: E402
 
 app.include_router(_router_widget.router)
 app.include_router(_router_voice.router)
 app.include_router(_router_webhooks.router)
 app.include_router(_router_email_inbound.router)
 app.include_router(_router_affiliate.router)
+app.include_router(_router_multimodal.router)
+app.include_router(_router_woocommerce.router)
 app.include_router(_router_team.router)
 app.include_router(_router_admin.router)
+app.include_router(_router_analytics.router)
 app.include_router(_router_bots.router)
 app.include_router(_router_bots_api.router)
 app.include_router(_router_crawl.router)
