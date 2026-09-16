@@ -198,6 +198,7 @@ export default function Dashboard() {
   // User State
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [botId, setBotId] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string>("");
   const [loadingSession, setLoadingSession] = useState(true);
 
   // Billing State
@@ -846,6 +847,7 @@ export default function Dashboard() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           setUser(session.user);
+          if (session.access_token) setAuthToken(session.access_token);
           supabase
             .from("users")
             .select("plan, subscription_status, subscription_renews_at")
@@ -4282,17 +4284,11 @@ export default function Dashboard() {
           )}
 
           {/* TAB 6: ANALYTICS */}
-          {activeTab === "analytics" && (
+          {activeTab === "analytics" && botId && (
             <AnalyticsTab
-              loadingAnalytics={loadingAnalytics}
-              totalQueries={totalQueries}
-              conversionRate={conversionRate}
-              totalSessions={totalSessions}
-              analyticsChartData={analyticsChartData}
-              aiUsageTotalCost={aiUsageTotalCost}
-              aiUsageTotalTokens={aiUsageTotalTokens}
-              aiUsageTotalCalls={aiUsageTotalCalls}
-              aiUsageByModel={aiUsageByModel}
+              botId={botId}
+              backendUrl={BACKEND_URL}
+              authToken={authToken}
             />
           )}
 
