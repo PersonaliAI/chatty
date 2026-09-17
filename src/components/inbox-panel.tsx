@@ -40,6 +40,9 @@ import {
   Mail,
   Tag,
   MessageSquare,
+  Sparkles,
+  Eye,
+  SlidersHorizontal,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -136,6 +139,30 @@ interface Assignee {
   email: string;
   name: string;
   role: string;
+}
+
+interface ActiveViewer {
+  agent_email: string;
+  agent_name?: string;
+  last_seen_at?: string;
+}
+
+interface ThreadSummary {
+  summary: string;
+  bullet_points: string[];
+  sentiment: string;
+  recommended_action: string;
+}
+
+interface AutomationRuleItem {
+  id: string;
+  name: string;
+  description?: string;
+  event_trigger: string;
+  match_mode: string;
+  conditions: Array<{ field: string; operator: string; value: string }>;
+  actions: Array<{ type: string; value: string }>;
+  is_active: boolean;
 }
 
 interface Props {
@@ -431,6 +458,29 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   // Assignees & Current Agent
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+
+  // ── Agent Collision Detection State ──
+  const [activeViewers, setActiveViewers] = useState<ActiveViewer[]>([]);
+
+  // ── AI Copilot State ──
+  const [generatingDraft, setGeneratingDraft] = useState(false);
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [savingSummaryAsNote, setSavingSummaryAsNote] = useState(false);
+  const [threadSummary, setThreadSummary] = useState<ThreadSummary | null>(null);
+
+  // ── Automation Rules State ──
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
+  const [automationRules, setAutomationRules] = useState<AutomationRuleItem[]>([]);
+  const [loadingRules, setLoadingRules] = useState(false);
+  const [creatingRule, setCreatingRule] = useState(false);
+  const [newRuleName, setNewRuleName] = useState("");
+  const [newRuleEvent, setNewRuleEvent] = useState("ticket_created");
+  const [newRuleField, setNewRuleField] = useState("last_message");
+  const [newRuleOp, setNewRuleOp] = useState("contains");
+  const [newRuleVal, setNewRuleVal] = useState("");
+  const [newRuleActionType, setNewRuleActionType] = useState("add_tag");
+  const [newRuleActionVal, setNewRuleActionVal] = useState("Escalated");
 
   // Persistent Staff Notes
   const [sessionNotes, setSessionNotes] = useState<Note[]>([]);
@@ -783,6 +833,174 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     return () => clearInterval(id);
   }, [selected, loadSessions, loadMessages, loadPresence]);
 
+  // ── Agent Collision Detection & Viewer Heartbeat ──
+  const sendHeartbeatAndFetchViewers = useCallback(async (sid: string) => {
+    try {
+      await fetchBackend("/api/admin/inbox/session/heartbeat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: sid }),
+      });
+      const res = await fetchBackend(`/api/admin/inbox/session/viewers?bot_id=${botId}&session_id=${encodeURIComponent(sid)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setActiveViewers(data.viewers || []);
+      }
+    } catch {}
+  }, [botId, fetchBackend]);
+
+  useEffect(() => {
+    if (!selected) {
+      setActiveViewers([]);
+      return;
+    }
+    void sendHeartbeatAndFetchViewers(selected);
+    const interval = setInterval(() => {
+      void sendHeartbeatAndFetchViewers(selected);
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [selected, sendHeartbeatAndFetchViewers]);
+
+  // ── AI Copilot (Draft Reply & Summarizer) ──
+  const handleAiDraftReply = async () => {
+    if (!selected) return;
+    setGeneratingDraft(true);
+    try {
+      const res = await fetchBackend("/api/admin/inbox/ai-draft-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: selected }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.draft_reply) {
+          setReply(data.draft_reply);
+          showToast("AI draft reply generated!", "success");
+        } else {
+          showToast("Could not generate AI draft reply", "error");
+        }
+      } else {
+        showToast("Failed to generate AI draft reply", "error");
+      }
+    } catch {
+      showToast("Error connecting to AI service", "error");
+    } finally {
+      setGeneratingDraft(false);
+    }
+  };
+
+  const handleAiSummarize = async () => {
+    if (!selected) return;
+    setSummaryModalOpen(true);
+    setGeneratingSummary(true);
+    setThreadSummary(null);
+    try {
+      const res = await fetchBackend("/api/admin/inbox/ai-summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: selected }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setThreadSummary(data);
+      } else {
+        showToast("Failed to summarize conversation", "error");
+      }
+    } catch {
+      showToast("Error connecting to AI service", "error");
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
+
+  const handleSaveSummaryAsNote = async () => {
+    if (!threadSummary || !selected) return;
+    setSavingSummaryAsNote(true);
+    const bullets = (threadSummary.bullet_points || []).map((b) => `• ${b}`).join("\n");
+    const formattedNote = `[AI Conversation Summary]\n${threadSummary.summary}\n\nKey Takeaways:\n${bullets}\n\nSentiment: ${threadSummary.sentiment}\nRecommended Action: ${threadSummary.recommended_action}`;
+    try {
+      const res = await fetchBackend("/api/admin/inbox/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: selected, note: formattedNote }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setSessionNotes((prev) => [...prev, d.note]);
+        showToast("Summary saved to internal notes", "success");
+        setSummaryModalOpen(false);
+      } else {
+        showToast("Failed to save note", "error");
+      }
+    } catch {
+      showToast("Error saving note", "error");
+    } finally {
+      setSavingSummaryAsNote(false);
+    }
+  };
+
+  // ── Automation Rules Engine Operations ──
+  const loadAutomationRules = useCallback(async () => {
+    if (!botId) return;
+    setLoadingRules(true);
+    try {
+      const res = await fetchBackend(`/api/admin/automation-rules?bot_id=${botId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAutomationRules(data.rules || []);
+      }
+    } catch {} finally {
+      setLoadingRules(false);
+    }
+  }, [botId, fetchBackend]);
+
+  const handleCreateRule = async () => {
+    if (!newRuleName.trim() || !newRuleVal.trim()) return;
+    setCreatingRule(true);
+    try {
+      const payload = {
+        bot_id: botId,
+        name: newRuleName.trim(),
+        event_trigger: newRuleEvent,
+        match_mode: "all",
+        conditions: [{ field: newRuleField, operator: newRuleOp, value: newRuleVal.trim() }],
+        actions: [{ type: newRuleActionType, value: newRuleActionVal.trim() }],
+        is_active: true,
+      };
+      const res = await fetchBackend("/api/admin/automation-rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        showToast("Automation rule created!", "success");
+        setNewRuleName("");
+        setNewRuleVal("");
+        loadAutomationRules();
+      } else {
+        showToast("Failed to create rule", "error");
+      }
+    } catch {
+      showToast("Network error creating rule", "error");
+    } finally {
+      setCreatingRule(false);
+    }
+  };
+
+  const handleDeleteRule = async (ruleId: string) => {
+    try {
+      const res = await fetchBackend(`/api/admin/automation-rules/${ruleId}?bot_id=${botId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setAutomationRules((prev) => prev.filter((r) => r.id !== ruleId));
+        showToast("Rule removed", "success");
+      }
+    } catch {
+      showToast("Failed to delete rule", "error");
+    }
+  };
+
   // ── Session Update (Helpdesk Lifecycle Engine) ──
   const updateSession = useCallback(async (sid: string, patch: Partial<Session> & { unassign?: boolean }) => {
     setSessions((prev) => prev.map((s) => {
@@ -1111,6 +1329,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     current.assigned_agent_email.toLowerCase() !== currentUserEmail.toLowerCase()
   );
 
+  const otherViewers = activeViewers.filter(
+    (v) => !currentUserEmail || v.agent_email.toLowerCase() !== currentUserEmail.toLowerCase()
+  );
+
   return (
     <div className="space-y-4">
       {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar ── */}
@@ -1196,7 +1418,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </div>
         </div>
 
-        {/* Middle: Team Presence Roster */}
+        {/* Middle: Team Presence Roster & Automation Rules */}
         <div ref={rosterRef} className="relative flex items-center gap-2">
           <button
             onClick={() => setShowRoster(!showRoster)}
@@ -1207,6 +1429,18 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-1.5 py-0.2 rounded-full text-[10px]">
               {teamPresence.filter((a) => a.status === "online").length} Online
             </span>
+          </button>
+
+          <button
+            onClick={() => {
+              setRulesModalOpen(true);
+              loadAutomationRules();
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors text-xs font-medium cursor-pointer whitespace-nowrap"
+            title="Configure Event Triggers & Automation Rules"
+          >
+            <SlidersHorizontal className="size-3.5 text-neutral-400" />
+            <span>Rules</span>
           </button>
 
           {/* Roster Popover */}
@@ -1549,6 +1783,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   #{selected.slice(-6).toUpperCase()}
                 </span>
 
+                {/* Active Viewers Live Indicator */}
+                {otherViewers.length > 0 && (
+                  <span
+                    className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1"
+                    title={`Active viewers: ${otherViewers.map((v) => v.agent_name || v.agent_email).join(", ")}`}
+                  >
+                    <Eye className="size-2.5 animate-pulse" />
+                    <span>{otherViewers.length} viewing</span>
+                  </span>
+                )}
+
                 {/* Status Switcher Popover */}
                 <div ref={statusPopoverRef} className="relative">
                   <button
@@ -1713,6 +1958,18 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </button>
                 )}
 
+                {/* AI Summarize Thread (Copilot) */}
+                <button
+                  type="button"
+                  onClick={handleAiSummarize}
+                  disabled={generatingSummary}
+                  className="text-[10px] font-semibold border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Generate AI Conversation Summary & Action Plan"
+                >
+                  <Sparkles className="size-3 text-amber-500" />
+                  <span>Summarize</span>
+                </button>
+
                 {/* Tags Popover Trigger */}
                 <div ref={tagPopoverRef} className="relative">
                   <button
@@ -1843,6 +2100,23 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 >
                   Take Over Ticket
                 </button>
+              </div>
+            )}
+
+            {/* Live Active Viewers Collision Alert */}
+            {otherViewers.length > 0 && (
+              <div className="bg-amber-500/15 border-b border-amber-500/30 px-3.5 py-2 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Eye className="size-4 text-amber-600 dark:text-amber-400 animate-pulse shrink-0" />
+                  <span>
+                    <strong>Live Collision Warning:</strong>{" "}
+                    {otherViewers.map((v) => v.agent_name || v.agent_email).join(", ")}{" "}
+                    {otherViewers.length === 1 ? "is" : "are"} also viewing this ticket right now.
+                  </span>
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/25 text-amber-800 dark:text-amber-300">
+                  Live Presence
+                </span>
               </div>
             )}
 
@@ -2118,6 +2392,30 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 />
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-0.5">
+                    {/* AI Draft Reply (Copilot) */}
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.85 }}
+                      onClick={handleAiDraftReply}
+                      disabled={generatingDraft || sending}
+                      className={`p-1.5 rounded-full transition-colors flex items-center gap-1 cursor-pointer ${
+                        generatingDraft
+                          ? "text-amber-500 bg-amber-500/10 animate-pulse"
+                          : "text-neutral-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-500/10"
+                      }`}
+                      aria-label="AI Draft Reply"
+                      title="Generate AI Draft Reply (Copilot)"
+                    >
+                      {generatingDraft ? (
+                        <Loader2 className="size-4 animate-spin text-amber-500" />
+                      ) : (
+                        <Sparkles className="size-4 text-amber-500" />
+                      )}
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 pr-1 hidden sm:inline">
+                        AI Draft
+                      </span>
+                    </motion.button>
+
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.85 }}
@@ -2256,6 +2554,310 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer"
               >
                 Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI Summarize Dialog ── */}
+      {summaryModalOpen && (
+        <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                  <Sparkles className="size-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold">Ticket Copilot Summary</h4>
+                  <p className="text-[10px] text-neutral-400">AI analysis of conversation history and next steps</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSummaryModalOpen(false)}
+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {generatingSummary ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-3 text-neutral-400">
+                <Loader2 className="size-6 animate-spin text-amber-500" />
+                <p className="text-xs font-medium">Analyzing conversation transcript...</p>
+              </div>
+            ) : threadSummary ? (
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 text-xs">
+                {/* Sentiment & Quick Stats */}
+                <div className="flex items-center justify-between bg-neutral-50 dark:bg-neutral-950 p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Customer Sentiment</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-neutral-200/60 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 capitalize">
+                    {threadSummary.sentiment === "frustrated" || threadSummary.sentiment === "angry" ? "⚠️ " : threadSummary.sentiment === "positive" ? "😊 " : "💬 "}
+                    {threadSummary.sentiment}
+                  </span>
+                </div>
+
+                {/* Summary */}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Executive Summary</span>
+                  <p className="text-xs leading-relaxed text-neutral-700 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-950 p-3 rounded-xl border border-neutral-100 dark:border-neutral-850">
+                    {threadSummary.summary}
+                  </p>
+                </div>
+
+                {/* Key Points */}
+                {threadSummary.bullet_points?.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Key Points & Details</span>
+                    <ul className="space-y-1 bg-neutral-50 dark:bg-neutral-950 p-3 rounded-xl border border-neutral-100 dark:border-neutral-850">
+                      {threadSummary.bullet_points.map((pt, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-xs text-neutral-700 dark:text-neutral-300">
+                          <span className="text-amber-500 font-bold">•</span>
+                          <span>{pt}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Recommended Next Action */}
+                {threadSummary.recommended_action && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Recommended Action</span>
+                    <div className="text-xs font-medium text-amber-900 dark:text-amber-200 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl flex items-start gap-2">
+                      <Zap className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <span>{threadSummary.recommended_action}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-400 text-center py-6">No summary available.</p>
+            )}
+
+            {/* Footer actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-neutral-100 dark:border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setSummaryModalOpen(false)}
+                className="px-3 py-1.5 text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 cursor-pointer"
+              >
+                Close
+              </button>
+              {threadSummary && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReply((prev) => (prev ? `${prev}\n\n${threadSummary.summary}` : threadSummary.summary));
+                      setSummaryModalOpen(false);
+                      showToast("Summary inserted into draft reply", "success");
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 cursor-pointer"
+                  >
+                    Insert to Reply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveSummaryAsNote}
+                    disabled={savingSummaryAsNote}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {savingSummaryAsNote ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                    <span>Save as Staff Note</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Automation Rules Dialog ── */}
+      {rulesModalOpen && (
+        <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-[#f97316]/10 text-[#f97316]">
+                  <SlidersHorizontal className="size-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold">Ticket Automation Rules</h4>
+                  <p className="text-[10px] text-neutral-400">Trigger automatic actions (priority, routing, tagging) based on conditions</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRulesModalOpen(false)}
+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Existing Rules List */}
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {loadingRules ? (
+                <div className="py-8 flex items-center justify-center gap-2 text-neutral-400 text-xs">
+                  <Loader2 className="size-4 animate-spin" /> Loading rules...
+                </div>
+              ) : automationRules.length === 0 ? (
+                <div className="py-6 text-center text-xs text-neutral-400 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800">
+                  No automation rules configured yet. Create one below to auto-escalate or tag tickets!
+                </div>
+              ) : (
+                automationRules.map((rule) => (
+                  <div
+                    key={rule.id}
+                    className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800/80 flex items-start justify-between gap-3 text-xs"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-neutral-900 dark:text-neutral-100">{rule.name}</span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-neutral-200/70 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-mono">
+                          {rule.event_trigger}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-neutral-500 dark:text-neutral-400 flex flex-wrap gap-1 items-center">
+                        <span>IF</span>
+                        {rule.conditions?.map((c, i) => (
+                          <span key={i} className="font-mono bg-neutral-200/50 dark:bg-neutral-800 px-1 rounded">
+                            {c.field} {c.operator} &quot;{c.value}&quot;
+                          </span>
+                        ))}
+                        <span>THEN</span>
+                        {rule.actions?.map((a, i) => (
+                          <span key={i} className="font-mono bg-orange-500/10 text-[#f97316] font-semibold px-1 rounded">
+                            {a.type} &quot;{a.value}&quot;
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteRule(rule.id)}
+                      className="p-1 text-neutral-400 hover:text-red-500 cursor-pointer shrink-0 transition-colors"
+                      title="Delete rule"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Create New Rule Form */}
+            <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                  Add Automation Rule
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label className="text-[9px] font-semibold text-neutral-400 uppercase">Rule Name</label>
+                  <input
+                    value={newRuleName}
+                    onChange={(e) => setNewRuleName(e.target.value)}
+                    placeholder="e.g. VIP Urgent Escalate"
+                    className="w-full mt-0.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-semibold text-neutral-400 uppercase">When Event Occurs</label>
+                  <select
+                    value={newRuleEvent}
+                    onChange={(e) => setNewRuleEvent(e.target.value)}
+                    className="w-full mt-0.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer"
+                  >
+                    <option value="ticket_created">Ticket Created</option>
+                    <option value="ticket_updated">Ticket Updated</option>
+                    <option value="message_received">Message Received</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Condition Row */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-semibold text-neutral-400 uppercase">Condition (IF)</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    value={newRuleField}
+                    onChange={(e) => setNewRuleField(e.target.value)}
+                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1.5 text-xs focus:outline-none cursor-pointer"
+                  >
+                    <option value="last_message">Message Text</option>
+                    <option value="visitor_name">Visitor Name</option>
+                    <option value="channel">Channel</option>
+                    <option value="priority">Priority</option>
+                    <option value="tags">Tags</option>
+                  </select>
+
+                  <select
+                    value={newRuleOp}
+                    onChange={(e) => setNewRuleOp(e.target.value)}
+                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1.5 text-xs focus:outline-none cursor-pointer"
+                  >
+                    <option value="contains">Contains</option>
+                    <option value="equals">Equals</option>
+                    <option value="starts_with">Starts with</option>
+                    <option value="regex">Regex</option>
+                  </select>
+
+                  <input
+                    value={newRuleVal}
+                    onChange={(e) => setNewRuleVal(e.target.value)}
+                    placeholder="e.g. refund, urgent"
+                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Action Row */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-semibold text-neutral-400 uppercase">Action (THEN)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={newRuleActionType}
+                    onChange={(e) => setNewRuleActionType(e.target.value)}
+                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1.5 text-xs focus:outline-none cursor-pointer"
+                  >
+                    <option value="set_priority">Set Priority</option>
+                    <option value="add_tag">Add Tag</option>
+                    <option value="set_status">Set Status</option>
+                    <option value="send_internal_note">Post Internal Note</option>
+                  </select>
+
+                  <input
+                    value={newRuleActionVal}
+                    onChange={(e) => setNewRuleActionVal(e.target.value)}
+                    placeholder={newRuleActionType === "set_priority" ? "urgent" : newRuleActionType === "set_status" ? "pending" : "Tag name"}
+                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={handleCreateRule}
+                  disabled={creatingRule || !newRuleName.trim() || !newRuleVal.trim()}
+                  className="px-3 py-1.5 bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 disabled:opacity-40 cursor-pointer shadow-xs transition-colors"
+                >
+                  {creatingRule ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                  <span>Add Rule</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-neutral-100 dark:border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setRulesModalOpen(false)}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

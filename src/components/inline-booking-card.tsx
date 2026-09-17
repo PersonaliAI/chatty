@@ -384,6 +384,7 @@ export function InlineBookingCard({
   const [otpCooldown, setOtpCooldown] = useState(0);
 
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(initialMeeting || null);
 
@@ -495,7 +496,7 @@ export function InlineBookingCard({
 
   // Core booking submission call
   const executeBookingSubmission = async (codeToSubmit?: string) => {
-    if (!selectedSlot) return;
+    if (!selectedSlot || isSubmittingRef.current || submitting) return;
 
     const trimmedName = name.trim();
     if (!trimmedName || trimmedName.length < 2) {
@@ -529,6 +530,7 @@ export function InlineBookingCard({
       return;
     }
 
+    isSubmittingRef.current = true;
     try {
       setSubmitting(true);
       setSubmitError(null);
@@ -591,6 +593,7 @@ export function InlineBookingCard({
       setSubmitError(err?.message || "Failed to confirm meeting. Please try again.");
     } finally {
       setSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 

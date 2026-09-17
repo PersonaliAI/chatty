@@ -394,6 +394,7 @@ export default function Dashboard() {
   const [googleConnectedAccountId, setGoogleConnectedAccountId] = useState<string | null>(null);
   const [googleCalendarId, setGoogleCalendarId] = useState<string>("primary");
   const [googleCalendarName, setGoogleCalendarName] = useState<string>("");
+  const [googleCalendarColor, setGoogleCalendarColor] = useState<string>("auto_multiple");
   const [googleDriveFolderId, setGoogleDriveFolderId] = useState<string | null>(null);
   const [googleDriveFolderName, setGoogleDriveFolderName] = useState<string | null>(null);
 
@@ -1173,6 +1174,7 @@ export default function Dashboard() {
         setGoogleConnectedAccountId(activeBot.google_connected_account_id || null);
         setGoogleCalendarId(activeBot.google_calendar_id || "primary");
         setGoogleCalendarName(activeBot.google_calendar_name || "");
+        setGoogleCalendarColor(activeBot.google_calendar_color || "auto_multiple");
         setGoogleDriveFolderId(activeBot.google_drive_folder_id || null);
         setGoogleDriveFolderName(activeBot.google_drive_folder_name || null);
         setCalendarSchedulingEnabled(activeBot.calendar_scheduling_enabled || false);
@@ -1337,6 +1339,7 @@ export default function Dashboard() {
       setGoogleConnectedAccountId(selected.google_connected_account_id || null);
       setGoogleCalendarId(selected.google_calendar_id || "primary");
       setGoogleCalendarName(selected.google_calendar_name || "");
+      setGoogleCalendarColor(selected.google_calendar_color || "auto_multiple");
       setGoogleDriveFolderId(selected.google_drive_folder_id || null);
       setGoogleDriveFolderName(selected.google_drive_folder_name || null);
       setCalendarSchedulingEnabled(selected.calendar_scheduling_enabled || false);
@@ -2263,6 +2266,7 @@ export default function Dashboard() {
           google_connected_account_id: googleConnectedAccountId || null,
           google_calendar_id: googleCalendarId || "primary",
           google_calendar_name: googleCalendarName || null,
+          google_calendar_color: googleCalendarColor || "auto_multiple",
           google_drive_folder_id: googleDriveFolderId || null,
           google_drive_folder_name: googleDriveFolderName || null,
           sync_outlook_calendar: syncOutlookCalendar,
@@ -4467,6 +4471,8 @@ export default function Dashboard() {
               setGoogleCalendarId={setGoogleCalendarId}
               googleCalendarName={googleCalendarName}
               setGoogleCalendarName={setGoogleCalendarName}
+              googleCalendarColor={googleCalendarColor}
+              setGoogleCalendarColor={setGoogleCalendarColor}
               meetingProvider={meetingProvider}
               handleMeetingProviderChange={handleMeetingProviderChange}
               providerOptions={providerOptions}

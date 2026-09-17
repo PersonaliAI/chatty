@@ -26,6 +26,7 @@ import {
   SlidersHorizontal,
   UploadCloud,
   Camera,
+  Key,
 } from "lucide-react";
 
 export interface MediaItem {
@@ -92,6 +93,9 @@ export function ProductsMediaCatalog({
   const [wcError, setWcError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [syncingWc, setSyncingWc] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<"oauth" | "manual">("oauth");
+  const [authorizingWc, setAuthorizingWc] = useState<boolean>(false);
+  const [wcSuccessMsg, setWcSuccessMsg] = useState<string | null>(null);
 
   // Catalog items list state
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -221,7 +225,73 @@ export function ProductsMediaCatalog({
     return () => clearInterval(interval);
   }, [syncingWc, botId, fetchWithFallback, loadCatalogItems]);
 
-  // Handle Connect WooCommerce
+  // Check URL parameters when returning from WooCommerce authorization flow
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const wcAuth = urlParams.get("wc_auth");
+    const success = urlParams.get("success");
+
+    if (wcAuth === "success" || success === "1") {
+      setWcSuccessMsg("WooCommerce store connected successfully! Initial product catalog sync started.");
+      setWcError(null);
+      urlParams.delete("wc_auth");
+      urlParams.delete("success");
+      urlParams.delete("user_id");
+      const newSearch = urlParams.toString();
+      const newUrl = `${window.location.pathname}${newSearch ? `?${newSearch}` : ""}`;
+      window.history.replaceState({}, "", newUrl);
+      loadWcStatus();
+      loadCatalogItems();
+    } else if (success === "0") {
+      setWcError("WooCommerce connection was cancelled or denied by the store owner.");
+      urlParams.delete("success");
+      urlParams.delete("user_id");
+      const newSearch = urlParams.toString();
+      const newUrl = `${window.location.pathname}${newSearch ? `?${newSearch}` : ""}`;
+      window.history.replaceState({}, "", newUrl);
+    }
+  }, [loadWcStatus, loadCatalogItems]);
+
+  // Handle 1-Click WooCommerce Automatic Authorization (wc-auth/v1/authorize)
+  const handleOneClickConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUrl = storeUrl.trim();
+    if (!cleanUrl) return;
+    setWcError(null);
+    setWcSuccessMsg(null);
+    setAuthorizingWc(true);
+    try {
+      const returnUrl = typeof window !== "undefined"
+        ? `${window.location.origin}${window.location.pathname}?tab=catalog&bot_id=${botId}&wc_auth=success`
+        : "";
+      const res = await fetchWithFallback(`/api/bots/${botId}/integrations/woocommerce/authorize-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          store_url: cleanUrl,
+          return_url: returnUrl,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Failed to initialize WooCommerce 1-click authorization.");
+      }
+
+      const data = await res.json();
+      if (data.authorize_url) {
+        window.location.href = data.authorize_url;
+      } else {
+        throw new Error("Invalid response from server: missing authorize_url");
+      }
+    } catch (err: any) {
+      setWcError(err.message || "Failed to connect WooCommerce store. You can also try manual keys below.");
+      setAuthorizingWc(false);
+    }
+  };
+
+  // Handle Connect WooCommerce (Manual API Keys)
   const handleConnectWc = async (e: React.FormEvent) => {
     e.preventDefault();
     setWcError(null);
@@ -481,6 +551,13 @@ export function ProductsMediaCatalog({
                 </div>
               </div>
 
+              {wcSuccessMsg && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-start gap-2.5 text-emerald-700 dark:text-emerald-300 text-xs">
+                  <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>{wcSuccessMsg}</span>
+                </div>
+              )}
+
               {wcError && (
                 <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 flex items-start gap-2.5 text-red-600 dark:text-red-400 text-xs">
                   <AlertCircle className="size-4 shrink-0 mt-0.5" />
@@ -488,86 +565,178 @@ export function ProductsMediaCatalog({
                 </div>
               )}
 
-              <form onSubmit={handleConnectWc} className="space-y-4 pt-2">
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
-                    WordPress / WooCommerce Store URL
-                  </label>
-                  <input
-                    type="url"
-                    required
-                    placeholder="https://myfashionstore.com"
-                    value={storeUrl}
-                    onChange={(e) => setStoreUrl(e.target.value)}
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#9b51e0]"
-                  />
-                </div>
+              {/* Mode Switcher Tabs */}
+              <div className="flex items-center gap-2 p-1 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl border border-neutral-200/60 dark:border-neutral-700/60 max-w-md">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("oauth")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                    authMode === "oauth"
+                      ? "bg-white dark:bg-neutral-900 text-[#9b51e0] dark:text-[#9b51e0] shadow-sm"
+                      : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                  }`}
+                >
+                  <Sparkles className="size-3.5" />
+                  <span>1-Click Automatic</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#9b51e0]/10 text-[#9b51e0] font-bold">
+                    Recommended
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("manual")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                    authMode === "manual"
+                      ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
+                      : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                  }`}
+                >
+                  <Key className="size-3.5" />
+                  <span>Manual API Keys</span>
+                </button>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {authMode === "oauth" ? (
+                /* 1-Click Flow Form */
+                <form onSubmit={handleOneClickConnect} className="space-y-4 pt-1">
                   <div>
                     <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
-                      Consumer Key
+                      WordPress / WooCommerce Store URL
                     </label>
                     <input
-                      type="text"
+                      type="url"
                       required
-                      placeholder="ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                      value={consumerKey}
-                      onChange={(e) => setConsumerKey(e.target.value)}
-                      className="w-full font-mono text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-neutral-900 dark:text-white focus:outline-none focus:border-[#9b51e0]"
+                      placeholder="https://myfashionstore.com"
+                      value={storeUrl}
+                      onChange={(e) => setStoreUrl(e.target.value)}
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#9b51e0]"
                     />
+                    <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1.5">
+                      Enter your store address (e.g. <code>https://yourdomain.com</code>). You will be safely redirected to approve access on your WordPress site.
+                    </p>
                   </div>
+
+                  <div className="p-4 rounded-xl bg-[#9b51e0]/5 border border-[#9b51e0]/20 text-xs text-neutral-600 dark:text-neutral-300 space-y-2">
+                    <div className="font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                      <Sparkles className="size-4 text-[#9b51e0]" /> How 1-Click Connection Works
+                    </div>
+                    <ul className="list-disc list-inside space-y-1 text-[11px] text-neutral-500 dark:text-neutral-400 pl-1">
+                      <li>You will be redirected to your WordPress admin screen to approve access.</li>
+                      <li>WooCommerce automatically creates read/write API credentials securely.</li>
+                      <li>You are immediately returned to Chatty and automatic product catalog synchronization begins.</li>
+                      <li>Zero manual copying of keys required.</li>
+                    </ul>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={authorizingWc || !storeUrl.trim()}
+                      className="px-5 py-2.5 bg-[#9b51e0] hover:bg-[#8644c7] text-white rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all shadow-sm disabled:opacity-50"
+                    >
+                      {authorizingWc ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          <span>Connecting with WooCommerce...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="size-4" />
+                          <span>Connect with WooCommerce (1-Click)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* Manual API Keys Form */
+                <form onSubmit={handleConnectWc} className="space-y-4 pt-1">
                   <div>
                     <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
-                      Consumer Secret
+                      WordPress / WooCommerce Store URL
                     </label>
                     <input
-                      type="password"
+                      type="url"
                       required
-                      placeholder="cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                      value={consumerSecret}
-                      onChange={(e) => setConsumerSecret(e.target.value)}
-                      className="w-full font-mono text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-neutral-900 dark:text-white focus:outline-none focus:border-[#9b51e0]"
+                      placeholder="https://myfashionstore.com"
+                      value={storeUrl}
+                      onChange={(e) => setStoreUrl(e.target.value)}
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#9b51e0]"
                     />
                   </div>
-                </div>
 
-                <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-800/80 text-xs text-neutral-500 space-y-1.5">
-                  <div className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
-                    <HelpCircle className="size-3.5 text-[#9b51e0]" /> Where do I find these keys?
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
+                        Consumer Key
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        value={consumerKey}
+                        onChange={(e) => setConsumerKey(e.target.value)}
+                        className="w-full font-mono text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-neutral-900 dark:text-white focus:outline-none focus:border-[#9b51e0]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
+                        Consumer Secret
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        value={consumerSecret}
+                        onChange={(e) => setConsumerSecret(e.target.value)}
+                        className="w-full font-mono text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-neutral-900 dark:text-white focus:outline-none focus:border-[#9b51e0]"
+                      />
+                    </div>
                   </div>
-                  <ol className="list-decimal list-inside space-y-1 text-[11px] text-neutral-500 dark:text-neutral-400 pl-1">
-                    <li>Log in to your WordPress admin dashboard.</li>
-                    <li>Go to <b>WooCommerce → Settings → Advanced → REST API</b>.</li>
-                    <li>Click <b>Add Key</b>, set Permissions to <b>Read/Write</b>, and click <b>Generate API Key</b>.</li>
-                    <li>Copy and paste the Consumer Key and Consumer Secret above.</li>
-                  </ol>
-                </div>
 
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    disabled={connectingWc || !storeUrl.trim() || !consumerKey.trim()}
-                    className="px-5 py-2.5 bg-[#9b51e0] hover:bg-[#8644c7] text-white rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all shadow-sm disabled:opacity-50"
-                  >
-                    {connectingWc ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        <span>Verifying & Connecting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="size-4" />
-                        <span>Connect WooCommerce Store</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
+                  <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-800/80 text-xs text-neutral-500 space-y-1.5">
+                    <div className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+                      <HelpCircle className="size-3.5 text-[#9b51e0]" /> Where do I find these keys?
+                    </div>
+                    <ol className="list-decimal list-inside space-y-1 text-[11px] text-neutral-500 dark:text-neutral-400 pl-1">
+                      <li>Log in to your WordPress admin dashboard.</li>
+                      <li>Go to <b>WooCommerce → Settings → Advanced → REST API</b>.</li>
+                      <li>Click <b>Add Key</b>, set Permissions to <b>Read/Write</b>, and click <b>Generate API Key</b>.</li>
+                      <li>Copy and paste the Consumer Key and Consumer Secret above.</li>
+                    </ol>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={connectingWc || !storeUrl.trim() || !consumerKey.trim()}
+                      className="px-5 py-2.5 bg-[#9b51e0] hover:bg-[#8644c7] text-white rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all shadow-sm disabled:opacity-50"
+                    >
+                      {connectingWc ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          <span>Verifying & Connecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="size-4" />
+                          <span>Connect WooCommerce Store</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           ) : (
             /* Connected Store Status Card */
             <div className="space-y-4">
+              {wcSuccessMsg && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-start gap-2.5 text-emerald-700 dark:text-emerald-300 text-xs">
+                  <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>{wcSuccessMsg}</span>
+                </div>
+              )}
               <div className="p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 space-y-5">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">

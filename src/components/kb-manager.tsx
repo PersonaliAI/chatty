@@ -105,7 +105,7 @@ export interface KBAnalytics {
   }>;
 }
 
-type KBSubTab = "articles" | "categories" | "analytics" | "sources";
+type KBSubTab = "sources" | "articles" | "categories" | "analytics";
 type KBArticleStatus = "published" | "draft" | "archived";
 type KBArticleVisibility = "public" | "internal_only";
 
@@ -141,6 +141,7 @@ interface KBManagerProps {
   fetchBackend: (path: string, options?: RequestInit) => Promise<Response>;
   rawSourcesContent?: React.ReactNode;
   color?: string;
+  initialSubTab?: KBSubTab;
 }
 
 export function KBManager({
@@ -148,8 +149,9 @@ export function KBManager({
   fetchBackend,
   rawSourcesContent,
   color = "#f97316",
+  initialSubTab = "sources",
 }: KBManagerProps) {
-  const [subTab, setSubTab] = useState<KBSubTab>("articles");
+  const [subTab, setSubTab] = useState<KBSubTab>(initialSubTab);
 
   // Articles state
   const [articles, setArticles] = useState<KBArticle[]>([]);
@@ -478,10 +480,10 @@ export function KBManager({
       {/* Sub-Navigation Tabs */}
       <div className="flex items-center gap-1 border-b border-neutral-200 dark:border-neutral-800 pb-2 overflow-x-auto">
         {([
+          { id: "sources", label: "Raw Sources & Crawlers", icon: Database },
           { id: "articles", label: "Articles & Guides", icon: BookOpen, count: articles.length },
           { id: "categories", label: "Categories & Structure", icon: Folder, count: categories.length },
           { id: "analytics", label: "Insights & Content Gaps", icon: BarChart2, count: analytics?.content_gaps.length },
-          { id: "sources", label: "Raw Sources & Crawlers", icon: Database },
         ] satisfies Array<{ id: KBSubTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }>).map((tab) => {
           const Icon = tab.icon;
           const isActive = subTab === tab.id;
@@ -513,7 +515,14 @@ export function KBManager({
         })}
       </div>
 
-      {/* SUBTAB 1: ARTICLES & GUIDES */}
+      {/* SUBTAB 1: RAW SOURCES & CRAWLERS */}
+      {subTab === "sources" && (
+        <div className="space-y-6">
+          {rawSourcesContent}
+        </div>
+      )}
+
+      {/* SUBTAB 2: ARTICLES & GUIDES */}
       {subTab === "articles" && (
         <div className="space-y-6">
           {/* KPI Mini-Cards */}
@@ -913,13 +922,6 @@ export function KBManager({
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* SUBTAB 4: RAW SOURCES & CRAWLERS */}
-      {subTab === "sources" && (
-        <div className="space-y-6">
-          {rawSourcesContent}
         </div>
       )}
 

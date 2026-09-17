@@ -80,6 +80,7 @@ export interface Bot {
   google_connected_account_id?: string | null;
   google_calendar_id?: string | null;
   google_calendar_name?: string | null;
+  google_calendar_color?: string | null;
   google_drive_folder_id?: string | null;
   google_drive_folder_name?: string | null;
   [key: string]: unknown;

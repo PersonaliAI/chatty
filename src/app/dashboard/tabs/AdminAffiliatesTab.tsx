@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   DollarSign,
   Users,
@@ -86,18 +87,77 @@ function AffiliateStatusDropdown({
   onChange: (next: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number; openUpwards: boolean } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const updatePosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const dropdownHeight = 145;
+    const dropdownWidth = 140;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpwards = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+
+    let left = rect.left;
+    if (typeof window !== "undefined" && left + dropdownWidth > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - dropdownWidth - 8);
+    }
+
+    setCoords({
+      top: openUpwards ? rect.top - 6 : rect.bottom + 6,
+      left,
+      openUpwards,
+    });
+  }, []);
+
+  const toggleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!open) {
+      updatePosition();
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+
+    const handleDown = (e: MouseEvent) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current && !menuRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleDown);
+    document.addEventListener("keydown", handleKey);
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+
+    return () => {
+      document.removeEventListener("mousedown", handleDown);
+      document.removeEventListener("keydown", handleKey);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [open, updatePosition]);
 
   const configs: Record<string, { label: string; pill: string; dot: string }> = {
     active: {
@@ -125,22 +185,31 @@ function AffiliateStatusDropdown({
   const curr = configs[status] || configs.pending;
 
   return (
-    <div ref={ref} className="relative inline-block text-left">
+    <div className="relative inline-block text-left">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen(!open);
-        }}
+        onClick={toggleOpen}
         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase cursor-pointer border transition-all hover:opacity-90 ${curr.pill}`}
       >
         <span className={`size-1.5 rounded-full ${curr.dot}`} />
         <span>{curr.label}</span>
-        <ChevronDown className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`size-3 transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
       </button>
 
-      {open && (
-        <div className="absolute left-0 top-full mt-1.5 z-40 min-w-[130px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl py-1 overflow-hidden">
+      {open && coords && mounted && typeof document !== "undefined" && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: "fixed",
+            top: coords.openUpwards ? "auto" : `${coords.top}px`,
+            bottom: coords.openUpwards ? `${window.innerHeight - coords.top}px` : "auto",
+            left: `${coords.left}px`,
+            minWidth: "140px",
+            zIndex: 99999,
+          }}
+          className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100 select-none"
+        >
           {(["active", "pending", "paused", "rejected"] as const).map((s) => {
             const item = configs[s];
             const isSelected = s === status;
@@ -165,7 +234,8 @@ function AffiliateStatusDropdown({
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

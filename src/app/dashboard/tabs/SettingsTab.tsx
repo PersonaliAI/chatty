@@ -121,6 +121,8 @@ export interface SettingsTabProps {
   setGoogleCalendarId: (id: string) => void;
   googleCalendarName: string;
   setGoogleCalendarName: (name: string) => void;
+  googleCalendarColor?: string;
+  setGoogleCalendarColor?: (color: string) => void;
   meetingProvider: string;
   handleMeetingProviderChange: (v: string) => void;
   providerOptions: ModernSelectOption[];
@@ -247,6 +249,8 @@ export function SettingsTab({
   setGoogleCalendarId,
   googleCalendarName,
   setGoogleCalendarName,
+  googleCalendarColor = "auto_multiple",
+  setGoogleCalendarColor,
   meetingProvider,
   handleMeetingProviderChange,
   providerOptions,
@@ -1091,6 +1095,42 @@ export function SettingsTab({
                           />
                           <p className="text-[9px] text-neutral-400 mt-1">
                             Appointments and availability checks for this bot will be strictly scoped to this calendar.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Google Calendar Event Color */}
+                      {meetingProvider === "google_meet" && googleConnected && (
+                        <div>
+                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">
+                            Google Calendar Event Colors
+                          </label>
+                          <ModernSelect
+                            value={googleCalendarColor || "auto_multiple"}
+                            options={[
+                              { value: "auto_multiple", label: "🎨 Multi-Color Palette (Dynamic per visitor & topic)" },
+                              { value: "7", label: "🔷 Peacock (Cyan / Turquoise) - Demos" },
+                              { value: "3", label: "🍇 Grape (Royal Purple) - VIP & Strategy" },
+                              { value: "10", label: "🌲 Basil (Forest Green) - Sales & Quotes" },
+                              { value: "6", label: "🍊 Tangerine (Vivid Orange) - Tech Support" },
+                              { value: "9", label: "🫐 Blueberry (Royal Blue) - Onboarding" },
+                              { value: "2", label: "🌿 Sage (Soft Green) - Discovery" },
+                              { value: "4", label: "🦩 Flamingo (Coral / Rose) - Reviews" },
+                              { value: "5", label: "🍌 Banana (Yellow) - Rescheduled" },
+                              { value: "1", label: "🪻 Lavender (Pale Blue) - General" },
+                              { value: "11", label: "🍅 Tomato (Crimson Red) - Urgent" },
+                              { value: "8", label: "⚪ Graphite (Neutral Gray)" },
+                            ]}
+                            onChange={(v) => {
+                              if (setGoogleCalendarColor) {
+                                handleInputChange(setGoogleCalendarColor, v);
+                              }
+                            }}
+                          />
+                          <p className="text-[9px] text-neutral-400 mt-1">
+                            {googleCalendarColor === "auto_multiple" || !googleCalendarColor
+                              ? "Chatty uses multiple distinct colors across your Google Calendar so different bookings and topics are easily distinguishable."
+                              : "New appointments created by this bot will be tagged with this Google Calendar color chip."}
                           </p>
                         </div>
                       )}
