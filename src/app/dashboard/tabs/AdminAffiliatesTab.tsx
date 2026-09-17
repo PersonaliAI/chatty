@@ -840,20 +840,31 @@ export function AdminAffiliatesTab() {
 
               <div>
                 <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block mb-1">
-                  Method
+                  Payment Method
                 </label>
-                <ModernSelect
-                  value={payoutMethod}
-                  options={PAYOUT_METHOD_OPTIONS}
-                  onChange={(val) => setPayoutMethod(val)}
-                  size="sm"
-                  className="w-full"
-                />
+                <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-7 rounded-lg bg-[#003087] text-white flex items-center justify-center font-bold text-xs">
+                      P
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-neutral-900 dark:text-white block">
+                        PayPal Disbursal
+                      </span>
+                      <span className="text-[10px] font-mono text-neutral-500">
+                        {payoutModalAffiliate.payout_email}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-mono uppercase font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                    PayPal Only
+                  </span>
+                </div>
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block mb-1">
-                  Transaction / Batch ID (Optional)
+                  PayPal Transaction ID / Batch ID (Optional)
                 </label>
                 <input
                   type="text"
@@ -879,7 +890,7 @@ export function AdminAffiliatesTab() {
                 disabled={recordingPayout || payoutAmountCents <= 0}
                 className="px-4 py-2 rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-xs font-bold cursor-pointer disabled:opacity-50 hover:opacity-90 transition-opacity"
               >
-                {recordingPayout ? "Recording..." : "Disburse & Settle"}
+                {recordingPayout ? "Recording..." : "Disburse via PayPal & Notify"}
               </button>
             </div>
           </div>

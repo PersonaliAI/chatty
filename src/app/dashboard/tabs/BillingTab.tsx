@@ -40,12 +40,18 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 const PLAN_FEATURES: Record<string, string[]> = {
-  free: ["100 message credits/mo", "1 chatbot", "Basic AI models"],
+  free: [
+    "100 message credits/mo",
+    "1 chatbot",
+    "Basic AI models",
+    "100 MB Media Storage (50 products)",
+  ],
   chatty_hobby: [
     "1,000 message credits/mo",
     "10M training characters",
     "3 chatbots",
     "Fast & Advanced AI models",
+    "500 MB Media Storage (250 products)",
     "AI Actions & Analytics",
     "Guardrails & Notifications",
     "Lead collection & API",
@@ -54,6 +60,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
     "10,000 message credits/mo",
     "20M training characters",
     "6 chatbots",
+    "2 GB Media Storage (1,500 products)",
     "Daily Auto Train sync",
     "Remove branding completely",
     "Unlimited team members",
@@ -62,6 +69,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
     "40,000 message credits/mo",
     "50M training characters",
     "Unlimited chatbots",
+    "10 GB Media Storage (Unlimited products)",
     "BYOK (Bring-Your-Own-Key) option",
     "White-label configuration",
     "Management Admin API",
@@ -307,10 +315,10 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
         <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
           <div>
             <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">
-              Payout Method &amp; Details
+              PayPal Payout Account (Required for commission disbursements)
             </label>
             <p className="text-[11px] text-neutral-400 mt-0.5">
-              Specify your PayPal or Wise account email where you would like to receive earned commission disbursements.
+              Specify your verified PayPal email address where earned commissions will be disbursed.
             </p>
           </div>
 
@@ -319,7 +327,7 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
               type="email"
               value={payoutEmail}
               onChange={(e) => setPayoutEmail(e.target.value)}
-              placeholder="your-paypal-or-wise@email.com"
+              placeholder="your-account@paypal.com"
               className="flex-1 px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white focus:outline-none focus:border-[#f97316] transition-colors"
             />
             <button
@@ -333,7 +341,7 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
               ) : emailSaved ? (
                 <Check className="size-3.5 text-emerald-400" />
               ) : null}
-              <span>{emailSaved ? "Saved!" : "Update Payout Details"}</span>
+              <span>{emailSaved ? "Saved!" : "Save PayPal Email"}</span>
             </button>
           </div>
         </div>
@@ -383,7 +391,7 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
         </div>
         <div>
           <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block mb-1">
-            Payout Email (PayPal / Wise)
+            PayPal Email (Required for payouts)
           </label>
           <input
             type="email"
@@ -407,7 +415,7 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
           ) : (
             <Sparkles className="size-3.5" />
           )}
-          <span>Activate Referral Link &amp; Payout Account</span>
+          <span>Activate Referral Link &amp; PayPal Payouts</span>
         </button>
 
         <Link

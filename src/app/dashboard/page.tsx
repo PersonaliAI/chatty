@@ -4293,6 +4293,7 @@ export default function Dashboard() {
               botId={botId}
               backendUrl={BACKEND_URL}
               authToken={authToken}
+              plan={billingInfo?.plan || "free"}
             />
           )}
 
