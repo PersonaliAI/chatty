@@ -126,17 +126,14 @@ GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 GEMINI_FALLBACK_MODELS: list[str] = [
     m.strip() for m in os.environ.get(
         "KIN_FALLBACK_MODELS",
-        # gemini-3-flash doesn't exist as a callable model (404 NOT_FOUND on
-        # generateContent) and was a dead last resort. The two flash-lite 3.x
-        # models carry a 500 RPD quota vs. 20 RPD on both 2.5 models, so they
-        # sit right after the thought-signature-safe 2.5-flash instead of
-        # last, and 2.5-flash-lite (a distinct quota bucket from 2.5-flash)
-        # replaces the broken entry as the final fallback.
-        "gemini-2.5-flash,gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-2.5-flash-lite",
+        # The flash-lite models carry a 500 RPD quota vs 20 RPD on gemini-2.5-flash
+        # on Google AI Studio free tier. Prioritizing flash-lite prevents hitting
+        # the 20 RPD quota lockouts.
+        "gemini-2.5-flash-lite,gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-2.5-flash",
     ).split(",") if m.strip()
 ]
 # Back-compat: some call sites/log messages still refer to a single fallback name.
-GEMINI_FALLBACK_MODEL = GEMINI_FALLBACK_MODELS[0] if GEMINI_FALLBACK_MODELS else "gemini-2.5-flash"
+GEMINI_FALLBACK_MODEL = GEMINI_FALLBACK_MODELS[0] if GEMINI_FALLBACK_MODELS else "gemini-2.5-flash-lite"
 
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 SENTRY_ENV = os.environ.get("SENTRY_ENV", "production")

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   ShoppingBag,
   Store,
@@ -24,6 +24,8 @@ import {
   HelpCircle,
   Globe,
   SlidersHorizontal,
+  UploadCloud,
+  Camera,
 } from "lucide-react";
 
 export interface MediaItem {
@@ -108,6 +110,44 @@ export function ProductsMediaCatalog({
   const [prodDesc, setProdDesc] = useState<string>("");
   const [prodInStock, setProdInStock] = useState<boolean>(true);
   const [savingProduct, setSavingProduct] = useState<boolean>(false);
+  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
+  const [imageInputMode, setImageInputMode] = useState<"file" | "url">("file");
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  const handleImageFileChange = async (file: File) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    setUploadingImage(true);
+
+    // Instant local preview
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setProdImageUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+
+    // Upload to backend
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetchWithFallback(`/api/bots/${botId}/media-items/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          setProdImageUrl(data.url);
+        }
+      }
+    } catch (err) {
+      console.warn("Upload endpoint failed, keeping local image data URL", err);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   // Manual Video Form State
   const [vidTitle, setVidTitle] = useState<string>("");
@@ -677,18 +717,144 @@ export function ProductsMediaCatalog({
               />
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1">
-                Product Image URL *
-              </label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                  Product Image *
+                </label>
+                <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setImageInputMode("file")}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer ${
+                      imageInputMode === "file"
+                        ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    }`}
+                  >
+                    Upload File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageInputMode("url")}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer ${
+                      imageInputMode === "url"
+                        ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    }`}
+                  >
+                    Image URL
+                  </button>
+                </div>
+              </div>
+
+              {/* Hidden file input */}
               <input
-                type="url"
-                required
-                placeholder="https://example.com/images/jacket.jpg"
-                value={prodImageUrl}
-                onChange={(e) => setProdImageUrl(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#f97316]"
+                type="file"
+                ref={imageFileInputRef}
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImageFileChange(f);
+                }}
+                className="hidden"
               />
+
+              {imageInputMode === "file" ? (
+                prodImageUrl ? (
+                  /* Image Preview Card */
+                  <div className="p-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="size-12 rounded-lg bg-neutral-200 dark:bg-neutral-800 overflow-hidden shrink-0 border border-neutral-300 dark:border-neutral-700">
+                        <img
+                          src={prodImageUrl}
+                          alt="Product preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-neutral-900 dark:text-white truncate flex items-center gap-1.5">
+                          <CheckCircle2 className="size-3.5 text-emerald-500" />
+                          Image Selected
+                        </p>
+                        <p className="text-[10px] text-neutral-400 truncate">
+                          Ready for visual indexing & RAG
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => imageFileInputRef.current?.click()}
+                        disabled={uploadingImage}
+                        className="px-2.5 py-1 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                      >
+                        {uploadingImage ? <Loader2 className="size-3 animate-spin" /> : "Change"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProdImageUrl("");
+                          if (imageFileInputRef.current) imageFileInputRef.current.value = "";
+                        }}
+                        className="p-1 text-neutral-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                        title="Remove photo"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Drag and Drop Zone */
+                  <div
+                    onClick={() => imageFileInputRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) handleImageFileChange(f);
+                    }}
+                    className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1 ${
+                      isDragging
+                        ? "border-[#f97316] bg-[#f97316]/5"
+                        : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-950/50"
+                    }`}
+                  >
+                    {uploadingImage ? (
+                      <div className="flex items-center gap-2 py-2 text-xs text-neutral-500">
+                        <Loader2 className="size-4 animate-spin text-[#f97316]" />
+                        <span>Uploading image...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <UploadCloud className="size-6 text-neutral-400 group-hover:text-[#f97316] mb-0.5" />
+                        <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                          Click to browse image or drag & drop
+                        </p>
+                        <p className="text-[10px] text-neutral-400">
+                          PNG, JPG, WebP up to 10MB
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )
+              ) : (
+                /* URL Input Mode */
+                <input
+                  type="url"
+                  required
+                  placeholder="https://example.com/images/jacket.jpg"
+                  value={prodImageUrl}
+                  onChange={(e) => setProdImageUrl(e.target.value)}
+                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#f97316]"
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2">

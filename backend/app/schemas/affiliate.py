@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 class AffiliateJoinRequest(BaseModel):
     referral_code: str = Field(..., min_length=2, max_length=80, description="Unique referral slug for the partner link")
-    payout_email: EmailStr = Field(..., description="PayPal or email address for receiving commission payouts")
+    payout_email: str = Field(..., min_length=3, max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="PayPal or email address for receiving commission payouts")
     display_name: Optional[str] = Field(None, max_length=120, description="Public partner or agency display name")
     website_url: Optional[str] = Field(None, max_length=300, description="Partner website or social profile URL")
 
 
 class AffiliateSettingsUpdateRequest(BaseModel):
-    payout_email: Optional[EmailStr] = None
+    payout_email: Optional[str] = Field(None, min_length=3, max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     display_name: Optional[str] = Field(None, max_length=120)
     website_url: Optional[str] = Field(None, max_length=300)
 

@@ -17,7 +17,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from fastapi.responses import StreamingResponse
 
 from app.core.clients import supabase
-from app.core.config import GEMINI_FALLBACK_MODELS
+from app.core.config import GEMINI_FALLBACK_MODELS, MODEL_NAME
 from app.core.db import run_db
 from app.core.uploads import read_upload_capped
 from app.services.chatty_quota_service import WHITELABEL_PLANS, chatty_quota_exceeded, plan_for
@@ -474,9 +474,21 @@ async def widget_transcribe(
     ip = _client_ip(request)
     await _widget_rate_limit_or_429(bot, bot_id, ip, request.headers.get("x-widget-token"))
 
+    fmt = (mime.split("/", 1)[1] if "/" in mime else "wav").split(";")[0].strip().lower()
+    if fmt in ("x-wav", "vnd.wave", "wave"):
+        fmt = "wav"
+    elif fmt in ("mp3", "mpeg"):
+        fmt = "mp3"
+    elif fmt in ("ogg", "vorbis", "opus"):
+        fmt = "ogg"
+    elif fmt in ("webm",):
+        fmt = "webm"
+    elif fmt not in ("wav", "mp3", "ogg", "aac", "aiff", "flac", "webm"):
+        fmt = "wav"
+
     try:
         resp = await ai_client.chat(
-            model=ai_client.resolve_gemini_model("gemini-2.5-flash"),
+            model=ai_client.resolve_gemini_model(MODEL_NAME),
             fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
             messages=[{
                 "role": "user",
@@ -484,7 +496,7 @@ async def widget_transcribe(
                     {"type": "text", "text": _TRANSCRIBE_PROMPT},
                     {"type": "input_audio", "input_audio": {
                         "data": base64.b64encode(data).decode(),
-                        "format": mime.split("/", 1)[1],
+                        "format": fmt,
                     }},
                 ],
             }],
@@ -587,11 +599,14 @@ async def widget_chat_media(
 
     # Record the visitor's message (with file reference) in history
     display = (text.strip() + ("\n" if text.strip() else "")) + f"[attachment: {file.filename or mime}]"
+    user_msg_id = None
     try:
-        await run_db(lambda: supabase.table("chatty_conversations").insert({
+        ins_user = await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "user",
             "content": display + (f"\n{file_url}" if file_url else ""),
         }).execute())
+        if ins_user and ins_user.data:
+            user_msg_id = ins_user.data[0].get("id")
     except Exception:
         logger.exception("Failed to save media message")
     background_tasks.add_task(
@@ -614,12 +629,12 @@ async def widget_chat_media(
     transcript = result.get("transcript") or ""
 
     # If audio was transcribed and visitor had not typed a caption, update the user's conversation row
-    if transcript and not (text or "").strip():
+    if transcript and not (text or "").strip() and user_msg_id:
         try:
             transcript_display = f"🎤 {transcript}\n[attachment: {file.filename or mime}]" + (f"\n{file_url}" if file_url else "")
             await run_db(lambda: supabase.table("chatty_conversations").update({
                 "content": transcript_display,
-            }).eq("bot_id", bot_id).eq("session_id", session_id).eq("role", "user").order("created_at", desc=True).limit(1).execute())
+            }).eq("id", user_msg_id).execute())
         except Exception:
             logger.warning("Failed to update user conversation with transcript", exc_info=True)
 

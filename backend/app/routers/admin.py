@@ -18,6 +18,7 @@ from app.core.deps import require_user
 from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
 from app.core.uploads import read_upload_capped
 from app.core.config import ADMIN_BYPASS_EMAILS
+from plugins import notifications as notify
 from app.schemas.affiliate import (
     AdminAffiliatePayoutCreateRequest,
     AdminAffiliateRateUpdateRequest,
@@ -1620,7 +1621,7 @@ async def admin_create_affiliate_payout(
     payout_payload = {
         "affiliate_id": body.affiliate_id,
         "amount_cents": body.amount_cents,
-        "payout_method": body.payout_method or "paypal",
+        "payout_method": "paypal",
         "external_payout_id": body.external_payout_id,
         "notes": body.notes,
         "status": "paid",
@@ -1671,6 +1672,39 @@ async def admin_create_affiliate_payout(
             .execute()
         )
 
+    # Send payout confirmation email to affiliate
+    payout_email = aff_res.data[0].get("payout_email")
+    referral_code = aff_res.data[0].get("referral_code") or "Partner"
+    if payout_email:
+        formatted_amount = f"${body.amount_cents / 100:.2f}"
+        tx_line = f"<p style='margin: 0; color: #525252;'><strong>PayPal Transaction ID:</strong> <code>{body.external_payout_id}</code></p>" if body.external_payout_id else ""
+        email_html = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e5e5e5; border-radius: 16px;">
+            <div style="margin-bottom: 16px;">
+                <span style="background: #ffedd5; color: #ea580c; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 9999px; text-transform: uppercase;">Affiliate Payout</span>
+            </div>
+            <h2 style="color: #171717; margin: 0 0 12px 0;">Payment Disbursed to Your PayPal!</h2>
+            <p style="color: #525252; line-height: 1.5; margin: 0 0 16px 0;">Hi {referral_code},</p>
+            <p style="color: #525252; line-height: 1.5; margin: 0 0 16px 0;">We have disbursed your Chatty affiliate commission payment of <strong>{formatted_amount} USD</strong> to your PayPal account.</p>
+            <div style="background: #f5f5f5; padding: 16px; border-radius: 12px; margin: 16px 0;">
+                <p style="margin: 0 0 8px 0; color: #525252;"><strong>Amount:</strong> {formatted_amount} USD</p>
+                <p style="margin: 0 0 8px 0; color: #525252;"><strong>Payment Method:</strong> PayPal ({payout_email})</p>
+                <p style="margin: 0 0 8px 0; color: #525252;"><strong>Date:</strong> {datetime.now(timezone.utc).strftime('%B %d, %Y')}</p>
+                {tx_line}
+            </div>
+            <p style="color: #525252; line-height: 1.5; margin: 0 0 20px 0;">Your dashboard balance has been updated. Keep sharing your link to continue earning recurring monthly revenue!</p>
+            <div>
+                <a href="https://chatty.personaliai.com/dashboard" style="display: inline-block; background: #171717; color: #ffffff; padding: 10px 20px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 13px;">View Dashboard</a>
+            </div>
+        </div>
+        """
+        try:
+            for _, sender in notify._email_channels():
+                if await sender(to=payout_email, subject=f"Payment Sent: {formatted_amount} USD Chatty Affiliate Commission", html=email_html):
+                    break
+        except Exception:
+            logger.warning("Failed to send affiliate payout notification email to %s", payout_email, exc_info=True)
+
     return {
         "success": True,
         "payout": payout,
@@ -1702,3 +1736,72 @@ async def admin_list_affiliate_fraud_flags(
     }
 
 
+# ---------------------------------------------------------------------------
+# Webhook delivery log
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/api/admin/webhooks/{webhook_id}/deliveries",
+    tags=["Dashboard - Webhooks"],
+    summary="List delivery attempts for a webhook",
+    description=(
+        "Return the last 100 delivery attempts for a specific webhook endpoint, "
+        "ordered most-recent first. Shows HTTP status, latency, attempt number, "
+        "and a truncated response body preview."
+    ),
+)
+async def webhook_delivery_log(
+    webhook_id: str,
+    bot_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await _verify_bot_owner(bot_id, user)
+
+    # Verify the webhook belongs to this bot before exposing its deliveries
+    wh = await run_db(lambda: supabase.table("chatty_webhooks")
+        .select("id, bot_id, url")
+        .eq("id", webhook_id)
+        .eq("bot_id", bot_id)
+        .limit(1)
+        .execute())
+    if not wh.data:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+
+    res = await run_db(lambda: supabase.table("chatty_webhook_deliveries")
+        .select(
+            "id, event_type, status, http_status, attempt, latency_ms, "
+            "response_body, error_message, next_retry_at, created_at"
+        )
+        .eq("webhook_id", webhook_id)
+        .order("created_at", desc=True)
+        .range(offset, offset + limit - 1)
+        .execute())
+
+    total_res = await run_db(lambda: supabase.table("chatty_webhook_deliveries")
+        .select("id", count="exact")
+        .eq("webhook_id", webhook_id)
+        .execute())
+
+    deliveries = []
+    for d in (res.data or []):
+        # Truncate response body to 500 chars for the dashboard preview
+        body = d.get("response_body") or ""
+        deliveries.append({
+            **d,
+            "response_preview": body[:500] + ("…" if len(body) > 500 else ""),
+        })
+
+    return {
+        "webhook_id": webhook_id,
+        "webhook_url": wh.data[0]["url"],
+        "deliveries": deliveries,
+        "total": total_res.count or 0,
+        "limit": limit,
+        "offset": offset,
+    }

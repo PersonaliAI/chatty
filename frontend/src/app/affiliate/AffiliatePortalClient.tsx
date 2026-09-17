@@ -94,6 +94,24 @@ function cleanSlug(val: string): string {
     .slice(0, 80);
 }
 
+const TwitterIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
+
+const LinkedInIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+  </svg>
+);
+
+const WhatsAppIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+  </svg>
+);
+
 export function AffiliatePortalClient() {
   const supabase = createClient();
 
@@ -353,24 +371,24 @@ export function AffiliatePortalClient() {
       <div className="min-h-screen bg-[#faf8f5] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col font-sans">
         {/* Navigation Bar */}
         <header className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/70 dark:bg-neutral-900/70 backdrop-blur sticky top-0 z-30">
-          <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2.5">
-              <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-7 object-contain" />
-              <span className="font-serif text-xl font-bold tracking-tight">Chatty</span>
-              <span className="text-[10px] uppercase font-mono tracking-widest px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] font-semibold">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
+            <Link href="/" className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+              <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-6 sm:size-7 object-contain shrink-0" />
+              <span className="font-serif text-lg sm:text-xl font-bold tracking-tight">Chatty</span>
+              <span className="text-[9px] sm:text-[10px] uppercase font-mono tracking-widest px-1.5 sm:px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] font-semibold">
                 Partner
               </span>
             </Link>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <Link
                 href="/login?next=/affiliate"
-                className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 hover:text-neutral-950 dark:hover:text-white px-3 py-2 transition-colors"
+                className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 hover:text-neutral-950 dark:hover:text-white px-2.5 sm:px-3 py-2 transition-colors"
               >
                 Sign In
               </Link>
               <Link
                 href="/signup?next=/affiliate"
-                className="text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-100 px-4 py-2 rounded-full transition-all shadow-sm"
+                className="text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-100 px-3.5 sm:px-4 py-2 rounded-full transition-all shadow-sm"
               >
                 Join Program
               </Link>
@@ -379,23 +397,23 @@ export function AffiliatePortalClient() {
         </header>
 
         {/* Hero Section */}
-        <section className="max-w-6xl mx-auto px-6 py-16 lg:py-24 grid lg:grid-cols-12 gap-12 items-center flex-1">
-          <div className="lg:col-span-7 space-y-6">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16 lg:py-24 grid lg:grid-cols-12 gap-8 lg:gap-12 items-center flex-1">
+          <div className="lg:col-span-7 space-y-5 sm:space-y-6">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#f97316]/10 text-[#ea580c] dark:text-[#f97316] text-xs font-semibold">
               <Sparkles className="size-3.5" />
               Official Chatty Affiliate Program
             </div>
 
-            <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight">
+            <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight">
               Earn <span className="text-[#f97316]">30% recurring</span> revenue for every customer you refer.
             </h1>
 
-            <p className="text-lg text-neutral-600 dark:text-neutral-400 leading-relaxed max-w-xl">
+            <p className="text-base sm:text-lg text-neutral-600 dark:text-neutral-400 leading-relaxed max-w-xl">
               Recommend Chatty to your clients, audience, or community. When they build AI chatbots and automate lead capture, you get paid every single month for up to a full year.
             </p>
 
             {/* Benefit Bullets */}
-            <div className="grid sm:grid-cols-2 gap-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-2">
               <div className="flex items-start gap-3 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-xs">
                 <DollarSign className="size-5 text-[#ea580c] dark:text-[#f97316] mt-0.5 shrink-0" />
                 <div>
@@ -441,14 +459,14 @@ export function AffiliatePortalClient() {
             <div className="flex flex-col sm:flex-row gap-3 pt-4">
               <Link
                 href="/signup?next=/affiliate"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#f97316] hover:bg-[#ea580c] px-7 py-3.5 text-sm font-bold text-white shadow-md transition-all hover:scale-[1.01]"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#f97316] hover:bg-[#ea580c] px-6 sm:px-7 py-3.5 text-sm font-bold text-white shadow-md transition-all hover:scale-[1.01]"
               >
                 Apply as Partner
                 <ArrowRight className="size-4" />
               </Link>
               <Link
                 href="/login?next=/affiliate"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-850 px-6 py-3.5 text-sm font-semibold text-neutral-800 dark:text-neutral-200 transition-colors"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-850 px-5 sm:px-6 py-3.5 text-sm font-semibold text-neutral-800 dark:text-neutral-200 transition-colors"
               >
                 Existing Partner Login
               </Link>
@@ -456,8 +474,8 @@ export function AffiliatePortalClient() {
           </div>
 
           {/* Earnings Interactive Calculator Card */}
-          <div className="lg:col-span-5">
-            <div className="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-7 shadow-xl space-y-6">
+          <div className="lg:col-span-5 w-full">
+            <div className="rounded-2xl sm:rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 sm:p-7 shadow-xl space-y-5 sm:space-y-6">
               <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
                 <div>
                   <span className="text-[10px] font-mono uppercase tracking-widest text-[#ea580c] dark:text-[#f97316] font-bold">
@@ -477,19 +495,19 @@ export function AffiliatePortalClient() {
                 <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
                   Average Customer Plan:
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   {(["hobby", "standard", "business"] as const).map((p) => (
                     <button
                       key={p}
                       type="button"
                       onClick={() => setCalcPlan(p)}
-                      className={`px-3 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer capitalize ${
+                      className={`px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold rounded-xl border transition-all cursor-pointer capitalize text-center ${
                         calcPlan === p
                           ? "border-[#f97316] bg-[#f97316]/10 text-[#ea580c] dark:text-[#f97316] shadow-xs"
                           : "border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300"
                       }`}
                     >
-                      {p} (${planPrices[p]}/mo)
+                      {p} <span className="block sm:inline font-mono">(${planPrices[p]}/mo)</span>
                     </button>
                   ))}
                 </div>
@@ -517,17 +535,17 @@ export function AffiliatePortalClient() {
               </div>
 
               {/* Computed Reward */}
-              <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-850/60 border border-neutral-100 dark:border-neutral-800 space-y-3">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-850/60 border border-neutral-100 dark:border-neutral-800 space-y-3">
                 <div className="flex items-baseline justify-between">
                   <span className="text-xs text-neutral-500 dark:text-neutral-400">Monthly Recurring:</span>
-                  <span className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                  <span className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
                     ${estimatedMonthlyCommission.toLocaleString()}
                     <span className="text-xs font-normal text-neutral-400">/mo</span>
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between border-t border-neutral-200 dark:border-neutral-800 pt-2">
                   <span className="text-xs text-neutral-500 dark:text-neutral-400">Estimated 12-Month Total:</span>
-                  <span className="text-base font-bold font-mono text-neutral-900 dark:text-white">
+                  <span className="text-sm sm:text-base font-bold font-mono text-neutral-900 dark:text-white">
                     ${estimatedYearlyCommission.toLocaleString()}
                   </span>
                 </div>
@@ -553,10 +571,10 @@ export function AffiliatePortalClient() {
       <div className="min-h-screen bg-[#faf8f5] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col font-sans">
         {/* Navigation Bar */}
         <header className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/70 dark:bg-neutral-900/70 backdrop-blur sticky top-0 z-30">
-          <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
             <Link href="/dashboard" className="flex items-center gap-2">
-              <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-7 object-contain" />
-              <span className="font-serif text-lg font-bold">Chatty Partner Portal</span>
+              <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-6 sm:size-7 object-contain" />
+              <span className="font-serif text-base sm:text-lg font-bold">Chatty Partner</span>
             </Link>
             <Link
               href="/dashboard"
@@ -568,13 +586,13 @@ export function AffiliatePortalClient() {
         </header>
 
         {/* Onboarding Container */}
-        <main className="max-w-2xl mx-auto px-6 py-12 w-full flex-1">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 sm:p-10 shadow-lg space-y-8">
+        <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12 w-full flex-1">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl p-5 sm:p-8 sm:p-10 shadow-lg space-y-6 sm:space-y-8">
             <div>
               <span className="text-[10px] font-mono uppercase tracking-widest text-[#ea580c] dark:text-[#f97316] font-bold">
                 Step 1 of 1 &middot; Quick Setup
               </span>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 dark:text-white mt-1">
+              <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-neutral-900 dark:text-white mt-1">
                 Activate Your Affiliate Partner Account
               </h1>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2 leading-relaxed">
@@ -735,26 +753,26 @@ export function AffiliatePortalClient() {
 
       {/* Header Bar */}
       <header className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/80 dark:bg-neutral-900/80 backdrop-blur sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-7 object-contain" />
-              <span className="font-serif text-lg font-bold tracking-tight">Chatty</span>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Link href="/dashboard" className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-6 sm:size-7 object-contain shrink-0" />
+              <span className="font-serif text-base sm:text-lg font-bold tracking-tight">Chatty</span>
             </Link>
             <span className="text-neutral-300 dark:text-neutral-700">/</span>
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#ea580c] dark:text-[#f97316]">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[#ea580c] dark:text-[#f97316] truncate">
               Partner Dashboard
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full border border-neutral-200 dark:border-neutral-800 text-[11px] font-mono text-neutral-600 dark:text-neutral-400">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-full border border-neutral-200 dark:border-neutral-800 text-[11px] font-mono text-neutral-600 dark:text-neutral-400">
               <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
               Status: <span className="font-bold capitalize text-neutral-900 dark:text-white">{profile?.status || "active"}</span>
             </div>
             <Link
               href="/dashboard"
-              className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white px-3 py-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
             >
               Console
             </Link>
@@ -763,11 +781,11 @@ export function AffiliatePortalClient() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full flex-1 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 w-full flex-1 space-y-6 sm:space-y-8">
         {/* Partner Link Banner */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-1.5 flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 lg:gap-6">
+          <div className="space-y-2 flex-1 w-full min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-[10px] font-mono uppercase tracking-widest text-[#ea580c] dark:text-[#f97316] font-bold">
                 Your Unique Partner Referral Link
               </span>
@@ -775,14 +793,16 @@ export function AffiliatePortalClient() {
                 30% Recurring Active
               </span>
             </div>
-            <div className="flex items-center gap-2 pt-1">
-              <code className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs sm:text-sm font-mono text-neutral-900 dark:text-neutral-100 font-semibold truncate max-w-full">
-                {referralLink}
-              </code>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 w-full min-w-0">
+              <div className="flex-1 min-w-0 bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 flex items-center overflow-hidden">
+                <code className="text-xs sm:text-sm font-mono text-neutral-900 dark:text-neutral-100 font-semibold truncate select-all w-full">
+                  {referralLink}
+                </code>
+              </div>
               <button
                 type="button"
                 onClick={() => copyToClipboard(referralLink)}
-                className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-100 text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs"
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-100 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer shadow-xs"
               >
                 {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
                 {copied ? "Copied" : "Copy Link"}
@@ -791,125 +811,125 @@ export function AffiliatePortalClient() {
           </div>
 
           {/* Social Share Shortcuts */}
-          <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 md:border-l border-neutral-100 dark:border-neutral-800 pt-4 md:pt-0 md:pl-6">
-            <span className="text-xs font-semibold text-neutral-500 mr-1 hidden lg:inline">Share:</span>
+          <div className="w-full lg:w-auto flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0 border-t lg:border-t-0 lg:border-l border-neutral-100 dark:border-neutral-800 pt-4 lg:pt-0 lg:pl-6">
+            <span className="text-xs font-semibold text-neutral-500 mr-1 hidden xl:inline">Share:</span>
             <button
               type="button"
               onClick={shareOnTwitter}
-              className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="flex-1 sm:flex-none justify-center px-3 py-2 sm:py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors flex items-center gap-1.5 cursor-pointer"
               title="Share on X / Twitter"
             >
-              <Share2 className="size-3.5 text-[#f97316]" />
+              <TwitterIcon className="size-3.5 text-neutral-900 dark:text-white" />
               X / Twitter
             </button>
             <button
               type="button"
               onClick={shareOnLinkedIn}
-              className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="flex-1 sm:flex-none justify-center px-3 py-2 sm:py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors flex items-center gap-1.5 cursor-pointer"
               title="Share on LinkedIn"
             >
-              <ExternalLink className="size-3.5 text-blue-500" />
+              <LinkedInIcon className="size-3.5 text-[#0077b5]" />
               LinkedIn
             </button>
             <button
               type="button"
               onClick={shareOnWhatsApp}
-              className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="flex-1 sm:flex-none justify-center px-3 py-2 sm:py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors flex items-center gap-1.5 cursor-pointer"
               title="Share on WhatsApp"
             >
-              <Send className="size-3.5 text-emerald-500" />
+              <WhatsAppIcon className="size-3.5 text-[#25D366]" />
               WhatsApp
             </button>
           </div>
         </div>
 
         {/* 6-Metric KPI Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4">
           {/* Clicks */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1">
+          <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1 min-w-0">
             <div className="flex items-center justify-between text-neutral-400">
               <span className="text-[10px] font-mono uppercase tracking-wider">Clicks</span>
               <MousePointerClick className="size-3.5" />
             </div>
-            <p className="text-xl font-black font-mono text-neutral-900 dark:text-white">
+            <p className="text-lg sm:text-xl font-black font-mono text-neutral-900 dark:text-white truncate">
               {stats?.clicks_all_time ?? 0}
             </p>
-            <p className="text-[10px] text-neutral-500">
+            <p className="text-[10px] text-neutral-500 truncate">
               {stats?.clicks_last_30d ?? 0} in last 30d
             </p>
           </div>
 
           {/* Referrals */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1">
+          <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1 min-w-0">
             <div className="flex items-center justify-between text-neutral-400">
               <span className="text-[10px] font-mono uppercase tracking-wider">Signups</span>
               <Users className="size-3.5" />
             </div>
-            <p className="text-xl font-black font-mono text-neutral-900 dark:text-white">
+            <p className="text-lg sm:text-xl font-black font-mono text-neutral-900 dark:text-white truncate">
               {stats?.referrals_total ?? 0}
             </p>
-            <p className="text-[10px] text-neutral-500">Accounts created</p>
+            <p className="text-[10px] text-neutral-500 truncate">Accounts created</p>
           </div>
 
           {/* Conversions / Paying */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1">
+          <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1 min-w-0">
             <div className="flex items-center justify-between text-neutral-400">
               <span className="text-[10px] font-mono uppercase tracking-wider">Paying</span>
               <CheckCircle2 className="size-3.5 text-emerald-500" />
             </div>
-            <p className="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+            <p className="text-lg sm:text-xl font-black font-mono text-emerald-600 dark:text-emerald-400 truncate">
               {stats?.referrals_paid ?? 0}
             </p>
-            <p className="text-[10px] text-neutral-500">
+            <p className="text-[10px] text-neutral-500 truncate">
               {stats?.conversion_rate_percent ?? 0}% conversion
             </p>
           </div>
 
           {/* Pending Hold */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1">
+          <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1 min-w-0">
             <div className="flex items-center justify-between text-neutral-400">
               <span className="text-[10px] font-mono uppercase tracking-wider">Pending Hold</span>
               <Clock className="size-3.5 text-amber-500" />
             </div>
-            <p className="text-xl font-black font-mono text-amber-600 dark:text-amber-400">
+            <p className="text-lg sm:text-xl font-black font-mono text-amber-600 dark:text-amber-400 truncate">
               {formatCents(stats?.pending_cents ?? 0)}
             </p>
-            <p className="text-[10px] text-neutral-500">30d refund hold</p>
+            <p className="text-[10px] text-neutral-500 truncate">30d refund hold</p>
           </div>
 
           {/* Payable Balance */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-[#f97316]/30 dark:border-[#f97316]/30 shadow-xs space-y-1 relative overflow-hidden">
+          <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-neutral-900 border border-[#f97316]/30 dark:border-[#f97316]/30 shadow-xs space-y-1 relative overflow-hidden min-w-0">
             <div className="flex items-center justify-between text-[#ea580c] dark:text-[#f97316]">
               <span className="text-[10px] font-mono uppercase tracking-wider font-bold">Payable</span>
               <DollarSign className="size-3.5" />
             </div>
-            <p className="text-xl font-black font-mono text-[#ea580c] dark:text-[#f97316]">
+            <p className="text-lg sm:text-xl font-black font-mono text-[#ea580c] dark:text-[#f97316] truncate">
               {formatCents(stats?.payable_cents ?? 0)}
             </p>
-            <p className="text-[10px] text-neutral-500">Next payout cycle</p>
+            <p className="text-[10px] text-neutral-500 truncate">Next payout cycle</p>
           </div>
 
           {/* Lifetime Earned */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1">
+          <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-1 min-w-0">
             <div className="flex items-center justify-between text-neutral-400">
               <span className="text-[10px] font-mono uppercase tracking-wider">Total Earned</span>
               <Sparkles className="size-3.5 text-purple-500" />
             </div>
-            <p className="text-xl font-black font-mono text-neutral-900 dark:text-white">
+            <p className="text-lg sm:text-xl font-black font-mono text-neutral-900 dark:text-white truncate">
               {formatCents(stats?.lifetime_earnings_cents ?? 0)}
             </p>
-            <p className="text-[10px] text-neutral-500">
+            <p className="text-[10px] text-neutral-500 truncate">
               Paid: {formatCents(stats?.paid_cents ?? 0)}
             </p>
           </div>
         </div>
 
         {/* Portal Tabs Bar */}
-        <div className="border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-6 text-xs font-semibold">
+        <div className="border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-4 sm:gap-6 text-xs font-semibold overflow-x-auto no-scrollbar scrollbar-none pb-px -mx-4 px-4 sm:mx-0 sm:px-0">
           <button
             type="button"
             onClick={() => setActiveTab("overview")}
-            className={`pb-3 border-b-2 transition-colors cursor-pointer ${
+            className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === "overview"
                 ? "border-[#f97316] text-[#ea580c] dark:text-[#f97316]"
                 : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
@@ -920,7 +940,7 @@ export function AffiliatePortalClient() {
           <button
             type="button"
             onClick={() => setActiveTab("referrals")}
-            className={`pb-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`pb-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === "referrals"
                 ? "border-[#f97316] text-[#ea580c] dark:text-[#f97316]"
                 : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
@@ -936,7 +956,7 @@ export function AffiliatePortalClient() {
           <button
             type="button"
             onClick={() => setActiveTab("payouts")}
-            className={`pb-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`pb-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === "payouts"
                 ? "border-[#f97316] text-[#ea580c] dark:text-[#f97316]"
                 : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
@@ -947,7 +967,7 @@ export function AffiliatePortalClient() {
           <button
             type="button"
             onClick={() => setActiveTab("settings")}
-            className={`pb-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`pb-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === "settings"
                 ? "border-[#f97316] text-[#ea580c] dark:text-[#f97316]"
                 : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
@@ -962,7 +982,7 @@ export function AffiliatePortalClient() {
         {activeTab === "overview" && (
           <div className="grid md:grid-cols-2 gap-6">
             {/* Promo Snippets */}
-            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
               <h2 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
                 <Share2 className="size-4 text-[#f97316]" />
                 Ready-to-Use Copy &amp; Snippets
@@ -987,8 +1007,8 @@ export function AffiliatePortalClient() {
                     Copy
                   </button>
                 </div>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 italic">
-                  &ldquo;We use Chatty to automate customer support and capture leads on our site. Highly recommend checking it out: {referralLink}&rdquo;
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 italic break-words">
+                  &ldquo;We use Chatty to automate customer support and capture leads on our site. Highly recommend checking it out: <span className="break-all">{referralLink}</span>&rdquo;
                 </p>
               </div>
 
@@ -1006,14 +1026,14 @@ export function AffiliatePortalClient() {
                     Copy
                   </button>
                 </div>
-                <code className="text-xs font-mono text-neutral-700 dark:text-neutral-300 block">
+                <code className="text-xs font-mono text-neutral-700 dark:text-neutral-300 block break-all">
                   [Powered by Chatty AI]({referralLink})
                 </code>
               </div>
             </div>
 
             {/* Program Rules & FAQ */}
-            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
               <h2 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
                 <ShieldCheck className="size-4 text-emerald-500" />
                 Affiliate Guidelines &amp; Policies
@@ -1051,8 +1071,8 @@ export function AffiliatePortalClient() {
 
         {/* Tab 2: Referrals History */}
         {activeTab === "referrals" && (
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden shadow-xs">
-            <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl sm:rounded-2xl overflow-hidden shadow-xs">
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
               <h2 className="text-sm font-bold text-neutral-900 dark:text-white">
                 Referred Conversions &amp; Accounts
               </h2>
@@ -1062,7 +1082,7 @@ export function AffiliatePortalClient() {
             </div>
 
             {recentReferrals.length === 0 ? (
-              <div className="py-12 px-6 text-center space-y-2">
+              <div className="py-12 px-4 sm:px-6 text-center space-y-2">
                 <Users className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
                 <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
                   No referrals tracked yet
@@ -1073,23 +1093,23 @@ export function AffiliatePortalClient() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[560px]">
                   <thead className="bg-neutral-50 dark:bg-neutral-950 text-neutral-500 uppercase font-mono text-[10px] border-b border-neutral-200 dark:border-neutral-800">
                     <tr>
-                      <th className="py-3 px-6">Referral ID</th>
-                      <th className="py-3 px-6">Status</th>
-                      <th className="py-3 px-6">First Seen</th>
-                      <th className="py-3 px-6">Converted At</th>
-                      <th className="py-3 px-6 text-right">Commission</th>
+                      <th className="py-3 px-3 sm:px-6">Referral ID</th>
+                      <th className="py-3 px-3 sm:px-6">Status</th>
+                      <th className="py-3 px-3 sm:px-6">First Seen</th>
+                      <th className="py-3 px-3 sm:px-6">Converted At</th>
+                      <th className="py-3 px-3 sm:px-6 text-right">Commission</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-neutral-700 dark:text-neutral-300">
                     {recentReferrals.map((ref) => (
                       <tr key={ref.id} className="hover:bg-neutral-50/60 dark:hover:bg-neutral-850/40 transition-colors">
-                        <td className="py-3.5 px-6 font-mono font-medium">
+                        <td className="py-3.5 px-3 sm:px-6 font-mono font-medium">
                           {ref.id.slice(0, 8)}...
                         </td>
-                        <td className="py-3.5 px-6">
+                        <td className="py-3.5 px-3 sm:px-6">
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold ${
                               ref.status === "paid"
@@ -1104,13 +1124,13 @@ export function AffiliatePortalClient() {
                             {ref.status}
                           </span>
                         </td>
-                        <td className="py-3.5 px-6 text-neutral-500 font-mono">
+                        <td className="py-3.5 px-3 sm:px-6 text-neutral-500 font-mono">
                           {ref.first_seen_at ? new Date(ref.first_seen_at).toLocaleDateString() : new Date(ref.created_at).toLocaleDateString()}
                         </td>
-                        <td className="py-3.5 px-6 text-neutral-500 font-mono">
+                        <td className="py-3.5 px-3 sm:px-6 text-neutral-500 font-mono">
                           {ref.converted_at ? new Date(ref.converted_at).toLocaleDateString() : "-"}
                         </td>
-                        <td className="py-3.5 px-6 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        <td className="py-3.5 px-3 sm:px-6 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
                           {formatCents(ref.total_commission_cents || 0)}
                         </td>
                       </tr>
@@ -1126,7 +1146,7 @@ export function AffiliatePortalClient() {
         {activeTab === "payouts" && (
           <div className="space-y-6">
             {/* Payout Progress Bar */}
-            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xs space-y-3">
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xs space-y-3">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-bold text-neutral-900 dark:text-white">
                   Minimum Payout Threshold Progress
@@ -1152,8 +1172,8 @@ export function AffiliatePortalClient() {
             </div>
 
             {/* Payouts Table */}
-            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden shadow-xs">
-              <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl sm:rounded-2xl overflow-hidden shadow-xs">
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
                 <h2 className="text-sm font-bold text-neutral-900 dark:text-white">Disbursement Ledger</h2>
                 <span className="text-xs text-neutral-400 font-mono">
                   {recentPayouts.length} disbursements
@@ -1161,7 +1181,7 @@ export function AffiliatePortalClient() {
               </div>
 
               {recentPayouts.length === 0 ? (
-                <div className="py-12 px-6 text-center space-y-2">
+                <div className="py-12 px-4 sm:px-6 text-center space-y-2">
                   <DollarSign className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
                   <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
                     No payouts processed yet
@@ -1172,34 +1192,34 @@ export function AffiliatePortalClient() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs min-w-[560px]">
                     <thead className="bg-neutral-50 dark:bg-neutral-950 text-neutral-500 uppercase font-mono text-[10px] border-b border-neutral-200 dark:border-neutral-800">
                       <tr>
-                        <th className="py-3 px-6">Date</th>
-                        <th className="py-3 px-6">Method</th>
-                        <th className="py-3 px-6">Transaction ID</th>
-                        <th className="py-3 px-6">Status</th>
-                        <th className="py-3 px-6 text-right">Amount</th>
+                        <th className="py-3 px-3 sm:px-6">Date</th>
+                        <th className="py-3 px-3 sm:px-6">Method</th>
+                        <th className="py-3 px-3 sm:px-6">Transaction ID</th>
+                        <th className="py-3 px-3 sm:px-6">Status</th>
+                        <th className="py-3 px-3 sm:px-6 text-right">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-neutral-700 dark:text-neutral-300">
                       {recentPayouts.map((p) => (
                         <tr key={p.id}>
-                          <td className="py-3 px-6 font-mono text-neutral-500">
+                          <td className="py-3 px-3 sm:px-6 font-mono text-neutral-500">
                             {p.paid_at ? new Date(p.paid_at).toLocaleDateString() : new Date(p.created_at).toLocaleDateString()}
                           </td>
-                          <td className="py-3 px-6 font-medium capitalize">
+                          <td className="py-3 px-3 sm:px-6 font-medium capitalize">
                             {p.payout_method}
                           </td>
-                          <td className="py-3 px-6 font-mono text-neutral-400">
+                          <td className="py-3 px-3 sm:px-6 font-mono text-neutral-400">
                             {p.external_payout_id || "-"}
                           </td>
-                          <td className="py-3 px-6">
+                          <td className="py-3 px-3 sm:px-6">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 font-bold">
                               {p.status}
                             </span>
                           </td>
-                          <td className="py-3 px-6 text-right font-mono font-bold text-neutral-900 dark:text-white">
+                          <td className="py-3 px-3 sm:px-6 text-right font-mono font-bold text-neutral-900 dark:text-white">
                             {formatCents(p.amount_cents)}
                           </td>
                         </tr>
@@ -1214,7 +1234,7 @@ export function AffiliatePortalClient() {
 
         {/* Tab 4: Payout Settings */}
         {activeTab === "settings" && (
-          <div className="max-w-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+          <div className="max-w-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl sm:rounded-2xl p-5 sm:p-8 shadow-xs space-y-6">
             <div>
               <h2 className="text-base font-bold text-neutral-900 dark:text-white">
                 Affiliate Profile &amp; Payout Settings
