@@ -293,6 +293,14 @@ export default function Home() {
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMcpInstallTab, setActiveMcpInstallTab] = useState<McpInstallTab>("plugin");
+  const [activeAnnouncement, setActiveAnnouncement] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveAnnouncement((prev) => (prev === 0 ? 1 : 0));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     captureAffiliateReferral(new URLSearchParams(window.location.search));
@@ -320,12 +328,41 @@ export default function Home() {
 
   return (
     <div className={`${caprasimo.variable} ${figtree.variable} antialiased`} style={{ ...colorVars, fontFamily: "var(--font-body)", background: "var(--color-bg)", color: "var(--color-text)", overflowX: "clip" }}>
-      {/* Announcement bar */}
-      <div className="text-center px-5 py-2.5 text-[13px] sm:text-[13.5px]" style={{ background: "var(--color-accent-2-100)" }}>
-        <span className="font-semibold" style={{ color: "var(--color-accent-2-800)" }}>NEW</span>
-        <span className="hidden sm:inline" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Chatty now ships a full MCP server: run your whole dashboard from a conversation.</span>
-        <span className="sm:hidden" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Chatty now ships a full MCP server.</span>
-        <a href="#mcp" className="ml-1.5 font-semibold whitespace-nowrap" style={{ color: "var(--color-accent)" }}>Learn more →</a>
+      {/* Announcement bar auto slider */}
+      <div className="relative overflow-hidden h-[40px] sm:h-[44px] transition-colors duration-700" style={{ background: activeAnnouncement === 0 ? "var(--color-accent-2-100)" : "var(--color-accent-100)" }}>
+        {/* MCP Notification */}
+        <div 
+          className="absolute inset-0 flex items-center justify-center text-center px-5 text-[13px] sm:text-[13.5px] transition-transform duration-700 ease-in-out" 
+          style={{ 
+            transform: activeAnnouncement === 0 ? "translateY(0)" : "translateY(-100%)",
+            opacity: activeAnnouncement === 0 ? 1 : 0,
+            pointerEvents: activeAnnouncement === 0 ? "auto" : "none"
+          }}
+        >
+          <div>
+            <span className="font-semibold" style={{ color: "var(--color-accent-2-800)" }}>NEW</span>
+            <span className="hidden sm:inline" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Chatty now ships a full MCP server: run your dashboard from a conversation.</span>
+            <span className="sm:hidden" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Chatty now ships a full MCP server.</span>
+            <a href="#mcp" className="ml-1.5 font-semibold whitespace-nowrap" style={{ color: "var(--color-accent)" }}>Learn more →</a>
+          </div>
+        </div>
+        
+        {/* Affiliate Notification */}
+        <div 
+          className="absolute inset-0 flex items-center justify-center text-center px-5 text-[13px] sm:text-[13.5px] transition-transform duration-700 ease-in-out" 
+          style={{ 
+            transform: activeAnnouncement === 1 ? "translateY(0)" : "translateY(100%)",
+            opacity: activeAnnouncement === 1 ? 1 : 0,
+            pointerEvents: activeAnnouncement === 1 ? "auto" : "none"
+          }}
+        >
+          <div>
+            <span className="font-semibold" style={{ color: "var(--color-accent-800)" }}>PARTNERS</span>
+            <span className="hidden sm:inline" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Earn 30% monthly recurring commission by joining our Affiliate Program.</span>
+            <span className="sm:hidden" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}> — Earn 30% recurring commission.</span>
+            <Link href="/affiliate" className="ml-1.5 font-semibold whitespace-nowrap" style={{ color: "var(--color-accent)" }}>Join now →</Link>
+          </div>
+        </div>
       </div>
 
       {/* Nav */}
