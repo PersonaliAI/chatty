@@ -151,7 +151,8 @@ async def _translate_to_english_for_rag(text: str) -> str:
         return text
     try:
         response = await ai_client.chat(
-            model=ai_client.resolve_gemini_model("gemini-2.5-flash"),
+            model=ai_client.resolve_gemini_model(MODEL_NAME),
+            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
             messages=[{
                 "role": "user",
                 "content": (
@@ -248,7 +249,24 @@ def _extract_user_text(m: dict) -> str:
             if isinstance(p, dict) and isinstance(p.get("text"), str):
                 parts.append(p["text"])
         return " ".join(parts)
-    return ""
+def _extract_flow_actions(reply: str) -> tuple[str, Optional[dict[str, Any]]]:
+    """Extract machine-readable [FLOW_ADVANCE: ...] or [FLOW_DATA: {...}] from LLM reply,
+    returning the clean display reply and structured flow_action dictionary."""
+    advance_match = re.search(r"\[FLOW_ADVANCE:\s*([^\]]+)\]", reply)
+    data_match = re.search(r"\[FLOW_DATA:\s*(\{.*?\})\]", reply)
+
+    flow_action: dict[str, Any] = {}
+    if advance_match:
+        flow_action["advance_to"] = advance_match.group(1).strip()
+    if data_match:
+        try:
+            flow_action["captured"] = json.loads(data_match.group(1).strip())
+        except Exception:
+            pass
+
+    clean_reply = re.sub(r"\[FLOW_ADVANCE:\s*[^\]]+\]", "", reply)
+    clean_reply = re.sub(r"\[FLOW_DATA:\s*\{.*?\}\]", "", clean_reply).strip()
+    return clean_reply, flow_action if flow_action else None
 
 
 async def run_widget_assistant(
@@ -264,7 +282,8 @@ async def run_widget_assistant(
     visitor_geo: Optional[dict[str, Any]] = None,
     on_token=None,
     voice_mode: bool = False,
-) -> dict[str, str]:
+    flow_context: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
     visitor_country = (visitor_geo or {}).get("country")
     # 1. Retrieve history
     res_history = await run_db(lambda: supabase.table("chatty_conversations")
@@ -301,7 +320,9 @@ async def run_widget_assistant(
                 raw_fmt = "mp3"
             elif raw_fmt in ("ogg", "vorbis", "opus"):
                 raw_fmt = "ogg"
-            elif raw_fmt not in ("wav", "mp3", "ogg", "aac", "aiff", "flac"):
+            elif raw_fmt in ("webm",):
+                raw_fmt = "webm"
+            elif raw_fmt not in ("wav", "mp3", "ogg", "aac", "aiff", "flac", "webm"):
                 raw_fmt = "wav"
 
             # Auto-transcribe audio via Gemini STT so that:
@@ -316,7 +337,7 @@ async def run_widget_assistant(
             )
             try:
                 stt_resp = await ai_client.chat(
-                    model=ai_client.resolve_gemini_model("gemini-2.5-flash"),
+                    model=ai_client.resolve_gemini_model(MODEL_NAME),
                     fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
                     messages=[{
                         "role": "user",
@@ -362,13 +383,16 @@ async def run_widget_assistant(
 
             prompt_text = (text.strip() + "\n\n" + media_instruction) if text.strip() else media_instruction
             content_blocks: list[dict] = [{"type": "text", "text": prompt_text}]
-            try:
-                content_blocks.append({"type": "input_audio", "input_audio": {
-                    "data": base64.b64encode(media_bytes).decode(),
-                    "format": raw_fmt,
-                }})
-            except Exception:
-                logger.exception("Failed to attach media part to widget message")
+            # Only attach raw audio bytes if speech was NOT transcribed. When transcribed,
+            # using text avoids token bloat, tool-calling breakage, and errors on BYOK/fallback models.
+            if not transcribed_voice:
+                try:
+                    content_blocks.append({"type": "input_audio", "input_audio": {
+                        "data": base64.b64encode(media_bytes).decode(),
+                        "format": raw_fmt,
+                    }})
+                except Exception:
+                    logger.exception("Failed to attach media part to widget message")
             messages.append({"role": "user", "content": content_blocks})
         elif media_mime.startswith("image/"):
             media_instruction = (
@@ -901,9 +925,44 @@ async def run_widget_assistant(
         )
         visitor_memory_block = "\n".join(mem_sections) + "\n\n"
 
+    flow_directive_block = ""
+    if flow_context:
+        curr_node = flow_context.get("current_node") or {}
+        flow_name = flow_context.get("flow_name") or "Interactive Qualification Flow"
+        node_type = curr_node.get("type") or flow_context.get("node_type") or "aiQualify"
+        node_label = curr_node.get("label") or flow_context.get("label") or ""
+        node_prompt = curr_node.get("prompt") or flow_context.get("prompt") or ""
+        options = curr_node.get("options") or flow_context.get("options") or []
+        field = curr_node.get("field") or flow_context.get("field") or ""
+        collected = flow_context.get("collected_data") or {}
+
+        opt_text = ", ".join([f'"{o}"' for o in options]) if options else ""
+        flow_directive_block = (
+            f"\n=== ACTIVE CONVERSATIONAL WORKFLOW OBJECTIVE (INTERCOM FIN INTELLIGENCE) ===\n"
+            f"You are executing the workflow \"{flow_name}\" as an intelligent, consultative AI partner (NOT a dumb, rigid robotic script).\n"
+            f"Current Flow Stage: {node_type.upper()}\n"
+            f"Stage Goal / Topic: {node_label}\n"
+            f"{f'Custom Directive: {node_prompt}\n' if node_prompt else ''}"
+            f"{f'Available Choices for Visitor: {opt_text}\n' if opt_text else ''}"
+            f"{f'Target Lead Field to Capture: {field}\n' if field else ''}"
+            f"{f'Information Known So Far: {collected}\n' if collected else ''}"
+            f"\nCORE AI INTELLIGENCE PRINCIPLES:\n"
+            f"1. REAL AI CONSULTING: If the visitor asks a question (about features, pricing, integrations like Salesforce/Zendesk, security, or how it works), ALWAYS answer their question thoroughly first using your business knowledge base, then smoothly bridge back to the workflow goal.\n"
+            f"2. CONSULTATIVE AMBIGUITY RESOLUTION: If the user says 'idk', 'not sure', 'what\\'s the difference', or seems undecided:\n"
+            f"   - NEVER end the conversation with a generic canned statement like 'we will get back to you'.\n"
+            f"   - Explain the differences between the options warmly and consultatively.\n"
+            f"   - Give a practical recommendation based on common business needs and ask which one resonates with them.\n"
+            f"3. FLUID CONVERSATION: Acknowledge what the user said naturally before asking the next question. Avoid repeating the exact canned prompt verbatim.\n"
+            f"4. ENTITY CAPTURE: If this stage aims to capture a contact detail (like email or company) and the user provides it in natural conversation, warmly acknowledge it and transition to the next step.\n"
+            f"5. DEMO & MEETING BOOKING: If the conversation reaches scheduling a meeting or demo, invite them to pick a slot and ALWAYS include [BOOKING_WIDGET] at the end of your message so the calendar scheduler appears.\n"
+            f"6. FLOW TAGS: At the very end of your response, if you have identified the next branch/action or extracted lead data, you may optionally append: [FLOW_ADVANCE: <target_branch_or_node_id>] and/or [FLOW_DATA: {{\"field\": \"value\"}}]. These will be parsed by the system.\n"
+            f"=== END ACTIVE CONVERSATIONAL WORKFLOW OBJECTIVE ===\n\n"
+        )
+
     system_instruction = (
         f"{persona}"
         f"{voice_role_block}"
+        f"{flow_directive_block}"
         f"Business owner's custom instructions: {bot.get('system_instructions', '') or '(none)'}\n\n"
         f"=== BUSINESS KNOWLEDGE ===\n"
         f"{knowledge_context or '(no knowledge added yet)'}\n"
@@ -936,7 +995,8 @@ async def run_widget_assistant(
                 session_id=session_id,
             )
             if byok_reply:
-                return {"reply": byok_reply, "thinking": "", "sources": _refs_grounded_in_reply(source_refs, byok_reply), "transcript": transcribed_voice or ""}
+                clean_reply, flow_action = _extract_flow_actions(byok_reply)
+                return {"reply": clean_reply, "thinking": "", "sources": _refs_grounded_in_reply(source_refs, clean_reply), "transcript": transcribed_voice or "", "flow_action": flow_action}
             logger.warning("BYOK provider %s returned an empty reply for bot %s - falling back to Gemini", byok_provider, bot_id)
         except Exception as exc:
             # api_key is a customer's own third-party LLM credential - some
@@ -1082,10 +1142,11 @@ async def run_widget_assistant(
             elif booking_tool_succeeded or booking_mode == "conversational_only":
                 reply = reply.replace("[BOOKING_WIDGET]", "").strip()
 
+            clean_reply, flow_action = _extract_flow_actions(reply)
             if on_token and not stream_live:
                 # Held back for validation above - release it now as one chunk.
-                await on_token(reply)
-            return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply), "transcript": transcribed_voice or ""}
+                await on_token(clean_reply)
+            return {"reply": clean_reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, clean_reply), "transcript": transcribed_voice or "", "flow_action": flow_action}
 
         messages.append(gen["message"])
 
@@ -1175,9 +1236,10 @@ async def run_widget_assistant(
     elif booking_tool_succeeded or booking_mode == "conversational_only":
         reply = reply.replace("[BOOKING_WIDGET]", "").strip()
 
+    clean_reply, flow_action = _extract_flow_actions(reply)
     if on_token and not stream_live:
-        await on_token(reply)
-    return {"reply": reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, reply), "transcript": transcribed_voice or ""}
+        await on_token(clean_reply)
+    return {"reply": clean_reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, clean_reply), "transcript": transcribed_voice or "", "flow_action": flow_action}
 
 
 _STOPWORDS = {

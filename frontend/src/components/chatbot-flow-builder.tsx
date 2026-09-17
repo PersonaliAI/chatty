@@ -34,6 +34,12 @@ import {
   Tag,
   Zap,
   CloudCheck,
+  ListFilter,
+  Calendar,
+  Clock,
+  Mail,
+  Plus,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -46,6 +52,10 @@ interface Props {
 
 interface FlowNodeData {
   label?: string;
+  options?: string[];
+  field?: string;
+  validation?: string;
+  prompt?: string;
 }
 
 interface FlowNodeProps {
@@ -151,6 +161,164 @@ function QuestionNode({ data, selected }: FlowNodeProps) {
   );
 }
 
+function ChoiceNode({ data, selected }: FlowNodeProps) {
+  const options = (data.options && data.options.length > 0)
+    ? data.options
+    : ["Inbound sales", "Customer support", "Other"];
+  return (
+    <div
+      className={`min-w-[240px] max-w-[300px] bg-white dark:bg-neutral-900 text-neutral-800 dark:text-white rounded-xl shadow-md border-2 transition-all ${
+        selected ? "border-violet-500 ring-4 ring-violet-500/20 scale-105" : "border-violet-100 dark:border-violet-900/50"
+      }`}
+    >
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!bg-violet-500 !w-3 !h-3 !border-2 !border-white"
+      />
+      <div className="p-2.5 bg-violet-50/80 dark:bg-violet-950/40 border-b border-violet-100 dark:border-violet-900/30 flex items-center justify-between rounded-t-lg">
+        <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 font-bold text-[11px]">
+          <ListFilter className="size-3.5" />
+          <span>Multi-Choice Buttons</span>
+        </div>
+        <span className="text-[9px] text-violet-600 font-semibold bg-violet-100 dark:bg-violet-900/50 px-1.5 py-0.5 rounded">
+          Interactive
+        </span>
+      </div>
+      <div className="p-3 space-y-2">
+        <p className="text-[11px] leading-relaxed break-words font-medium text-neutral-800 dark:text-neutral-100">
+          {(data.label || "").replace(/^🔘\s*(Choice:\s*)?/, "")}
+        </p>
+        <div className="flex flex-wrap gap-1 pt-1">
+          {options.map((opt, idx) => (
+            <span
+              key={idx}
+              className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 truncate max-w-[130px]"
+            >
+              {opt}
+            </span>
+          ))}
+        </div>
+      </div>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!bg-violet-500 !w-3.5 !h-3.5 !border-2 !border-white transition-transform hover:scale-125"
+      />
+    </div>
+  );
+}
+
+function LeadCaptureNode({ data, selected }: FlowNodeProps) {
+  return (
+    <div
+      className={`min-w-[230px] max-w-[290px] bg-white dark:bg-neutral-900 text-neutral-800 dark:text-white rounded-xl shadow-md border-2 transition-all ${
+        selected ? "border-cyan-500 ring-4 ring-cyan-500/20 scale-105" : "border-cyan-100 dark:border-cyan-900/50"
+      }`}
+    >
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!bg-cyan-500 !w-3 !h-3 !border-2 !border-white"
+      />
+      <div className="p-2.5 bg-cyan-50/80 dark:bg-cyan-950/40 border-b border-cyan-100 dark:border-cyan-900/30 flex items-center justify-between rounded-t-lg">
+        <div className="flex items-center gap-1.5 text-cyan-600 dark:text-cyan-400 font-bold text-[11px]">
+          <UserCheck className="size-3.5" />
+          <span>Lead Capture</span>
+        </div>
+        <span className="text-[9px] text-cyan-600 font-semibold bg-cyan-100 dark:bg-cyan-900/50 px-1.5 py-0.5 rounded">
+          Auto-Validate
+        </span>
+      </div>
+      <div className="p-3 text-[11px] leading-relaxed break-words font-medium text-neutral-800 dark:text-neutral-100 space-y-1.5">
+        <p>{(data.label || "").replace(/^👤\s*(Capture:\s*)?/, "")}</p>
+        <div className="flex items-center gap-1 text-[9px] text-cyan-700 dark:text-cyan-300 font-semibold bg-cyan-50 dark:bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-200/60 dark:border-cyan-800/40">
+          <Mail className="size-2.5" />
+          <span>Field: {data.field || "Business Email"}</span>
+        </div>
+      </div>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!bg-cyan-500 !w-3 !h-3 !border-2 !border-white"
+      />
+    </div>
+  );
+}
+
+function AiQualifyNode({ data, selected }: FlowNodeProps) {
+  return (
+    <div
+      className={`min-w-[240px] max-w-[300px] bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-white dark:from-indigo-950/30 dark:via-purple-950/20 dark:to-neutral-900 text-neutral-800 dark:text-white rounded-xl shadow-md border-2 transition-all ${
+        selected ? "border-indigo-500 ring-4 ring-indigo-500/20 scale-105" : "border-indigo-200 dark:border-indigo-800/60"
+      }`}
+    >
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!bg-indigo-500 !w-3 !h-3 !border-2 !border-white"
+      />
+      <div className="p-2.5 bg-indigo-50/80 dark:bg-indigo-950/60 border-b border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between rounded-t-lg">
+        <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold text-[11px]">
+          <Sparkles className="size-3.5" />
+          <span>AI Smart Qualify</span>
+        </div>
+        <span className="text-[8px] text-indigo-700 dark:text-indigo-300 font-bold bg-indigo-100 dark:bg-indigo-900/60 px-1.5 py-0.5 rounded uppercase">
+          Dynamic AI
+        </span>
+      </div>
+      <div className="p-3 text-[11px] leading-relaxed break-words font-medium text-neutral-800 dark:text-neutral-100 space-y-1.5">
+        <p>{(data.label || "").replace(/^🤖\s*(AI Qualify:\s*)?/, "")}</p>
+        <div className="text-[9px] text-indigo-600 dark:text-indigo-300 font-semibold bg-white/70 dark:bg-neutral-950/60 p-1.5 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+          💡 Resolves ambiguous replies (e.g. &quot;idk&quot;) with clarifying guidance
+        </div>
+      </div>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!bg-indigo-500 !w-3 !h-3 !border-2 !border-white"
+      />
+    </div>
+  );
+}
+
+function BookMeetingNode({ data, selected }: FlowNodeProps) {
+  return (
+    <div
+      className={`min-w-[240px] max-w-[300px] bg-white dark:bg-neutral-900 text-neutral-800 dark:text-white rounded-xl shadow-md border-2 transition-all ${
+        selected ? "border-emerald-500 ring-4 ring-emerald-500/20 scale-105" : "border-emerald-200 dark:border-emerald-800/60"
+      }`}
+    >
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white"
+      />
+      <div className="p-2.5 bg-emerald-50/80 dark:bg-emerald-950/40 border-b border-emerald-100 dark:border-emerald-900/30 flex items-center justify-between rounded-t-lg">
+        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">
+          <Calendar className="size-3.5" />
+          <span>Schedule Demo / Meeting</span>
+        </div>
+        <span className="text-[9px] text-emerald-600 font-semibold bg-emerald-100 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded">
+          Inline Calendar
+        </span>
+      </div>
+      <div className="p-3 text-[11px] leading-relaxed break-words font-medium text-neutral-800 dark:text-neutral-100 space-y-1">
+        <p>{(data.label || "").replace(/^📅\s*(Schedule:\s*)?/, "")}</p>
+        <div className="text-[9px] text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-50 dark:bg-emerald-950/60 p-1.5 rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 flex items-center gap-1">
+          <Clock className="size-3" />
+          <span>Renders real-time calendar slots in chat</span>
+        </div>
+      </div>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white"
+      />
+    </div>
+  );
+}
+
 function TagNode({ data, selected }: FlowNodeProps) {
   return (
     <div
@@ -240,6 +408,10 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [nodeLabel, setNodeLabel] = useState("");
+  const [nodeOptions, setNodeOptions] = useState<string[]>([]);
+  const [newOptionText, setNewOptionText] = useState("");
+  const [nodeField, setNodeField] = useState("email");
+  const [nodeAiPrompt, setNodeAiPrompt] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(() => !!botId);
@@ -261,6 +433,10 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
       input: StartNode,
       message: MessageNode,
       question: QuestionNode,
+      choice: ChoiceNode,
+      leadCapture: LeadCaptureNode,
+      aiQualify: AiQualifyNode,
+      bookMeeting: BookMeetingNode,
       setTag: TagNode,
       escalate: EscalateNode,
     }),
@@ -296,6 +472,10 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
               let type = n.type || "message";
               const label = (n.data as FlowNodeData)?.label || "";
               if (n.id === "start" || label.includes("Start")) type = "start";
+              else if (n.type === "choice" || label.startsWith("🔘") || n.id.startsWith("choice-")) type = "choice";
+              else if (n.type === "leadCapture" || label.startsWith("👤") || n.id.startsWith("lead-")) type = "leadCapture";
+              else if (n.type === "aiQualify" || label.startsWith("🤖") || n.id.startsWith("ai-")) type = "aiQualify";
+              else if (n.type === "bookMeeting" || label.startsWith("📅") || n.id.startsWith("meet-")) type = "bookMeeting";
               else if (label.startsWith("❓") || n.id.startsWith("q-")) type = "question";
               else if (label.startsWith("🏷️") || n.id.startsWith("tag-")) type = "setTag";
               else if (label.startsWith("🔔") || n.id.startsWith("esc-")) type = "escalate";
@@ -408,6 +588,10 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
             let type = n.type || "message";
             const label = (n.data as FlowNodeData)?.label || "";
             if (n.id === "start" || label.includes("Start")) type = "start";
+            else if (n.type === "choice" || label.startsWith("🔘") || n.id.startsWith("choice-")) type = "choice";
+            else if (n.type === "leadCapture" || label.startsWith("👤") || n.id.startsWith("lead-")) type = "leadCapture";
+            else if (n.type === "aiQualify" || label.startsWith("🤖") || n.id.startsWith("ai-")) type = "aiQualify";
+            else if (n.type === "bookMeeting" || label.startsWith("📅") || n.id.startsWith("meet-")) type = "bookMeeting";
             else if (label.startsWith("❓") || n.id.startsWith("q-")) type = "question";
             else if (label.startsWith("🏷️") || n.id.startsWith("tag-")) type = "setTag";
             else if (label.startsWith("🔔") || n.id.startsWith("esc-")) type = "escalate";
@@ -464,6 +648,69 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
     ]);
   };
 
+  const addChoiceNode = () => {
+    const id = `choice-${Date.now()}`;
+    setNodes((nds) => [
+      ...nds,
+      {
+        id,
+        type: "choice",
+        data: {
+          label: "🔘 To get you to the right demo, how are you looking to use our product?",
+          options: ["Inbound sales", "Customer support", "Other"],
+        },
+        position: { x: 200 + Math.random() * 80, y: 180 + Math.random() * 80 },
+      },
+    ]);
+  };
+
+  const addLeadCaptureNode = () => {
+    const id = `lead-${Date.now()}`;
+    setNodes((nds) => [
+      ...nds,
+      {
+        id,
+        type: "leadCapture",
+        data: {
+          label: "👤 First, could you share your business email? This will help me follow up in case you need to step away.",
+          field: "email",
+        },
+        position: { x: 200 + Math.random() * 80, y: 180 + Math.random() * 80 },
+      },
+    ]);
+  };
+
+  const addAiQualifyNode = () => {
+    const id = `ai-${Date.now()}`;
+    setNodes((nds) => [
+      ...nds,
+      {
+        id,
+        type: "aiQualify",
+        data: {
+          label: "🤖 Understand visitor's primary objective and team workflow requirements.",
+          prompt: "Identify user's objective and company context. If user says 'idk' or is unsure, clarify with helpful options.",
+        },
+        position: { x: 200 + Math.random() * 80, y: 180 + Math.random() * 80 },
+      },
+    ]);
+  };
+
+  const addBookMeetingNode = () => {
+    const id = `meet-${Date.now()}`;
+    setNodes((nds) => [
+      ...nds,
+      {
+        id,
+        type: "bookMeeting",
+        data: {
+          label: "📅 Select a time that works best for you from our available slots to schedule your demo meeting:",
+        },
+        position: { x: 200 + Math.random() * 80, y: 180 + Math.random() * 80 },
+      },
+    ]);
+  };
+
   const addTagNode = () => {
     const id = `tag-${Date.now()}`;
     setNodes((nds) => [
@@ -472,7 +719,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         id,
         type: "setTag",
         data: { label: "🏷️ Tag session: Lead" },
-        position: { x: 200 + Math.random() * 100, y: 180 + Math.random() * 100 },
+        position: { x: 200 + Math.random() * 80, y: 180 + Math.random() * 80 },
       },
     ]);
   };
@@ -485,24 +732,71 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         id,
         type: "escalate",
         data: { label: "🔔 Escalate to Live Agent" },
-        position: { x: 200 + Math.random() * 100, y: 180 + Math.random() * 100 },
+        position: { x: 200 + Math.random() * 80, y: 180 + Math.random() * 80 },
       },
     ]);
+  };
+
+  const loadTemplate = async (templateName: "fin_demo" | "support_triage") => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/flow/templates`);
+      if (res.ok) {
+        const data = await res.json();
+        const t = data.templates?.find((tpl: any) =>
+          templateName === "fin_demo" ? tpl.name.includes("Demo") : tpl.name.includes("Support")
+        );
+        if (t && t.nodes && t.edges) {
+          setNodes(t.nodes);
+          setEdges(t.edges);
+          showToast(`Loaded ${t.name} template!`, "success");
+          setTimeout(() => {
+            reactFlowInstanceRef.current?.fitView({ padding: 0.25, duration: 800 });
+          }, 150);
+        }
+      }
+    } catch {
+      showToast("Failed to load template", "error");
+    }
   };
 
   const onNodeClick = (_: MouseEvent, node: Node) => {
     setSelectedNode(node);
     setNodeLabel((node.data.label as string) || "");
+    setNodeOptions((node.data.options as string[]) || ["Option 1", "Option 2"]);
+    setNodeField((node.data.field as string) || "email");
+    setNodeAiPrompt((node.data.prompt as string) || "");
+  };
+
+  const addChoiceOption = () => {
+    if (!newOptionText.trim()) return;
+    setNodeOptions((prev) => [...prev, newOptionText.trim()]);
+    setNewOptionText("");
+  };
+
+  const removeChoiceOption = (idx: number) => {
+    setNodeOptions((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const updateSelectedNode = () => {
     if (!selectedNode) return;
     setNodes((nds) =>
       nds.map((n) =>
-        n.id === selectedNode.id ? { ...n, data: { ...n.data, label: nodeLabel } } : n
+        n.id === selectedNode.id
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                label: nodeLabel,
+                options: selectedNode.type === "choice" ? nodeOptions : n.data.options,
+                field: selectedNode.type === "leadCapture" ? nodeField : n.data.field,
+                prompt: selectedNode.type === "aiQualify" ? nodeAiPrompt : n.data.prompt,
+              },
+            }
+          : n
       )
     );
     setSelectedNode(null);
+    showToast("Node properties updated!", "success");
   };
 
   const deleteSelectedNode = () => {
@@ -543,31 +837,55 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Node Toolbox</h4>
             <p className="text-[10px] text-neutral-500 mt-1">
-              Add interactive logic steps, branch questions, session tags, or live agent escalation.
+              Add interactive logic steps, qualification questions, calendar booking, or escalation.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={addMessageNode}
-              className="flex items-center gap-2 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
             >
               <MessageSquare className="size-3.5 text-blue-500" /> Message
             </button>
             <button
+              onClick={addChoiceNode}
+              className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-violet-50/50 dark:hover:bg-violet-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+            >
+              <ListFilter className="size-3.5 text-violet-500" /> Multi-Choice
+            </button>
+            <button
+              onClick={addLeadCaptureNode}
+              className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-cyan-50/50 dark:hover:bg-cyan-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+            >
+              <UserCheck className="size-3.5 text-cyan-500" /> Lead Capture
+            </button>
+            <button
+              onClick={addAiQualifyNode}
+              className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+            >
+              <Sparkles className="size-3.5 text-indigo-500" /> AI Qualify
+            </button>
+            <button
+              onClick={addBookMeetingNode}
+              className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+            >
+              <Calendar className="size-3.5 text-emerald-500" /> Book Demo
+            </button>
+            <button
               onClick={addQuestionNode}
-              className="flex items-center gap-2 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-purple-50/50 dark:hover:bg-purple-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-purple-50/50 dark:hover:bg-purple-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
             >
               <HelpCircle className="size-3.5 text-purple-500" /> Question
             </button>
             <button
               onClick={addTagNode}
-              className="flex items-center gap-2 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
             >
-              <UserCheck className="size-3.5 text-emerald-500" /> Set Tag
+              <Tag className="size-3.5 text-emerald-500" /> Set Tag
             </button>
             <button
               onClick={addEscalateNode}
-              className="flex items-center gap-2 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-rose-50/50 dark:hover:bg-rose-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-rose-50/50 dark:hover:bg-rose-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
             >
               <PhoneCall className="size-3.5 text-rose-500" /> Escalate
             </button>
@@ -586,9 +904,93 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
                 value={nodeLabel}
                 onChange={(e) => setNodeLabel(e.target.value)}
                 className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-2.5 py-1.5 text-xs font-medium focus:outline-none"
+                placeholder="Text / Prompt displayed to visitor..."
               />
+
+              {/* Multi-Choice Option Manager */}
+              {selectedNode.type === "choice" && (
+                <div className="space-y-2 p-2 bg-violet-50/60 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900/40 rounded-xl">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">
+                    Choice Buttons
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {nodeOptions.map((opt, i) => (
+                      <span
+                        key={i}
+                        className="flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-violet-200 dark:border-violet-800 text-violet-800 dark:text-violet-200"
+                      >
+                        <span>{opt}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeChoiceOption(i)}
+                          className="hover:text-red-500 cursor-pointer ml-0.5"
+                        >
+                          <X className="size-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-1 pt-1">
+                    <input
+                      value={newOptionText}
+                      onChange={(e) => setNewOptionText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addChoiceOption();
+                        }
+                      }}
+                      placeholder="New choice option..."
+                      className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-[10px] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={addChoiceOption}
+                      className="px-2 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                    >
+                      <Plus className="size-3" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Lead Capture Field Selector */}
+              {selectedNode.type === "leadCapture" && (
+                <div className="space-y-1 p-2 bg-cyan-50/60 dark:bg-cyan-950/30 border border-cyan-100 dark:border-cyan-900/40 rounded-xl">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">
+                    Field To Capture
+                  </span>
+                  <select
+                    value={nodeField}
+                    onChange={(e) => setNodeField(e.target.value)}
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-[11px] focus:outline-none cursor-pointer"
+                  >
+                    <option value="email">Business Email (Validated)</option>
+                    <option value="name">Full Name</option>
+                    <option value="company">Company Name</option>
+                    <option value="phone">Phone Number</option>
+                  </select>
+                </div>
+              )}
+
+              {/* AI Qualify Objective Prompt */}
+              {selectedNode.type === "aiQualify" && (
+                <div className="space-y-1 p-2 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 rounded-xl">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                    AI Objective & Ambiguity Instruction
+                  </span>
+                  <textarea
+                    rows={2}
+                    value={nodeAiPrompt}
+                    onChange={(e) => setNodeAiPrompt(e.target.value)}
+                    placeholder="e.g. Understand user's core use case. If user says idk, clarify differences between support vs sales..."
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-[10px] focus:outline-none"
+                  />
+                </div>
+              )}
+
               <p className="text-[9px] text-neutral-400">
-                💡 Tip: Click on a connecting edge line on the canvas to set branch labels (e.g. &quot;Valid Email&quot; / &quot;Invalid Email&quot;).
+                💡 Tip: Click on a connecting edge line on the canvas to set branch labels matching choice buttons.
               </p>
               <div className="flex gap-2 justify-end">
                 <button
@@ -609,35 +1011,55 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
             </div>
           )}
 
-          {/* AI Flow Copilot */}
+          {/* AI Flow Copilot & Enterprise Templates */}
           <div className="border-t border-neutral-100 dark:border-neutral-800 pt-4 space-y-3">
-            <h5 className="text-[10px] font-bold uppercase text-neutral-400 flex items-center gap-1.5">
-              <Sparkles className="size-3.5 text-[#f97316]" /> AI Flow Architect
-            </h5>
-            <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h5 className="text-[10px] font-bold uppercase text-neutral-400 flex items-center gap-1.5">
+                <Sparkles className="size-3.5 text-[#f97316]" /> 1-Click Templates
+              </h5>
+            </div>
+
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => loadTemplate("fin_demo")}
+                className="w-full text-left p-2 rounded-xl bg-orange-50/70 hover:bg-orange-100/70 dark:bg-orange-950/30 dark:hover:bg-orange-900/40 border border-orange-200/80 dark:border-orange-800/60 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-orange-900 dark:text-orange-200">
+                    🚀 B2B Demo Qualification (Fin Style)
+                  </span>
+                </div>
+                <p className="text-[9px] text-orange-700/80 dark:text-orange-300/80 mt-0.5 leading-relaxed">
+                  Email capture, 4-way use case branching, sales discovery, and inline demo booking.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => loadTemplate("support_triage")}
+                className="w-full text-left p-2 rounded-xl bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-850 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-750 transition-colors cursor-pointer"
+              >
+                <span className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200">
+                  🎧 Support Triage & Deflection
+                </span>
+                <p className="text-[9px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  Categorizes issues, checks KB articles, and escalates to live agent if unresolved.
+                </p>
+              </button>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+              <h5 className="text-[10px] font-bold uppercase text-neutral-400 flex items-center gap-1.5">
+                <Zap className="size-3.5 text-[#f97316]" /> AI Custom Flow Architect
+              </h5>
               <textarea
                 rows={3}
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder="Describe your desired workflow (e.g. 'Ask for lead's email, check validity, then offer discount code or support escalation')..."
+                placeholder="Describe your desired workflow (e.g. 'Ask for lead's email, check validity, qualify demo use case, and schedule demo')..."
                 className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-2.5 py-1.5 text-xs font-medium focus:outline-none"
               />
-              <div className="flex gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setAiPrompt("Qualify leads by asking for email/phone, then provide the booking demo link.")}
-                  className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded text-[9px] hover:bg-neutral-50 text-neutral-600 dark:text-neutral-300 cursor-pointer font-medium"
-                >
-                  💡 Lead Gen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAiPrompt("Welcome user, ask if they need Support or Sales. Escalate to live agent if support.")}
-                  className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded text-[9px] hover:bg-neutral-50 text-neutral-600 dark:text-neutral-300 cursor-pointer font-medium"
-                >
-                  💡 Support Triage
-                </button>
-              </div>
               <button
                 type="button"
                 onClick={generateFlowWithAI}

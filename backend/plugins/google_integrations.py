@@ -947,6 +947,7 @@ def _format_event_row(ev: dict[str, Any]) -> dict[str, Any]:
         "all_day": "date" in start and "dateTime" not in start,
         "attendees": [a.get("email") for a in ev.get("attendees", []) if a.get("email")],
         "status": ev.get("status"),
+        "color_id": ev.get("colorId"),
     }
 
 
@@ -1019,6 +1020,89 @@ def _with_explicit_offset(naive_str: str, tz_name: Optional[str]) -> str:
         return naive_str
 
 
+# ---------------------------------------------------------------------------
+# Google Calendar Official Event Colors (colorId "1" through "11")
+# ---------------------------------------------------------------------------
+GOOGLE_CALENDAR_COLORS: dict[str, dict[str, str]] = {
+    "1": {"name": "Lavender", "hex": "#7986cb", "label": "Lavender (Pale Blue)"},
+    "2": {"name": "Sage", "hex": "#33b679", "label": "Sage (Soft Green)"},
+    "3": {"name": "Grape", "hex": "#8e24aa", "label": "Grape (Royal Purple)"},
+    "4": {"name": "Flamingo", "hex": "#e67c73", "label": "Flamingo (Coral/Rose)"},
+    "5": {"name": "Banana", "hex": "#f6bf26", "label": "Banana (Yellow)"},
+    "6": {"name": "Tangerine", "hex": "#f4511e", "label": "Tangerine (Orange)"},
+    "7": {"name": "Peacock", "hex": "#039be5", "label": "Peacock (Cyan/Turquoise)"},
+    "8": {"name": "Graphite", "hex": "#616161", "label": "Graphite (Gray)"},
+    "9": {"name": "Blueberry", "hex": "#3f51b5", "label": "Blueberry (Navy/Royal Blue)"},
+    "10": {"name": "Basil", "hex": "#0b8043", "label": "Basil (Forest Green)"},
+    "11": {"name": "Tomato", "hex": "#d50000", "label": "Tomato (Crimson Red)"},
+}
+
+# High-contrast multi-color palette for rotating across bookings
+GOOGLE_CALENDAR_MULTI_PALETTE = ["7", "3", "6", "2", "9", "10", "4", "5"]
+
+
+def resolve_google_calendar_color(
+    summary: Optional[str] = None,
+    description: Optional[str] = None,
+    attendees: Optional[list[str]] = None,
+    preference: Optional[str] = None,
+    is_rescheduled: bool = False,
+) -> str:
+    """Resolve the Google Calendar event colorId ('1' to '11').
+
+    Strategy:
+    1. Direct preference: If an explicit valid colorId ('1'..'11') is passed, use it.
+    2. Rescheduled meetings: Yellow ('5') so rescheduled meetings clearly stand out.
+    3. Semantic Intent / Topic:
+       - Urgent/Critical -> Tomato ('11')
+       - Technical Support/Issues -> Tangerine ('6')
+       - Commercial/Sales/Pricing/Enterprise -> Basil ('10')
+       - Strategy/Executive/VIP/Investor -> Grape ('3')
+       - Onboarding/Training/Kickoff -> Blueberry ('9')
+       - Casual/Intro/Discovery -> Sage ('2')
+       - Feedback/Review -> Flamingo ('4')
+    4. Multi-color distribution:
+       Hashes attendee email or summary over the high-contrast palette so that
+       different bookings dynamically get distinct vibrant colors across Google Calendar.
+    """
+    pref_str = str(preference or "").strip().lower()
+    if pref_str in GOOGLE_CALENDAR_COLORS:
+        return pref_str
+
+    if is_rescheduled:
+        return "5"  # Banana Yellow
+
+    text = f"{summary or ''} {description or ''}".lower()
+    if any(w in text for w in ("urgent", "escalat", "critical", "p0", "p1")):
+        return "11"  # Tomato (Crimson Red)
+    if any(w in text for w in ("support", "helpdesk", "issue", "bug", "troubleshoot", "problem")):
+        return "6"   # Tangerine (Orange)
+    if any(w in text for w in ("pricing", "proposal", "contract", "enterprise quote", "sales consultation")):
+        return "10"  # Basil (Forest Green)
+    if any(w in text for w in ("vip", "investor", "executive", "board meeting", "partner")):
+        return "3"   # Grape (Purple)
+    if any(w in text for w in ("onboard", "training", "kickoff", "orientation")):
+        return "9"   # Blueberry (Navy)
+    if any(w in text for w in ("intro", "coffee", "catch up", "casual", "discovery")):
+        return "2"   # Sage (Soft Green)
+    if any(w in text for w in ("feedback", "review", "retro", "survey")):
+        return "4"   # Flamingo (Coral)
+
+    # Multi-color distribution: seed with attendee email / name / summary
+    seed = ""
+    if attendees:
+        seed = str(attendees[0] or "").strip().lower()
+    if not seed:
+        seed = (summary or "").strip().lower()
+    if not seed:
+        seed = "meeting"
+
+    h = 0
+    for ch in seed:
+        h = (h * 31 + ord(ch)) & 0xFFFFFFFF
+    return GOOGLE_CALENDAR_MULTI_PALETTE[h % len(GOOGLE_CALENDAR_MULTI_PALETTE)]
+
+
 def _event_payload(
     *,
     summary: str,
@@ -1029,6 +1113,7 @@ def _event_payload(
     attendees: Optional[list[str]] = None,
     all_day: bool = False,
     timezone_str: Optional[str] = None,
+    color_id: Optional[str] = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"summary": summary}
     if description:
@@ -1037,6 +1122,8 @@ def _event_payload(
         body["location"] = location
     if attendees:
         body["attendees"] = [{"email": a} for a in attendees]
+    if color_id and str(color_id).strip() in GOOGLE_CALENDAR_COLORS:
+        body["colorId"] = str(color_id).strip()
     if all_day:
         body["start"] = {"date": start[:10]}
         body["end"] = {"date": end[:10]}
@@ -1062,8 +1149,29 @@ async def create_calendar_event(
     all_day: bool = False,
     calendar_id: str = "primary",
     timezone_override: Optional[str] = None,
+    color_id: Optional[str] = None,
     table: str = "users",
 ) -> dict[str, Any]:
+    # Filter out the host/organizer's own email from attendees.
+    # Google Calendar creates the event with the host as organizer; if the host's email
+    # is also in attendees (e.g. when testing bookings), Google Calendar generates a duplicate
+    # attendee RSVP invite alongside the organizer event, displaying two duplicate events.
+    organizer_emails = {
+        (user.get("email") or "").strip().lower(),
+        (user.get("google_email") or "").strip().lower(),
+    }
+    if calendar_id and calendar_id != "primary" and "@" in calendar_id:
+        organizer_emails.add(calendar_id.strip().lower())
+    clean_attendees = [a for a in (attendees or []) if a.strip().lower() not in organizer_emails] if attendees else None
+
+    # Resolve event color: honors explicit preference, semantic intent, or multi-color rotation
+    resolved_color = resolve_google_calendar_color(
+        summary=summary,
+        description=description,
+        attendees=clean_attendees,
+        preference=color_id,
+    )
+
     # timezone_override (the bot's configured bot_timezone) takes priority over
     # the owner's user-profile timezone field, which is frequently left at its
     # "UTC" default and never actually reflects where the business is - using
@@ -1075,9 +1183,10 @@ async def create_calendar_event(
         end=end,
         description=description,
         location=location,
-        attendees=attendees,
+        attendees=clean_attendees,
         all_day=all_day,
         timezone_str=tz_str,
+        color_id=resolved_color,
     )
     # Request the Meet conference at creation time so the join link comes back in this same
     # response. Previously this was only attached by a separate follow-up call
@@ -1151,6 +1260,7 @@ async def update_calendar_event(
     attendees: Optional[list[str]] = None,
     calendar_id: str = "primary",
     timezone_override: Optional[str] = None,
+    color_id: Optional[str] = None,
     table: str = "users",
 ) -> dict[str, Any]:
     """Partial update (PATCH) of an existing event - only the fields passed
@@ -1172,6 +1282,10 @@ async def update_calendar_event(
         body["location"] = location
     if attendees is not None:
         body["attendees"] = [{"email": a} for a in attendees]
+    if color_id is not None:
+        cid_str = str(color_id).strip()
+        if cid_str in GOOGLE_CALENDAR_COLORS:
+            body["colorId"] = cid_str
     if start:
         body["start"] = {"dateTime": _with_explicit_offset(start, tz_str), "timeZone": tz_str}
     if end:

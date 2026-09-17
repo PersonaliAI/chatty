@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Check out public mirror
         uses: actions/checkout@v4
@@ -23,6 +25,9 @@ jobs:
         run: python scripts/verify-public-mirror.py
         env:
           PUBLIC_MIRROR_DIR: chatty-public
+
+      - name: Clean up public mirror checkout
+        run: rm -rf chatty-public
 
       - uses: actions/setup-python@v5
         with:

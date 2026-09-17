@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import hmac
+import json
 import logging
+import time
+import urllib.parse
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.core.clients import supabase
+from app.core.config import CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL, FUNCTION_SECRET
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
@@ -20,10 +27,74 @@ logger = logging.getLogger("chatty.routers.woocommerce")
 router = APIRouter()
 
 
+def _generate_auth_state(bot_id: str, store_url: str) -> str:
+    """Generate an HMAC-signed state token containing bot_id, store_url, and timestamp."""
+    payload = {
+        "b": bot_id,
+        "u": store_url,
+        "t": int(time.time()),
+    }
+    raw_json = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    payload_b64 = base64.urlsafe_b64encode(raw_json).decode("utf-8").rstrip("=")
+    secret = (FUNCTION_SECRET or "chatty-wc-secret-key").encode("utf-8")
+    sig = base64.urlsafe_b64encode(
+        hmac.new(secret, payload_b64.encode("utf-8"), hashlib.sha256).digest()
+    ).decode("utf-8").rstrip("=")[:16]
+    return f"{payload_b64}.{sig}"
+
+
+def _verify_auth_state(state: str, max_age_seconds: int = 3600) -> tuple[Optional[str], Optional[str]]:
+    """Verify state token signature and expiry. Returns (bot_id, store_url) or (None, None)."""
+    if not state or "." not in state:
+        return None, None
+    parts = state.split(".", 1)
+    if len(parts) != 2:
+        return None, None
+    payload_b64, sig = parts
+    secret = (FUNCTION_SECRET or "chatty-wc-secret-key").encode("utf-8")
+    expected_sig = base64.urlsafe_b64encode(
+        hmac.new(secret, payload_b64.encode("utf-8"), hashlib.sha256).digest()
+    ).decode("utf-8").rstrip("=")[:16]
+
+    if not hmac.compare_digest(sig, expected_sig):
+        return None, None
+
+    # Add back base64 padding
+    rem = len(payload_b64) % 4
+    padded = payload_b64 + ("=" * (4 - rem) if rem else "")
+    try:
+        data = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
+        bot_id = data.get("b")
+        store_url = data.get("u")
+        ts = data.get("t", 0)
+        if not bot_id or not store_url:
+            return None, None
+        if time.time() - ts > max_age_seconds:
+            logger.warning("WooCommerce auth state expired for bot %s", bot_id)
+            return None, None
+        return str(bot_id), str(store_url)
+    except Exception:
+        logger.warning("Failed to decode WooCommerce auth state payload", exc_info=True)
+        return None, None
+
+
 class WooCommerceConnectRequest(BaseModel):
     store_url: str = Field(..., description="WooCommerce store URL (e.g. https://mystore.com)")
     consumer_key: str = Field(..., description="WooCommerce REST API Consumer Key (ck_...)")
     consumer_secret: str = Field(..., description="WooCommerce REST API Consumer Secret (cs_...)")
+
+
+class WooCommerceAuthorizeUrlRequest(BaseModel):
+    store_url: str = Field(..., description="WooCommerce store URL (e.g. https://mystore.com)")
+    return_url: Optional[str] = Field(None, description="Frontend URL to redirect after approval")
+
+
+class WooCommerceAuthCallbackPayload(BaseModel):
+    key_id: Optional[Any] = None
+    user_id: str = Field(..., description="Signed state token returned from wc-auth")
+    consumer_key: str = Field(..., description="Generated Consumer Key")
+    consumer_secret: str = Field(..., description="Generated Consumer Secret")
+    key_permissions: Optional[str] = None
 
 
 @router.get("/api/bots/{bot_id}/integrations/woocommerce")
@@ -200,3 +271,97 @@ async def receive_woocommerce_webhook(
 
     result = await woocommerce_service.process_webhook_payload(bot_id, topic, payload)
     return {"status": "ok", "result": result}
+
+
+@router.post("/api/bots/{bot_id}/integrations/woocommerce/authorize-url")
+async def get_woocommerce_authorize_url(
+    bot_id: str,
+    req: WooCommerceAuthorizeUrlRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Generate a 1-click WooCommerce authorization URL (wc-auth/v1/authorize flow)."""
+    await verify_bot_permission(bot_id, user)
+
+    base_url = woocommerce_service._normalize_store_url(req.store_url)
+    parsed = urllib.parse.urlparse(base_url)
+    if not parsed.netloc or parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Invalid store URL. Please provide a valid domain (e.g. https://mystore.com).")
+
+    state = _generate_auth_state(bot_id, base_url)
+    backend_base = (CHATTY_BACKEND_URL or "").rstrip("/")
+    callback_url = f"{backend_base}/api/integrations/woocommerce/auth-callback"
+
+    frontend_base = (CHATTY_FRONTEND_URL or "").rstrip("/")
+    return_url = req.return_url
+    if not return_url:
+        return_url = f"{frontend_base}/dashboard?tab=catalog&bot_id={bot_id}&wc_auth=success"
+    elif return_url.startswith("/"):
+        return_url = f"{frontend_base}{return_url}"
+
+    params = {
+        "app_name": "Chatty AI",
+        "scope": "read_write",
+        "user_id": state,
+        "return_url": return_url,
+        "callback_url": callback_url,
+    }
+    authorize_url = f"{base_url}/wc-auth/v1/authorize?{urllib.parse.urlencode(params)}"
+
+    return {
+        "authorize_url": authorize_url,
+        "store_url": base_url,
+        "state": state,
+    }
+
+
+@router.post("/api/integrations/woocommerce/auth-callback")
+async def receive_woocommerce_auth_callback(
+    request: Request,
+):
+    """Public callback endpoint for WooCommerce 1-click authorization flow."""
+    try:
+        payload = await request.json()
+    except Exception:
+        logger.warning("WooCommerce auth callback received invalid JSON")
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    user_id = str(payload.get("user_id") or "").strip()
+    consumer_key = str(payload.get("consumer_key") or "").strip()
+    consumer_secret = str(payload.get("consumer_secret") or "").strip()
+
+    if not user_id or not consumer_key or not consumer_secret:
+        logger.warning("WooCommerce auth callback missing required fields")
+        raise HTTPException(status_code=400, detail="Missing required parameters: user_id, consumer_key, consumer_secret")
+
+    bot_id, store_url = _verify_auth_state(user_id)
+    if not bot_id or not store_url:
+        logger.warning("WooCommerce auth callback invalid or expired state token: %s", user_id[:25] if user_id else "")
+        raise HTTPException(status_code=400, detail="Invalid or expired authorization state")
+
+    bot_res = await run_db(
+        lambda: supabase.table("chatty_bots")
+        .select("id")
+        .eq("id", bot_id)
+        .execute()
+    )
+    if not bot_res.data:
+        logger.warning("WooCommerce auth callback for non-existent bot %s", bot_id)
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    # Save credentials into database
+    saved = await woocommerce_service.save_integration(
+        bot_id=bot_id,
+        store_url=store_url,
+        consumer_key=consumer_key,
+        consumer_secret=consumer_secret,
+    )
+
+    # Automatically trigger initial background product sync
+    asyncio.create_task(woocommerce_service.run_woocommerce_sync_task(bot_id))
+    logger.info("WooCommerce 1-click authorization completed successfully for bot %s on store %s", bot_id, store_url)
+
+    return {
+        "status": "ok",
+        "bot_id": bot_id,
+        "store_url": store_url,
+    }

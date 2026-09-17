@@ -1,0 +1,202 @@
+-- First-class Chatty affiliate tracking foundation.
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS initial_referrer_code TEXT,
+  ADD COLUMN IF NOT EXISTS initial_utm_source TEXT,
+  ADD COLUMN IF NOT EXISTS initial_utm_medium TEXT,
+  ADD COLUMN IF NOT EXISTS initial_utm_campaign TEXT,
+  ADD COLUMN IF NOT EXISTS initial_landing_page TEXT,
+  ADD COLUMN IF NOT EXISTS referred_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_users_initial_referrer_code
+  ON users(initial_referrer_code)
+  WHERE initial_referrer_code IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS affiliate_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  referral_code TEXT NOT NULL UNIQUE CHECK (referral_code ~ '^[a-z0-9][a-z0-9_-]{1,79}$'),
+  display_name TEXT,
+  website_url TEXT,
+  payout_email TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'paused', 'rejected')),
+  commission_rate_bps INTEGER NOT NULL DEFAULT 3000 CHECK (commission_rate_bps BETWEEN 0 AND 10000),
+  cookie_window_days INTEGER NOT NULL DEFAULT 60 CHECK (cookie_window_days BETWEEN 1 AND 365),
+  payout_hold_days INTEGER NOT NULL DEFAULT 30 CHECK (payout_hold_days BETWEEN 0 AND 180),
+  minimum_payout_cents INTEGER NOT NULL DEFAULT 5000 CHECK (minimum_payout_cents >= 0),
+  terms_accepted_at TIMESTAMPTZ,
+  approved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS affiliate_clicks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  referral_code TEXT NOT NULL,
+  affiliate_id UUID REFERENCES affiliate_profiles(id) ON DELETE SET NULL,
+  session_id TEXT,
+  landing_page TEXT,
+  referrer_url TEXT,
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  country TEXT,
+  ip_hash TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS affiliate_referrals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  affiliate_id UUID NOT NULL REFERENCES affiliate_profiles(id) ON DELETE CASCADE,
+  referred_user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  referral_code TEXT NOT NULL,
+  first_landing_page TEXT,
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  status TEXT NOT NULL DEFAULT 'signup' CHECK (status IN ('signup', 'paid', 'refunded', 'cancelled', 'rejected')),
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  converted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS affiliate_commissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  affiliate_id UUID NOT NULL REFERENCES affiliate_profiles(id) ON DELETE CASCADE,
+  referral_id UUID REFERENCES affiliate_referrals(id) ON DELETE SET NULL,
+  referred_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  lemon_event_id TEXT NOT NULL UNIQUE,
+  lemon_event_name TEXT NOT NULL,
+  lemon_order_id TEXT,
+  lemon_subscription_id TEXT,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  gross_amount_cents INTEGER NOT NULL CHECK (gross_amount_cents >= 0),
+  commission_rate_bps INTEGER NOT NULL CHECK (commission_rate_bps BETWEEN 0 AND 10000),
+  commission_amount_cents INTEGER NOT NULL CHECK (commission_amount_cents >= 0),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'payable', 'paid', 'void', 'rejected')),
+  hold_until TIMESTAMPTZ NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS affiliate_payouts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  affiliate_id UUID NOT NULL REFERENCES affiliate_profiles(id) ON DELETE CASCADE,
+  amount_cents INTEGER NOT NULL CHECK (amount_cents >= 0),
+  currency TEXT NOT NULL DEFAULT 'USD',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'paid', 'failed', 'cancelled')),
+  payout_method TEXT,
+  external_payout_id TEXT,
+  paid_at TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS affiliate_fraud_flags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  affiliate_id UUID REFERENCES affiliate_profiles(id) ON DELETE CASCADE,
+  referral_id UUID REFERENCES affiliate_referrals(id) ON DELETE CASCADE,
+  referred_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  severity TEXT NOT NULL DEFAULT 'review' CHECK (severity IN ('info', 'review', 'high', 'blocked')),
+  reason TEXT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}',
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_referral_code_created
+  ON affiliate_clicks(referral_code, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_affiliate_referrals_affiliate_created
+  ON affiliate_referrals(affiliate_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_affiliate_commissions_affiliate_created
+  ON affiliate_commissions(affiliate_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_affiliate_commissions_status_hold
+  ON affiliate_commissions(status, hold_until);
+CREATE INDEX IF NOT EXISTS idx_affiliate_payouts_affiliate_created
+  ON affiliate_payouts(affiliate_id, created_at DESC);
+
+ALTER TABLE affiliate_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_clicks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_referrals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_commissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_payouts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_fraud_flags ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Affiliates view own profile" ON affiliate_profiles;
+CREATE POLICY "Affiliates view own profile" ON affiliate_profiles
+  FOR SELECT TO authenticated USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Affiliates update own pending profile" ON affiliate_profiles;
+CREATE POLICY "Affiliates update own pending profile" ON affiliate_profiles
+  FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Affiliates create own profile" ON affiliate_profiles;
+CREATE POLICY "Affiliates create own profile" ON affiliate_profiles
+  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Affiliates view own clicks" ON affiliate_clicks;
+CREATE POLICY "Affiliates view own clicks" ON affiliate_clicks
+  FOR SELECT TO authenticated USING (
+    EXISTS (
+      SELECT 1 FROM affiliate_profiles
+      WHERE affiliate_profiles.id = affiliate_clicks.affiliate_id
+        AND affiliate_profiles.user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Affiliates view own referrals" ON affiliate_referrals;
+CREATE POLICY "Affiliates view own referrals" ON affiliate_referrals
+  FOR SELECT TO authenticated USING (
+    EXISTS (
+      SELECT 1 FROM affiliate_profiles
+      WHERE affiliate_profiles.id = affiliate_referrals.affiliate_id
+        AND affiliate_profiles.user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Affiliates view own commissions" ON affiliate_commissions;
+CREATE POLICY "Affiliates view own commissions" ON affiliate_commissions
+  FOR SELECT TO authenticated USING (
+    EXISTS (
+      SELECT 1 FROM affiliate_profiles
+      WHERE affiliate_profiles.id = affiliate_commissions.affiliate_id
+        AND affiliate_profiles.user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Affiliates view own payouts" ON affiliate_payouts;
+CREATE POLICY "Affiliates view own payouts" ON affiliate_payouts
+  FOR SELECT TO authenticated USING (
+    EXISTS (
+      SELECT 1 FROM affiliate_profiles
+      WHERE affiliate_profiles.id = affiliate_payouts.affiliate_id
+        AND affiliate_profiles.user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Affiliates view own fraud flags" ON affiliate_fraud_flags;
+CREATE POLICY "Affiliates view own fraud flags" ON affiliate_fraud_flags
+  FOR SELECT TO authenticated USING (
+    EXISTS (
+      SELECT 1 FROM affiliate_profiles
+      WHERE affiliate_profiles.id = affiliate_fraud_flags.affiliate_id
+        AND affiliate_profiles.user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Service role manages affiliate profiles" ON affiliate_profiles;
+CREATE POLICY "Service role manages affiliate profiles" ON affiliate_profiles FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Service role manages affiliate clicks" ON affiliate_clicks;
+CREATE POLICY "Service role manages affiliate clicks" ON affiliate_clicks FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Service role manages affiliate referrals" ON affiliate_referrals;
+CREATE POLICY "Service role manages affiliate referrals" ON affiliate_referrals FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Service role manages affiliate commissions" ON affiliate_commissions;
+CREATE POLICY "Service role manages affiliate commissions" ON affiliate_commissions FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Service role manages affiliate payouts" ON affiliate_payouts;
+CREATE POLICY "Service role manages affiliate payouts" ON affiliate_payouts FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Service role manages affiliate fraud flags" ON affiliate_fraud_flags;
+CREATE POLICY "Service role manages affiliate fraud flags" ON affiliate_fraud_flags FOR ALL TO service_role USING (true) WITH CHECK (true);

@@ -32,7 +32,13 @@ from app.schemas.admin import (
     RescheduleMeetingRequest,
     SessionNoteCreateRequest,
     SessionUpdateRequest,
+    CopilotDraftRequest,
+    CopilotSummarizeRequest,
+    ViewerHeartbeatRequest,
+    AutomationRuleCreateRequest,
+    AutomationRuleTestRequest,
 )
+from app.services import copilot_service, automation_engine, pii_service
 from app.schemas.kb import (
     ArticleCreateRequest,
     ArticleUpdateRequest,
@@ -140,7 +146,7 @@ async def admin_inbox(bot_id: str, user: dict[str, Any] = Depends(require_user))
 async def admin_inbox_messages(bot_id: str, session_id: str,
                                user: dict[str, Any] = Depends(require_user)):
     await _verify_session_inbox_access(bot_id, session_id, user)
-    rows = (await run_db(lambda: supabase.table("chatty_conversations").select("id,role,content,sender,created_at,feedback_rating,correction") \
+    rows = (await run_db(lambda: supabase.table("chatty_conversations").select("id,role,content,sender,sender_name,sender_avatar,created_at,feedback_rating,correction") \
         .eq("bot_id", bot_id).eq("session_id", session_id) \
         .order("created_at", desc=False).limit(500).execute())).data or []
     return {"messages": rows}
@@ -189,14 +195,66 @@ async def set_message_feedback(message_id: str, req: MessageFeedbackRequest, use
     return {"success": True}
 
 
+async def _extract_agent_profile(user: dict[str, Any], bot_id: Optional[str] = None) -> tuple[str, Optional[str]]:
+    """Extract and validate the human agent's display name and avatar URL."""
+    name = user.get("display_name")
+    avatar = user.get("avatar_url")
+    email = user.get("email") or ""
+
+    # Check team members table for custom name or avatar
+    if bot_id and email and (not name or not avatar):
+        try:
+            tm = await run_db(lambda: supabase.table("chatty_team_members")
+                .select("name, avatar_url")
+                .eq("bot_id", bot_id).eq("email", email).limit(1).execute())
+            if tm.data:
+                row = tm.data[0]
+                if not name and row.get("name"):
+                    name = row.get("name")
+                if not avatar and row.get("avatar_url"):
+                    avatar = row.get("avatar_url")
+        except Exception:
+            pass
+
+    # Check auth user metadata if needed (e.g. Google OAuth photo/name)
+    if (not avatar or not name) and user.get("auth_user_id"):
+        try:
+            auth_user = await run_db(lambda: supabase.auth.admin.get_user_by_id(user["auth_user_id"]))
+            if auth_user and getattr(auth_user, "user", None):
+                u_obj = auth_user.user
+                u_meta = getattr(u_obj, "user_metadata", None) or {}
+                if not name:
+                    name = u_meta.get("full_name") or u_meta.get("name")
+                if not avatar:
+                    avatar = u_meta.get("avatar_url") or u_meta.get("picture")
+        except Exception:
+            pass
+
+    if not name:
+        name = email.split("@")[0] if email else "Support Agent"
+
+    clean_avatar: Optional[str] = None
+    if isinstance(avatar, str) and avatar.strip():
+        av = avatar.strip()
+        if av.startswith("http://") or av.startswith("https://") or av.startswith("data:image/"):
+            clean_avatar = av
+
+    return str(name), clean_avatar
+
+
 @router.post("/api/admin/inbox/reply")
 async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depends(require_user)):
     await _verify_session_inbox_access(req.bot_id, req.session_id, user)
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="text required")
+    safe_text = pii_service.scrub_pii(req.text)
+    agent_name, agent_avatar = await _extract_agent_profile(user, req.bot_id)
+
     await run_db(lambda: supabase.table("chatty_conversations").insert({
         "bot_id": req.bot_id, "session_id": req.session_id, "role": "assistant",
-        "content": req.text, "sender": "human",
+        "content": safe_text, "sender": "human",
+        "sender_name": agent_name,
+        "sender_avatar": agent_avatar,
     }).execute())
     now_iso = datetime.now(timezone.utc).isoformat()
     # Check if first_responded_at is already set and check for email ticket
@@ -207,7 +265,12 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
     upd: dict[str, Any] = {
         "ai_paused": True, "needs_attention": False, "last_message": req.text[:300],
         "last_message_at": now_iso,
+        "assigned_agent_name": agent_name,
     }
+    if agent_avatar:
+        upd["assigned_agent_avatar"] = agent_avatar
+    if user.get("email"):
+        upd["assigned_agent_email"] = user.get("email")
     if sess_res.data and not sess_res.data[0].get("first_responded_at"):
         upd["first_responded_at"] = now_iso
     await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
@@ -221,7 +284,6 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
             try:
                 bot_name_res = await run_db(lambda: supabase.table("chatty_bots").select("name").eq("id", req.bot_id).limit(1).execute())
                 bot_name = bot_name_res.data[0]["name"] if bot_name_res.data else "Chatty Support"
-                agent_name = (user.get("user_metadata") or {}).get("name") or (user.get("email", "").split("@")[0] if user.get("email") else "Support Agent")
                 from app.services.email_service import send_ticket_reply_email
                 asyncio.create_task(send_ticket_reply_email(
                     to_email=v_email,
@@ -269,10 +331,13 @@ async def admin_inbox_reply_media(
 
     display = (text.strip() + ("\n" if text.strip() else "")) + f"[attachment: {file.filename or mime}]"
     content = display + (f"\n{file_url}" if file_url else "")
+    agent_name, agent_avatar = await _extract_agent_profile(user, bot_id)
 
     await run_db(lambda: supabase.table("chatty_conversations").insert({
         "bot_id": bot_id, "session_id": session_id, "role": "assistant",
         "content": content, "sender": "human",
+        "sender_name": agent_name,
+        "sender_avatar": agent_avatar,
     }).execute())
 
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -280,7 +345,12 @@ async def admin_inbox_reply_media(
     upd: dict[str, Any] = {
         "ai_paused": True, "needs_attention": False, "last_message": content[:300],
         "last_message_at": now_iso,
+        "assigned_agent_name": agent_name,
     }
+    if agent_avatar:
+        upd["assigned_agent_avatar"] = agent_avatar
+    if user.get("email"):
+        upd["assigned_agent_email"] = user.get("email")
     if sess_res.data and not sess_res.data[0].get("first_responded_at"):
         upd["first_responded_at"] = now_iso
     await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", bot_id).eq("session_id", session_id).execute())
@@ -379,7 +449,7 @@ async def list_inbox_notes(bot_id: str, session_id: str, user: dict[str, Any] = 
 async def create_inbox_note(req: SessionNoteCreateRequest, user: dict[str, Any] = Depends(require_user)):
     """Add a persistent staff note visible across all human agents."""
     await _verify_session_inbox_access(req.bot_id, req.session_id, user)
-    note_text = (req.note or "").strip()
+    note_text = pii_service.scrub_pii((req.note or "").strip())
     if not note_text:
         raise HTTPException(status_code=400, detail="Note text cannot be empty")
     author_email = (user.get("email") or "").strip()
@@ -482,6 +552,119 @@ async def admin_inbox_delete(req: InboxDeleteRequest, user: dict[str, Any] = Dep
         "bot_id", req.bot_id).eq("session_id", req.session_id).execute())
     await _write_admin_audit_log(req.bot_id, "inbox_conversation_deleted", f"Deleted session {req.session_id}", user)
     return {"success": True}
+
+
+@router.post("/api/admin/inbox/ai-draft-reply")
+async def inbox_ai_draft_reply(req: CopilotDraftRequest, user: dict[str, Any] = Depends(require_user)):
+    """Generate an AI response draft for the human agent using ticket transcript and bot knowledge."""
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    result = await copilot_service.generate_ai_draft_reply(
+        bot_id=req.bot_id,
+        session_id=req.session_id,
+        instructions=req.instructions or "",
+    )
+    return result
+
+
+@router.post("/api/admin/inbox/ai-summarize")
+async def inbox_ai_summarize(req: CopilotSummarizeRequest, user: dict[str, Any] = Depends(require_user)):
+    """Generate a structured 3-bullet summary of the ticket and evaluate sentiment."""
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    result = await copilot_service.generate_conversation_summary(
+        bot_id=req.bot_id,
+        session_id=req.session_id,
+    )
+    return result
+
+
+@router.post("/api/admin/inbox/session/heartbeat")
+async def inbox_session_heartbeat(req: ViewerHeartbeatRequest, user: dict[str, Any] = Depends(require_user)):
+    """Record active viewing presence for collision detection."""
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    agent_email = (user.get("email") or "").strip()
+    agent_name = (user.get("user_metadata") or {}).get("name") if isinstance(user.get("user_metadata"), dict) else None
+    copilot_service.record_viewer_heartbeat(
+        bot_id=req.bot_id,
+        session_id=req.session_id,
+        agent_email=agent_email,
+        agent_name=agent_name or "",
+    )
+    return {"status": "ok"}
+
+
+@router.get("/api/admin/inbox/session/viewers")
+async def inbox_session_viewers(bot_id: str, session_id: str, user: dict[str, Any] = Depends(require_user)):
+    """List other active agents currently viewing this ticket."""
+    await _verify_session_inbox_access(bot_id, session_id, user)
+    agent_email = (user.get("email") or "").strip()
+    viewers = copilot_service.get_active_viewers(
+        bot_id=bot_id,
+        session_id=session_id,
+        current_agent_email=agent_email,
+    )
+    return {"viewers": viewers}
+
+
+# In-memory storage for automation rules with database fallback
+_AUTOMATION_RULES: dict[str, list[dict[str, Any]]] = {}
+
+@router.get("/api/admin/automation-rules")
+async def list_automation_rules(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """List configured ticket automation rules for a bot."""
+    await _verify_inbox_access(bot_id, user)
+    rules = _AUTOMATION_RULES.get(bot_id, [])
+    return {"rules": rules}
+
+
+@router.post("/api/admin/automation-rules")
+async def create_automation_rule(req: AutomationRuleCreateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Create or update an automation rule."""
+    await _verify_inbox_access(req.bot_id, user)
+    import uuid as _uuid
+    rule = {
+        "id": f"rule-{_uuid.uuid4().hex[:10]}",
+        "bot_id": req.bot_id,
+        "name": req.name,
+        "event_type": req.event_type,
+        "condition_match": req.condition_match,
+        "conditions": req.conditions,
+        "actions": req.actions,
+        "is_active": req.is_active,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if req.bot_id not in _AUTOMATION_RULES:
+        _AUTOMATION_RULES[req.bot_id] = []
+    _AUTOMATION_RULES[req.bot_id].append(rule)
+    await _write_admin_audit_log(req.bot_id, "automation_rule_created", f"Created rule {req.name}", user)
+    return {"success": True, "rule": rule}
+
+
+@router.delete("/api/admin/automation-rules/{rule_id}")
+async def delete_automation_rule(rule_id: str, bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Delete an automation rule."""
+    await _verify_inbox_access(bot_id, user)
+    if bot_id in _AUTOMATION_RULES:
+        _AUTOMATION_RULES[bot_id] = [r for r in _AUTOMATION_RULES[bot_id] if r.get("id") != rule_id]
+    await _write_admin_audit_log(bot_id, "automation_rule_deleted", f"Deleted rule {rule_id}", user)
+    return {"success": True}
+
+
+@router.post("/api/admin/automation-rules/test")
+async def test_automation_rules(req: AutomationRuleTestRequest, user: dict[str, Any] = Depends(require_user)):
+    """Dry-run test evaluation of automation rules against a mock session and context."""
+    await _verify_inbox_access(req.bot_id, user)
+    rules = _AUTOMATION_RULES.get(req.bot_id, [])
+    updates, executed = automation_engine.evaluate_rules(
+        rules=rules,
+        event_type=req.event_type,
+        session=req.session,
+        context=req.context,
+    )
+    return {
+        "evaluated_rules_count": len(rules),
+        "executed_rules": executed,
+        "resulting_updates": updates,
+    }
 
 
 @router.get("/api/admin/gdpr/export")

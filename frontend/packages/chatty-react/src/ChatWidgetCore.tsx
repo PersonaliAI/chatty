@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, Fragment } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
@@ -234,6 +234,9 @@ interface Message {
   // message arriving through those two paths is unambiguously "human" -
   // everything else assistant-role is a direct AI reply.
   sender?: "ai" | "human";
+  sender_name?: string;
+  sender_avatar?: string;
+  created_at?: string;
   confirmedMeeting?: ConfirmedMeeting;
 }
 interface Source { id: string; name: string; content: string; }
@@ -243,7 +246,12 @@ interface Source { id: string; name: string; content: string; }
 interface FlowNode {
   id: string;
   type?: string;
-  data?: { label?: string };
+  data?: {
+    label?: string;
+    options?: string[];
+    field?: "email" | "name" | "company" | "phone";
+    prompt?: string;
+  };
 }
 interface FlowEdge {
   source: string;
@@ -281,6 +289,138 @@ export interface WidgetKbCategory {
   description?: string;
   icon?: string;
   article_count?: number;
+}
+
+export interface TeamProfile {
+  id: string;
+  name: string;
+  avatar_url?: string | null;
+  role?: string;
+}
+
+function formatTimeCompact(dateStr?: string | number): string {
+  if (!dateStr) return "Just now";
+  try {
+    const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
+    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diffSec < 60) return "Just now";
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h`;
+    if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return "Just now";
+  }
+}
+
+function AgentAvatar({
+  src,
+  name,
+  size = "size-7",
+  className = "",
+  showStatusDot = false,
+  statusColor = "bg-green-400",
+}: {
+  src?: string | null;
+  name?: string | null;
+  size?: string;
+  className?: string;
+  showStatusDot?: boolean;
+  statusColor?: string;
+}) {
+  const [imageError, setImageError] = useState(false);
+
+  // Validate URL protocol and content
+  const isValidUrl = useMemo(() => {
+    if (!src || typeof src !== "string") return false;
+    const trimmed = src.trim();
+    if (!trimmed) return false;
+    return (
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("data:image/") ||
+      trimmed.startsWith("/")
+    );
+  }, [src]);
+
+  const initial = useMemo(() => {
+    if (!name || typeof name !== "string") return "A";
+    const trimmed = name.trim();
+    return trimmed ? trimmed.charAt(0).toUpperCase() : "A";
+  }, [name]);
+
+  const showFallback = !isValidUrl || imageError;
+
+  return (
+    <div className={`relative inline-flex shrink-0 ${className}`}>
+      <div
+        className={`${size} rounded-full flex items-center justify-center font-bold overflow-hidden select-none bg-neutral-900 text-white dark:bg-neutral-800 shadow-2xs`}
+      >
+        {!showFallback ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src!}
+            alt={name || "Agent"}
+            className="size-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <span className="text-[11px] leading-none font-semibold text-white tracking-wide">
+            {initial}
+          </span>
+        )}
+      </div>
+      {showStatusDot && (
+        <span
+          className={`absolute bottom-0 right-0 size-2 rounded-full ring-1.5 ring-white dark:ring-neutral-900 ${statusColor}`}
+        />
+      )}
+    </div>
+  );
+}
+
+function AvatarGroup({
+  profiles,
+  botAvatarUrl,
+  botName,
+  size = "size-7",
+}: {
+  profiles?: TeamProfile[];
+  botAvatarUrl?: string | null;
+  botName: string;
+  primaryColor?: string;
+  onPrimary?: string;
+  size?: string;
+}) {
+  const items: { src?: string | null; name: string }[] = [];
+
+  if (profiles && profiles.length > 0) {
+    for (const p of profiles.slice(0, 3)) {
+      items.push({ src: p.avatar_url, name: p.name });
+    }
+  }
+
+  if (items.length === 0) {
+    items.push({ src: botAvatarUrl, name: botName });
+  } else if (items.length === 1) {
+    if (botAvatarUrl && items[0].src !== botAvatarUrl) {
+      items.unshift({ src: botAvatarUrl, name: botName });
+    }
+  }
+
+  return (
+    <div className="flex items-center -space-x-2 shrink-0">
+      {items.map((item, idx) => (
+        <AgentAvatar
+          key={idx}
+          src={item.src}
+          name={item.name}
+          size={size}
+          className="ring-2 ring-white dark:ring-neutral-900 rounded-full"
+        />
+      ))}
+    </div>
+  );
 }
 
 function CodeBlock({ lang, text }: { lang: string; text: string }) {
@@ -482,7 +622,8 @@ export default function ChatWidgetCore({
     lastPollRef.current = new Date().toISOString();
 
     if (flowConfig) {
-      const startEdge = flowConfig.edges?.find((e) => e.source === "start");
+      const startNode = flowConfig.nodes?.find((n) => n.id === "start" || n.type === "start");
+      const startEdge = flowConfig.edges?.find((e) => e.source === (startNode?.id || "start"));
       if (startEdge) {
         const firstNode = flowConfig.nodes?.find((n) => n.id === startEdge.target);
         if (firstNode) {
@@ -539,12 +680,14 @@ export default function ChatWidgetCore({
   const [chatNavExpanded, setChatNavExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
+  const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
+
   // Auto-extract visitor contact info if provided in chat conversation
   const extractedVisitorInfo = useMemo(() => {
-    let name = "";
-    let email = "";
-    let phone = "";
-    let company = "";
+    let name = capturedLeadData.name || "";
+    let email = capturedLeadData.email || "";
+    let phone = capturedLeadData.phone || "";
+    let company = capturedLeadData.company || "";
     for (const m of messages) {
       if (m.role === "user" && typeof m.content === "string") {
         const text = m.content;
@@ -577,7 +720,7 @@ export default function ChatWidgetCore({
       }
     }
     return { name, email, phone, company };
-  }, [messages]);
+  }, [messages, capturedLeadData]);
 
   const isBookingMessage = useCallback((content: string) => {
     if (!content) return false;
@@ -902,6 +1045,7 @@ export default function ChatWidgetCore({
   };
   triggerPushRef.current = triggerPush;
 
+  const sendTextRef = useRef<(text: string) => Promise<void>>(async () => {});
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [flowConfig, setFlowConfig] = useState<FlowConfig | null>(null);
   // Track whether the active node is a question node waiting for user typed input
@@ -912,7 +1056,12 @@ export default function ChatWidgetCore({
       .replace(/^💬\s*(Message:\s*)?/, "")
       .replace(/^❓\s*(Ask:\s*)?/, "")
       .replace(/^🏷️\s*(Tag session:\s*)?/, "")
-      .replace(/^🔔\s*(Escalate to Live Agent\s*)?/, "");
+      .replace(/^🔔\s*(Escalate to Live Agent\s*)?/, "")
+      .replace(/^🔘\s*(Choice:\s*)?/, "")
+      .replace(/^👤\s*(Capture:\s*)?/, "")
+      .replace(/^🤖\s*(AI Qualify:\s*)?/, "")
+      .replace(/^📅\s*(Schedule:\s*)?/, "")
+      .replace(/^🚀\s*(Start Conversation\s*)?/, "");
   };
 
   const isQuestionNode = (node: FlowNode | null | undefined) => {
@@ -920,13 +1069,74 @@ export default function ChatWidgetCore({
     return label.startsWith("❓") || node?.type === "question" || node?.id?.startsWith("q-");
   };
 
+  const isChoiceNode = (node: FlowNode | null | undefined) => {
+    const label = node?.data?.label || "";
+    return (
+      label.startsWith("🔘") ||
+      node?.type === "choice" ||
+      node?.id?.startsWith("choice-") ||
+      Boolean(node?.data?.options && node.data.options.length > 0)
+    );
+  };
+
+  const isLeadCaptureNode = (node: FlowNode | null | undefined) => {
+    const label = node?.data?.label || "";
+    return label.startsWith("👤") || node?.type === "leadCapture" || node?.id?.startsWith("lead-");
+  };
+
+  const isAiQualifyNode = (node: FlowNode | null | undefined) => {
+    const label = node?.data?.label || "";
+    return label.startsWith("🤖") || node?.type === "aiQualify" || node?.id?.startsWith("ai-");
+  };
+
+  const isBookMeetingNode = (node: FlowNode | null | undefined) => {
+    const label = node?.data?.label || "";
+    return label.startsWith("📅") || node?.type === "bookMeeting" || node?.id?.startsWith("meet-");
+  };
+
+  // React Flow stores edge labels in edge.label OR edge.data?.label - resolve both.
+  const getEdgeLabel = (edge: FlowEdge): string => edge.label || edge.data?.label || "";
+
+  const getChoiceOptions = (node: FlowNode | null | undefined, edges: FlowEdge[]): Array<{ label: string; edge?: FlowEdge }> => {
+    if (!node) return [];
+    const outgoing = edges.filter((e) => e.source === node.id);
+    const labeledEdges = outgoing.filter((e) => Boolean(getEdgeLabel(e)));
+
+    if (labeledEdges.length > 0) {
+      return labeledEdges.map((edge) => ({
+        label: getEdgeLabel(edge),
+        edge,
+      }));
+    }
+
+    const nodeOptions = node.data?.options;
+    if (Array.isArray(nodeOptions) && nodeOptions.length > 0) {
+      return nodeOptions.map((opt, idx) => ({
+        label: opt,
+        edge: outgoing[idx] || outgoing[0],
+      }));
+    }
+
+    return [];
+  };
+
   const executeFlowNode = (node: FlowNode | null | undefined, currentConfig: FlowConfig | null | undefined) => {
     if (!node || !currentConfig) return;
     const label = node.data?.label || "";
 
+    // Start node - advance directly to next node
+    if (node.type === "start" || node.id === "start" || label.startsWith("🚀")) {
+      const nextEdge = currentConfig.edges.find((e) => e.source === node.id);
+      if (nextEdge) {
+        const nextNode = currentConfig.nodes.find((n) => n.id === nextEdge.target);
+        if (nextNode) executeFlowNode(nextNode, currentConfig);
+      }
+      return;
+    }
+
     // Tag node - run silently, auto-advance
-    if (label.startsWith("🏷️") || node.id?.startsWith("tag-")) {
-      const tagValue = label.replace(/^🏷️\s*(Tag session:\s*)?/, "").replace(/['",]/g, "").trim();
+    if (label.startsWith("🏷️") || node.type === "setTag" || node.id?.startsWith("tag-")) {
+      const tagValue = cleanLabel(label).replace(/['",]/g, "").trim();
       fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -937,59 +1147,125 @@ export default function ChatWidgetCore({
         const nextNode = currentConfig.nodes.find((n) => n.id === nextEdge.target);
         if (nextNode) executeFlowNode(nextNode, currentConfig);
       }
+      return;
     }
+
     // Escalate node
-    else if (label.startsWith("🔔") || node.id?.startsWith("esc-")) {
+    if (label.startsWith("🔔") || node.type === "escalate" || node.id?.startsWith("esc-")) {
       setLiveAgent(true);
       setFlowAwaitingInput(false);
       setActiveNodeId(null);
-      setMessages((prev) => [...prev, { role: "assistant", content: "Connecting you to a live agent now..." }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) || "Connecting you to a live agent now...", sender: "ai" }]);
       fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: "[Visitor requested live agent via flow]", ai_paused: true })
       }).catch(() => {});
+      return;
     }
-    // Question node - display question, wait for typed user input (no branch buttons)
-    else if (isQuestionNode(node)) {
+
+    // Book Meeting node - schedule card trigger
+    if (isBookMeetingNode(node)) {
+      setActiveNodeId(node.id);
+      setFlowAwaitingInput(false);
+      setIsBotResponding(false);
+      const promptText = cleanLabel(label) || "Select a time that works best for you from our available slots to schedule your demo:";
+      setMessages((prev) => [...prev, { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai" }]);
+      fetch(`${BACKEND_URL}/api/widget/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: `[Calendar booking offered: ${promptText}]`, is_private_note: true })
+      }).catch(() => {});
+      return;
+    }
+
+    // Lead Capture node (e.g. Email, Name, Company) - wait for typed input
+    if (isLeadCaptureNode(node)) {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+      return;
     }
-    // Message node - display, then auto-advance if single unlabeled edge, or show choice buttons
-    else {
+
+    // AI Qualify node - consultative question, wait for typed input
+    if (isAiQualifyNode(node)) {
+      setActiveNodeId(node.id);
+      setFlowAwaitingInput(true);
+      setIsBotResponding(false);
+      const qualifyText = cleanLabel(label) || "Could you share a bit more detail on what you're looking to achieve?";
+      setMessages((prev) => [...prev, { role: "assistant", content: qualifyText, sender: "ai" }]);
+      return;
+    }
+
+    // Question node - display question, wait for typed user input
+    if (isQuestionNode(node)) {
+      setActiveNodeId(node.id);
+      setFlowAwaitingInput(true);
+      setIsBotResponding(false);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+      return;
+    }
+
+    // Choice node - display choice question, present quick reply pills
+    if (isChoiceNode(node)) {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(false);
       setIsBotResponding(false);
       setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
-      const outgoing = currentConfig.edges.filter((e) => e.source === node.id);
-      if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
-        // Linear - auto-advance after short delay
-        setTimeout(() => {
-          const nextNode = currentConfig.nodes.find((n) => n.id === outgoing[0].target);
-          if (nextNode) executeFlowNode(nextNode, currentConfig);
-        }, 900);
-      }
-      // Multiple labeled edges → stay on node, show buttons (handled in render)
+      return;
+    }
+
+    // Message node - display, then auto-advance if single unlabeled edge, or stay for choices
+    setActiveNodeId(node.id);
+    setFlowAwaitingInput(false);
+    setIsBotResponding(false);
+    setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+    const outgoing = currentConfig.edges.filter((e) => e.source === node.id);
+    if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
+      setTimeout(() => {
+        const nextNode = currentConfig.nodes.find((n) => n.id === outgoing[0].target);
+        if (nextNode) executeFlowNode(nextNode, currentConfig);
+      }, 900);
     }
   };
 
-  // React Flow stores edge labels in edge.label OR edge.data?.label - resolve both.
-  const getEdgeLabel = (edge: FlowEdge): string => edge.label || edge.data?.label || "";
-
-  const handleFlowChoice = (edge: FlowEdge) => {
+  const handleFlowChoice = (choiceText: string, edge?: FlowEdge) => {
     if (!flowConfig) return;
-    const label = getEdgeLabel(edge);
-    setMessages((prev) => [...prev, { role: "user", content: label || "Continue" }]);
-    const targetNode = flowConfig.nodes.find((n) => n.id === edge.target);
-    if (targetNode) {
-      executeFlowNode(targetNode, flowConfig);
-    } else {
-      // Flow ended - hand off to real AI
-      setActiveNodeId(null);
-      setFlowAwaitingInput(false);
+
+    let targetEdge = edge;
+    if (!targetEdge && activeNodeId) {
+      const outgoing = flowConfig.edges.filter((e) => e.source === activeNodeId);
+      targetEdge = outgoing.find((e) => {
+        const l = getEdgeLabel(e).toLowerCase();
+        return l === choiceText.toLowerCase() || choiceText.toLowerCase().includes(l);
+      });
+      if (!targetEdge && outgoing.length > 0) {
+        const activeNode = flowConfig.nodes.find((n) => n.id === activeNodeId);
+        const options: string[] = activeNode?.data?.options || [];
+        const optIdx = options.findIndex((o) => o.toLowerCase() === choiceText.toLowerCase());
+        targetEdge = (optIdx >= 0 && outgoing[optIdx]) ? outgoing[optIdx] : outgoing[0];
+      }
     }
+
+    if (targetEdge) {
+      const targetNode = flowConfig.nodes.find((n) => n.id === targetEdge.target);
+      if (targetNode) {
+        setActiveNodeId(targetNode.id);
+        if (isBookMeetingNode(targetNode)) {
+          setFlowAwaitingInput(false);
+          const promptText = cleanLabel(targetNode.data?.label) || "Select a time that works best for you from our available slots to schedule your personalized demo meeting:";
+          setMessages((prev) => [
+            ...prev,
+            { role: "user", content: choiceText },
+            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai" }
+          ]);
+          return;
+        }
+      }
+    }
+
+    sendTextRef.current(choiceText);
   };
 
   const submitCsat = async () => {
@@ -1066,6 +1342,9 @@ export default function ChatWidgetCore({
   const recordingCancelledRef = useRef(false);
 
   const [liveAgent, setLiveAgent] = useState(false);
+  const [activeAgentName, setActiveAgentName] = useState<string | null>(null);
+  const [activeAgentAvatar, setActiveAgentAvatar] = useState<string | null>(null);
+  const [teamProfiles, setTeamProfiles] = useState<TeamProfile[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -1170,17 +1449,43 @@ export default function ChatWidgetCore({
     let stopped = false;
     const ctrl = new AbortController();
 
-    const applyEvent = (payload: { type: string; content?: string; created_at?: string; value?: boolean }) => {
+    const applyEvent = (payload: {
+      type: string;
+      content?: string;
+      created_at?: string;
+      value?: boolean;
+      sender?: "human" | "ai";
+      sender_name?: string;
+      sender_avatar?: string;
+      assigned_agent_name?: string;
+      assigned_agent_avatar?: string;
+    }) => {
       if (payload.type === "message") {
         if (payload.created_at) lastPollRef.current = payload.created_at;
         const textContent = payload.content || "";
-        setMessages((p) => [...p, { role: "assistant" as const, content: textContent, sender: "ai" }]);
+        const isHuman = payload.sender === "human";
+        setMessages((p) => [
+          ...p,
+          {
+            role: "assistant" as const,
+            content: textContent,
+            sender: isHuman ? "human" : "ai",
+            sender_name: payload.sender_name,
+            sender_avatar: payload.sender_avatar,
+            created_at: payload.created_at || new Date().toISOString(),
+          },
+        ]);
+        if (payload.sender_name) setActiveAgentName(payload.sender_name);
+        if (payload.sender_avatar) setActiveAgentAvatar(payload.sender_avatar);
+        if (isHuman) setLiveAgent(true);
         setIsBotResponding(false);
         setAgentTyping(false);
         triggerPushRef.current(textContent);
         notifyParent();
       } else if (payload.type === "ai_paused") {
         setLiveAgent(!!payload.value);
+        if (payload.assigned_agent_name) setActiveAgentName(payload.assigned_agent_name);
+        if (payload.assigned_agent_avatar) setActiveAgentAvatar(payload.assigned_agent_avatar);
       } else if (payload.type === "typing") {
         setAgentTyping(!!payload.value);
       }
@@ -1193,11 +1498,27 @@ export default function ChatWidgetCore({
         if (!res.ok) return;
         const d = await res.json();
         setLiveAgent(!!d.ai_paused);
+        if (d.assigned_agent_name) setActiveAgentName(d.assigned_agent_name);
+        if (d.assigned_agent_avatar) setActiveAgentAvatar(d.assigned_agent_avatar);
         if (Array.isArray(d.messages) && d.messages.length) {
           lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-          // /api/widget/poll only ever returns human-agent replies (server-side
-          // filtered by sender="human"), so every message here is human.
-          const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content, sender: "human" as const }));
+          const newMsgs = d.messages.map((m: {
+            content: string;
+            sender?: "human" | "ai";
+            sender_name?: string;
+            sender_avatar?: string;
+            created_at?: string;
+          }) => ({
+            role: "assistant" as const,
+            content: m.content,
+            sender: "human" as const,
+            sender_name: m.sender_name || d.assigned_agent_name,
+            sender_avatar: m.sender_avatar || d.assigned_agent_avatar,
+            created_at: m.created_at,
+          }));
+          const lastM = newMsgs[newMsgs.length - 1];
+          if (lastM.sender_name) setActiveAgentName(lastM.sender_name);
+          if (lastM.sender_avatar) setActiveAgentAvatar(lastM.sender_avatar);
           setMessages((p) => [...p, ...newMsgs]);
           setIsBotResponding(false);
           setAgentTyping(false);
@@ -1257,10 +1578,27 @@ export default function ChatWidgetCore({
       if (!res.ok) return;
       const d = await res.json();
       setLiveAgent(!!d.ai_paused);
+      if (d.assigned_agent_name) setActiveAgentName(d.assigned_agent_name);
+      if (d.assigned_agent_avatar) setActiveAgentAvatar(d.assigned_agent_avatar);
       if (Array.isArray(d.messages) && d.messages.length) {
         lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-        // Same endpoint as pollOnce above - human-agent replies only.
-        const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content, sender: "human" as const }));
+        const newMsgs = d.messages.map((m: {
+          content: string;
+          sender?: "human" | "ai";
+          sender_name?: string;
+          sender_avatar?: string;
+          created_at?: string;
+        }) => ({
+          role: "assistant" as const,
+          content: m.content,
+          sender: "human" as const,
+          sender_name: m.sender_name || d.assigned_agent_name,
+          sender_avatar: m.sender_avatar || d.assigned_agent_avatar,
+          created_at: m.created_at,
+        }));
+        const lastM = newMsgs[newMsgs.length - 1];
+        if (lastM.sender_name) setActiveAgentName(lastM.sender_name);
+        if (lastM.sender_avatar) setActiveAgentAvatar(lastM.sender_avatar);
         setMessages((p) => [...p, ...newMsgs]);
         notifyParent();
       }
@@ -1322,9 +1660,24 @@ export default function ChatWidgetCore({
           const rawFontSize = isPreview ? (paramFontSizePercent || bot.font_size_percent) : (bot.font_size_percent || paramFontSizePercent);
           const parsedFontSize = parseInt(String(rawFontSize), 10);
           setFontSizePercent(Number.isFinite(parsedFontSize) && parsedFontSize > 0 ? parsedFontSize : 100);
+          if (Array.isArray(bot.team_profiles)) {
+            setTeamProfiles(bot.team_profiles);
+          }
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
-          setMessages((prev) => prev.length ? prev : [{ role: "assistant", content: wMsg, sender: "ai" }]);
+          setMessages((prev) =>
+            prev.length
+              ? prev
+              : [
+                  {
+                    role: "assistant",
+                    content: wMsg,
+                    sender: "ai",
+                    sender_name: isPreview ? (paramName || bot.name || "Fin") : (bot.name || "Fin"),
+                    sender_avatar: isPreview ? (paramAvatarUrl || bot.avatar_url || null) : (bot.avatar_url || null),
+                  },
+                ]
+          );
           if (onThemeLoaded) {
             onThemeLoaded({
               name: bot.name,
@@ -1382,7 +1735,8 @@ export default function ChatWidgetCore({
           // state) once per load - not a cascading-render risk.
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setFlowConfig(flow);
-          const startEdge = flow.edges.find((e) => e.source === "start");
+          const startNode = flow.nodes.find((n) => n.id === "start" || n.type === "start");
+          const startEdge = flow.edges.find((e) => e.source === (startNode?.id || "start"));
           if (startEdge) {
             const firstNode = flow.nodes.find((n) => n.id === startEdge.target);
             if (firstNode) {
@@ -1529,66 +1883,64 @@ export default function ChatWidgetCore({
     setInputValue("");
     setEmojiOpen(false);
 
+    let flowContext: Record<string, any> | undefined = undefined;
+
     if (flowConfig && activeNodeId) {
       const activeNode = flowConfig.nodes.find((n) => n.id === activeNodeId);
       const outgoingEdges = flowConfig.edges.filter((e) => e.source === activeNodeId);
+      const userText = text.trim();
+      const userLower = userText.toLowerCase();
 
-      if (flowAwaitingInput && isQuestionNode(activeNode)) {
-        // Question node: user typed a real answer. Route flow AND pass to real AI.
-        const resolved = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
-        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
-
-        let matchedEdge = resolved.find((e) => e._label.toLowerCase() === text.toLowerCase());
-        if (!matchedEdge) {
-          if (isEmail) {
-            matchedEdge = resolved.find((e) =>
-              e._label.toLowerCase().includes("email") &&
-              (e._label.toLowerCase().includes("provided") || e._label.toLowerCase().includes("valid") || e._label.toLowerCase().includes("yes"))
-            ) || resolved.find((e) => !e._label.toLowerCase().includes("invalid") && !e._label.toLowerCase().includes("no"));
-          } else {
-            matchedEdge = resolved.find((e) =>
-              e._label.toLowerCase().includes("invalid") || e._label.toLowerCase().includes("no")
-            );
-          }
-        }
-
-        const selectedEdge = matchedEdge || resolved[0];
-        if (selectedEdge) {
-          const targetNode = flowConfig.nodes.find((n) => n.id === selectedEdge.target);
-          if (targetNode) {
-            // Silently persist user's answer in background so it's logged in the inbox database
-            fetch(`${BACKEND_URL}/api/widget/chat`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: text })
-            }).catch(() => {});
-
-            executeFlowNode(targetNode, flowConfig);
-            return; // Stay in flow, do not trigger streaming AI response
-          } else {
-            // Flow done - fall through to AI below
-            setActiveNodeId(null);
-            setFlowAwaitingInput(false);
-          }
-        }
-
-      } else if (!flowAwaitingInput && outgoingEdges.length > 1) {
-        // Message node with labeled choice buttons - don't send to AI, just route
-        const resolved = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
-        const matchedEdge = resolved.find((e) => e._label.toLowerCase() === text.toLowerCase()) || resolved[0];
-        const targetNode = flowConfig.nodes.find((n) => n.id === matchedEdge.target);
-        if (targetNode) {
-          executeFlowNode(targetNode, flowConfig);
-        } else {
-          setActiveNodeId(null);
-          setFlowAwaitingInput(false);
-        }
-        return; // Don't send to AI for menu choices
-      } else if (!flowAwaitingInput && outgoingEdges.length === 0) {
-        // Flow is at terminal node - clear flow, hand off to AI
-        setActiveNodeId(null);
-        setFlowAwaitingInput(false);
+      // 1. Auto-extract contact info from user input
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userText);
+      if (isEmail) {
+        setCapturedLeadData((prev) => ({ ...prev, email: userText }));
       }
+      if (isLeadCaptureNode(activeNode)) {
+        const field = activeNode?.data?.field || "email";
+        if (field === "name" && !isEmail) setCapturedLeadData((prev) => ({ ...prev, name: userText }));
+        else if (field === "company" && !isEmail) setCapturedLeadData((prev) => ({ ...prev, company: userText }));
+        else if (field === "phone") setCapturedLeadData((prev) => ({ ...prev, phone: userText }));
+      }
+
+      // 2. Check if user input directly matches an outgoing branch choice
+      const choiceOptions = getChoiceOptions(activeNode, outgoingEdges);
+      const matchedOpt = choiceOptions.find((opt) => {
+        const l = opt.label.toLowerCase();
+        return l === userLower || userLower.includes(l) || l.includes(userLower);
+      });
+
+      let targetNode = matchedOpt && matchedOpt.edge ? flowConfig.nodes.find((n) => n.id === matchedOpt.edge!.target) : undefined;
+      if (!targetNode && isLeadCaptureNode(activeNode) && isEmail && outgoingEdges.length > 0) {
+        targetNode = flowConfig.nodes.find((n) => n.id === outgoingEdges[0].target);
+      } else if (!targetNode && (isAiQualifyNode(activeNode) || isQuestionNode(activeNode)) && outgoingEdges.length > 0) {
+        targetNode = flowConfig.nodes.find((n) => n.id === outgoingEdges[0].target);
+      }
+
+      if (targetNode) {
+        setActiveNodeId(targetNode.id);
+        if (isBookMeetingNode(targetNode)) {
+          setFlowAwaitingInput(false);
+          const promptText = cleanLabel(targetNode.data?.label) || "Select a time that works best for you from our available slots to schedule your personalized demo meeting:";
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai" }
+          ]);
+          return;
+        }
+      }
+
+      const nodeToUse = targetNode || activeNode;
+      flowContext = {
+        flow_name: "Consultative Qualification Flow",
+        active_node_id: nodeToUse?.id || activeNodeId,
+        node_type: nodeToUse?.type || "aiQualify",
+        label: cleanLabel(nodeToUse?.data?.label || ""),
+        prompt: nodeToUse?.data?.prompt || "",
+        options: choiceOptions.map((o) => o.label),
+        field: nodeToUse?.data?.field || "",
+        collected_data: capturedLeadData,
+      };
     }
 
     setIsBotResponding(true);
@@ -1609,8 +1961,16 @@ export default function ChatWidgetCore({
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/stream`, {
-        method: "POST", headers: { "Content-Type": "application/json", ...widgetTokenHeader },
-        body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, host: getHost() }),
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          text,
+          visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          host: getHost(),
+          flow_context: flowContext,
+        }),
       });
 
       if (!res.ok || !res.body) {
@@ -1633,7 +1993,14 @@ export default function ChatWidgetCore({
           buffer = buffer.slice(sep + 2);
           const dataLine = frame.split("\n").find((l) => l.startsWith("data:"));
           if (!dataLine) continue;
-          let payload: { type: string; text?: string; reply?: string; detail?: string; sources?: Citation[] };
+          let payload: {
+            type: string;
+            text?: string;
+            reply?: string;
+            detail?: string;
+            sources?: Citation[];
+            flow_action?: { advance_to?: string; captured?: Record<string, string> };
+          };
           try { payload = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
 
           if (payload.type === "token") {
@@ -1652,6 +2019,17 @@ export default function ChatWidgetCore({
                 return copy;
               });
             }
+            if (payload.flow_action) {
+              if (payload.flow_action.captured) {
+                setCapturedLeadData((prev) => ({ ...prev, ...payload.flow_action!.captured }));
+              }
+              if (payload.flow_action.advance_to && flowConfig) {
+                const targetNode = flowConfig.nodes.find((n) => n.id === payload.flow_action!.advance_to);
+                if (targetNode) {
+                  setActiveNodeId(targetNode.id);
+                }
+              }
+            }
             notifyParent();
           } else if (payload.type === "paused") {
             setLiveAgent(true);
@@ -1667,6 +2045,7 @@ export default function ChatWidgetCore({
       setIsBotResponding(false);
     }
   };
+  sendTextRef.current = sendText;
 
   // ---- Media message (image / audio / file) ----
   const sendMedia = async (file: File | Blob, filename: string, caption = "") => {
@@ -2059,16 +2438,48 @@ export default function ChatWidgetCore({
               <ArrowLeft className="size-4" />
             </motion.button>
           )}
-          <div
-            className="size-11 rounded-full flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
-            style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: "color-mix(in srgb, currentColor 25%, transparent)" }}
-          >
-            {headerLogoInner("size-6")}
-          </div>
+          {tab !== "home" && (liveAgent || activeAgentName) ? (
+            <AgentAvatar
+              src={activeAgentAvatar}
+              name={activeAgentName || "Agent"}
+              size="size-10"
+              showStatusDot={true}
+              statusColor="bg-amber-400"
+              className="shrink-0"
+            />
+          ) : (
+            <div
+              className="size-11 rounded-full flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
+              style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: "color-mix(in srgb, currentColor 25%, transparent)" }}
+            >
+              {headerLogoInner("size-6")}
+            </div>
+          )}
           <div className="leading-tight">
-            <h4 className="font-semibold text-sm">{botName}</h4>
-            <p className="text-[9px] flex items-center gap-1" style={{ opacity: 0.8 }}><span className="size-1.5 rounded-full bg-green-300 animate-pulse" />{liveAgent ? "Live agent · we're with you" : "Online · replies instantly"}</p>
+            <h4 className="font-semibold text-sm">
+              {tab !== "home" && (liveAgent || activeAgentName) ? (activeAgentName || "Agent") : botName}
+            </h4>
+            <p className="text-[9px] flex items-center gap-1" style={{ opacity: 0.85 }}>
+              {tab !== "home" && (liveAgent || activeAgentName) ? (
+                <span>Active in the last 15m</span>
+              ) : (
+                <>
+                  <span className="size-1.5 rounded-full bg-green-300 animate-pulse" />
+                  <span>Online · replies instantly</span>
+                </>
+              )}
+            </p>
           </div>
+          {tab === "home" && (
+            <div className="ml-auto flex items-center gap-2 mr-1">
+              <AvatarGroup
+                profiles={teamProfiles}
+                botAvatarUrl={avatarUrl || logoUrl}
+                botName={botName}
+                size="size-7"
+              />
+            </div>
+          )}
           {voiceEnabled && (
             <motion.button
               type="button"
@@ -2288,6 +2699,27 @@ export default function ChatWidgetCore({
                   />
                 </div>
 
+                {/* Ask a question card matching Screenshot 3 */}
+                <button
+                  onClick={() => setTab("messages")}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all text-left group cursor-pointer shadow-2xs"
+                >
+                  <div>
+                    <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 block">
+                      Ask a question
+                    </span>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      AI Agent and team can help
+                    </p>
+                  </div>
+                  <AvatarGroup
+                    profiles={teamProfiles}
+                    botAvatarUrl={avatarUrl || logoUrl}
+                    botName={botName}
+                    size="size-6"
+                  />
+                </button>
+
                 <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
                   <span className="flex items-center gap-2.5 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
                   <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
@@ -2348,137 +2780,200 @@ export default function ChatWidgetCore({
                 <AnimatePresence initial={false}>
                   {messages.map((msg, i) => {
                     const hasBooking = Boolean(msg.confirmedMeeting || i === lastBookingMsgIdx);
+                    const isTakeover =
+                      msg.role === "assistant" &&
+                      msg.sender === "human" &&
+                      (i === 0 || messages[i - 1].sender !== "human");
+                    const agentDisplayName = msg.sender_name || activeAgentName || "Agent";
+                    const agentDisplayAvatar = msg.sender_avatar || activeAgentAvatar;
+
                     return (
-                      <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                        className={`flex gap-2 ${hasBooking ? "w-full max-w-[96%] sm:max-w-[88%]" : "max-w-[88%]"} ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
-                        {msg.role !== "user" && <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>}
-                        <div className={`flex flex-col min-w-0 ${hasBooking ? "w-full" : ""}`}>
-                        {msg.role === "assistant" && showSenderTag && msg.sender && (
-                          <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5">
-                            {msg.sender === "human" ? "Human agent" : "AI"}
-                          </span>
+                      <Fragment key={i}>
+                        {isTakeover && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex items-center justify-center gap-2 py-3 my-1 w-full text-xs text-neutral-500 dark:text-neutral-400 select-none"
+                          >
+                            <AgentAvatar
+                              src={agentDisplayAvatar}
+                              name={agentDisplayName}
+                              size="size-5"
+                            />
+                            <span>
+                              <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                                {agentDisplayName}
+                              </span>{" "}
+                              joined the conversation
+                            </span>
+                          </motion.div>
                         )}
-                        {/* .user-bubble's background/color come entirely from the
-                            design preset's own CSS (globals.css, !important) - an
-                            inline style here computed from primaryColor would be
-                            silently overridden for the background but NOT
-                            recomputed for the text color, producing the same
-                            invisible-text bug the header had. */}
-                        <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
-                          {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL - neither works with next/image's optimizer */}
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
-                          {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
-                          {msg.role === "assistant" ? (
-                            <>
-                              {(() => {
-                                const { cleanContent, products, videoClips } = parseProductCards(msg.content);
-                                return (
-                                  <>
-                                    {cleanContent && (
-                                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
-                                        {cleanContent}
-                                      </ReactMarkdown>
-                                    )}
-                                    {products.length > 0 && (
-                                      <div className="flex flex-col gap-2 my-2 w-full">
-                                        {products.map((p, pIdx) => (
-                                          <ProductCard
-                                            key={p.id || pIdx}
-                                            product={p}
-                                            primaryColor={primaryColor}
-                                            onSelect={(prod) => setInputValue(`Is ${prod.title} available?`)}
-                                          />
-                                        ))}
-                                      </div>
-                                    )}
-                                    {videoClips.length > 0 && (
-                                      <div className="flex flex-col gap-2 my-2 w-full">
-                                        {videoClips.map((c, cIdx) => (
-                                          <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
-                                        ))}
-                                      </div>
-                                    )}
-                                  </>
-                                );
-                              })()}
-                              {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
-                                <InlineBookingCard
-                                  botId={String(botId)}
-                                  sessionId={sessionId}
-                                  visitorTimezone={typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone && Intl.DateTimeFormat().resolvedOptions().timeZone !== "UTC" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "America/New_York"}
-                                  primaryColor={primaryColor}
-                                  backendUrl={BACKEND_URL}
-                                  initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
-                                  initialName={extractedVisitorInfo.name}
-                                  initialEmail={extractedVisitorInfo.email}
-                                  initialPhone={extractedVisitorInfo.phone}
-                                  initialCompany={extractedVisitorInfo.company}
-                                  onBookingSuccess={(meeting) => {
-                                    setMessages((prev) => {
-                                      const updated = [...prev];
-                                      if (updated[i]) {
-                                        updated[i] = { ...updated[i], confirmedMeeting: meeting };
-                                      }
-                                      return updated;
-                                    });
-                                  }}
-                                  onMeetingRescheduled={(meeting) => {
-                                    setMessages((prev) =>
-                                      prev.map((m) =>
-                                        m.confirmedMeeting && (m.confirmedMeeting.id === meeting.id || !m.confirmedMeeting.id)
-                                          ? { ...m, confirmedMeeting: meeting }
-                                          : m
-                                      )
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`flex gap-2 ${hasBooking ? "w-full max-w-[96%] sm:max-w-[88%]" : "max-w-[88%]"} ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}
+                        >
+                          {msg.role !== "user" && (
+                            msg.sender === "human" ? (
+                              <AgentAvatar
+                                src={agentDisplayAvatar}
+                                name={agentDisplayName}
+                                size="size-6"
+                                className="shrink-0 mt-0.5"
+                              />
+                            ) : (
+                              <div
+                                className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5"
+                                style={{ background: primaryColor, color: onPrimary }}
+                              >
+                                {avatarInner("size-3.5")}
+                              </div>
+                            )
+                          )}
+                          <div className={`flex flex-col min-w-0 ${hasBooking ? "w-full" : ""}`}>
+                            {/* .user-bubble's background/color come entirely from the
+                                design preset's own CSS (globals.css, !important) - an
+                                inline style here computed from primaryColor would be
+                                silently overridden for the background but NOT
+                                recomputed for the text color, producing the same
+                                invisible-text bug the header had. */}
+                            <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
+                              {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL - neither works with next/image's optimizer */}
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
+                              {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
+                              {msg.role === "assistant" ? (
+                                <>
+                                  {(() => {
+                                    const { cleanContent, products, videoClips } = parseProductCards(msg.content);
+                                    return (
+                                      <>
+                                        {cleanContent && (
+                                          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                                            {cleanContent}
+                                          </ReactMarkdown>
+                                        )}
+                                        {products.length > 0 && (
+                                          <div className="flex flex-col gap-2 my-2 w-full">
+                                            {products.map((p, pIdx) => (
+                                              <ProductCard
+                                                key={p.id || pIdx}
+                                                product={p}
+                                                primaryColor={primaryColor}
+                                                onSelect={(prod) => setInputValue(`Is ${prod.title} available?`)}
+                                              />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {videoClips.length > 0 && (
+                                          <div className="flex flex-col gap-2 my-2 w-full">
+                                            {videoClips.map((c, cIdx) => (
+                                              <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
+                                            ))}
+                                          </div>
+                                        )}
+                                      </>
                                     );
-                                  }}
-                                  onMeetingCancelled={() => {
-                                    setMessages((prev) =>
-                                      prev.map((m) => {
-                                        if (m.confirmedMeeting) {
-                                          const copy = { ...m };
-                                          delete copy.confirmedMeeting;
-                                          return copy;
-                                        }
-                                        return m;
-                                      })
-                                    );
-                                  }}
-                                />
+                                  })()}
+                                  {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
+                                    <InlineBookingCard
+                                      botId={String(botId)}
+                                      sessionId={sessionId}
+                                      visitorTimezone={typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone && Intl.DateTimeFormat().resolvedOptions().timeZone !== "UTC" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "America/New_York"}
+                                      primaryColor={primaryColor}
+                                      backendUrl={BACKEND_URL}
+                                      initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
+                                      initialName={extractedVisitorInfo.name}
+                                      initialEmail={extractedVisitorInfo.email}
+                                      initialPhone={extractedVisitorInfo.phone}
+                                      initialCompany={extractedVisitorInfo.company}
+                                      onBookingSuccess={(meeting) => {
+                                        setMessages((prev) => {
+                                          const updated = [...prev];
+                                          if (updated[i]) {
+                                            updated[i] = { ...updated[i], confirmedMeeting: meeting };
+                                          }
+                                          return updated;
+                                        });
+                                      }}
+                                      onMeetingRescheduled={(meeting) => {
+                                        setMessages((prev) =>
+                                          prev.map((m) =>
+                                            m.confirmedMeeting && (m.confirmedMeeting.id === meeting.id || !m.confirmedMeeting.id)
+                                              ? { ...m, confirmedMeeting: meeting }
+                                              : m
+                                          )
+                                        );
+                                      }}
+                                      onMeetingCancelled={() => {
+                                        setMessages((prev) =>
+                                          prev.map((m) => {
+                                            if (m.confirmedMeeting) {
+                                              const copy = { ...m };
+                                              delete copy.confirmedMeeting;
+                                              return copy;
+                                            }
+                                            return m;
+                                          })
+                                        );
+                                      }}
+                                    />
+                                  )}
+                                </>
+                              ) : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
+                              {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
+                                <div className="mt-1.5 flex items-center gap-1">
+                                  <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
+                                    className={`p-1 rounded-md transition-colors ${msg.feedback === "up" ? "text-green-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
+                                    <ThumbsUp className="size-3" />
+                                  </button>
+                                  <button onClick={() => rateMessage(i, "down")} aria-label="Not helpful"
+                                    className={`p-1 rounded-md transition-colors ${msg.feedback === "down" ? "text-red-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
+                                    <ThumbsDown className="size-3" />
+                                  </button>
+                                </div>
                               )}
-                            </>
-                          ) : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
-                          {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
-                            <div className="mt-1.5 flex items-center gap-1">
-                              <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
-                                className={`p-1 rounded-md transition-colors ${msg.feedback === "up" ? "text-green-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
-                                <ThumbsUp className="size-3" />
-                              </button>
-                              <button onClick={() => rateMessage(i, "down")} aria-label="Not helpful"
-                                className={`p-1 rounded-md transition-colors ${msg.feedback === "down" ? "text-red-500" : "text-neutral-300 dark:text-neutral-600 hover:text-neutral-500"}`}>
-                                <ThumbsDown className="size-3" />
-                              </button>
+                              {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap gap-1">
+                                  {msg.sources.map((s, si) => {
+                                    const label = s.url ? (() => { try { return new URL(s.url!).hostname.replace(/^www\./, "") + new URL(s.url!).pathname.replace(/\/$/, ""); } catch { return s.name; } })() : s.name;
+                                    const cls = "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-500 max-w-[170px]";
+                                    return s.url
+                                      ? <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url} className={`${cls} hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors`}><Link2 className="size-2.5 shrink-0" /><span className="truncate">{label}</span></a>
+                                      : <span key={si} title={s.name} className={cls}><FileText className="size-2.5 shrink-0" /><span className="truncate">{label}</span></span>;
+                                  })}
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap gap-1">
-                              {msg.sources.map((s, si) => {
-                                const label = s.url ? (() => { try { return new URL(s.url!).hostname.replace(/^www\./, "") + new URL(s.url!).pathname.replace(/\/$/, ""); } catch { return s.name; } })() : s.name;
-                                const cls = "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-500 max-w-[170px]";
-                                return s.url
-                                  ? <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url} className={`${cls} hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors`}><Link2 className="size-2.5 shrink-0" /><span className="truncate">{label}</span></a>
-                                  : <span key={si} title={s.name} className={cls}><FileText className="size-2.5 shrink-0" /><span className="truncate">{label}</span></span>;
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        </div>
-                      </motion.div>
+                            {/* Intercom-style sender tag underneath bubble */}
+                            {msg.role === "assistant" && (
+                              <div className="flex items-center gap-1 text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 px-1 select-none">
+                                {msg.sender === "human" ? (
+                                  <span>{agentDisplayName} • {formatTimeCompact(msg.created_at)}</span>
+                                ) : (
+                                  <span>{botName || "Fin"} • AI Agent • {formatTimeCompact(msg.created_at)}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      </Fragment>
                     );
                   })}
                   {(isBotResponding || agentTyping) && (
                     <div className="flex gap-2 mr-auto">
-                      <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden" style={{ background: primaryColor, color: onPrimary }}>{avatarInner("size-3.5")}</div>
+                      {agentTyping ? (
+                        <AgentAvatar
+                          src={activeAgentAvatar}
+                          name={activeAgentName || "Agent"}
+                          size="size-6"
+                          className="shrink-0 mt-0.5"
+                        />
+                      ) : (
+                        <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5" style={{ background: primaryColor, color: onPrimary }}>
+                          {avatarInner("size-3.5")}
+                        </div>
+                      )}
                       <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none flex items-center gap-1">
                         <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce" />
                         <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" />
@@ -2498,30 +2993,30 @@ export default function ChatWidgetCore({
                     ))}
                   </div>
                 )}
-                {flowConfig && activeNodeId && !isBotResponding && !flowAwaitingInput && (
+                {flowConfig && activeNodeId && !isBotResponding && (
                   (() => {
                     const activeNode = flowConfig.nodes.find((n) => n.id === activeNodeId);
-                    // Never show buttons on question nodes - user must type their answer
-                    if (isQuestionNode(activeNode)) return null;
-                    const outgoingEdges = flowConfig.edges.filter((e) => e.source === activeNodeId);
-                    const resolvedEdges = outgoingEdges.map((e) => ({ ...e, _label: getEdgeLabel(e) }));
-                    // Only show buttons if there are multiple labeled outgoing edges (menu-style)
-                    const labeled = resolvedEdges.filter((e) => e._label);
-                    if (labeled.length < 2) return null;
+                    if (!activeNode) return null;
+                    const options = getChoiceOptions(activeNode, flowConfig.edges);
+                    if (options.length === 0) return null;
                     return (
-                      <div className="flex flex-col items-end gap-2 pt-1">
-                        {labeled.map((edge, i) => (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-wrap justify-end gap-1.5 pt-2 max-w-[92%] ml-auto"
+                      >
+                        {options.map((opt, i) => (
                           <button
                             key={i}
                             type="button"
-                            onClick={() => handleFlowChoice(edge)}
-                            className="px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors cursor-pointer"
+                            onClick={() => handleFlowChoice(opt.label, opt.edge)}
+                            className="px-3.5 py-1.5 rounded-full border text-xs font-medium transition-all shadow-sm hover:shadow active:scale-95 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 cursor-pointer"
                             style={{ borderColor: primaryColor, color: primaryColor }}
                           >
-                            {edge._label}
+                            {opt.label}
                           </button>
                         ))}
-                      </div>
+                      </motion.div>
                     );
                   })()
                 )}

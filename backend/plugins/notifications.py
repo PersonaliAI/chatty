@@ -430,11 +430,32 @@ async def deliver_webhook(*, url: str, event: str, bot_id: str, data: dict) -> b
 # ---------------------------------------------------------------------------
 
 WEBHOOK_EVENTS = (
-    "lead.created",
-    "message.user",
-    "message.assistant",
+    # Session lifecycle
     "session.started",
     "session.ended",
+    "session.assigned",
+    "session.resolved",
+    "session.transferred",
+    # Messages
+    "message.user",
+    "message.assistant",
+    "message.agent",
+    # Leads
+    "lead.created",
+    "lead.updated",
+    "lead.exported",
+    # Meetings / calendar
+    "meeting.booked",
+    "meeting.cancelled",
+    "meeting.rescheduled",
+    # SLA
+    "sla.first_response_breached",
+    "sla.resolution_breached",
+    # CSAT
+    "csat.submitted",
+    # Knowledge base
+    "knowledge.source_added",
+    "knowledge.source_deleted",
 )
 
 # Seconds to wait before each retry: 1s, 5s, 30s, 5min, 30min, 2h, 8h.

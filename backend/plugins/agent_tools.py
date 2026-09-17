@@ -232,6 +232,7 @@ DECLARATIONS: list[dict] = [
             "location": {"type": "string", "description": "Optional physical/virtual location."},
             "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee email addresses. Must contain the visitor's verified email address provided in chat."},
             "verification_code": {"type": "string", "description": "6-digit email OTP verification code provided by the visitor (required if email verification is enabled on the chatbot)."},
+            "color_id": {"type": "string", "description": "Optional Google Calendar event colorId ('1' to '11'). Omit to automatically select multiple colors matching the topic or rotating palette."},
             "all_day": {"type": "boolean", "description": "True for all-day events; start/end then become dates."},
         },
         ["summary", "start", "end", "attendees"],
@@ -455,6 +456,7 @@ async def _create_calendar_event(args: dict, user: dict, supabase, context: Opti
         if time_label:
             desc = f"{desc}\n\nTime: {time_label}"
     calendar_id = args.get("calendar_id") or bot.get("google_calendar_id") or "primary"
+    color_id = args.get("color_id") or bot.get("google_calendar_color") or "auto_multiple"
     return await g.create_calendar_event(
         supabase,
         target_user,
@@ -467,6 +469,7 @@ async def _create_calendar_event(args: dict, user: dict, supabase, context: Opti
         all_day=bool(args.get("all_day")),
         calendar_id=calendar_id,
         timezone_override=tz_override,
+        color_id=color_id,
         table=table,
     )
 
@@ -787,7 +790,7 @@ async def reschedule_meeting_core(
             await g.update_calendar_event(
                 supabase, host_user, event_id=meeting["provider_event_id"],
                 start=new_start.isoformat(), end=new_end.isoformat(), timezone_override=owner_tz_str,
-                calendar_id=cal_id, table=tbl,
+                calendar_id=cal_id, color_id="5", table=tbl,
             )
     except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
         raise

@@ -231,6 +231,7 @@ async def widget_chat(
             bot_id=bot_id, owner_user=owner_user, bot=bot,
             session_id=session_id, text=text, visitor_timezone=visitor_timezone,
             visitor_geo=await geoip_lookup(ip),
+            flow_context=body.flow_context,
         )
     except Exception:
         logger.exception("Widget assistant run failed")
@@ -240,9 +241,13 @@ async def widget_chat(
 
     # 5. Save assistant reply
     try:
+        bot_name = bot.get("name") or "Chatty"
+        bot_av = bot.get("avatar_url") or bot.get("logo_url")
         await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "assistant",
             "content": reply, "sender": "ai",
+            "sender_name": bot_name,
+            "sender_avatar": bot_av,
         }).execute())
     except Exception:
         logger.exception("Failed to save assistant conversation message")
@@ -253,7 +258,7 @@ async def widget_chat(
 
     background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
 
-    return WidgetChatResponse(reply=reply, session_id=session_id, sources=result.get("sources") or None)
+    return WidgetChatResponse(reply=reply, session_id=session_id, sources=result.get("sources") or None, flow_action=result.get("flow_action"))
 
 
 @router.post("/api/widget/chat/stream")
@@ -404,12 +409,17 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 bot_id=bot_id, owner_user=owner_user, bot=bot,
                 session_id=session_id, text=text, visitor_timezone=visitor_timezone,
                 visitor_geo=visitor_geo, on_token=_on_token,
+                flow_context=body.flow_context,
             )
             reply = result["reply"]
             try:
+                bot_name = bot.get("name") or "Chatty"
+                bot_av = bot.get("avatar_url") or bot.get("logo_url")
                 await run_db(lambda: supabase.table("chatty_conversations").insert({
                     "bot_id": bot_id, "session_id": session_id, "role": "assistant",
                     "content": reply, "sender": "ai",
+                    "sender_name": bot_name,
+                    "sender_avatar": bot_av,
                 }).execute())
             except Exception:
                 logger.exception("Failed to save assistant conversation message")
@@ -418,7 +428,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 session_id=session_id, data={"content": reply},
             )
             background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
-            await queue.put(_sse({"type": "done", "reply": reply, "sources": result.get("sources") or []}))
+            await queue.put(_sse({"type": "done", "reply": reply, "sources": result.get("sources") or [], "flow_action": result.get("flow_action")}))
         except Exception:  # noqa: BLE001
             logger.exception("Widget stream assistant failed")
             await queue.put(_sse({"type": "error", "detail": "An internal error occurred while generating a response."}))
@@ -701,17 +711,23 @@ async def widget_poll(bot_id: str, session_id: str, after: str = ""):
     """Visitor's widget polls for human-agent replies + AI-pause state.
     Retained as a fallback for clients that can't use the SSE /live stream."""
     try:
-        q = supabase.table("chatty_conversations").select("content,created_at,sender") \
+        q = supabase.table("chatty_conversations").select("content,created_at,sender,sender_name,sender_avatar") \
             .eq("bot_id", bot_id).eq("session_id", session_id).eq("sender", "human") \
             .order("created_at", desc=False)
         if after:
             q = q.gt("created_at", after)
         res = await run_db(q.execute)
         msgs = res.data or []
-        sess = await run_db(lambda: supabase.table("chatty_sessions").select("ai_paused").eq(
+        sess = await run_db(lambda: supabase.table("chatty_sessions").select("ai_paused,assigned_agent_name,assigned_agent_avatar").eq(
             "bot_id", bot_id).eq("session_id", session_id).execute())
-        ai_paused = bool(sess.data[0]["ai_paused"]) if sess.data else False
-        return {"messages": msgs, "ai_paused": ai_paused}
+        s_row = sess.data[0] if sess.data else {}
+        ai_paused = bool(s_row.get("ai_paused"))
+        return {
+            "messages": msgs,
+            "ai_paused": ai_paused,
+            "assigned_agent_name": s_row.get("assigned_agent_name"),
+            "assigned_agent_avatar": s_row.get("assigned_agent_avatar"),
+        }
     except Exception:
         logger.exception("widget poll failed")
         return {"messages": [], "ai_paused": False}
@@ -733,7 +749,7 @@ async def widget_live(bot_id: str, session_id: str, after: str = ""):
         yield ": connected\n\n"
         while time.time() < deadline:
             try:
-                q = supabase.table("chatty_conversations").select("content,created_at,sender") \
+                q = supabase.table("chatty_conversations").select("content,created_at,sender,sender_name,sender_avatar") \
                     .eq("bot_id", bot_id).eq("session_id", session_id).eq("sender", "human") \
                     .order("created_at", desc=False)
                 if cursor:
@@ -741,13 +757,26 @@ async def widget_live(bot_id: str, session_id: str, after: str = ""):
                 res = await run_db(q.execute)
                 for m in (res.data or []):
                     cursor = m["created_at"]
-                    yield _sse({"type": "message", "content": m["content"], "created_at": m["created_at"]})
-                sess = await run_db(lambda: supabase.table("chatty_sessions").select("ai_paused").eq(
+                    yield _sse({
+                        "type": "message",
+                        "content": m["content"],
+                        "created_at": m["created_at"],
+                        "sender": m.get("sender") or "human",
+                        "sender_name": m.get("sender_name"),
+                        "sender_avatar": m.get("sender_avatar"),
+                    })
+                sess = await run_db(lambda: supabase.table("chatty_sessions").select("ai_paused,assigned_agent_name,assigned_agent_avatar").eq(
                     "bot_id", bot_id).eq("session_id", session_id).execute())
-                paused = bool(sess.data[0]["ai_paused"]) if sess.data else False
+                s_row = sess.data[0] if sess.data else {}
+                paused = bool(s_row.get("ai_paused"))
                 if paused != last_paused:
                     last_paused = paused
-                    yield _sse({"type": "ai_paused", "value": paused})
+                    yield _sse({
+                        "type": "ai_paused",
+                        "value": paused,
+                        "assigned_agent_name": s_row.get("assigned_agent_name"),
+                        "assigned_agent_avatar": s_row.get("assigned_agent_avatar"),
+                    })
             except Exception:
                 logger.exception("widget live check failed")
             await asyncio.sleep(2)
@@ -809,6 +838,52 @@ async def widget_theme(bot_id: str):
                 hide_branding = False
         except Exception:
             hide_branding = False
+
+    team_profiles: list[dict[str, Any]] = []
+    try:
+        if b.get("user_id"):
+            owner_res = await run_db(lambda: supabase.table("users").select("display_name, avatar_url, email").eq(
+                "auth_user_id", b.get("user_id")).limit(1).execute())
+            if owner_res.data:
+                o = owner_res.data[0]
+                o_name = o.get("display_name") or (o.get("email", "").split("@")[0] if o.get("email") else "Team Lead")
+                o_av = o.get("avatar_url")
+                if o_av and not (o_av.startswith("http://") or o_av.startswith("https://") or o_av.startswith("data:image/")):
+                    o_av = None
+                team_profiles.append({
+                    "name": o_name,
+                    "avatar_url": o_av,
+                    "role": "Owner",
+                })
+    except Exception:
+        pass
+
+    try:
+        tm_res = await run_db(lambda: supabase.table("chatty_team_members").select("name, email, role, avatar_url").eq(
+            "bot_id", bot_id).execute())
+        for tm in (tm_res.data or []):
+            tm_name = tm.get("name") or (tm.get("email", "").split("@")[0] if tm.get("email") else "Agent")
+            tm_av = tm.get("avatar_url")
+            if not tm_av and tm.get("email"):
+                try:
+                    u_match = await run_db(lambda: supabase.table("users").select("avatar_url, display_name").eq("email", tm["email"]).limit(1).execute())
+                    if u_match.data:
+                        if not tm.get("name") and u_match.data[0].get("display_name"):
+                            tm_name = u_match.data[0]["display_name"]
+                        if u_match.data[0].get("avatar_url"):
+                            tm_av = u_match.data[0]["avatar_url"]
+                except Exception:
+                    pass
+            if tm_av and not (tm_av.startswith("http://") or tm_av.startswith("https://") or tm_av.startswith("data:image/")):
+                tm_av = None
+            team_profiles.append({
+                "name": tm_name,
+                "avatar_url": tm_av,
+                "role": tm.get("role") or "Agent",
+            })
+    except Exception:
+        pass
+
     return {
         "name": b.get("name") or "Chatty Assistant",
         "primary_color": b.get("primary_color") or "#f97316",
@@ -833,6 +908,7 @@ async def widget_theme(bot_id: str):
         "panel_size": b.get("panel_size") or "default",
         "calendar_scheduling_enabled": bool(b.get("calendar_scheduling_enabled")),
         "meeting_provider": b.get("meeting_provider") or "google_meet",
+        "team_profiles": team_profiles,
     }
 
 
@@ -1335,6 +1411,10 @@ async def widget_booking_confirm(
     if await _rate_limited_async(f"booking_confirm_email:{body.bot_id}:{visitor_email}", limit=3, window=600):
         raise HTTPException(status_code=429, detail="Too many booking attempts for this email address. Please wait a few minutes.")
 
+    # Idempotency / Double-submit guard for the exact same slot and email: 1 booking per 10 seconds
+    if await _rate_limited_async(f"booking_slot_lock:{body.bot_id}:{visitor_email}:{body.start_time}", limit=1, window=10):
+        raise HTTPException(status_code=409, detail="A booking for this time slot is already being processed. Please check your calendar or refresh.")
+
     # 3. Abuse Protection Defenses: Disposable / Business Email Checks
     from plugins.agent_tools import CONSUMER_EMAIL_DOMAINS, DISPOSABLE_EMAIL_DOMAINS
     domain = visitor_email.split("@")[-1].lower() if "@" in visitor_email else ""
@@ -1433,6 +1513,7 @@ async def widget_booking_confirm(
         "description": description,
         "body": description,
         "online_meeting": True,
+        "color_id": bot.get("google_calendar_color") or "auto_multiple",
     }
     if body.verification_code:
         tool_args["verification_code"] = body.verification_code.strip()

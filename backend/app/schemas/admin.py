@@ -54,3 +54,37 @@ class SessionNoteCreateRequest(BaseModel):
     session_id: str
     note: str
 
+
+class CopilotDraftRequest(BaseModel):
+    bot_id: str
+    session_id: str
+    instructions: Optional[str] = ""
+
+
+class CopilotSummarizeRequest(BaseModel):
+    bot_id: str
+    session_id: str
+
+
+class ViewerHeartbeatRequest(BaseModel):
+    bot_id: str
+    session_id: str
+
+
+class AutomationRuleCreateRequest(BaseModel):
+    bot_id: str
+    name: str
+    event_type: str = "session_created"
+    condition_match: str = "all"
+    conditions: list[dict] = []
+    actions: list[dict] = []
+    is_active: bool = True
+
+
+class AutomationRuleTestRequest(BaseModel):
+    bot_id: str
+    event_type: str = "message_received"
+    session: dict = {}
+    context: dict = {}
+
+

@@ -136,6 +136,7 @@ class ChattyVoiceAgent(Agent):
         session_id: str,
         visitor_timezone: str,
         visitor_geo: Optional[dict[str, Any]] = None,
+        room: Optional[Any] = None,
     ):
         super().__init__(instructions="", llm=_NullLLM())
         self._bot = bot
@@ -144,6 +145,7 @@ class ChattyVoiceAgent(Agent):
         self._session_id = session_id
         self._visitor_timezone = visitor_timezone
         self._visitor_geo = visitor_geo
+        self._room = room
 
     async def llm_node(
         self,
@@ -170,7 +172,10 @@ class ChattyVoiceAgent(Agent):
         # with "object is not awaitable"). asyncio.Queue.put_nowait itself is
         # sync/non-blocking, so this async wrapper just awaits nothing extra.
         async def _on_token(tok: str) -> None:
-            queue.put_nowait(tok)
+            # Strip [BOOKING_WIDGET] marker so TTS audio engine does not speak it aloud
+            clean_tok = tok.replace("[BOOKING_WIDGET]", "")
+            if clean_tok:
+                queue.put_nowait(clean_tok)
 
         task = asyncio.create_task(widget_brain.run_widget_assistant(
             bot_id=self._bot_id,
@@ -193,10 +198,22 @@ class ChattyVoiceAgent(Agent):
 
         result = task.result()  # propagates any exception raised by the task
 
+        # If the assistant turn triggered booking, publish a reliable data packet to the room
+        # so the client's VoiceCallWidget displays the interactive calendar immediately.
+        reply = result.get("reply") or ""
+        if "[BOOKING_WIDGET]" in reply and self._room and getattr(self._room, "local_participant", None):
+            try:
+                await self._room.local_participant.publish_data(
+                    json.dumps({"type": "booking_widget", "action": "open"}).encode("utf-8"),
+                    reliable=True,
+                )
+            except Exception:
+                logger.exception("voice worker: failed to publish booking_widget data packet")
+
         try:
             supabase.table("chatty_conversations").insert({
                 "bot_id": self._bot_id, "session_id": self._session_id,
-                "role": "assistant", "content": result["reply"],
+                "role": "assistant", "content": reply,
             }).execute()
         except Exception:
             logger.exception("voice worker: failed to save assistant conversation message")
@@ -631,6 +648,7 @@ async def entrypoint(ctx: JobContext) -> None:
             bot_id=bot_id,
             session_id=session_id,
             visitor_timezone=visitor_timezone,
+            room=ctx.room,
         )
 
     async def _log_call_cost() -> None:

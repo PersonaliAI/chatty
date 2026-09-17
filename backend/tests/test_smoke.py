@@ -19,6 +19,14 @@ def test_health_endpoint():
     assert r.json()["status"] == "healthy"
 
 
+def test_openapi_schema_generates():
+    """Route annotations must all resolve before a production schema request."""
+    client = TestClient(main.app)
+    r = client.get("/openapi.json")
+    assert r.status_code == 200
+    assert "/api/admin/kb/articles" in r.json()["paths"]
+
+
 def test_normalize_host():
     assert main._normalize_host("https://www.Example.com:443/path") == "example.com"
     assert main._normalize_host("HTTP://Foo.COM") == "foo.com"

@@ -157,7 +157,17 @@ async def chat(
             return resp
         except _TRANSIENT_EXCEPTIONS as exc:
             last_err = exc
-            if attempt == max_attempts - 1:
+            # If the error is a hard daily quota exhaustion (e.g. 429 RESOURCE_EXHAUSTED
+            # with 20 RPD free tier limit), retrying the same model with 1s, 2s, 4s backoff
+            # is futile and wastes up to 30s causing frontend timeouts. Immediately break
+            # to fallback models if candidates remain!
+            is_quota_exhausted = (
+                isinstance(exc, litellm.RateLimitError)
+                and any(term in str(exc).lower() for term in ("quota", "resource_exhausted", "free_tier_requests"))
+            )
+            if attempt == max_attempts - 1 or (is_quota_exhausted and len(candidates) > 1):
+                if is_quota_exhausted:
+                    logger.warning("%s daily quota exhausted - trying fallback models immediately", model)
                 break
             backoff = (2 ** attempt) * (1 + random.uniform(-0.2, 0.2))
             logger.warning(
