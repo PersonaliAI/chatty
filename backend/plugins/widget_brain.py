@@ -937,27 +937,36 @@ async def run_widget_assistant(
         collected = flow_context.get("collected_data") or {}
 
         opt_text = ", ".join([f'"{o}"' for o in options]) if options else ""
-        flow_directive_block = (
-            f"\n=== ACTIVE CONVERSATIONAL WORKFLOW OBJECTIVE (INTERCOM FIN INTELLIGENCE) ===\n"
-            f"You are executing the workflow \"{flow_name}\" as an intelligent, consultative AI partner (NOT a dumb, rigid robotic script).\n"
-            f"Current Flow Stage: {node_type.upper()}\n"
-            f"Stage Goal / Topic: {node_label}\n"
-            f"{f'Custom Directive: {node_prompt}\n' if node_prompt else ''}"
-            f"{f'Available Choices for Visitor: {opt_text}\n' if opt_text else ''}"
-            f"{f'Target Lead Field to Capture: {field}\n' if field else ''}"
-            f"{f'Information Known So Far: {collected}\n' if collected else ''}"
-            f"\nCORE AI INTELLIGENCE PRINCIPLES:\n"
-            f"1. REAL AI CONSULTING: If the visitor asks a question (about features, pricing, integrations like Salesforce/Zendesk, security, or how it works), ALWAYS answer their question thoroughly first using your business knowledge base, then smoothly bridge back to the workflow goal.\n"
-            f"2. CONSULTATIVE AMBIGUITY RESOLUTION: If the user says 'idk', 'not sure', 'what\\'s the difference', or seems undecided:\n"
-            f"   - NEVER end the conversation with a generic canned statement like 'we will get back to you'.\n"
-            f"   - Explain the differences between the options warmly and consultatively.\n"
-            f"   - Give a practical recommendation based on common business needs and ask which one resonates with them.\n"
-            f"3. FLUID CONVERSATION: Acknowledge what the user said naturally before asking the next question. Avoid repeating the exact canned prompt verbatim.\n"
-            f"4. ENTITY CAPTURE: If this stage aims to capture a contact detail (like email or company) and the user provides it in natural conversation, warmly acknowledge it and transition to the next step.\n"
-            f"5. DEMO & MEETING BOOKING: If the conversation reaches scheduling a meeting or demo, invite them to pick a slot and ALWAYS include [BOOKING_WIDGET] at the end of your message so the calendar scheduler appears.\n"
-            f"6. FLOW TAGS: At the very end of your response, if you have identified the next branch/action or extracted lead data, you may optionally append: [FLOW_ADVANCE: <target_branch_or_node_id>] and/or [FLOW_DATA: {{\"field\": \"value\"}}]. These will be parsed by the system.\n"
-            f"=== END ACTIVE CONVERSATIONAL WORKFLOW OBJECTIVE ===\n\n"
-        )
+        directive_lines = [
+            "",
+            "=== ACTIVE CONVERSATIONAL WORKFLOW OBJECTIVE (INTERCOM FIN INTELLIGENCE) ===",
+            f'You are executing the workflow "{flow_name}" as an intelligent, consultative AI partner (NOT a dumb, rigid robotic script).',
+            f"Current Flow Stage: {node_type.upper()}",
+            f"Stage Goal / Topic: {node_label}",
+        ]
+        if node_prompt:
+            directive_lines.append(f"Custom Directive: {node_prompt}")
+        if opt_text:
+            directive_lines.append(f"Available Choices for Visitor: {opt_text}")
+        if field:
+            directive_lines.append(f"Target Lead Field to Capture: {field}")
+        if collected:
+            directive_lines.append(f"Information Known So Far: {collected}")
+        directive_lines.extend([
+            "",
+            "CORE AI INTELLIGENCE PRINCIPLES:",
+            "1. REAL AI CONSULTING: If the visitor asks a question (about features, pricing, integrations like Salesforce/Zendesk, security, or how it works), ALWAYS answer their question thoroughly first using your business knowledge base, then smoothly bridge back to the workflow goal.",
+            '2. CONSULTATIVE AMBIGUITY RESOLUTION: If the user says "idk", "not sure", "what\'s the difference", or seems undecided:',
+            "   - NEVER end the conversation with a generic canned statement like 'we will get back to you'.",
+            "   - Explain the differences between the options warmly and consultatively.",
+            "   - Give a practical recommendation based on common business needs and ask which one resonates with them.",
+            "3. FLUID CONVERSATION: Acknowledge what the user said naturally before asking the next question. Avoid repeating the exact canned prompt verbatim.",
+            "4. ENTITY CAPTURE: If this stage aims to capture a contact detail (like email or company) and the user provides it in natural conversation, warmly acknowledge it and transition to the next step.",
+            "5. DEMO & MEETING BOOKING: If the conversation reaches scheduling a meeting or demo, invite them to pick a slot and ALWAYS include [BOOKING_WIDGET] at the end of your message so the calendar scheduler appears.",
+            '6. FLOW TAGS: At the very end of your response, if you have identified the next branch/action or extracted lead data, you may optionally append: [FLOW_ADVANCE: <target_branch_or_node_id>] and/or [FLOW_DATA: {"field": "value"}]. These will be parsed by the system.',
+            "=== END ACTIVE CONVERSATIONAL WORKFLOW OBJECTIVE ===\n",
+        ])
+        flow_directive_block = "\n".join(directive_lines)
 
     system_instruction = (
         f"{persona}"
