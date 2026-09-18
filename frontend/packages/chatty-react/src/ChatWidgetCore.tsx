@@ -14,7 +14,7 @@ import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
-import { normalizeWidgetStyle } from "./widget-style";
+import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
 // CSS is shipped separately (dist/styles.css, plus katex's own CSS) instead
 // of side-effect-imported here - a library bundling its own CSS import
 // requires the CONSUMER's bundler to understand raw CSS imports the exact
@@ -22,11 +22,11 @@ import { normalizeWidgetStyle } from "./widget-style";
 // arbitrary React setups (Next.js, CRA, Vite, etc. all differ). See this
 // package's README for the two imports a consumer needs to add once.
 import {
-  Send, Loader2, Sparkles, MessageSquare, FileText, Search,
+  Send, Loader2, Sparkles, MessageSquare, MessageCircle, FileText, Search,
   Paperclip, Smile, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
-  BookOpen,
+  BookOpen, Home, HelpCircle, Megaphone, Compass, Clock, Calendar,
   type LucideIcon,
 } from "lucide-react";
 
@@ -358,8 +358,8 @@ function AgentAvatar({
   }, [name]);
 
   const showFallback = !isValidUrl || imageError;
-  const fallbackBg = bgColor || primaryColor || "#f97316";
-  const fallbackFg = textColor || onPrimary || getOnColor(fallbackBg);
+  const fallbackBg = primaryColor || "#f97316";
+  const fallbackFg = textColor || getOnColor(fallbackBg);
 
   return (
     <div className={`relative inline-flex shrink-0 ${className}`}>
@@ -412,17 +412,18 @@ function AvatarGroup({
   const items: { src?: string | null; name: string }[] = [];
 
   if (profiles && profiles.length > 0) {
-    for (const p of profiles.slice(0, 3)) {
-      items.push({ src: p.avatar_url, name: p.name });
+    for (const p of profiles) {
+      if (p.avatar_url || (p.name && p.name.trim())) {
+        items.push({ src: p.avatar_url, name: p.name });
+      }
+      if (items.length >= 3) break;
     }
   }
 
   if (items.length === 0) {
     items.push({ src: botAvatarUrl, name: botName });
-  } else if (items.length === 1) {
-    if (botAvatarUrl && items[0].src !== botAvatarUrl) {
-      items.unshift({ src: botAvatarUrl, name: botName });
-    }
+  } else if (items.length === 1 && botAvatarUrl && items[0].src !== botAvatarUrl) {
+    items.unshift({ src: botAvatarUrl, name: botName });
   }
 
   return (
@@ -435,7 +436,7 @@ function AvatarGroup({
           size={size}
           primaryColor={primaryColor}
           onPrimary={onPrimary}
-          bgColor={bgColor}
+          bgColor={item.src === botAvatarUrl ? bgColor : undefined}
           textColor={textColor}
           className="ring-2 ring-white dark:ring-neutral-900 rounded-full"
         />
@@ -542,6 +543,7 @@ export interface WidgetThemeData {
   font_family?: string | null;
   font_size_percent?: number;
   voice_message_mode?: "transcribe" | "audio";
+  panel_size?: string;
 }
 
 export default function ChatWidgetCore({
@@ -624,13 +626,26 @@ export default function ChatWidgetCore({
       const Icon = AVATAR_ICONS[avatarIcon];
       return <Icon className={iconCls} />;
     }
-    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />; // eslint-disable-line @next/next/no-img-element
+    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-contain p-1 rounded-full" />; // eslint-disable-line @next/next/no-img-element
     return botName[0]?.toUpperCase();
   };
 
   const headerLogoInner = (iconCls: string) => {
-    if (logoUrl) return <img src={logoUrl} alt="" className="w-[34px] h-[34px] object-contain rounded-full" />; // eslint-disable-line @next/next/no-img-element
+    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-contain p-1 rounded-full" />; // eslint-disable-line @next/next/no-img-element
     return avatarInner(iconCls);
+  };
+
+  const renderBotAvatar = (sizeClass = "size-9", iconClass = "size-5", className = "") => {
+    const bg = colorScheme?.avatar?.bg || logoBgColor || "color-mix(in srgb, var(--primary-color) 15%, transparent)";
+    const fg = colorScheme?.avatar?.text || (logoBgColor ? getOnColor(logoBgColor) : primaryColor);
+    return (
+      <div
+        className={`${sizeClass} rounded-full flex items-center justify-center font-bold overflow-hidden shrink-0 transition-colors shadow-2xs ${className}`}
+        style={{ backgroundColor: bg, color: fg }}
+      >
+        {headerLogoInner(iconClass)}
+      </div>
+    );
   };
 
   const clearChat = () => {
@@ -1367,6 +1382,7 @@ export default function ChatWidgetCore({
   const [activeAgentAvatar, setActiveAgentAvatar] = useState<string | null>(null);
   const [teamProfiles, setTeamProfiles] = useState<TeamProfile[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatBodyRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const [pendingFiles, setPendingFiles] = useState<{file: File; preview: string}[]>([]);
@@ -1417,35 +1433,45 @@ export default function ChatWidgetCore({
   }, [botId]);
 
   // Query active scheduled meeting for the current session on load
-  useEffect(() => {
+  const fetchActiveMeeting = useCallback(async () => {
     if (!botId || !sessionId || !calendarSchedulingEnabled) return;
-    const fetchActiveMeeting = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success && data.meeting) {
-          const activeMeeting: ConfirmedMeeting = data.meeting;
-          setMessages((prev) => {
-            const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
-            if (alreadyHas) return prev;
-            const updated = [...prev];
-            for (let idx = updated.length - 1; idx >= 0; idx--) {
-              if (updated[idx].role === "assistant") {
-                updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
-                return updated;
-              }
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success && data.meeting && data.has_active !== false && data.meeting.status !== "cancelled") {
+        const activeMeeting: ConfirmedMeeting = data.meeting;
+        setMessages((prev) => {
+          const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
+          if (alreadyHas) return prev;
+          const updated = [...prev];
+          for (let idx = updated.length - 1; idx >= 0; idx--) {
+            if (updated[idx].role === "assistant") {
+              updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
+              return updated;
             }
-            if (updated.length > 0) {
-              updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
-            }
-            return updated;
-          });
-        }
-      } catch {}
-    };
-    fetchActiveMeeting();
+          }
+          if (updated.length > 0) {
+            updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
+          }
+          return updated;
+        });
+      } else {
+        // If has_active is false or cancelled, mark any existing confirmedMeeting as cancelled
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.confirmedMeeting
+              ? { ...m, confirmedMeeting: { ...m.confirmedMeeting, status: "cancelled" } }
+              : m
+          )
+        );
+      }
+    } catch {}
   }, [botId, sessionId, calendarSchedulingEnabled]);
+
+  useEffect(() => {
+    fetchActiveMeeting();
+  }, [fetchActiveMeeting]);
 
   // Reset html and body backgrounds to transparent to prevent white corners
   // in rounded iframe borders. Only when we actually own `document` (see
@@ -1623,6 +1649,7 @@ export default function ChatWidgetCore({
         setMessages((p) => [...p, ...newMsgs]);
         notifyParent();
       }
+      fetchActiveMeeting();
     } catch {}
   };
 
@@ -1713,6 +1740,7 @@ export default function ChatWidgetCore({
               trigger_rules: bot.trigger_rules,
               font_family: bot.font_family ?? null,
               font_size_percent: bot.font_size_percent || 100,
+              panel_size: bot.panel_size,
             });
           }
         }
@@ -1839,7 +1867,14 @@ export default function ChatWidgetCore({
     }
   }, [ownsDocument]);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotResponding, tab]);
+  useEffect(() => {
+    if (tab === "messages" && chatBodyRef.current) {
+      chatBodyRef.current.scrollTo({
+        top: chatBodyRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [messages, isBotResponding, tab]);
 
   // Grow the composer with its content (up to max-h-[108px] on the textarea
   // itself, ~4 lines, after which it scrolls). Keyed on inputValue rather
@@ -2316,6 +2351,41 @@ export default function ChatWidgetCore({
         {children}
       </SafeMarkdownLink>
     ),
+    h1: ({ children }) => <h1 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 mt-3 mb-1.5">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 mt-2.5 mb-1">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 mt-2 mb-1">{children}</h3>,
+    table: ({ children }) => (
+      <div className="w-full my-2.5 overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
+        <table className="w-full border-collapse text-left text-[11px]">{children}</table>
+      </div>
+    ),
+    thead: ({ children }) => (
+      <thead className="bg-neutral-100 dark:bg-neutral-800/90 border-b border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 font-semibold">
+        {children}
+      </thead>
+    ),
+    tbody: ({ children }) => (
+      <tbody className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60">
+        {children}
+      </tbody>
+    ),
+    tr: ({ children }) => (
+      <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30 transition-colors">
+        {children}
+      </tr>
+    ),
+    th: ({ children }) => (
+      <th className="px-2.5 py-1.5 font-semibold text-neutral-900 dark:text-neutral-100 whitespace-nowrap">{children}</th>
+    ),
+    td: ({ children }) => (
+      <td className="px-2.5 py-1.5 text-neutral-700 dark:text-neutral-300 align-top">{children}</td>
+    ),
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-3 border-[#f97316] pl-2.5 py-1 my-2 italic text-neutral-600 dark:text-neutral-400 bg-neutral-50/70 dark:bg-neutral-850/40 rounded-r-lg text-xs">
+        {children}
+      </blockquote>
+    ),
+    hr: () => <hr className="my-3 border-neutral-200 dark:border-neutral-800" />,
     code: ({ className, children, ...rest }) => {
       const isBlock = className?.startsWith("language-");
       if (!isBlock) return <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
@@ -2352,7 +2422,6 @@ export default function ChatWidgetCore({
       id="chatty-root"
       className={`w-full h-full flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`}
       style={{
-        backgroundColor: primaryColor,
         touchAction: "manipulation",
         ...primaryColorCssVars(primaryColor),
       } as React.CSSProperties}
@@ -2441,7 +2510,7 @@ export default function ChatWidgetCore({
         } : undefined}
       >
       {/* Header */}
-      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
+      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
         <div className="flex items-center gap-2.5">
           {tab !== "home" && (
             <motion.button
@@ -2482,15 +2551,17 @@ export default function ChatWidgetCore({
           )}
           <div className="leading-tight">
             <h4 className="font-semibold text-sm">
-              {tab !== "home" && (liveAgent || activeAgentName) ? (activeAgentName || "Agent") : botName}
+              {tab === "articles" && activeArticle ? activeArticle.title : tab !== "home" && (liveAgent || activeAgentName) ? (activeAgentName || "Agent") : botName}
             </h4>
             <p className="text-[9px] flex items-center gap-1" style={{ opacity: 0.85 }}>
-              {tab !== "home" && (liveAgent || activeAgentName) ? (
+              {tab === "articles" ? (
+                <span>Help Center</span>
+              ) : tab !== "home" && (liveAgent || activeAgentName) ? (
                 <span>Active in the last 15m</span>
               ) : (
                 <>
                   <span className="size-1.5 rounded-full bg-green-300 animate-pulse" />
-                  <span>Online · replies instantly</span>
+                  <span>Online</span>
                 </>
               )}
             </p>
@@ -2540,25 +2611,20 @@ export default function ChatWidgetCore({
                   : "Browser notifications enabled - tap to mute"
             }
           >
-            {/* "Granted" state shown via a solid fill, not a fixed color - a
-                hardcoded amber here was nearly invisible against presets
-                with a yellow header (e.g. Neubrutalism's #ffde59). Filling
-                with currentColor keeps it legible against every preset.
-                Browsers don't let a site revoke Notification permission
-                itself, so "muted" is our own flag (gates triggerPush) shown
-                via the crossed-out glyph, not an actual permission change. */}
             {pushGranted && pushMuted ? (
               <BellOff className="size-4" />
             ) : (
               <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
             )}
           </button>
-          <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            aria-label="Clear conversation" title="Clear conversation">
-            <RefreshCw className="size-4" />
-          </button>
+          {tab === "messages" && (
+            <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              aria-label="Clear conversation" title="Clear conversation">
+              <RefreshCw className="size-4" />
+            </button>
+          )}
           <button onClick={handleCloseClick} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -2569,7 +2635,7 @@ export default function ChatWidgetCore({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-card flex flex-col">
+      <div ref={chatBodyRef} className="flex-1 overflow-y-auto scrollbar-thin widget-panel flex flex-col relative">
         {voiceCallOpen ? (
           <VoiceCallWidget
             botId={botId}
@@ -2702,42 +2768,56 @@ export default function ChatWidgetCore({
             </div>
           </div>
         ) : (
-          <>
+          <AnimatePresence mode="wait">
             {/* HOME */}
             {tab === "home" && (
-              <div className="p-4 space-y-3">
-                <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
-                  <h3 className="text-sm font-bold flex items-center gap-1.5"><Sparkles className="size-4" style={{ color: primaryColor }} />Hi there 👋</h3>
-                  <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{welcomeMsg}</p>
+              <motion.div
+                key="home"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="p-4 space-y-3 flex-1 flex flex-col justify-start"
+              >
+                {/* Greeting Hero Card */}
+                <div className="widget-card p-4">
+                  <h3 className="text-base font-bold leading-snug">
+                    Hello there.<br />How can we help?
+                  </h3>
+                  <p className="text-xs opacity-75 mt-1.5 leading-relaxed">{welcomeMsg}</p>
                 </div>
 
                 {/* Instant Search Bar (Crisp Style) */}
                 <div className="relative">
-                  <Search className="size-3.5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Search className="size-3.5 opacity-50 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={articleFilterQuery}
-                    onChange={(e) => {
-                      setArticleFilterQuery(e.target.value);
-                    }}
+                    onChange={(e) => setArticleFilterQuery(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") setTab("articles");
                     }}
                     placeholder="Search for answers and guides..."
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl pl-9 pr-4 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50 shadow-xs"
+                    className="widget-search-bar w-full pl-9 pr-4 py-2.5 text-xs focus:outline-none shadow-xs"
                   />
                 </div>
 
-                {/* Ask a question card matching Screenshot 3 */}
-                <button
-                  onClick={() => setTab("messages")}
-                  className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all text-left group cursor-pointer shadow-2xs"
+                {/* Ask a question card with overlapping team avatars */}
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.01, y: -1 }}
+                  whileTap={{ scale: 0.985 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                  onClick={() => {
+                    setTab("messages");
+                  }}
+                  className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
                 >
-                  <div>
-                    <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 block">
+                  <div className="min-w-0 pr-2">
+                    <h4 className="text-xs font-semibold">
                       Ask a question
-                    </span>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    </h4>
+                    <p className="text-[11px] opacity-70 mt-0.5">
                       AI Agent and team can help
                     </p>
                   </div>
@@ -2747,69 +2827,155 @@ export default function ChatWidgetCore({
                     botName={botName}
                     primaryColor={primaryColor}
                     onPrimary={onPrimary}
-                    bgColor={colorScheme?.avatar?.bg || logoBgColor}
-                    textColor={colorScheme?.avatar?.text}
+                    bgColor={logoBgColor}
                     size="size-6"
                   />
-                </button>
+                </motion.button>
 
-                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
-                  <span className="flex items-center gap-2.5 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
-                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-                <button onClick={() => setShowOfflineForm(true)} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
-                  <span className="flex items-center gap-2.5 text-xs font-semibold"><Mail className="size-4" style={{ color: primaryColor }} />Leave us a message</span>
-                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
-                </button>
+                {/* RECENT MESSAGE */}
+                {messages.length > 0 && (
+                  <div className="space-y-1 pt-0.5">
+                    <span className="text-[11px] font-semibold opacity-75 px-1">
+                      Recent message
+                    </span>
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.01, y: -1 }}
+                      whileTap={{ scale: 0.985 }}
+                      transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                      onClick={() => setTab("messages")}
+                      className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                        {activeAgentAvatar ? (
+                          <AgentAvatar
+                            src={activeAgentAvatar}
+                            name={activeAgentName || botName}
+                            primaryColor={primaryColor}
+                            onPrimary={onPrimary}
+                            bgColor={logoBgColor}
+                            size="size-9"
+                            className="shrink-0"
+                          />
+                        ) : (
+                          renderBotAvatar("size-9", "size-5")
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold truncate group-hover:opacity-85">
+                              {activeAgentName || botName}
+                            </span>
+                            <span className="text-[11px] opacity-60 font-medium shrink-0">
+                              {formatTimeCompact(messages[messages.length - 1]?.created_at || Date.now())}
+                            </span>
+                          </div>
+                          <p className="text-[11px] opacity-70 truncate mt-0.5">
+                            {messages[messages.length - 1]?.content?.slice(0, 100) || "Conversation started"}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.button>
+                  </div>
+                )}
+
+                {/* Leave us a message */}
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.01, y: -1 }}
+                  whileTap={{ scale: 0.985 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                  onClick={() => setShowOfflineForm(true)}
+                  className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
+                >
+                  <span className="flex items-center gap-2.5 text-xs font-semibold">
+                    <Mail className="size-4" style={{ color: primaryColor }} />
+                    Leave us a message
+                  </span>
+                  <ChevronRight className="size-4 opacity-50 group-hover:translate-x-0.5 transition-transform" />
+                </motion.button>
 
                 {/* Featured Help Articles Section (Crisp Style) */}
                 {kbArticles.length > 0 && (
-                  <div className="p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 space-y-2">
+                  <div className="widget-card p-3.5 space-y-2 shadow-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold flex items-center gap-1.5">
                         <BookOpen className="size-3.5" style={{ color: primaryColor }} />Help articles
                       </span>
                       <button
+                        type="button"
                         onClick={() => setTab("articles")}
-                        className="text-[10px] font-bold text-[#f97316] hover:underline cursor-pointer"
+                        className="text-[10px] font-bold hover:underline cursor-pointer"
+                        style={{ color: primaryColor }}
                       >
                         View all ({kbArticles.length})
                       </button>
                     </div>
-                    <div className="divide-y divide-neutral-100 dark:divide-neutral-850">
+                    <div className="divide-y divide-black/5 dark:divide-white/10">
                       {(kbPromoted.length > 0 ? kbPromoted.slice(0, 3) : kbArticles.slice(0, 3)).map((art) => (
                         <button
                           key={art.id}
+                          type="button"
                           onClick={() => {
                             openKbArticle(art);
                             setTab("articles");
                           }}
                           className="w-full flex items-center justify-between py-2 text-left group cursor-pointer hover:opacity-80 transition-opacity"
                         >
-                          <span className="text-xs text-neutral-700 dark:text-neutral-300 font-medium truncate pr-2 group-hover:text-[#f97316]">
+                          <span className="text-xs font-medium truncate pr-2">
                             {art.title}
                           </span>
-                          <ChevronRight className="size-3 text-neutral-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                          <ChevronRight className="size-3 opacity-50 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                <button onClick={() => setTab("articles")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
-                  <span className="flex items-center gap-2.5 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
-                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
-                  <span className="flex items-center gap-2.5 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Ask AI assistant</span>
-                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-              </div>
+                {/* Browse Help Articles Button */}
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.01, y: -1 }}
+                  whileTap={{ scale: 0.985 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                  onClick={() => setTab("articles")}
+                  className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
+                >
+                  <span className="flex items-center gap-2.5 text-xs font-semibold">
+                    <FileText className="size-4" style={{ color: primaryColor }} />Browse help articles
+                  </span>
+                  <ChevronRight className="size-4 opacity-50 group-hover:translate-x-0.5 transition-transform" />
+                </motion.button>
+
+                {/* Ask AI Assistant Button */}
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.01, y: -1 }}
+                  whileTap={{ scale: 0.985 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                  onClick={() => {
+                    setTab("messages");
+                  }}
+                  className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
+                >
+                  <span className="flex items-center gap-2.5 text-xs font-semibold">
+                    <Search className="size-4" style={{ color: primaryColor }} />Ask AI assistant
+                  </span>
+                  <ChevronRight className="size-4 opacity-50 group-hover:translate-x-0.5 transition-transform" />
+                </motion.button>
+              </motion.div>
             )}
 
             {/* MESSAGES */}
             {tab === "messages" && (
-              <div className="p-4 space-y-4 text-xs">
+              <motion.div
+                key="messages"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="flex-1 flex flex-col min-h-0"
+              >
+                <div className="p-4 space-y-4 text-xs">
                 <AnimatePresence initial={false}>
                   {messages.map((msg, i) => {
                     const hasBooking = Boolean(msg.confirmedMeeting || i === lastBookingMsgIdx);
@@ -3067,224 +3233,230 @@ export default function ChatWidgetCore({
                 )}
                 <div ref={messagesEndRef} />
               </div>
-            )}
+            </motion.div>
+          )}
 
-            {/* ARTICLES (Crisp Style In-Widget Help Center) */}
-            {tab === "articles" && (
-              <div className="p-4 space-y-3">
-                {activeArticle ? (
-                  /* ── In-Widget Article Reader ── */
-                  <div className="space-y-3 animate-in fade-in duration-150">
-                    <button
-                      onClick={() => setActiveArticle(null)}
-                      className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
-                    >
-                      <ArrowLeft className="size-3.5" />
-                      Back to help articles
-                    </button>
+          {/* ARTICLES */}
+          {tab === "articles" && (
+            <motion.div
+              key="articles"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="p-4 space-y-3 flex-1 flex flex-col justify-start"
+            >
+              {activeArticle ? (
+                /* ── In-Widget Article Reader ── */
+                <div className="space-y-3 animate-in fade-in duration-150">
+                  <button
+                    type="button"
+                    onClick={() => setActiveArticle(null)}
+                    className="flex items-center gap-1.5 text-xs font-bold opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <ArrowLeft className="size-3.5" />
+                    Back to articles
+                  </button>
 
-                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-sm space-y-3">
-                      {activeArticle.category && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
-                          {activeArticle.category.name}
-                        </span>
-                      )}
-                      <h2 className="text-base font-bold text-neutral-900 dark:text-white leading-snug">
-                        {activeArticle.title}
-                      </h2>
-                      {activeArticle.subtitle && (
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                          {activeArticle.subtitle}
-                        </p>
-                      )}
-
-                      <div className="border-t border-neutral-100 dark:border-neutral-850 pt-3">
-                        {loadingArticleDetail && !activeArticle.content ? (
-                          <div className="flex items-center gap-2 py-8 justify-center text-neutral-400 text-xs">
-                            <Loader2 className="size-4 animate-spin" /> Loading article content...
-                          </div>
-                        ) : (
-                          <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed space-y-2 prose prose-xs dark:prose-invert max-w-none">
-                            {activeArticle.content?.trim().startsWith("<") ? (
-                              <div
-                                className="article-html-body space-y-2"
-                                dangerouslySetInnerHTML={{ __html: activeArticle.content }}
-                              />
-                            ) : (
-                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-                                {activeArticle.content || activeArticle.subtitle || "No additional content."}
-                              </ReactMarkdown>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* CSAT Article Rating */}
-                      <div className="border-t border-neutral-100 dark:border-neutral-850 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
-                          Was this article helpful?
-                        </span>
-                        {articleFeedbackGiven[activeArticle.id] ? (
-                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <Check className="size-3" /> Thank you for your feedback!
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => rateArticleFeedback(activeArticle.id, true)}
-                              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
-                            >
-                              <ThumbsUp className="size-3 text-emerald-500" /> Yes
-                            </button>
-                            <button
-                              onClick={() => rateArticleFeedback(activeArticle.id, false)}
-                              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
-                            >
-                              <ThumbsDown className="size-3 text-red-500" /> No
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Escalation to Chat Action */}
-                      <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 flex items-center justify-between gap-2">
-                        <div className="text-[11px]">
-                          <span className="font-semibold text-neutral-900 dark:text-white block">Still need help?</span>
-                          <span className="text-neutral-400 text-[10px]">Chat directly with our support team</span>
-                        </div>
-                        <button
-                          onClick={() => askAboutArticle(activeArticle)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs cursor-pointer hover:opacity-90 transition-opacity shrink-0"
-                          style={{ background: primaryColor }}
-                        >
-                          Chat with us
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* ── Articles List & Category Filters ── */
-                  <div className="space-y-3">
-                    {/* Search Bar */}
-                    <div className="relative">
-                      <Search className="size-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        value={articleFilterQuery}
-                        onChange={(e) => setArticleFilterQuery(e.target.value)}
-                        placeholder="Search help articles..."
-                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-8.5 pr-8 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50 shadow-xs"
-                      />
-                      {articleFilterQuery && (
-                        <button
-                          onClick={() => setArticleFilterQuery("")}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
-                        >
-                          <X className="size-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Category Filter Pills */}
-                    {kbCategories.length > 0 && (
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[10px] font-semibold">
-                        <button
-                          onClick={() => setSelectedKbCat("all")}
-                          className={`px-2.5 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer ${
-                            selectedKbCat === "all"
-                              ? "bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-bold"
-                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                          }`}
-                        >
-                          All ({kbArticles.length})
-                        </button>
-                        {kbCategories.map((c) => (
-                          <button
-                            key={c.id}
-                            onClick={() => setSelectedKbCat(c.id)}
-                            className={`px-2.5 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer ${
-                              selectedKbCat === c.id
-                                ? "bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-bold"
-                                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                            }`}
-                          >
-                            {c.name} {c.article_count ? `(${c.article_count})` : ""}
-                          </button>
-                        ))}
-                      </div>
+                  <div className="widget-card p-4 shadow-sm space-y-3">
+                    {activeArticle.category && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 opacity-80">
+                        {activeArticle.category.name}
+                      </span>
+                    )}
+                    <h2 className="text-base font-bold leading-snug">
+                      {activeArticle.title}
+                    </h2>
+                    {activeArticle.subtitle && (
+                      <p className="text-xs opacity-70 font-medium">
+                        {activeArticle.subtitle}
+                      </p>
                     )}
 
-                    {/* Articles Feed */}
-                    {kbLoading ? (
-                      <div className="py-12 flex flex-col items-center justify-center text-xs text-neutral-400 space-y-2">
-                        <Loader2 className="size-5 animate-spin" />
-                        <p>Loading help center...</p>
-                      </div>
-                    ) : (() => {
-                      const filtered = kbArticles.filter((a) => {
-                        if (selectedKbCat !== "all" && a.category_id !== selectedKbCat) {
-                          return false;
-                        }
-                        if (articleFilterQuery.trim()) {
-                          const q = articleFilterQuery.toLowerCase();
-                          const matchTitle = a.title.toLowerCase().includes(q);
-                          const matchSub = (a.subtitle || "").toLowerCase().includes(q);
-                          const matchTags = (a.tags || []).some((t) => t.toLowerCase().includes(q));
-                          return matchTitle || matchSub || matchTags;
-                        }
-                        return true;
-                      });
+                    <div className="border-t border-black/5 dark:border-white/10 pt-3">
+                      {loadingArticleDetail && !activeArticle.content ? (
+                        <div className="flex items-center gap-2 py-8 justify-center opacity-60 text-xs">
+                          <Loader2 className="size-4 animate-spin" /> Loading article content...
+                        </div>
+                      ) : (
+                        <div className="text-xs leading-relaxed space-y-2 prose prose-xs dark:prose-invert max-w-none">
+                          {activeArticle.content?.trim().startsWith("<") ? (
+                            <div
+                              className="article-html-body space-y-2"
+                              dangerouslySetInnerHTML={{ __html: activeArticle.content }}
+                            />
+                          ) : (
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                              {activeArticle.content || activeArticle.subtitle || "No additional content."}
+                            </ReactMarkdown>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
-                      if (filtered.length === 0) {
-                        return (
-                          <div className="text-center py-10 space-y-2">
-                            <FileText className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
-                            <p className="text-xs text-neutral-500 font-medium">
-                              {articleFilterQuery ? `No articles matching "${articleFilterQuery}"` : "No help articles found."}
-                            </p>
-                            <button
-                              onClick={() => {
-                                setTab("messages");
-                                if (articleFilterQuery) setInputValue(articleFilterQuery);
-                              }}
-                              className="text-xs font-bold text-[#f97316] hover:underline cursor-pointer"
-                            >
-                              Ask our team directly →
-                            </button>
-                          </div>
-                        );
-                      }
+                    {/* CSAT Article Rating */}
+                    <div className="border-t border-black/5 dark:border-white/10 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-[11px] font-medium opacity-70">
+                        Was this article helpful?
+                      </span>
+                      {articleFeedbackGiven[activeArticle.id] ? (
+                        <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <Check className="size-3" /> Thank you for your feedback!
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => rateArticleFeedback(activeArticle.id, true)}
+                            className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <ThumbsUp className="size-3 text-emerald-500" /> Yes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => rateArticleFeedback(activeArticle.id, false)}
+                            className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <ThumbsDown className="size-3 text-red-500" /> No
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Escalation to Chat Action */}
+                    <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 flex items-center justify-between gap-2">
+                      <div className="text-[11px]">
+                        <span className="font-semibold block">Still need help?</span>
+                        <span className="opacity-60 text-[10px]">Chat directly with our support team</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => askAboutArticle(activeArticle)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                        style={{ background: primaryColor }}
+                      >
+                        Chat with us
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* ── Help Categories & Collections ── */
+                <div className="space-y-3">
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search className="size-4 opacity-50 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={articleFilterQuery}
+                      onChange={(e) => setArticleFilterQuery(e.target.value)}
+                      placeholder="Search for answers and guides..."
+                      className="widget-search-bar w-full pl-10 pr-8 py-2.5 text-xs focus:outline-none shadow-xs"
+                    />
+                    {articleFilterQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setArticleFilterQuery("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 opacity-50 hover:opacity-100 cursor-pointer"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Collections List */}
+                  <div className="space-y-1 divide-y divide-black/5 dark:divide-white/5">
+                    {(() => {
+                      const standardCollections = [
+                        {
+                          id: "general",
+                          title: "Getting Started",
+                          description: "Essential guides and walkthroughs to get up and running quickly.",
+                        },
+                        {
+                          id: "support",
+                          title: "Customer Support",
+                          description: "How our team handles inquiries, escalations, and meeting bookings.",
+                        },
+                        {
+                          id: "faqs",
+                          title: "Frequently Asked Questions",
+                          description: "Answers to common questions about features, pricing, and integrations.",
+                        },
+                      ];
+
+                      const customCats = kbCategories.map((c) => ({
+                        id: c.id,
+                        title: c.name,
+                        description: c.description || "Browse articles and guides in this collection.",
+                      }));
+
+                      const allCollections = customCats.length > 0 ? customCats : standardCollections;
+
+                      const filteredCollections = articleFilterQuery.trim()
+                        ? allCollections.filter((c) =>
+                            c.title.toLowerCase().includes(articleFilterQuery.toLowerCase()) ||
+                            c.description.toLowerCase().includes(articleFilterQuery.toLowerCase())
+                          )
+                        : allCollections;
 
                       return (
-                        <div className="space-y-2">
-                          {filtered.map((a) => (
+                        <>
+                          {filteredCollections.map((col) => (
                             <button
-                              key={a.id}
-                              onClick={() => openKbArticle(a)}
-                              className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors text-left group cursor-pointer shadow-2xs"
+                              key={col.id}
+                              type="button"
+                              onClick={() => {
+                                const matchingArt = kbArticles.find((a) => a.category_id === col.id || a.title.toLowerCase().includes(col.title.toLowerCase()));
+                                if (matchingArt) {
+                                  openKbArticle(matchingArt);
+                                } else {
+                                  setTab("messages");
+                                  setInputValue(`I have a question about ${col.title}: `);
+                                }
+                              }}
+                              className="w-full py-3 px-2 hover:opacity-85 transition-opacity flex items-center justify-between text-left group cursor-pointer"
                             >
-                              <div className="min-w-0 flex-1 pr-2">
-                                <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-[#f97316] transition-colors truncate">
-                                  {a.title}
+                              <div className="space-y-0.5 pr-3">
+                                <h4 className="text-xs font-bold group-hover:opacity-80 transition-opacity">
+                                  {col.title}
+                                </h4>
+                                <p className="text-[11px] opacity-70 leading-relaxed line-clamp-2">
+                                  {col.description}
                                 </p>
-                                {a.subtitle && (
-                                  <p className="text-[11px] text-neutral-400 line-clamp-1 mt-0.5">
-                                    {a.subtitle}
-                                  </p>
-                                )}
                               </div>
-                              <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                              <ChevronRight className="size-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
                             </button>
                           ))}
-                        </div>
+
+                          {/* Promoted / Search Article Results if any */}
+                          {articleFilterQuery && kbArticles.length > 0 && (
+                            <div className="pt-3 space-y-2">
+                              <span className="text-[10px] font-bold opacity-60 uppercase tracking-wider">Matching Articles</span>
+                              {kbArticles
+                                .filter((a) => a.title.toLowerCase().includes(articleFilterQuery.toLowerCase()))
+                                .map((art) => (
+                                  <button
+                                    key={art.id}
+                                    type="button"
+                                    onClick={() => openKbArticle(art)}
+                                    className="w-full py-2 px-2 flex items-center justify-between text-left hover:opacity-80 cursor-pointer"
+                                  >
+                                    <span className="text-xs font-medium truncate">{art.title}</span>
+                                    <ChevronRight className="size-3 opacity-50" />
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                        </>
                       );
                     })()}
                   </div>
-                )}
-              </div>
-            )}
-
-          </>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
         )}
       </div>
 
@@ -3482,61 +3654,124 @@ export default function ChatWidgetCore({
         </div>
       )}
 
-      {/* ── Crisp-style persistent bottom tab nav bar ── */}
+      {/* ── Persistent Bottom Navigation Bar ── */}
       {!voiceCallOpen && !showCsat && !showOfflineForm && (
         <>
           {((tab === "messages" && chatNavExpanded) || (tab !== "messages" && bottomNavVisible)) && (
-            <div className="border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch shrink-0 relative">
-              {(
-                [
-                  { id: "home",     label: "Home",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-                  { id: "messages", label: "Chat",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
-                  { id: "articles", label: "Articles", icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
-                ] as { id: Tab; label: string; icon: React.ReactNode }[]
-              ).map(({ id, label, icon }) => {
-                const isActive = tab === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => {
-                      setActiveArticle(null);
-                      setTab(id);
-                      if (id === "messages") setChatNavExpanded(false);
-                    }}
-                    className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative"
-                    style={isActive ? { color: primaryColor } : undefined}
-                  >
-                    <span style={isActive ? undefined : { opacity: 0.4 }}>{icon}</span>
-                    <span style={isActive ? undefined : { opacity: 0.4 }}>{label}</span>
-                    {isActive && (
-                      <span
-                        className="absolute top-0 left-3 right-3 h-[2px] rounded-b-full"
-                        style={{ backgroundColor: primaryColor }}
-                      />
+            (() => {
+              const presetSig = getPresetSignature(widgetStyle);
+              const effectiveNavStyle =
+                colorScheme?.bottomNav?.style && colorScheme?.bottomNav?.style !== "default"
+                  ? colorScheme.bottomNav.style
+                  : presetSig.bottomNavStyle;
+              const indicatorType =
+                colorScheme?.bottomNav?.indicator || presetSig.bottomNavIndicator || "pill";
+              const activeNavColor =
+                colorScheme?.bottomNav?.activeColor || presetSig.bottomNavActive || primaryColor;
+              const showLabels = colorScheme?.bottomNav?.showLabels !== false;
+              const allowMinimize = colorScheme?.bottomNav?.allowMinimize !== false;
+
+              const containerClasses =
+                effectiveNavStyle === "pill" || effectiveNavStyle === "glass"
+                  ? "p-2.5 bg-transparent flex justify-center shrink-0 relative"
+                  : effectiveNavStyle === "chunky"
+                    ? "p-2.5 bg-transparent shrink-0 relative"
+                    : "shrink-0 relative";
+
+              const navClasses =
+                effectiveNavStyle === "pill"
+                  ? "chat-bottom-nav w-full max-w-[320px] rounded-full border border-neutral-200/80 dark:border-neutral-850/80 shadow-lg flex items-stretch overflow-hidden backdrop-blur-xl bg-card/90"
+                  : effectiveNavStyle === "chunky"
+                    ? "chat-bottom-nav w-full rounded-md border-3 border-black bg-white shadow-[4px_4px_0px_#000] flex items-stretch overflow-hidden font-mono"
+                    : effectiveNavStyle === "glass"
+                      ? "chat-bottom-nav w-full max-w-[320px] rounded-2xl border border-white/30 bg-white/20 dark:bg-black/30 backdrop-blur-xl shadow-lg flex items-stretch overflow-hidden"
+                      : effectiveNavStyle === "luxury"
+                        ? "chat-bottom-nav border-t border-[#b08a3e]/40 bg-[#161412] text-[#f7f5f0] flex items-stretch tracking-wider font-serif"
+                        : effectiveNavStyle === "clean"
+                          ? "chat-bottom-nav border-t border-neutral-200/80 dark:border-neutral-800/80 bg-background/95 backdrop-blur-sm flex items-stretch shadow-none"
+                          : "chat-bottom-nav border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch";
+
+              return (
+                <div className={containerClasses}>
+                  <div className={navClasses}>
+                    {(
+                      [
+                        { id: "home", label: "Home", icon: <Home className="size-4" /> },
+                        { id: "messages", label: "Chat", icon: <MessageSquare className="size-4" /> },
+                        { id: "articles", label: "Articles", icon: <FileText className="size-4" /> },
+                      ] as { id: Tab; label: string; icon: React.ReactNode }[]
+                    ).map(({ id, label, icon }) => {
+                      const isActive = tab === id;
+                      return (
+                        <motion.button
+                          key={id}
+                          type="button"
+                          whileTap={{ scale: 0.90 }}
+                          onClick={() => {
+                            setActiveArticle(null);
+                            setTab(id);
+                          }}
+                          className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative ${
+                            isActive ? "font-bold" : "opacity-60 hover:opacity-100"
+                          }`}
+                          style={isActive ? { color: activeNavColor } : undefined}
+                        >
+                          <motion.span
+                            animate={{ scale: isActive ? 1.08 : 1 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                            className="relative z-10"
+                          >
+                            {icon}
+                          </motion.span>
+                          {showLabels && <span className="relative z-10">{label}</span>}
+                          {isActive && (
+                            indicatorType === "pill" ? (
+                              <motion.span
+                                layoutId="activeNavIndicator"
+                                className="absolute inset-1 rounded-full -z-0 opacity-15"
+                                style={{ backgroundColor: activeNavColor }}
+                                transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                              />
+                            ) : indicatorType === "dot" ? (
+                              <motion.span
+                                layoutId="activeNavIndicator"
+                                className="absolute bottom-1 size-1.5 rounded-full z-10 shadow-sm"
+                                style={{ backgroundColor: activeNavColor }}
+                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                              />
+                            ) : (
+                              <motion.span
+                                layoutId="activeNavIndicator"
+                                className="absolute top-0 left-3 right-3 h-[2.5px] rounded-full z-10"
+                                style={{ backgroundColor: activeNavColor }}
+                                transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                              />
+                            )
+                          )}
+                        </motion.button>
+                      );
+                    })}
+                    {allowMinimize && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tab === "messages") setChatNavExpanded(false);
+                          else setBottomNavVisible(false);
+                        }}
+                        className="px-2.5 flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors cursor-pointer border-l border-neutral-100/50 dark:border-neutral-850/50"
+                        title="Hide navigation"
+                      >
+                        <ChevronDown className="size-3.5" />
+                      </button>
                     )}
-                  </button>
-                );
-              })}
-              {/* Small toggle icon button to hide the bottom nav bar */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (tab === "messages") setChatNavExpanded(false);
-                  else setBottomNavVisible(false);
-                }}
-                className="px-2.5 flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors cursor-pointer border-l border-neutral-100 dark:border-neutral-850"
-                title="Hide navigation"
-                aria-label="Hide navigation"
-              >
-                <ChevronDown className="size-3.5" />
-              </button>
-            </div>
+                  </div>
+                </div>
+              );
+            })()
           )}
 
-          {/* Small icon button to reveal bottom nav when hidden or in chat tab */}
           {((tab === "messages" && !chatNavExpanded) || (tab !== "messages" && !bottomNavVisible)) && (
-            <div className="flex justify-center py-1 bg-card border-t border-neutral-100/50 dark:border-neutral-850/50">
+            <div className="flex justify-center py-1 bg-card border-t border-neutral-100/50 dark:border-neutral-850/50 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -3545,7 +3780,6 @@ export default function ChatWidgetCore({
                 }}
                 className="inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 px-2 py-0.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                 title="Show navigation"
-                aria-label="Show navigation"
               >
                 <ChevronUp className="size-3" />
                 <span className="font-medium text-[9px] uppercase tracking-wider">Show Tabs</span>

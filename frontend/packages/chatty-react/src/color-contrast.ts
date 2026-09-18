@@ -116,6 +116,14 @@ export interface SectionColors {
   icon?: string;
 }
 
+export interface BottomNavSettings extends SectionColors {
+  style?: "default" | "pill" | "clean" | "glass" | "chunky" | "luxury";
+  indicator?: "line" | "pill" | "dot";
+  showLabels?: boolean;
+  activeColor?: string;
+  allowMinimize?: boolean;
+}
+
 export interface WidgetColorScheme {
   header: SectionColors;
   botBubble: SectionColors;
@@ -124,10 +132,11 @@ export interface WidgetColorScheme {
   sendBtn: SectionColors;
   launcher: SectionColors;
   avatar?: SectionColors;
+  bottomNav?: BottomNavSettings;
 }
 
 /**
- * Derives a full 7-section color scheme from one seed color - same hue
+ * Derives a full 8-section color scheme from one seed color - same hue
  * throughout (color theory, not per-section arbitrary picks), lightness
  * and saturation shifted per surface so bot-bubble/input-bar stay soft
  * and legible instead of a jarring flat fill of the seed itself, and
@@ -151,6 +160,7 @@ export function generateColorScheme(seedHex: string): WidgetColorScheme {
     sendBtn: { bg: solid, text: solidText },
     launcher: { bg: solid, text: solidText },
     avatar: { bg: solid, text: solidText },
+    bottomNav: { bg: softBg, text: softText, style: "default", showLabels: true },
   };
 }
 
@@ -173,13 +183,25 @@ export function buildColorSchemeCss(scheme: WidgetColorScheme | null, scopeSelec
   if (!scheme) return "";
   const rules: string[] = [];
   const header = scheme.header, bg = safeHex(header?.bg), text = safeHex(header?.text);
-  if (bg && text) rules.push(`${scopeSelector} .chat-header { background: ${bg} !important; color: ${text} !important; }`);
+  if (bg && text) {
+    rules.push(`${scopeSelector}:not(.style-glassmorphism) .chat-header { background: ${bg} !important; color: ${text} !important; }`);
+    rules.push(`${scopeSelector}.style-glassmorphism .chat-header, ${scopeSelector} .style-glassmorphism .chat-header { background: color-mix(in srgb, ${bg} 25%, rgba(255, 255, 255, 0.15)) !important; color: #ffffff !important; border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; }`);
+  }
   const bot = scheme.botBubble, botBg = safeHex(bot?.bg), botText = safeHex(bot?.text);
-  if (botBg && botText) rules.push(`${scopeSelector} .bot-bubble { background-color: ${botBg} !important; color: ${botText} !important; }`);
+  if (botBg && botText) {
+    rules.push(`${scopeSelector}:not(.style-glassmorphism) .bot-bubble { background-color: ${botBg} !important; color: ${botText} !important; }`);
+    rules.push(`${scopeSelector}.style-glassmorphism .bot-bubble, ${scopeSelector} .style-glassmorphism .bot-bubble { background-color: color-mix(in srgb, ${botBg} 30%, rgba(255, 255, 255, 0.18)) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.25) !important; backdrop-filter: blur(18px) !important; -webkit-backdrop-filter: blur(18px) !important; }`);
+  }
   const user = scheme.userBubble, userBg = safeHex(user?.bg), userText = safeHex(user?.text);
-  if (userBg && userText) rules.push(`${scopeSelector} .user-bubble { background-color: ${userBg} !important; color: ${userText} !important; }`);
+  if (userBg && userText) {
+    rules.push(`${scopeSelector}:not(.style-glassmorphism) .user-bubble { background-color: ${userBg} !important; color: ${userText} !important; }`);
+    rules.push(`${scopeSelector}.style-glassmorphism .user-bubble, ${scopeSelector} .style-glassmorphism .user-bubble { background-color: color-mix(in srgb, ${userBg} 85%, white) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.35) !important; backdrop-filter: blur(14px) !important; -webkit-backdrop-filter: blur(14px) !important; }`);
+  }
   const input = scheme.inputBar, inputBg = safeHex(input?.bg), inputText = safeHex(input?.text);
-  if (inputBg && inputText) rules.push(`${scopeSelector} .chat-input-bar { background-color: ${inputBg} !important; color: ${inputText} !important; }`);
+  if (inputBg && inputText) {
+    rules.push(`${scopeSelector}:not(.style-glassmorphism) .chat-input-bar { background-color: ${inputBg} !important; color: ${inputText} !important; }`);
+    rules.push(`${scopeSelector}.style-glassmorphism .chat-input-bar, ${scopeSelector} .style-glassmorphism .chat-input-bar { background-color: color-mix(in srgb, ${inputBg} 20%, rgba(255, 255, 255, 0.12)) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.18) !important; backdrop-filter: blur(16px) !important; -webkit-backdrop-filter: blur(16px) !important; }`);
+  }
   const inputIcon = safeHex(input?.icon);
   if (inputIcon) rules.push(`${scopeSelector} .chat-input-bar-icon { color: ${inputIcon} !important; }`);
   const send = scheme.sendBtn, sendBg = safeHex(send?.bg), sendText = safeHex(send?.text);
@@ -187,6 +209,17 @@ export function buildColorSchemeCss(scheme: WidgetColorScheme | null, scopeSelec
   const avatar = scheme.avatar, avatarBg = safeHex(avatar?.bg), avatarText = safeHex(avatar?.text);
   if (avatarBg && avatarText) {
     rules.push(`${scopeSelector} .agent-avatar-badge { background-color: ${avatarBg} !important; color: ${avatarText} !important; }`);
+  }
+  const bottomNav = scheme.bottomNav, bottomNavBg = safeHex(bottomNav?.bg), bottomNavText = safeHex(bottomNav?.text);
+  if (bottomNavBg && bottomNavText) {
+    rules.push(`${scopeSelector}:not(.style-glassmorphism) .chat-bottom-nav { background-color: ${bottomNavBg} !important; color: ${bottomNavText} !important; }`);
+    rules.push(`${scopeSelector}.style-glassmorphism .chat-bottom-nav, ${scopeSelector} .style-glassmorphism .chat-bottom-nav { background-color: color-mix(in srgb, ${bottomNavBg} 20%, rgba(15, 23, 42, 0.6)) !important; border-top: 1px solid rgba(255, 255, 255, 0.22) !important; backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; color: #ffffff !important; }`);
+    rules.push(`${scopeSelector} .chat-bottom-nav-item { color: ${bottomNavText} !important; }`);
+  }
+  const bottomNavActive = safeHex(bottomNav?.activeColor);
+  if (bottomNavActive) {
+    rules.push(`${scopeSelector} .chat-bottom-nav-item.active { color: ${bottomNavActive} !important; }`);
+    rules.push(`${scopeSelector} .chat-bottom-nav-indicator { background-color: ${bottomNavActive} !important; }`);
   }
   return rules.join("\n");
 }

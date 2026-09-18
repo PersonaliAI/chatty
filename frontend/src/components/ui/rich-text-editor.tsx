@@ -11,6 +11,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import { Markdown } from "tiptap-markdown";
+import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
 import {
   Undo,
   Redo,
@@ -40,6 +41,10 @@ import {
   ChevronDown,
   SquareCode,
   Trash2,
+  Table as TableIcon,
+  Rows,
+  Columns,
+  Split,
 } from "lucide-react";
 
 interface RichTextEditorProps {
@@ -57,8 +62,10 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const [headingDropdownOpen, setHeadingDropdownOpen] = useState(false);
   const [addDropdownOpen, setAddDropdownOpen] = useState(false);
+  const [tableDropdownOpen, setTableDropdownOpen] = useState(false);
   const headingDropdownRef = useRef<HTMLDivElement>(null);
   const addDropdownRef = useRef<HTMLDivElement>(null);
+  const tableDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -69,6 +76,9 @@ export function RichTextEditor({
       }
       if (addDropdownRef.current && !addDropdownRef.current.contains(target)) {
         setAddDropdownOpen(false);
+      }
+      if (tableDropdownRef.current && !tableDropdownRef.current.contains(target)) {
+        setTableDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleOutsideClick);
@@ -109,6 +119,15 @@ export function RichTextEditor({
             "text-[#f97316] underline underline-offset-2 font-medium hover:opacity-80 cursor-pointer",
         },
       }),
+      Table.configure({
+        resizable: true,
+        HTMLAttributes: {
+          class: "tiptap-table",
+        },
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Placeholder.configure({
         placeholder,
       }),
@@ -437,6 +456,182 @@ export function RichTextEditor({
 
         <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
 
+        {/* Table Menu */}
+        <div className="relative" ref={tableDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setTableDropdownOpen((v) => !v)}
+            className={`${getBtnClass(
+              editor.isActive("table")
+            )} gap-1 px-1.5`}
+            title={editor.isActive("table") ? "Table Options (Active Table)" : "Insert Table"}
+          >
+            <TableIcon className="size-3.5" />
+            <ChevronDown className="size-2.5 text-neutral-400" />
+          </button>
+
+          {tableDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1 z-30 w-52 bg-white dark:bg-[#1c1d22] border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl py-1 text-xs animate-in fade-in-50 zoom-in-95 duration-100">
+              {!editor.isActive("table") ? (
+                <>
+                  <div className="px-3 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                    Insert Table
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+                  >
+                    <TableIcon className="size-3.5 text-neutral-400" />
+                    <span>Table (3 × 3)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().insertTable({ rows: 4, cols: 4, withHeaderRow: true }).run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+                  >
+                    <TableIcon className="size-3.5 text-neutral-400" />
+                    <span>Table (4 × 4)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+                  >
+                    <TableIcon className="size-3.5 text-neutral-400" />
+                    <span>Table (2 × 2)</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="px-3 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                    Rows
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().addRowBefore().run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+                  >
+                    <Rows className="size-3.5 text-neutral-400" />
+                    <span>Add Row Above</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().addRowAfter().run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+                  >
+                    <Rows className="size-3.5 text-neutral-400" />
+                    <span>Add Row Below</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().deleteRow().run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="size-3.5 text-red-500" />
+                    <span>Delete Row</span>
+                  </button>
+
+                  <div className="my-1 border-t border-neutral-100 dark:border-neutral-800" />
+                  <div className="px-3 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                    Columns
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().addColumnBefore().run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+                  >
+                    <Columns className="size-3.5 text-neutral-400" />
+                    <span>Add Column Left</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().addColumnAfter().run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+                  >
+                    <Columns className="size-3.5 text-neutral-400" />
+                    <span>Add Column Right</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().deleteColumn().run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="size-3.5 text-red-500" />
+                    <span>Delete Column</span>
+                  </button>
+
+                  <div className="my-1 border-t border-neutral-100 dark:border-neutral-800" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().toggleHeaderRow().run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+                  >
+                    <TableIcon className="size-3.5 text-neutral-400" />
+                    <span>Toggle Header Row</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().mergeOrSplit().run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+                  >
+                    <Split className="size-3.5 text-neutral-400" />
+                    <span>Merge / Split Cell</span>
+                  </button>
+
+                  <div className="my-1 border-t border-neutral-100 dark:border-neutral-800" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().deleteTable().run();
+                      setTableDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer transition-colors font-medium"
+                  >
+                    <Trash2 className="size-3.5 text-red-500" />
+                    <span>Delete Table</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
+
         {/* Quick + Add Insert Menu */}
         <div className="relative" ref={addDropdownRef}>
           <button
@@ -453,6 +648,17 @@ export function RichTextEditor({
 
           {addDropdownOpen && (
             <div className="absolute top-full left-0 mt-1 z-30 w-48 bg-white dark:bg-[#1c1d22] border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl py-1 animate-in fade-in-50 zoom-in-95 duration-100">
+              <button
+                type="button"
+                onClick={() => {
+                  editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+                  setAddDropdownOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors"
+              >
+                <TableIcon className="size-3.5 text-neutral-400" />
+                <span>Table (3 × 3)</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -494,6 +700,53 @@ export function RichTextEditor({
 
       {/* -- Editor Content Surface -- */}
       <div className="flex-1 overflow-y-auto cursor-text bg-white dark:bg-[#131417]">
+        <style dangerouslySetInnerHTML={{ __html: `
+          .tiptap-editor-content table {
+            border-collapse: collapse;
+            table-layout: fixed;
+            width: 100%;
+            margin: 1rem 0;
+            overflow: hidden;
+            font-size: 0.8125rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(156, 163, 175, 0.25);
+          }
+          .tiptap-editor-content th,
+          .tiptap-editor-content td {
+            min-width: 1em;
+            border: 1px solid rgba(156, 163, 175, 0.25);
+            padding: 0.5rem 0.75rem;
+            vertical-align: top;
+            box-sizing: border-box;
+            position: relative;
+          }
+          .tiptap-editor-content th {
+            font-weight: 600;
+            text-align: left;
+            background-color: rgba(156, 163, 175, 0.12);
+          }
+          .tiptap-editor-content .selectedCell:after {
+            z-index: 2;
+            position: absolute;
+            content: "";
+            left: 0; right: 0; top: 0; bottom: 0;
+            background: rgba(249, 115, 22, 0.15);
+            pointer-events: none;
+          }
+          .tiptap-editor-content .column-resize-handle {
+            background-color: #f97316;
+            bottom: -2px;
+            position: absolute;
+            right: -2px;
+            pointer-events: none;
+            top: 0;
+            width: 4px;
+          }
+          .tiptap-editor-content .tableWrapper {
+            overflow-x: auto;
+            margin: 1rem 0;
+          }
+        ` }} />
         <EditorContent editor={editor} />
       </div>
 

@@ -221,16 +221,16 @@ body {
   box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.1) !important;
   font-family: var(--font-dm-sans), sans-serif !important;
 }
-.style-minimal .chat-header { background-color: var(--primary-color, #ffffff) !important; color: var(--on-primary, #1c1a15) !important; border-bottom: 1px solid color-mix(in srgb, var(--primary-color, #e6e4de) 40%, #e6e4de) !important; }
-.style-minimal .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #f3f2ee) 40%, #f3f2ee) !important; color: color-mix(in srgb, var(--on-primary, #1c1a15) 20%, #1c1a15) !important; border: none !important; border-radius: 14px !important; }
-.style-minimal .user-bubble { background-color: var(--primary-color, #1c1a15) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 14px !important; }
-.style-minimal .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #ffffff) 20%, #ffffff) !important; color: color-mix(in srgb, var(--on-primary, #1c1a15) 20%, #1c1a15) !important; border-color: color-mix(in srgb, var(--primary-color, #e0ddd5) 55%, #e0ddd5) !important; border-radius: 20px !important; font-weight: 500; }
-.style-minimal .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #ffffff) 15%, #ffffff) !important; color: #1c1a15 !important; border-color: color-mix(in srgb, var(--primary-color, #e6e4de) 40%, #e6e4de) !important; border-radius: 12px !important; }
-.style-minimal .send-btn { background-color: var(--primary-color, #1c1a15) !important; color: var(--on-primary, #ffffff) !important; }
+.style-minimal .chat-header { background-color: var(--primary-color, #ffffff) !important; color: var(--on-primary, #18181b) !important; border-bottom: 1px solid #e6e4de !important; }
+.style-minimal .bot-bubble { background-color: #f4f4f5 !important; color: #18181b !important; border: none !important; border-radius: 14px !important; }
+.style-minimal .user-bubble { background-color: var(--primary-color, #18181b) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 14px !important; }
+.style-minimal .starter-chip { background-color: #ffffff !important; color: var(--primary-color, #18181b) !important; border-color: #e4e4e7 !important; border-radius: 20px !important; font-weight: 500; }
+.style-minimal .chat-input-bar { background-color: #ffffff !important; color: #18181b !important; border-color: #e4e4e7 !important; border-radius: 12px !important; }
+.style-minimal .send-btn { background-color: var(--primary-color, #18181b) !important; color: var(--on-primary, #ffffff) !important; }
 .dark .style-minimal { background-color: #171613 !important; color: #f3f2ee !important; border-color: #2a2822 !important; }
-.dark .style-minimal .chat-header { background-color: var(--primary-color, #1e1c18) !important; color: var(--on-primary, #f3f2ee) !important; border-color: color-mix(in srgb, var(--primary-color, #2a2822) 40%, #2a2822) !important; }
-.dark .style-minimal .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #221f1a) 40%, #221f1a) !important; color: color-mix(in srgb, var(--on-primary, #f3f2ee) 20%, #f3f2ee) !important; }
-.dark .style-minimal .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #1e1c18) 15%, #1e1c18) !important; color: #f3f2ee !important; border-color: color-mix(in srgb, var(--primary-color, #2a2822) 40%, #2a2822) !important; }
+.dark .style-minimal .chat-header { background-color: #171613 !important; color: #f3f2ee !important; border-bottom: 1px solid #2a2822 !important; }
+.dark .style-minimal .bot-bubble { background-color: #221f1a !important; color: #f3f2ee !important; }
+.dark .style-minimal .chat-input-bar { background-color: #1e1c18 !important; color: #f3f2ee !important; border-color: #2a2822 !important; }
 
 /* 2. Playful - consumer app, rounded & warm, Quicksand. */
 .style-playful {
@@ -238,19 +238,20 @@ body {
   color: #2a1a10 !important;
   border: none !important;
   border-radius: 28px !important;
-  box-shadow: 0 16px 36px 0 rgba(255, 138, 92, 0.28) !important;
+  box-shadow: 0 16px 36px 0 color-mix(in srgb, var(--primary-color, #ff8a5c) 25%, transparent) !important;
   font-family: var(--font-quicksand), sans-serif !important;
 }
-.style-playful .chat-header { background-color: var(--primary-color, #d63d00) !important; color: var(--on-primary, #ffffff) !important; border-bottom: none !important; }
-.style-playful .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #ffe6d9) 40%, #ffe6d9) !important; color: color-mix(in srgb, var(--on-primary, #7a3f24) 20%, #7a3f24) !important; border: none !important; border-radius: 20px !important; }
-.style-playful .user-bubble { background-color: var(--primary-color, #d63d00) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 20px !important; }
-.style-playful .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #ffffff) 20%, #ffffff) !important; color: color-mix(in srgb, var(--on-primary, #d63d00) 20%, #d63d00) !important; border-color: color-mix(in srgb, var(--primary-color, #ffd6c1) 55%, #ffd6c1) !important; border-radius: 24px !important; font-weight: 500; }
-.style-playful .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #fffaf5) 15%, #fffaf5) !important; color: #7a3f24 !important; border: none !important; border-radius: 20px !important; }
-.style-playful .send-btn { background-color: var(--primary-color, #d63d00) !important; color: var(--on-primary, #ffffff) !important; }
+.style-playful .chat-header { background-color: var(--primary-color, #ff6b4a) !important; color: var(--on-primary, #ffffff) !important; border-bottom: none !important; }
+.style-playful .bot-bubble { background-color: #ffece3 !important; color: #7a3f24 !important; border: none !important; border-radius: 20px !important; }
+.style-playful .user-bubble { background-color: var(--primary-color, #ff6b4a) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 20px !important; }
+.style-playful .starter-chip { background-color: #ffffff !important; color: var(--primary-color, #ff6b4a) !important; border-color: color-mix(in srgb, var(--primary-color, #ff8a5c) 25%, #ffd6c1) !important; border-radius: 24px !important; font-weight: 500; }
+.style-playful .chat-input-bar { background-color: #fffaf5 !important; color: #7a3f24 !important; border: none !important; border-radius: 20px !important; }
+.style-playful .send-btn { background-color: var(--primary-color, #ff6b4a) !important; color: var(--on-primary, #ffffff) !important; }
 .style-playful ::placeholder { color: #a4623d !important; opacity: 1; }
 .dark .style-playful { background-color: #2a1c14 !important; color: #ffe6d9 !important; }
-.dark .style-playful .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #3a2618) 40%, #3a2618) !important; color: color-mix(in srgb, var(--on-primary, #ffe6d9) 20%, #ffe6d9) !important; }
-.dark .style-playful .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #2a1c14) 15%, #2a1c14) !important; color: #ffe6d9 !important; }
+.dark .style-playful .chat-header { background-color: #38241a !important; color: #ffe6d9 !important; border-bottom: none !important; }
+.dark .style-playful .bot-bubble { background-color: #3a2618 !important; color: #ffe6d9 !important; }
+.dark .style-playful .chat-input-bar { background-color: #2a1c14 !important; color: #ffe6d9 !important; }
 
 /* 3. Corporate - enterprise SaaS, structured navy, Space Grotesk. */
 .style-corporate {
@@ -261,113 +262,156 @@ body {
   box-shadow: 0 10px 26px 0 rgba(28, 46, 74, 0.14) !important;
   font-family: var(--font-space-grotesk), sans-serif !important;
 }
-.style-corporate .chat-header { background-color: var(--primary-color, #1c2e4a) !important; color: var(--on-primary, #ffffff) !important; border-bottom: none !important; }
-.style-corporate .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #eef1f6) 40%, #eef1f6) !important; color: color-mix(in srgb, var(--on-primary, #1c2e4a) 20%, #1c2e4a) !important; border: 1px solid color-mix(in srgb, var(--primary-color, #dee3ea) 40%, #dee3ea) !important; border-radius: 8px !important; }
-.style-corporate .user-bubble { background-color: var(--primary-color, #1c2e4a) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 8px !important; }
-.style-corporate .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #ffffff) 20%, #ffffff) !important; color: color-mix(in srgb, var(--on-primary, #1c2e4a) 20%, #1c2e4a) !important; border-color: color-mix(in srgb, var(--primary-color, #c7cfdb) 55%, #c7cfdb) !important; border-radius: 6px !important; font-weight: 500; }
-.style-corporate .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #eef1f6) 15%, #eef1f6) !important; color: #1c2e4a !important; border-color: color-mix(in srgb, var(--primary-color, #dbe0e8) 40%, #dbe0e8) !important; border-radius: 6px !important; }
-.style-corporate .send-btn { background-color: var(--primary-color, #1c2e4a) !important; color: var(--on-primary, #ffffff) !important; border-radius: 6px !important; }
+.style-corporate .chat-header { background-color: var(--primary-color, #1e3a8a) !important; color: var(--on-primary, #ffffff) !important; border-bottom: none !important; }
+.style-corporate .bot-bubble { background-color: #eef2f7 !important; color: #1e293b !important; border: 1px solid #dee3ea !important; border-radius: 8px !important; }
+.style-corporate .user-bubble { background-color: var(--primary-color, #1e3a8a) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 8px !important; }
+.style-corporate .starter-chip { background-color: #ffffff !important; color: var(--primary-color, #1e3a8a) !important; border-color: color-mix(in srgb, var(--primary-color, #1e3a8a) 25%, #cbd5e1) !important; border-radius: 6px !important; font-weight: 500; }
+.style-corporate .chat-input-bar { background-color: #f8fafc !important; color: #1e293b !important; border-color: #dbe0e8 !important; border-radius: 6px !important; }
+.style-corporate .send-btn { background-color: var(--primary-color, #1e3a8a) !important; color: var(--on-primary, #ffffff) !important; border-radius: 6px !important; }
 .style-corporate ::placeholder { color: #636e80 !important; opacity: 1; }
 .dark .style-corporate { background-color: #10151d !important; color: #dbe2ec !important; border-color: #232c38 !important; }
-.dark .style-corporate .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #171e29) 40%, #171e29) !important; color: color-mix(in srgb, var(--on-primary, #dbe2ec) 20%, #dbe2ec) !important; border-color: color-mix(in srgb, var(--primary-color, #232c38) 40%, #232c38) !important; }
-.dark .style-corporate .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #10151d) 15%, #10151d) !important; color: #dbe2ec !important; border-color: color-mix(in srgb, var(--primary-color, #232c38) 40%, #232c38) !important; }
+.dark .style-corporate .chat-header { background-color: #10151d !important; color: #ffffff !important; border-bottom: 1px solid #232c38 !important; }
+.dark .style-corporate .bot-bubble { background-color: #171e29 !important; color: #dbe2ec !important; border-color: #232c38 !important; }
+.dark .style-corporate .chat-input-bar { background-color: #10151d !important; color: #dbe2ec !important; border-color: #232c38 !important; }
 
-/* 4. Dark Sleek - dev tool, near-black with a teal glow, Space Grotesk. */
+/* 4. Dark Sleek - dev tool, near-black with glowing selected accent, Space Grotesk. */
 .style-dark-sleek {
   background-color: #111114 !important;
   color: #e4e4e8 !important;
-  border: 1px solid rgba(0, 229, 199, 0.25) !important;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #00e5c7) 35%, transparent) !important;
   border-radius: 16px !important;
-  box-shadow: 0 0 40px 0 rgba(0, 229, 199, 0.1) !important;
+  box-shadow: 0 0 40px 0 color-mix(in srgb, var(--primary-color, #00e5c7) 20%, transparent) !important;
   font-family: var(--font-space-grotesk), sans-serif !important;
 }
-.style-dark-sleek .chat-header { background-color: var(--primary-color, #14141a) !important; color: var(--on-primary, #e4e4e8) !important; border-bottom: none !important; }
-.style-dark-sleek .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #1c1c22) 40%, #1c1c22) !important; color: color-mix(in srgb, var(--on-primary, #e4e4e8) 20%, #e4e4e8) !important; border: 1px solid rgba(255, 255, 255, 0.05) !important; border-radius: 12px !important; }
-.style-dark-sleek .user-bubble { background-color: var(--primary-color, #00e5c7) !important; color: var(--on-primary, #05201c) !important; border: none !important; border-radius: 12px !important; }
-.style-dark-sleek .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #1c1c22) 20%, #1c1c22) !important; color: color-mix(in srgb, var(--on-primary, #00e5c7) 20%, #00e5c7) !important; border-color: color-mix(in srgb, var(--primary-color, rgba(0, 229, 199, 0.3)) 55%, rgba(0, 229, 199, 0.3)) !important; border-radius: 8px !important; font-weight: 500; }
-.style-dark-sleek .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #14141a) 15%, #14141a) !important; color: #e4e4e8 !important; border-color: color-mix(in srgb, var(--primary-color, rgba(255, 255, 255, 0.08)) 40%, rgba(255, 255, 255, 0.08)) !important; border-radius: 8px !important; }
-.style-dark-sleek .send-btn { background-color: var(--primary-color, #00e5c7) !important; color: var(--on-primary, #05201c) !important; border-radius: 8px !important; }
+.style-dark-sleek .chat-header { background-color: #0d111a !important; color: #e4e4e8 !important; border-bottom: 1px solid color-mix(in srgb, var(--primary-color, #00e5c7) 30%, transparent) !important; }
+.style-dark-sleek .bot-bubble { background-color: #161922 !important; color: #e4e4e8 !important; border: 1px solid rgba(255, 255, 255, 0.05) !important; border-radius: 12px !important; }
+.style-dark-sleek .user-bubble { background-color: var(--primary-color, #00e5c7) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 12px !important; }
+.style-dark-sleek .starter-chip { background-color: #161922 !important; color: var(--primary-color, #00e5c7) !important; border-color: color-mix(in srgb, var(--primary-color, #00e5c7) 35%, transparent) !important; border-radius: 8px !important; font-weight: 500; }
+.style-dark-sleek .chat-input-bar { background-color: #0f131d !important; color: #e4e4e8 !important; border-color: rgba(255, 255, 255, 0.08) !important; border-radius: 8px !important; }
+.style-dark-sleek .send-btn { background-color: var(--primary-color, #00e5c7) !important; color: var(--on-primary, #ffffff) !important; border-radius: 8px !important; box-shadow: 0 0 14px color-mix(in srgb, var(--primary-color, #00e5c7) 40%, transparent) !important; }
 .style-dark-sleek ::placeholder { color: #7e7e8b !important; opacity: 1; }
 
-/* 5. Gradient Glow - startup, vivid purple/pink gradient, Space Grotesk. */
+/* 5. Gradient Glow - startup, vivid gradient derived from selected color, Space Grotesk. */
 .style-gradient-glow {
   background-color: #ffffff !important;
   color: #2a1245 !important;
   border: none !important;
   border-radius: 24px !important;
-  box-shadow: 0 20px 44px 0 rgba(168, 85, 247, 0.28) !important;
+  box-shadow: 0 20px 44px 0 color-mix(in srgb, var(--primary-color, #a855f7) 28%, transparent) !important;
   font-family: var(--font-space-grotesk), sans-serif !important;
 }
-.style-gradient-glow .chat-header { background: var(--primary-color, linear-gradient(120deg, #9733f5, #e0177a)) !important; color: var(--on-primary, #ffffff) !important; border-bottom: none !important; }
-.style-gradient-glow .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #f6effc) 40%, #f6effc) !important; color: color-mix(in srgb, var(--on-primary, #4a2467) 20%, #4a2467) !important; border: none !important; border-radius: 16px !important; }
-.style-gradient-glow .user-bubble { background-color: var(--primary-color, #9733f5) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 16px !important; }
-.style-gradient-glow .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #f6effc) 20%, #f6effc) !important; color: color-mix(in srgb, var(--on-primary, #9733f5) 20%, #9733f5) !important; border-color: color-mix(in srgb, var(--primary-color, #e7d7f7) 55%, #e7d7f7) !important; border-radius: 20px !important; font-weight: 500; }
-.style-gradient-glow .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #ffffff) 15%, #ffffff) !important; color: #4a2467 !important; border: none !important; border-radius: 16px !important; }
-.style-gradient-glow .send-btn { background: var(--primary-color, linear-gradient(135deg, #9733f5, #e0177a)) !important; color: var(--on-primary, #ffffff) !important; }
+.style-gradient-glow .chat-header { background: linear-gradient(135deg, var(--primary-color, #7c3aed) 0%, color-mix(in srgb, var(--primary-color, #7c3aed) 45%, #ec4899) 100%) !important; color: #ffffff !important; border-bottom: none !important; }
+.style-gradient-glow .bot-bubble { background-color: #f7f0fd !important; color: #4a2467 !important; border: none !important; border-radius: 16px !important; }
+.style-gradient-glow .user-bubble { background: linear-gradient(135deg, var(--primary-color, #9733f5) 0%, color-mix(in srgb, var(--primary-color, #9733f5) 60%, #ec4899) 100%) !important; color: #ffffff !important; border: none !important; border-radius: 16px !important; }
+.style-gradient-glow .starter-chip { background-color: #f7f0fd !important; color: var(--primary-color, #9733f5) !important; border-color: color-mix(in srgb, var(--primary-color, #9733f5) 25%, #e7d7f7) !important; border-radius: 20px !important; font-weight: 500; }
+.style-gradient-glow .chat-input-bar { background-color: #fcf9ff !important; color: #4a2467 !important; border: none !important; border-radius: 16px !important; }
+.style-gradient-glow .send-btn { background: linear-gradient(135deg, var(--primary-color, #7c3aed) 0%, color-mix(in srgb, var(--primary-color, #7c3aed) 45%, #ec4899) 100%) !important; color: #ffffff !important; }
 .style-gradient-glow ::placeholder { color: #9063b3 !important; opacity: 1; }
 .dark .style-gradient-glow { background-color: #1a1025 !important; color: #f0e5fa !important; }
-.dark .style-gradient-glow .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #261a35) 40%, #261a35) !important; color: color-mix(in srgb, var(--on-primary, #f0e5fa) 20%, #f0e5fa) !important; }
-.dark .style-gradient-glow .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #1a1025) 15%, #1a1025) !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .chat-header { background: linear-gradient(135deg, var(--primary-color, #5b21b6) 0%, color-mix(in srgb, var(--primary-color, #5b21b6) 45%, #be185d) 100%) !important; color: #ffffff !important; border-bottom: none !important; }
+.dark .style-gradient-glow .bot-bubble { background-color: #261a35 !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .chat-input-bar { background-color: #1a1025 !important; color: #f0e5fa !important; }
 
-/* 6. Glassmorphism - fintech app, frosted glass over a gradient mesh, Space Grotesk. */
+/* 6. Glassmorphism - frosted glass tinted by selected color, Space Grotesk. */
 .style-glassmorphism {
-  background: linear-gradient(135deg, #3170eb, #7d58ee 50%, #d127b3) !important;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-color, #3170eb) 45%, #0f172a) 0%,
+    color-mix(in srgb, var(--primary-color, #7d58ee) 70%, #1e1b4b) 50%,
+    color-mix(in srgb, var(--primary-color, #d127b3) 90%, #111827) 100%
+  ) !important;
   color: #ffffff !important;
   border: none !important;
   border-radius: 20px !important;
   box-shadow: 0 16px 40px 0 rgba(20, 20, 50, 0.25) !important;
   font-family: var(--font-space-grotesk), sans-serif !important;
 }
-.style-glassmorphism .chat-header { background-color: color-mix(in srgb, var(--primary-color, rgba(255, 255, 255, 0.08)) 40%, rgba(255, 255, 255, 0.08)) !important; color: var(--on-primary, #ffffff) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important; }
-.style-glassmorphism .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, rgba(255, 255, 255, 0.18)) 30%, rgba(255, 255, 255, 0.18)) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.25) !important; border-radius: 14px !important; backdrop-filter: blur(18px) !important; -webkit-backdrop-filter: blur(18px) !important; }
-.style-glassmorphism .user-bubble { background-color: var(--primary-color, rgba(255, 255, 255, 0.9)) !important; color: var(--on-primary, #39396b) !important; border: none !important; border-radius: 14px !important; }
-.style-glassmorphism .starter-chip { background-color: color-mix(in srgb, var(--primary-color, rgba(255, 255, 255, 0.15)) 30%, rgba(255, 255, 255, 0.15)) !important; color: #ffffff !important; border-color: color-mix(in srgb, var(--primary-color, rgba(255, 255, 255, 0.35)) 40%, rgba(255, 255, 255, 0.35)) !important; border-radius: 20px !important; font-weight: 500; }
-.style-glassmorphism .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, rgba(255, 255, 255, 0.08)) 40%, rgba(255, 255, 255, 0.08)) !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; }
-.style-glassmorphism .send-btn { background-color: var(--primary-color, rgba(255, 255, 255, 0.9)) !important; color: var(--on-primary, #39396b) !important; }
+.style-glassmorphism .chat-header {
+  background: color-mix(in srgb, var(--primary-color, #ffffff) 25%, rgba(255, 255, 255, 0.15)) !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+.style-glassmorphism .bot-bubble {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  border-radius: 14px !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}
+.style-glassmorphism .user-bubble {
+  background-color: color-mix(in srgb, var(--primary-color, #ffffff) 85%, white) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border-radius: 14px !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+.style-glassmorphism .starter-chip {
+  background-color: color-mix(in srgb, var(--primary-color, #ffffff) 20%, rgba(255, 255, 255, 0.15)) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  border-radius: 20px !important;
+  font-weight: 500;
+}
+.style-glassmorphism .chat-input-bar {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+.style-glassmorphism .send-btn {
+  background-color: var(--primary-color, #ffffff) !important;
+  color: var(--on-primary, #111111) !important;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary-color, #ffffff) 40%, transparent) !important;
+}
 .style-glassmorphism ::placeholder { color: rgba(255, 255, 255, 0.75) !important; opacity: 1; }
 
-/* 7. E-commerce - online shop, teal, order-aware, DM Sans. */
+/* 7. E-commerce - online shop, selected color accents, DM Sans. */
 .style-ecommerce {
   background-color: #fdf9f2 !important;
   color: #3a3226 !important;
   border: 1px solid #e8ddd0 !important;
   border-radius: 14px !important;
-  box-shadow: 0 14px 32px 0 rgba(15, 157, 140, 0.14) !important;
+  box-shadow: 0 14px 32px 0 color-mix(in srgb, var(--primary-color, #0f9d8c) 14%, transparent) !important;
   font-family: var(--font-dm-sans), sans-serif !important;
 }
-.style-ecommerce .chat-header { background-color: var(--primary-color, #0c8173) !important; color: var(--on-primary, #ffffff) !important; border-bottom: none !important; }
-.style-ecommerce .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #f3efe6) 40%, #f3efe6) !important; color: color-mix(in srgb, var(--on-primary, #3a3226) 20%, #3a3226) !important; border: none !important; border-radius: 14px !important; }
-.style-ecommerce .user-bubble { background-color: var(--primary-color, #0c8173) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 14px !important; }
-.style-ecommerce .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #ffffff) 20%, #ffffff) !important; color: color-mix(in srgb, var(--on-primary, #0c8173) 20%, #0c8173) !important; border-color: color-mix(in srgb, var(--primary-color, #cfe9e4) 55%, #cfe9e4) !important; border-radius: 16px !important; font-weight: 500; }
-.style-ecommerce .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #fdf9f2) 15%, #fdf9f2) !important; color: #3a3226 !important; border-color: color-mix(in srgb, var(--primary-color, #e8ddd0) 40%, #e8ddd0) !important; border-radius: 14px !important; }
-.style-ecommerce .send-btn { background-color: var(--primary-color, #0c8173) !important; color: var(--on-primary, #ffffff) !important; }
+.style-ecommerce .chat-header { background-color: var(--primary-color, #0d9488) !important; color: var(--on-primary, #ffffff) !important; border-bottom: none !important; }
+.style-ecommerce .bot-bubble { background-color: #f3efe6 !important; color: #3a3226 !important; border: none !important; border-radius: 14px !important; }
+.style-ecommerce .user-bubble { background-color: var(--primary-color, #0d9488) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 14px !important; }
+.style-ecommerce .starter-chip { background-color: #ffffff !important; color: var(--primary-color, #0d9488) !important; border-color: color-mix(in srgb, var(--primary-color, #0d9488) 25%, #cfe9e4) !important; border-radius: 16px !important; font-weight: 500; }
+.style-ecommerce .chat-input-bar { background-color: #fdf9f2 !important; color: #3a3226 !important; border-color: #e8ddd0 !important; border-radius: 14px !important; }
+.style-ecommerce .send-btn { background-color: var(--primary-color, #0d9488) !important; color: var(--on-primary, #ffffff) !important; }
 .style-ecommerce ::placeholder { color: #7d7159 !important; opacity: 1; }
 .dark .style-ecommerce { background-color: #1a1712 !important; color: #ede6d8 !important; border-color: #33291d !important; }
-.dark .style-ecommerce .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #241f17) 40%, #241f17) !important; color: color-mix(in srgb, var(--on-primary, #ede6d8) 20%, #ede6d8) !important; }
-.dark .style-ecommerce .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #1a1712) 15%, #1a1712) !important; color: #ede6d8 !important; border-color: color-mix(in srgb, var(--primary-color, #33291d) 40%, #33291d) !important; }
+.dark .style-ecommerce .chat-header { background-color: var(--primary-color, #115e59) !important; color: var(--on-primary, #ffffff) !important; border-bottom: none !important; }
+.dark .style-ecommerce .bot-bubble { background-color: #241f17 !important; color: #ede6d8 !important; }
+.dark .style-ecommerce .chat-input-bar { background-color: #1a1712 !important; color: #ede6d8 !important; border-color: #33291d !important; }
 
-/* 8. Healthcare Calm - clinic, soft sage, serif (Lora). */
+/* 8. Healthcare Calm - clinic, soft cards with selected color accents, serif (Lora). */
 .style-healthcare-calm {
   background-color: #fbfcf9 !important;
   color: #2f4235 !important;
   border: 1px solid #dde8dd !important;
   border-radius: 18px !important;
-  box-shadow: 0 12px 28px 0 rgba(111, 156, 125, 0.16) !important;
+  box-shadow: 0 12px 28px 0 color-mix(in srgb, var(--primary-color, #6f9c7d) 16%, transparent) !important;
   font-family: var(--font-lora), serif !important;
 }
-.style-healthcare-calm .chat-header { background-color: var(--primary-color, #eaf1e9) !important; color: var(--on-primary, #2f4235) !important; border-bottom: none !important; }
-.style-healthcare-calm .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #eaf1e9) 40%, #eaf1e9) !important; color: color-mix(in srgb, var(--on-primary, #2f4235) 20%, #2f4235) !important; border: none !important; border-radius: 14px !important; }
-.style-healthcare-calm .user-bubble { background-color: var(--primary-color, #567d62) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 14px !important; }
-.style-healthcare-calm .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #fbfcf9) 20%, #fbfcf9) !important; color: color-mix(in srgb, var(--on-primary, #4a6b52) 20%, #4a6b52) !important; border-color: color-mix(in srgb, var(--primary-color, #cfe0cf) 55%, #cfe0cf) !important; border-radius: 14px !important; font-weight: 500; }
-.style-healthcare-calm .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #fbfcf9) 15%, #fbfcf9) !important; color: #2f4235 !important; border-color: color-mix(in srgb, var(--primary-color, #dde8dd) 40%, #dde8dd) !important; border-radius: 12px !important; }
-.style-healthcare-calm .send-btn { background-color: var(--primary-color, #567d62) !important; color: var(--on-primary, #ffffff) !important; }
+.style-healthcare-calm .chat-header { background-color: var(--primary-color, #4a7c59) !important; color: var(--on-primary, #ffffff) !important; border-bottom: none !important; }
+.style-healthcare-calm .bot-bubble { background-color: #eef5ef !important; color: #2f4235 !important; border: none !important; border-radius: 14px !important; }
+.style-healthcare-calm .user-bubble { background-color: var(--primary-color, #4a7c59) !important; color: var(--on-primary, #ffffff) !important; border: none !important; border-radius: 14px !important; }
+.style-healthcare-calm .starter-chip { background-color: #fbfcf9 !important; color: var(--primary-color, #4a7c59) !important; border-color: color-mix(in srgb, var(--primary-color, #4a7c59) 25%, #cfe0cf) !important; border-radius: 14px !important; font-weight: 500; }
+.style-healthcare-calm .chat-input-bar { background-color: #fbfcf9 !important; color: #2f4235 !important; border-color: #dde8dd !important; border-radius: 12px !important; }
+.style-healthcare-calm .send-btn { background-color: var(--primary-color, #4a7c59) !important; color: var(--on-primary, #ffffff) !important; }
 .style-healthcare-calm ::placeholder { color: #607b63 !important; opacity: 1; }
 .dark .style-healthcare-calm { background-color: #131a15 !important; color: #d9e8dc !important; border-color: #263429 !important; }
-.dark .style-healthcare-calm .chat-header { background-color: var(--primary-color, #1a2a1e) !important; color: var(--on-primary, #d9e8dc) !important; }
-.dark .style-healthcare-calm .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #1a2a1e) 40%, #1a2a1e) !important; color: color-mix(in srgb, var(--on-primary, #d9e8dc) 20%, #d9e8dc) !important; }
-.dark .style-healthcare-calm .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #131a15) 15%, #131a15) !important; color: #d9e8dc !important; border-color: color-mix(in srgb, var(--primary-color, #263429) 40%, #263429) !important; }
+.dark .style-healthcare-calm .chat-header { background-color: #1c2720 !important; color: #d9e8dc !important; border-bottom: 1px solid #2b3b30 !important; }
+.dark .style-healthcare-calm .bot-bubble { background-color: #1a2a1e !important; color: #d9e8dc !important; }
+.dark .style-healthcare-calm .chat-input-bar { background-color: #131a15 !important; color: #d9e8dc !important; border-color: #263429 !important; }
 
-/* 9. Neubrutalism - bold brand, thick borders, hard offset shadows, DM Sans. */
+/* 9. Neubrutalism - bold brand, thick borders, hard offset shadows, selected color header, DM Sans. */
 .style-neubrutalism {
   background-color: #ffffff !important;
   color: #111111 !important;
@@ -376,45 +420,38 @@ body {
   box-shadow: 10px 10px 0 0 #111111 !important;
   font-family: var(--font-dm-sans), sans-serif !important;
 }
-/* Border color stays the signature solid black ink outline throughout
-   (not primaryColor-driven) - brutalism's thick black stroke is the
-   genre-defining structural language here, the same way its 3px root
-   border and 10px hard shadow above are, not an arbitrary color choice
-   that happens to currently be black. */
 .style-neubrutalism .chat-header { background-color: var(--primary-color, #ffde59) !important; color: var(--on-primary, #111111) !important; border-bottom: 3px solid #111111 !important; }
-.style-neubrutalism .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #f2f2f2) 40%, #f2f2f2) !important; color: color-mix(in srgb, var(--on-primary, #111111) 20%, #111111) !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
+.style-neubrutalism .bot-bubble { background-color: #f4f4f4 !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
 .style-neubrutalism .user-bubble { background-color: var(--primary-color, #ea0033) !important; color: var(--on-primary, #ffffff) !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
-.style-neubrutalism .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #ffffff) 20%, #ffffff) !important; color: color-mix(in srgb, var(--on-primary, #111111) 20%, #111111) !important; border: 2px solid #111111 !important; border-radius: 4px !important; font-weight: 600; }
-.style-neubrutalism .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #ffffff) 15%, #ffffff) !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
+.style-neubrutalism .starter-chip { background-color: #ffffff !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; font-weight: 600; }
+.style-neubrutalism .chat-input-bar { background-color: #ffffff !important; color: #111111 !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
 .style-neubrutalism .send-btn { background-color: var(--primary-color, #ea0033) !important; color: var(--on-primary, #ffffff) !important; border: 2px solid #111111 !important; border-radius: 4px !important; }
 .style-neubrutalism ::placeholder { color: #666666 !important; opacity: 1; }
 .dark .style-neubrutalism { background-color: #1a1a1a !important; color: #f2f2f2 !important; border-color: #f2f2f2 !important; box-shadow: 10px 10px 0 0 #f2f2f2 !important; }
-.dark .style-neubrutalism .chat-header { border-bottom-color: #f2f2f2 !important; }
-.dark .style-neubrutalism .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #262626) 40%, #262626) !important; color: color-mix(in srgb, var(--on-primary, #f2f2f2) 20%, #f2f2f2) !important; border-color: #f2f2f2 !important; }
-.dark .style-neubrutalism .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #1a1a1a) 15%, #1a1a1a) !important; color: #f2f2f2 !important; border-color: #f2f2f2 !important; }
+.dark .style-neubrutalism .chat-header { background-color: var(--primary-color, #1a1a1a) !important; color: var(--on-primary, #ffde59) !important; border-bottom: 3px solid #f2f2f2 !important; }
+.dark .style-neubrutalism .bot-bubble { background-color: #262626 !important; color: #f2f2f2 !important; border-color: #f2f2f2 !important; }
+.dark .style-neubrutalism .chat-input-bar { background-color: #1a1a1a !important; color: #f2f2f2 !important; border-color: #f2f2f2 !important; }
 
-/* 10. Luxury Editorial - boutique, serif & gold, Playfair Display. */
+/* 10. Luxury Editorial - boutique, serif & selected gold/accent, Playfair Display. */
 .style-luxury-editorial {
   background-color: #fbf9f5 !important;
   color: #2a251d !important;
-  border: 1px solid #c9a86a !important;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #c9a86a) 55%, #c9a86a) !important;
   border-radius: 6px !important;
   box-shadow: 0 18px 36px 0 rgba(0, 0, 0, 0.16) !important;
   font-family: var(--font-playfair), serif !important;
 }
-.style-luxury-editorial .chat-header { background-color: var(--primary-color, #161412) !important; color: var(--on-primary, #f5efe3) !important; border-bottom: none !important; }
-.style-luxury-editorial .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #f1ebdf) 40%, #f1ebdf) !important; color: color-mix(in srgb, var(--on-primary, #2a251d) 20%, #2a251d) !important; border: none !important; border-radius: 2px !important; }
-.style-luxury-editorial .user-bubble { background-color: var(--primary-color, #161412) !important; color: var(--on-primary, #f5efe3) !important; border: none !important; border-radius: 2px !important; }
-/* Border stays the signature gold rule (not primaryColor-driven) - same
-   reasoning as Neubrutalism's black ink outline: gold is this design's
-   own genre-defining structural language, not a swappable color. */
-.style-luxury-editorial .starter-chip { background-color: color-mix(in srgb, var(--primary-color, #fbf9f5) 20%, #fbf9f5) !important; color: color-mix(in srgb, var(--on-primary, #2a251d) 20%, #2a251d) !important; border-color: #c9a86a !important; border-radius: 2px !important; font-weight: 500; }
-.style-luxury-editorial .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #fbf9f5) 15%, #fbf9f5) !important; color: #2a251d !important; border-color: #ddd1b3 !important; border-radius: 2px !important; }
-.style-luxury-editorial .send-btn { background-color: var(--primary-color, #161412) !important; color: var(--on-primary, #f5efe3) !important; border-radius: 2px !important; }
+.style-luxury-editorial .chat-header { background-color: #14120f !important; color: #f5efe3 !important; border-bottom: 1px solid color-mix(in srgb, var(--primary-color, #c9a86a) 55%, #c9a86a) !important; }
+.style-luxury-editorial .bot-bubble { background-color: #f3ede2 !important; color: #2a251d !important; border: none !important; border-radius: 2px !important; }
+.style-luxury-editorial .user-bubble { background-color: var(--primary-color, #14120f) !important; color: var(--on-primary, #f5efe3) !important; border: none !important; border-radius: 2px !important; }
+.style-luxury-editorial .starter-chip { background-color: #fbf9f5 !important; color: #2a251d !important; border-color: color-mix(in srgb, var(--primary-color, #c9a86a) 55%, #c9a86a) !important; border-radius: 2px !important; font-weight: 500; }
+.style-luxury-editorial .chat-input-bar { background-color: #fbf9f5 !important; color: #2a251d !important; border-color: #ddd1b3 !important; border-radius: 2px !important; }
+.style-luxury-editorial .send-btn { background-color: var(--primary-color, #14120f) !important; color: var(--on-primary, #f5efe3) !important; border-radius: 2px !important; }
 .style-luxury-editorial ::placeholder { color: #7d7156 !important; opacity: 1; }
-.dark .style-luxury-editorial { background-color: #14120f !important; color: #efe6d3 !important; border-color: #b08a3e !important; }
-.dark .style-luxury-editorial .bot-bubble { background-color: color-mix(in srgb, var(--primary-color, #201c16) 40%, #201c16) !important; color: color-mix(in srgb, var(--on-primary, #efe6d3) 20%, #efe6d3) !important; }
-.dark .style-luxury-editorial .chat-input-bar { background-color: color-mix(in srgb, var(--primary-color, #14120f) 15%, #14120f) !important; color: #efe6d3 !important; border-color: #4a3f2a !important; }
+.dark .style-luxury-editorial { background-color: #14120f !important; color: #efe6d3 !important; border-color: color-mix(in srgb, var(--primary-color, #b08a3e) 55%, #b08a3e) !important; }
+.dark .style-luxury-editorial .chat-header { background-color: #100e0c !important; color: #efe6d3 !important; border-bottom: 1px solid color-mix(in srgb, var(--primary-color, #b08a3e) 55%, #b08a3e) !important; }
+.dark .style-luxury-editorial .bot-bubble { background-color: #201c16 !important; color: #efe6d3 !important; }
+.dark .style-luxury-editorial .chat-input-bar { background-color: #14120f !important; color: #efe6d3 !important; border-color: #4a3f2a !important; }
 
 /* Active outline on the composer while typing. Every preset above sets
  * .style-X .chat-input-bar's border-color with !important, so a plain
@@ -441,6 +478,131 @@ body {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 25%, transparent) !important;
 }
 
+/* ── Preset-Specific Cards, Panels & Bottom Navigation ── */
+
+/* 1. Minimal */
+.style-minimal .widget-panel { background-color: #f3f2ee !important; color: #1c1a15 !important; }
+.style-minimal .widget-card { background-color: #ffffff !important; border: 1px solid #e6e4de !important; border-radius: 16px !important; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important; color: #1c1a15 !important; }
+.style-minimal .widget-search-bar { background-color: #ffffff !important; border: 1px solid #e6e4de !important; border-radius: 12px !important; color: #1c1a15 !important; }
+.style-minimal .chat-bottom-nav { background-color: #f3f2ee !important; border-top: 1px solid #e6e4de !important; color: #1c1a15 !important; }
+.dark .style-minimal .widget-panel { background-color: #171613 !important; color: #f3f2ee !important; }
+.dark .style-minimal .widget-card { background-color: #1e1c18 !important; border-color: #2a2822 !important; color: #f3f2ee !important; }
+.dark .style-minimal .widget-search-bar { background-color: #1e1c18 !important; border-color: #2a2822 !important; color: #f3f2ee !important; }
+.dark .style-minimal .chat-bottom-nav { background-color: #171613 !important; border-top-color: #2a2822 !important; }
+
+/* 2. Playful */
+.style-playful .widget-panel { background-color: #fffaf5 !important; color: #2a1a10 !important; }
+.style-playful .widget-card { background-color: #ffffff !important; border: 2px solid color-mix(in srgb, var(--primary-color, #ff8a5c) 25%, #ffe6d9) !important; border-radius: 24px !important; box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--primary-color, #ff8a5c) 20%, transparent) !important; color: #2a1a10 !important; }
+.style-playful .widget-search-bar { background-color: #ffffff !important; border: 2px solid color-mix(in srgb, var(--primary-color, #ff8a5c) 30%, #ffd6c1) !important; border-radius: 20px !important; color: #7a3f24 !important; }
+.style-playful .chat-bottom-nav { background-color: #fffaf5 !important; border-top: 2px solid color-mix(in srgb, var(--primary-color, #ff8a5c) 25%, #ffe6d9) !important; border-radius: 24px 24px 0 0 !important; color: var(--primary-color, #ff6b4a) !important; }
+.dark .style-playful .widget-panel { background-color: #2a1c14 !important; color: #ffe6d9 !important; }
+.dark .style-playful .widget-card { background-color: #38241a !important; border-color: #4a3022 !important; color: #ffe6d9 !important; }
+.dark .style-playful .widget-search-bar { background-color: #38241a !important; border-color: #4a3022 !important; color: #ffe6d9 !important; }
+.dark .style-playful .chat-bottom-nav { background-color: #2a1c14 !important; border-top-color: #4a3022 !important; }
+
+/* 3. Corporate */
+.style-corporate .widget-panel { background-color: #f1f4f8 !important; color: #1c2e4a !important; }
+.style-corporate .widget-card { background-color: #ffffff !important; border: 1px solid #d7dce3 !important; border-radius: 8px !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color, #1e3a8a) 12%, transparent) !important; color: #1c2e4a !important; }
+.style-corporate .widget-search-bar { background-color: #ffffff !important; border: 1px solid #d7dce3 !important; border-radius: 6px !important; color: #1c2e4a !important; }
+.style-corporate .chat-bottom-nav { background-color: #eef1f6 !important; border-top: 1px solid #d7dce3 !important; color: var(--primary-color, #1e3a8a) !important; }
+.dark .style-corporate .widget-panel { background-color: #10151d !important; color: #dbe2ec !important; }
+.dark .style-corporate .widget-card { background-color: #171f2b !important; border-color: #263447 !important; color: #dbe2ec !important; }
+.dark .style-corporate .widget-search-bar { background-color: #171f2b !important; border-color: #263447 !important; color: #dbe2ec !important; }
+.dark .style-corporate .chat-bottom-nav { background-color: #10151d !important; border-top-color: #263447 !important; }
+
+/* 4. Dark Sleek */
+.style-dark-sleek .widget-panel { background-color: #111114 !important; color: #e4e4e8 !important; }
+.style-dark-sleek .widget-card { background-color: #16161c !important; border: 1px solid color-mix(in srgb, var(--primary-color, #00e5c7) 35%, transparent) !important; border-radius: 14px !important; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 color-mix(in srgb, var(--primary-color, #00e5c7) 20%, transparent) !important; color: #e4e4e8 !important; }
+.style-dark-sleek .widget-search-bar { background-color: #14141a !important; border: 1px solid color-mix(in srgb, var(--primary-color, #00e5c7) 35%, transparent) !important; border-radius: 10px !important; color: #e4e4e8 !important; }
+.style-dark-sleek .chat-bottom-nav { background-color: #111114 !important; border-top: 1px solid color-mix(in srgb, var(--primary-color, #00e5c7) 30%, transparent) !important; color: var(--primary-color, #00e5c7) !important; }
+
+/* 5. Gradient Glow */
+.style-gradient-glow .widget-panel { background-color: #fdfaff !important; color: #2a1245 !important; }
+.style-gradient-glow .widget-card { background-color: #ffffff !important; border: 1px solid color-mix(in srgb, var(--primary-color, #a855f7) 30%, transparent) !important; border-radius: 20px !important; box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--primary-color, #a855f7) 22%, transparent) !important; color: #2a1245 !important; }
+.style-gradient-glow .widget-search-bar { background-color: #ffffff !important; border: 1px solid color-mix(in srgb, var(--primary-color, #a855f7) 40%, transparent) !important; border-radius: 16px !important; color: #2a1245 !important; }
+.style-gradient-glow .chat-bottom-nav { background-color: #fbf8ff !important; border-top: 1px solid color-mix(in srgb, var(--primary-color, #a855f7) 25%, transparent) !important; color: var(--primary-color, #9733f5) !important; }
+.dark .style-gradient-glow .widget-panel { background-color: #150d1e !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .widget-card { background-color: #20142e !important; border-color: color-mix(in srgb, var(--primary-color, #a855f7) 35%, transparent) !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .widget-search-bar { background-color: #20142e !important; border-color: color-mix(in srgb, var(--primary-color, #a855f7) 35%, transparent) !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .chat-bottom-nav { background-color: #150d1e !important; border-top-color: color-mix(in srgb, var(--primary-color, #a855f7) 35%, transparent) !important; }
+
+/* 6. Glassmorphism */
+.style-glassmorphism .widget-panel {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-color, #3170eb) 45%, #0f172a) 0%,
+    color-mix(in srgb, var(--primary-color, #7d58ee) 70%, #1e1b4b) 50%,
+    color-mix(in srgb, var(--primary-color, #d127b3) 90%, #111827) 100%
+  ) !important;
+  color: #ffffff !important;
+}
+.style-glassmorphism .widget-card {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  border-radius: 18px !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.22) !important;
+  color: #ffffff !important;
+}
+.style-glassmorphism .widget-card p, .style-glassmorphism .widget-card span { color: #ffffff !important; }
+.style-glassmorphism .widget-search-bar {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.32) !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  color: #ffffff !important;
+}
+.style-glassmorphism .widget-search-bar::placeholder { color: rgba(255, 255, 255, 0.75) !important; }
+.style-glassmorphism .chat-bottom-nav {
+  background-color: color-mix(in srgb, var(--primary-color, #0f172a) 20%, rgba(15, 23, 42, 0.6)) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.22) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  color: #ffffff !important;
+}
+
+/* 7. E-commerce */
+.style-ecommerce .widget-panel { background-color: #fdf9f2 !important; color: #3a3226 !important; }
+.style-ecommerce .widget-card { background-color: #ffffff !important; border: 1px solid #e8ddd0 !important; border-radius: 14px !important; box-shadow: 0 4px 16px -2px color-mix(in srgb, var(--primary-color, #0f9d8c) 15%, transparent) !important; color: #3a3226 !important; }
+.style-ecommerce .widget-search-bar { background-color: #ffffff !important; border: 1px solid #e8ddd0 !important; border-radius: 12px !important; color: #3a3226 !important; }
+.style-ecommerce .chat-bottom-nav { background-color: #fdf9f2 !important; border-top: 1px solid #e8ddd0 !important; color: var(--primary-color, #0c8173) !important; }
+.dark .style-ecommerce .widget-panel { background-color: #1a1712 !important; color: #ede6d8 !important; }
+.dark .style-ecommerce .widget-card { background-color: #241f17 !important; border-color: #382e21 !important; color: #ede6d8 !important; }
+.dark .style-ecommerce .widget-search-bar { background-color: #241f17 !important; border-color: #382e21 !important; color: #ede6d8 !important; }
+.dark .style-ecommerce .chat-bottom-nav { background-color: #1a1712 !important; border-top-color: #382e21 !important; }
+
+/* 8. Healthcare Calm */
+.style-healthcare-calm .widget-panel { background-color: #fbfcf9 !important; color: #2f4235 !important; }
+.style-healthcare-calm .widget-card { background-color: #ffffff !important; border: 1px solid #dde8dd !important; border-radius: 18px !important; box-shadow: 0 6px 18px -3px color-mix(in srgb, var(--primary-color, #6f9c7d) 18%, transparent) !important; color: #2f4235 !important; }
+.style-healthcare-calm .widget-search-bar { background-color: #ffffff !important; border: 1px solid #dde8dd !important; border-radius: 14px !important; color: #2f4235 !important; }
+.style-healthcare-calm .chat-bottom-nav { background-color: #fbfcf9 !important; border-top: 1px solid #dde8dd !important; color: var(--primary-color, #567d62) !important; }
+.dark .style-healthcare-calm .widget-panel { background-color: #131a15 !important; color: #d9e8dc !important; border-color: #263429 !important; }
+.dark .style-healthcare-calm .widget-card { background-color: #1c2720 !important; border-color: #2b3b30 !important; color: #d9e8dc !important; }
+.dark .style-healthcare-calm .widget-search-bar { background-color: #1c2720 !important; border-color: #2b3b30 !important; color: #d9e8dc !important; }
+.dark .style-healthcare-calm .chat-bottom-nav { background-color: #131a15 !important; border-top-color: #2b3b30 !important; }
+
+/* 9. Neubrutalism */
+.style-neubrutalism .widget-panel { background-color: #fffdf5 !important; color: #111111 !important; }
+.style-neubrutalism .widget-card { background-color: #ffffff !important; border: 3px solid #111111 !important; border-radius: 4px !important; box-shadow: 4px 4px 0 0 #111111 !important; color: #111111 !important; }
+.style-neubrutalism .widget-card:hover { box-shadow: 6px 6px 0 0 #111111 !important; transform: translate(-1px, -1px); }
+.style-neubrutalism .widget-search-bar { background-color: #ffffff !important; border: 3px solid #111111 !important; border-radius: 4px !important; box-shadow: 3px 3px 0 0 #111111 !important; color: #111111 !important; font-weight: 600; }
+.style-neubrutalism .chat-bottom-nav { background-color: var(--primary-color, #ffde59) !important; border-top: 3px solid #111111 !important; color: var(--on-primary, #111111) !important; font-weight: 700; }
+.dark .style-neubrutalism .widget-panel { background-color: #1a1a1a !important; color: #f2f2f2 !important; }
+.dark .style-neubrutalism .widget-card { background-color: #242424 !important; border: 3px solid #f2f2f2 !important; box-shadow: 4px 4px 0 0 #f2f2f2 !important; color: #f2f2f2 !important; }
+.dark .style-neubrutalism .widget-search-bar { background-color: #242424 !important; border: 3px solid #f2f2f2 !important; box-shadow: 3px 3px 0 0 #f2f2f2 !important; color: #f2f2f2 !important; }
+.dark .style-neubrutalism .chat-bottom-nav { background-color: #1a1a1a !important; border-top: 3px solid #f2f2f2 !important; color: var(--primary-color, #ffde59) !important; }
+
+/* 10. Luxury Editorial */
+.style-luxury-editorial .widget-panel { background-color: #fbf9f5 !important; color: #2a251d !important; }
+.style-luxury-editorial .widget-card { background-color: #ffffff !important; border: 1px solid color-mix(in srgb, var(--primary-color, #c9a86a) 55%, #c9a86a) !important; border-radius: 4px !important; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important; color: #2a251d !important; }
+.style-luxury-editorial .widget-search-bar { background-color: #ffffff !important; border: 1px solid color-mix(in srgb, var(--primary-color, #c9a86a) 55%, #c9a86a) !important; border-radius: 4px !important; color: #2a251d !important; }
+.style-luxury-editorial .chat-bottom-nav { background-color: #fbf9f5 !important; border-top: 1px solid color-mix(in srgb, var(--primary-color, #c9a86a) 55%, #c9a86a) !important; color: var(--primary-color, #b08a3e) !important; }
+.dark .style-luxury-editorial .widget-panel { background-color: #14120f !important; color: #efe6d3 !important; }
+.dark .style-luxury-editorial .widget-card { background-color: #1c1915 !important; border-color: color-mix(in srgb, var(--primary-color, #b08a3e) 55%, #b08a3e) !important; color: #efe6d3 !important; }
+.dark .style-luxury-editorial .widget-search-bar { background-color: #1c1915 !important; border-color: color-mix(in srgb, var(--primary-color, #b08a3e) 55%, #b08a3e) !important; color: #efe6d3 !important; }
+.dark .style-luxury-editorial .chat-bottom-nav { background-color: #14120f !important; border-top-color: color-mix(in srgb, var(--primary-color, #b08a3e) 55%, #b08a3e) !important; }
+
 /* Voice-message player (AudioBubble in the real widget; the Customizer's
  * live preview below mirrors the same classNames on a static demo bubble).
  * One shared, preset-agnostic rule block - it themes itself entirely off
@@ -456,6 +618,54 @@ body {
 }
 .audio-bubble-bar {
   background-color: currentColor;
+}
+
+/* ── Bottom Navigation Custom Styles ── */
+.bottom-nav-pill {
+  border-radius: 9999px !important;
+  margin: 6px 12px 8px !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+.dark .bottom-nav-pill {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.4) !important;
+}
+
+.bottom-nav-clean {
+  border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow: none !important;
+}
+.dark .bottom-nav-clean {
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.bottom-nav-glass {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+.dark .bottom-nav-glass {
+  background-color: rgba(15, 23, 42, 0.65) !important;
+  border-top-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.bottom-nav-chunky {
+  border-top: 3px solid #111111 !important;
+  font-weight: 700 !important;
+}
+.dark .bottom-nav-chunky {
+  border-top-color: #f2f2f2 !important;
+}
+
+.bottom-nav-luxury {
+  border-top: 1px solid #c9a86a !important;
+}
+.dark .bottom-nav-luxury {
+  border-top-color: #b08a3e !important;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
