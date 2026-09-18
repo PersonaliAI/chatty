@@ -839,30 +839,83 @@ async def widget_theme(bot_id: str):
         except Exception:
             hide_branding = False
 
-    team_profiles: list[dict[str, Any]] = []
+    # Build up to 3 team profiles prioritizing:
+    # 1. Online people (agents in chatty_agent_presence where status == 'online')
+    # 2. Most recently appeared/replied people (chatty_conversations human sender)
+    # 3. Owner & Team members with avatars
+    candidates: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+
+    def _add_candidate(name: str, avatar_url: Optional[str], role: str, is_online: bool, priority_score: int, key: str):
+        norm_key = key.strip().lower() if key else name.strip().lower()
+        if not norm_key or norm_key in seen_keys:
+            return
+        seen_keys.add(norm_key)
+        clean_av = avatar_url.strip() if isinstance(avatar_url, str) and avatar_url.strip() else None
+        if clean_av and not (clean_av.startswith("http://") or clean_av.startswith("https://") or clean_av.startswith("data:image/") or clean_av.startswith("/")):
+            clean_av = None
+        candidates.append({
+            "name": name,
+            "avatar_url": clean_av,
+            "role": role,
+            "online": is_online,
+            "priority": priority_score + (100 if clean_av else 0),
+        })
+
+    # 1. Online agents from presence table
+    try:
+        pres_res = await run_db(lambda: supabase.table("chatty_agent_presence").select(
+            "user_id, agent_email, agent_name, status, last_seen_at"
+        ).eq("bot_id", bot_id).eq("status", "online").order("last_seen_at", desc=True).limit(5).execute())
+        for p in (pres_res.data or []):
+            p_name = p.get("agent_name") or (p.get("agent_email", "").split("@")[0].capitalize() if p.get("agent_email") else "Agent")
+            p_email = p.get("agent_email") or ""
+            p_av = None
+            if p.get("user_id"):
+                try:
+                    u_res = await run_db(lambda: supabase.table("users").select("avatar_url, display_name").eq("auth_user_id", p["user_id"]).limit(1).execute())
+                    if u_res.data:
+                        p_av = u_res.data[0].get("avatar_url")
+                        if not p.get("agent_name") and u_res.data[0].get("display_name"):
+                            p_name = u_res.data[0]["display_name"]
+                except Exception:
+                    pass
+            _add_candidate(p_name, p_av, "Online Agent", True, 200, p_email or p.get("user_id") or p_name)
+    except Exception:
+        pass
+
+    # 2. Most recently appeared/replied human responders from conversations
+    try:
+        recent_res = await run_db(lambda: supabase.table("chatty_conversations").select(
+            "sender_name, sender_avatar, created_at"
+        ).eq("bot_id", bot_id).eq("sender", "human").order("created_at", desc=True).limit(8).execute())
+        for r in (recent_res.data or []):
+            r_name = r.get("sender_name")
+            r_av = r.get("sender_avatar")
+            if r_name:
+                _add_candidate(r_name, r_av, "Support Specialist", False, 150, r_name)
+    except Exception:
+        pass
+
+    # 3. Bot Owner
     try:
         if b.get("user_id"):
             owner_res = await run_db(lambda: supabase.table("users").select("display_name, avatar_url, email").eq(
                 "auth_user_id", b.get("user_id")).limit(1).execute())
             if owner_res.data:
                 o = owner_res.data[0]
-                o_name = o.get("display_name") or (o.get("email", "").split("@")[0] if o.get("email") else "Team Lead")
+                o_name = o.get("display_name") or (o.get("email", "").split("@")[0].capitalize() if o.get("email") else "Team Lead")
                 o_av = o.get("avatar_url")
-                if o_av and not (o_av.startswith("http://") or o_av.startswith("https://") or o_av.startswith("data:image/")):
-                    o_av = None
-                team_profiles.append({
-                    "name": o_name,
-                    "avatar_url": o_av,
-                    "role": "Owner",
-                })
+                _add_candidate(o_name, o_av, "Owner", False, 100, o.get("email") or b.get("user_id") or "owner")
     except Exception:
         pass
 
+    # 4. Team members from chatty_team_members
     try:
         tm_res = await run_db(lambda: supabase.table("chatty_team_members").select("name, email, role, avatar_url").eq(
             "bot_id", bot_id).execute())
         for tm in (tm_res.data or []):
-            tm_name = tm.get("name") or (tm.get("email", "").split("@")[0] if tm.get("email") else "Agent")
+            tm_name = tm.get("name") or (tm.get("email", "").split("@")[0].capitalize() if tm.get("email") else "Agent")
             tm_av = tm.get("avatar_url")
             if not tm_av and tm.get("email"):
                 try:
@@ -874,15 +927,21 @@ async def widget_theme(bot_id: str):
                             tm_av = u_match.data[0]["avatar_url"]
                 except Exception:
                     pass
-            if tm_av and not (tm_av.startswith("http://") or tm_av.startswith("https://") or tm_av.startswith("data:image/")):
-                tm_av = None
-            team_profiles.append({
-                "name": tm_name,
-                "avatar_url": tm_av,
-                "role": tm.get("role") or "Agent",
-            })
+            _add_candidate(tm_name, tm_av, tm.get("role") or "Agent", False, 50, tm.get("email") or tm_name)
     except Exception:
         pass
+
+    # Sort candidates by priority (online > recent > owner/team, favoring real avatar photos) and take up to 3
+    candidates.sort(key=lambda c: c["priority"], reverse=True)
+    team_profiles: list[dict[str, Any]] = [
+        {
+            "name": c["name"],
+            "avatar_url": c["avatar_url"],
+            "role": c["role"],
+            "online": c["online"],
+        }
+        for c in candidates[:3]
+    ]
 
     return {
         "name": b.get("name") or "Chatty Assistant",

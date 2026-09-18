@@ -133,48 +133,92 @@ async def upload_bot_avatar(
         raise HTTPException(status_code=500, detail="Avatar upload failed") from e
 
 
+@router.get("/api/user/profile")
 @router.get("/api/agent/profile")
-async def get_agent_profile(user: dict[str, Any] = Depends(require_user)):
-    """Get current user's human agent sender profile (photo, name, role)."""
+async def get_user_profile(user: dict[str, Any] = Depends(require_user)):
+    """Get current user's profile (photo, name, email)."""
     user_id = user["auth_user_id"]
-    res = await run_db(lambda: supabase.table("chatty_agent_sender_profiles").select("*").eq("user_id", user_id).execute())
-    if res.data:
-        return res.data[0]
-    email_name = user.get("email", "").split("@")[0].capitalize() or "Support Agent"
+    email = user.get("email", "")
+    display_name = user.get("display_name")
+    avatar_url = user.get("avatar_url")
+
+    try:
+        res = await run_db(lambda: supabase.table("users").select("display_name, avatar_url, email").eq("auth_user_id", user_id).limit(1).execute())
+        if res.data:
+            row = res.data[0]
+            display_name = row.get("display_name") or display_name
+            avatar_url = row.get("avatar_url") or avatar_url
+    except Exception as e:
+        logger.warning("Could not read users table for profile: %s", e)
+
+    if not display_name and email:
+        display_name = email.split("@")[0].capitalize()
+
     return {
         "user_id": user_id,
-        "display_name": email_name,
-        "avatar_url": None,
-        "role_title": "Support Specialist",
+        "email": email,
+        "display_name": display_name or "User",
+        "avatar_url": avatar_url,
+        "role_title": "Team Member",
     }
 
 
+@router.post("/api/user/profile")
 @router.post("/api/agent/profile")
-async def update_agent_profile(
+async def update_user_profile(
     body: dict[str, Any],
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Update human agent sender profile (display name, role title, avatar url)."""
+    """Update user profile (display name, avatar url) in users and team members tables."""
     user_id = user["auth_user_id"]
-    payload = {
+    email = user.get("email") or ""
+    display_name = (body.get("display_name") or "").strip()
+    avatar_url = body.get("avatar_url")
+
+    updates: dict[str, Any] = {}
+    if display_name:
+        updates["display_name"] = display_name
+    if "avatar_url" in body:
+        updates["avatar_url"] = avatar_url
+
+    if updates:
+        try:
+            await run_db(lambda: supabase.table("users").update(updates).eq("auth_user_id", user_id).execute())
+        except Exception as e:
+            logger.warning("Failed to update users table: %s", e)
+
+        if email:
+            try:
+                tm_updates: dict[str, Any] = {}
+                if display_name:
+                    tm_updates["name"] = display_name
+                if "avatar_url" in body:
+                    tm_updates["avatar_url"] = avatar_url
+                if tm_updates:
+                    await run_db(lambda: supabase.table("chatty_team_members").update(tm_updates).eq("email", email).execute())
+            except Exception as e:
+                logger.warning("Failed to sync team member profile: %s", e)
+
+    return {
         "user_id": user_id,
-        "display_name": body.get("display_name") or "",
-        "avatar_url": body.get("avatar_url"),
-        "role_title": body.get("role_title") or "Support Specialist",
+        "email": email,
+        "display_name": display_name or user.get("display_name") or (email.split("@")[0].capitalize() if email else "User"),
+        "avatar_url": avatar_url,
+        "role_title": "Team Member",
     }
-    await run_db(lambda: supabase.table("chatty_agent_sender_profiles").upsert(payload).execute())
-    return payload
 
 
+@router.post("/api/user/avatar")
 @router.post("/api/agent/avatar")
-async def upload_agent_avatar(
+async def upload_user_avatar(
     file: UploadFile = File(...),
     display_name: str = Form(""),
     role_title: str = Form(""),
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Upload human agent profile photo and store in Supabase storage & sender profiles."""
+    """Upload user profile photo and store in Supabase storage & users table."""
     user_id = user["auth_user_id"]
+    email = user.get("email") or ""
     data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Photo must be under 10MB")
     if not data:
         raise HTTPException(status_code=400, detail="Photo must be a non-empty image under 10MB")
@@ -183,26 +227,42 @@ async def upload_agent_avatar(
         raise HTTPException(status_code=400, detail="File must be an image")
     import uuid as _uuid
     ext = (file.filename or "avatar.png").split(".")[-1][:8]
-    path = f"avatars/agents/{user_id}/{_uuid.uuid4().hex[:8]}.{ext}"
+    path = f"avatars/users/{user_id}/{_uuid.uuid4().hex[:8]}.{ext}"
+
     try:
         def _upload():
-            supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
-            url = supabase.storage.from_("chatty-uploads").get_public_url(path)
-            profile_payload: dict[str, Any] = {
-                "user_id": user_id,
-                "avatar_url": url,
-            }
+            # Try chatty-uploads bucket, fallback to chatty_assets if needed
+            try:
+                supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+                url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+            except Exception as bucket_err:
+                logger.warning("chatty-uploads upload error: %s, falling back to chatty_assets", bucket_err)
+                supabase.storage.from_("chatty_assets").upload(path, data, {"content-type": mime})
+                url = supabase.storage.from_("chatty_assets").get_public_url(path)
+
+            upd: dict[str, Any] = {"avatar_url": url}
             if display_name:
-                profile_payload["display_name"] = display_name
-            if role_title:
-                profile_payload["role_title"] = role_title
-            supabase.table("chatty_agent_sender_profiles").upsert(profile_payload).execute()
+                upd["display_name"] = display_name
+            supabase.table("users").update(upd).eq("auth_user_id", user_id).execute()
+
+            if email:
+                tm_upd: dict[str, Any] = {"avatar_url": url}
+                if display_name:
+                    tm_upd["name"] = display_name
+                try:
+                    supabase.table("chatty_team_members").update(tm_upd).eq("email", email).execute()
+                except Exception:
+                    pass
+
             return url
+
         url = await run_db(_upload)
         return {"avatar_url": url}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception("Agent photo upload failed")
-        raise HTTPException(status_code=500, detail="Agent photo upload failed") from e
+        logger.exception("User photo upload failed: %s", e)
+        raise HTTPException(status_code=500, detail="User photo upload failed") from e
 
 
 @router.post("/api/generate-business")
