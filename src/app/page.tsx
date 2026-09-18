@@ -457,6 +457,24 @@ export default function Home() {
             </Link>
           </div>
           <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
+
+          <div className="mt-6 flex justify-center">
+            <a
+              href="https://www.producthunt.com/products/chatty-9/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-chatty&#0045;9"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block transition-transform hover:scale-105"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1317137&theme=light"
+                alt="Chatty - Open-source AI support bot for your website | Product Hunt"
+                style={{ width: "250px", height: "54px" }}
+                width="250"
+                height="54"
+              />
+            </a>
+          </div>
         </section>
 
         {/* Pricing */}
@@ -806,6 +824,23 @@ export default function Home() {
             <div className="flex flex-col gap-2.5 text-sm">
               <a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noopener noreferrer">GitHub</a>
               <Link href="/dashboard">Log in</Link>
+              <div className="pt-2">
+                <a
+                  href="https://www.producthunt.com/products/chatty-9/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-chatty&#0045;9"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block hover:opacity-85 transition-opacity"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1317137&theme=light"
+                    alt="Chatty - Open-source AI support bot for your website | Product Hunt"
+                    style={{ width: "200px", height: "43px" }}
+                    width="200"
+                    height="43"
+                  />
+                </a>
+              </div>
             </div>
           </div>
         </div>

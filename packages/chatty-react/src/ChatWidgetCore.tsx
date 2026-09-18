@@ -320,6 +320,10 @@ function AgentAvatar({
   className = "",
   showStatusDot = false,
   statusColor = "bg-green-400",
+  bgColor,
+  textColor,
+  primaryColor,
+  onPrimary,
 }: {
   src?: string | null;
   name?: string | null;
@@ -327,6 +331,10 @@ function AgentAvatar({
   className?: string;
   showStatusDot?: boolean;
   statusColor?: string;
+  bgColor?: string | null;
+  textColor?: string | null;
+  primaryColor?: string;
+  onPrimary?: string;
 }) {
   const [imageError, setImageError] = useState(false);
 
@@ -350,11 +358,14 @@ function AgentAvatar({
   }, [name]);
 
   const showFallback = !isValidUrl || imageError;
+  const fallbackBg = bgColor || primaryColor || "#f97316";
+  const fallbackFg = textColor || onPrimary || getOnColor(fallbackBg);
 
   return (
     <div className={`relative inline-flex shrink-0 ${className}`}>
       <div
-        className={`${size} rounded-full flex items-center justify-center font-bold overflow-hidden select-none bg-neutral-900 text-white dark:bg-neutral-800 shadow-2xs`}
+        className={`agent-avatar-badge ${size} rounded-full flex items-center justify-center font-bold overflow-hidden select-none shadow-2xs transition-colors`}
+        style={showFallback ? { backgroundColor: fallbackBg, color: fallbackFg } : (bgColor ? { backgroundColor: bgColor } : {})}
       >
         {!showFallback ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -365,7 +376,7 @@ function AgentAvatar({
             onError={() => setImageError(true)}
           />
         ) : (
-          <span className="text-[11px] leading-none font-semibold text-white tracking-wide">
+          <span className="text-[11px] leading-none font-semibold tracking-wide" style={{ color: fallbackFg }}>
             {initial}
           </span>
         )}
@@ -384,12 +395,18 @@ function AvatarGroup({
   botAvatarUrl,
   botName,
   size = "size-7",
+  primaryColor,
+  onPrimary,
+  bgColor,
+  textColor,
 }: {
   profiles?: TeamProfile[];
   botAvatarUrl?: string | null;
   botName: string;
   primaryColor?: string;
   onPrimary?: string;
+  bgColor?: string | null;
+  textColor?: string | null;
   size?: string;
 }) {
   const items: { src?: string | null; name: string }[] = [];
@@ -416,6 +433,10 @@ function AvatarGroup({
           src={item.src}
           name={item.name}
           size={size}
+          primaryColor={primaryColor}
+          onPrimary={onPrimary}
+          bgColor={bgColor}
+          textColor={textColor}
           className="ring-2 ring-white dark:ring-neutral-900 rounded-full"
         />
       ))}
@@ -2445,6 +2466,10 @@ export default function ChatWidgetCore({
               size="size-10"
               showStatusDot={true}
               statusColor="bg-amber-400"
+              primaryColor={primaryColor}
+              onPrimary={onPrimary}
+              bgColor={colorScheme?.avatar?.bg || logoBgColor}
+              textColor={colorScheme?.avatar?.text}
               className="shrink-0"
             />
           ) : (
@@ -2476,6 +2501,10 @@ export default function ChatWidgetCore({
                 profiles={teamProfiles}
                 botAvatarUrl={avatarUrl || logoUrl}
                 botName={botName}
+                primaryColor={primaryColor}
+                onPrimary={onPrimary}
+                bgColor={colorScheme?.avatar?.bg || logoBgColor}
+                textColor={colorScheme?.avatar?.text}
                 size="size-7"
               />
             </div>
@@ -2716,6 +2745,10 @@ export default function ChatWidgetCore({
                     profiles={teamProfiles}
                     botAvatarUrl={avatarUrl || logoUrl}
                     botName={botName}
+                    primaryColor={primaryColor}
+                    onPrimary={onPrimary}
+                    bgColor={colorScheme?.avatar?.bg || logoBgColor}
+                    textColor={colorScheme?.avatar?.text}
                     size="size-6"
                   />
                 </button>
@@ -2799,6 +2832,10 @@ export default function ChatWidgetCore({
                               src={agentDisplayAvatar}
                               name={agentDisplayName}
                               size="size-5"
+                              primaryColor={primaryColor}
+                              onPrimary={onPrimary}
+                              bgColor={colorScheme?.avatar?.bg || logoBgColor}
+                              textColor={colorScheme?.avatar?.text}
                             />
                             <span>
                               <span className="font-semibold text-neutral-800 dark:text-neutral-200">
@@ -2819,6 +2856,10 @@ export default function ChatWidgetCore({
                                 src={agentDisplayAvatar}
                                 name={agentDisplayName}
                                 size="size-6"
+                                primaryColor={primaryColor}
+                                onPrimary={onPrimary}
+                                bgColor={colorScheme?.avatar?.bg || logoBgColor}
+                                textColor={colorScheme?.avatar?.text}
                                 className="shrink-0 mt-0.5"
                               />
                             ) : (
@@ -2967,6 +3008,10 @@ export default function ChatWidgetCore({
                           src={activeAgentAvatar}
                           name={activeAgentName || "Agent"}
                           size="size-6"
+                          primaryColor={primaryColor}
+                          onPrimary={onPrimary}
+                          bgColor={colorScheme?.avatar?.bg || logoBgColor}
+                          textColor={colorScheme?.avatar?.text}
                           className="shrink-0 mt-0.5"
                         />
                       ) : (

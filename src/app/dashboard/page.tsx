@@ -232,7 +232,7 @@ export default function Dashboard() {
   // transcript bubbles, mute/hangup). Both are hand-built mockups (like the
   // rest of #customizer-live-preview), not the real ChatWidgetCore/
   // VoiceCallWidget components, for the same zero-reload-lag reason.
-  const [previewView, setPreviewView] = useState<"chat" | "call">("chat");
+  const [previewView, setPreviewView] = useState<"live" | "chat" | "call">("live");
   // null = keep the active design preset's own default font. 100 = normal
   // text size; the scale is a percentage of that, not an absolute px value.
   const [fontFamily, setFontFamily] = useState<string | null>(null);
@@ -3910,6 +3910,16 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="space-y-1">
+            {user && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("customizer")}
+                className="w-full flex items-center gap-2 text-[10px] text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors py-1 cursor-pointer"
+              >
+                <User className="size-3.5" />
+                Support Agent Profile & Photo
+              </button>
+            )}
             {user ? (
               <button
                 onClick={handleSignOut}
@@ -4060,6 +4070,10 @@ export default function Dashboard() {
               dashHeaderLogo={dashHeaderLogo}
               dashAvatar={dashAvatar}
               hideBranding={hideBranding}
+              botId={botId}
+              showSenderTag={showSenderTag}
+              csatEnabled={csatEnabled}
+              fetchWithFallback={fetchWithFallback}
             />
           )}
           {/* TAB 3: KNOWLEDGE BASE */}

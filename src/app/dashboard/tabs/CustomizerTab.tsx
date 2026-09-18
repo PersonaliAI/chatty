@@ -30,6 +30,7 @@ import {
   Smile,
   Paperclip,
   Mic,
+  Check,
   type LucideIcon,
 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
@@ -93,11 +94,15 @@ interface CustomizerTabProps {
   suggestedColors: string[];
   launcherShape: string;
   setLauncherShape: (s: string) => void;
-  previewView: "chat" | "call";
-  setPreviewView: (v: "chat" | "call") => void;
+  previewView: "live" | "chat" | "call";
+  setPreviewView: (v: "live" | "chat" | "call") => void;
   dashHeaderLogo: (iconCls: string) => React.ReactNode;
   dashAvatar: (iconCls: string) => React.ReactNode;
   hideBranding: boolean;
+  botId?: string | null;
+  showSenderTag?: boolean;
+  csatEnabled?: boolean;
+  fetchWithFallback?: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
 export function CustomizerTab({
@@ -151,7 +156,80 @@ export function CustomizerTab({
   dashHeaderLogo,
   dashAvatar,
   hideBranding,
+  botId,
+  showSenderTag = false,
+  csatEnabled = true,
+  fetchWithFallback,
 }: CustomizerTabProps) {
+  const [agentProfile, setAgentProfile] = React.useState<{ display_name: string; avatar_url: string | null; role_title: string }>({
+    display_name: "",
+    avatar_url: null,
+    role_title: "Support Specialist",
+  });
+  const [uploadingAgentAvatar, setUploadingAgentAvatar] = React.useState(false);
+  const [savingAgentProfile, setSavingAgentProfile] = React.useState(false);
+  const [agentProfileSaved, setAgentProfileSaved] = React.useState(false);
+  const agentAvatarFileRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!fetchWithFallback) return;
+    fetchWithFallback("/api/agent/profile")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setAgentProfile({
+            display_name: data.display_name || "",
+            avatar_url: data.avatar_url || null,
+            role_title: data.role_title || "Support Specialist",
+          });
+        }
+      })
+      .catch(() => {});
+  }, [fetchWithFallback]);
+
+  const handleAgentAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !fetchWithFallback) return;
+    setUploadingAgentAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      if (agentProfile.display_name) fd.append("display_name", agentProfile.display_name);
+      if (agentProfile.role_title) fd.append("role_title", agentProfile.role_title);
+      const res = await fetchWithFallback("/api/agent/avatar", { method: "POST", body: fd });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.avatar_url) {
+          setAgentProfile((prev) => ({ ...prev, avatar_url: data.avatar_url }));
+        }
+      }
+    } catch (err) {
+      console.error("Agent photo upload error:", err);
+    } finally {
+      setUploadingAgentAvatar(false);
+      if (agentAvatarFileRef.current) agentAvatarFileRef.current.value = "";
+    }
+  };
+
+  const handleSaveAgentProfile = async () => {
+    if (!fetchWithFallback) return;
+    setSavingAgentProfile(true);
+    try {
+      const res = await fetchWithFallback("/api/agent/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agentProfile),
+      });
+      if (res.ok) {
+        setAgentProfileSaved(true);
+        setTimeout(() => setAgentProfileSaved(false), 3000);
+      }
+    } catch (err) {
+      console.error("Save agent profile error:", err);
+    } finally {
+      setSavingAgentProfile(false);
+    }
+  };
   return (
     <div className="max-w-4xl mx-auto w-full py-6 px-4">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -408,6 +486,7 @@ export function CustomizerTab({
                     { key: "inputBar", label: "Input Bar", props: ["bg", "text", "icon"] as const },
                     { key: "sendBtn", label: "Send Button", props: ["bg", "text"] as const },
                     { key: "launcher", label: "Launcher Button", props: ["bg", "text"] as const },
+                    { key: "avatar", label: "Avatar / Profile", props: ["bg", "text"] as const },
                   ] as const
                 ).map((section) => {
                   const textPropLabel = ICON_ONLY_SECTIONS.has(section.key) ? "Icon Color" : "Text Color";
@@ -598,6 +677,51 @@ export function CustomizerTab({
                 </div>
               )}
 
+              {/* Avatar Background Color Setting */}
+              <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+                <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1.5">Avatar / Profile Background Color</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={colorScheme?.avatar?.bg || primaryColor}
+                    onChange={(e) => {
+                      const scheme = colorScheme || generateColorScheme(primaryColor);
+                      const next = { ...scheme, avatar: { bg: e.target.value, text: scheme.avatar?.text || getOnColor(e.target.value) } };
+                      handleInputChange(setColorScheme, next);
+                    }}
+                    className="size-8 rounded border border-neutral-200 bg-transparent p-0.5 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={colorScheme?.avatar?.bg || ""}
+                    placeholder={`e.g. ${primaryColor} (defaults to primary)`}
+                    onChange={(e) => {
+                      const scheme = colorScheme || generateColorScheme(primaryColor);
+                      const next = { ...scheme, avatar: { bg: e.target.value, text: scheme.avatar?.text || getOnColor(e.target.value || primaryColor) } };
+                      handleInputChange(setColorScheme, next);
+                    }}
+                    className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                  />
+                  {colorScheme?.avatar?.bg && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (colorScheme) {
+                          const { avatar: _, ...rest } = colorScheme;
+                          handleInputChange(setColorScheme, rest);
+                        }
+                      }}
+                      className="text-[10px] text-red-500 hover:underline shrink-0"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                  Sets the background color for profile avatars and transparent brand logos across header, cards, and chats.
+                </p>
+              </div>
+
               {/* Launcher Button Shape */}
               <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-450 mb-1.5">Launcher Button Shape</label>
@@ -631,6 +755,91 @@ export function CustomizerTab({
               </div>
             </div>
           </div>
+
+          {/* Support Agent Profile & Photo Card */}
+          <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Support Agent Profile</h3>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  Your personal profile photo, name, and title shown when replying or taking over live chats.
+                </p>
+              </div>
+              {agentProfileSaved && (
+                <span className="text-[10px] text-emerald-500 font-semibold flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  <Check className="size-3" /> Saved
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-start gap-4 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/50">
+              <div className="flex flex-col items-center gap-1.5 shrink-0">
+                <div
+                  className="size-16 rounded-full border border-neutral-200 dark:border-neutral-800 flex items-center justify-center font-bold text-lg overflow-hidden select-none shadow-xs transition-colors"
+                  style={{
+                    backgroundColor: colorScheme?.avatar?.bg || primaryColor || "#f97316",
+                    color: colorScheme?.avatar?.text || getOnColor(colorScheme?.avatar?.bg || primaryColor || "#f97316"),
+                  }}
+                >
+                  {agentProfile.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={agentProfile.avatar_url} alt="Agent" className="size-full object-cover" />
+                  ) : (
+                    <span>{(agentProfile.display_name?.[0] || "A").toUpperCase()}</span>
+                  )}
+                </div>
+                <input
+                  ref={agentAvatarFileRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAgentAvatarFileChange}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => agentAvatarFileRef.current?.click()}
+                  disabled={uploadingAgentAvatar}
+                  className="text-[11px] font-semibold text-[#f97316] hover:underline cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                >
+                  {uploadingAgentAvatar ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3" />}
+                  {agentProfile.avatar_url ? "Change Photo" : "Upload Photo"}
+                </button>
+              </div>
+              <div className="flex-1 min-w-0 space-y-2.5">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={agentProfile.display_name}
+                    onChange={(e) => setAgentProfile((p) => ({ ...p, display_name: e.target.value }))}
+                    placeholder="e.g. Adrian or Sarah"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1">Role Title</label>
+                  <input
+                    type="text"
+                    value={agentProfile.role_title}
+                    onChange={(e) => setAgentProfile((p) => ({ ...p, role_title: e.target.value }))}
+                    placeholder="e.g. Support Specialist"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50"
+                  />
+                </div>
+                <div className="pt-1 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveAgentProfile}
+                    disabled={savingAgentProfile}
+                    className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 cursor-pointer disabled:opacity-50 transition-opacity"
+                  >
+                    {savingAgentProfile ? "Saving..." : "Save Profile"}
+                  </button>
+                  <span className="text-[10px] text-neutral-400">Updates live human-agent chats across all bots</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Live visual mockup preview */}
@@ -638,7 +847,8 @@ export function CustomizerTab({
           <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
           <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-lg p-0.5 mb-3">
             {([
-              { value: "chat" as const, label: "Chat", icon: MessageCircle },
+              { value: "live" as const, label: "Live Widget", icon: LayoutGrid },
+              { value: "chat" as const, label: "Mockup", icon: MessageCircle },
               { value: "call" as const, label: "Call", icon: Phone },
             ]).map((t) => (
               <button
@@ -655,16 +865,37 @@ export function CustomizerTab({
               </button>
             ))}
           </div>
-          <style>{`#customizer-live-preview { box-shadow: none !important; }\n${buildColorSchemeCss(colorScheme, "#customizer-live-preview")}\n${
-            fontFamily && /^[a-zA-Z0-9 -]+$/.test(fontFamily)
-              ? `#customizer-live-preview { font-family: "${fontFamily}", sans-serif !important; }`
-              : ""
-          }`}</style>
-          <div
-            id="customizer-live-preview"
-            className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
-            style={{ ...primaryColorCssVars(primaryColor), zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined } as React.CSSProperties}
-          >
+
+          {previewView === "live" ? (
+            botId ? (
+              <div className="w-full flex flex-col items-center">
+                <iframe
+                  key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}-${JSON.stringify(colorScheme)}-${fontFamily}-${fontSizePercent}`}
+                  src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}&color_scheme=${encodeURIComponent(colorScheme ? JSON.stringify(colorScheme) : "")}&font=${encodeURIComponent(fontFamily || "")}&font_size_percent=${fontSizePercent}`}
+                  title="Live widget preview"
+                  className="w-full max-w-[380px] h-[550px] rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-lg bg-white dark:bg-neutral-900"
+                />
+                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-2 text-center">
+                  Live preview · reflects your current settings in real time.
+                </p>
+              </div>
+            ) : (
+              <div className="w-full max-w-[380px] h-[550px] rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-xs text-neutral-400">
+                Save your bot to preview the live widget.
+              </div>
+            )
+          ) : (
+            <>
+              <style>{`#customizer-live-preview { box-shadow: none !important; }\n${buildColorSchemeCss(colorScheme, "#customizer-live-preview")}\n${
+                fontFamily && /^[a-zA-Z0-9 -]+$/.test(fontFamily)
+                  ? `#customizer-live-preview { font-family: "${fontFamily}", sans-serif !important; }`
+                  : ""
+              }`}</style>
+              <div
+                id="customizer-live-preview"
+                className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
+                style={{ ...primaryColorCssVars(primaryColor), zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined } as React.CSSProperties}
+              >
             {/* Header */}
             <div
               style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
@@ -727,7 +958,15 @@ export function CustomizerTab({
             {/* Messages list */}
             <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
               <div className="flex gap-2 max-w-[85%]">
-                <div className="size-6 rounded-full bg-neutral-200/50 dark:bg-neutral-800 flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden">{dashAvatar("size-3.5")}</div>
+                <div
+                  className="agent-avatar-badge size-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden"
+                  style={{
+                    backgroundColor: colorScheme?.avatar?.bg || primaryColor || "#f97316",
+                    color: colorScheme?.avatar?.text || getOnColor(colorScheme?.avatar?.bg || primaryColor || "#f97316"),
+                  }}
+                >
+                  {dashAvatar("size-3.5")}
+                </div>
                 <div className="bot-bubble p-3 rounded-2xl rounded-tl-none bg-neutral-100 text-neutral-800 dark:bg-neutral-850 dark:text-neutral-200 leading-relaxed">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
@@ -826,6 +1065,8 @@ export function CustomizerTab({
             </>
             )}
           </div>
+          </>
+          )}
 
           {/* Floating Launcher preview in Customizer */}
           <div className="mt-4 flex flex-col items-center gap-1.5 w-full">
