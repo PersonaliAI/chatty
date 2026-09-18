@@ -22,11 +22,11 @@ import { normalizeWidgetStyle } from "./widget-style";
 // arbitrary React setups (Next.js, CRA, Vite, etc. all differ). See this
 // package's README for the two imports a consumer needs to add once.
 import {
-  Send, Loader2, Sparkles, MessageSquare, FileText, Search,
+  Send, Loader2, Sparkles, MessageSquare, MessageCircle, FileText, Search,
   Paperclip, Smile, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Phone, Play, Pause, Trash2,
-  BookOpen,
+  BookOpen, Home, HelpCircle, Megaphone, Compass, Clock, Calendar,
   type LucideIcon,
 } from "lucide-react";
 
@@ -265,7 +265,7 @@ interface FlowConfig {
   edges: FlowEdge[];
 }
 
-type Tab = "home" | "messages" | "articles";
+type Tab = "home" | "messages" | "help" | "news" | "roadmap" | "articles";
 
 export interface WidgetKbArticle {
   id: string;
@@ -1368,6 +1368,7 @@ export default function ChatWidgetCore({
   const [activeAgentAvatar, setActiveAgentAvatar] = useState<string | null>(null);
   const [teamProfiles, setTeamProfiles] = useState<TeamProfile[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatBodyRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const [pendingFiles, setPendingFiles] = useState<{file: File; preview: string}[]>([]);
@@ -1418,35 +1419,45 @@ export default function ChatWidgetCore({
   }, [botId]);
 
   // Query active scheduled meeting for the current session on load
-  useEffect(() => {
+  const fetchActiveMeeting = useCallback(async () => {
     if (!botId || !sessionId || !calendarSchedulingEnabled) return;
-    const fetchActiveMeeting = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success && data.meeting) {
-          const activeMeeting: ConfirmedMeeting = data.meeting;
-          setMessages((prev) => {
-            const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
-            if (alreadyHas) return prev;
-            const updated = [...prev];
-            for (let idx = updated.length - 1; idx >= 0; idx--) {
-              if (updated[idx].role === "assistant") {
-                updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
-                return updated;
-              }
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success && data.meeting && data.has_active !== false && data.meeting.status !== "cancelled") {
+        const activeMeeting: ConfirmedMeeting = data.meeting;
+        setMessages((prev) => {
+          const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
+          if (alreadyHas) return prev;
+          const updated = [...prev];
+          for (let idx = updated.length - 1; idx >= 0; idx--) {
+            if (updated[idx].role === "assistant") {
+              updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
+              return updated;
             }
-            if (updated.length > 0) {
-              updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
-            }
-            return updated;
-          });
-        }
-      } catch {}
-    };
-    fetchActiveMeeting();
+          }
+          if (updated.length > 0) {
+            updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
+          }
+          return updated;
+        });
+      } else {
+        // If has_active is false or cancelled, mark any existing confirmedMeeting as cancelled
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.confirmedMeeting
+              ? { ...m, confirmedMeeting: { ...m.confirmedMeeting, status: "cancelled" } }
+              : m
+          )
+        );
+      }
+    } catch {}
   }, [botId, sessionId, calendarSchedulingEnabled]);
+
+  useEffect(() => {
+    fetchActiveMeeting();
+  }, [fetchActiveMeeting]);
 
   // Reset html and body backgrounds to transparent to prevent white corners
   // in rounded iframe borders. Only when we actually own `document` (see
@@ -1624,6 +1635,7 @@ export default function ChatWidgetCore({
         setMessages((p) => [...p, ...newMsgs]);
         notifyParent();
       }
+      fetchActiveMeeting();
     } catch {}
   };
 
@@ -1840,7 +1852,14 @@ export default function ChatWidgetCore({
     }
   }, [ownsDocument]);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotResponding, tab]);
+  useEffect(() => {
+    if (tab === "messages" && chatBodyRef.current) {
+      chatBodyRef.current.scrollTo({
+        top: chatBodyRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [messages, isBotResponding, tab]);
 
   // Grow the composer with its content (up to max-h-[108px] on the textarea
   // itself, ~4 lines, after which it scrolls). Keyed on inputValue rather
@@ -2442,9 +2461,87 @@ export default function ChatWidgetCore({
         } : undefined}
       >
       {/* Header */}
-      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
-        <div className="flex items-center gap-2.5">
-          {tab !== "home" && (
+      {tab === "home" ? (
+        <div className="chat-header px-4 pt-3.5 pb-2 flex items-center justify-between border-b border-white/5" style={{ background: primaryColor }}>
+          <div
+            className="size-9 rounded-xl flex items-center justify-center font-bold text-base overflow-hidden shrink-0 shadow-sm border border-white/10"
+            style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: "rgba(255,255,255,0.12)" }}
+          >
+            {headerLogoInner("size-5")}
+          </div>
+          <div className="flex items-center gap-1">
+            {voiceEnabled && (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.85 }}
+                onClick={() => setVoiceCallOpen(true)}
+                className="p-1.5 rounded-full hover:bg-white/10 transition-colors shrink-0 cursor-pointer text-white/80 hover:text-white"
+                title="Voice Call"
+              >
+                <Phone className="size-4" />
+              </motion.button>
+            )}
+            <button
+              type="button"
+              onClick={handleCloseClick}
+              className="p-1.5 rounded-full hover:bg-white/10 transition-colors shrink-0 cursor-pointer text-white/80 hover:text-white"
+              title="Close"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+      ) : tab === "help" || tab === "articles" ? (
+        <div className="chat-header px-4 pt-3.5 pb-2 flex items-center justify-between border-b border-white/5" style={{ background: primaryColor }}>
+          <div className="flex items-center gap-2">
+            {activeArticle && (
+              <button
+                type="button"
+                onClick={() => setActiveArticle(null)}
+                className="p-1 -ml-1 rounded-full hover:bg-white/10 transition-colors text-white cursor-pointer"
+                title="Back to help"
+              >
+                <ArrowLeft className="size-4" />
+              </button>
+            )}
+            <h3 className="font-bold text-base text-white">Help</h3>
+          </div>
+          <button
+            type="button"
+            onClick={handleCloseClick}
+            className="p-1.5 rounded-full hover:bg-white/10 transition-colors shrink-0 cursor-pointer text-white/80 hover:text-white"
+            title="Close"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ) : tab === "news" ? (
+        <div className="chat-header px-4 pt-3.5 pb-2 flex items-center justify-between border-b border-white/5" style={{ background: primaryColor }}>
+          <h3 className="font-bold text-base text-white">News & Updates</h3>
+          <button
+            type="button"
+            onClick={handleCloseClick}
+            className="p-1.5 rounded-full hover:bg-white/10 transition-colors shrink-0 cursor-pointer text-white/80 hover:text-white"
+            title="Close"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ) : tab === "roadmap" ? (
+        <div className="chat-header px-4 pt-3.5 pb-2 flex items-center justify-between border-b border-white/5" style={{ background: primaryColor }}>
+          <h3 className="font-bold text-base text-white">Roadmap</h3>
+          <button
+            type="button"
+            onClick={handleCloseClick}
+            className="p-1.5 rounded-full hover:bg-white/10 transition-colors shrink-0 cursor-pointer text-white/80 hover:text-white"
+            title="Close"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
+          <div className="flex items-center gap-2.5">
             <motion.button
               type="button"
               whileTap={{ scale: 0.85 }}
@@ -2459,118 +2556,96 @@ export default function ChatWidgetCore({
             >
               <ArrowLeft className="size-4" />
             </motion.button>
-          )}
-          {tab !== "home" && (liveAgent || activeAgentName) ? (
-            <AgentAvatar
-              src={activeAgentAvatar}
-              name={activeAgentName || "Agent"}
-              size="size-10"
-              showStatusDot={true}
-              statusColor="bg-amber-400"
-              primaryColor={primaryColor}
-              onPrimary={onPrimary}
-              bgColor={colorScheme?.avatar?.bg || logoBgColor}
-              textColor={colorScheme?.avatar?.text}
-              className="shrink-0"
-            />
-          ) : (
-            <div
-              className="size-11 rounded-full flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
-              style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: "color-mix(in srgb, currentColor 25%, transparent)" }}
-            >
-              {headerLogoInner("size-6")}
-            </div>
-          )}
-          <div className="leading-tight">
-            <h4 className="font-semibold text-sm">
-              {tab !== "home" && (liveAgent || activeAgentName) ? (activeAgentName || "Agent") : botName}
-            </h4>
-            <p className="text-[9px] flex items-center gap-1" style={{ opacity: 0.85 }}>
-              {tab !== "home" && (liveAgent || activeAgentName) ? (
-                <span>Active in the last 15m</span>
-              ) : (
-                <>
-                  <span className="size-1.5 rounded-full bg-green-300 animate-pulse" />
-                  <span>Online</span>
-                </>
-              )}
-            </p>
-          </div>
-          {tab === "home" && (
-            <div className="ml-auto flex items-center gap-2 mr-1">
-              <AvatarGroup
-                profiles={teamProfiles}
-                botAvatarUrl={avatarUrl || logoUrl}
-                botName={botName}
+            {(liveAgent || activeAgentName) ? (
+              <AgentAvatar
+                src={activeAgentAvatar}
+                name={activeAgentName || "Agent"}
+                size="size-10"
+                showStatusDot={false}
                 primaryColor={primaryColor}
                 onPrimary={onPrimary}
                 bgColor={colorScheme?.avatar?.bg || logoBgColor}
                 textColor={colorScheme?.avatar?.text}
-                size="size-7"
+                className="shrink-0"
               />
-            </div>
-          )}
-          {voiceEnabled && (
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.85 }}
-              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-              onClick={() => setVoiceCallOpen(true)}
-              className="ml-auto p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
-              style={{ opacity: 0.8, backgroundColor: "color-mix(in srgb, currentColor 0%, transparent)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 0%, transparent)")}
-              aria-label="Start voice call"
-              title="Talk to the assistant"
-            >
-              <Phone className="size-4" />
-            </motion.button>
-          )}
-          <button
-            onClick={pushGranted ? toggleMute : requestPushPermission}
-            className={`${voiceEnabled ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
-            style={{ opacity: 0.8 }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            aria-label={pushGranted ? (pushMuted ? "Unmute notifications" : "Mute notifications") : "Enable browser notifications"}
-            title={
-              !pushGranted
-                ? "Enable browser notifications"
-                : pushMuted
-                  ? "Notifications muted - tap to unmute"
-                  : "Browser notifications enabled - tap to mute"
-            }
-          >
-            {/* "Granted" state shown via a solid fill, not a fixed color - a
-                hardcoded amber here was nearly invisible against presets
-                with a yellow header (e.g. Neubrutalism's #ffde59). Filling
-                with currentColor keeps it legible against every preset.
-                Browsers don't let a site revoke Notification permission
-                itself, so "muted" is our own flag (gates triggerPush) shown
-                via the crossed-out glyph, not an actual permission change. */}
-            {pushGranted && pushMuted ? (
-              <BellOff className="size-4" />
             ) : (
-              <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
+              <div
+                className="size-10 rounded-full flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
+                style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: "color-mix(in srgb, currentColor 25%, transparent)" }}
+              >
+                {headerLogoInner("size-5")}
+              </div>
             )}
-          </button>
-          <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            aria-label="Clear conversation" title="Clear conversation">
-            <RefreshCw className="size-4" />
-          </button>
-          <button onClick={handleCloseClick} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            aria-label="Close chat" title="Close">
-            <X className="size-4" />
-          </button>
+            <div className="leading-tight">
+              <h4 className="font-semibold text-sm">
+                {(liveAgent || activeAgentName) ? (activeAgentName || "Agent") : botName}
+              </h4>
+              <p className="text-[9px] flex items-center gap-1" style={{ opacity: 0.85 }}>
+                {(liveAgent || activeAgentName) ? (
+                  <span>Active in the last 15m</span>
+                ) : (
+                  <>
+                    <span className="size-1.5 rounded-full bg-green-300 animate-pulse" />
+                    <span>Online</span>
+                  </>
+                )}
+              </p>
+            </div>
+            {voiceEnabled && (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.85 }}
+                transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                onClick={() => setVoiceCallOpen(true)}
+                className="ml-auto p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
+                style={{ opacity: 0.8, backgroundColor: "color-mix(in srgb, currentColor 0%, transparent)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 0%, transparent)")}
+                aria-label="Start voice call"
+                title="Talk to the assistant"
+              >
+                <Phone className="size-4" />
+              </motion.button>
+            )}
+            <button
+              onClick={pushGranted ? toggleMute : requestPushPermission}
+              className={`${voiceEnabled ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
+              style={{ opacity: 0.8 }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              aria-label={pushGranted ? (pushMuted ? "Unmute notifications" : "Mute notifications") : "Enable browser notifications"}
+              title={
+                !pushGranted
+                  ? "Enable browser notifications"
+                  : pushMuted
+                    ? "Notifications muted - tap to unmute"
+                    : "Browser notifications enabled - tap to mute"
+              }
+            >
+              {pushGranted && pushMuted ? (
+                <BellOff className="size-4" />
+              ) : (
+                <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
+              )}
+            </button>
+            <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              aria-label="Clear conversation" title="Clear conversation">
+              <RefreshCw className="size-4" />
+            </button>
+            <button onClick={handleCloseClick} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              aria-label="Close chat" title="Close">
+              <X className="size-4" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-card flex flex-col">
+      <div ref={chatBodyRef} className="flex-1 overflow-y-auto scrollbar-thin bg-card flex flex-col relative">
         {voiceCallOpen ? (
           <VoiceCallWidget
             botId={botId}
@@ -2706,105 +2781,124 @@ export default function ChatWidgetCore({
           <>
             {/* HOME */}
             {tab === "home" && (
-              <div className="p-4 space-y-3">
-                <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850">
-                  <h3 className="text-sm font-bold flex items-center gap-1.5"><Sparkles className="size-4" style={{ color: primaryColor }} />Hi there 👋</h3>
-                  <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{welcomeMsg}</p>
+              <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-start">
+                {/* Hero Greeting Typography */}
+                <div className="pt-2 px-1 pb-1 space-y-1">
+                  <h1 className="text-2xl sm:text-[26px] font-extrabold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
+                    Hi there 👋
+                  </h1>
+                  <p className="text-xl sm:text-[22px] font-bold text-neutral-800 dark:text-white/95 leading-tight tracking-tight">
+                    Ask us anything — we&apos;re here to help.
+                  </p>
                 </div>
 
-                {/* Instant Search Bar (Crisp Style) */}
-                <div className="relative">
-                  <Search className="size-3.5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={articleFilterQuery}
-                    onChange={(e) => {
-                      setArticleFilterQuery(e.target.value);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setTab("articles");
-                    }}
-                    placeholder="Search for answers and guides..."
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl pl-9 pr-4 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50 shadow-xs"
-                  />
-                </div>
-
-                {/* Ask a question card matching Screenshot 3 */}
-                <button
+                {/* Elevated "Send us a message" Card */}
+                <div
                   onClick={() => setTab("messages")}
-                  className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all text-left group cursor-pointer shadow-2xs"
+                  className="relative group w-full p-4 rounded-2xl bg-neutral-100 dark:bg-neutral-900/90 border border-neutral-200 dark:border-white/10 shadow-lg hover:border-neutral-300 dark:hover:border-white/20 transition-all cursor-pointer flex items-center justify-between"
                 >
-                  <div>
-                    <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 block">
-                      Ask a question
-                    </span>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                      AI Agent and team can help
+                  <div className="space-y-1 text-left">
+                    <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Send us a message</h3>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5 font-medium">
+                      <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                      We typically reply in a few minutes
                     </p>
                   </div>
-                  <AvatarGroup
-                    profiles={teamProfiles}
-                    botAvatarUrl={avatarUrl || logoUrl}
-                    botName={botName}
-                    primaryColor={primaryColor}
-                    onPrimary={onPrimary}
-                    bgColor={colorScheme?.avatar?.bg || logoBgColor}
-                    textColor={colorScheme?.avatar?.text}
-                    size="size-6"
-                  />
-                </button>
 
-                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
-                  <span className="flex items-center gap-2.5 text-xs font-semibold"><MessageSquare className="size-4" style={{ color: primaryColor }} />Send us a message</span>
-                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-                <button onClick={() => setShowOfflineForm(true)} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
-                  <span className="flex items-center gap-2.5 text-xs font-semibold"><Mail className="size-4" style={{ color: primaryColor }} />Leave us a message</span>
-                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-
-                {/* Featured Help Articles Section (Crisp Style) */}
-                {kbArticles.length > 0 && (
-                  <div className="p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
-                        <BookOpen className="size-3.5" style={{ color: primaryColor }} />Help articles
-                      </span>
-                      <button
-                        onClick={() => setTab("articles")}
-                        className="text-[10px] font-bold text-[#f97316] hover:underline cursor-pointer"
-                      >
-                        View all ({kbArticles.length})
-                      </button>
-                    </div>
-                    <div className="divide-y divide-neutral-100 dark:divide-neutral-850">
-                      {(kbPromoted.length > 0 ? kbPromoted.slice(0, 3) : kbArticles.slice(0, 3)).map((art) => (
-                        <button
-                          key={art.id}
-                          onClick={() => {
-                            openKbArticle(art);
-                            setTab("articles");
-                          }}
-                          className="w-full flex items-center justify-between py-2 text-left group cursor-pointer hover:opacity-80 transition-opacity"
-                        >
-                          <span className="text-xs text-neutral-700 dark:text-neutral-300 font-medium truncate pr-2 group-hover:text-[#f97316]">
-                            {art.title}
-                          </span>
-                          <ChevronRight className="size-3 text-neutral-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                        </button>
-                      ))}
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <AvatarGroup
+                      profiles={teamProfiles}
+                      botAvatarUrl={avatarUrl || logoUrl}
+                      botName={botName}
+                      size="size-8"
+                      primaryColor={primaryColor}
+                      onPrimary={onPrimary}
+                      bgColor={colorScheme?.avatar?.bg || logoBgColor}
+                      textColor={colorScheme?.avatar?.text}
+                    />
+                    <div
+                      className="size-9 rounded-full flex items-center justify-center text-white transition-transform group-hover:scale-105 shadow-md shrink-0"
+                      style={{ backgroundColor: primaryColor || "#3b82f6" }}
+                    >
+                      <Send className="size-4 -rotate-12 translate-x-0.5" />
                     </div>
                   </div>
-                )}
+                </div>
 
-                <button onClick={() => setTab("articles")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
-                  <span className="flex items-center gap-2.5 text-xs font-semibold"><FileText className="size-4" style={{ color: primaryColor }} />Browse help articles</span>
-                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
+                {/* Quick Action Chips (Pill Buttons) */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("messages");
+                      setInputValue("I'd like to report an issue: ");
+                    }}
+                    className="px-3.5 py-2 rounded-full bg-neutral-100 dark:bg-neutral-900/80 border border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/25 text-xs text-neutral-800 dark:text-white/90 font-medium flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <span>🐛</span> Report an issue
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("messages");
+                      setInputValue("I have a feature request: ");
+                    }}
+                    className="px-3.5 py-2 rounded-full bg-neutral-100 dark:bg-neutral-900/80 border border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/25 text-xs text-neutral-800 dark:text-white/90 font-medium flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <span>💡</span> Request a feature
+                  </button>
+                  {calendarSchedulingEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTab("messages");
+                        sendTextRef.current("I'd like to book a meeting");
+                      }}
+                      className="px-3.5 py-2 rounded-full bg-neutral-100 dark:bg-neutral-900/80 border border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/25 text-xs text-neutral-800 dark:text-white/90 font-medium flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <span>📅</span> Book a meeting
+                    </button>
+                  )}
+                </div>
+
+                {/* "Search for help" Card */}
+                <button
+                  type="button"
+                  onClick={() => setTab("help")}
+                  className="w-full p-3.5 rounded-2xl bg-neutral-100 dark:bg-neutral-900/90 border border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/20 transition-all flex items-center justify-between text-left group cursor-pointer shadow-xs"
+                >
+                  <div className="flex items-center gap-3 text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">
+                    <Search className="size-4" />
+                    <span className="text-xs font-medium">Search for help</span>
+                  </div>
+                  <ArrowRight className="size-4 text-neutral-400 group-hover:translate-x-1 group-hover:text-neutral-900 dark:group-hover:text-white transition-all" />
                 </button>
-                <button onClick={() => setTab("messages")} className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 transition-colors text-left group cursor-pointer">
-                  <span className="flex items-center gap-2.5 text-xs font-semibold"><Search className="size-4" style={{ color: primaryColor }} />Ask AI assistant</span>
-                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
+
+                {/* Updates / Announcement Card */}
+                <button
+                  type="button"
+                  onClick={() => setTab("news")}
+                  className="w-full p-3.5 rounded-2xl bg-neutral-100 dark:bg-neutral-900/90 border border-neutral-200 dark:border-white/10 hover:border-neutral-300 dark:hover:border-white/20 transition-all flex items-center justify-between text-left group cursor-pointer shadow-xs"
+                >
+                  <div className="space-y-0.5 text-left">
+                    <span className="text-xs font-bold text-neutral-900 dark:text-white block group-hover:text-primary-500">
+                      {kbPromoted.length > 0 ? kbPromoted[0].title : "Slack is now a support channel"}
+                    </span>
+                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      1 day ago
+                    </span>
+                  </div>
+                  <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-1 group-hover:text-neutral-900 dark:group-hover:text-white transition-all" />
                 </button>
+
+                {/* Subtle Powered-by branding above dock */}
+                {!isOfficialWebsite && !hideBranding && (
+                  <div className="text-center pt-2 pb-1 mt-auto">
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium tracking-wide">
+                      Powered by {botName || "Chatty"}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -3070,21 +3164,22 @@ export default function ChatWidgetCore({
               </div>
             )}
 
-            {/* ARTICLES (Crisp Style In-Widget Help Center) */}
-            {tab === "articles" && (
+            {/* HELP / ARTICLES (Matching media_1789744491712.png) */}
+            {(tab === "help" || tab === "articles") && (
               <div className="p-4 space-y-3">
                 {activeArticle ? (
                   /* ── In-Widget Article Reader ── */
                   <div className="space-y-3 animate-in fade-in duration-150">
                     <button
+                      type="button"
                       onClick={() => setActiveArticle(null)}
                       className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
                     >
                       <ArrowLeft className="size-3.5" />
-                      Back to help articles
+                      Back to help
                     </button>
 
-                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-sm space-y-3">
+                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-2xl p-4 shadow-sm space-y-3">
                       {activeArticle.category && (
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
                           {activeArticle.category.name}
@@ -3132,12 +3227,14 @@ export default function ChatWidgetCore({
                         ) : (
                           <div className="flex items-center gap-1.5">
                             <button
+                              type="button"
                               onClick={() => rateArticleFeedback(activeArticle.id, true)}
                               className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <ThumbsUp className="size-3 text-emerald-500" /> Yes
                             </button>
                             <button
+                              type="button"
                               onClick={() => rateArticleFeedback(activeArticle.id, false)}
                               className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1 cursor-pointer transition-colors"
                             >
@@ -3154,6 +3251,7 @@ export default function ChatWidgetCore({
                           <span className="text-neutral-400 text-[10px]">Chat directly with our support team</span>
                         </div>
                         <button
+                          type="button"
                           onClick={() => askAboutArticle(activeArticle)}
                           className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs cursor-pointer hover:opacity-90 transition-opacity shrink-0"
                           style={{ background: primaryColor }}
@@ -3164,20 +3262,21 @@ export default function ChatWidgetCore({
                     </div>
                   </div>
                 ) : (
-                  /* ── Articles List & Category Filters ── */
+                  /* ── Help Categories & Collections (Screenshot 2 Match) ── */
                   <div className="space-y-3">
-                    {/* Search Bar */}
+                    {/* Search Bar matching screenshot */}
                     <div className="relative">
-                      <Search className="size-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Search className="size-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         value={articleFilterQuery}
                         onChange={(e) => setArticleFilterQuery(e.target.value)}
-                        placeholder="Search help articles..."
-                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-8.5 pr-8 py-2 text-xs text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]/50 shadow-xs"
+                        placeholder="Search for help"
+                        className="w-full bg-neutral-100 dark:bg-neutral-900/90 border border-neutral-200 dark:border-white/10 rounded-xl pl-10 pr-8 py-2.5 text-xs text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-white/20 shadow-xs"
                       />
                       {articleFilterQuery && (
                         <button
+                          type="button"
                           onClick={() => setArticleFilterQuery("")}
                           className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
                         >
@@ -3186,102 +3285,221 @@ export default function ChatWidgetCore({
                       )}
                     </div>
 
-                    {/* Category Filter Pills */}
-                    {kbCategories.length > 0 && (
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[10px] font-semibold">
-                        <button
-                          onClick={() => setSelectedKbCat("all")}
-                          className={`px-2.5 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer ${
-                            selectedKbCat === "all"
-                              ? "bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-bold"
-                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                          }`}
-                        >
-                          All ({kbArticles.length})
-                        </button>
-                        {kbCategories.map((c) => (
-                          <button
-                            key={c.id}
-                            onClick={() => setSelectedKbCat(c.id)}
-                            className={`px-2.5 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer ${
-                              selectedKbCat === c.id
-                                ? "bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 font-bold"
-                                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                            }`}
-                          >
-                            {c.name} {c.article_count ? `(${c.article_count})` : ""}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {/* Standard Help Collections matching screenshot */}
+                    <div className="space-y-1 divide-y divide-neutral-100 dark:divide-white/5">
+                      {(() => {
+                        const standardCollections = [
+                          {
+                            id: "surveys",
+                            title: "Surveys",
+                            description: "Create, target, and measure in-app surveys — NPS, CSAT, CES, polls, and open questions.",
+                          },
+                          {
+                            id: "help-center",
+                            title: "Help Center",
+                            description: "Build a branded, searchable knowledge base — organize articles into collections and categories.",
+                          },
+                          {
+                            id: "support",
+                            title: "Support",
+                            description: "Run customer conversations from a shared inbox — in-app messenger and email, with team assignment.",
+                          },
+                          {
+                            id: "feedback",
+                            title: "Feedback",
+                            description: "Collect, organize, and act on customer feedback — boards, votes, statuses, tags, moderation, and AI.",
+                          },
+                          {
+                            id: "roadmap",
+                            title: "Roadmap",
+                            description: "Show customers what's coming — roadmap boards and feature development timelines.",
+                          },
+                          {
+                            id: "changelog",
+                            title: "Changelog",
+                            description: "Announce what's new and keep customers informed on product improvements.",
+                          },
+                        ];
 
-                    {/* Articles Feed */}
-                    {kbLoading ? (
-                      <div className="py-12 flex flex-col items-center justify-center text-xs text-neutral-400 space-y-2">
-                        <Loader2 className="size-5 animate-spin" />
-                        <p>Loading help center...</p>
-                      </div>
-                    ) : (() => {
-                      const filtered = kbArticles.filter((a) => {
-                        if (selectedKbCat !== "all" && a.category_id !== selectedKbCat) {
-                          return false;
-                        }
-                        if (articleFilterQuery.trim()) {
-                          const q = articleFilterQuery.toLowerCase();
-                          const matchTitle = a.title.toLowerCase().includes(q);
-                          const matchSub = (a.subtitle || "").toLowerCase().includes(q);
-                          const matchTags = (a.tags || []).some((t) => t.toLowerCase().includes(q));
-                          return matchTitle || matchSub || matchTags;
-                        }
-                        return true;
-                      });
+                        const customCats = kbCategories.map((c) => ({
+                          id: c.id,
+                          title: c.name,
+                          description: c.description || "Browse articles and guides in this collection.",
+                        }));
 
-                      if (filtered.length === 0) {
+                        const allCollections = customCats.length > 0 ? customCats : standardCollections;
+
+                        const filteredCollections = articleFilterQuery.trim()
+                          ? allCollections.filter((c) =>
+                              c.title.toLowerCase().includes(articleFilterQuery.toLowerCase()) ||
+                              c.description.toLowerCase().includes(articleFilterQuery.toLowerCase())
+                            )
+                          : allCollections;
+
                         return (
-                          <div className="text-center py-10 space-y-2">
-                            <FileText className="size-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
-                            <p className="text-xs text-neutral-500 font-medium">
-                              {articleFilterQuery ? `No articles matching "${articleFilterQuery}"` : "No help articles found."}
-                            </p>
-                            <button
-                              onClick={() => {
-                                setTab("messages");
-                                if (articleFilterQuery) setInputValue(articleFilterQuery);
-                              }}
-                              className="text-xs font-bold text-[#f97316] hover:underline cursor-pointer"
-                            >
-                              Ask our team directly →
-                            </button>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div className="space-y-2">
-                          {filtered.map((a) => (
-                            <button
-                              key={a.id}
-                              onClick={() => openKbArticle(a)}
-                              className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors text-left group cursor-pointer shadow-2xs"
-                            >
-                              <div className="min-w-0 flex-1 pr-2">
-                                <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-[#f97316] transition-colors truncate">
-                                  {a.title}
-                                </p>
-                                {a.subtitle && (
-                                  <p className="text-[11px] text-neutral-400 line-clamp-1 mt-0.5">
-                                    {a.subtitle}
+                          <>
+                            {filteredCollections.map((col) => (
+                              <button
+                                key={col.id}
+                                type="button"
+                                onClick={() => {
+                                  if (col.id === "roadmap") {
+                                    setTab("roadmap");
+                                  } else if (col.id === "changelog") {
+                                    setTab("news");
+                                  } else {
+                                    const matchingArt = kbArticles.find((a) => a.category_id === col.id || a.title.toLowerCase().includes(col.title.toLowerCase()));
+                                    if (matchingArt) {
+                                      openKbArticle(matchingArt);
+                                    } else {
+                                      setTab("messages");
+                                      setInputValue(`I have a question about ${col.title}: `);
+                                    }
+                                  }
+                                }}
+                                className="w-full py-3.5 px-2 hover:bg-neutral-50 dark:hover:bg-white/[0.03] transition-colors flex items-center justify-between text-left group cursor-pointer"
+                              >
+                                <div className="space-y-1 pr-3">
+                                  <h4 className="text-xs font-bold text-neutral-900 dark:text-white group-hover:text-primary-500 transition-colors">
+                                    {col.title}
+                                  </h4>
+                                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed line-clamp-2">
+                                    {col.description}
                                   </p>
-                                )}
+                                </div>
+                                <ChevronRight className="size-4 text-neutral-400 group-hover:text-neutral-800 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0" />
+                              </button>
+                            ))}
+
+                            {/* Promoted / Search Article Results if any */}
+                            {articleFilterQuery && kbArticles.length > 0 && (
+                              <div className="pt-3 space-y-2">
+                                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Matching Articles</span>
+                                {kbArticles
+                                  .filter((a) => a.title.toLowerCase().includes(articleFilterQuery.toLowerCase()))
+                                  .map((art) => (
+                                    <button
+                                      key={art.id}
+                                      type="button"
+                                      onClick={() => openKbArticle(art)}
+                                      className="w-full py-2 px-2 flex items-center justify-between text-left hover:opacity-80 cursor-pointer"
+                                    >
+                                      <span className="text-xs text-neutral-700 dark:text-neutral-300 font-medium truncate">{art.title}</span>
+                                      <ChevronRight className="size-3 text-neutral-400" />
+                                    </button>
+                                  ))}
                               </div>
-                              <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
-                            </button>
-                          ))}
-                        </div>
-                      );
-                    })()}
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* NEWS & CHANGELOG */}
+            {tab === "news" && (
+              <div className="p-4 space-y-3">
+                <div className="space-y-1 pb-1">
+                  <h3 className="text-base font-bold text-neutral-900 dark:text-white">Latest Updates</h3>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Recent announcements and feature releases.</p>
+                </div>
+
+                <div className="space-y-3">
+                  {[
+                    {
+                      title: "Slack is now a support channel",
+                      tag: "Integration",
+                      time: "1 day ago",
+                      desc: "Connect your team's Slack workspace to receive real-time ticket alerts and reply directly to customer queries from any channel.",
+                      icon: "💬",
+                    },
+                    {
+                      title: "AI Voice & Phone Agent Launched",
+                      tag: "AI & Voice",
+                      time: "3 days ago",
+                      desc: "Visitors can now initiate real-time conversational voice calls with your bot powered by ultra low-latency streaming.",
+                      icon: "🎙️",
+                    },
+                    {
+                      title: "Interactive Calendar Booking",
+                      tag: "Meetings",
+                      time: "1 week ago",
+                      desc: "Automate demo scheduling with Google Meet, Microsoft Teams, and Zoom directly inside the chat window without external redirects.",
+                      icon: "📅",
+                    },
+                  ].map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-2xl bg-neutral-100 dark:bg-neutral-900/90 border border-neutral-200 dark:border-white/10 space-y-2 shadow-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                          {item.tag}
+                        </span>
+                        <span className="text-[11px] text-neutral-400">{item.time}</span>
+                      </div>
+                      <h4 className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                        <span>{item.icon}</span> {item.title}
+                      </h4>
+                      <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                        {item.desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ROADMAP */}
+            {tab === "roadmap" && (
+              <div className="p-4 space-y-3">
+                <div className="space-y-1 pb-1">
+                  <h3 className="text-base font-bold text-neutral-900 dark:text-white">Product Roadmap</h3>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">See what we&apos;re currently building and what&apos;s coming next.</p>
+                </div>
+
+                <div className="space-y-3">
+                  {[
+                    {
+                      status: "In Progress",
+                      statusColor: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
+                      title: "WhatsApp & Omnichannel Sync",
+                      desc: "Unified customer inbox linking live web chat, WhatsApp business, and email ticketing into one workflow.",
+                    },
+                    {
+                      status: "Planned",
+                      statusColor: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
+                      title: "Custom Webhook Automations",
+                      desc: "Instant event notifications to Zapier, Make, and webhook endpoints on lead capture and demo booking.",
+                    },
+                    {
+                      status: "Under Consideration",
+                      statusColor: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
+                      title: "Multi-language Live Translation",
+                      desc: "Bidirectional live translation across 50+ languages so agents and visitors can converse seamlessly.",
+                    },
+                  ].map((card, cIdx) => (
+                    <div
+                      key={cIdx}
+                      className="p-3.5 rounded-2xl bg-neutral-100 dark:bg-neutral-900/90 border border-neutral-200 dark:border-white/10 space-y-2 shadow-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${card.statusColor}`}>
+                          {card.status}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-neutral-900 dark:text-white">
+                        {card.title}
+                      </h4>
+                      <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                        {card.desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -3483,77 +3701,44 @@ export default function ChatWidgetCore({
         </div>
       )}
 
-      {/* ── Crisp-style persistent bottom tab nav bar ── */}
+      {/* ── Floating Pill Dock Navigation (Matching media_1789744450229.png & media_1789744491712.png) ── */}
       {!voiceCallOpen && !showCsat && !showOfflineForm && (
-        <>
-          {((tab === "messages" && chatNavExpanded) || (tab !== "messages" && bottomNavVisible)) && (
-            <div className="border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch shrink-0 relative">
-              {(
-                [
-                  { id: "home",     label: "Home",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-                  { id: "messages", label: "Chat",     icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
-                  { id: "articles", label: "Articles", icon: <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
-                ] as { id: Tab; label: string; icon: React.ReactNode }[]
-              ).map(({ id, label, icon }) => {
-                const isActive = tab === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => {
-                      setActiveArticle(null);
-                      setTab(id);
-                      if (id === "messages") setChatNavExpanded(false);
-                    }}
-                    className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative"
-                    style={isActive ? { color: primaryColor } : undefined}
-                  >
-                    <span style={isActive ? undefined : { opacity: 0.4 }}>{icon}</span>
-                    <span style={isActive ? undefined : { opacity: 0.4 }}>{label}</span>
-                    {isActive && (
-                      <span
-                        className="absolute top-0 left-3 right-3 h-[2px] rounded-b-full"
-                        style={{ backgroundColor: primaryColor }}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-              {/* Small toggle icon button to hide the bottom nav bar */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (tab === "messages") setChatNavExpanded(false);
-                  else setBottomNavVisible(false);
-                }}
-                className="px-2.5 flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors cursor-pointer border-l border-neutral-100 dark:border-neutral-850"
-                title="Hide navigation"
-                aria-label="Hide navigation"
-              >
-                <ChevronDown className="size-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* Small icon button to reveal bottom nav when hidden or in chat tab */}
-          {((tab === "messages" && !chatNavExpanded) || (tab !== "messages" && !bottomNavVisible)) && (
-            <div className="flex justify-center py-1 bg-card border-t border-neutral-100/50 dark:border-neutral-850/50">
-              <button
-                type="button"
-                onClick={() => {
-                  if (tab === "messages") setChatNavExpanded(true);
-                  else setBottomNavVisible(true);
-                }}
-                className="inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 px-2 py-0.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                title="Show navigation"
-                aria-label="Show navigation"
-              >
-                <ChevronUp className="size-3" />
-                <span className="font-medium text-[9px] uppercase tracking-wider">Show Tabs</span>
-              </button>
-            </div>
-          )}
-        </>
+        <div className="relative shrink-0 px-3 pt-1.5 pb-3 bg-transparent">
+          <div className="w-full max-w-[340px] mx-auto bg-neutral-900/95 dark:bg-neutral-900/95 border border-white/10 backdrop-blur-xl shadow-2xl rounded-full px-2 py-1 flex items-center justify-between">
+            {[
+              { id: "home", label: "Home", icon: Home },
+              { id: "messages", label: "Messages", icon: MessageSquare },
+              { id: "help", label: "Help", icon: HelpCircle },
+              { id: "news", label: "News", icon: Megaphone },
+              { id: "roadmap", label: "Roadmap", icon: Compass },
+            ].map(({ id, label, icon: Icon }) => {
+              const isActive = tab === id || (id === "help" && tab === "articles");
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setActiveArticle(null);
+                    setTab(id as Tab);
+                  }}
+                  className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-full transition-all duration-200 cursor-pointer relative ${
+                    isActive ? "text-white font-semibold" : "text-neutral-400 hover:text-neutral-200"
+                  }`}
+                >
+                  <Icon className={`size-4 transition-transform ${isActive ? "scale-105" : "scale-100 opacity-70"}`} />
+                  <span className="text-[10px] tracking-tight">{label}</span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="floating-dock-pill"
+                      className="absolute inset-0 bg-white/10 rounded-full -z-10"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {!isOfficialWebsite && !hideBranding && (

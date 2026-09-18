@@ -563,7 +563,11 @@ export function ChattyStandaloneApp({
       {(!open || !(isMobile && mobileFullscreen)) && (
         <button
           type="button"
-          onClick={() => handleOpen(!open)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleOpen(!open);
+          }}
           aria-label={open ? "Close chat" : "Open chat"}
           style={{
             position: "fixed",
