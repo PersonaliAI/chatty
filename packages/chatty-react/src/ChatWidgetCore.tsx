@@ -14,7 +14,7 @@ import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
-import { normalizeWidgetStyle } from "./widget-style";
+import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
 // CSS is shipped separately (dist/styles.css, plus katex's own CSS) instead
 // of side-effect-imported here - a library bundling its own CSS import
 // requires the CONSUMER's bundler to understand raw CSS imports the exact
@@ -543,6 +543,7 @@ export interface WidgetThemeData {
   font_family?: string | null;
   font_size_percent?: number;
   voice_message_mode?: "transcribe" | "audio";
+  panel_size?: string;
 }
 
 export default function ChatWidgetCore({
@@ -625,13 +626,26 @@ export default function ChatWidgetCore({
       const Icon = AVATAR_ICONS[avatarIcon];
       return <Icon className={iconCls} />;
     }
-    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-cover" />; // eslint-disable-line @next/next/no-img-element
+    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-contain p-1 rounded-full" />; // eslint-disable-line @next/next/no-img-element
     return botName[0]?.toUpperCase();
   };
 
   const headerLogoInner = (iconCls: string) => {
-    if (logoUrl) return <img src={logoUrl} alt="" className="w-[34px] h-[34px] object-contain rounded-full" />; // eslint-disable-line @next/next/no-img-element
+    if (logoUrl) return <img src={logoUrl} alt="" className="size-full object-contain p-1 rounded-full" />; // eslint-disable-line @next/next/no-img-element
     return avatarInner(iconCls);
+  };
+
+  const renderBotAvatar = (sizeClass = "size-9", iconClass = "size-5", className = "") => {
+    const bg = colorScheme?.avatar?.bg || logoBgColor || "color-mix(in srgb, var(--primary-color) 15%, transparent)";
+    const fg = colorScheme?.avatar?.text || (logoBgColor ? getOnColor(logoBgColor) : primaryColor);
+    return (
+      <div
+        className={`${sizeClass} rounded-full flex items-center justify-center font-bold overflow-hidden shrink-0 transition-colors shadow-2xs ${className}`}
+        style={{ backgroundColor: bg, color: fg }}
+      >
+        {headerLogoInner(iconClass)}
+      </div>
+    );
   };
 
   const clearChat = () => {
@@ -1726,6 +1740,7 @@ export default function ChatWidgetCore({
               trigger_rules: bot.trigger_rules,
               font_family: bot.font_family ?? null,
               font_size_percent: bot.font_size_percent || 100,
+              panel_size: bot.panel_size,
             });
           }
         }
@@ -2407,7 +2422,6 @@ export default function ChatWidgetCore({
       id="chatty-root"
       className={`w-full h-full flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`}
       style={{
-        backgroundColor: primaryColor,
         touchAction: "manipulation",
         ...primaryColorCssVars(primaryColor),
       } as React.CSSProperties}
@@ -2496,7 +2510,7 @@ export default function ChatWidgetCore({
         } : undefined}
       >
       {/* Header */}
-      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850" style={{ background: primaryColor }}>
+      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
         <div className="flex items-center gap-2.5">
           {tab !== "home" && (
             <motion.button
@@ -2833,15 +2847,19 @@ export default function ChatWidgetCore({
                       className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                        <AgentAvatar
-                          src={activeAgentAvatar || avatarUrl || logoUrl}
-                          name={activeAgentName || botName}
-                          primaryColor={primaryColor}
-                          onPrimary={onPrimary}
-                          bgColor={logoBgColor}
-                          size="size-9"
-                          className="shrink-0"
-                        />
+                        {activeAgentAvatar ? (
+                          <AgentAvatar
+                            src={activeAgentAvatar}
+                            name={activeAgentName || botName}
+                            primaryColor={primaryColor}
+                            onPrimary={onPrimary}
+                            bgColor={logoBgColor}
+                            size="size-9"
+                            className="shrink-0"
+                          />
+                        ) : (
+                          renderBotAvatar("size-9", "size-5")
+                        )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-semibold truncate group-hover:opacity-85">
@@ -3641,22 +3659,37 @@ export default function ChatWidgetCore({
         <>
           {((tab === "messages" && chatNavExpanded) || (tab !== "messages" && bottomNavVisible)) && (
             (() => {
-              const navStyle = colorScheme?.bottomNav?.style || "default";
+              const presetSig = getPresetSignature(widgetStyle);
+              const effectiveNavStyle =
+                colorScheme?.bottomNav?.style && colorScheme?.bottomNav?.style !== "default"
+                  ? colorScheme.bottomNav.style
+                  : presetSig.bottomNavStyle;
+              const indicatorType =
+                colorScheme?.bottomNav?.indicator || presetSig.bottomNavIndicator || "pill";
+              const activeNavColor =
+                colorScheme?.bottomNav?.activeColor || presetSig.bottomNavActive || primaryColor;
               const showLabels = colorScheme?.bottomNav?.showLabels !== false;
+              const allowMinimize = colorScheme?.bottomNav?.allowMinimize !== false;
 
               const containerClasses =
-                navStyle === "pill"
-                  ? "p-2 bg-transparent flex justify-center shrink-0 relative"
-                  : "shrink-0 relative";
+                effectiveNavStyle === "pill" || effectiveNavStyle === "glass"
+                  ? "p-2.5 bg-transparent flex justify-center shrink-0 relative"
+                  : effectiveNavStyle === "chunky"
+                    ? "p-2.5 bg-transparent shrink-0 relative"
+                    : "shrink-0 relative";
 
               const navClasses =
-                navStyle === "pill"
-                  ? "chat-bottom-nav w-full max-w-[320px] rounded-full border border-neutral-200/80 dark:border-neutral-850/80 shadow-lg flex items-stretch overflow-hidden backdrop-blur-xl"
-                  : navStyle === "clean"
-                    ? "chat-bottom-nav border-t border-neutral-200 dark:border-neutral-850 shadow-none flex items-stretch"
-                    : navStyle === "glass"
-                      ? "chat-bottom-nav border-t border-white/20 bg-white/20 dark:bg-black/40 backdrop-blur-xl flex items-stretch"
-                      : "chat-bottom-nav border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch";
+                effectiveNavStyle === "pill"
+                  ? "chat-bottom-nav w-full max-w-[320px] rounded-full border border-neutral-200/80 dark:border-neutral-850/80 shadow-lg flex items-stretch overflow-hidden backdrop-blur-xl bg-card/90"
+                  : effectiveNavStyle === "chunky"
+                    ? "chat-bottom-nav w-full rounded-md border-3 border-black bg-white shadow-[4px_4px_0px_#000] flex items-stretch overflow-hidden font-mono"
+                    : effectiveNavStyle === "glass"
+                      ? "chat-bottom-nav w-full max-w-[320px] rounded-2xl border border-white/30 bg-white/20 dark:bg-black/30 backdrop-blur-xl shadow-lg flex items-stretch overflow-hidden"
+                      : effectiveNavStyle === "luxury"
+                        ? "chat-bottom-nav border-t border-[#b08a3e]/40 bg-[#161412] text-[#f7f5f0] flex items-stretch tracking-wider font-serif"
+                        : effectiveNavStyle === "clean"
+                          ? "chat-bottom-nav border-t border-neutral-200/80 dark:border-neutral-800/80 bg-background/95 backdrop-blur-sm flex items-stretch shadow-none"
+                          : "chat-bottom-nav border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch";
 
               return (
                 <div className={containerClasses}>
@@ -3673,7 +3706,7 @@ export default function ChatWidgetCore({
                         <motion.button
                           key={id}
                           type="button"
-                          whileTap={{ scale: 0.92 }}
+                          whileTap={{ scale: 0.90 }}
                           onClick={() => {
                             setActiveArticle(null);
                             setTab(id);
@@ -3681,32 +3714,56 @@ export default function ChatWidgetCore({
                           className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative ${
                             isActive ? "font-bold" : "opacity-60 hover:opacity-100"
                           }`}
-                          style={isActive ? { color: primaryColor } : undefined}
+                          style={isActive ? { color: activeNavColor } : undefined}
                         >
-                          <span className={isActive ? "scale-105 transition-transform" : ""}>{icon}</span>
-                          {showLabels && <span>{label}</span>}
+                          <motion.span
+                            animate={{ scale: isActive ? 1.08 : 1 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                            className="relative z-10"
+                          >
+                            {icon}
+                          </motion.span>
+                          {showLabels && <span className="relative z-10">{label}</span>}
                           {isActive && (
-                            <motion.span
-                              layoutId="activeTabIndicator"
-                              className="absolute top-0 left-3 right-3 h-[2px] rounded-b-full"
-                              style={{ backgroundColor: primaryColor }}
-                              transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                            />
+                            indicatorType === "pill" ? (
+                              <motion.span
+                                layoutId="activeNavIndicator"
+                                className="absolute inset-1 rounded-full -z-0 opacity-15"
+                                style={{ backgroundColor: activeNavColor }}
+                                transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                              />
+                            ) : indicatorType === "dot" ? (
+                              <motion.span
+                                layoutId="activeNavIndicator"
+                                className="absolute bottom-1 size-1.5 rounded-full z-10 shadow-sm"
+                                style={{ backgroundColor: activeNavColor }}
+                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                              />
+                            ) : (
+                              <motion.span
+                                layoutId="activeNavIndicator"
+                                className="absolute top-0 left-3 right-3 h-[2.5px] rounded-full z-10"
+                                style={{ backgroundColor: activeNavColor }}
+                                transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                              />
+                            )
                           )}
                         </motion.button>
                       );
                     })}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (tab === "messages") setChatNavExpanded(false);
-                        else setBottomNavVisible(false);
-                      }}
-                      className="px-2.5 flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors cursor-pointer border-l border-neutral-100/50 dark:border-neutral-850/50"
-                      title="Hide navigation"
-                    >
-                      <ChevronDown className="size-3.5" />
-                    </button>
+                    {allowMinimize && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tab === "messages") setChatNavExpanded(false);
+                          else setBottomNavVisible(false);
+                        }}
+                        className="px-2.5 flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors cursor-pointer border-l border-neutral-100/50 dark:border-neutral-850/50"
+                        title="Hide navigation"
+                      >
+                        <ChevronDown className="size-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

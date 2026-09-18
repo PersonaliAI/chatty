@@ -31,6 +31,8 @@ import {
   Paperclip,
   Mic,
   Check,
+  Home,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
@@ -42,7 +44,12 @@ import {
   buildColorSchemeCss,
   type WidgetColorScheme,
 } from "@/lib/color-contrast";
-import { LAUNCHER_STYLES } from "@/lib/widget-style";
+import {
+  LAUNCHER_STYLES,
+  PRESET_SIGNATURES,
+  getPresetSignature,
+  getPresetColorScheme,
+} from "@/lib/widget-style";
 import { SectionPropertyDropdown } from "../dashboard-controls";
 
 const ICON_ONLY_SECTIONS = new Set(["sendBtn", "launcher"]);
@@ -182,20 +189,53 @@ export function CustomizerTab({
                 { id: "healthcare-calm", name: "Healthcare Calm", desc: "Clinic · soft sage & serif" },
                 { id: "neubrutalism", name: "Neubrutalism", desc: "Bold brand · thick borders" },
                 { id: "luxury-editorial", name: "Luxury Editorial", desc: "Boutique · serif & gold" },
-              ].map((style) => (
-                <button
-                  key={style.id}
-                  onClick={() => handleInputChange(setWidgetStyle, style.id)}
-                  className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
-                    widgetStyle === style.id
-                      ? "border-[#f97316] bg-[#f97316]/5"
-                      : "border-neutral-200 dark:border-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-800/20"
-                  }`}
-                >
-                  <div className="text-xs font-bold">{style.name}</div>
-                  <p className="text-[9px] text-neutral-400 mt-1 leading-normal">{style.desc}</p>
-                </button>
-              ))}
+              ].map((style) => {
+                const sig = PRESET_SIGNATURES[style.id];
+                const isSelected = widgetStyle === style.id;
+                return (
+                  <button
+                    key={style.id}
+                    type="button"
+                    onClick={() => {
+                      handleInputChange(setWidgetStyle, style.id);
+                      handleInputChange(setColorScheme, null);
+                    }}
+                    className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
+                      isSelected
+                        ? "border-[#f97316] bg-[#f97316]/5 ring-1 ring-[#f97316]/30 shadow-xs"
+                        : "border-neutral-200 dark:border-neutral-850 hover:bg-neutral-50 dark:hover:bg-neutral-800/20"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+                        {style.name}
+                        {isSelected && <span className="size-1.5 rounded-full bg-[#f97316]" />}
+                      </div>
+                      {sig?.previewPalette && (
+                        <div
+                          className="flex items-center -space-x-1 shrink-0 p-0.5 rounded hover:ring-1 hover:ring-[#f97316]/40 transition-all cursor-pointer"
+                          title={`Click to apply default ${style.name} palette (${sig.primary})`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleInputChange(setWidgetStyle, style.id);
+                            handleInputChange(setPrimaryColor, sig.primary);
+                            handleInputChange(setColorScheme, null);
+                          }}
+                        >
+                          {sig.previewPalette.map((col, idx) => (
+                            <span
+                              key={idx}
+                              className="size-3 rounded-full border border-black/10 dark:border-white/15 shadow-2xs"
+                              style={{ backgroundColor: col }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[9px] text-neutral-400 leading-normal">{style.desc}</p>
+                  </button>
+                );
+              })}
             </div>
 
             <hr className="border-neutral-100 dark:border-neutral-800 my-4" />
@@ -368,18 +408,37 @@ export function CustomizerTab({
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Primary Hex Color</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355">Primary Hex Color</label>
+                {colorScheme && (
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange(setColorScheme, null)}
+                    className="text-[10px] text-neutral-400 hover:text-[#f97316] cursor-pointer"
+                  >
+                    Reset section overrides
+                  </button>
+                )}
+              </div>
               <div className="flex gap-2">
                 <input
                   type="color"
                   value={primaryColor}
-                  onChange={(e) => handleInputChange(setPrimaryColor, e.target.value)}
+                  onChange={(e) => {
+                    const c = e.target.value;
+                    handleInputChange(setPrimaryColor, c);
+                    if (colorScheme) handleInputChange(setColorScheme, generateColorScheme(c));
+                  }}
                   className="size-8 rounded border border-neutral-200 bg-transparent p-0.5 cursor-pointer"
                 />
                 <input
                   type="text"
                   value={primaryColor}
-                  onChange={(e) => handleInputChange(setPrimaryColor, e.target.value)}
+                  onChange={(e) => {
+                    const c = e.target.value;
+                    handleInputChange(setPrimaryColor, c);
+                    if (colorScheme && /^#[0-9a-fA-F]{6}$/.test(c)) handleInputChange(setColorScheme, generateColorScheme(c));
+                  }}
                   className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
                 />
               </div>
@@ -387,7 +446,10 @@ export function CustomizerTab({
                 {["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#111827"].map((color) => (
                   <button
                     key={color}
-                    onClick={() => handleInputChange(setPrimaryColor, color)}
+                    onClick={() => {
+                      handleInputChange(setPrimaryColor, color);
+                      if (colorScheme) handleInputChange(setColorScheme, generateColorScheme(color));
+                    }}
                     style={{ backgroundColor: color }}
                     className={`size-6 rounded-full border cursor-pointer ${
                       primaryColor === color ? "border-neutral-900 dark:border-white ring-2 ring-[#f97316]/20" : "border-transparent"
@@ -475,14 +537,17 @@ export function CustomizerTab({
 
             <div>
               <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Bottom Navigation Bar</label>
-              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-2">Configure navigation appearance to match your active design preset.</p>
+              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-2">Configure navigation dock appearance to match your active design preset.</p>
               
-              <div className="grid grid-cols-2 gap-2 mb-2">
+              {/* Style options */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
                 {[
-                  { id: "default", label: "Preset Default", desc: "Follows active theme" },
-                  { id: "pill", label: "Floating Pill", desc: "Rounded floating dock" },
+                  { id: "default", label: "Preset Default", desc: "Native preset dock" },
+                  { id: "pill", label: "Floating Pill", desc: "Rounded pill dock" },
+                  { id: "chunky", label: "Bold Chunky", desc: "Neubrutal 3px border" },
+                  { id: "glass", label: "Frosted Glass", desc: "Frosted blur dock" },
+                  { id: "luxury", label: "Luxury Gold", desc: "Espresso & gold hairline" },
                   { id: "clean", label: "Clean Flush", desc: "Minimal borderless" },
-                  { id: "glass", label: "Frosted Glass", desc: "Backdrop blur" },
                 ].map((opt) => {
                   const currentStyle = colorScheme?.bottomNav?.style || "default";
                   const isSelected = currentStyle === opt.id;
@@ -497,7 +562,7 @@ export function CustomizerTab({
                           ...scheme,
                           bottomNav: {
                             ...(scheme.bottomNav || defaultScheme.bottomNav || { bg: scheme.botBubble.bg, text: scheme.botBubble.text }),
-                            style: opt.id as "default" | "pill" | "clean" | "glass",
+                            style: opt.id as "default" | "pill" | "clean" | "glass" | "chunky" | "luxury",
                           },
                         };
                         handleInputChange(setColorScheme, next);
@@ -508,13 +573,87 @@ export function CustomizerTab({
                           : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700"
                       }`}
                     >
-                      <span className={`text-[11px] font-semibold block ${isSelected ? "text-[#f97316]" : "text-neutral-800 dark:text-neutral-200"}`}>
+                      <span className={`text-[11px] font-semibold block truncate ${isSelected ? "text-[#f97316]" : "text-neutral-800 dark:text-neutral-200"}`}>
                         {opt.label}
                       </span>
-                      <span className="text-[9px] text-neutral-400 block">{opt.desc}</span>
+                      <span className="text-[9px] text-neutral-400 block truncate">{opt.desc}</span>
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Indicator Picker & Active Color */}
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div className="p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+                  <span className="text-[10px] font-semibold text-neutral-600 dark:text-neutral-300 block mb-1">Active Tab Indicator</span>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { id: "pill", label: "Pill" },
+                      { id: "line", label: "Line" },
+                      { id: "dot", label: "Dot" },
+                    ].map((ind) => {
+                      const presetSig = getPresetSignature(widgetStyle);
+                      const currentInd = colorScheme?.bottomNav?.indicator || presetSig.bottomNavIndicator || "pill";
+                      const isChosen = currentInd === ind.id;
+                      return (
+                        <button
+                          key={ind.id}
+                          type="button"
+                          onClick={() => {
+                            const defaultScheme = generateColorScheme(primaryColor);
+                            const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
+                            const next: WidgetColorScheme = {
+                              ...scheme,
+                              bottomNav: {
+                                ...(scheme.bottomNav || defaultScheme.bottomNav || { bg: scheme.botBubble.bg, text: scheme.botBubble.text }),
+                                indicator: ind.id as "line" | "pill" | "dot",
+                              },
+                            };
+                            handleInputChange(setColorScheme, next);
+                          }}
+                          className={`py-1 text-[10px] font-semibold rounded-md border text-center transition-all cursor-pointer ${
+                            isChosen
+                              ? "bg-[#f97316] text-white border-[#f97316]"
+                              : "border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                          }`}
+                        >
+                          {ind.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-semibold text-neutral-600 dark:text-neutral-300 block">Active Tab Color</span>
+                    <span className="text-[9px] text-neutral-400 block">Accent highlight</span>
+                  </div>
+                  {(() => {
+                    const presetSig = getPresetSignature(widgetStyle);
+                    const activeVal = colorScheme?.bottomNav?.activeColor || presetSig.bottomNavActive || primaryColor;
+                    return (
+                      <input
+                        type="color"
+                        value={activeVal}
+                        title="Active Tab Color"
+                        onChange={(e) => {
+                          const defaultScheme = generateColorScheme(primaryColor);
+                          const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
+                          const next: WidgetColorScheme = {
+                            ...scheme,
+                            bottomNav: {
+                              ...(scheme.bottomNav || defaultScheme.bottomNav || { bg: scheme.botBubble.bg, text: scheme.botBubble.text }),
+                              activeColor: e.target.value,
+                            },
+                          };
+                          handleInputChange(setColorScheme, next);
+                        }}
+                        className="color-swatch-circle size-7 shrink-0 cursor-pointer"
+                      />
+                    );
+                  })()}
+                </div>
               </div>
 
               {/* Label Toggle */}
@@ -854,12 +993,11 @@ export function CustomizerTab({
               }`}</style>
               <div
                 id="customizer-live-preview"
-                className={`w-full max-w-[320px] h-[440px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
+                className={`w-full max-w-[320px] h-[500px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
                 style={{ ...primaryColorCssVars(primaryColor), zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined } as React.CSSProperties}
               >
             {/* Header */}
             <div
-              style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
               className="chat-header p-4 flex items-center gap-3 transition-all"
             >
               <div
@@ -949,7 +1087,6 @@ export function CustomizerTab({
               <div className="flex gap-2 ml-auto flex-row-reverse max-w-[85%]">
                 <div
                   className="user-bubble p-3 rounded-2xl rounded-tr-none leading-relaxed"
-                  style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
                 >
                   Hi there, testing theme preview!
                 </div>
@@ -959,7 +1096,6 @@ export function CustomizerTab({
               <div className="flex gap-2 ml-auto flex-row-reverse max-w-[85%]">
                 <div
                   className="user-bubble p-2.5 rounded-2xl rounded-tr-none leading-relaxed"
-                  style={{ backgroundColor: primaryColor, color: getOnColor(primaryColor) }}
                 >
                   <div className="audio-bubble flex items-center gap-2.5 py-0.5 min-w-[188px]">
                     <span className="audio-bubble-btn shrink-0 size-8 rounded-full flex items-center justify-center">
@@ -1023,6 +1159,84 @@ export function CustomizerTab({
                 </div>
               )}
             </div>
+
+            {/* ── Bottom Navigation Dock Preview ── */}
+            {(() => {
+              const presetSig = getPresetSignature(widgetStyle);
+              const effectiveNavStyle =
+                colorScheme?.bottomNav?.style && colorScheme?.bottomNav?.style !== "default"
+                  ? colorScheme.bottomNav.style
+                  : presetSig.bottomNavStyle;
+              const indicatorType =
+                colorScheme?.bottomNav?.indicator || presetSig.bottomNavIndicator || "pill";
+              const activeNavColor =
+                colorScheme?.bottomNav?.activeColor || presetSig.bottomNavActive || primaryColor;
+              const showLabels = colorScheme?.bottomNav?.showLabels !== false;
+
+              const containerClasses =
+                effectiveNavStyle === "pill" || effectiveNavStyle === "glass"
+                  ? "p-2 bg-transparent flex justify-center shrink-0 relative"
+                  : effectiveNavStyle === "chunky"
+                    ? "p-2 bg-transparent shrink-0 relative"
+                    : "shrink-0 relative";
+
+              const navClasses =
+                effectiveNavStyle === "pill"
+                  ? "chat-bottom-nav w-full max-w-[290px] rounded-full border border-neutral-200/80 dark:border-neutral-800/80 shadow-md flex items-stretch overflow-hidden backdrop-blur-xl bg-card/90"
+                  : effectiveNavStyle === "chunky"
+                    ? "chat-bottom-nav w-full rounded-md border-3 border-black bg-white shadow-[3px_3px_0px_#000] flex items-stretch overflow-hidden font-mono"
+                    : effectiveNavStyle === "glass"
+                      ? "chat-bottom-nav w-full max-w-[290px] rounded-xl border border-white/30 bg-white/20 dark:bg-black/30 backdrop-blur-xl shadow-md flex items-stretch overflow-hidden"
+                      : effectiveNavStyle === "luxury"
+                        ? "chat-bottom-nav border-t border-[#b08a3e]/40 bg-[#161412] text-[#f7f5f0] flex items-stretch tracking-wider font-serif"
+                        : effectiveNavStyle === "clean"
+                          ? "chat-bottom-nav border-t border-neutral-200/80 dark:border-neutral-800/80 bg-background/95 backdrop-blur-sm flex items-stretch shadow-none"
+                          : "chat-bottom-nav border-t border-neutral-100 dark:border-neutral-850 bg-card flex items-stretch";
+
+              return (
+                <div className={containerClasses}>
+                  <div className={navClasses}>
+                    {[
+                      { id: "home", label: "Home", icon: <Home className="size-3.5" /> },
+                      { id: "messages", label: "Chat", icon: <MessageSquare className="size-3.5" /> },
+                      { id: "articles", label: "Articles", icon: <FileText className="size-3.5" /> },
+                    ].map((t, idx) => {
+                      const isActive = idx === 1;
+                      return (
+                        <div
+                          key={t.id}
+                          className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase relative cursor-default select-none ${
+                            isActive ? "font-bold" : "opacity-60"
+                          }`}
+                          style={isActive ? { color: activeNavColor } : undefined}
+                        >
+                          <span className="relative z-10">{t.icon}</span>
+                          {showLabels && <span className="relative z-10">{t.label}</span>}
+                          {isActive && (
+                            indicatorType === "pill" ? (
+                              <span
+                                className="absolute inset-1 rounded-full -z-0 opacity-15"
+                                style={{ backgroundColor: activeNavColor }}
+                              />
+                            ) : indicatorType === "dot" ? (
+                              <span
+                                className="absolute bottom-0.5 size-1.5 rounded-full z-10 shadow-xs"
+                                style={{ backgroundColor: activeNavColor }}
+                              />
+                            ) : (
+                              <span
+                                className="absolute top-0 left-2 right-2 h-[2px] rounded-full z-10"
+                                style={{ backgroundColor: activeNavColor }}
+                              />
+                            )
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             </>
             )}
           </div>

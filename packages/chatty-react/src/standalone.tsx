@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import ChatWidgetCore, { type ChatWidgetCoreProps } from "./ChatWidgetCore";
 import { getOnColor, hexToRgb } from "./color-contrast";
@@ -64,6 +64,14 @@ const PANEL_RADIUS: Record<string, string> = {
   "healthcare-calm": "18px", neubrutalism: "4px", "luxury-editorial": "6px",
 };
 
+function getLauncherRadius(shape: string | undefined, presetRadius: string | undefined, side: "left" | "right"): string {
+  if (shape === "circle") return "50%";
+  if (shape === "square") return "0px";
+  if (shape === "rounded") return "12px";
+  if (shape === "bubble") return side === "left" ? "24px 24px 24px 4px" : "24px 24px 4px 24px";
+  return presetRadius || "50%";
+}
+
 interface TriggerRule {
   type: string;
   value?: string | number;
@@ -106,7 +114,8 @@ export function ChattyStandaloneApp({
 }: StandaloneMountOptions) {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
-  const [ready, setReady] = useState(false);
+  const [coreReady, setCoreReady] = useState(false);
+  const [themeLoaded, setThemeLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 480 : false
   );
@@ -137,8 +146,8 @@ export function ChattyStandaloneApp({
   const [customIconUrl, setCustomIconUrl] = useState<string | null>(() => cachedTheme?.customIconUrl || null);
   const [customLogoBgColor, setCustomLogoBgColor] = useState(() => cachedTheme?.customLogoBgColor || "");
 
-  // Launcher stays invisible until either the cached theme is loaded or the fresh theme settles
-  const [revealed, setRevealed] = useState(() => !!cachedTheme);
+  // Launcher stays strictly hidden until all customized assets, styles, and widget core settle
+  const [revealed, setRevealed] = useState(false);
   const [teaserVisible, setTeaserVisible] = useState(false);
   const [teaserText, setTeaserText] = useState("👋 Need help? Chat with us.");
   const triggerRulesRef = useRef<TriggerRule[]>([]);
@@ -183,91 +192,111 @@ export function ChattyStandaloneApp({
     } catch {}
   };
 
+  const applyThemeData = useCallback((d: any) => {
+    if (!d) return;
+
+    let activeDesign = normalizeWidgetStyle(styleAttr);
+    let activeBg = colorAttr || d.primary_color || LAUNCHER_STYLES[activeDesign]?.bg || "#f97316";
+    let activeRadius = LAUNCHER_STYLES[activeDesign]?.radius || "50%";
+    let activeShadow = LAUNCHER_STYLES[activeDesign]?.shadow || "0 6px 24px rgba(0,0,0,.25)";
+    let activeLogoBg = "";
+    let activeIconOverride: string | null = null;
+    let shapeVal: string | undefined = undefined;
+
+    if (d.widget_style) {
+      const parts = String(d.widget_style).split(":");
+      const styleName = parts[0];
+      const logoBg = parts[1];
+      shapeVal = parts[2];
+
+      const norm = normalizeWidgetStyle(styleName);
+      activeDesign = norm;
+      setCurrentDesign(norm);
+      const preset = LAUNCHER_STYLES[norm];
+      if (preset) {
+        activeRadius = getLauncherRadius(shapeVal, preset.radius, side);
+        activeShadow = preset.shadow;
+        // Priority for launcher background: Section color > primary color > preset default
+        activeBg = colorAttr || d.primary_color || preset.bg;
+        setLauncherBg(activeBg);
+        setLauncherRadius(activeRadius);
+        setLauncherShadow(preset.shadow);
+      }
+      if (logoBg) {
+        activeLogoBg = logoBg;
+        setCustomLogoBgColor(logoBg);
+      }
+    } else if (d.primary_color) {
+      activeBg = d.primary_color;
+      setLauncherBg(d.primary_color);
+    }
+
+    if (shapeVal) {
+      activeRadius = getLauncherRadius(shapeVal, activeRadius, side);
+      setLauncherRadius(activeRadius);
+    }
+
+    // Section Colors launcher overrides from Customizer take highest precedence
+    if (d.color_scheme?.launcher?.bg) {
+      activeBg = d.color_scheme.launcher.bg;
+      setLauncherBg(d.color_scheme.launcher.bg);
+    }
+    if (d.color_scheme?.launcher?.text) {
+      activeIconOverride = d.color_scheme.launcher.text;
+      setLauncherIconOverride(d.color_scheme.launcher.text);
+    }
+
+    let activeAvatarIcon = "logo";
+    if (d.avatar_icon) {
+      activeAvatarIcon = d.avatar_icon;
+      setAvatarIconType(d.avatar_icon);
+    }
+    const logo = (d.avatar_icon === "custom" && d.avatar_url) ? d.avatar_url : d.logo_url;
+    if (logo) setCustomIconUrl(logo);
+
+    if (d.panel_size && PANEL_SIZE_PRESETS[d.panel_size]) setPanelSize(d.panel_size);
+
+    if (d.teaser_message || d.welcome_message) {
+      setTeaserText(d.teaser_message || d.welcome_message);
+    }
+
+    if (d.trigger_rules) {
+      try {
+        const rules = typeof d.trigger_rules === "string" ? JSON.parse(d.trigger_rules) : d.trigger_rules;
+        if (Array.isArray(rules)) triggerRulesRef.current = rules;
+      } catch {}
+    }
+
+    // Cache for subsequent visits
+    try {
+      localStorage.setItem(`chatty_theme_cache_${botId}`, JSON.stringify({
+        widgetStyle: activeDesign,
+        launcherBg: activeBg,
+        launcherRadius: activeRadius,
+        launcherShadow: activeShadow,
+        launcherIconOverride: activeIconOverride,
+        avatarIconType: activeAvatarIcon,
+        customIconUrl: logo,
+        customLogoBgColor: activeLogoBg,
+      }));
+    } catch {}
+
+    setThemeLoaded(true);
+  }, [botId, colorAttr, styleAttr, side]);
+
   useEffect(() => {
     let cancelled = false;
-    const revealTimer = setTimeout(() => setRevealed(true), 1200);
+
+    // Safety fallback: if network hangs or is blocked (e.g. adblocker), reveal after 4 seconds
+    const safetyTimer = setTimeout(() => {
+      if (!cancelled) setRevealed(true);
+    }, 4000);
+
     fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(botId)}&t=${Date.now()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelled || !d) return;
-
-        let activeDesign = normalizeWidgetStyle(styleAttr);
-        let activeBg = colorAttr || LAUNCHER_STYLES[activeDesign]?.bg || "#f97316";
-        let activeRadius = LAUNCHER_STYLES[activeDesign]?.radius || "50%";
-        let activeShadow = LAUNCHER_STYLES[activeDesign]?.shadow || "0 6px 24px rgba(0,0,0,.25)";
-        let activeLogoBg = "";
-        let activeIconOverride: string | null = null;
-
-        if (d.widget_style) {
-          const [styleName, logoBg] = String(d.widget_style).split(":");
-          const norm = normalizeWidgetStyle(styleName);
-          activeDesign = norm;
-          setCurrentDesign(norm);
-          const preset = LAUNCHER_STYLES[norm];
-          if (preset) {
-            activeBg = preset.bg;
-            activeRadius = preset.radius;
-            activeShadow = preset.shadow;
-            setLauncherBg(preset.bg);
-            setLauncherRadius(preset.radius);
-            setLauncherShadow(preset.shadow);
-          }
-          if (logoBg) {
-            activeLogoBg = logoBg;
-            setCustomLogoBgColor(logoBg);
-          }
-        } else if (d.primary_color) {
-          activeBg = d.primary_color;
-          setLauncherBg(d.primary_color);
-        }
-
-        // Section Colors launcher overrides from Customizer take precedence
-        if (d.color_scheme?.launcher?.bg) {
-          activeBg = d.color_scheme.launcher.bg;
-          setLauncherBg(d.color_scheme.launcher.bg);
-          if (d.color_scheme.launcher.text) {
-            activeIconOverride = d.color_scheme.launcher.text;
-            setLauncherIconOverride(d.color_scheme.launcher.text);
-          }
-        } else if (colorAttr) {
-          activeBg = colorAttr;
-          setLauncherBg(colorAttr);
-        }
-
-        let activeAvatarIcon = "logo";
-        if (d.avatar_icon) {
-          activeAvatarIcon = d.avatar_icon;
-          setAvatarIconType(d.avatar_icon);
-        }
-        const logo = (d.avatar_icon === "custom" && d.avatar_url) ? d.avatar_url : d.logo_url;
-        if (logo) setCustomIconUrl(logo);
-
-        if (d.panel_size && PANEL_SIZE_PRESETS[d.panel_size]) setPanelSize(d.panel_size);
-
-        if (d.teaser_message || d.welcome_message) {
-          setTeaserText(d.teaser_message || d.welcome_message);
-        }
-
-        if (d.trigger_rules) {
-          try {
-            const rules = typeof d.trigger_rules === "string" ? JSON.parse(d.trigger_rules) : d.trigger_rules;
-            if (Array.isArray(rules)) triggerRulesRef.current = rules;
-          } catch {}
-        }
-
-        // Cache for subsequent visits
-        try {
-          localStorage.setItem(`chatty_theme_cache_${botId}`, JSON.stringify({
-            widgetStyle: activeDesign,
-            launcherBg: activeBg,
-            launcherRadius: activeRadius,
-            launcherShadow: activeShadow,
-            launcherIconOverride: activeIconOverride,
-            avatarIconType: activeAvatarIcon,
-            customIconUrl: logo,
-            customLogoBgColor: activeLogoBg,
-          }));
-        } catch {}
+        applyThemeData(d);
 
         // Initialize teaser rules
         if (teaserEnabled) {
@@ -276,17 +305,28 @@ export function ChattyStandaloneApp({
           }, 6000);
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setThemeLoaded(true);
+      })
       .finally(() => {
-        clearTimeout(revealTimer);
-        if (!cancelled) setRevealed(true);
+        clearTimeout(safetyTimer);
       });
 
     return () => {
       cancelled = true;
-      clearTimeout(revealTimer);
+      clearTimeout(safetyTimer);
     };
-  }, [botId, colorAttr, styleAttr, teaserEnabled, open]);
+  }, [botId, applyThemeData, teaserEnabled, open]);
+
+  // Reveal strictly after both launcher customizations and ChatWidgetCore have settled
+  useEffect(() => {
+    if (themeLoaded && coreReady) {
+      const raf = requestAnimationFrame(() => {
+        setRevealed(true);
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [themeLoaded, coreReady]);
 
   const handleOpen = (next: boolean) => {
     setOpen(next);
@@ -306,14 +346,14 @@ export function ChattyStandaloneApp({
   const openRef = useRef(open);
   openRef.current = open;
   useEffect(() => {
-    if (!onApiReady) return;
+    if (!onApiReady || !revealed) return;
     onApiReady({
       open: () => handleOpen(true),
       close: () => handleOpen(false),
       toggle: () => handleOpen(!openRef.current),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onApiReady]);
+  }, [onApiReady, revealed]);
 
   const iconColor = (() => {
     if (launcherIconOverride && launcherBg && launcherBg.startsWith("#") && launcherIconOverride.startsWith("#")) {
@@ -523,7 +563,8 @@ export function ChattyStandaloneApp({
           originToken={null}
           forceFullscreen={isMobile && mobileFullscreen}
           notificationGranted={notificationGranted}
-          onWidgetReady={() => setReady(true)}
+          onThemeLoaded={(themeData) => applyThemeData(themeData)}
+          onWidgetReady={() => setCoreReady(true)}
           onWidgetClose={() => handleOpen(false)}
           onAssistantMessage={() => {
             if (!open) {
@@ -586,7 +627,8 @@ export function ChattyStandaloneApp({
             alignItems: "center",
             justifyContent: "center",
             padding: 0,
-            transition: "transform 0.2s ease, opacity 0.25s ease",
+            transform: revealed ? "scale(1)" : "scale(0.85)",
+            transition: "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease",
             touchAction: "manipulation",
             opacity: revealed ? 1 : 0,
             pointerEvents: revealed ? "auto" : "none",
