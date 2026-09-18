@@ -45,7 +45,7 @@
     "userBubbleRadius": "16px"
   },
   "glassmorphism": {
-    "containerBg": "linear-gradient(135deg,\r\n    color-mix(in srgb, var(--primary-color, #3170eb) 45%, #0f172a) 0%,\r\n    color-mix(in srgb, var(--primary-color, #7d58ee) 70%, #1e1b4b) 50%,\r\n    color-mix(in srgb, var(--primary-color, #d127b3) 90%, #111827) 100%\r\n  )",
+    "containerBg": "linear-gradient(135deg, color-mix(in srgb, var(--primary-color, #3170eb) 45%, #0f172a) 0%, color-mix(in srgb, var(--primary-color, #7d58ee) 70%, #1e1b4b) 50%, color-mix(in srgb, var(--primary-color, #d127b3) 90%, #111827) 100%)",
     "containerRadius": "20px",
     "headerBg": "color-mix(in srgb, var(--primary-color, #ffffff) 25%, rgba(255, 255, 255, 0.15))",
     "botBubbleBg": "rgba(255, 255, 255, 0.18)",

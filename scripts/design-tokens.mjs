@@ -30,7 +30,7 @@ function extractProp(block, prop) {
   // first `!important` or `;` that isn't inside parens.
   const re = new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+?)\\s*(?:!important)?\\s*;`);
   const m = block.match(re);
-  return m ? m[1].trim() : null;
+  return m ? m[1].replace(/\r\n/g, "\n").trim() : null;
 }
 
 export function readDesignTokens() {
