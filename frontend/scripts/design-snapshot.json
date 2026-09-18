@@ -3,16 +3,16 @@
     "containerBg": "#f3f2ee",
     "containerRadius": "18px",
     "headerBg": "var(--primary-color, #ffffff)",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, #f3f2ee) 40%, #f3f2ee)",
+    "botBubbleBg": "#f4f4f5",
     "botBubbleRadius": "14px",
-    "userBubbleBg": "var(--primary-color, #1c1a15)",
+    "userBubbleBg": "var(--primary-color, #18181b)",
     "userBubbleRadius": "14px"
   },
   "playful": {
     "containerBg": "#fffaf5",
     "containerRadius": "28px",
     "headerBg": "var(--primary-color, #d63d00)",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, #ffe6d9) 40%, #ffe6d9)",
+    "botBubbleBg": "#ffece3",
     "botBubbleRadius": "20px",
     "userBubbleBg": "var(--primary-color, #d63d00)",
     "userBubbleRadius": "20px"
@@ -20,17 +20,17 @@
   "corporate": {
     "containerBg": "#eef1f6",
     "containerRadius": "10px",
-    "headerBg": "var(--primary-color, #1c2e4a)",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, #eef1f6) 40%, #eef1f6)",
+    "headerBg": "var(--primary-color, #1e3a8a)",
+    "botBubbleBg": "#eef2f7",
     "botBubbleRadius": "8px",
-    "userBubbleBg": "var(--primary-color, #1c2e4a)",
+    "userBubbleBg": "var(--primary-color, #1e3a8a)",
     "userBubbleRadius": "8px"
   },
   "dark-sleek": {
     "containerBg": "#111114",
     "containerRadius": "16px",
-    "headerBg": "var(--primary-color, #14141a)",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, #1c1c22) 40%, #1c1c22)",
+    "headerBg": "#0d111a",
+    "botBubbleBg": "#161922",
     "botBubbleRadius": "12px",
     "userBubbleBg": "var(--primary-color, #00e5c7)",
     "userBubbleRadius": "12px"
@@ -38,26 +38,26 @@
   "gradient-glow": {
     "containerBg": "#ffffff",
     "containerRadius": "24px",
-    "headerBg": "var(--primary-color, linear-gradient(120deg, #9733f5, #e0177a))",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, #f6effc) 40%, #f6effc)",
+    "headerBg": "linear-gradient(135deg, var(--primary-color, #7c3aed) 0%, color-mix(in srgb, var(--primary-color, #7c3aed) 45%, #db2777) 100%)",
+    "botBubbleBg": "#f7f0fd",
     "botBubbleRadius": "16px",
-    "userBubbleBg": "var(--primary-color, #9733f5)",
+    "userBubbleBg": null,
     "userBubbleRadius": "16px"
   },
   "glassmorphism": {
-    "containerBg": "linear-gradient(135deg, #3170eb, #7d58ee 50%, #d127b3)",
+    "containerBg": "linear-gradient(135deg,\r\n    color-mix(in srgb, var(--primary-color, #3170eb) 45%, #0f172a) 0%,\r\n    color-mix(in srgb, var(--primary-color, #7d58ee) 70%, #1e1b4b) 50%,\r\n    color-mix(in srgb, var(--primary-color, #d127b3) 90%, #111827) 100%\r\n  )",
     "containerRadius": "20px",
-    "headerBg": "color-mix(in srgb, var(--primary-color, rgba(255, 255, 255, 0.08)) 40%, rgba(255, 255, 255, 0.08))",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, rgba(255, 255, 255, 0.18)) 30%, rgba(255, 255, 255, 0.18))",
+    "headerBg": "color-mix(in srgb, var(--primary-color, #ffffff) 25%, rgba(255, 255, 255, 0.15))",
+    "botBubbleBg": "rgba(255, 255, 255, 0.18)",
     "botBubbleRadius": "14px",
-    "userBubbleBg": "var(--primary-color, rgba(255, 255, 255, 0.9))",
+    "userBubbleBg": "color-mix(in srgb, var(--primary-color, #ffffff) 85%, white)",
     "userBubbleRadius": "14px"
   },
   "ecommerce": {
     "containerBg": "#fdf9f2",
     "containerRadius": "14px",
     "headerBg": "var(--primary-color, #0c8173)",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, #f3efe6) 40%, #f3efe6)",
+    "botBubbleBg": "#f3efe6",
     "botBubbleRadius": "14px",
     "userBubbleBg": "var(--primary-color, #0c8173)",
     "userBubbleRadius": "14px"
@@ -65,17 +65,17 @@
   "healthcare-calm": {
     "containerBg": "#fbfcf9",
     "containerRadius": "18px",
-    "headerBg": "var(--primary-color, #eaf1e9)",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, #eaf1e9) 40%, #eaf1e9)",
+    "headerBg": "var(--primary-color, #4a7c59)",
+    "botBubbleBg": "#eef5ef",
     "botBubbleRadius": "14px",
-    "userBubbleBg": "var(--primary-color, #567d62)",
+    "userBubbleBg": "var(--primary-color, #4a7c59)",
     "userBubbleRadius": "14px"
   },
   "neubrutalism": {
     "containerBg": "#ffffff",
     "containerRadius": "4px",
     "headerBg": "var(--primary-color, #ffde59)",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, #f2f2f2) 40%, #f2f2f2)",
+    "botBubbleBg": "#f4f4f4",
     "botBubbleRadius": "4px",
     "userBubbleBg": "var(--primary-color, #ea0033)",
     "userBubbleRadius": "4px"
@@ -83,10 +83,10 @@
   "luxury-editorial": {
     "containerBg": "#fbf9f5",
     "containerRadius": "6px",
-    "headerBg": "var(--primary-color, #161412)",
-    "botBubbleBg": "color-mix(in srgb, var(--primary-color, #f1ebdf) 40%, #f1ebdf)",
+    "headerBg": "#14120f",
+    "botBubbleBg": "#f3ede2",
     "botBubbleRadius": "2px",
-    "userBubbleBg": "var(--primary-color, #161412)",
+    "userBubbleBg": "var(--primary-color, #14120f)",
     "userBubbleRadius": "2px"
   }
 }
