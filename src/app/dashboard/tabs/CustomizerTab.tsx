@@ -490,10 +490,18 @@ export function CustomizerTab({
                   ] as const
                 ).map((section) => {
                   const textPropLabel = ICON_ONLY_SECTIONS.has(section.key) ? "Icon Color" : "Text Color";
-                  const scheme = colorScheme || generateColorScheme(primaryColor);
+                  const defaultScheme = generateColorScheme(primaryColor);
+                  const scheme: WidgetColorScheme = {
+                    ...defaultScheme,
+                    ...(colorScheme || {}),
+                    avatar: colorScheme?.avatar || defaultScheme.avatar,
+                  };
                   const selectedProp = sectionColorProp[section.key] || "bg";
                   const propLabel = selectedProp === "bg" ? "Background" : selectedProp === "icon" ? "Icon Color" : textPropLabel;
-                  const currentValue = (scheme[section.key] as unknown as Record<string, string>)[selectedProp] || "#000000";
+                  const sectionObj = (scheme[section.key as keyof WidgetColorScheme] as unknown as Record<string, string>) ||
+                    (defaultScheme[section.key as keyof WidgetColorScheme] as unknown as Record<string, string>) ||
+                    {};
+                  const currentValue = sectionObj[selectedProp] || (selectedProp === "bg" ? primaryColor : "#ffffff");
                   return (
                     <div key={section.key} className="flex items-center gap-2">
                       <span className="text-[10px] text-neutral-500 dark:text-neutral-400 w-24 shrink-0 truncate">{section.label}</span>
@@ -507,7 +515,13 @@ export function CustomizerTab({
                         value={currentValue}
                         title={`${section.label} - ${propLabel}`}
                         onChange={(e) => {
-                          const next = { ...scheme, [section.key]: { ...scheme[section.key], [selectedProp]: e.target.value } };
+                          const next: WidgetColorScheme = {
+                            ...scheme,
+                            [section.key]: {
+                              ...sectionObj,
+                              [selectedProp]: e.target.value,
+                            },
+                          };
                           handleInputChange(setColorScheme, next);
                         }}
                         className="color-swatch-circle size-7 shrink-0 cursor-pointer"
@@ -685,7 +699,7 @@ export function CustomizerTab({
                     type="color"
                     value={colorScheme?.avatar?.bg || primaryColor}
                     onChange={(e) => {
-                      const scheme = colorScheme || generateColorScheme(primaryColor);
+                      const scheme: WidgetColorScheme = { ...generateColorScheme(primaryColor), ...(colorScheme || {}) };
                       const next = { ...scheme, avatar: { bg: e.target.value, text: scheme.avatar?.text || getOnColor(e.target.value) } };
                       handleInputChange(setColorScheme, next);
                     }}
@@ -696,7 +710,7 @@ export function CustomizerTab({
                     value={colorScheme?.avatar?.bg || ""}
                     placeholder={`e.g. ${primaryColor} (defaults to primary)`}
                     onChange={(e) => {
-                      const scheme = colorScheme || generateColorScheme(primaryColor);
+                      const scheme: WidgetColorScheme = { ...generateColorScheme(primaryColor), ...(colorScheme || {}) };
                       const next = { ...scheme, avatar: { bg: e.target.value, text: scheme.avatar?.text || getOnColor(e.target.value || primaryColor) } };
                       handleInputChange(setColorScheme, next);
                     }}
