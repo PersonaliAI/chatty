@@ -383,6 +383,7 @@ const initialNodes: Node[] = [
     type: "start",
     data: { label: "🚀 Start Conversation" },
     position: { x: 80, y: 40 },
+    measured: { width: 220, height: 70 },
   },
 ];
 const initialEdges: Edge[] = [];
@@ -429,14 +430,46 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
 
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
 
-  // Resize handler to re-center viewport
+  const safeFitView = useCallback((padding = 0.25, duration = 0) => {
+    const instance = reactFlowInstanceRef.current;
+    if (!instance) return;
+    try {
+      const vp = instance.getViewport();
+      if (!Number.isFinite(vp?.x) || !Number.isFinite(vp?.y) || !Number.isFinite(vp?.zoom) || (vp?.zoom ?? 0) <= 0) {
+        instance.setViewport({ x: 0, y: 0, zoom: 1 });
+      }
+      const allNodes = instance.getNodes();
+      if (!allNodes || allNodes.length === 0) return;
+
+      const domEl = document.querySelector(".react-flow");
+      if (domEl) {
+        const rect = domEl.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+      }
+
+      if (duration > 0) {
+        instance.fitView({ padding, duration, minZoom: 0.15, maxZoom: 1.5 });
+      } else {
+        instance.fitView({ padding, minZoom: 0.15, maxZoom: 1.5 });
+      }
+    } catch {}
+  }, []);
+
+  // Resize handler to re-center viewport safely without NaN
   useEffect(() => {
+    let timer: NodeJS.Timeout;
     const handleResize = () => {
-      reactFlowInstanceRef.current?.fitView({ padding: 0.25, duration: 200 });
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        safeFitView(0.25, 0);
+      }, 150);
     };
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [safeFitView]);
 
   const nodeTypes = useMemo(
     () => ({
@@ -502,13 +535,13 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         // ignore load errors
       } finally {
         setTimeout(() => {
-          reactFlowInstanceRef.current?.fitView({ padding: 0.25, duration: 500 });
+          safeFitView(0.25, 0);
           isInitialMount.current = false;
-        }, 250);
+        }, 200);
         setLoading(false);
       }
     })();
-  }, [botId, setNodes, setEdges]);
+  }, [botId, setNodes, setEdges, safeFitView]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)),
@@ -613,7 +646,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
 
           // Auto-center workflow view after generation
           setTimeout(() => {
-            reactFlowInstanceRef.current?.fitView({ padding: 0.25, duration: 800 });
+            safeFitView(0.25, 400);
             switchCanvasOnMobile();
           }, 150);
         } else {
@@ -633,11 +666,13 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
   const switchCanvasOnMobile = useCallback(() => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
       setMobileTab("canvas");
-      setTimeout(() => {
-        reactFlowInstanceRef.current?.fitView({ padding: 0.25, duration: 400 });
-      }, 120);
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          safeFitView(0.25, 0);
+        }, 120);
+      });
     }
-  }, []);
+  }, [safeFitView]);
 
   const addMessageNode = () => {
     const id = `msg-${Date.now()}`;
@@ -783,7 +818,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
           setEdges(t.edges);
           showToast(`Loaded ${t.name} template!`, "success");
           setTimeout(() => {
-            reactFlowInstanceRef.current?.fitView({ padding: 0.25, duration: 800 });
+            safeFitView(0.25, 400);
             switchCanvasOnMobile();
           }, 150);
         }
@@ -871,7 +906,9 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
           type="button"
           onClick={() => {
             setMobileTab("canvas");
-            setTimeout(() => reactFlowInstanceRef.current?.fitView({ padding: 0.25, duration: 400 }), 80);
+            requestAnimationFrame(() => {
+              setTimeout(() => safeFitView(0.25, 0), 100);
+            });
           }}
           className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             mobileTab === "canvas"
@@ -1156,7 +1193,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         {/* Industrial Visual Editor Canvas */}
         <div
           className={`w-full flex-1 h-[560px] sm:h-[640px] lg:h-full lg:min-h-0 min-h-[480px] bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden relative shadow-inner ${
-            mobileTab === "canvas" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
+            mobileTab === "canvas" ? "block" : "hidden lg:block"
           }`}
         >
           {loading && (
@@ -1173,15 +1210,23 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={onNodeClick}
+            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+            minZoom={0.15}
+            maxZoom={2}
+            className="w-full h-full"
             onInit={(instance) => {
               reactFlowInstanceRef.current = instance;
-              setTimeout(() => {
-                instance.fitView({ padding: 0.25 });
-              }, 100);
+              const vp = instance.getViewport();
+              if (!Number.isFinite(vp?.x) || !Number.isFinite(vp?.y) || !Number.isFinite(vp?.zoom) || (vp?.zoom ?? 0) <= 0) {
+                instance.setViewport({ x: 0, y: 0, zoom: 1 });
+              }
+              requestAnimationFrame(() => {
+                setTimeout(() => {
+                  safeFitView(0.25, 0);
+                }, 100);
+              });
             }}
             deleteKeyCode={["Backspace", "Delete"]}
-            fitView
-            fitViewOptions={{ padding: 0.25 }}
             panOnDrag={true}
             zoomOnPinch={true}
           >
@@ -1253,7 +1298,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
 
               <button
                 type="button"
-                onClick={() => reactFlowInstanceRef.current?.fitView({ padding: 0.25, duration: 500 })}
+                onClick={() => safeFitView(0.25, 300)}
                 className="p-1 sm:p-1.5 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 cursor-pointer"
                 title="Center Canvas"
               >
