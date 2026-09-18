@@ -418,6 +418,7 @@ export function CustomizerTab({
                     { key: "sendBtn", label: "Send Button", props: ["bg", "text"] as const },
                     { key: "launcher", label: "Launcher Button", props: ["bg", "text"] as const },
                     { key: "avatar", label: "Avatar / Profile", props: ["bg", "text"] as const },
+                    { key: "bottomNav", label: "Bottom Bar", props: ["bg", "text"] as const },
                   ] as const
                 ).map((section) => {
                   const textPropLabel = ICON_ONLY_SECTIONS.has(section.key) ? "Icon Color" : "Text Color";
@@ -470,6 +471,105 @@ export function CustomizerTab({
                   Reset to design defaults
                 </button>
               )}
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Bottom Navigation Bar</label>
+              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-2">Configure navigation appearance to match your active design preset.</p>
+              
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                {[
+                  { id: "default", label: "Preset Default", desc: "Follows active theme" },
+                  { id: "pill", label: "Floating Pill", desc: "Rounded floating dock" },
+                  { id: "clean", label: "Clean Flush", desc: "Minimal borderless" },
+                  { id: "glass", label: "Frosted Glass", desc: "Backdrop blur" },
+                ].map((opt) => {
+                  const currentStyle = colorScheme?.bottomNav?.style || "default";
+                  const isSelected = currentStyle === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        const defaultScheme = generateColorScheme(primaryColor);
+                        const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
+                        const next: WidgetColorScheme = {
+                          ...scheme,
+                          bottomNav: {
+                            ...(scheme.bottomNav || defaultScheme.bottomNav || { bg: scheme.botBubble.bg, text: scheme.botBubble.text }),
+                            style: opt.id as "default" | "pill" | "clean" | "glass",
+                          },
+                        };
+                        handleInputChange(setColorScheme, next);
+                      }}
+                      className={`p-2 rounded-xl border text-left cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-[#f97316] bg-[#f97316]/5 ring-1 ring-[#f97316]/30"
+                          : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700"
+                      }`}
+                    >
+                      <span className={`text-[11px] font-semibold block ${isSelected ? "text-[#f97316]" : "text-neutral-800 dark:text-neutral-200"}`}>
+                        {opt.label}
+                      </span>
+                      <span className="text-[9px] text-neutral-400 block">{opt.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Label Toggle */}
+              <div className="flex items-center justify-between p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+                <div className="min-w-0 pr-2">
+                  <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 block">Tab Labels</span>
+                  <span className="text-[9px] text-neutral-400">Display icon with text, or icons only</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defaultScheme = generateColorScheme(primaryColor);
+                      const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
+                      const next: WidgetColorScheme = {
+                        ...scheme,
+                        bottomNav: {
+                          ...(scheme.bottomNav || defaultScheme.bottomNav || { bg: scheme.botBubble.bg, text: scheme.botBubble.text }),
+                          showLabels: true,
+                        },
+                      };
+                      handleInputChange(setColorScheme, next);
+                    }}
+                    className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors cursor-pointer ${
+                      colorScheme?.bottomNav?.showLabels !== false
+                        ? "bg-[#f97316] text-white"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    }`}
+                  >
+                    Icon + Label
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defaultScheme = generateColorScheme(primaryColor);
+                      const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
+                      const next: WidgetColorScheme = {
+                        ...scheme,
+                        bottomNav: {
+                          ...(scheme.bottomNav || defaultScheme.bottomNav || { bg: scheme.botBubble.bg, text: scheme.botBubble.text }),
+                          showLabels: false,
+                        },
+                      };
+                      handleInputChange(setColorScheme, next);
+                    }}
+                    className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors cursor-pointer ${
+                      colorScheme?.bottomNav?.showLabels === false
+                        ? "bg-[#f97316] text-white"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    }`}
+                  >
+                    Icon Only
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div>

@@ -116,6 +116,11 @@ export interface SectionColors {
   icon?: string;
 }
 
+export interface BottomNavSettings extends SectionColors {
+  style?: "default" | "pill" | "clean" | "glass";
+  showLabels?: boolean;
+}
+
 export interface WidgetColorScheme {
   header: SectionColors;
   botBubble: SectionColors;
@@ -124,10 +129,11 @@ export interface WidgetColorScheme {
   sendBtn: SectionColors;
   launcher: SectionColors;
   avatar?: SectionColors;
+  bottomNav?: BottomNavSettings;
 }
 
 /**
- * Derives a full 7-section color scheme from one seed color - same hue
+ * Derives a full 8-section color scheme from one seed color - same hue
  * throughout (color theory, not per-section arbitrary picks), lightness
  * and saturation shifted per surface so bot-bubble/input-bar stay soft
  * and legible instead of a jarring flat fill of the seed itself, and
@@ -151,6 +157,7 @@ export function generateColorScheme(seedHex: string): WidgetColorScheme {
     sendBtn: { bg: solid, text: solidText },
     launcher: { bg: solid, text: solidText },
     avatar: { bg: solid, text: solidText },
+    bottomNav: { bg: softBg, text: softText, style: "default", showLabels: true },
   };
 }
 
@@ -187,6 +194,11 @@ export function buildColorSchemeCss(scheme: WidgetColorScheme | null, scopeSelec
   const avatar = scheme.avatar, avatarBg = safeHex(avatar?.bg), avatarText = safeHex(avatar?.text);
   if (avatarBg && avatarText) {
     rules.push(`${scopeSelector} .agent-avatar-badge { background-color: ${avatarBg} !important; color: ${avatarText} !important; }`);
+  }
+  const bottomNav = scheme.bottomNav, bottomNavBg = safeHex(bottomNav?.bg), bottomNavText = safeHex(bottomNav?.text);
+  if (bottomNavBg && bottomNavText) {
+    rules.push(`${scopeSelector} .chat-bottom-nav { background-color: ${bottomNavBg} !important; color: ${bottomNavText} !important; }`);
+    rules.push(`${scopeSelector} .chat-bottom-nav-item { color: ${bottomNavText} !important; }`);
   }
   return rules.join("\n");
 }

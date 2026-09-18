@@ -283,6 +283,103 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 25%, transparent) !important;
 }
 
+/* ── Preset-Specific Cards, Panels & Bottom Navigation ── */
+
+/* 1. Minimal */
+.style-minimal .widget-panel { background-color: #f3f2ee !important; color: #1c1a15 !important; }
+.style-minimal .widget-card { background-color: #ffffff !important; border: 1px solid #e6e4de !important; border-radius: 16px !important; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important; color: #1c1a15 !important; }
+.style-minimal .widget-search-bar { background-color: #ffffff !important; border: 1px solid #e6e4de !important; border-radius: 12px !important; color: #1c1a15 !important; }
+.style-minimal .chat-bottom-nav { background-color: #f3f2ee !important; border-top: 1px solid #e6e4de !important; color: #1c1a15 !important; }
+.dark .style-minimal .widget-panel { background-color: #171613 !important; color: #f3f2ee !important; }
+.dark .style-minimal .widget-card { background-color: #1e1c18 !important; border-color: #2a2822 !important; color: #f3f2ee !important; }
+.dark .style-minimal .widget-search-bar { background-color: #1e1c18 !important; border-color: #2a2822 !important; color: #f3f2ee !important; }
+.dark .style-minimal .chat-bottom-nav { background-color: #171613 !important; border-top-color: #2a2822 !important; }
+
+/* 2. Playful */
+.style-playful .widget-panel { background-color: #fffaf5 !important; color: #2a1a10 !important; }
+.style-playful .widget-card { background-color: #ffffff !important; border: 2px solid #ffe6d9 !important; border-radius: 24px !important; box-shadow: 0 8px 24px -4px rgba(255, 138, 92, 0.15) !important; color: #2a1a10 !important; }
+.style-playful .widget-search-bar { background-color: #ffffff !important; border: 2px solid #ffd6c1 !important; border-radius: 20px !important; color: #7a3f24 !important; }
+.style-playful .chat-bottom-nav { background-color: #fffaf5 !important; border-top: 2px solid #ffe6d9 !important; border-radius: 24px 24px 0 0 !important; color: #7a3f24 !important; }
+.dark .style-playful .widget-panel { background-color: #2a1c14 !important; color: #ffe6d9 !important; }
+.dark .style-playful .widget-card { background-color: #38241a !important; border-color: #4a3022 !important; color: #ffe6d9 !important; }
+.dark .style-playful .widget-search-bar { background-color: #38241a !important; border-color: #4a3022 !important; color: #ffe6d9 !important; }
+.dark .style-playful .chat-bottom-nav { background-color: #2a1c14 !important; border-top-color: #4a3022 !important; }
+
+/* 3. Corporate */
+.style-corporate .widget-panel { background-color: #f1f4f8 !important; color: #1c2e4a !important; }
+.style-corporate .widget-card { background-color: #ffffff !important; border: 1px solid #d7dce3 !important; border-radius: 8px !important; box-shadow: 0 2px 8px rgba(28, 46, 74, 0.06) !important; color: #1c2e4a !important; }
+.style-corporate .widget-search-bar { background-color: #ffffff !important; border: 1px solid #d7dce3 !important; border-radius: 6px !important; color: #1c2e4a !important; }
+.style-corporate .chat-bottom-nav { background-color: #eef1f6 !important; border-top: 1px solid #d7dce3 !important; color: #1c2e4a !important; }
+.dark .style-corporate .widget-panel { background-color: #10151d !important; color: #dbe2ec !important; }
+.dark .style-corporate .widget-card { background-color: #171f2b !important; border-color: #263447 !important; color: #dbe2ec !important; }
+.dark .style-corporate .widget-search-bar { background-color: #171f2b !important; border-color: #263447 !important; color: #dbe2ec !important; }
+.dark .style-corporate .chat-bottom-nav { background-color: #10151d !important; border-top-color: #263447 !important; }
+
+/* 4. Dark Sleek */
+.style-dark-sleek .widget-panel { background-color: #111114 !important; color: #e4e4e8 !important; }
+.style-dark-sleek .widget-card { background-color: #16161c !important; border: 1px solid rgba(0, 229, 199, 0.22) !important; border-radius: 14px !important; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(0, 229, 199, 0.1) !important; color: #e4e4e8 !important; }
+.style-dark-sleek .widget-search-bar { background-color: #14141a !important; border: 1px solid rgba(0, 229, 199, 0.25) !important; border-radius: 10px !important; color: #e4e4e8 !important; }
+.style-dark-sleek .chat-bottom-nav { background-color: #111114 !important; border-top: 1px solid rgba(0, 229, 199, 0.25) !important; color: #00e5c7 !important; }
+
+/* 5. Gradient Glow */
+.style-gradient-glow .widget-panel { background-color: #fdfaff !important; color: #2a1245 !important; }
+.style-gradient-glow .widget-card { background-color: #ffffff !important; border: 1px solid rgba(168, 85, 247, 0.22) !important; border-radius: 20px !important; box-shadow: 0 8px 24px -4px rgba(168, 85, 247, 0.16) !important; color: #2a1245 !important; }
+.style-gradient-glow .widget-search-bar { background-color: #ffffff !important; border: 1px solid rgba(168, 85, 247, 0.3) !important; border-radius: 16px !important; color: #2a1245 !important; }
+.style-gradient-glow .chat-bottom-nav { background-color: #fbf8ff !important; border-top: 1px solid rgba(168, 85, 247, 0.2) !important; color: #9733f5 !important; }
+.dark .style-gradient-glow .widget-panel { background-color: #150d1e !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .widget-card { background-color: #20142e !important; border-color: rgba(168, 85, 247, 0.3) !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .widget-search-bar { background-color: #20142e !important; border-color: rgba(168, 85, 247, 0.3) !important; color: #f0e5fa !important; }
+.dark .style-gradient-glow .chat-bottom-nav { background-color: #150d1e !important; border-top-color: rgba(168, 85, 247, 0.3) !important; }
+
+/* 6. Glassmorphism */
+.style-glassmorphism .widget-panel { background: linear-gradient(145deg, #1e293b, #3b82f6 40%, #7c3aed 80%, #db2777) !important; color: #ffffff !important; }
+.style-glassmorphism .widget-card { background-color: rgba(255, 255, 255, 0.15) !important; border: 1px solid rgba(255, 255, 255, 0.28) !important; border-radius: 18px !important; backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.22) !important; color: #ffffff !important; }
+.style-glassmorphism .widget-card p, .style-glassmorphism .widget-card span { color: #ffffff !important; }
+.style-glassmorphism .widget-search-bar { background-color: rgba(255, 255, 255, 0.12) !important; border: 1px solid rgba(255, 255, 255, 0.32) !important; border-radius: 16px !important; backdrop-filter: blur(16px) !important; color: #ffffff !important; }
+.style-glassmorphism .widget-search-bar::placeholder { color: rgba(255, 255, 255, 0.75) !important; }
+.style-glassmorphism .chat-bottom-nav { background-color: rgba(15, 23, 42, 0.45) !important; border-top: 1px solid rgba(255, 255, 255, 0.22) !important; backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; color: #ffffff !important; }
+
+/* 7. E-commerce */
+.style-ecommerce .widget-panel { background-color: #fdf9f2 !important; color: #3a3226 !important; }
+.style-ecommerce .widget-card { background-color: #ffffff !important; border: 1px solid #e8ddd0 !important; border-radius: 14px !important; box-shadow: 0 4px 16px -2px rgba(15, 157, 140, 0.08) !important; color: #3a3226 !important; }
+.style-ecommerce .widget-search-bar { background-color: #ffffff !important; border: 1px solid #e8ddd0 !important; border-radius: 12px !important; color: #3a3226 !important; }
+.style-ecommerce .chat-bottom-nav { background-color: #fdf9f2 !important; border-top: 1px solid #e8ddd0 !important; color: #0c8173 !important; }
+.dark .style-ecommerce .widget-panel { background-color: #1a1712 !important; color: #ede6d8 !important; }
+.dark .style-ecommerce .widget-card { background-color: #241f17 !important; border-color: #382e21 !important; color: #ede6d8 !important; }
+.dark .style-ecommerce .widget-search-bar { background-color: #241f17 !important; border-color: #382e21 !important; color: #ede6d8 !important; }
+.dark .style-ecommerce .chat-bottom-nav { background-color: #1a1712 !important; border-top-color: #382e21 !important; }
+
+/* 8. Healthcare Calm */
+.style-healthcare-calm .widget-panel { background-color: #fbfcf9 !important; color: #2f4235 !important; }
+.style-healthcare-calm .widget-card { background-color: #ffffff !important; border: 1px solid #dde8dd !important; border-radius: 18px !important; box-shadow: 0 6px 18px -3px rgba(111, 156, 125, 0.1) !important; color: #2f4235 !important; }
+.style-healthcare-calm .widget-search-bar { background-color: #ffffff !important; border: 1px solid #dde8dd !important; border-radius: 14px !important; color: #2f4235 !important; }
+.style-healthcare-calm .chat-bottom-nav { background-color: #fbfcf9 !important; border-top: 1px solid #dde8dd !important; color: #567d62 !important; }
+.dark .style-healthcare-calm .widget-panel { background-color: #131a15 !important; color: #d9e8dc !important; }
+.dark .style-healthcare-calm .widget-card { background-color: #1c2720 !important; border-color: #2b3b30 !important; color: #d9e8dc !important; }
+.dark .style-healthcare-calm .widget-search-bar { background-color: #1c2720 !important; border-color: #2b3b30 !important; color: #d9e8dc !important; }
+.dark .style-healthcare-calm .chat-bottom-nav { background-color: #131a15 !important; border-top-color: #2b3b30 !important; }
+
+/* 9. Neubrutalism */
+.style-neubrutalism .widget-panel { background-color: #fffdf5 !important; color: #111111 !important; }
+.style-neubrutalism .widget-card { background-color: #ffffff !important; border: 3px solid #111111 !important; border-radius: 4px !important; box-shadow: 4px 4px 0 0 #111111 !important; color: #111111 !important; }
+.style-neubrutalism .widget-card:hover { box-shadow: 6px 6px 0 0 #111111 !important; transform: translate(-1px, -1px); }
+.style-neubrutalism .widget-search-bar { background-color: #ffffff !important; border: 3px solid #111111 !important; border-radius: 4px !important; box-shadow: 3px 3px 0 0 #111111 !important; color: #111111 !important; font-weight: 600; }
+.style-neubrutalism .chat-bottom-nav { background-color: #ffde59 !important; border-top: 3px solid #111111 !important; color: #111111 !important; font-weight: 700; }
+.dark .style-neubrutalism .widget-panel { background-color: #1a1a1a !important; color: #f2f2f2 !important; }
+.dark .style-neubrutalism .widget-card { background-color: #242424 !important; border: 3px solid #f2f2f2 !important; box-shadow: 4px 4px 0 0 #f2f2f2 !important; color: #f2f2f2 !important; }
+.dark .style-neubrutalism .widget-search-bar { background-color: #242424 !important; border: 3px solid #f2f2f2 !important; box-shadow: 3px 3px 0 0 #f2f2f2 !important; color: #f2f2f2 !important; }
+.dark .style-neubrutalism .chat-bottom-nav { background-color: #1a1a1a !important; border-top: 3px solid #f2f2f2 !important; color: #ffde59 !important; }
+
+/* 10. Luxury Editorial */
+.style-luxury-editorial .widget-panel { background-color: #fbf9f5 !important; color: #2a251d !important; }
+.style-luxury-editorial .widget-card { background-color: #ffffff !important; border: 1px solid #c9a86a !important; border-radius: 4px !important; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important; color: #2a251d !important; }
+.style-luxury-editorial .widget-search-bar { background-color: #ffffff !important; border: 1px solid #c9a86a !important; border-radius: 4px !important; color: #2a251d !important; }
+.style-luxury-editorial .chat-bottom-nav { background-color: #fbf9f5 !important; border-top: 1px solid #c9a86a !important; color: #b08a3e !important; }
+.dark .style-luxury-editorial .widget-panel { background-color: #14120f !important; color: #efe6d3 !important; }
+.dark .style-luxury-editorial .widget-card { background-color: #1c1915 !important; border-color: #b08a3e !important; color: #efe6d3 !important; }
+.dark .style-luxury-editorial .widget-search-bar { background-color: #1c1915 !important; border-color: #b08a3e !important; color: #efe6d3 !important; }
+.dark .style-luxury-editorial .chat-bottom-nav { background-color: #14120f !important; border-top-color: #b08a3e !important; }
+
 /* Voice-message player (AudioBubble in ChatWidgetCore.tsx). One shared,
  * preset-agnostic rule block - not one variant per design like the sections
  * above - because it themes itself entirely off `currentColor`, which each
