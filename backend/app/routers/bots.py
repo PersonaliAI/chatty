@@ -133,6 +133,78 @@ async def upload_bot_avatar(
         raise HTTPException(status_code=500, detail="Avatar upload failed") from e
 
 
+@router.get("/api/agent/profile")
+async def get_agent_profile(user: dict[str, Any] = Depends(require_user)):
+    """Get current user's human agent sender profile (photo, name, role)."""
+    user_id = user["auth_user_id"]
+    res = await run_db(lambda: supabase.table("chatty_agent_sender_profiles").select("*").eq("user_id", user_id).execute())
+    if res.data:
+        return res.data[0]
+    email_name = user.get("email", "").split("@")[0].capitalize() or "Support Agent"
+    return {
+        "user_id": user_id,
+        "display_name": email_name,
+        "avatar_url": None,
+        "role_title": "Support Specialist",
+    }
+
+
+@router.post("/api/agent/profile")
+async def update_agent_profile(
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Update human agent sender profile (display name, role title, avatar url)."""
+    user_id = user["auth_user_id"]
+    payload = {
+        "user_id": user_id,
+        "display_name": body.get("display_name") or "",
+        "avatar_url": body.get("avatar_url"),
+        "role_title": body.get("role_title") or "Support Specialist",
+    }
+    await run_db(lambda: supabase.table("chatty_agent_sender_profiles").upsert(payload).execute())
+    return payload
+
+
+@router.post("/api/agent/avatar")
+async def upload_agent_avatar(
+    file: UploadFile = File(...),
+    display_name: str = Form(""),
+    role_title: str = Form(""),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Upload human agent profile photo and store in Supabase storage & sender profiles."""
+    user_id = user["auth_user_id"]
+    data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Photo must be under 10MB")
+    if not data:
+        raise HTTPException(status_code=400, detail="Photo must be a non-empty image under 10MB")
+    mime = (file.content_type or "image/png").split(";")[0]
+    if not mime.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    import uuid as _uuid
+    ext = (file.filename or "avatar.png").split(".")[-1][:8]
+    path = f"avatars/agents/{user_id}/{_uuid.uuid4().hex[:8]}.{ext}"
+    try:
+        def _upload():
+            supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+            url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+            profile_payload: dict[str, Any] = {
+                "user_id": user_id,
+                "avatar_url": url,
+            }
+            if display_name:
+                profile_payload["display_name"] = display_name
+            if role_title:
+                profile_payload["role_title"] = role_title
+            supabase.table("chatty_agent_sender_profiles").upsert(profile_payload).execute()
+            return url
+        url = await run_db(_upload)
+        return {"avatar_url": url}
+    except Exception as e:
+        logger.exception("Agent photo upload failed")
+        raise HTTPException(status_code=500, detail="Agent photo upload failed") from e
+
+
 @router.post("/api/generate-business")
 async def generate_business(
     req: GenerateBusinessRequest,

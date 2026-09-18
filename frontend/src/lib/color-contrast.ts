@@ -123,10 +123,11 @@ export interface WidgetColorScheme {
   inputBar: SectionColors;
   sendBtn: SectionColors;
   launcher: SectionColors;
+  avatar?: SectionColors;
 }
 
 /**
- * Derives a full 6-section color scheme from one seed color - same hue
+ * Derives a full 7-section color scheme from one seed color - same hue
  * throughout (color theory, not per-section arbitrary picks), lightness
  * and saturation shifted per surface so bot-bubble/input-bar stay soft
  * and legible instead of a jarring flat fill of the seed itself, and
@@ -149,6 +150,7 @@ export function generateColorScheme(seedHex: string): WidgetColorScheme {
     inputBar: { bg: hslToHex(h, Math.min(s, 30) * 0.35, 97.5), text: softText, icon: hslToHex(h, Math.min(s, 50), 45) },
     sendBtn: { bg: solid, text: solidText },
     launcher: { bg: solid, text: solidText },
+    avatar: { bg: solid, text: solidText },
   };
 }
 
@@ -182,5 +184,9 @@ export function buildColorSchemeCss(scheme: WidgetColorScheme | null, scopeSelec
   if (inputIcon) rules.push(`${scopeSelector} .chat-input-bar-icon { color: ${inputIcon} !important; }`);
   const send = scheme.sendBtn, sendBg = safeHex(send?.bg), sendText = safeHex(send?.text);
   if (sendBg && sendText) rules.push(`${scopeSelector} .send-btn { background-color: ${sendBg} !important; color: ${sendText} !important; }`);
+  const avatar = scheme.avatar, avatarBg = safeHex(avatar?.bg), avatarText = safeHex(avatar?.text);
+  if (avatarBg && avatarText) {
+    rules.push(`${scopeSelector} .agent-avatar-badge { background-color: ${avatarBg} !important; color: ${avatarText} !important; }`);
+  }
   return rules.join("\n");
 }
