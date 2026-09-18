@@ -119,24 +119,26 @@ export function ChattyStandaloneApp({
   const [customSize, setCustomSize] = useState<{ width: number; height: number } | null>(null);
   const resizeDragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
 
-  const [currentDesign, setCurrentDesign] = useState(() => normalizeWidgetStyle(styleAttr));
-  const [launcherBg, setLauncherBg] = useState(() => colorAttr || LAUNCHER_STYLES[normalizeWidgetStyle(styleAttr)]?.bg || "#f97316");
-  const [launcherRadius, setLauncherRadius] = useState(() => LAUNCHER_STYLES[normalizeWidgetStyle(styleAttr)]?.radius || "50%");
-  const [launcherShadow, setLauncherShadow] = useState(() => LAUNCHER_STYLES[normalizeWidgetStyle(styleAttr)]?.shadow || "0 6px 24px rgba(0,0,0,.25)");
-  const [launcherIconOverride, setLauncherIconOverride] = useState<string | null>(null);
-  const [avatarIconType, setAvatarIconType] = useState("logo");
-  const [customIconUrl, setCustomIconUrl] = useState<string | null>(null);
-  const [customLogoBgColor, setCustomLogoBgColor] = useState("");
+  // Cached theme for instant zero-flash initial render
+  const cachedTheme = (() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(`chatty_theme_cache_${botId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  })();
 
-  // Launcher stays invisible (but already mounted, so no layout jump once it
-  // fades in) until the theme fetch below settles, one way or another - the
-  // button's own initial state defaults to LAUNCHER_STYLES.minimal / the
-  // "#f97316" fallback, and rendering that opaque immediately produced a
-  // visible flash of the wrong color/icon that then swapped to the bot's
-  // real theme moments later. The timeout is a floor, not the trigger: it
-  // only reveals early if the fetch is slow/down, so a real visitor is never
-  // stuck staring at nothing because of a network hiccup.
-  const [revealed, setRevealed] = useState(false);
+  const [currentDesign, setCurrentDesign] = useState(() => cachedTheme?.widgetStyle || normalizeWidgetStyle(styleAttr));
+  const [launcherBg, setLauncherBg] = useState(() => cachedTheme?.launcherBg || colorAttr || LAUNCHER_STYLES[normalizeWidgetStyle(styleAttr)]?.bg || "#f97316");
+  const [launcherRadius, setLauncherRadius] = useState(() => cachedTheme?.launcherRadius || LAUNCHER_STYLES[normalizeWidgetStyle(styleAttr)]?.radius || "50%");
+  const [launcherShadow, setLauncherShadow] = useState(() => cachedTheme?.launcherShadow || LAUNCHER_STYLES[normalizeWidgetStyle(styleAttr)]?.shadow || "0 6px 24px rgba(0,0,0,.25)");
+  const [launcherIconOverride, setLauncherIconOverride] = useState<string | null>(() => cachedTheme?.launcherIconOverride || null);
+  const [avatarIconType, setAvatarIconType] = useState(() => cachedTheme?.avatarIconType || "logo");
+  const [customIconUrl, setCustomIconUrl] = useState<string | null>(() => cachedTheme?.customIconUrl || null);
+  const [customLogoBgColor, setCustomLogoBgColor] = useState(() => cachedTheme?.customLogoBgColor || "");
+
+  // Launcher stays invisible until either the cached theme is loaded or the fresh theme settles
+  const [revealed, setRevealed] = useState(() => !!cachedTheme);
   const [teaserVisible, setTeaserVisible] = useState(false);
   const [teaserText, setTeaserText] = useState("👋 Need help? Chat with us.");
   const triggerRulesRef = useRef<TriggerRule[]>([]);
@@ -183,36 +185,60 @@ export function ChattyStandaloneApp({
 
   useEffect(() => {
     let cancelled = false;
-    const revealTimer = setTimeout(() => setRevealed(true), 2500);
+    const revealTimer = setTimeout(() => setRevealed(true), 1200);
     fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(botId)}&t=${Date.now()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelled || !d) return;
 
+        let activeDesign = normalizeWidgetStyle(styleAttr);
+        let activeBg = colorAttr || LAUNCHER_STYLES[activeDesign]?.bg || "#f97316";
+        let activeRadius = LAUNCHER_STYLES[activeDesign]?.radius || "50%";
+        let activeShadow = LAUNCHER_STYLES[activeDesign]?.shadow || "0 6px 24px rgba(0,0,0,.25)";
+        let activeLogoBg = "";
+        let activeIconOverride: string | null = null;
+
         if (d.widget_style) {
           const [styleName, logoBg] = String(d.widget_style).split(":");
           const norm = normalizeWidgetStyle(styleName);
+          activeDesign = norm;
           setCurrentDesign(norm);
           const preset = LAUNCHER_STYLES[norm];
           if (preset) {
+            activeBg = preset.bg;
+            activeRadius = preset.radius;
+            activeShadow = preset.shadow;
             setLauncherBg(preset.bg);
             setLauncherRadius(preset.radius);
             setLauncherShadow(preset.shadow);
           }
-          if (logoBg) setCustomLogoBgColor(logoBg);
+          if (logoBg) {
+            activeLogoBg = logoBg;
+            setCustomLogoBgColor(logoBg);
+          }
         } else if (d.primary_color) {
+          activeBg = d.primary_color;
           setLauncherBg(d.primary_color);
         }
 
         // Section Colors launcher overrides from Customizer take precedence
         if (d.color_scheme?.launcher?.bg) {
+          activeBg = d.color_scheme.launcher.bg;
           setLauncherBg(d.color_scheme.launcher.bg);
-          if (d.color_scheme.launcher.text) setLauncherIconOverride(d.color_scheme.launcher.text);
+          if (d.color_scheme.launcher.text) {
+            activeIconOverride = d.color_scheme.launcher.text;
+            setLauncherIconOverride(d.color_scheme.launcher.text);
+          }
         } else if (colorAttr) {
+          activeBg = colorAttr;
           setLauncherBg(colorAttr);
         }
 
-        if (d.avatar_icon) setAvatarIconType(d.avatar_icon);
+        let activeAvatarIcon = "logo";
+        if (d.avatar_icon) {
+          activeAvatarIcon = d.avatar_icon;
+          setAvatarIconType(d.avatar_icon);
+        }
         const logo = (d.avatar_icon === "custom" && d.avatar_url) ? d.avatar_url : d.logo_url;
         if (logo) setCustomIconUrl(logo);
 
@@ -229,6 +255,20 @@ export function ChattyStandaloneApp({
           } catch {}
         }
 
+        // Cache for subsequent visits
+        try {
+          localStorage.setItem(`chatty_theme_cache_${botId}`, JSON.stringify({
+            widgetStyle: activeDesign,
+            launcherBg: activeBg,
+            launcherRadius: activeRadius,
+            launcherShadow: activeShadow,
+            launcherIconOverride: activeIconOverride,
+            avatarIconType: activeAvatarIcon,
+            customIconUrl: logo,
+            customLogoBgColor: activeLogoBg,
+          }));
+        } catch {}
+
         // Initialize teaser rules
         if (teaserEnabled) {
           setTimeout(() => {
@@ -238,6 +278,7 @@ export function ChattyStandaloneApp({
       })
       .catch(() => {})
       .finally(() => {
+        clearTimeout(revealTimer);
         if (!cancelled) setRevealed(true);
       });
 

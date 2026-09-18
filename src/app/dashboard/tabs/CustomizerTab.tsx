@@ -770,7 +770,7 @@ export function CustomizerTab({
               </div>
               <div className="flex-1 min-w-0">
                 <h4 className="font-semibold text-sm leading-tight truncate">{botName}</h4>
-                <p className="text-[9px] opacity-80">Online · replies instantly</p>
+                <p className="text-[9px] opacity-80">Online</p>
               </div>
               <div className="flex items-center shrink-0 opacity-80">
                 <span className="p-1.5"><Bell className="size-3.5" /></span>

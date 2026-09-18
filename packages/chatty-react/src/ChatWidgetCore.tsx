@@ -358,8 +358,8 @@ function AgentAvatar({
   }, [name]);
 
   const showFallback = !isValidUrl || imageError;
-  const fallbackBg = bgColor || primaryColor || "#f97316";
-  const fallbackFg = textColor || onPrimary || getOnColor(fallbackBg);
+  const fallbackBg = primaryColor || "#f97316";
+  const fallbackFg = textColor || getOnColor(fallbackBg);
 
   return (
     <div className={`relative inline-flex shrink-0 ${className}`}>
@@ -412,17 +412,18 @@ function AvatarGroup({
   const items: { src?: string | null; name: string }[] = [];
 
   if (profiles && profiles.length > 0) {
-    for (const p of profiles.slice(0, 3)) {
-      items.push({ src: p.avatar_url, name: p.name });
+    for (const p of profiles) {
+      if (p.avatar_url || (p.name && p.name.trim())) {
+        items.push({ src: p.avatar_url, name: p.name });
+      }
+      if (items.length >= 3) break;
     }
   }
 
   if (items.length === 0) {
     items.push({ src: botAvatarUrl, name: botName });
-  } else if (items.length === 1) {
-    if (botAvatarUrl && items[0].src !== botAvatarUrl) {
-      items.unshift({ src: botAvatarUrl, name: botName });
-    }
+  } else if (items.length === 1 && botAvatarUrl && items[0].src !== botAvatarUrl) {
+    items.unshift({ src: botAvatarUrl, name: botName });
   }
 
   return (
@@ -435,7 +436,7 @@ function AvatarGroup({
           size={size}
           primaryColor={primaryColor}
           onPrimary={onPrimary}
-          bgColor={bgColor}
+          bgColor={item.src === botAvatarUrl ? bgColor : undefined}
           textColor={textColor}
           className="ring-2 ring-white dark:ring-neutral-900 rounded-full"
         />
@@ -2490,7 +2491,7 @@ export default function ChatWidgetCore({
               ) : (
                 <>
                   <span className="size-1.5 rounded-full bg-green-300 animate-pulse" />
-                  <span>Online · replies instantly</span>
+                  <span>Online</span>
                 </>
               )}
             </p>
