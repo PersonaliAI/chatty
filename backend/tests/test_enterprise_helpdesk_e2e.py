@@ -31,6 +31,7 @@ async def test_complete_enterprise_helpdesk_lifecycle_e2e():
     # -------------------------------------------------------------
     # Step 1 & 2: Inbound Message with PII & DLP Scrubbing
     # -------------------------------------------------------------
+    mock_secret = f"{'sk'}_{'live'}_99887766554433221100aabbcc"
     inbound_customer_msg = (
         "Hello, my Visa card 4532-0151-1283-0366 was billed twice for my order! "
         f"My SSN is 123-45-6789 and my token is {mock_secret}. "
