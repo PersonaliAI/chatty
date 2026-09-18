@@ -420,10 +420,29 @@ export default function Home() {
 
       <div className="max-w-[1200px] mx-auto px-5 sm:px-9">
         {/* Hero */}
-        <section className="relative pt-8 sm:pt-12 pb-14 sm:pb-18 text-center">
+        <section className="relative pt-6 sm:pt-10 pb-14 sm:pb-18 text-center">
           <div className="absolute left-1/2 -top-24 -translate-x-1/2 w-[500px] h-[340px] sm:w-[720px] sm:h-[480px] rounded-full -z-10 pointer-events-none opacity-65 blur-[2px]" style={{ background: "var(--color-accent-2-200)" }} />
           <div className="absolute -left-32 top-24 w-40 h-40 sm:w-64 sm:h-64 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-200)" }} />
           <div className="absolute -right-28 top-64 w-32 h-32 sm:w-56 sm:h-56 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-2-100)" }} />
+
+          {/* Product Hunt Social Proof at Top */}
+          <div className="flex justify-center mb-6">
+            <a
+              href="https://www.producthunt.com/products/chatty-9/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-chatty&#0045;9"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block transition-transform hover:scale-105"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1317137&theme=light"
+                alt="Chatty - Open-source AI support bot for your website | Product Hunt"
+                style={{ width: "250px", height: "54px" }}
+                width="250"
+                height="54"
+              />
+            </a>
+          </div>
 
           <h1 className="mx-auto max-w-[16ch] leading-[1.1] tracking-tight text-[clamp(34px,8vw,72px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
             Trained on your content. <span style={{ color: "var(--color-accent-600)" }}>Optimized for conversion.</span>
@@ -457,24 +476,6 @@ export default function Home() {
             </Link>
           </div>
           <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
-
-          <div className="mt-6 flex justify-center">
-            <a
-              href="https://www.producthunt.com/products/chatty-9/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-chatty&#0045;9"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block transition-transform hover:scale-105"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1317137&theme=light"
-                alt="Chatty - Open-source AI support bot for your website | Product Hunt"
-                style={{ width: "250px", height: "54px" }}
-                width="250"
-                height="54"
-              />
-            </a>
-          </div>
         </section>
 
         {/* Pricing */}

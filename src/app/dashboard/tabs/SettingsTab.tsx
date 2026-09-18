@@ -13,6 +13,10 @@ import {
   Loader2,
   Check,
   RefreshCw,
+  User,
+  Camera,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import {
@@ -335,6 +339,98 @@ export function SettingsTab({
       .finally(() => setLoadingCalendars(false));
   }, [googleConnected, googleConnectedAccountId, botId, fetchWithFallback]);
 
+  // User Profile Settings state
+  const [profileName, setProfileName] = React.useState("");
+  const [profileAvatarUrl, setProfileAvatarUrl] = React.useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = React.useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = React.useState(false);
+  const profileFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    if (!fetchWithFallback) return;
+    let active = true;
+    fetchWithFallback("/api/user/profile")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data) return;
+        setProfileName(data.display_name || "");
+        setProfileAvatarUrl(data.avatar_url || null);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [fetchWithFallback]);
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !fetchWithFallback) return;
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      if (profileName) fd.append("display_name", profileName);
+      const res = await fetchWithFallback("/api/user/avatar", { method: "POST", body: fd });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.avatar_url) {
+          setProfileAvatarUrl(data.avatar_url);
+          showToast("Profile photo uploaded successfully!", "success");
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.detail || "Failed to upload photo", "error");
+      }
+    } catch (err) {
+      console.error("Avatar upload error:", err);
+      showToast("Error uploading profile photo", "error");
+    } finally {
+      setUploadingAvatar(false);
+      if (profileFileInputRef.current) profileFileInputRef.current.value = "";
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!fetchWithFallback) return;
+    setSavingProfile(true);
+    try {
+      const res = await fetchWithFallback("/api/user/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display_name: profileName, avatar_url: profileAvatarUrl }),
+      });
+      if (res.ok) {
+        showToast("Profile updated successfully!", "success");
+      } else {
+        showToast("Failed to update profile", "error");
+      }
+    } catch (err) {
+      showToast("Error updating profile", "error");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!fetchWithFallback) return;
+    setSavingProfile(true);
+    try {
+      const res = await fetchWithFallback("/api/user/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display_name: profileName, avatar_url: null }),
+      });
+      if (res.ok) {
+        setProfileAvatarUrl(null);
+        showToast("Profile photo removed", "info");
+      }
+    } catch {
+      showToast("Error removing photo", "error");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   React.useEffect(() => {
     loadCalendars();
   }, [loadCalendars]);
@@ -342,6 +438,102 @@ export function SettingsTab({
   return (
             <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
               <div className="w-full max-w-2xl p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-8">
+
+                {/* SECTION: YOUR PROFILE & PHOTO */}
+                <div id="settings-profile-section" className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <User className="size-4 text-[#f97316]" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Your Profile & Photo</h3>
+                  </div>
+                  <p className="text-[11px] text-neutral-400 -mt-2">
+                    Manage your personal photo, display name, and identity. Your profile picture appears in the widget header, live conversation replies, and team rosters.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/50">
+                    <div className="relative group shrink-0">
+                      <div className="size-16 rounded-full overflow-hidden border-2 border-white dark:border-neutral-800 shadow-sm bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center font-bold text-lg text-neutral-700 dark:text-neutral-200 select-none">
+                        {profileAvatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={profileAvatarUrl} alt={profileName || "User"} className="size-full object-cover" />
+                        ) : (
+                          <span>{(profileName?.[0] || user?.email?.[0] || "U").toUpperCase()}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => profileFileInputRef.current?.click()}
+                        disabled={uploadingAvatar}
+                        title="Change profile photo"
+                        className="absolute bottom-0 right-0 p-1.5 rounded-full bg-[#f97316] text-white shadow hover:opacity-90 cursor-pointer disabled:opacity-50 transition-opacity"
+                      >
+                        {uploadingAvatar ? <Loader2 className="size-3 animate-spin" /> : <Camera className="size-3" />}
+                      </button>
+                      <input
+                        ref={profileFileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={handleAvatarFileChange}
+                        className="hidden"
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0 space-y-3 w-full">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Display Name</label>
+                          <input
+                            type="text"
+                            value={profileName}
+                            onChange={(e) => setProfileName(e.target.value)}
+                            placeholder={user?.email ? user.email.split("@")[0] : "Your Name"}
+                            className="w-full text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Email Address</label>
+                          <input
+                            type="email"
+                            value={user?.email || ""}
+                            disabled
+                            className="w-full text-xs bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-neutral-500 cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => profileFileInputRef.current?.click()}
+                          disabled={uploadingAvatar}
+                          className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {uploadingAvatar ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3" />}
+                          {profileAvatarUrl ? "Upload New Photo" : "Upload Photo"}
+                        </button>
+                        {profileAvatarUrl && (
+                          <button
+                            type="button"
+                            onClick={handleRemovePhoto}
+                            disabled={savingProfile}
+                            className="px-2.5 py-1.5 text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="size-3" />
+                            Remove
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleSaveProfile}
+                          disabled={savingProfile}
+                          className="ml-auto px-4 py-1.5 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-1.5 cursor-pointer"
+                        >
+                          {savingProfile ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                          Save Changes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* SECTION 0: TEAM */}
                 {canAccessTab("team") && (() => {
@@ -414,7 +606,15 @@ export function SettingsTab({
                           return (
                             <div key={m.id} className="px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 space-y-2">
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 min-w-0">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="size-6 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800 shrink-0 flex items-center justify-center text-[10px] font-bold text-neutral-600 dark:text-neutral-300 select-none">
+                                    {m.avatar_url ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={m.avatar_url} alt={m.name || m.email} className="size-full object-cover" />
+                                    ) : (
+                                      (m.name || m.email || "A").charAt(0).toUpperCase()
+                                    )}
+                                  </div>
                                   <span className="text-xs text-neutral-700 dark:text-neutral-200 truncate">{m.name || m.email}</span>
                                   {m.name && <span className="text-[10px] text-neutral-400 truncate">{m.email}</span>}
                                   <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-500">{m.role}</span>

@@ -262,7 +262,7 @@ export default function Dashboard() {
   const [logoBgColor, setLogoBgColor] = useState("");
   const [launcherShape, setLauncherShape] = useState("circle");
   const [userBots, setUserBots] = useState<Bot[]>([]);
-  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; name?: string; phone?: string; role: string; permissions?: string[]; bookable?: boolean; book_on_own_calendar?: boolean }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; name?: string; phone?: string; role: string; permissions?: string[]; bookable?: boolean; book_on_own_calendar?: boolean; avatar_url?: string | null }[]>([]);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
@@ -3913,11 +3913,17 @@ export default function Dashboard() {
             {user && (
               <button
                 type="button"
-                onClick={() => setActiveTab("customizer")}
+                onClick={() => {
+                  setActiveTab("settings");
+                  setTimeout(() => {
+                    const el = document.getElementById("settings-profile-section");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }, 100);
+                }}
                 className="w-full flex items-center gap-2 text-[10px] text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors py-1 cursor-pointer"
               >
                 <User className="size-3.5" />
-                Support Agent Profile & Photo
+                Your Profile & Photo
               </button>
             )}
             {user ? (

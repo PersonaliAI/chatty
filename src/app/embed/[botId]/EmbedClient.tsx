@@ -34,6 +34,7 @@ export interface TeamProfile {
   name: string;
   avatar_url?: string | null;
   role?: string;
+  online?: boolean;
 }
 interface Message {
   role: "user" | "assistant";
@@ -258,35 +259,38 @@ function AvatarGroup({
   bgColor?: string | null;
   size?: string;
 }) {
-  const items: { src?: string | null; name: string }[] = [];
+  const items: { src?: string | null; name: string; online?: boolean }[] = [];
 
   if (profiles && profiles.length > 0) {
     for (const p of profiles.slice(0, 3)) {
-      items.push({ src: p.avatar_url, name: p.name });
+      items.push({ src: p.avatar_url, name: p.name, online: !!p.online });
     }
   }
 
   if (items.length === 0) {
-    items.push({ src: botAvatarUrl, name: botName });
+    items.push({ src: botAvatarUrl, name: botName, online: true });
   } else if (items.length === 1) {
     if (botAvatarUrl && items[0].src !== botAvatarUrl) {
-      items.unshift({ src: botAvatarUrl, name: botName });
+      items.unshift({ src: botAvatarUrl, name: botName, online: true });
     }
   }
 
   return (
     <div className="flex items-center -space-x-2 shrink-0">
       {items.map((item, idx) => (
-        <AgentAvatar
-          key={idx}
-          src={item.src}
-          name={item.name}
-          size={size}
-          primaryColor={primaryColor}
-          onPrimary={onPrimary}
-          bgColor={bgColor}
-          className="ring-2 ring-white dark:ring-neutral-900 rounded-full"
-        />
+        <div key={idx} title={`${item.name}${item.online ? " · Online" : ""}`} className="relative inline-flex">
+          <AgentAvatar
+            src={item.src}
+            name={item.name}
+            size={size}
+            primaryColor={primaryColor}
+            onPrimary={onPrimary}
+            bgColor={bgColor}
+            showStatusDot={item.online}
+            statusColor="bg-green-400"
+            className="ring-2 ring-white dark:ring-neutral-900 rounded-full"
+          />
+        </div>
       ))}
     </div>
   );

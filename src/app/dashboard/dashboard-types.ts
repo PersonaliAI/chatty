@@ -224,5 +224,6 @@ export interface TeamMember {
   permissions?: string[];
   bookable?: boolean;
   book_on_own_calendar?: boolean;
+  avatar_url?: string | null;
 }
 
