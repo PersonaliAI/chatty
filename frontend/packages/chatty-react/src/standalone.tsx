@@ -112,6 +112,7 @@ export function ChattyStandaloneApp({
   onClose,
   onApiReady,
 }: StandaloneMountOptions) {
+  const side = position === "left" ? "left" : "right";
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [coreReady, setCoreReady] = useState(false);
@@ -366,7 +367,6 @@ export function ChattyStandaloneApp({
     }
     return launcherIconOverride || getOnColor(launcherBg);
   })();
-  const side = position === "left" ? "left" : "right";
   const panelRadius = (colorAttr ? null : PANEL_RADIUS[currentDesign]) || "16px";
 
   const activePreset = PANEL_SIZE_PRESETS[panelSize] || PANEL_SIZE_PRESETS.default;
