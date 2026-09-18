@@ -314,11 +314,7 @@ body {
 
 /* 6. Glassmorphism - frosted glass tinted by selected color, Space Grotesk. */
 .style-glassmorphism {
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--primary-color, #3170eb) 45%, #0f172a) 0%,
-    color-mix(in srgb, var(--primary-color, #7d58ee) 70%, #1e1b4b) 50%,
-    color-mix(in srgb, var(--primary-color, #d127b3) 90%, #111827) 100%
-  ) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color, #3170eb) 45%, #0f172a) 0%, color-mix(in srgb, var(--primary-color, #7d58ee) 70%, #1e1b4b) 50%, color-mix(in srgb, var(--primary-color, #d127b3) 90%, #111827) 100%) !important;
   color: #ffffff !important;
   border: none !important;
   border-radius: 20px !important;
