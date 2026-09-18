@@ -2155,6 +2155,41 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         {children}
       </SafeMarkdownLink>
     ),
+    h1: ({ children }) => <h1 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 mt-3 mb-1.5">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 mt-2.5 mb-1">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 mt-2 mb-1">{children}</h3>,
+    table: ({ children }) => (
+      <div className="w-full my-2.5 overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
+        <table className="w-full border-collapse text-left text-[11px]">{children}</table>
+      </div>
+    ),
+    thead: ({ children }) => (
+      <thead className="bg-neutral-100 dark:bg-neutral-800/90 border-b border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 font-semibold">
+        {children}
+      </thead>
+    ),
+    tbody: ({ children }) => (
+      <tbody className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60">
+        {children}
+      </tbody>
+    ),
+    tr: ({ children }) => (
+      <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30 transition-colors">
+        {children}
+      </tr>
+    ),
+    th: ({ children }) => (
+      <th className="px-2.5 py-1.5 font-semibold text-neutral-900 dark:text-neutral-100 whitespace-nowrap">{children}</th>
+    ),
+    td: ({ children }) => (
+      <td className="px-2.5 py-1.5 text-neutral-700 dark:text-neutral-300 align-top">{children}</td>
+    ),
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-3 border-[#f97316] pl-2.5 py-1 my-2 italic text-neutral-600 dark:text-neutral-400 bg-neutral-50/70 dark:bg-neutral-850/40 rounded-r-lg text-xs">
+        {children}
+      </blockquote>
+    ),
+    hr: () => <hr className="my-3 border-neutral-200 dark:border-neutral-800" />,
     code: ({ className, children, ...rest }) => {
       const isBlock = className?.startsWith("language-");
       if (!isBlock) return <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
@@ -3142,7 +3177,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                                 dangerouslySetInnerHTML={{ __html: activeArticle.content }}
                               />
                             ) : (
-                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
                                 {activeArticle.content || activeArticle.subtitle || "No additional content."}
                               </ReactMarkdown>
                             )}
