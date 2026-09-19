@@ -15,8 +15,7 @@ load_dotenv()
 def _require_env(name: str) -> str:
     """Fail loudly at startup instead of silently falling back to a
     hardcoded production credential - a previous version of this file did
-    exactly that (a real Supabase service-role key baked in as the fallback
-    for both SUPABASE_SERVICE_ROLE_KEY and SUPABASE_ANON_KEY), which meant
+    exactly that (a real privileged key baked in as a fallback), which meant
     any environment that forgot to set these env vars would silently talk
     to production with full RLS-bypassing access instead of failing."""
     value = os.environ.get(name)
@@ -26,7 +25,10 @@ def _require_env(name: str) -> str:
 
 
 SUPABASE_URL = _require_env("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = _require_env("SUPABASE_SERVICE_ROLE_KEY")
+# Supabase's new Secret Key is the server-only replacement for the legacy
+# service_role JWT. Keep the historical constant name for its call sites,
+# but fail closed so deployments cannot silently retain a legacy JWT.
+SUPABASE_SECRET_KEY = _require_env("SUPABASE_SECRET_KEY")
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
 
 # Primary model. Override with KIN_MODEL or (legacy) GEMMA_MODEL env vars.
