@@ -18,6 +18,7 @@ class WidgetChatRequest(BaseModel):
     offline_ticket: bool = False
     host: Optional[str] = None  # parent page host, sent by widget.js - advisory only, not trusted
     flow_context: Optional[dict] = None
+    ai_paused: bool = False
 
 
 class WidgetVerifyOriginRequest(BaseModel):
