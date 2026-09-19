@@ -9,11 +9,11 @@ from app.core.config import (
     GEMINI_API_KEY,
     GOOGLE_CLOUD_LOCATION,
     GOOGLE_CLOUD_PROJECT,
-    SUPABASE_SERVICE_ROLE_KEY,
+    SUPABASE_SECRET_KEY,
     SUPABASE_URL,
 )
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
 
 # GEMINI_API_KEY (Google AI Studio, free tier) is a separate billing surface
 # from Vertex AI - set it to route all Gemini calls through AI Studio instead
