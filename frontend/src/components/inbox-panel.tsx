@@ -48,6 +48,35 @@ import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import { createClient } from "@/lib/supabase/client";
 import { MessageList, type Msg } from "@/components/inbox-message-list";
+import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
+
+const RULE_EVENT_OPTIONS: ModernSelectOption[] = [
+  { value: "ticket_created", label: "Ticket Created" },
+  { value: "ticket_updated", label: "Ticket Updated" },
+  { value: "message_received", label: "Message Received" },
+];
+
+const RULE_FIELD_OPTIONS: ModernSelectOption[] = [
+  { value: "last_message", label: "Message Text" },
+  { value: "visitor_name", label: "Visitor Name" },
+  { value: "channel", label: "Channel" },
+  { value: "priority", label: "Priority" },
+  { value: "tags", label: "Tags" },
+];
+
+const RULE_OP_OPTIONS: ModernSelectOption[] = [
+  { value: "contains", label: "Contains" },
+  { value: "equals", label: "Equals" },
+  { value: "starts_with", label: "Starts with" },
+  { value: "regex", label: "Regex" },
+];
+
+const RULE_ACTION_OPTIONS: ModernSelectOption[] = [
+  { value: "set_priority", label: "Set Priority" },
+  { value: "add_tag", label: "Add Tag" },
+  { value: "set_status", label: "Set Status" },
+  { value: "send_internal_note", label: "Post Internal Note" },
+];
 
 function capitalize(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -453,6 +482,14 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   }>>([]);
   const [presenceMenuOpen, setPresenceMenuOpen] = useState(false);
   const [dispatchingQueue, setDispatchingQueue] = useState(false);
+  const [autoDispatchEnabled, setAutoDispatchEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`chatty_auto_dispatch_${botId}`);
+      if (saved !== null) return saved === "true";
+    }
+    return true;
+  });
+  const dispatchingQueueRef = useRef(false);
   const [showRoster, setShowRoster] = useState(false);
 
   // Assignees & Current Agent
@@ -800,6 +837,34 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   };
 
+  const dispatchQueueSilent = useCallback(async () => {
+    if (dispatchingQueueRef.current) return;
+    dispatchingQueueRef.current = true;
+    try {
+      const res = await fetchBackend(`/api/admin/routing/dispatch-queue?bot_id=${botId}`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.dispatched_count > 0) {
+          showToast(`Auto-assigned ${data.dispatched_count} ticket${data.dispatched_count === 1 ? "" : "s"} to online agents`, "success");
+          loadSessions();
+          loadPresence();
+        }
+      }
+    } catch {} finally {
+      dispatchingQueueRef.current = false;
+    }
+  }, [botId, fetchBackend, loadSessions, loadPresence, showToast]);
+
+  // Persist autoDispatch preference
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`chatty_auto_dispatch_${botId}`, String(autoDispatchEnabled));
+    }
+  }, [autoDispatchEnabled, botId]);
+
+
   useEffect(() => {
     const timer = setTimeout(() => {
       void loadSessions();
@@ -873,8 +938,9 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.draft_reply) {
-          setReply(data.draft_reply);
+        const draftText = data.draft_reply || data.draft;
+        if (draftText) {
+          setReply(draftText);
           showToast("AI draft reply generated!", "success");
         } else {
           showToast("Could not generate AI draft reply", "error");
@@ -1272,6 +1338,15 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     closed: sessions.filter((s) => s.status === "closed").length,
   };
 
+  // Automated background ticket dispatch
+  useEffect(() => {
+    if (!autoDispatchEnabled || ticketCounts.unassigned === 0) return;
+    const timer = setTimeout(() => {
+      void dispatchQueueSilent();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [autoDispatchEnabled, ticketCounts.unassigned, dispatchQueueSilent]);
+
   const filteredSessions = sessions.filter((s) => {
     const sStatus = s.status || "open";
     if (selectedStatusTab === "unassigned") {
@@ -1484,6 +1559,20 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <span className="font-mono font-bold">{ticketCounts.unassigned}</span>
             <span className="text-[10px] font-normal opacity-80">unassigned</span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setAutoDispatchEnabled((prev) => !prev)}
+            title={autoDispatchEnabled ? "Automatic assignment of tickets is ON (Click to toggle)" : "Automatic assignment of tickets is OFF (Click to enable)"}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+              autoDispatchEnabled
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-750"
+            }`}
+          >
+            <span className={`size-1.5 rounded-full shrink-0 ${autoDispatchEnabled ? "bg-emerald-500 animate-pulse" : "bg-neutral-400"}`} />
+            <span>Auto: {autoDispatchEnabled ? "ON" : "OFF"}</span>
+          </button>
 
           <button
             onClick={dispatchQueue}
@@ -2766,45 +2855,32 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 </div>
                 <div>
                   <label className="text-[9px] font-semibold text-neutral-400 uppercase">When Event Occurs</label>
-                  <select
+                  <ModernSelect
+                    options={RULE_EVENT_OPTIONS}
                     value={newRuleEvent}
-                    onChange={(e) => setNewRuleEvent(e.target.value)}
-                    className="w-full mt-0.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer"
-                  >
-                    <option value="ticket_created">Ticket Created</option>
-                    <option value="ticket_updated">Ticket Updated</option>
-                    <option value="message_received">Message Received</option>
-                  </select>
+                    onChange={(val) => setNewRuleEvent(val)}
+                    size="sm"
+                    className="mt-0.5"
+                  />
                 </div>
               </div>
 
               {/* Condition Row */}
               <div className="space-y-1">
                 <label className="text-[9px] font-semibold text-neutral-400 uppercase">Condition (IF)</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <select
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <ModernSelect
+                    options={RULE_FIELD_OPTIONS}
                     value={newRuleField}
-                    onChange={(e) => setNewRuleField(e.target.value)}
-                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1.5 text-xs focus:outline-none cursor-pointer"
-                  >
-                    <option value="last_message">Message Text</option>
-                    <option value="visitor_name">Visitor Name</option>
-                    <option value="channel">Channel</option>
-                    <option value="priority">Priority</option>
-                    <option value="tags">Tags</option>
-                  </select>
-
-                  <select
+                    onChange={(val) => setNewRuleField(val)}
+                    size="sm"
+                  />
+                  <ModernSelect
+                    options={RULE_OP_OPTIONS}
                     value={newRuleOp}
-                    onChange={(e) => setNewRuleOp(e.target.value)}
-                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1.5 text-xs focus:outline-none cursor-pointer"
-                  >
-                    <option value="contains">Contains</option>
-                    <option value="equals">Equals</option>
-                    <option value="starts_with">Starts with</option>
-                    <option value="regex">Regex</option>
-                  </select>
-
+                    onChange={(val) => setNewRuleOp(val)}
+                    size="sm"
+                  />
                   <input
                     value={newRuleVal}
                     onChange={(e) => setNewRuleVal(e.target.value)}
@@ -2817,18 +2893,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               {/* Action Row */}
               <div className="space-y-1">
                 <label className="text-[9px] font-semibold text-neutral-400 uppercase">Action (THEN)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <select
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <ModernSelect
+                    options={RULE_ACTION_OPTIONS}
                     value={newRuleActionType}
-                    onChange={(e) => setNewRuleActionType(e.target.value)}
-                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1.5 text-xs focus:outline-none cursor-pointer"
-                  >
-                    <option value="set_priority">Set Priority</option>
-                    <option value="add_tag">Add Tag</option>
-                    <option value="set_status">Set Status</option>
-                    <option value="send_internal_note">Post Internal Note</option>
-                  </select>
-
+                    onChange={(val) => setNewRuleActionType(val)}
+                    size="sm"
+                  />
                   <input
                     value={newRuleActionVal}
                     onChange={(e) => setNewRuleActionVal(e.target.value)}

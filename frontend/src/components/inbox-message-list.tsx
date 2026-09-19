@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, type RefObject } from "react";
-import { Bot, Headphones, Paperclip, ThumbsDown, ThumbsUp, User } from "lucide-react";
+import { Bot, Calendar, Clock, Headphones, Paperclip, ThumbsDown, ThumbsUp, User, Video } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -39,6 +39,71 @@ function isTrustedAttachmentUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+function InboxBookingCard({ content }: { content: string }) {
+  const isWidgetPrompt = content.includes("[BOOKING_WIDGET]");
+  const isCancelled = /cancelled|canceled/i.test(content) && /meeting|booking|demo/i.test(content);
+  const isConfirmed = !isCancelled && /scheduled|confirmed/i.test(content) && /meeting|demo|appointment/i.test(content);
+  const meetLinkMatch = content.match(/https:\/\/(?:meet\.google\.com|teams\.microsoft\.com|zoom\.us\/j)\/[^\s)>]+/i);
+  const meetUrl = meetLinkMatch ? meetLinkMatch[0] : null;
+
+  const dateMatch = content.match(/(?:for|on)\s+([A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:\s+at\s+\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)?(?:\s*\([^)]+\))?)/i);
+  const timeStr = dateMatch ? dateMatch[1] : null;
+
+  return (
+    <div className={`mt-2 p-2.5 rounded-xl border text-xs ${
+      isCancelled
+        ? "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300"
+        : isConfirmed
+        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200"
+        : "bg-blue-500/10 border-blue-500/30 text-blue-800 dark:text-blue-200"
+    }`}>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="flex items-center gap-1.5 font-bold text-[11px]">
+          <Calendar className="size-3.5" />
+          {isCancelled ? "Meeting Cancelled" : isConfirmed ? "Demo Scheduled" : "Booking Widget Active"}
+        </span>
+        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
+          isCancelled
+            ? "bg-red-500/20 text-red-600 dark:text-red-400"
+            : isConfirmed
+            ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+            : "bg-blue-500/20 text-blue-600 dark:text-blue-400"
+        }`}>
+          {isCancelled ? "Cancelled" : isConfirmed ? "Confirmed" : "Sent"}
+        </span>
+      </div>
+
+      {timeStr && (
+        <p className="text-[11px] font-medium opacity-90 flex items-center gap-1.5 my-1">
+          <Clock className="size-3 shrink-0" />
+          {timeStr}
+        </p>
+      )}
+
+      {meetUrl && (
+        <div className="mt-1.5 pt-1.5 border-t border-current/15 flex items-center justify-between gap-2">
+          <span className="text-[10px] opacity-75 font-mono truncate">{meetUrl}</span>
+          <a
+            href={meetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 shadow-xs transition-colors"
+          >
+            <Video className="size-3" />
+            Join Call
+          </a>
+        </div>
+      )}
+
+      {isWidgetPrompt && !isConfirmed && !isCancelled && (
+        <p className="text-[10px] opacity-80 mt-0.5">
+          Visitor was prompted to select a date and time slot from the calendar.
+        </p>
+      )}
+    </div>
+  );
 }
 
 interface MessageListProps {
@@ -94,6 +159,13 @@ function MessageListInner({
               cleanContent = lines.slice(0, lines.length - 2).join("\n").trim();
             }
           }
+        }
+
+        const hasBooking = m.content.includes("[BOOKING_WIDGET]") ||
+          ((/demo|meeting|appointment/i.test(m.content)) && (/scheduled|confirmed|meet\.google\.com|teams\.microsoft\.com|cancelled|canceled/i.test(m.content)));
+
+        if (cleanContent.includes("[BOOKING_WIDGET]")) {
+          cleanContent = cleanContent.replace(/\[BOOKING_WIDGET\]/g, "").trim();
         }
 
         const isImage = attachmentUrl && (
@@ -159,6 +231,7 @@ function MessageListInner({
                   {cleanContent}
                 </ReactMarkdown>
               )}
+              {hasBooking && <InboxBookingCard content={m.content} />}
             </div>
             </div>
             {!isVisitor && !isHuman && m.id && (
