@@ -4,6 +4,9 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
+import "katex/dist/katex.min.css";
 import {
   Search,
   BookOpen,
@@ -89,6 +92,57 @@ interface LegacySource {
   content: string;
   type: string;
 }
+
+const kbMarkdownComponents = {
+  a: SafeMarkdownLink,
+  table: ({ children }: any) => (
+    <div className="w-full my-4 overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
+      <table className="w-full border-collapse text-left text-xs sm:text-sm">{children}</table>
+    </div>
+  ),
+  thead: ({ children }: any) => (
+    <thead className="bg-neutral-100/90 dark:bg-neutral-800/90 border-b border-neutral-200 dark:border-neutral-800 font-semibold text-neutral-900 dark:text-neutral-100">
+      {children}
+    </thead>
+  ),
+  tbody: ({ children }: any) => (
+    <tbody className="divide-y divide-neutral-200/70 dark:divide-neutral-800/70">
+      {children}
+    </tbody>
+  ),
+  tr: ({ children }: any) => (
+    <tr className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30 transition-colors">
+      {children}
+    </tr>
+  ),
+  th: ({ children }: any) => (
+    <th className="px-3.5 py-2.5 font-semibold text-neutral-900 dark:text-neutral-100 whitespace-nowrap">{children}</th>
+  ),
+  td: ({ children }: any) => (
+    <td className="px-3.5 py-2.5 text-neutral-700 dark:text-neutral-300 align-top">{children}</td>
+  ),
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-3 border-[#f97316] pl-3.5 py-1.5 my-3 italic text-neutral-600 dark:text-neutral-400 bg-neutral-50/70 dark:bg-neutral-850/40 rounded-r-lg">
+      {children}
+    </blockquote>
+  ),
+  hr: () => <hr className="my-5 border-neutral-200 dark:border-neutral-800" />,
+  code: ({ className, children, ...rest }: any) => {
+    const isBlock = className?.startsWith("language-");
+    if (!isBlock) {
+      return (
+        <code className="bg-neutral-100 dark:bg-neutral-800 text-[#f97316] dark:text-orange-400 px-1.5 py-0.5 rounded font-mono text-[0.85em]" {...rest}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <div className="my-3 overflow-x-auto rounded-xl bg-neutral-900 dark:bg-black/90 p-4 font-mono text-xs text-neutral-100 border border-neutral-800">
+        <code {...rest}>{children}</code>
+      </div>
+    );
+  },
+};
 
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   Folder,
@@ -424,7 +478,7 @@ export default function KnowledgeBasePortal() {
               <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 md:p-8 space-y-4">
                 <h1 className="text-xl font-bold">{selectedArticle.title}</h1>
                 <article className="prose dark:prose-invert prose-xs text-neutral-700 dark:text-neutral-300 max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: SafeMarkdownLink }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={kbMarkdownComponents}>
                     {selectedArticle.content}
                   </ReactMarkdown>
                 </article>
@@ -641,7 +695,7 @@ export default function KnowledgeBasePortal() {
 
                 {/* Rich Markdown Article Body */}
                 <article className="prose dark:prose-invert prose-neutral max-w-none text-xs sm:text-sm leading-relaxed space-y-4">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: SafeMarkdownLink }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={kbMarkdownComponents}>
                     {selectedArticle.content}
                   </ReactMarkdown>
                 </article>
