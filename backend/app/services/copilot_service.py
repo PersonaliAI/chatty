@@ -159,6 +159,7 @@ async def generate_ai_draft_reply(
 
     return {
         "draft": draft_text,
+        "draft_reply": draft_text,
         "sources": sources[:3],
     }
 
