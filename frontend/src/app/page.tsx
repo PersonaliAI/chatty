@@ -897,6 +897,8 @@ export default function Home() {
       <Script
         src="https://chatty.personaliai.com/widget.js"
         data-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
+        data-color="#a3441d"
+        data-style="playful"
         strategy="afterInteractive"
       />
     </div>
