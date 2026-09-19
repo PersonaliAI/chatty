@@ -3,7 +3,7 @@ succeeds in CI without real Google Cloud / Supabase credentials."""
 import os
 
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
-os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
+os.environ.setdefault("SUPABASE_SECRET_KEY", "sb_secret_test")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret")
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "123456:TEST")
