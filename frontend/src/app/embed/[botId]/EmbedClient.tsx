@@ -474,6 +474,27 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [chatView, setChatView] = useState<"chat" | "list">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
 
+  // Relative message labels must be a live view of the clock.  Without a
+  // periodic render, a message that was rendered as "Just now" stayed that
+  // way forever when the visitor left the widget open and idle.
+  const [, setTimeTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTimeTick((tick) => tick + 1), 15_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // Older sessions and a few flow/media paths do not include created_at.
+  // Stamp those messages once at insertion/render time so the timestamp can
+  // progress normally instead of falling back to "Just now" indefinitely.
+  useEffect(() => {
+    setMessages((current) => {
+      const missingTimestamp = current.some((message) => !message.created_at);
+      if (!missingTimestamp) return current;
+      const fallback = new Date().toISOString();
+      return current.map((message) => message.created_at ? message : { ...message, created_at: fallback });
+    });
+  }, [messages]);
+
   const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
 
   // Auto-extract visitor contact info if provided in chat conversation

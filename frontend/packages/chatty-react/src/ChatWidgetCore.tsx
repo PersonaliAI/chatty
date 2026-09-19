@@ -715,6 +715,24 @@ export default function ChatWidgetCore({
   const [bottomNavVisible, setBottomNavVisible] = useState(true);
   const [chatNavExpanded, setChatNavExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  // Tick every 30s so relative timestamps ("Just now", "2m", "1h") re-render
+  // without this the timestamp is computed once on mount and never updates.
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Keep every message timestamped, including flow/media messages and older
+  // local sessions created before timestamps were persisted.  Otherwise the
+  // UI falls back to "Just now" and can never advance to minutes/hours.
+  useEffect(() => {
+    setMessages((current) => {
+      if (!current.some((message) => !message.created_at)) return current;
+      const fallback = new Date().toISOString();
+      return current.map((message) => message.created_at ? message : { ...message, created_at: fallback });
+    });
+  }, [messages]);
 
   const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
 
@@ -1721,6 +1739,7 @@ export default function ChatWidgetCore({
                     role: "assistant",
                     content: wMsg,
                     sender: "ai",
+                    created_at: new Date().toISOString(),
                     sender_name: isPreview ? (paramName || bot.name || "Fin") : (bot.name || "Fin"),
                     sender_avatar: isPreview ? (paramAvatarUrl || bot.avatar_url || null) : (bot.avatar_url || null),
                   },
