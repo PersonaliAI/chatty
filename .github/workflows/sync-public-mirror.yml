@@ -1,0 +1,75 @@
+name: Sync frontend to public mirror
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-frontend-mirror
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out private frontend
+        uses: actions/checkout@v4
+
+      - name: Check out public mirror
+        env:
+          MIRROR_REPO_TOKEN: ${{ secrets.MIRROR_REPO_TOKEN }}
+        run: |
+          test -n "$MIRROR_REPO_TOKEN" || { echo "Missing MIRROR_REPO_TOKEN"; exit 1; }
+          git clone --depth=1 --branch main \
+            "https://x-access-token:${MIRROR_REPO_TOKEN}@github.com/PersonaliAI/chatty.git" \
+            "$RUNNER_TEMP/public"
+
+      - name: Mirror tracked frontend files
+        run: |
+          export SOURCE="$RUNNER_TEMP/source"
+          mkdir -p "$SOURCE"
+          git archive HEAD | tar -x -C "$SOURCE"
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.claude' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='test-results' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            "$SOURCE/" "$RUNNER_TEMP/public/frontend/"
+
+      - name: Block credential-shaped values
+        run: |
+          if rg -n --hidden --glob '!node_modules' --glob '!.git' \
+            'SUPABASE_SERVICE_ROLE_KEY\s*=\s*["'"']eyJ|SUPABASE_SECRET_KEY\s*=\s*["'"']sb_secret_[A-Za-z0-9_-]{20,}|-----BEGIN .* PRIVATE KEY-----' \
+            "$RUNNER_TEMP/public/frontend"; then
+            echo 'Credential-shaped value detected in public frontend mirror.'
+            exit 1
+          fi
+
+      - name: Open public mirror pull request
+        env:
+          GH_TOKEN: ${{ secrets.MIRROR_REPO_TOKEN }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          cd "$RUNNER_TEMP/public"
+          git config user.name 'chatty-mirror-bot'
+          git config user.email 'chatty-mirror-bot@users.noreply.github.com'
+          git checkout -B "mirror/frontend-${SOURCE_SHA:0:12}"
+          git add frontend
+          if git diff --cached --quiet; then
+            echo 'Public frontend is already synchronized.'
+            exit 0
+          fi
+          git commit -m "sync(frontend): mirror private Chatty frontend ${SOURCE_SHA:0:12}"
+          git push --force-with-lease origin HEAD
+          gh pr create --repo PersonaliAI/chatty --base main \
+            --head "mirror/frontend-${SOURCE_SHA:0:12}" \
+            --title "sync(frontend): mirror private Chatty frontend" \
+            --body "Automated mirror from Damayantha/chatty@${SOURCE_SHA}. Review CI and merge before release."
