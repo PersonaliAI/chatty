@@ -1321,12 +1321,30 @@ async def _dispatch_ticket_to_agent(bot_id: str, session_id: str) -> dict[str, A
         chosen = eligible[0]
         now_iso = datetime.now(timezone.utc).isoformat()
 
+        # Look up chosen agent avatar
+        chosen_av = None
+        try:
+            u_res = None
+            if chosen.get("agent_email"):
+                u_res = await run_db(lambda: supabase.table("users").select("avatar_url").eq("email", chosen["agent_email"]).limit(1).execute())
+            if (not u_res or not u_res.data) and chosen.get("user_id"):
+                u_res = await run_db(lambda: supabase.table("users").select("avatar_url").eq("id", chosen["user_id"]).limit(1).execute())
+            if (not u_res or not u_res.data) and chosen.get("user_id"):
+                u_res = await run_db(lambda: supabase.table("users").select("avatar_url").eq("auth_user_id", chosen["user_id"]).limit(1).execute())
+            if u_res and u_res.data and u_res.data[0].get("avatar_url"):
+                chosen_av = u_res.data[0]["avatar_url"]
+        except Exception:
+            pass
+
         # 5. Assign ticket and stamp last_assigned_at
-        await run_db(lambda: supabase.table("chatty_sessions").update({
+        sess_upd: dict[str, Any] = {
             "assigned_agent_email": chosen["agent_email"],
             "assigned_agent_name": chosen["agent_name"],
             "ai_paused": True,
-        }).eq("session_id", session_id).eq("bot_id", bot_id).execute())
+        }
+        if chosen_av:
+            sess_upd["assigned_agent_avatar"] = chosen_av
+        await run_db(lambda: supabase.table("chatty_sessions").update(sess_upd).eq("session_id", session_id).eq("bot_id", bot_id).execute())
 
         try:
             await run_db(lambda: supabase.table("chatty_agent_presence").update({
