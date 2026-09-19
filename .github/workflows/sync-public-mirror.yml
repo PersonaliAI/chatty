@@ -47,7 +47,7 @@ jobs:
       - name: Block credential-shaped values
         run: |
           if rg -n --hidden --glob '!node_modules' --glob '!.git' \
-            'SUPABASE_SERVICE_ROLE_KEY\s*=\s*["'"']eyJ|SUPABASE_SECRET_KEY\s*=\s*["'"']sb_secret_[A-Za-z0-9_-]{20,}|-----BEGIN .* PRIVATE KEY-----' \
+            "SUPABASE_SERVICE_ROLE_KEY\\s*=\\s*[\"']eyJ|SUPABASE_SECRET_KEY\\s*=\\s*[\"']sb_secret_[A-Za-z0-9_-]{20,}|-----BEGIN .* PRIVATE KEY-----" \
             "$RUNNER_TEMP/public/frontend"; then
             echo 'Credential-shaped value detected in public frontend mirror.'
             exit 1
