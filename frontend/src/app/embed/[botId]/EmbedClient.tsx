@@ -136,32 +136,40 @@ export interface VisitorConversationItem {
 }
 
 function formatTimeAgo(dateStr?: string | number): string {
-  if (!dateStr) return "Recently";
+  if (!dateStr) return "—";
   try {
     const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
-    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
-    if (diffSec < 60) return "Just now";
+    const time = d.getTime();
+    if (!Number.isFinite(time)) return "—";
+    const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
+    if (diffSec < 10) return "Just now";
+    if (diffSec < 60) return `${diffSec}s ago`;
     if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
     if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
     if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d ago`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
-    return "Recently";
+    return "—";
   }
 }
 
 function formatTimeCompact(dateStr?: string | number): string {
-  if (!dateStr) return "Just now";
+  // Missing/invalid timestamps are unknown, not current. This prevents old
+  // local sessions from being shown as "Just now" forever.
+  if (!dateStr) return "—";
   try {
     const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
-    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
-    if (diffSec < 60) return "Just now";
+    const time = d.getTime();
+    if (!Number.isFinite(time)) return "—";
+    const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
+    if (diffSec < 10) return "Just now";
+    if (diffSec < 60) return `${diffSec}s`;
     if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`;
     if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h`;
     if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
-    return "Just now";
+    return "—";
   }
 }
 
@@ -386,8 +394,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   const renderBotAvatar = (sizeClass = "size-9", iconClass = "size-5", className = "") => {
-    const bg = colorScheme?.avatar?.bg || logoBgColor || "color-mix(in srgb, var(--primary-color) 15%, transparent)";
-    const fg = colorScheme?.avatar?.text || (logoBgColor ? getOnColor(logoBgColor) : primaryColor);
+    // Keep recent-message avatars identical to the canonical header logo.
+    const bg = logoBgColor || "color-mix(in srgb, currentColor 25%, transparent)";
+    const fg = logoBgColor ? getOnColor(logoBgColor) : primaryColor;
     return (
       <div
         className={`${sizeClass} rounded-full flex items-center justify-center font-bold overflow-hidden shrink-0 transition-colors shadow-2xs ${className}`}
@@ -482,18 +491,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     const id = window.setInterval(() => setTimeTick((tick) => tick + 1), 15_000);
     return () => window.clearInterval(id);
   }, []);
-
-  // Older sessions and a few flow/media paths do not include created_at.
-  // Stamp those messages once at insertion/render time so the timestamp can
-  // progress normally instead of falling back to "Just now" indefinitely.
-  useEffect(() => {
-    setMessages((current) => {
-      const missingTimestamp = current.some((message) => !message.created_at);
-      if (!missingTimestamp) return current;
-      const fallback = new Date().toISOString();
-      return current.map((message) => message.created_at ? message : { ...message, created_at: fallback });
-    });
-  }, [messages]);
 
   const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
 
@@ -1454,7 +1451,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             sender: "human" as const,
             sender_name: m.sender_name,
             sender_avatar: m.sender_avatar,
-            created_at: m.created_at,
+            created_at: m.created_at || new Date().toISOString(),
           }));
           const latestM = newMsgs[newMsgs.length - 1];
           if (latestM?.sender_name) setActiveAgentName(latestM.sender_name);
@@ -2642,21 +2639,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   <p className="text-xs opacity-75 mt-1.5 leading-relaxed">{welcomeMsg}</p>
                 </div>
 
-                {/* Instant Search Bar (Crisp Style) */}
-                <div className="relative">
-                  <Search className="size-3.5 opacity-50 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={articleFilterQuery}
-                    onChange={(e) => setArticleFilterQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setTab("articles");
-                    }}
-                    placeholder="Search for answers and guides..."
-                    className="widget-search-bar w-full pl-9 pr-4 py-2.5 text-xs focus:outline-none shadow-xs"
-                  />
-                </div>
-
                 {/* Ask a question card with overlapping team avatars */}
                 <motion.button
                   type="button"
@@ -2791,38 +2773,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   </div>
                 )}
 
-                {/* Browse Help Articles Button */}
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.01, y: -1 }}
-                  whileTap={{ scale: 0.985 }}
-                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
-                  onClick={() => setTab("articles")}
-                  className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
-                >
-                  <span className="flex items-center gap-2.5 text-xs font-semibold">
-                    <FileText className="size-4" style={{ color: primaryColor }} />Browse help articles
-                  </span>
-                  <ChevronRight className="size-4 opacity-50 group-hover:translate-x-0.5 transition-transform" />
-                </motion.button>
-
-                {/* Ask AI Assistant Button */}
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.01, y: -1 }}
-                  whileTap={{ scale: 0.985 }}
-                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
-                  onClick={() => {
-                    setChatView("chat");
-                    setTab("messages");
-                  }}
-                  className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
-                >
-                  <span className="flex items-center gap-2.5 text-xs font-semibold">
-                    <Search className="size-4" style={{ color: primaryColor }} />Ask AI assistant
-                  </span>
-                  <ChevronRight className="size-4 opacity-50 group-hover:translate-x-0.5 transition-transform" />
-                </motion.button>
               </motion.div>
             )}
 
@@ -3099,7 +3049,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                           </div>
                           {msg.role === "assistant" && (
                             <div className="flex items-center gap-2 px-1 text-[10px] text-neutral-400">
-                              <span className="tabular-nums">{msg.created_at ? formatTimeAgo(msg.created_at) : "Just now"}</span>
+                              <span className="tabular-nums">{formatTimeAgo(msg.created_at)}</span>
                               <div className="flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity">
                                 <button type="button" onClick={() => rateMessage(i, "up")} className={`p-0.5 rounded hover:text-green-500 cursor-pointer ${msg.feedback === "up" ? "text-green-500 font-bold" : ""}`}>
                                   <ThumbsUp className="size-2.5" />
