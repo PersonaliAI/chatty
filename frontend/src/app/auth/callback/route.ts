@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 function publicOrigin(request: Request, fallback: string): string {
+  // Firebase/App Hosting can supply an internal forwarded host during a
+  // rollout. Prefer the canonical public origin so OAuth never exchanges a
+  // code on one hostname and redirects the session to another.
+  const configured = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL;
+  if (configured) return configured.replace(/\/$/, "");
   const proto = request.headers.get('x-forwarded-proto') ?? 'https'
   const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
   if (host) return `${proto}://${host}`

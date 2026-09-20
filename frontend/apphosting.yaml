@@ -2,6 +2,11 @@
 # See https://firebase.google.com/docs/app-hosting/configure for schema details
 
 env:
+  - variable: NEXT_PUBLIC_SITE_URL
+    value: "https://chatty.personaliai.com"
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_SUPABASE_URL
     value: "https://dckjbkcormifiuwfpahj.supabase.co"
     availability:

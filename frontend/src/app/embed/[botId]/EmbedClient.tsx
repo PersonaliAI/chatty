@@ -35,6 +35,7 @@ export interface TeamProfile {
   avatar_url?: string | null;
   role?: string;
   online?: boolean;
+  last_seen_at?: string | null;
 }
 interface Message {
   role: "user" | "assistant";
@@ -135,12 +136,12 @@ export interface VisitorConversationItem {
   topic?: string;
 }
 
-function formatTimeAgo(dateStr?: string | number): string {
-  if (!dateStr) return "?";
+function formatTimeAgo(dateStr?: string | number | null): string {
+  if (!dateStr) return "—";
   try {
     const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
     const time = d.getTime();
-    if (!Number.isFinite(time)) return "?";
+    if (!Number.isFinite(time)) return "—";
     const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
     if (diffSec < 10) return "Just now";
     if (diffSec < 60) return `${diffSec}s ago`;
@@ -149,18 +150,18 @@ function formatTimeAgo(dateStr?: string | number): string {
     if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d ago`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
-    return "?";
+    return "—";
   }
 }
 
 function formatTimeCompact(dateStr?: string | number): string {
   // Missing/invalid timestamps are unknown, not current. This prevents old
   // local sessions from being shown as "Just now" forever.
-  if (!dateStr) return "?";
+  if (!dateStr) return "—";
   try {
     const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
     const time = d.getTime();
-    if (!Number.isFinite(time)) return "?";
+    if (!Number.isFinite(time)) return "—";
     const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
     if (diffSec < 10) return "Just now";
     if (diffSec < 60) return `${diffSec}s`;
@@ -169,7 +170,7 @@ function formatTimeCompact(dateStr?: string | number): string {
     if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
-    return "?";
+    return "—";
   }
 }
 
@@ -428,7 +429,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         }
       }
     }
-    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai" }]);
+    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
   };
 
   const [loading, setLoading] = useState(true);
@@ -710,6 +711,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [csatComment, setCsatComment] = useState("");
   const [csatSubmitted, setCsatSubmitted] = useState(false);
   const [csatSubmitting, setCsatSubmitting] = useState(false);
+  const csatCooldownKey = `chatty_csat_prompt_${botId}_${hostKey}`;
+  const csatCooldownMs = 2 * 24 * 60 * 60 * 1000;
+  const canShowCsat = () => {
+    try {
+      const shownAt = Number(localStorage.getItem(csatCooldownKey) || 0);
+      return !shownAt || Date.now() - shownAt >= csatCooldownMs;
+    } catch { return true; }
+  };
+  const rememberCsatPrompt = () => {
+    try { localStorage.setItem(csatCooldownKey, String(Date.now())); } catch {}
+  };
 
   const [showOfflineForm, setShowOfflineForm] = useState(false);
   const [offlineName, setOfflineName] = useState("");
@@ -959,7 +971,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setLiveAgent(true);
       setFlowAwaitingInput(false);
       setActiveNodeId(null);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) || "Connecting you to a live agent now...", sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) || "Connecting you to a live agent now...", sender: "ai", created_at: new Date().toISOString() }]);
       fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -974,7 +986,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setFlowAwaitingInput(false);
       setIsBotResponding(false);
       const promptText = cleanLabel(label) || "Select a time that works best for you from our available slots to schedule your demo:";
-      setMessages((prev) => [...prev, { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai", created_at: new Date().toISOString() }]);
       fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -988,7 +1000,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai", created_at: new Date().toISOString() }]);
       return;
     }
 
@@ -998,7 +1010,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
       const qualifyText = cleanLabel(label) || "Could you share a bit more detail on what you're looking to achieve?";
-      setMessages((prev) => [...prev, { role: "assistant", content: qualifyText, sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: qualifyText, sender: "ai", created_at: new Date().toISOString() }]);
       return;
     }
 
@@ -1007,7 +1019,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai", created_at: new Date().toISOString() }]);
       return;
     }
 
@@ -1016,7 +1028,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       setActiveNodeId(node.id);
       setFlowAwaitingInput(false);
       setIsBotResponding(false);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai", created_at: new Date().toISOString() }]);
       return;
     }
 
@@ -1024,7 +1036,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     setActiveNodeId(node.id);
     setFlowAwaitingInput(false);
     setIsBotResponding(false);
-    setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+    setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai", created_at: new Date().toISOString() }]);
     const outgoing = currentConfig.edges.filter((e) => e.source === node.id);
     if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
       setTimeout(() => {
@@ -1061,8 +1073,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           const promptText = cleanLabel(targetNode.data?.label) || "Select a time that works best for you from our available slots to schedule your personalized demo meeting:";
           setMessages((prev) => [
             ...prev,
-            { role: "user", content: choiceText },
-            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai" }
+            { role: "user", content: choiceText, created_at: new Date().toISOString() },
+            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai", created_at: new Date().toISOString() }
           ]);
           return;
         }
@@ -1088,6 +1100,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       });
       if (!res.ok) throw new Error("csat submit failed");
       setCsatSubmitted(true);
+      rememberCsatPrompt();
       showToast(`Thanks - ${csatRating} star rating submitted.`, "success");
       setTimeout(() => { setShowCsat(false); try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }, 1200);
     } catch {
@@ -1134,7 +1147,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   const handleCloseClick = () => {
-    if (csatEnabled && messages.length > 2 && !csatSubmitted) {
+    if (csatEnabled && messages.length > 2 && !csatSubmitted && canShowCsat()) {
+      rememberCsatPrompt();
       setShowCsat(true);
     } else {
       try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {}
@@ -1252,7 +1266,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         targetMsgs = JSON.parse(raw);
       }
     } catch {}
-    setMessages(targetMsgs.length > 0 ? targetMsgs : [{ role: "assistant", content: welcomeMsg, sender: "ai" }]);
+    setMessages(targetMsgs.length > 0 ? targetMsgs : [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
     setChatView("chat");
     setTab("messages");
   };
@@ -1264,7 +1278,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     try {
       localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, freshId);
     } catch {}
-    const initialMsgs: Message[] = [{ role: "assistant", content: welcomeMsg, sender: "ai" }];
+    const initialMsgs: Message[] = [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }];
     setMessages(initialMsgs);
     try {
       localStorage.setItem(`chatty_msgs_${botId}_${hostKey}_${freshId}`, JSON.stringify(initialMsgs));
@@ -1756,7 +1770,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   const sendText = async (text: string) => {
     if (!text.trim() || isBotResponding) return;
-    setMessages((p) => [...p, { role: "user", content: text }]);
+    setMessages((p) => [...p, { role: "user", content: text, created_at: new Date().toISOString() }]);
     setInputValue("");
     setEmojiOpen(false);
 
@@ -1801,7 +1815,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           const promptText = cleanLabel(targetNode.data?.label) || "Select a time that works best for you from our available slots to schedule your personalized demo meeting:";
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai" }
+            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai", created_at: new Date().toISOString() }
           ]);
           return;
         }
@@ -1828,7 +1842,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       if (!created) {
         created = true;
         setIsBotResponding(false);
-        setMessages((p) => [...p, { role: "assistant" as const, content, sender: "ai" }]);
+        setMessages((p) => [...p, { role: "assistant" as const, content, sender: "ai", created_at: new Date().toISOString() }]);
       } else {
         setStreamingAssistant(content);
       }
@@ -1929,7 +1943,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     const isImage = file.type.startsWith("image/");
     const isAudio = file.type.startsWith("audio/");
     const localUrl = URL.createObjectURL(file);
-    setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? VOICE_MESSAGE_PLACEHOLDER : `📎 ${filename}`), fileUrl: localUrl, fileType: file.type }]);
+    setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? VOICE_MESSAGE_PLACEHOLDER : `📎 ${filename}`), fileUrl: localUrl, fileType: file.type, created_at: new Date().toISOString() }]);
     setIsBotResponding(true);
     try {
       const fd = new FormData();
@@ -1955,13 +1969,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             return copy;
           });
         }
-        setMessages((p) => [...p, { role: "assistant", content: body.reply, sender: "ai" }]);
+        setMessages((p) => [...p, { role: "assistant", content: body.reply, sender: "ai", created_at: new Date().toISOString() }]);
       } else {
         setMessages((p) => [...p, { role: "assistant", content: `⚠️ ${body.detail || "Couldn't process that file."}` }]);
       }
       notifyParent();
     } catch {
-      setMessages((p) => [...p, { role: "assistant", content: "Sorry, I couldn't upload that." }]);
+      setMessages((p) => [...p, { role: "assistant", content: "Sorry, I couldn't upload that.", created_at: new Date().toISOString() }]);
     } finally {
       setIsBotResponding(false);
     }
@@ -2492,12 +2506,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 </p>
               </div>
 
-              <div className="mt-4 flex justify-center gap-1.5" onMouseLeave={() => setCsatHoverRating(0)}>
-                {[1, 2, 3, 4, 5].map((star) => {
-                  const active = star <= (csatHoverRating || csatRating);
+              <div className="mt-4 flex justify-center gap-1" onMouseLeave={() => setCsatHoverRating(0)} role="radiogroup" aria-label="Conversation rating">
+                {["😞", "😕", "😐", "🙂", "🤩"].map((face, index) => {
+                  const star = index + 1;
+                  const active = star === (csatHoverRating || csatRating);
                   return (
                     <motion.button
-                      key={star}
+                      key={face}
                       type="button"
                       whileHover={{ y: -2, scale: 1.08 }}
                       whileTap={{ scale: 0.9 }}
@@ -2506,12 +2521,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                       onBlur={() => setCsatHoverRating(0)}
                       onClick={() => setCsatRating(star)}
                       aria-label={`Rate ${star} out of 5`}
-                      className="group flex size-9 items-center justify-center rounded-full transition-colors cursor-pointer"
-                      style={{ backgroundColor: active ? "color-mix(in srgb, #f59e0b 16%, transparent)" : "transparent" }}
+                      role="radio"
+                      aria-checked={active}
+                      className="group flex size-10 items-center justify-center rounded-2xl transition-colors cursor-pointer text-xl"
+                      style={{ backgroundColor: active ? "color-mix(in srgb, #f59e0b 16%, transparent)" : "color-mix(in srgb, currentColor 5%, transparent)", opacity: active || csatRating === 0 ? 1 : 0.45, border: active ? "1px solid #f59e0b" : "1px solid transparent" }}
                     >
-                      <Star
-                        className={`size-6 transition-all ${active ? "fill-amber-400 text-amber-400 drop-shadow-sm" : "text-neutral-300 dark:text-neutral-700 group-hover:text-amber-300"}`}
-                      />
+                      <span aria-hidden="true">{face}</span>
                     </motion.button>
                   );
                 })}
@@ -2895,7 +2910,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 <div className="flex-1 p-4 space-y-4 text-xs">
                 {/* Team Presence Banner in Active Chat (Crisp Style) */}
                 {teamProfiles.length > 0 && (
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 mb-1">
+                  <div className="order-last flex items-center justify-between p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 mt-1">
                     <div className="flex items-center gap-2">
                       <AvatarGroup
                         profiles={teamProfiles}
@@ -2910,7 +2925,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                         {teamProfiles.filter((p) => p.online).length > 0 ? (
                           <span className="flex items-center gap-1.5">
                             <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            {teamProfiles.filter((p) => p.online).length} team member online
+                            {teamProfiles.filter((p) => p.online).length} team member{teamProfiles.filter((p) => p.online).length === 1 ? "" : "s"} online
+                            <span className="opacity-70">
+                              · active {formatTimeAgo(teamProfiles.filter((p) => p.online)[0]?.last_seen_at)}
+                            </span>
                           </span>
                         ) : (
                           "Our team will reply shortly"
