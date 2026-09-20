@@ -51,6 +51,11 @@ the migration window. Redis Streams is the default queue adapter for workers;
 request handlers should enqueue work rather than run crawling, embedding, email,
 or webhook retries inline.
 
+`app/workers/job_worker.py` provides the reference Redis Streams consumer with
+ack-after-success, bounded retries, and a dead-letter stream. Domain handlers
+remain injectable so the same worker contract can run against hosted Redis or a
+self-hosted Redis 7 deployment.
+
 ## Non-negotiable production rules
 
 - Tenant scope (`bot_id`, organization, and authenticated principal) is checked

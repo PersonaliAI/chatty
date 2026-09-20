@@ -61,6 +61,10 @@ The default job stream is `chatty:jobs`; webhook delivery uses
 consumer group, acknowledge only after the side effect is durable, and move
 poison messages to a dead-letter stream after the configured retry limit.
 
+The reference worker implementation is `app/workers/job_worker.py`. Run one
+consumer process per worker identity, register handlers by job name, and use a
+stable identity per process so Redis can recover pending messages after a crash.
+
 ## Incident response
 
 For a secret leak, revoke/rotate the credential first, then remove it from
