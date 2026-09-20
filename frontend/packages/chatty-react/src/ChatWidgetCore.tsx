@@ -302,11 +302,11 @@ function formatTimeCompact(dateStr?: string | number): string {
   // Never label an unknown timestamp as current. Older local sessions can
   // legitimately lack created_at; showing "Just now" made those messages
   // appear permanently fresh. New messages are timestamped at insertion.
-  if (!dateStr) return "?";
+  if (!dateStr) return "—";
   try {
     const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
     const time = d.getTime();
-    if (!Number.isFinite(time)) return "?";
+    if (!Number.isFinite(time)) return "—";
     const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
     if (diffSec < 10) return "Just now";
     if (diffSec < 60) return `${diffSec}s`;
@@ -315,7 +315,7 @@ function formatTimeCompact(dateStr?: string | number): string {
     if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
-    return "?";
+    return "—";
   }
 }
 

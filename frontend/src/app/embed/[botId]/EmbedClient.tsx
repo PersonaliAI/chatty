@@ -136,11 +136,11 @@ export interface VisitorConversationItem {
 }
 
 function formatTimeAgo(dateStr?: string | number): string {
-  if (!dateStr) return "?";
+  if (!dateStr) return "—";
   try {
     const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
     const time = d.getTime();
-    if (!Number.isFinite(time)) return "?";
+    if (!Number.isFinite(time)) return "—";
     const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
     if (diffSec < 10) return "Just now";
     if (diffSec < 60) return `${diffSec}s ago`;
@@ -149,18 +149,18 @@ function formatTimeAgo(dateStr?: string | number): string {
     if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d ago`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
-    return "?";
+    return "—";
   }
 }
 
 function formatTimeCompact(dateStr?: string | number): string {
   // Missing/invalid timestamps are unknown, not current. This prevents old
   // local sessions from being shown as "Just now" forever.
-  if (!dateStr) return "?";
+  if (!dateStr) return "—";
   try {
     const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
     const time = d.getTime();
-    if (!Number.isFinite(time)) return "?";
+    if (!Number.isFinite(time)) return "—";
     const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
     if (diffSec < 10) return "Just now";
     if (diffSec < 60) return `${diffSec}s`;
@@ -169,7 +169,7 @@ function formatTimeCompact(dateStr?: string | number): string {
     if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
-    return "?";
+    return "—";
   }
 }
 
