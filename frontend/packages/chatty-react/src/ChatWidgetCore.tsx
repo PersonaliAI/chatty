@@ -299,17 +299,23 @@ export interface TeamProfile {
 }
 
 function formatTimeCompact(dateStr?: string | number): string {
-  if (!dateStr) return "Just now";
+  // Never label an unknown timestamp as current. Older local sessions can
+  // legitimately lack created_at; showing "Just now" made those messages
+  // appear permanently fresh. New messages are timestamped at insertion.
+  if (!dateStr) return "?";
   try {
     const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
-    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
-    if (diffSec < 60) return "Just now";
+    const time = d.getTime();
+    if (!Number.isFinite(time)) return "?";
+    const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
+    if (diffSec < 10) return "Just now";
+    if (diffSec < 60) return `${diffSec}s`;
     if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`;
     if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h`;
     if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
-    return "Just now";
+    return "?";
   }
 }
 
@@ -636,8 +642,11 @@ export default function ChatWidgetCore({
   };
 
   const renderBotAvatar = (sizeClass = "size-9", iconClass = "size-5", className = "") => {
-    const bg = colorScheme?.avatar?.bg || logoBgColor || "color-mix(in srgb, var(--primary-color) 15%, transparent)";
-    const fg = colorScheme?.avatar?.text || (logoBgColor ? getOnColor(logoBgColor) : primaryColor);
+    // Use the same treatment as the header logo. The previous implementation
+    // let the per-section avatar color override this wrapper, so the recent
+    // message showed a different-looking Chatty icon from the header.
+    const bg = logoBgColor || "color-mix(in srgb, currentColor 25%, transparent)";
+    const fg = logoBgColor ? getOnColor(logoBgColor) : primaryColor;
     return (
       <div
         className={`${sizeClass} rounded-full flex items-center justify-center font-bold overflow-hidden shrink-0 transition-colors shadow-2xs ${className}`}
@@ -669,7 +678,7 @@ export default function ChatWidgetCore({
         }
       }
     }
-    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai" }]);
+    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
   };
 
   const [loading, setLoading] = useState(true);
@@ -722,17 +731,6 @@ export default function ChatWidgetCore({
     const id = setInterval(() => setNowTick((n) => n + 1), 30_000);
     return () => clearInterval(id);
   }, []);
-
-  // Keep every message timestamped, including flow/media messages and older
-  // local sessions created before timestamps were persisted.  Otherwise the
-  // UI falls back to "Just now" and can never advance to minutes/hours.
-  useEffect(() => {
-    setMessages((current) => {
-      if (!current.some((message) => !message.created_at)) return current;
-      const fallback = new Date().toISOString();
-      return current.map((message) => message.created_at ? message : { ...message, created_at: fallback });
-    });
-  }, [messages]);
 
   const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
 
@@ -1579,7 +1577,7 @@ export default function ChatWidgetCore({
             sender: "human" as const,
             sender_name: m.sender_name || d.assigned_agent_name,
             sender_avatar: m.sender_avatar || d.assigned_agent_avatar,
-            created_at: m.created_at,
+            created_at: m.created_at || new Date().toISOString(),
           }));
           const lastM = newMsgs[newMsgs.length - 1];
           if (lastM.sender_name) setActiveAgentName(lastM.sender_name);
@@ -1659,7 +1657,7 @@ export default function ChatWidgetCore({
           sender: "human" as const,
           sender_name: m.sender_name || d.assigned_agent_name,
           sender_avatar: m.sender_avatar || d.assigned_agent_avatar,
-          created_at: m.created_at,
+          created_at: m.created_at || new Date().toISOString(),
         }));
         const lastM = newMsgs[newMsgs.length - 1];
         if (lastM.sender_name) setActiveAgentName(lastM.sender_name);
@@ -2806,21 +2804,6 @@ export default function ChatWidgetCore({
                   <p className="text-xs opacity-75 mt-1.5 leading-relaxed">{welcomeMsg}</p>
                 </div>
 
-                {/* Instant Search Bar (Crisp Style) */}
-                <div className="relative">
-                  <Search className="size-3.5 opacity-50 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={articleFilterQuery}
-                    onChange={(e) => setArticleFilterQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setTab("articles");
-                    }}
-                    placeholder="Search for answers and guides..."
-                    className="widget-search-bar w-full pl-9 pr-4 py-2.5 text-xs focus:outline-none shadow-xs"
-                  />
-                </div>
-
                 {/* Ask a question card with overlapping team avatars */}
                 <motion.button
                   type="button"
@@ -2885,7 +2868,7 @@ export default function ChatWidgetCore({
                               {activeAgentName || botName}
                             </span>
                             <span className="text-[11px] opacity-60 font-medium shrink-0">
-                              {formatTimeCompact(messages[messages.length - 1]?.created_at || Date.now())}
+                              {formatTimeCompact(messages[messages.length - 1]?.created_at)}
                             </span>
                           </div>
                           <p className="text-[11px] opacity-70 truncate mt-0.5">
@@ -2950,37 +2933,6 @@ export default function ChatWidgetCore({
                   </div>
                 )}
 
-                {/* Browse Help Articles Button */}
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.01, y: -1 }}
-                  whileTap={{ scale: 0.985 }}
-                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
-                  onClick={() => setTab("articles")}
-                  className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
-                >
-                  <span className="flex items-center gap-2.5 text-xs font-semibold">
-                    <FileText className="size-4" style={{ color: primaryColor }} />Browse help articles
-                  </span>
-                  <ChevronRight className="size-4 opacity-50 group-hover:translate-x-0.5 transition-transform" />
-                </motion.button>
-
-                {/* Ask AI Assistant Button */}
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.01, y: -1 }}
-                  whileTap={{ scale: 0.985 }}
-                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
-                  onClick={() => {
-                    setTab("messages");
-                  }}
-                  className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
-                >
-                  <span className="flex items-center gap-2.5 text-xs font-semibold">
-                    <Search className="size-4" style={{ color: primaryColor }} />Ask AI assistant
-                  </span>
-                  <ChevronRight className="size-4 opacity-50 group-hover:translate-x-0.5 transition-transform" />
-                </motion.button>
               </motion.div>
             )}
 
