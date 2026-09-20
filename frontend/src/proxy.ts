@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
 function publicOrigin(request: NextRequest): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL
+  if (configured) return configured.replace(/\/$/, '')
   const proto = request.headers.get('x-forwarded-proto') ?? 'https'
   const host =
     request.headers.get('x-forwarded-host') ??
