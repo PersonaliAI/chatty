@@ -701,12 +701,20 @@ async def widget_csat(body: WidgetCsatRequest, request: Request):
     if not 1 <= body.rating <= 5:
         raise HTTPException(status_code=400, detail="rating must be between 1 and 5")
     try:
+        cooldown_since = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+        recent = await run_db(lambda: supabase.table("chatty_csat_feedback")
+            .select("id").eq("bot_id", body.bot_id).eq("session_id", body.session_id)
+            .gte("created_at", cooldown_since).order("created_at", desc=True).limit(1).execute())
+        if recent.data:
+            raise HTTPException(status_code=429, detail="Feedback can be submitted once every 2 days")
         await run_db(lambda: supabase.table("chatty_csat_feedback").insert({
             "bot_id": body.bot_id,
             "session_id": body.session_id,
             "rating": body.rating,
             "comment": (body.comment or "").strip() or None,
         }).execute())
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("widget csat failed")
         raise HTTPException(status_code=502, detail="failed to save feedback")
@@ -853,7 +861,7 @@ async def widget_theme(bot_id: str):
     candidates: list[dict[str, Any]] = []
     seen_keys: set[str] = set()
 
-    def _add_candidate(name: str, avatar_url: Optional[str], role: str, is_online: bool, priority_score: int, key: str):
+    def _add_candidate(name: str, avatar_url: Optional[str], role: str, is_online: bool, priority_score: int, key: str, last_seen_at: Optional[str] = None):
         clean_name = name.strip() if name else ""
         if not clean_name:
             return
@@ -872,6 +880,8 @@ async def widget_theme(bot_id: str):
                 if is_online and not existing["online"]:
                     existing["online"] = True
                     existing["priority"] += 100
+                if last_seen_at and not existing.get("last_seen_at"):
+                    existing["last_seen_at"] = last_seen_at
                 return
 
         seen_keys.add(norm_key)
@@ -881,6 +891,7 @@ async def widget_theme(bot_id: str):
             "avatar_url": clean_av,
             "role": role,
             "online": is_online,
+            "last_seen_at": last_seen_at,
             "priority": priority_score + (150 if clean_av else 0),
         })
 
@@ -941,7 +952,7 @@ async def widget_theme(bot_id: str):
                 p_name = p_email.split("@")[0].capitalize() if p_email else "Agent"
 
             if is_active_online or p_av:
-                _add_candidate(p_name, p_av, "Online Agent" if is_active_online else "Agent", is_active_online, 200 if is_active_online else 80, p_email or p_name)
+                _add_candidate(p_name, p_av, "Online Agent" if is_active_online else "Agent", is_active_online, 200 if is_active_online else 80, p_email or p_name, ls)
     except Exception:
         pass
 
@@ -995,6 +1006,7 @@ async def widget_theme(bot_id: str):
             "avatar_url": c["avatar_url"],
             "role": c["role"],
             "online": c["online"],
+            "last_seen_at": c.get("last_seen_at"),
         }
         for c in selected_cands
     ]
