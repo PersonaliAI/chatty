@@ -61,9 +61,16 @@ The default job stream is `chatty:jobs`; webhook delivery uses
 consumer group, acknowledge only after the side effect is durable, and move
 poison messages to a dead-letter stream after the configured retry limit.
 
-The reference worker implementation is `app/workers/job_worker.py`. Run one
-consumer process per worker identity, register handlers by job name, and use a
-stable identity per process so Redis can recover pending messages after a crash.
+The reference worker implementation is `app/workers/job_worker.py`. For the
+built-in webhook stream, run the production entrypoint as a separate service:
+
+```bash
+CHATTY_JOB_QUEUE_URL=redis://redis:6379/0 python -m app.workers.webhook_worker
+```
+
+Run one consumer process per worker identity. The entrypoint derives a unique
+consumer name from the host and process ID, and supports `CHATTY_WORKER_GROUP`,
+`CHATTY_WORKER_MAX_ATTEMPTS`, and `CHATTY_WEBHOOK_STREAM` deployment settings.
 
 ## Incident response
 
