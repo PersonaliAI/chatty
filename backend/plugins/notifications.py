@@ -31,9 +31,17 @@ import httpx
 from app.core import ssrf
 from app.core.db import run_db
 from app.core.ssrf import UnsafeURLError
+from app.adapters.redis_jobs import RedisJobQueue
+from app.ports.jobs import JobQueue
 from plugins import google_integrations as g
 
 logger = logging.getLogger("kin.notifications")
+
+WEBHOOK_JOB_QUEUE_URL = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
+_webhook_job_queue: JobQueue | None = (
+    RedisJobQueue(WEBHOOK_JOB_QUEUE_URL, stream="chatty:webhooks")
+    if WEBHOOK_JOB_QUEUE_URL else None
+)
 
 ONESIGNAL_APP_ID = os.environ.get("ONESIGNAL_APP_ID", "").strip()
 ONESIGNAL_REST_API_KEY = os.environ.get("ONESIGNAL_REST_API_KEY", "").strip()
@@ -496,7 +504,8 @@ async def _post_signed_webhook(url: str, secret: str, payload: dict) -> tuple[bo
 
 
 async def enqueue_webhook_event(
-    supabase, *, bot_id: str, event: str, session_id: str = "", data: dict
+    supabase, *, bot_id: str, event: str, session_id: str = "", data: dict,
+    job_queue: JobQueue | None = None,
 ) -> None:
     """Fan out `event` to every active chatty_webhooks subscription for this
     bot that's subscribed to it. First attempt happens inline; on failure the
@@ -528,7 +537,23 @@ async def enqueue_webhook_event(
         "data": data,
     }
 
+    queue = job_queue or _webhook_job_queue
     for wh in subscribed:
+        if queue:
+            try:
+                await queue.enqueue(
+                    name="webhook.deliver",
+                    payload={
+                        "webhook_id": wh["id"],
+                        "url": wh["url"],
+                        "secret": wh["secret"],
+                        "payload": payload,
+                    },
+                    idempotency_key=f"{wh['id']}:{payload['timestamp']}:{event}",
+                )
+                continue
+            except Exception:
+                logger.exception("webhook queue publish failed; falling back to inline delivery")
         ok, err = await _post_signed_webhook(wh["url"], wh["secret"], payload)
         if ok:
             continue
@@ -546,6 +571,19 @@ async def enqueue_webhook_event(
             }).execute())
         except Exception:
             logger.exception("failed to enqueue webhook retry for %s", wh.get("url"))
+
+
+async def process_webhook_job(job: dict) -> tuple[bool, Optional[str]]:
+    """Worker entry point for one queued webhook delivery.
+
+    The worker intentionally receives a complete signed-delivery envelope so it
+    never needs access to the dashboard request context. Retries and durable
+    status updates remain owned by the delivery worker/database transaction.
+    """
+    required = ("url", "secret", "payload")
+    if any(not job.get(key) for key in required):
+        return False, "invalid webhook job payload"
+    return await _post_signed_webhook(job["url"], job["secret"], job["payload"])
 
 
 async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
