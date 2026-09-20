@@ -54,7 +54,9 @@ or webhook retries inline.
 `app/workers/job_worker.py` provides the reference Redis Streams consumer with
 ack-after-success, bounded retries, and a dead-letter stream. Domain handlers
 remain injectable so the same worker contract can run against hosted Redis or a
-self-hosted Redis 7 deployment.
+self-hosted Redis 7 deployment. Webhook delivery has a runnable entrypoint in
+`app/workers/webhook_worker.py`; it keeps application imports lazy and closes
+the Redis client cleanly on shutdown.
 
 ## Non-negotiable production rules
 
