@@ -296,6 +296,7 @@ export interface TeamProfile {
   name: string;
   avatar_url?: string | null;
   role?: string;
+  last_seen_at?: string | null;
 }
 
 function formatTimeCompact(dateStr?: string | number): string {
@@ -902,6 +903,18 @@ export default function ChatWidgetCore({
   const [csatRating, setCsatRating] = useState(0);
   const [csatComment, setCsatComment] = useState("");
   const [csatSubmitted, setCsatSubmitted] = useState(false);
+  const csatCooldownKey = `chatty_csat_prompt_${botId}_${hostKey}`;
+  const csatCooldownMs = 2 * 24 * 60 * 60 * 1000;
+  const canShowCsat = () => {
+    if (typeof window === "undefined") return true;
+    try {
+      const shownAt = Number(localStorage.getItem(csatCooldownKey) || 0);
+      return !shownAt || Date.now() - shownAt >= csatCooldownMs;
+    } catch { return true; }
+  };
+  const rememberCsatPrompt = () => {
+    try { localStorage.setItem(csatCooldownKey, String(Date.now())); } catch {}
+  };
 
   const [showOfflineForm, setShowOfflineForm] = useState(false);
   const [offlineEmail, setOfflineEmail] = useState("");
@@ -1207,7 +1220,7 @@ export default function ChatWidgetCore({
       setLiveAgent(true);
       setFlowAwaitingInput(false);
       setActiveNodeId(null);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) || "Connecting you to a live agent now...", sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label) || "Connecting you to a live agent now...", sender: "ai", created_at: new Date().toISOString() }]);
       fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1222,7 +1235,7 @@ export default function ChatWidgetCore({
       setFlowAwaitingInput(false);
       setIsBotResponding(false);
       const promptText = cleanLabel(label) || "Select a time that works best for you from our available slots to schedule your demo:";
-      setMessages((prev) => [...prev, { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai", created_at: new Date().toISOString() }]);
       fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1236,7 +1249,7 @@ export default function ChatWidgetCore({
       setActiveNodeId(node.id);
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai", created_at: new Date().toISOString() }]);
       return;
     }
 
@@ -1246,7 +1259,7 @@ export default function ChatWidgetCore({
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
       const qualifyText = cleanLabel(label) || "Could you share a bit more detail on what you're looking to achieve?";
-      setMessages((prev) => [...prev, { role: "assistant", content: qualifyText, sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: qualifyText, sender: "ai", created_at: new Date().toISOString() }]);
       return;
     }
 
@@ -1255,7 +1268,7 @@ export default function ChatWidgetCore({
       setActiveNodeId(node.id);
       setFlowAwaitingInput(true);
       setIsBotResponding(false);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai", created_at: new Date().toISOString() }]);
       return;
     }
 
@@ -1264,7 +1277,7 @@ export default function ChatWidgetCore({
       setActiveNodeId(node.id);
       setFlowAwaitingInput(false);
       setIsBotResponding(false);
-      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai", created_at: new Date().toISOString() }]);
       return;
     }
 
@@ -1272,7 +1285,7 @@ export default function ChatWidgetCore({
     setActiveNodeId(node.id);
     setFlowAwaitingInput(false);
     setIsBotResponding(false);
-    setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai" }]);
+    setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai", created_at: new Date().toISOString() }]);
     const outgoing = currentConfig.edges.filter((e) => e.source === node.id);
     if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
       setTimeout(() => {
@@ -1309,8 +1322,8 @@ export default function ChatWidgetCore({
           const promptText = cleanLabel(targetNode.data?.label) || "Select a time that works best for you from our available slots to schedule your personalized demo meeting:";
           setMessages((prev) => [
             ...prev,
-            { role: "user", content: choiceText },
-            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai" }
+            { role: "user", content: choiceText, created_at: new Date().toISOString() },
+            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai", created_at: new Date().toISOString() }
           ]);
           return;
         }
@@ -1335,6 +1348,7 @@ export default function ChatWidgetCore({
       });
       if (!res.ok) throw new Error("csat submit failed");
       setCsatSubmitted(true);
+      rememberCsatPrompt();
       showToast("Thank you for your feedback!", "success");
       setTimeout(() => { setShowCsat(false); notifyClose(); }, 1500);
     } catch {
@@ -1371,7 +1385,8 @@ export default function ChatWidgetCore({
   };
 
   const handleCloseClick = () => {
-    if (csatEnabled && messages.length > 2 && !csatSubmitted) {
+    if (csatEnabled && messages.length > 2 && !csatSubmitted && canShowCsat()) {
+      rememberCsatPrompt();
       setShowCsat(true);
     } else {
       notifyClose();
@@ -1952,7 +1967,7 @@ export default function ChatWidgetCore({
 
   const sendText = async (text: string) => {
     if (!text.trim() || isBotResponding) return;
-    setMessages((p) => [...p, { role: "user", content: text }]);
+    setMessages((p) => [...p, { role: "user", content: text, created_at: new Date().toISOString() }]);
     setInputValue("");
     setEmojiOpen(false);
 
@@ -2026,7 +2041,7 @@ export default function ChatWidgetCore({
       if (!created) {
         created = true;
         setIsBotResponding(false);
-        setMessages((p) => [...p, { role: "assistant" as const, content, sender: "ai" }]);
+        setMessages((p) => [...p, { role: "assistant" as const, content, sender: "ai", created_at: new Date().toISOString() }]);
       } else {
         setStreamingAssistant(content);
       }
@@ -2126,7 +2141,7 @@ export default function ChatWidgetCore({
     const isImage = file.type.startsWith("image/");
     const isAudio = file.type.startsWith("audio/");
     const localUrl = URL.createObjectURL(file);
-    setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? VOICE_MESSAGE_PLACEHOLDER : `📎 ${filename}`), fileUrl: localUrl, fileType: file.type }]);
+    setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? VOICE_MESSAGE_PLACEHOLDER : `📎 ${filename}`), fileUrl: localUrl, fileType: file.type, created_at: new Date().toISOString() }]);
     setIsBotResponding(true);
     try {
       const fd = new FormData();
@@ -2139,11 +2154,11 @@ export default function ChatWidgetCore({
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/media`, { method: "POST", headers: widgetTokenHeader, body: fd });
       const body = await res.json();
       setMessages((p) => [...p, res.ok
-        ? { role: "assistant", content: body.reply, sender: "ai" }
-        : { role: "assistant", content: `⚠️ ${body.detail || "Couldn't process that file."}` }]);
+        ? { role: "assistant", content: body.reply, sender: "ai", created_at: new Date().toISOString() }
+        : { role: "assistant", content: `⚠️ ${body.detail || "Couldn't process that file."}`, created_at: new Date().toISOString() }]);
       notifyParent();
     } catch {
-      setMessages((p) => [...p, { role: "assistant", content: "Sorry, I couldn't upload that." }]);
+      setMessages((p) => [...p, { role: "assistant", content: "Sorry, I couldn't upload that.", created_at: new Date().toISOString() }]);
     } finally {
       setIsBotResponding(false);
     }
@@ -2683,19 +2698,28 @@ export default function ChatWidgetCore({
               <h3 className="text-sm font-bold">How was your conversation?</h3>
               <p className="text-[11px]" style={{ opacity: 0.6 }}>Your rating helps us improve support quality.</p>
             </div>
-            {/* Stars selection */}
-            <div className="flex justify-center gap-1.5 py-2">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setCsatRating(star)}
-                  className="text-2xl transition-transform hover:scale-110 cursor-pointer"
-                  style={{ color: star <= csatRating ? "#facc15" : "currentColor", opacity: star <= csatRating ? 1 : 0.25 }}
-                >
-                  ★
-                </button>
-              ))}
+            {/* Friendly animated sentiment scale: clearer than tiny stars on mobile. */}
+            <div className="flex justify-center gap-1 py-2" role="radiogroup" aria-label="Conversation rating">
+              {["😞", "😕", "😐", "🙂", "🤩"].map((face, index) => {
+                const rating = index + 1;
+                const selected = rating === csatRating;
+                return (
+                  <motion.button
+                    key={face}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    aria-label={`${rating} out of 5`}
+                    onClick={() => setCsatRating(rating)}
+                    whileHover={{ y: -4, scale: 1.12 }}
+                    whileTap={{ scale: 0.88, rotate: selected ? -4 : 4 }}
+                    className="size-10 rounded-2xl flex items-center justify-center text-xl cursor-pointer transition-all"
+                    style={{ backgroundColor: selected ? "color-mix(in srgb, #f59e0b 18%, transparent)" : "color-mix(in srgb, currentColor 6%, transparent)", opacity: selected || csatRating === 0 ? 1 : 0.45, border: selected ? "1px solid #f59e0b" : "1px solid transparent" }}
+                  >
+                    {face}
+                  </motion.button>
+                );
+              })}
             </div>
             {/* Comment */}
             <textarea
