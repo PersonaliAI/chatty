@@ -36,6 +36,11 @@ instances.
 The default Docker profile should run without Supabase credentials. Hosted-only
 features must fail clearly with a capability error, not crash at import time.
 
+Set `CHATTY_JOB_QUEUE_URL` to enable durable webhook delivery through Redis
+Streams. If it is unset, the compatibility path performs the first delivery in
+the request and persists a retry row, preserving current local development
+behavior.
+
 ## Definition of done for a new adapter
 
 1. Implements the corresponding `app.ports` protocol.
