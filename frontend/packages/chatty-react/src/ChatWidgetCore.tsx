@@ -302,11 +302,11 @@ function formatTimeCompact(dateStr?: string | number): string {
   // Never label an unknown timestamp as current. Older local sessions can
   // legitimately lack created_at; showing "Just now" made those messages
   // appear permanently fresh. New messages are timestamped at insertion.
-  if (!dateStr) return "?";
+  if (!dateStr) return "—";
   try {
     const d = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
     const time = d.getTime();
-    if (!Number.isFinite(time)) return "?";
+    if (!Number.isFinite(time)) return "—";
     const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
     if (diffSec < 10) return "Just now";
     if (diffSec < 60) return `${diffSec}s`;
@@ -315,7 +315,7 @@ function formatTimeCompact(dateStr?: string | number): string {
     if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
-    return "?";
+    return "—";
   }
 }
 
@@ -2896,42 +2896,64 @@ export default function ChatWidgetCore({
                   <ChevronRight className="size-4 opacity-50 group-hover:translate-x-0.5 transition-transform" />
                 </motion.button>
 
-                {/* Featured Help Articles Section (Crisp Style) */}
-                {kbArticles.length > 0 && (
-                  <div className="widget-card p-3.5 space-y-2 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold flex items-center gap-1.5">
-                        <BookOpen className="size-3.5" style={{ color: primaryColor }} />Help articles
-                      </span>
-                      <button
+                {/* Editorial knowledge card: one beautiful entry point instead of
+                    repeating search/browse/article actions on the home screen. */}
+                {kbArticles.length > 0 && (() => {
+                  const featured = kbPromoted[0] || kbArticles[0];
+                  const supporting = (kbPromoted.length > 0 ? kbPromoted : kbArticles)
+                    .filter((article) => article.id !== featured.id)
+                    .slice(0, 2);
+                  return (
+                    <div className="space-y-2">
+                      <motion.button
                         type="button"
-                        onClick={() => setTab("articles")}
-                        className="text-[10px] font-bold hover:underline cursor-pointer"
-                        style={{ color: primaryColor }}
+                        whileHover={{ y: -2 }}
+                        whileTap={{ scale: 0.985 }}
+                        transition={{ type: "spring", stiffness: 450, damping: 28 }}
+                        onClick={() => {
+                          openKbArticle(featured);
+                          setTab("articles");
+                        }}
+                        className="w-full overflow-hidden rounded-2xl text-left shadow-sm group cursor-pointer"
+                        style={{ background: primaryColor, color: onPrimary }}
                       >
-                        View all ({kbArticles.length})
-                      </button>
+                        <div className="p-4">
+                          <div className="flex items-center justify-between gap-3 mb-7">
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] opacity-80">
+                              <BookOpen className="size-3.5" /> Featured guide
+                            </span>
+                            <ChevronRight className="size-4 opacity-70 group-hover:translate-x-1 transition-transform" />
+                          </div>
+                          <p className="text-sm font-semibold leading-snug line-clamp-2">{featured.title}</p>
+                          <p className="text-[11px] opacity-75 mt-1.5 line-clamp-2">
+                            {featured.subtitle || "Practical answers from the team behind this assistant."}
+                          </p>
+                        </div>
+                        <div className="px-4 py-2.5 text-[10px] font-semibold border-t border-white/20 opacity-90">
+                          Read the guide
+                        </div>
+                      </motion.button>
+                      {supporting.length > 0 && (
+                        <div className="widget-card divide-y divide-black/5 dark:divide-white/10 overflow-hidden">
+                          {supporting.map((article) => (
+                            <button
+                              key={article.id}
+                              type="button"
+                              onClick={() => {
+                                openKbArticle(article);
+                                setTab("articles");
+                              }}
+                              className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left group cursor-pointer hover:opacity-80 transition-opacity"
+                            >
+                              <span className="text-xs font-medium truncate">{article.title}</span>
+                              <ChevronRight className="size-3.5 opacity-50 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="divide-y divide-black/5 dark:divide-white/10">
-                      {(kbPromoted.length > 0 ? kbPromoted.slice(0, 3) : kbArticles.slice(0, 3)).map((art) => (
-                        <button
-                          key={art.id}
-                          type="button"
-                          onClick={() => {
-                            openKbArticle(art);
-                            setTab("articles");
-                          }}
-                          className="w-full flex items-center justify-between py-2 text-left group cursor-pointer hover:opacity-80 transition-opacity"
-                        >
-                          <span className="text-xs font-medium truncate pr-2">
-                            {art.title}
-                          </span>
-                          <ChevronRight className="size-3 opacity-50 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
               </motion.div>
             )}
