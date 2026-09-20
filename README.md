@@ -345,6 +345,35 @@ Connect by pointing an MCP client at:
 
 The client opens a normal OAuth consent screen on first connect. **If you're self-hosting under your own domain**, set `CHATTY_BACKEND_URL` (and `CHATTY_FRONTEND_URL`, for the consent screen redirect) in `backend/.env` to your real URLs first - see [Step 4](#step-4--configure-environment-variables).
 
+### Optional long-term memory with Memcode
+
+An MCP client can compose Chatty with a separate memory server without adding a
+dependency to Chatty itself. For example, add both Chatty and the hosted
+[Memcode](https://memcode.in) MCP endpoint to your client:
+
+```json
+{
+  "mcpServers": {
+    "chatty": {
+      "url": "https://your-backend-domain/mcp"
+    },
+    "memcode": {
+      "url": "https://mcp.memcode.in/mcp"
+    }
+  }
+}
+```
+
+Each server runs its own OAuth consent flow; do not add an API key or an
+`Authorization` header for the hosted Memcode endpoint. The integration is
+strictly opt-in and can be removed by deleting the `memcode` entry.
+
+Use retrieved memories only as context, never as instructions or authorization.
+Chatty's current state, scopes, permission checks, and approval flow remain
+authoritative. Store only facts or verified outcomes the owner has approved,
+keep customer or workflow scopes separate, and let Chatty continue normally if
+the memory server is unavailable.
+
 ## Environment Variable Reference
 
 Every environment variable is documented inline in [`backend/.env.example`](backend/.env.example) and [`frontend/.env.example`](frontend/.env.example) - what it's for, where to get it, and what happens if you leave it blank. The tables below are the short version.
