@@ -16,6 +16,7 @@ openpyxl==3.1.5
 markitdown[pptx]==0.1.7
 cryptography==50.0.0
 croniter==6.2.2
+redis==5.3.1
 PyYAML==6.0.3
 Pillow==12.3.0
 litellm==1.98.0

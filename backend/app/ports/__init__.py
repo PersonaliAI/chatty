@@ -8,5 +8,6 @@ the adapter without rewriting the domain logic.
 
 from app.ports.conversations import ConversationRepository
 from app.ports.audit import AuditLogRepository
+from app.ports.jobs import JobQueue
 
-__all__ = ["AuditLogRepository", "ConversationRepository"]
+__all__ = ["AuditLogRepository", "ConversationRepository", "JobQueue"]

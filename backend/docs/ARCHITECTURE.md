@@ -42,11 +42,14 @@ This is an incremental strangler migration, not a rewrite:
 4. Add contract tests that every adapter must satisfy.
 5. Add a PostgreSQL/Redis/self-hosted adapter when the port is stable.
 
-The first migrated boundaries are conversation history (`app/ports/conversations.py`)
-and audit events (`app/ports/audit.py`), with Supabase adapters in
+The first migrated boundaries are conversation history (`app/ports/conversations.py`),
+audit events (`app/ports/audit.py`), and durable background jobs
+(`app/ports/jobs.py`), with adapters in
 `app/adapters/`. Widget booking now writes its audit event through the audit
 port; the legacy direct-write fallback remains only for older callers during
-the migration window.
+the migration window. Redis Streams is the default queue adapter for workers;
+request handlers should enqueue work rather than run crawling, embedding, email,
+or webhook retries inline.
 
 ## Non-negotiable production rules
 

@@ -28,9 +28,10 @@ New product code must not import `supabase` directly unless it is inside an
 adapter or an explicitly documented migration shim. Add a port first when a
 new capability will eventually need self-hosting.
 
-The first enforced boundaries are conversation persistence and append-only
-audit events. Booking uses the audit adapter so a PostgreSQL implementation can
-be added without changing booking behavior.
+The first enforced boundaries are conversation persistence, append-only audit
+events, and durable background jobs. Booking uses the audit adapter, while the
+Redis Streams job adapter lets worker capacity scale independently of API
+instances.
 
 The default Docker profile should run without Supabase credentials. Hosted-only
 features must fail clearly with a capability error, not crash at import time.

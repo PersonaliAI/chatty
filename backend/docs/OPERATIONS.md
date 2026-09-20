@@ -56,6 +56,10 @@ running crawling, embedding, email, and webhook jobs.
 - Queue consumers are safe to restart and can process a message more than once.
 - Backups must be restorable in a clean environment, not merely present.
 
+The default job stream is `chatty:jobs`. Consumers must claim work with a
+consumer group, acknowledge only after the side effect is durable, and move
+poison messages to a dead-letter stream after the configured retry limit.
+
 ## Incident response
 
 For a secret leak, revoke/rotate the credential first, then remove it from
