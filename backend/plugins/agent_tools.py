@@ -32,6 +32,7 @@ from plugins import notifications as notify
 from app.core.config import GEMINI_FALLBACK_MODELS, MODEL_NAME, RESEND_INBOUND_DOMAIN
 from app.core.db import run_db
 from app.services import booking_service
+from app.adapters.supabase_audit import SupabaseAuditLogRepository
 
 logger = logging.getLogger("chatty.tools")
 
@@ -1333,6 +1334,7 @@ async def _create_lead(args: dict, user: dict, supabase) -> dict:
 
 
 async def _process_widget_booking(args: dict, user: dict, supabase, result: dict, context: dict):
+    audit_repository = SupabaseAuditLogRepository(supabase)
     await booking_service.process_widget_booking(
         args,
         user,
@@ -1345,6 +1347,7 @@ async def _process_widget_booking(args: dict, user: dict, supabase, result: dict
         format_invitation_time=_format_invitation_time,
         meeting_reply_to=_meeting_reply_to,
         log_meeting_message=_log_meeting_message,
+        audit_append=audit_repository.append,
     )
 
 

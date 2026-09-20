@@ -7,5 +7,6 @@ the adapter without rewriting the domain logic.
 """
 
 from app.ports.conversations import ConversationRepository
+from app.ports.audit import AuditLogRepository
 
-__all__ = ["ConversationRepository"]
+__all__ = ["AuditLogRepository", "ConversationRepository"]
