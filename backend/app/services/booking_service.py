@@ -17,6 +17,7 @@ ParseIso = Callable[[str], Any]
 FormatInvitationTime = Callable[[str, Optional[str]], str]
 MeetingReplyTo = Callable[[str], Optional[str]]
 LogMeetingMessage = Callable[..., Awaitable[None]]
+AuditAppend = Callable[..., Awaitable[Any]]
 
 
 async def process_widget_booking(
@@ -32,6 +33,7 @@ async def process_widget_booking(
     format_invitation_time: FormatInvitationTime,
     meeting_reply_to: MeetingReplyTo,
     log_meeting_message: LogMeetingMessage,
+    audit_append: AuditAppend | None = None,
 ) -> None:
     """Persist widget booking records and deliver visitor/admin notifications."""
     bot_id = context.get("bot_id")
@@ -282,12 +284,26 @@ async def process_widget_booking(
             "status": admin_push_status,
         })
 
-        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
-            "bot_id": bot_id,
-            "action": "meeting_booked",
-            "details": f"Meeting scheduled with {visitor_name} ({visitor_email}) at {start_invitation_label}. Provider: {provider}.",
-            "performed_by": "assistant",
-        }).execute())
+        audit_details = (
+            f"Meeting scheduled with {visitor_name} ({visitor_email}) at "
+            f"{start_invitation_label}. Provider: {provider}."
+        )
+        if audit_append:
+            await audit_append(
+                bot_id=bot_id,
+                action="meeting_booked",
+                details=audit_details,
+                performed_by="assistant",
+                metadata={"meeting_id": meeting_id, "provider": provider},
+            )
+        else:
+            # Compatibility path while callers migrate to the audit port.
+            await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+                "bot_id": bot_id,
+                "action": "meeting_booked",
+                "details": audit_details,
+                "performed_by": "assistant",
+            }).execute())
 
     except Exception:
         logger.exception("Failed to process widget booking side effects")

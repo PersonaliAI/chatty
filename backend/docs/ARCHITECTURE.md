@@ -42,8 +42,11 @@ This is an incremental strangler migration, not a rewrite:
 4. Add contract tests that every adapter must satisfy.
 5. Add a PostgreSQL/Redis/self-hosted adapter when the port is stable.
 
-The first migrated boundary is conversation history (`app/ports/conversations.py`)
-and its Supabase adapter (`app/adapters/supabase_conversations.py`).
+The first migrated boundaries are conversation history (`app/ports/conversations.py`)
+and audit events (`app/ports/audit.py`), with Supabase adapters in
+`app/adapters/`. Widget booking now writes its audit event through the audit
+port; the legacy direct-write fallback remains only for older callers during
+the migration window.
 
 ## Non-negotiable production rules
 
