@@ -26,6 +26,7 @@ from plugins import ai_client
 from plugins import doc_rag
 from plugins import llm_providers
 
+from app.adapters.supabase_conversations import SupabaseConversationRepository
 from app.core.clients import supabase
 from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS, MODEL_NAME
 from app.core.db import run_db
@@ -34,6 +35,12 @@ logger = logging.getLogger("chatty")
 
 
 MAX_TOOL_ROUNDS = 6
+
+# Kept as a module-level adapter for the current hosted deployment. The
+# assistant itself depends on the ConversationRepository port, so replacing
+# Supabase with PostgreSQL or another adapter does not change this orchestration
+# code.
+conversation_repository = SupabaseConversationRepository(supabase)
 
 # Guards against the model confidently telling a visitor their meeting is
 # booked when it never actually called the booking tool this turn (observed
@@ -286,13 +293,7 @@ async def run_widget_assistant(
 ) -> dict[str, Any]:
     visitor_country = (visitor_geo or {}).get("country")
     # 1. Retrieve history
-    res_history = await run_db(lambda: supabase.table("chatty_conversations")
-        .select("*")
-        .eq("bot_id", bot_id)
-        .eq("session_id", session_id)
-        .order("created_at", desc=False)
-        .execute())
-    history = res_history.data or []
+    history = list(await conversation_repository.list_history(bot_id=bot_id, session_id=session_id))
 
     messages: list[dict] = []
     last_role: Optional[str] = None
@@ -750,6 +751,25 @@ async def run_widget_assistant(
         if response_language else
         "- Mirror the visitor's language (reply in the language they write in).\n"
     )
+    # Put this guidance at the end of the assembled system prompt as well as
+    # in the persona. Long conversations can otherwise drift back to English
+    # when the retrieved knowledge, booking tools, or workflow instructions
+    # are written in English. The latest visitor turn is the source of truth
+    # for auto-detection; a configured response_language remains authoritative.
+    if response_language:
+        language_continuity_block = (
+            f"LANGUAGE CONTINUITY (highest priority for visible replies):\n"
+            f"- Continue replying only in {_LANGUAGE_NAMES.get(response_language, response_language)}.\n"
+            "- Translate tool results, booking labels, lead-capture questions, refusals, and workflow text into that language.\n\n"
+        )
+    else:
+        language_continuity_block = (
+            "LANGUAGE CONTINUITY (highest priority for visible replies):\n"
+            "- Detect the language of the latest visitor message and reply in that same language.\n"
+            "- Keep the established conversation language across every turn unless the visitor clearly switches languages.\n"
+            "- Never switch to English merely because the knowledge base, tool output, calendar data, internal instructions, or fallback model is in English.\n"
+            "- Translate booking confirmations, availability labels, lead-capture questions, error messages, and workflow prompts into the visitor's language.\n\n"
+        )
 
     # Knowledge source mode: how far beyond the trained knowledge the bot may go.
     answer_mode = (bot.get("answer_mode") or "strict").lower()
@@ -979,6 +999,7 @@ async def run_widget_assistant(
         f"{scheduling_block}"
         f"{lead_capture_block}"
         f"{visitor_memory_block}"
+        f"{language_continuity_block}"
         f"(Internal - never share: Bot ID {bot_id})"
     )
 
@@ -1128,7 +1149,9 @@ async def run_widget_assistant(
                             "If the requested slot is still available, call the booking tool now "
                             "before saying anything else to the visitor. If it can't be booked, "
                             "tell them honestly that it didn't go through and why - do not repeat "
-                            "the claim that it's booked."
+                            "the claim that it's booked. This is an internal check, not a visitor "
+                            "message: do not switch languages because this text is in English; keep "
+                            "the language of the latest real visitor message."
                         ),
                     })
                     continue
