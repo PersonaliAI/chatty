@@ -3728,7 +3728,7 @@ export default function ChatWidgetCore({
                             setActiveArticle(null);
                             setTab(id);
                           }}
-                          className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative ${
+                          className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative isolate ${isActive ? "active" : ""} ${
                             isActive ? "font-bold" : "opacity-60 hover:opacity-100"
                           }`}
                           style={isActive ? { color: activeNavColor } : undefined}
@@ -3745,21 +3745,21 @@ export default function ChatWidgetCore({
                             indicatorType === "pill" ? (
                               <motion.span
                                 layoutId="activeNavIndicator"
-                                className="absolute inset-1 rounded-full -z-0 opacity-15"
-                                style={{ backgroundColor: activeNavColor }}
+                                className="absolute inset-1 rounded-full z-0 pointer-events-none"
+                                style={{ backgroundColor: activeNavColor, opacity: 0.15 }}
                                 transition={{ type: "spring", stiffness: 450, damping: 30 }}
                               />
                             ) : indicatorType === "dot" ? (
                               <motion.span
                                 layoutId="activeNavIndicator"
-                                className="absolute bottom-1 size-1.5 rounded-full z-10 shadow-sm"
+                                className="absolute bottom-1 size-1.5 rounded-full z-20 shadow-sm pointer-events-none"
                                 style={{ backgroundColor: activeNavColor }}
                                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
                               />
                             ) : (
                               <motion.span
                                 layoutId="activeNavIndicator"
-                                className="absolute top-0 left-3 right-3 h-[2.5px] rounded-full z-10"
+                                className="absolute top-0 left-3 right-3 h-[2.5px] rounded-full z-20 pointer-events-none"
                                 style={{ backgroundColor: activeNavColor }}
                                 transition={{ type: "spring", stiffness: 500, damping: 35 }}
                               />
