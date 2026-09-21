@@ -36,7 +36,7 @@ function SignupPageInner() {
   }, [searchParams]);
 
   function redirect(): string {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "https://chatty.personaliai.com");
     const ref = getAffiliateReferral()?.ref;
     const nextUrl = new URL(dest, origin || "https://chatty.personaliai.com");
     if (ref && !nextUrl.searchParams.get("ref")) nextUrl.searchParams.set("ref", ref);

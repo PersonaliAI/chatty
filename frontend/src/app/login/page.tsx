@@ -30,7 +30,7 @@ function LoginPageInner() {
   const [error, setError] = useState<string | null>(null);
 
   function redirect(): string {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "https://chatty.personaliai.com");
     return `${origin}/auth/callback?next=${encodeURIComponent(dest)}`;
   }
 
