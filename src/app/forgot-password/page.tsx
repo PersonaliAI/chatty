@@ -19,7 +19,7 @@ export default function ForgotPasswordPage() {
     if (!email.trim() || busy) return;
     setBusy(true);
     setError(null);
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "https://chatty.personaliai.com");
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${origin}/reset-password`,
     });
