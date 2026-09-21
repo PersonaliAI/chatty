@@ -128,6 +128,7 @@ async def test_widget_assistant_injects_booking_widget():
     mock_owner = {"auth_user_id": "u-1", "email": "owner@acme.com"}
 
     with patch("plugins.ai_client.chat_stream", new_callable=AsyncMock) as mock_chat, \
+         patch("plugins.widget_brain.conversation_repository.list_history", new_callable=AsyncMock, return_value=[]), \
          patch("plugins.widget_brain.run_db") as mock_db:
 
         mock_db.return_value = MagicMock(data=[])
@@ -161,6 +162,7 @@ async def test_widget_assistant_does_not_inject_booking_widget_for_general_queri
     mock_owner = {"auth_user_id": "u-1", "email": "owner@acme.com"}
 
     with patch("plugins.ai_client.chat_stream", new_callable=AsyncMock) as mock_chat, \
+         patch("plugins.widget_brain.conversation_repository.list_history", new_callable=AsyncMock, return_value=[]), \
          patch("plugins.widget_brain.run_db") as mock_db:
 
         mock_db.return_value = MagicMock(data=[])
@@ -194,6 +196,7 @@ async def test_widget_assistant_respects_conversational_only_mode():
     mock_owner = {"auth_user_id": "u-1", "email": "owner@acme.com"}
 
     with patch("plugins.ai_client.chat_stream", new_callable=AsyncMock) as mock_chat, \
+         patch("plugins.widget_brain.conversation_repository.list_history", new_callable=AsyncMock, return_value=[]), \
          patch("plugins.widget_brain.run_db") as mock_db:
 
         mock_db.return_value = MagicMock(data=[])
