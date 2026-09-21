@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 function publicOrigin(request: NextRequest): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL
+  if (configured) return configured.replace(/\/$/, '')
   const proto = request.headers.get('x-forwarded-proto') ?? 'https'
   const host =
     request.headers.get('x-forwarded-host') ??
