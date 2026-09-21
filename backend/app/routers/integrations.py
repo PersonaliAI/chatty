@@ -140,6 +140,30 @@ async def whatsapp_callback(code: Optional[str] = None, state: Optional[str] = N
     await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
     return _whatsapp_redirect(frontend, path, "connected")
 
+
+@router.post("/api/integrations/whatsapp/disconnect")
+async def whatsapp_disconnect(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Disable WhatsApp and remove the bot's stored Meta credentials."""
+    bot_res = await run_db(lambda: supabase.table("chatty_bots")
+        .select("id")
+        .eq("id", bot_id)
+        .eq("user_id", user["auth_user_id"])
+        .limit(1)
+        .execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    await run_db(lambda: supabase.table("chatty_bots").update({
+        "whatsapp_enabled": False,
+        "whatsapp_phone_number_id": None,
+        "whatsapp_waba_id": None,
+        "whatsapp_access_token": None,
+        "whatsapp_verify_token": None,
+        "whatsapp_app_secret": None,
+        "whatsapp_quick_replies": [],
+    }).eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
+    return {"ok": True, "message": "WhatsApp disconnected"}
+
 # ---------------------------------------------------------------------------
 # Google OAuth - Calendar + Gmail read-only
 # ---------------------------------------------------------------------------
