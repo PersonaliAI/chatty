@@ -13,7 +13,9 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
-    value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRja2pia2Nvcm1pZml1d2ZwYWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMzc2MTMsImV4cCI6MjEwMjYxMzYxM30.mPaBNSOIXSbyIjgz169ID5h5SQXlBWCCwK6nECHflHY"
+    # Supabase's publishable key replaces the disabled legacy JWT anon key.
+    # The variable name is retained for backwards-compatible application code.
+    value: "sb_publishable_fW7okOIrVzt5g2ptr0XBIw_j1HwPgU0"
     availability:
       - BUILD
       - RUNTIME
