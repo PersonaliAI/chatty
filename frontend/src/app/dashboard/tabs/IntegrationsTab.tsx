@@ -128,6 +128,7 @@ export function IntegrationsTab({
   const [newQuickReply, setNewQuickReply] = useState("");
   const [copiedWaUrl, setCopiedWaUrl] = useState(false);
   const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
+  const [testingWhatsApp, setTestingWhatsApp] = useState(false);
 
   const WA_CALLBACK_URL = "https://api.chatty.personaliai.com/webhook/whatsapp";
 
@@ -188,6 +189,27 @@ export function IntegrationsTab({
     } catch (error) {
       showToast?.(error instanceof Error ? error.message : "Could not start Meta connection", "error");
       setConnectingWhatsApp(false);
+    }
+  };
+
+  const handleTestWhatsApp = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setTestingWhatsApp(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/test?bot_id=${encodeURIComponent(botId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "WhatsApp connection test failed");
+      showToast?.(`${data.verified_name || data.display_phone_number || "WhatsApp"} connection is valid`, "success");
+    } catch (error) {
+      showToast?.(error instanceof Error ? error.message : "WhatsApp connection test failed", "error");
+    } finally {
+      setTestingWhatsApp(false);
     }
   };
 
@@ -455,8 +477,25 @@ export function IntegrationsTab({
   const mobileSelected = embedMobilePlatform ? mobileInstructions[embedMobilePlatform] : null;
 
   return (
-    <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-6">
-      <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+    <div className="max-w-4xl mx-auto w-full py-6 px-4 flex flex-col gap-6">
+      <nav className="sticky top-2 z-20 flex flex-wrap items-center gap-1.5 rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95" aria-label="Integration sections">
+        {[
+          { id: "whatsapp", label: "WhatsApp" },
+          { id: "embed", label: "Embed & SDKs" },
+          { id: "domains", label: "Security" },
+        ].map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => document.getElementById(`integration-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="min-h-9 flex-1 rounded-xl px-3 py-2 text-[11px] font-bold text-neutral-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:text-neutral-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300 sm:flex-none"
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      <div id="integration-embed" className="order-2 scroll-mt-24 p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold">Embed Chatbot</h3>
         <p className="text-xs text-neutral-400 mt-1">
           Select your website builder to get tailored installation instructions.
@@ -564,7 +603,7 @@ export function IntegrationsTab({
       </div>
 
       {/* Mobile SDKs */}
-      <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div id="integration-mobile" className="order-3 p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold">Embed the widget within your mobile app</h3>
         <p className="text-xs text-neutral-400 mt-1 leading-relaxed max-w-xl">
           Enhance and personalize your user experience by integrating the Chatty SDK into your app. Whether you&apos;re using
@@ -633,7 +672,7 @@ export function IntegrationsTab({
       </div>
 
       {/* WhatsApp Business Channel (Meta Cloud API) */}
-      <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-6">
+      <div id="integration-whatsapp" className="order-1 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-emerald-200/80 dark:border-emerald-900/60 rounded-2xl space-y-6 shadow-sm">
         {/* Header with status badge and toggle switch */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 dark:border-neutral-800 pb-5">
           <div className="flex items-start sm:items-center gap-3">
@@ -644,7 +683,7 @@ export function IntegrationsTab({
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                <h3 className="min-w-0 text-sm font-bold text-neutral-900 dark:text-neutral-100 break-words">
                   WhatsApp Business Integration
                 </h3>
                 {isWaConnected ? (
@@ -662,7 +701,7 @@ export function IntegrationsTab({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
+              <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed break-words">
                 Connect your official Meta WhatsApp Business phone number. Customers receive instant AI answers, and can send text, voice clips, photos, and documents.
               </p>
             </div>
@@ -688,15 +727,26 @@ export function IntegrationsTab({
             <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Connect with Meta in one step</p>
             <p className="text-[11px] text-emerald-800/70 dark:text-emerald-300/70 mt-0.5">Authorize your Business Account and phone number. Chatty will configure the webhook automatically.</p>
           </div>
-          <button
-            type="button"
-            onClick={handleConnectWhatsApp}
-            disabled={connectingWhatsApp || !botId}
-            className="inline-flex items-center justify-center gap-2 shrink-0 rounded-lg bg-[#25D366] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1fbd5a] disabled:opacity-60 transition-colors"
-          >
-            {connectingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
-            {connectingWhatsApp ? "Opening Meta…" : isWaConnected ? "Reconnect Meta" : "Connect WhatsApp"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleTestWhatsApp}
+              disabled={testingWhatsApp || !botId || !whatsappPhoneNumberId || !whatsappAccessToken}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 disabled:opacity-60 transition-colors"
+            >
+              {testingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+              {testingWhatsApp ? "Testing…" : "Test connection"}
+            </button>
+            <button
+              type="button"
+              onClick={handleConnectWhatsApp}
+              disabled={connectingWhatsApp || !botId}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#25D366] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1fbd5a] disabled:opacity-60 transition-colors"
+            >
+              {connectingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
+              {connectingWhatsApp ? "Opening Meta…" : isWaConnected ? "Reconnect Meta" : "Connect WhatsApp"}
+            </button>
+          </div>
         </div>
 
         {/* Webhook Callback URL banner */}
@@ -725,7 +775,7 @@ export function IntegrationsTab({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           {/* Phone Number ID */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex flex-wrap items-center justify-between gap-1">
               <span>Phone Number ID</span>
               <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
             </label>
@@ -741,7 +791,7 @@ export function IntegrationsTab({
 
           {/* WABA ID */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300 break-words">
               WhatsApp Business Account ID (WABA)
             </label>
             <input
@@ -756,7 +806,7 @@ export function IntegrationsTab({
 
           {/* Access Token */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex flex-wrap items-center justify-between gap-1">
               <span>Permanent Access Token</span>
               <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
             </label>
@@ -781,7 +831,7 @@ export function IntegrationsTab({
 
           {/* Webhook Verify Token */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex flex-wrap items-center justify-between gap-1">
               <span>Webhook Verify Token</span>
               <button
                 type="button"
@@ -803,7 +853,7 @@ export function IntegrationsTab({
 
           {/* Meta App Secret */}
           <div className="space-y-1.5 md:col-span-2">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex flex-wrap items-center justify-between gap-1">
               <span className="flex items-center gap-1">
                 <Key className="size-3.5 text-emerald-500" /> Meta App Secret (HMAC-SHA256 Verification)
               </span>
@@ -833,7 +883,7 @@ export function IntegrationsTab({
 
         {/* Quick-Reply Buttons */}
         <div className="p-4 rounded-xl bg-neutral-50/70 dark:bg-neutral-950/70 border border-neutral-200 dark:border-neutral-800 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
               <MessageSquare className="size-3.5 text-[#f97316]" /> Interactive Quick-Reply Buttons (Optional)
             </label>
@@ -936,7 +986,7 @@ export function IntegrationsTab({
       </div>
 
       {/* Security: Allowed Domains */}
-      <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div id="integration-domains" className="order-4 scroll-mt-24 p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold flex items-center gap-2">
           <ShieldAlert className="size-4 text-[#f97316]" /> Allowed Domains
         </h3>

@@ -761,8 +761,8 @@ export function InlineBookingCard({
   return (
     <div className={`relative w-full my-2.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 shadow-sm text-neutral-800 dark:text-neutral-200 font-sans transition-all ${isTzOpen ? "min-h-[330px] overflow-visible z-20" : "overflow-hidden"}`}>
       {/* Top Header */}
-      <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/40 flex items-center justify-between text-[11px] gap-1.5">
-        <div className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300 shrink-0 text-[10px] sm:text-[11px]">
+      <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/40 flex flex-wrap items-center justify-between text-[11px] gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300 text-[10px] sm:text-[11px]">
           <span className="flex items-center gap-1 whitespace-nowrap">
             <Clock className="size-3 text-neutral-400 shrink-0" />
             {slotsData?.duration_minutes || 30}m
@@ -775,7 +775,7 @@ export function InlineBookingCard({
         </div>
 
         {/* Modern Cal.com-style Timezone Selector */}
-        <div className="min-w-0">
+        <div className="min-w-0 max-w-full sm:max-w-[55%]">
           <button
             ref={tzButtonRef}
             type="button"
@@ -784,7 +784,7 @@ export function InlineBookingCard({
               setIsTzOpen((open) => !open);
               setTzQuery("");
             }}
-            className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group max-w-full"
+            className="flex max-w-full items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
             title="Click to change timezone"
           >
             <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 shrink-0" />
@@ -1037,7 +1037,7 @@ export function InlineBookingCard({
                             color: (isSlotSelected && cardMode === "reschedule") ? primaryTextColor : undefined,
                           }}
                         >
-                          <span className="block text-center whitespace-nowrap">{formatSlotTime(slot, activeTimezone)}</span>
+                          <span className="block text-center whitespace-normal leading-tight">{formatSlotTime(slot, activeTimezone)}</span>
                           {slot.eligible_hosts && slot.eligible_hosts.length > 0 && (
                             <span className={`mt-1 block truncate text-center text-[9px] ${isSlotSelected && cardMode === "reschedule" ? "opacity-75" : "text-neutral-400 dark:text-neutral-500"}`}>
                               {slot.eligible_hosts.length === 1
