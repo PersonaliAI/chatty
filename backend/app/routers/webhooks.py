@@ -19,6 +19,7 @@ from fastapi.responses import PlainTextResponse
 from app.core.clients import supabase
 from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, RESEND_INBOUND_WEBHOOK_SECRET
 from app.core.db import run_db
+from app.core.crypto import decrypt_secret
 from app.services.chatty_quota_service import chatty_quota_exceeded
 from app.services.whatsapp_service import (
     build_whatsapp_booking_url,
@@ -583,7 +584,7 @@ async def whatsapp_receive(request: Request):
                     raise HTTPException(status_code=401, detail="Invalid signature")
 
             # Resolve Access Token
-            access_token = bot.get("whatsapp_access_token") or WHATSAPP_ACCESS_TOKEN
+            access_token = decrypt_secret(bot.get("whatsapp_access_token") or "") or WHATSAPP_ACCESS_TOKEN
             if not access_token:
                 logger.warning("No WhatsApp access token configured for bot %s or server", bot["id"])
                 continue

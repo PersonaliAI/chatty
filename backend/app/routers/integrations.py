@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+from urllib.parse import urlencode
 
 import httpx
 import jwt
@@ -15,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from app.core.clients import supabase
-from app.core.config import ALLOWED_ORIGINS, CHATTY_FRONTEND_URL, FUNCTION_SECRET
+from app.core.config import ALLOWED_ORIGINS, CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL, FUNCTION_SECRET
 from app.core.crypto import encrypt_secret
 from app.core.db import run_db
 from app.core.deps import require_user
@@ -27,6 +29,116 @@ from app.services.chatty_quota_service import plan_for
 logger = logging.getLogger("chatty")
 
 router = APIRouter()
+
+# ---------------------------------------------------------------------------
+# WhatsApp Business OAuth / one-click onboarding
+# ---------------------------------------------------------------------------
+
+
+def _whatsapp_redirect_uri() -> str:
+    return os.environ.get("FACEBOOK_REDIRECT_URI") or f"{CHATTY_BACKEND_URL}/auth/whatsapp/callback"
+
+
+def _whatsapp_redirect(frontend: str, path: str, status: str) -> RedirectResponse:
+    separator = "&" if "?" in path else "?"
+    return RedirectResponse(f"{frontend}{path}{separator}whatsapp={status}")
+
+
+@router.post("/api/integrations/whatsapp/start")
+async def whatsapp_start(
+    request: Request,
+    bot_id: str,
+    redirect_path: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Return Meta's OAuth URL for Embedded Signup-style onboarding.
+
+    The dashboard opens this URL in the user's browser; the callback exchanges
+    the code, discovers the first WABA phone number, subscribes the app, and
+    writes encrypted credentials to the selected bot.
+    """
+    if not os.environ.get("FACEBOOK_APP_ID") or not os.environ.get("FACEBOOK_APP_SECRET"):
+        raise HTTPException(status_code=503, detail="Meta WhatsApp connection is not configured")
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).limit(1).execute())
+    if not bot.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    origin = request.headers.get("origin", "").rstrip("/")
+    if origin not in ALLOWED_ORIGINS:
+        origin = ""
+    path = redirect_path or "/dashboard?tab=integrations"
+    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=path, mode="whatsapp", extra_claims={"bot_id": bot_id})
+    params = {
+        "client_id": os.environ["FACEBOOK_APP_ID"],
+        "redirect_uri": _whatsapp_redirect_uri(),
+        "state": state,
+        "response_type": "code",
+        "scope": "business_management,whatsapp_business_management,whatsapp_business_messaging",
+    }
+    return {"url": "https://www.facebook.com/v23.0/dialog/oauth?" + urlencode(params)}
+
+
+@router.get("/auth/whatsapp/callback")
+async def whatsapp_callback(code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
+    if not state:
+        return _whatsapp_redirect(CHATTY_FRONTEND_URL, "/dashboard?tab=integrations", "error")
+    try:
+        claims = jwt.decode(state, FUNCTION_SECRET, algorithms=["HS256"])
+        auth_user_id = claims["sub"]
+        bot_id = claims["bot_id"]
+        origin = (claims.get("origin") or "").rstrip("/")
+        frontend = origin if origin in ALLOWED_ORIGINS else CHATTY_FRONTEND_URL
+        path = claims.get("path") or "/dashboard?tab=integrations"
+    except (jwt.PyJWTError, KeyError):
+        return _whatsapp_redirect(CHATTY_FRONTEND_URL, "/dashboard?tab=integrations", "error")
+    if error or not code:
+        return _whatsapp_redirect(frontend, path, "error")
+
+    graph = "https://graph.facebook.com/v23.0"
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            token_res = await client.get(f"{graph}/oauth/access_token", params={
+                "client_id": os.environ["FACEBOOK_APP_ID"],
+                "client_secret": os.environ["FACEBOOK_APP_SECRET"],
+                "redirect_uri": _whatsapp_redirect_uri(),
+                "code": code,
+            })
+            token_res.raise_for_status()
+            access_token = token_res.json().get("access_token")
+            if not access_token:
+                raise ValueError("Meta did not return an access token")
+            headers = {"Authorization": f"Bearer {access_token}"}
+            businesses = (await client.get(f"{graph}/me/businesses", params={"fields": "id,name", "limit": 50}, headers=headers)).json().get("data", [])
+            selected_waba: Optional[dict[str, Any]] = None
+            selected_phone: Optional[dict[str, Any]] = None
+            for business in businesses:
+                wabas = (await client.get(f"{graph}/{business['id']}/owned_whatsapp_business_accounts", params={"fields": "id,name", "limit": 50}, headers=headers)).json().get("data", [])
+                for waba in wabas:
+                    phones = (await client.get(f"{graph}/{waba['id']}/phone_numbers", params={"fields": "id,display_phone_number,verified_name", "limit": 50}, headers=headers)).json().get("data", [])
+                    if phones:
+                        selected_waba, selected_phone = waba, phones[0]
+                        break
+                if selected_phone:
+                    break
+            if not selected_waba or not selected_phone:
+                return _whatsapp_redirect(frontend, path, "no_phone")
+            subscribe = await client.post(f"{graph}/{selected_waba['id']}/subscribed_apps", headers=headers)
+            subscribe.raise_for_status()
+    except (httpx.HTTPError, ValueError, KeyError):
+        logger.exception("WhatsApp Meta OAuth callback failed")
+        return _whatsapp_redirect(frontend, path, "error")
+
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", auth_user_id).limit(1).execute())
+    if not bot.data:
+        return _whatsapp_redirect(frontend, path, "error")
+    update = {
+        "whatsapp_enabled": True,
+        "whatsapp_phone_number_id": selected_phone["id"],
+        "whatsapp_waba_id": selected_waba["id"],
+        "whatsapp_access_token": encrypt_secret(access_token),
+        "whatsapp_verify_token": "wa_" + secrets.token_urlsafe(24),
+    }
+    await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
+    return _whatsapp_redirect(frontend, path, "connected")
 
 # ---------------------------------------------------------------------------
 # Google OAuth - Calendar + Gmail read-only

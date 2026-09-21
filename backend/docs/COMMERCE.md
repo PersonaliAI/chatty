@@ -77,6 +77,15 @@ rotate a secret with `?rotate=true` if it is exposed.
 
 Chatty uses the Meta WhatsApp Cloud API at `/webhook/whatsapp`:
 
+For dashboard one-click onboarding, configure `FACEBOOK_APP_ID`,
+`FACEBOOK_APP_SECRET`, `FACEBOOK_REDIRECT_URI` (optional; defaults to
+`https://<backend>/auth/whatsapp/callback`), and `BYOK_ENCRYPTION_KEY`. The
+Integrations tab then opens Meta authorization, discovers the first WABA phone
+number available to the business, subscribes the app, and stores the phone,
+WABA, verify token, and encrypted access token on the selected bot. A real Meta
+Business account and WhatsApp phone are required; the OAuth app must allow the
+redirect URI and request the WhatsApp business scopes.
+
 1. Configure the bot's phone-number id, access token, app secret, and verify
    token (or the equivalent server environment variables).
 2. Set the Meta callback URL to `https://<backend>/webhook/whatsapp` and use
