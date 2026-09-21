@@ -2618,7 +2618,7 @@ export default function ChatWidgetCore({
               whileTap={{ scale: 0.85 }}
               transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={() => setVoiceCallOpen(true)}
-              className="ml-auto p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
+              className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
               style={{ opacity: 0.8, backgroundColor: "color-mix(in srgb, currentColor 0%, transparent)" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 0%, transparent)")}
@@ -2630,7 +2630,7 @@ export default function ChatWidgetCore({
           )}
           <button
             onClick={pushGranted ? toggleMute : requestPushPermission}
-            className={`${voiceEnabled ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
+            className={`${voiceEnabled || (tab === "home" && teamProfiles.length > 0) ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
             style={{ opacity: 0.8 }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
