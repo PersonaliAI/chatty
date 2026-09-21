@@ -130,6 +130,7 @@ export function IntegrationsTab({
   const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
+  const [deauthorizingWhatsApp, setDeauthorizingWhatsApp] = useState(false);
 
   const WA_CALLBACK_URL = "https://api.chatty.personaliai.com/webhook/whatsapp";
 
@@ -237,6 +238,32 @@ export function IntegrationsTab({
       showToast?.(error instanceof Error ? error.message : "WhatsApp disconnect failed", "error");
     } finally {
       setDisconnectingWhatsApp(false);
+    }
+  };
+
+  const handleDeauthorizeWhatsApp = async () => {
+    if (!botId || !authToken || deauthorizingWhatsApp) return;
+    if (!window.confirm("Revoke Chatty's Meta authorization and disconnect WhatsApp? This affects this app's access and cannot be undone automatically.")) return;
+    setDeauthorizingWhatsApp(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/deauthorize?bot_id=${encodeURIComponent(botId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "Meta deauthorization failed");
+      setWhatsappEnabled?.(false);
+      setWhatsappPhoneNumberId?.("");
+      setWhatsappWabaId?.("");
+      setWhatsappAccessToken?.("");
+      setWhatsappVerifyToken?.("");
+      setWhatsappAppSecret?.("");
+      setWhatsappQuickReplies?.([]);
+      showToast?.("Meta authorization revoked and WhatsApp disconnected", "success");
+    } catch (error) {
+      showToast?.(error instanceof Error ? error.message : "Meta deauthorization failed", "error");
+    } finally {
+      setDeauthorizingWhatsApp(false);
     }
   };
 
@@ -774,14 +801,24 @@ export function IntegrationsTab({
               {connectingWhatsApp ? "Opening Meta…" : isWaConnected ? "Reconnect Meta" : "Connect WhatsApp"}
             </button>
             {isWaConfigured && (
-              <button
-                type="button"
-                onClick={handleDisconnectWhatsApp}
-                disabled={disconnectingWhatsApp}
-                className="inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-60 transition-colors"
-              >
-                {disconnectingWhatsApp ? "Disconnecting…" : "Disconnect"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleDisconnectWhatsApp}
+                  disabled={disconnectingWhatsApp || deauthorizingWhatsApp}
+                  className="inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-60 transition-colors"
+                >
+                  {disconnectingWhatsApp ? "Disconnecting…" : "Disconnect"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeauthorizeWhatsApp}
+                  disabled={deauthorizingWhatsApp || disconnectingWhatsApp}
+                  className="inline-flex items-center justify-center rounded-lg border border-red-400 dark:border-red-800 bg-red-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
+                >
+                  {deauthorizingWhatsApp ? "Revoking…" : "Revoke Meta access"}
+                </button>
+              </>
             )}
           </div>
         </div>
