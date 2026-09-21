@@ -128,6 +128,7 @@ export function IntegrationsTab({
   const [newQuickReply, setNewQuickReply] = useState("");
   const [copiedWaUrl, setCopiedWaUrl] = useState(false);
   const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
+  const [testingWhatsApp, setTestingWhatsApp] = useState(false);
 
   const WA_CALLBACK_URL = "https://api.chatty.personaliai.com/webhook/whatsapp";
 
@@ -188,6 +189,27 @@ export function IntegrationsTab({
     } catch (error) {
       showToast?.(error instanceof Error ? error.message : "Could not start Meta connection", "error");
       setConnectingWhatsApp(false);
+    }
+  };
+
+  const handleTestWhatsApp = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setTestingWhatsApp(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/test?bot_id=${encodeURIComponent(botId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "WhatsApp connection test failed");
+      showToast?.(`${data.verified_name || data.display_phone_number || "WhatsApp"} connection is valid`, "success");
+    } catch (error) {
+      showToast?.(error instanceof Error ? error.message : "WhatsApp connection test failed", "error");
+    } finally {
+      setTestingWhatsApp(false);
     }
   };
 
@@ -688,15 +710,26 @@ export function IntegrationsTab({
             <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Connect with Meta in one step</p>
             <p className="text-[11px] text-emerald-800/70 dark:text-emerald-300/70 mt-0.5">Authorize your Business Account and phone number. Chatty will configure the webhook automatically.</p>
           </div>
-          <button
-            type="button"
-            onClick={handleConnectWhatsApp}
-            disabled={connectingWhatsApp || !botId}
-            className="inline-flex items-center justify-center gap-2 shrink-0 rounded-lg bg-[#25D366] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1fbd5a] disabled:opacity-60 transition-colors"
-          >
-            {connectingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
-            {connectingWhatsApp ? "Opening Meta…" : isWaConnected ? "Reconnect Meta" : "Connect WhatsApp"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleTestWhatsApp}
+              disabled={testingWhatsApp || !botId || !whatsappPhoneNumberId || !whatsappAccessToken}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 disabled:opacity-60 transition-colors"
+            >
+              {testingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+              {testingWhatsApp ? "Testing…" : "Test connection"}
+            </button>
+            <button
+              type="button"
+              onClick={handleConnectWhatsApp}
+              disabled={connectingWhatsApp || !botId}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#25D366] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1fbd5a] disabled:opacity-60 transition-colors"
+            >
+              {connectingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
+              {connectingWhatsApp ? "Opening Meta…" : isWaConnected ? "Reconnect Meta" : "Connect WhatsApp"}
+            </button>
+          </div>
         </div>
 
         {/* Webhook Callback URL banner */}
