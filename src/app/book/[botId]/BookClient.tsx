@@ -96,10 +96,10 @@ export default function BookClient({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 text-[11px] font-medium">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+            <span className="inline-flex max-w-full items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 text-[11px] font-medium">
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live Availability
+              <span className="truncate">Live Availability</span>
             </span>
           </div>
         </div>
@@ -128,7 +128,7 @@ export default function BookClient({
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
               Select an Appointment Time
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1 break-words">
               Choose your preferred slot below to reserve your meeting with {botName}.
             </p>
           </div>
