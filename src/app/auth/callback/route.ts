@@ -20,14 +20,33 @@ export async function GET(request: Request) {
   const origin = publicOrigin(request, url.origin)
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+    return NextResponse.redirect(`${origin}/auth/auth-code-error?reason=missing_code`)
   }
+
+  // Supabase's PKCE exchange requires the verifier cookie created on the
+  // login origin. Log only cookie names (never values) so a production
+  // failure can be diagnosed without leaking credentials.
+  const cookieNames = (request.headers.get('cookie') ?? '')
+    .split(';')
+    .map((part) => part.trim().split('=')[0])
+    .filter(Boolean)
+  const hasCodeVerifier = cookieNames.some((name) =>
+    name.includes('code-verifier') || name.includes('code_verifier'),
+  )
 
   const supabase = await createClient()
   const { error } = await supabase.auth.exchangeCodeForSession(code)
   if (error) {
-    console.error('Auth callback error:', error.message)
-    return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+    console.error('Auth callback exchange failed', {
+      code: error.code ?? null,
+      status: error.status ?? null,
+      message: error.message,
+      origin,
+      hasCodeVerifier,
+      cookieNames,
+    })
+    const reason = hasCodeVerifier ? 'exchange_failed' : 'missing_pkce_verifier'
+    return NextResponse.redirect(`${origin}/auth/auth-code-error?reason=${reason}`)
   }
 
   // Chatty has no separate /onboarding route (unlike Kin) - onboarding is
