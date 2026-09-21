@@ -40,7 +40,6 @@ import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 import {
   getOnColor,
   primaryColorCssVars,
-  generateColorScheme,
   buildColorSchemeCss,
   type WidgetColorScheme,
 } from "@/lib/color-contrast";
@@ -48,7 +47,7 @@ import {
   LAUNCHER_STYLES,
   PRESET_SIGNATURES,
   getPresetSignature,
-  getPresetColorScheme,
+  generatePresetColorScheme,
 } from "@/lib/widget-style";
 import { SectionPropertyDropdown } from "../dashboard-controls";
 
@@ -197,7 +196,10 @@ export function CustomizerTab({
                     key={style.id}
                     type="button"
                     onClick={() => {
+                      const sig = getPresetSignature(style.id);
                       handleInputChange(setWidgetStyle, style.id);
+                      handleInputChange(setPrimaryColor, sig.primary);
+                      handleInputChange(setFontFamily, sig.fontFamily);
                       handleInputChange(setColorScheme, null);
                     }}
                     className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
@@ -219,6 +221,7 @@ export function CustomizerTab({
                             e.stopPropagation();
                             handleInputChange(setWidgetStyle, style.id);
                             handleInputChange(setPrimaryColor, sig.primary);
+                            handleInputChange(setFontFamily, sig.fontFamily);
                             handleInputChange(setColorScheme, null);
                           }}
                         >
@@ -427,7 +430,7 @@ export function CustomizerTab({
                   onChange={(e) => {
                     const c = e.target.value;
                     handleInputChange(setPrimaryColor, c);
-                    if (colorScheme) handleInputChange(setColorScheme, generateColorScheme(c));
+                    if (colorScheme) handleInputChange(setColorScheme, generatePresetColorScheme(widgetStyle, c));
                   }}
                   className="size-8 rounded border border-neutral-200 bg-transparent p-0.5 cursor-pointer"
                 />
@@ -437,7 +440,7 @@ export function CustomizerTab({
                   onChange={(e) => {
                     const c = e.target.value;
                     handleInputChange(setPrimaryColor, c);
-                    if (colorScheme && /^#[0-9a-fA-F]{6}$/.test(c)) handleInputChange(setColorScheme, generateColorScheme(c));
+                    if (colorScheme && /^#[0-9a-fA-F]{6}$/.test(c)) handleInputChange(setColorScheme, generatePresetColorScheme(widgetStyle, c));
                   }}
                   className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
                 />
@@ -448,7 +451,7 @@ export function CustomizerTab({
                     key={color}
                     onClick={() => {
                       handleInputChange(setPrimaryColor, color);
-                      if (colorScheme) handleInputChange(setColorScheme, generateColorScheme(color));
+                      if (colorScheme) handleInputChange(setColorScheme, generatePresetColorScheme(widgetStyle, color));
                     }}
                     style={{ backgroundColor: color }}
                     className={`size-6 rounded-full border cursor-pointer ${
@@ -458,7 +461,7 @@ export function CustomizerTab({
                 ))}
                 <button
                   type="button"
-                  onClick={() => handleInputChange(setColorScheme, generateColorScheme(primaryColor))}
+                  onClick={() => handleInputChange(setColorScheme, generatePresetColorScheme(widgetStyle, primaryColor))}
                   className="ml-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-[#f97316]/50 hover:text-[#f97316] cursor-pointer transition-colors flex items-center gap-1"
                   title="Fill every section below from this color using color theory"
                 >
@@ -484,7 +487,7 @@ export function CustomizerTab({
                   ] as const
                 ).map((section) => {
                   const textPropLabel = ICON_ONLY_SECTIONS.has(section.key) ? "Icon Color" : "Text Color";
-                  const defaultScheme = generateColorScheme(primaryColor);
+                  const defaultScheme = generatePresetColorScheme(widgetStyle, primaryColor);
                   const scheme: WidgetColorScheme = {
                     ...defaultScheme,
                     ...(colorScheme || {}),
@@ -556,7 +559,7 @@ export function CustomizerTab({
                       key={opt.id}
                       type="button"
                       onClick={() => {
-                        const defaultScheme = generateColorScheme(primaryColor);
+                        const defaultScheme = generatePresetColorScheme(widgetStyle, primaryColor);
                         const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
                         const next: WidgetColorScheme = {
                           ...scheme,
@@ -600,7 +603,7 @@ export function CustomizerTab({
                           key={ind.id}
                           type="button"
                           onClick={() => {
-                            const defaultScheme = generateColorScheme(primaryColor);
+                            const defaultScheme = generatePresetColorScheme(widgetStyle, primaryColor);
                             const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
                             const next: WidgetColorScheme = {
                               ...scheme,
@@ -638,7 +641,7 @@ export function CustomizerTab({
                         value={activeVal}
                         title="Active Tab Color"
                         onChange={(e) => {
-                          const defaultScheme = generateColorScheme(primaryColor);
+                          const defaultScheme = generatePresetColorScheme(widgetStyle, primaryColor);
                           const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
                           const next: WidgetColorScheme = {
                             ...scheme,
@@ -666,7 +669,7 @@ export function CustomizerTab({
                   <button
                     type="button"
                     onClick={() => {
-                      const defaultScheme = generateColorScheme(primaryColor);
+                      const defaultScheme = generatePresetColorScheme(widgetStyle, primaryColor);
                       const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
                       const next: WidgetColorScheme = {
                         ...scheme,
@@ -688,7 +691,7 @@ export function CustomizerTab({
                   <button
                     type="button"
                     onClick={() => {
-                      const defaultScheme = generateColorScheme(primaryColor);
+                      const defaultScheme = generatePresetColorScheme(widgetStyle, primaryColor);
                       const scheme: WidgetColorScheme = { ...defaultScheme, ...(colorScheme || {}) };
                       const next: WidgetColorScheme = {
                         ...scheme,
@@ -869,7 +872,7 @@ export function CustomizerTab({
                     type="color"
                     value={colorScheme?.avatar?.bg || primaryColor}
                     onChange={(e) => {
-                      const scheme: WidgetColorScheme = { ...generateColorScheme(primaryColor), ...(colorScheme || {}) };
+                      const scheme: WidgetColorScheme = { ...generatePresetColorScheme(widgetStyle, primaryColor), ...(colorScheme || {}) };
                       const next = { ...scheme, avatar: { bg: e.target.value, text: scheme.avatar?.text || getOnColor(e.target.value) } };
                       handleInputChange(setColorScheme, next);
                     }}
@@ -880,7 +883,7 @@ export function CustomizerTab({
                     value={colorScheme?.avatar?.bg || ""}
                     placeholder={`e.g. ${primaryColor} (defaults to primary)`}
                     onChange={(e) => {
-                      const scheme: WidgetColorScheme = { ...generateColorScheme(primaryColor), ...(colorScheme || {}) };
+                      const scheme: WidgetColorScheme = { ...generatePresetColorScheme(widgetStyle, primaryColor), ...(colorScheme || {}) };
                       const next = { ...scheme, avatar: { bg: e.target.value, text: scheme.avatar?.text || getOnColor(e.target.value || primaryColor) } };
                       handleInputChange(setColorScheme, next);
                     }}
