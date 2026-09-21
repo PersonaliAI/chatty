@@ -68,6 +68,16 @@ npm run dev
 
 Dashboard will be available at `http://localhost:3000`.
 
+## Ecommerce-ready widget
+
+The widget shares Chatty's multimodal commerce pipeline: shoppers can send a
+product photo or describe an item, and the assistant can return grounded
+catalog matches with price, stock, variants, product images, and checkout
+links. WooCommerce synchronization and Meta WhatsApp delivery are implemented
+in the backend; see [`DOCUMENTATION.md`](DOCUMENTATION.md) and the backend
+[`commerce guide`](../chatty-backend/docs/COMMERCE.md) for the production
+setup.
+
 ## Building the Standalone Widget Bundle
 
 ```bash
