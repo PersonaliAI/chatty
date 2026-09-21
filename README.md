@@ -358,7 +358,7 @@ dependency to Chatty itself. For example, add both Chatty and the hosted
       "url": "https://your-backend-domain/mcp"
     },
     "memcode": {
-      "url": "https://mcp.memcode.in/mcp"
+      "url": "https://mcp.memcode.in/i/chatty/mcp"
     }
   }
 }
