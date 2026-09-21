@@ -5,7 +5,7 @@ import {
   Puzzle, Check, Copy, Plus, Loader2, Cpu, ArrowRight, Link2,
   Code2, ChevronDown, ChevronRight, Shield, Globe, Zap,
   AlertTriangle, RefreshCw, Clock, Activity, Terminal,
-  BookOpen, Package, ExternalLink, Trash2, Edit2, X,
+  BookOpen, ExternalLink, Trash2, Edit2, X,
 } from "lucide-react";
 import { BACKEND_URL } from "@/lib/backend-client";
 import type { ApiKey, Webhook } from "../dashboard-types";
@@ -471,6 +471,38 @@ export function DeveloperTab({
   return (
     <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-10">
 
+      {/* Keep this surface focused on server-to-server API work. Embed and
+          third-party setup live in Integrations, so this page starts with
+          the credentials and runtime contract developers actually need. */}
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-950 text-white p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
+          <div>
+            <div className="flex items-center gap-2 text-orange-300 text-[10px] uppercase tracking-[0.18em] font-bold">
+              <Globe className="size-3.5" /> Developer platform
+            </div>
+            <h2 className="text-xl sm:text-2xl font-semibold mt-2 tracking-tight">Build with the Chatty API</h2>
+            <p className="text-xs text-neutral-400 mt-2 max-w-xl leading-relaxed">
+              Manage keys, call the REST API, and receive signed events. Website embeds and app integrations are configured separately.
+            </p>
+          </div>
+          <a href={`${BACKEND_URL}/docs`} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white text-neutral-950 text-[11px] font-semibold hover:bg-orange-100 transition-colors shrink-0">
+            <ExternalLink className="size-3.5" /> API reference
+          </a>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-5">
+          {[
+            { label: "Base URL", value: BACKEND_URL, icon: <Globe className="size-3.5" /> },
+            { label: "Authentication", value: "Bearer API key", icon: <Shield className="size-3.5" /> },
+            { label: "Events", value: "HMAC-SHA256", icon: <Link2 className="size-3.5" /> },
+          ].map(item => (
+            <div key={item.label} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 min-w-0">
+              <p className="text-[9px] uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">{item.icon}{item.label}</p>
+              <p className="text-[11px] font-mono text-neutral-200 truncate mt-1">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ── 1. API Keys ───────────────────────────────────────────────────── */}
       <Section title="API Keys" icon={<Shield className="size-4" />}>
         {/* Stats row */}
@@ -620,70 +652,7 @@ export function DeveloperTab({
         </div>
       </Section>
 
-      {/* ── 2. SDK Install ────────────────────────────────────────────────── */}
-      <Section title="SDK Installation" icon={<Package className="size-4" />}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[
-            {
-              name: "React Native", icon: "📱",
-              install: "npm install @personaliai/react-native",
-              note: "iOS + Android, zero WebView, voice calls included",
-              docsUrl: "https://github.com/PersonaliAI/chatty-react-native-sdk",
-            },
-            {
-              name: "iOS (Swift)", icon: "🍎",
-              install: "# SwiftPM\n.package(url: \"https://github.com/PersonaliAI/chatty-ios-sdk\", from: \"1.0.0\")",
-              note: "SwiftPM + CocoaPods · Voice via ChattySDKVoice target",
-              docsUrl: "https://github.com/PersonaliAI/chatty-ios-sdk",
-            },
-            {
-              name: "Android (Kotlin)", icon: "🤖",
-              install: "// build.gradle\nimplementation 'com.personaliai:chatty-sdk:1.0.0'",
-              note: "JitPack · Jetpack Compose UI · Voice support",
-              docsUrl: "https://github.com/PersonaliAI/chatty-android-sdk",
-            },
-            {
-              name: "Flutter", icon: "🐦",
-              install: "# pubspec.yaml\nchatty_flutter: ^1.0.0",
-              note: "Dart-native · pub.dev · ChattyEmbedScreen + ChattyChatScreen",
-              docsUrl: "https://github.com/PersonaliAI/chatty-flutter-sdk",
-            },
-            {
-              name: "React (Web)", icon: "⚛️",
-              install: "npm install @personaliai/react-widget",
-              note: "SSR-safe · tsup-bundled · Next.js + Vite ready",
-              docsUrl: "https://github.com/PersonaliAI/chatty",
-            },
-            {
-              name: "REST API", icon: "🔌",
-              install: `curl ${BACKEND_URL}/api/v1/chat`,
-              note: "Direct HTTP · any language · 60 req/min per key",
-              docsUrl: `${BACKEND_URL}/docs`,
-            },
-          ].map(sdk => (
-            <Card key={sdk.name} className="p-4">
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{sdk.icon}</span>
-                  <p className="text-xs font-bold">{sdk.name}</p>
-                </div>
-                <a href={sdk.docsUrl} target="_blank" rel="noreferrer" className="text-neutral-400 hover:text-[#f97316] transition-colors">
-                  <ExternalLink className="size-3.5" />
-                </a>
-              </div>
-              <div className="relative group">
-                <pre className="bg-neutral-950 text-neutral-200 rounded-xl p-3 text-[10px] font-mono leading-relaxed overflow-x-auto">{sdk.install}</pre>
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <CopyButton text={sdk.install} size="xs" />
-                </div>
-              </div>
-              <p className="text-[10px] text-neutral-400 mt-2">{sdk.note}</p>
-            </Card>
-          ))}
-        </div>
-      </Section>
-
-      {/* ── 3. Interactive API Reference ──────────────────────────────────── */}
+      {/* ── 2. Interactive API Reference ──────────────────────────────────── */}
       <Section title="API Reference" icon={<BookOpen className="size-4" />}>
         <div className="mb-4 flex items-center gap-3">
           <div className="flex-1 relative">
