@@ -74,6 +74,11 @@ async def whatsapp_start(
         "response_type": "code",
         "scope": "business_management,whatsapp_business_management,whatsapp_business_messaging",
     }
+    # Facebook Login for Business configurations pin the exact WhatsApp
+    # assets/permissions used by the onboarding dialog. Keep this optional so
+    # existing manual OAuth setups continue to work during migration.
+    if os.environ.get("FACEBOOK_CONFIG_ID"):
+        params["config_id"] = os.environ["FACEBOOK_CONFIG_ID"]
     return {"url": "https://www.facebook.com/v23.0/dialog/oauth?" + urlencode(params)}
 
 
