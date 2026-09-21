@@ -1205,7 +1205,7 @@ export function CustomizerTab({
                       return (
                         <div
                           key={t.id}
-                          className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase relative cursor-default select-none ${
+                          className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[9px] font-semibold tracking-wide uppercase relative isolate cursor-default select-none ${isActive ? "active" : ""} ${
                             isActive ? "font-bold" : "opacity-60"
                           }`}
                           style={isActive ? { color: activeNavColor } : undefined}
@@ -1215,17 +1215,17 @@ export function CustomizerTab({
                           {isActive && (
                             indicatorType === "pill" ? (
                               <span
-                                className="absolute inset-1 rounded-full -z-0 opacity-15"
-                                style={{ backgroundColor: activeNavColor }}
+                                className="absolute inset-1 rounded-full z-0 pointer-events-none"
+                                style={{ backgroundColor: activeNavColor, opacity: 0.15 }}
                               />
                             ) : indicatorType === "dot" ? (
                               <span
-                                className="absolute bottom-0.5 size-1.5 rounded-full z-10 shadow-xs"
+                                className="absolute bottom-0.5 size-1.5 rounded-full z-20 shadow-xs pointer-events-none"
                                 style={{ backgroundColor: activeNavColor }}
                               />
                             ) : (
                               <span
-                                className="absolute top-0 left-2 right-2 h-[2px] rounded-full z-10"
+                                className="absolute top-0 left-2 right-2 h-[2px] rounded-full z-20 pointer-events-none"
                                 style={{ backgroundColor: activeNavColor }}
                               />
                             )
