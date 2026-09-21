@@ -283,6 +283,32 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
     }
 
 
+async def _fetch_product_variations(
+    client: httpx.AsyncClient,
+    api_root: str,
+    product: dict[str, Any],
+    auth: tuple[str, str],
+) -> None:
+    """Expand variable-product variation ids into price/stock/attribute facts.
+
+    WooCommerce's list endpoint commonly returns variation ids only. Fetching
+    the bounded variation pages here prevents the assistant from presenting a
+    parent product price when the shopper asked for a size or colour variant.
+    """
+    if product.get("type") != "variable" or not product.get("id"):
+        return
+    try:
+        response = await client.get(
+            f"{api_root}/{product['id']}/variations",
+            auth=auth,
+            params={"per_page": 100, "status": "publish"},
+        )
+        if response.status_code == 200 and isinstance(response.json(), list):
+            product["variations"] = response.json()
+    except Exception as exc:
+        logger.warning("Failed to fetch variations for WooCommerce product %s: %s", product.get("id"), exc)
+
+
 async def _update_sync_progress(
     bot_id: str,
     *,
@@ -378,6 +404,7 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
 
                 # Process products on this page
                 for p in products:
+                    await _fetch_product_variations(client, api_url, p, auth)
                     mapped = _map_wc_product(p)
                     wc_id = mapped["metadata"]["woocommerce_id"]
 
