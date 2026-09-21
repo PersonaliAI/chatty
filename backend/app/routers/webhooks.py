@@ -500,6 +500,7 @@ async def _handle_whatsapp_message(
     has_booking_link = bool(re.search(r"https?://[^\s)]+/book/[^\s)]+", reply, re.IGNORECASE))
     wants_booking = (
         booking_marker in reply
+        or has_booking_link
         or (
             bot.get("calendar_scheduling_enabled")
             and re.search(r"\b(book|booking|schedule|appointment|demo)\b", text, re.IGNORECASE)
