@@ -1252,7 +1252,12 @@ export function CustomizerTab({
             <div className="relative">
               {(() => {
                 const schemeLauncherBg = colorScheme?.launcher?.bg;
-                const launcherBg = schemeLauncherBg || LAUNCHER_STYLES[widgetStyle]?.bg || primaryColor;
+                // Match the standalone widget: a saved section override wins,
+                // otherwise the owner's Primary Hex Color is the launcher
+                // accent. Falling back to the preset swatch is only for an
+                // unset/legacy bot, so the dashboard can never preview a
+                // different launcher from the live widget.
+                const launcherBg = schemeLauncherBg || primaryColor || LAUNCHER_STYLES[widgetStyle]?.bg || "#f97316";
                 const launcherSolidBg = launcherBg.indexOf("gradient") === -1 ? launcherBg : "#a855f7";
                 const launcherIconColor = colorScheme?.launcher?.text || getOnColor(launcherSolidBg);
                 return (
@@ -1290,7 +1295,7 @@ export function CustomizerTab({
                       </div>
                     );
                   }
-                  return <div className="size-[17px] rounded-full opacity-90" style={{ background: colorScheme?.launcher?.text || LAUNCHER_STYLES[widgetStyle]?.dot || "#ffffff" }} />;
+                  return <div className="size-[17px] rounded-full opacity-90" style={{ background: colorScheme?.launcher?.text || getOnColor(launcherSolidBg) }} />;
                 })()}
               </div>
                 );
