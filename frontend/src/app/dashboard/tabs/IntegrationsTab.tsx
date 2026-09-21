@@ -17,6 +17,7 @@ import {
   Key,
   ShieldCheck,
   MessageSquare,
+  Loader2,
 } from "lucide-react";
 
 const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
@@ -85,6 +86,7 @@ interface IntegrationsTabProps {
   whatsappQuickReplies?: string[];
   setWhatsappQuickReplies?: (v: string[]) => void;
   showToast?: (msg: string, type?: "success" | "error" | "info") => void;
+  authToken?: string;
 }
 
 export function IntegrationsTab({
@@ -118,12 +120,14 @@ export function IntegrationsTab({
   whatsappQuickReplies = [],
   setWhatsappQuickReplies,
   showToast,
+  authToken = "",
 }: IntegrationsTabProps) {
   const [showToken, setShowToken] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [newQuickReply, setNewQuickReply] = useState("");
   const [copiedWaUrl, setCopiedWaUrl] = useState(false);
+  const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
 
   const WA_CALLBACK_URL = "https://api.chatty.personaliai.com/webhook/whatsapp";
 
@@ -166,6 +170,26 @@ export function IntegrationsTab({
 
   const isWaConnected = whatsappEnabled && !!whatsappPhoneNumberId && !!whatsappAccessToken;
   const isWaConfigured = !!whatsappPhoneNumberId || !!whatsappAccessToken;
+
+  const handleConnectWhatsApp = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setConnectingWhatsApp(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/start?bot_id=${encodeURIComponent(botId)}&redirect_path=${encodeURIComponent("/dashboard?tab=integrations")}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) throw new Error(data.detail || "Could not start Meta connection");
+      window.location.assign(data.url);
+    } catch (error) {
+      showToast?.(error instanceof Error ? error.message : "Could not start Meta connection", "error");
+      setConnectingWhatsApp(false);
+    }
+  };
 
   const platforms: { id: string; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: "html", label: "HTML", icon: <PlatformIcon domain="w3.org" label="HTML" /> },
@@ -657,6 +681,22 @@ export function IntegrationsTab({
               </span>
             </label>
           )}
+        </div>
+
+        <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/20 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Connect with Meta in one step</p>
+            <p className="text-[11px] text-emerald-800/70 dark:text-emerald-300/70 mt-0.5">Authorize your Business Account and phone number. Chatty will configure the webhook automatically.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleConnectWhatsApp}
+            disabled={connectingWhatsApp || !botId}
+            className="inline-flex items-center justify-center gap-2 shrink-0 rounded-lg bg-[#25D366] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1fbd5a] disabled:opacity-60 transition-colors"
+          >
+            {connectingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
+            {connectingWhatsApp ? "Opening Meta…" : isWaConnected ? "Reconnect Meta" : "Connect WhatsApp"}
+          </button>
         </div>
 
         {/* Webhook Callback URL banner */}
