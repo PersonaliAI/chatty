@@ -18,7 +18,7 @@ from fastapi.responses import RedirectResponse
 
 from app.core.clients import supabase
 from app.core.config import ALLOWED_ORIGINS, CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL, FUNCTION_SECRET
-from app.core.crypto import encrypt_secret
+from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import run_db
 from app.core.deps import require_user
 from plugins import google_integrations as g
@@ -74,6 +74,11 @@ async def whatsapp_start(
         "response_type": "code",
         "scope": "business_management,whatsapp_business_management,whatsapp_business_messaging",
     }
+    # Facebook Login for Business configurations pin the exact WhatsApp
+    # assets/permissions used by the onboarding dialog. Keep this optional so
+    # existing manual OAuth setups continue to work during migration.
+    if os.environ.get("FACEBOOK_CONFIG_ID"):
+        params["config_id"] = os.environ["FACEBOOK_CONFIG_ID"]
     return {"url": "https://www.facebook.com/v23.0/dialog/oauth?" + urlencode(params)}
 
 
@@ -139,6 +144,51 @@ async def whatsapp_callback(code: Optional[str] = None, state: Optional[str] = N
     }
     await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
     return _whatsapp_redirect(frontend, path, "connected")
+
+
+@router.post("/api/integrations/whatsapp/test")
+async def whatsapp_test(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Validate a bot's saved WhatsApp phone/token against Meta without sending a message."""
+    bot_res = await run_db(lambda: supabase.table("chatty_bots")
+        .select("id,whatsapp_phone_number_id,whatsapp_access_token")
+        .eq("id", bot_id)
+        .eq("user_id", user["auth_user_id"])
+        .limit(1)
+        .execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = bot_res.data[0]
+    phone_id = (bot.get("whatsapp_phone_number_id") or "").strip()
+    access_token = decrypt_secret((bot.get("whatsapp_access_token") or "").strip())
+    if not phone_id or not access_token:
+        raise HTTPException(status_code=400, detail="Save a WhatsApp phone number ID and access token first")
+    version = os.environ.get("WHATSAPP_API_VERSION", "v25.0")
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                f"https://graph.facebook.com/{version}/{phone_id}",
+                params={"fields": "id,display_phone_number,verified_name"},
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("error", {}).get("message") or "Meta rejected the saved credentials"
+            except ValueError:
+                detail = "Meta rejected the saved credentials"
+            raise HTTPException(status_code=502, detail=detail[:240])
+        data = response.json()
+        return {
+            "ok": True,
+            "phone_number_id": data.get("id", phone_id),
+            "display_phone_number": data.get("display_phone_number"),
+            "verified_name": data.get("verified_name"),
+            "message": "WhatsApp connection is valid",
+        }
+    except HTTPException:
+        raise
+    except (httpx.HTTPError, ValueError):
+        logger.exception("WhatsApp connection test failed for bot %s", bot_id)
+        raise HTTPException(status_code=502, detail="Could not reach Meta to test the WhatsApp connection")
 
 # ---------------------------------------------------------------------------
 # Google OAuth - Calendar + Gmail read-only
