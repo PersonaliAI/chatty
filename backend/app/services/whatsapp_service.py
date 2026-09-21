@@ -15,6 +15,8 @@ from typing import Any
 
 import httpx
 
+from app.core.crypto import decrypt_secret
+
 logger = logging.getLogger("chatty.whatsapp")
 
 WHATSAPP_API_VERSION = os.environ.get("WHATSAPP_API_VERSION", "v21.0")
@@ -207,7 +209,7 @@ async def dispatch_whatsapp_booking_confirmation(
         or WHATSAPP_PHONE_NUMBER_ID
     )
     access_token = (
-        (bot.get("whatsapp_access_token") or "").strip()
+        decrypt_secret((bot.get("whatsapp_access_token") or "").strip())
         or WHATSAPP_ACCESS_TOKEN
     )
 
