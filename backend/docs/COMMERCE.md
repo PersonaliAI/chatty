@@ -51,6 +51,28 @@ with an image multipart field and optional `query_text`. Catalog assets can be
 created with `POST /api/bots/{bot_id}/media-items` or imported in batches. The
 `chatty_media_items` migration enables tenant-scoped HNSW vector retrieval.
 
+## Manual catalog mode (no WooCommerce required)
+
+WooCommerce is optional. In manual mode, the dashboard or an ERP/PIM can own
+the catalog while Chatty stores a searchable, tenant-scoped copy. Add items
+with `POST /api/bots/{bot_id}/media-items` (or batch `/import`), then provision
+one signed webhook with `POST /api/bots/{bot_id}/media-webhook`.
+
+The response contains a one-time `signing_secret` and webhook URL. Sign the
+exact UTF-8 request body with HMAC-SHA256 and send the lowercase digest in
+`X-Chatty-Signature` (optionally prefixed with `sha256=`). Supported events are
+`product.created`, `product.updated`, and `product.deleted`. Example stock
+update:
+
+```json
+{"event":"product.updated","external_id":"SKU-1001","item":{"price":89.99,"currency":"USD","metadata":{"in_stock":true,"stock_quantity":12,"variants":[{"sku":"SKU-1001-42","size":"42","in_stock":true}]}}}
+```
+
+Metadata is merged, so stock-only events do not erase product facts. Searchable
+fields are re-embedded automatically; deletes remove the item by
+`external_id`. Apply `20260921110000_manual_catalog_webhooks.sql` first and
+rotate a secret with `?rotate=true` if it is exposed.
+
 ## WhatsApp Business
 
 Chatty uses the Meta WhatsApp Cloud API at `/webhook/whatsapp`:
@@ -76,7 +98,8 @@ the queue. Keep webhook handlers fast and return 2xx once an event is claimed.
 
 - Apply all migrations, including `20260916120000_multimodal_rag.sql`,
   `20260916130000_woocommerce_integration.sql`, and
-  `20260921100000_channel_event_idempotency.sql`.
+  `20260921100000_channel_event_idempotency.sql`, and
+  `20260921110000_manual_catalog_webhooks.sql`.
 - Set `BYOK_ENCRYPTION_KEY` in Secret Manager before connecting stores.
 - Use least-privilege WooCommerce read keys unless order actions are explicitly
   enabled in a future connector.
