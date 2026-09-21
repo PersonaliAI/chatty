@@ -46,11 +46,12 @@ variant, and deletion events.
 
 ### WhatsApp connection check
 
-The dashboard's **Test connection** action calls
-`POST /api/integrations/whatsapp/test?bot_id=...` after credentials are saved.
-This is a read-only Meta Graph phone lookup; it never sends a message. Real
-WhatsApp delivery still requires a published Meta app, a WABA subscription, and
-the `messages` webhook field.
+After saving a bot's WhatsApp phone-number id and access token, the dashboard's
+**Test connection** action calls `POST /api/integrations/whatsapp/test?bot_id=...`.
+It performs a read-only Meta Graph lookup and never sends a message. A successful
+check confirms the token can read the configured phone; it does not replace Meta
+webhook delivery testing. For real messages, publish the Meta app, subscribe the
+WhatsApp Business Account to the app, and enable the `messages` webhook field.
 
 ## Local development
 
