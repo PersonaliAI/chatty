@@ -87,7 +87,7 @@ export const PANEL_RADIUS: Record<string, string> = {
   "luxury-editorial": "6px",
 };
 
-import type { WidgetColorScheme } from "./color-contrast";
+import { generateColorScheme, getOnColor, type WidgetColorScheme } from "./color-contrast";
 
 export interface PresetSignature {
   id: string;
@@ -354,6 +354,44 @@ export function getPresetColorScheme(id: string | null | undefined): WidgetColor
       bg: sig.bottomNavBg,
       text: sig.bottomNavText,
       activeColor: sig.bottomNavActive,
+      style: sig.bottomNavStyle,
+      indicator: sig.bottomNavIndicator,
+      showLabels: true,
+      allowMinimize: true,
+    },
+  };
+}
+
+/**
+ * Generate a custom palette without losing the active preset's visual
+ * language.  The primary color is the only user-controlled accent; surface
+ * colors, type contrast, and navigation treatment continue to follow the
+ * selected preset so a colour change never turns (for example) Dark Sleek
+ * into a generic light widget.
+ */
+export function generatePresetColorScheme(
+  id: string | null | undefined,
+  seedHex: string,
+): WidgetColorScheme {
+  const sig = getPresetSignature(id);
+  const generated = generateColorScheme(seedHex);
+  const seedText = getOnColor(seedHex);
+  const fixedHeader = ["dark-sleek", "gradient-glow", "glassmorphism", "luxury-editorial"].includes(sig.id);
+  return {
+    ...generated,
+    header: fixedHeader
+      ? { bg: sig.headerBg, text: sig.headerText }
+      : { bg: seedHex, text: seedText },
+    botBubble: { bg: sig.botBubbleBg, text: sig.botBubbleText },
+    userBubble: { bg: seedHex, text: seedText },
+    inputBar: { bg: sig.inputBg, text: sig.inputText, icon: seedHex },
+    sendBtn: { bg: seedHex, text: seedText },
+    launcher: { bg: seedHex, text: seedText },
+    avatar: { bg: seedHex, text: seedText },
+    bottomNav: {
+      bg: sig.bottomNavBg,
+      text: sig.bottomNavText,
+      activeColor: seedHex,
       style: sig.bottomNavStyle,
       indicator: sig.bottomNavIndicator,
       showLabels: true,
