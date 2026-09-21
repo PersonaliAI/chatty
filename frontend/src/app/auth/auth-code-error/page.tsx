@@ -3,7 +3,20 @@ import { AlertCircle } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export default function AuthErrorPage() {
+type AuthErrorReason = "missing_code" | "missing_pkce_verifier" | "exchange_failed";
+
+export default async function AuthErrorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reason?: string }>;
+}) {
+  const reason = (await searchParams).reason as AuthErrorReason | undefined;
+  const copy = reason === "missing_pkce_verifier"
+    ? "Your sign-in session was interrupted before it could be verified. Start again from this page and complete the sign-in without switching domains or using an old tab."
+    : reason === "missing_code"
+      ? "The sign-in provider did not return a login code. Start again to create a fresh sign-in session."
+      : "The sign-in session could not be verified. Start again to create a fresh session.";
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background relative overflow-hidden">
       {/* Background dot grid pattern */}
@@ -20,7 +33,7 @@ export default function AuthErrorPage() {
         </div>
         <h1 className="text-2xl font-bold tracking-tight mb-2">Authentication Failed</h1>
         <p className="text-sm text-muted-foreground mb-8">
-          The login code was invalid or expired. This usually happens if you wait too long to sign in or if your environment variables are mismatched.
+          {copy}
         </p>
         <div className="space-y-4 flex flex-col">
           <Link href="/login" className={cn(buttonVariants({ variant: "default" }), "w-full h-10 font-medium")}>
