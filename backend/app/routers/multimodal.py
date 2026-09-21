@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 import time
 import uuid
 from typing import Any, Optional
@@ -43,6 +44,36 @@ class MediaSearchRequest(BaseModel):
     query_text: str = ""
     media_type: Optional[str] = None
     top_k: int = 6
+
+
+@router.post("/api/bots/{bot_id}/media-items/search-image")
+async def search_multimodal_image(
+    bot_id: str,
+    file: UploadFile = File(...),
+    query_text: str = Form(""),
+    top_k: int = Form(6),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Run the same production visual catalog search used by the widget.
+
+    This endpoint is intentionally authenticated and is useful for dashboard
+    QA/import tooling; visitor traffic goes through ``run_widget_assistant``.
+    """
+    await verify_bot_permission(bot_id, user)
+    content_type = (file.content_type or "").split(";")[0].lower()
+    if content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+        raise HTTPException(status_code=415, detail="Only JPEG, PNG, WebP, and GIF images are supported")
+    content = await file.read()
+    if not content or len(content) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image must be between 1 byte and 8MB")
+    results, visual_attrs = await multimodal_service.search_multimodal_catalog(
+        bot_id=bot_id,
+        image_bytes=content,
+        mime_type=content_type,
+        query_text=query_text,
+        top_k=max(1, min(int(top_k), 20)),
+    )
+    return {"results": results, "visual_analysis": visual_attrs}
 
 
 @router.get("/api/bots/{bot_id}/media-items")
@@ -185,11 +216,10 @@ async def upload_media_image(
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 10MB)")
 
-    content_type = file.content_type or "image/jpeg"
-    b64 = base64.b64encode(content).decode("utf-8")
-    data_url = f"data:{content_type};base64,{b64}"
-
-    public_url = data_url
+    content_type = (file.content_type or "").split(";")[0].lower()
+    if content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm"}:
+        raise HTTPException(status_code=415, detail="Unsupported media type")
+    public_url = ""
     file_ext = (file.filename or "image.jpg").split(".")[-1]
     storage_path = f"{bot_id}/{int(time.time())}_{uuid.uuid4().hex[:8]}.{file_ext}"
 
@@ -204,7 +234,12 @@ async def upload_media_image(
             if public_res:
                 public_url = public_res
     except Exception as exc:
-        logger.info("Storage bucket upload skipped (%s), using data URI fallback", exc)
+        logger.error("Media storage upload failed: %s", exc)
+        if os.environ.get("ALLOW_DATA_URI_MEDIA_FALLBACK", "false").lower() != "true":
+            raise HTTPException(status_code=503, detail="Media storage is unavailable; try again later") from exc
+        # Development-only compatibility escape hatch. Never enable this for
+        # production: data URIs inflate DB/API payloads and bypass CDN caching.
+        public_url = "data:" + content_type + ";base64," + base64.b64encode(content).decode("ascii")
 
     return {
         "url": public_url,

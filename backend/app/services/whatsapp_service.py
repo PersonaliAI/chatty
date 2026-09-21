@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import time
+import asyncio
 from typing import Any
 
 import httpx
@@ -132,48 +133,64 @@ async def send_whatsapp_message(
             if len(valid_buttons) >= 3:
                 break
 
-    if valid_buttons and len(text) <= 1024:
-        payload: dict[str, Any] = {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": clean_to,
-            "type": "interactive",
-            "interactive": {
-                "type": "button",
-                "body": {"text": text},
-                "action": {
-                    "buttons": [
-                        {
-                            "type": "reply",
-                            "reply": {
-                                "id": f"btn_{i+1}",
-                                "title": btn_title,
-                            },
-                        }
-                        for i, btn_title in enumerate(valid_buttons)
-                    ]
+    # Meta caps text bodies at 4096 UTF-8 characters. Split long grounded
+    # product answers instead of silently truncating prices/links.
+    chunks = [text[i:i + 4000] for i in range(0, len(text or ""), 4000)] or [""]
+    all_sent = True
+    for chunk_index, chunk in enumerate(chunks):
+        use_buttons = bool(valid_buttons and chunk_index == len(chunks) - 1 and len(chunk) <= 1024)
+        if use_buttons:
+            payload: dict[str, Any] = {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": clean_to,
+                "type": "interactive",
+                "interactive": {
+                    "type": "button",
+                    "body": {"text": chunk},
+                    "action": {
+                        "buttons": [
+                            {
+                                "type": "reply",
+                                "reply": {
+                                    "id": f"btn_{i+1}",
+                                    "title": btn_title,
+                                },
+                            }
+                            for i, btn_title in enumerate(valid_buttons)
+                        ]
+                    },
                 },
-            },
-        }
-    else:
-        payload = {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": clean_to,
-            "type": "text",
-            "text": {"body": text[:4096]},
-        }
+            }
+        else:
+            payload = {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": clean_to,
+                "type": "text",
+                "text": {"body": chunk},
+            }
 
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            res = await client.post(url, headers=headers, json=payload)
-            if res.status_code >= 400:
-                logger.error("Meta WhatsApp send failed (%s): %s", res.status_code, res.text)
-                return False
-            return True
-    except Exception:
-        logger.exception("Meta WhatsApp send message network exception")
-        return False
+        delivered = False
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=15) as client:
+                    res = await client.post(url, headers=headers, json=payload)
+                if res.status_code < 400:
+                    delivered = True
+                    break
+                # Retry rate limits and transient Meta failures only.
+                if res.status_code not in (408, 425, 429) and res.status_code < 500:
+                    logger.error("Meta WhatsApp send failed (%s): %s", res.status_code, res.text)
+                    break
+                logger.warning("Meta WhatsApp transient send failure (%s), attempt %s", res.status_code, attempt + 1)
+            except Exception:
+                logger.exception("Meta WhatsApp send message network exception (attempt %s)", attempt + 1)
+            if attempt < 2:
+                await asyncio.sleep(0.25 * (2 ** attempt))
+        all_sent = all_sent and delivered
+
+    return all_sent
 
 
 async def dispatch_whatsapp_booking_confirmation(

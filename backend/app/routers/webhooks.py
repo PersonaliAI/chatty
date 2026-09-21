@@ -316,6 +316,37 @@ WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET", "")
 WHATSAPP_API_VERSION = os.environ.get("WHATSAPP_API_VERSION", "v21.0")
 
 
+async def _claim_whatsapp_message(bot_id: str, message_id: str | None) -> bool:
+    """Atomically-ish claim a Meta message id for idempotent processing.
+
+    Meta retries webhook deliveries aggressively. The unique database key is
+    the source of truth; a duplicate insert is treated as an already-claimed
+    event and skipped. If an older database has not applied the migration yet,
+    processing continues with a warning so upgrades remain backwards-safe.
+    """
+    if not message_id:
+        return True
+    try:
+        res = await run_db(lambda: supabase.table("chatty_channel_events").insert({
+            "channel": "whatsapp",
+            "external_event_id": message_id,
+            "bot_id": bot_id,
+        }).execute())
+        if getattr(res, "data", None):
+            return True
+        logger.info("Skipping duplicate WhatsApp message %s", message_id)
+        return False
+    except Exception as exc:
+        # PostgREST reports the unique conflict as an error. We distinguish it
+        # from a missing table so a bad migration cannot silently drop leads.
+        text = str(exc).lower()
+        if "duplicate" in text or "unique" in text or "23505" in text:
+            logger.info("Skipping duplicate WhatsApp message %s", message_id)
+            return False
+        logger.warning("WhatsApp idempotency store unavailable: %s", exc)
+        return True
+
+
 def _verify_meta_signature(raw_payload: bytes, signature_header: str, app_secret: str) -> bool:
     """Cryptographically verify Meta's X-Hub-Signature-256 HMAC header."""
     if not (signature_header and app_secret):
@@ -572,6 +603,8 @@ async def whatsapp_receive(request: Request):
             for msg in val.get("messages", []):
                 frm = msg.get("from")
                 msg_type = msg.get("type")
+                if not await _claim_whatsapp_message(bot["id"], msg.get("id")):
+                    continue
 
                 if msg_type == "text":
                     user_text = (msg.get("text") or {}).get("body", "")
