@@ -4354,6 +4354,7 @@ export default function Dashboard() {
               whatsappQuickReplies={whatsappQuickReplies}
               setWhatsappQuickReplies={setWhatsappQuickReplies}
               showToast={showToast}
+              authToken={authToken}
             />
           )}
 
