@@ -18,7 +18,7 @@ from fastapi.responses import RedirectResponse
 
 from app.core.clients import supabase
 from app.core.config import ALLOWED_ORIGINS, CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL, FUNCTION_SECRET
-from app.core.crypto import encrypt_secret
+from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import run_db
 from app.core.deps import require_user
 from plugins import google_integrations as g
@@ -163,6 +163,50 @@ async def whatsapp_disconnect(bot_id: str, user: dict[str, Any] = Depends(requir
         "whatsapp_quick_replies": [],
     }).eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
     return {"ok": True, "message": "WhatsApp disconnected"}
+
+
+@router.post("/api/integrations/whatsapp/deauthorize")
+async def whatsapp_deauthorize(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Revoke this app's Meta OAuth grant, then remove local WhatsApp credentials."""
+    bot_res = await run_db(lambda: supabase.table("chatty_bots")
+        .select("id,whatsapp_access_token")
+        .eq("id", bot_id)
+        .eq("user_id", user["auth_user_id"])
+        .limit(1)
+        .execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    encrypted_token = bot_res.data[0].get("whatsapp_access_token")
+    if encrypted_token:
+        try:
+            access_token = decrypt_secret(encrypted_token)
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                revoke = await client.delete(
+                    "https://graph.facebook.com/v23.0/me/permissions",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+            if revoke.status_code >= 400:
+                body = revoke.json() if revoke.headers.get("content-type", "").startswith("application/json") else {}
+                error_code = (body.get("error") or {}).get("code")
+                if error_code != 190:
+                    raise HTTPException(status_code=502, detail="Meta could not revoke the WhatsApp authorization")
+        except HTTPException:
+            raise
+        except (httpx.HTTPError, ValueError, TypeError):
+            logger.exception("WhatsApp Meta deauthorization failed for bot %s", bot_id)
+            raise HTTPException(status_code=502, detail="Could not reach Meta to revoke the WhatsApp authorization")
+
+    await run_db(lambda: supabase.table("chatty_bots").update({
+        "whatsapp_enabled": False,
+        "whatsapp_phone_number_id": None,
+        "whatsapp_waba_id": None,
+        "whatsapp_access_token": None,
+        "whatsapp_verify_token": None,
+        "whatsapp_app_secret": None,
+        "whatsapp_quick_replies": [],
+    }).eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
+    return {"ok": True, "message": "Meta authorization revoked and WhatsApp disconnected"}
 
 # ---------------------------------------------------------------------------
 # Google OAuth - Calendar + Gmail read-only
