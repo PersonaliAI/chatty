@@ -27,6 +27,20 @@ tests/               pytest smoke + unit tests
 sql/, supabase/      Database schema and migrations
 ```
 
+## Ecommerce and omnichannel RAG
+
+Chatty includes a provider-neutral multimodal catalog layer. Product text and
+images are indexed in pgvector; an uploaded product photo is analyzed by the
+vision model and matched against the bot's catalog. Grounded responses can
+include price, stock, variants, product images, and direct checkout links.
+
+WooCommerce connects through its scoped REST API keys or the official
+`wc-auth/v1/authorize` flow, performs an initial paginated sync, and stays fresh
+through signed product webhooks. The same assistant path is available through
+Meta WhatsApp Cloud API for text, images, documents, and voice notes. See
+[`docs/COMMERCE.md`](docs/COMMERCE.md) for setup, security, endpoints, and the
+production checklist.
+
 ## Local development
 
 ```bash

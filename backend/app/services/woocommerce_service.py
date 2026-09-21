@@ -23,10 +23,21 @@ from typing import Any, Optional
 import httpx
 
 from app.core.clients import supabase
+from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import run_db
 from app.services import multimodal_service
 
 logger = logging.getLogger("chatty.woocommerce")
+
+
+def _protect(value: str) -> str:
+    """Encrypt integration credentials before persistence.
+
+    ``decrypt_secret`` intentionally supports legacy plaintext rows, so an
+    existing installation can be upgraded without a destructive migration.
+    New writes fail closed when the encryption key is missing.
+    """
+    return encrypt_secret(value) if value else value
 
 
 def _clean_html(raw_html: Optional[str]) -> str:
@@ -69,7 +80,10 @@ async def verify_credentials(
     auth = (consumer_key.strip(), consumer_secret.strip())
     timeout = httpx.Timeout(15.0, connect=10.0)
 
-    async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
+    # Never disable certificate verification for merchant stores. Operators
+    # with a private CA can configure httpx/OS trust instead of weakening all
+    # tenants' outbound requests.
+    async with httpx.AsyncClient(timeout=timeout) as client:
         # First attempt: system_status
         try:
             resp = await client.get(api_url, auth=auth)
@@ -120,7 +134,15 @@ async def get_integration(bot_id: str) -> Optional[dict[str, Any]]:
         .limit(1)
         .execute()
     )
-    return res.data[0] if res and res.data else None
+    if not res or not res.data:
+        return None
+    row = dict(res.data[0])
+    # Decrypt only in the service process; never expose these fields from an
+    # API response. Legacy plaintext values remain readable during migration.
+    for field in ("consumer_key", "consumer_secret", "webhook_secret"):
+        if row.get(field):
+            row[field] = decrypt_secret(row[field])
+    return row
 
 
 async def save_integration(
@@ -136,8 +158,8 @@ async def save_integration(
     payload = {
         "bot_id": bot_id,
         "store_url": base_url,
-        "consumer_key": consumer_key.strip(),
-        "consumer_secret": consumer_secret.strip(),
+        "consumer_key": _protect(consumer_key.strip()),
+        "consumer_secret": _protect(consumer_secret.strip()),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -151,7 +173,7 @@ async def save_integration(
         return res.data[0] if res and res.data else existing
     else:
         # Generate clean 32-byte hex webhook secret
-        payload["webhook_secret"] = hashlib.sha256(f"{bot_id}:{base_url}:{datetime.now()}".encode()).hexdigest()
+        payload["webhook_secret"] = _protect(hashlib.sha256(f"{bot_id}:{base_url}:{datetime.now()}".encode()).hexdigest())
         payload["sync_status"] = "idle"
         payload["sync_progress"] = 0
         payload["created_at"] = datetime.now(timezone.utc).isoformat()
@@ -208,6 +230,29 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
         t.get("name") for t in product.get("tags", []) if isinstance(t, dict) and t.get("name")
     ]
 
+    # Preserve commerce facts in structured metadata so the assistant can
+    # answer variant, sale-price, and availability questions without guessing.
+    def _number(value: Any) -> float | None:
+        try:
+            return float(value) if value not in (None, "") else None
+        except (TypeError, ValueError):
+            return None
+
+    regular_price = _number(product.get("regular_price"))
+    sale_price = _number(product.get("sale_price"))
+    variations = []
+    for variation in product.get("variations") or []:
+        if isinstance(variation, dict):
+            variations.append({
+                "id": variation.get("id"),
+                "sku": variation.get("sku") or None,
+                "price": _number(variation.get("price")),
+                "regular_price": _number(variation.get("regular_price")),
+                "sale_price": _number(variation.get("sale_price")),
+                "stock_status": variation.get("stock_status"),
+                "attributes": variation.get("attributes") or [],
+            })
+
     metadata = {
         "source": "woocommerce",
         "woocommerce_id": wc_id,
@@ -215,6 +260,14 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
         "in_stock": in_stock,
         "categories": categories,
         "tags": tags,
+        "type": product.get("type"),
+        "status": product.get("status"),
+        "regular_price": regular_price,
+        "sale_price": sale_price,
+        "on_sale": bool(product.get("on_sale")) or sale_price is not None,
+        "variations": variations,
+        "attributes": product.get("attributes") or [],
+        "shipping_required": product.get("virtual") is not True,
     }
 
     return {
