@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import logging
 import os
+import secrets
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, UploadFile, File, Form
 from pydantic import BaseModel, Field
 
 from app.core.clients import supabase
+from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
@@ -44,6 +49,91 @@ class MediaSearchRequest(BaseModel):
     query_text: str = ""
     media_type: Optional[str] = None
     top_k: int = 6
+
+
+class MediaItemUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    media_url: Optional[str] = None
+    description: Optional[str] = None
+    sku: Optional[str] = None
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    visual_attributes: Optional[dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
+
+
+def _catalog_signature(secret: str, raw_body: bytes) -> str:
+    return hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+
+
+async def _embedding_for_item(item: dict[str, Any]) -> Optional[list[float]]:
+    """Refresh semantic retrieval when searchable product fields change."""
+    parts = [str(item.get("title") or "")]
+    if item.get("description"):
+        parts.append(str(item["description"]))
+    if item.get("sku"):
+        parts.append(f"SKU: {item['sku']}")
+    attrs = item.get("visual_attributes") or {}
+    if attrs:
+        parts.append(", ".join(f"{k}: {v}" for k, v in attrs.items() if v))
+    vector = await multimodal_service.embed_multimodal_text(" | ".join(p for p in parts if p))
+    return vector or None
+
+
+@router.post("/api/bots/{bot_id}/media-webhook")
+async def provision_catalog_webhook(
+    bot_id: str,
+    rotate: bool = False,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Create/rotate a signing secret for a manual catalog or ERP webhook."""
+    await verify_bot_permission(bot_id, user)
+    existing = await run_db(lambda: supabase.table("chatty_catalog_webhooks").select("bot_id").eq("bot_id", bot_id).limit(1).execute())
+    if existing.data and not rotate:
+        raise HTTPException(status_code=409, detail="Catalog webhook already exists; pass rotate=true to rotate it")
+    secret = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc).isoformat()
+    payload = {"bot_id": bot_id, "signing_secret": encrypt_secret(secret), "enabled": True, "updated_at": now}
+    if existing.data:
+        res = await run_db(lambda: supabase.table("chatty_catalog_webhooks").update(payload).eq("bot_id", bot_id).execute())
+    else:
+        payload["created_at"] = now
+        res = await run_db(lambda: supabase.table("chatty_catalog_webhooks").insert(payload).execute())
+    if not getattr(res, "data", None):
+        raise HTTPException(status_code=500, detail="Could not provision catalog webhook")
+    return {"webhook_url": f"/api/integrations/catalog/webhook/{bot_id}", "signing_secret": secret}
+
+
+@router.patch("/api/bots/{bot_id}/media-items/{item_id}")
+async def update_media_item(
+    bot_id: str,
+    item_id: str,
+    req: MediaItemUpdateRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Update stock/price/variants or other manual catalog facts."""
+    await verify_bot_permission(bot_id, user)
+    updates = {k: v for k, v in req.model_dump(exclude_unset=True).items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="At least one field is required")
+    current = None
+    if "metadata" in updates or any(k in updates for k in {"title", "description", "sku", "visual_attributes"}):
+        current = await run_db(lambda: supabase.table("chatty_media_items").select("*").eq("id", item_id).eq("bot_id", bot_id).single().execute())
+    if "metadata" in updates:
+        merged = dict((current.data or {}).get("metadata") or {})
+        merged.update(updates["metadata"] or {})
+        updates["metadata"] = merged
+    if any(k in updates for k in {"title", "description", "sku", "visual_attributes"}):
+        merged_item = dict(current.data or {})
+        merged_item.update(updates)
+        updates["embedding"] = await _embedding_for_item(merged_item)
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    res = await run_db(lambda: supabase.table("chatty_media_items").update(updates).eq("id", item_id).eq("bot_id", bot_id).execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Catalog item not found")
+    return {"item": res.data[0], "status": "updated"}
 
 
 @router.post("/api/bots/{bot_id}/media-items/search-image")
@@ -246,3 +336,62 @@ async def upload_media_image(
         "filename": file.filename,
         "size": len(content),
     }
+
+
+@router.post("/api/integrations/catalog/webhook/{bot_id}")
+async def receive_catalog_webhook(
+    bot_id: str,
+    request: Request,
+    x_chatty_signature: Optional[str] = Header(None),
+):
+    """Receive signed product/stock updates from any store or ERP.
+
+    Payload shape: ``{"event":"product.updated", "external_id":"SKU-1",
+    "item": {"title": ..., "price": ..., "metadata": {"in_stock": true}}}``.
+    ``product.deleted`` removes the matching manual item.
+    """
+    raw = await request.body()
+    if not x_chatty_signature:
+        raise HTTPException(status_code=401, detail="Missing catalog webhook signature")
+    cfg = await run_db(lambda: supabase.table("chatty_catalog_webhooks").select("signing_secret,enabled").eq("bot_id", bot_id).limit(1).execute())
+    if not cfg.data or not cfg.data[0].get("enabled"):
+        raise HTTPException(status_code=404, detail="Catalog webhook is not configured")
+    secret = decrypt_secret(cfg.data[0]["signing_secret"])
+    supplied = x_chatty_signature.removeprefix("sha256=").strip()
+    if not hmac.compare_digest(_catalog_signature(secret, raw), supplied):
+        raise HTTPException(status_code=401, detail="Invalid catalog webhook signature")
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+    external_id = str(body.get("external_id") or "").strip()
+    event = str(body.get("event") or "product.updated").lower()
+    if not external_id:
+        raise HTTPException(status_code=400, detail="external_id is required")
+    found = await run_db(lambda: supabase.table("chatty_media_items").select("*").eq("bot_id", bot_id).contains("metadata", {"external_id": external_id}).limit(1).execute())
+    if "deleted" in event:
+        if found.data:
+            await run_db(lambda: supabase.table("chatty_media_items").delete().eq("id", found.data[0]["id"]).eq("bot_id", bot_id).execute())
+        return {"status": "ok", "event": "deleted", "external_id": external_id}
+    item = body.get("item") or {}
+    existing_item = found.data[0] if found.data else {}
+    metadata = dict(existing_item.get("metadata") or {})
+    metadata.update(item.get("metadata") or {})
+    metadata.update({"source": metadata.get("source", "manual"), "external_id": external_id})
+    if found.data:
+        updates = {k: v for k, v in item.items() if k in {"title", "description", "sku", "price", "currency", "url", "media_url", "thumbnail_url", "visual_attributes"} and v is not None}
+        updates["metadata"] = metadata
+        if any(k in updates for k in {"title", "description", "sku", "visual_attributes"}):
+            merged_item = dict(existing_item)
+            merged_item.update(updates)
+            updates["embedding"] = await _embedding_for_item(merged_item)
+        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await run_db(lambda: supabase.table("chatty_media_items").update(updates).eq("id", found.data[0]["id"]).eq("bot_id", bot_id).execute())
+        return {"status": "ok", "event": "updated", "external_id": external_id}
+    if "created" not in event:
+        raise HTTPException(status_code=404, detail="Catalog item not found")
+    required = {"title", "media_url"}
+    if not required.issubset(item):
+        raise HTTPException(status_code=400, detail="Created items require title and media_url")
+    created = await multimodal_service.ingest_media_item(bot_id=bot_id, title=item["title"], media_url=item["media_url"], description=item.get("description") or "", sku=item.get("sku"), price=item.get("price"), currency=item.get("currency") or "USD", url=item.get("url"), thumbnail_url=item.get("thumbnail_url"), visual_attributes=item.get("visual_attributes"), metadata=metadata)
+    return {"status": "ok", "event": "created", "external_id": external_id, "item_id": created.get("id")}

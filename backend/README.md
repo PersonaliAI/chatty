@@ -39,7 +39,10 @@ WooCommerce connects through its scoped REST API keys or the official
 through signed product webhooks. The same assistant path is available through
 Meta WhatsApp Cloud API for text, images, documents, and voice notes. See
 [`docs/COMMERCE.md`](docs/COMMERCE.md) for setup, security, endpoints, and the
-production checklist.
+production checklist. WooCommerce is optional: manual catalogs can be created
+with the media-item endpoints and kept fresh from any ERP/PIM using the signed
+`/api/integrations/catalog/webhook/{bot_id}` contract for product, price, stock,
+variant, and deletion events.
 
 ## Local development
 
