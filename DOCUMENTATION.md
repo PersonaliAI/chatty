@@ -21,6 +21,7 @@ Welcome to the complete technical documentation for **Chatty** — the enterpris
 13. [Webhooks & Events Reference](#13-webhooks--events-reference)
 14. [Security, BYOK & Permissions](#14-security-byok--permissions)
 15. [Deployment, DevOps & Mirroring Guide](#15-deployment-devops--mirroring-guide)
+16. [Ecommerce, Multimodal RAG & WhatsApp](#16-ecommerce-multimodal-rag--whatsapp)
 
 ---
 
@@ -628,6 +629,28 @@ Chatty offers enterprise encryption for BYOK credentials. When customers provide
 
 ## 15. Deployment, DevOps & Mirroring Guide
 
+## 16. Ecommerce, Multimodal RAG & WhatsApp
+
+Chatty's ecommerce path is shared by the web widget and WhatsApp. When a
+visitor asks about a product with text or an image, the backend uses Gemini
+vision to extract visual attributes, runs tenant-scoped hybrid retrieval over
+`chatty_media_items`, and gives the assistant grounded product facts. Product
+answers can include a price, currency, sale price, stock state, variants,
+image, and direct checkout URL through a `PRODUCT_CARD` token.
+
+WooCommerce is supported through a scoped REST API connection or the official
+`wc-auth/v1/authorize` flow. Initial imports are paginated and progress-tracked;
+signed product webhooks keep price, stock, images, and product links current.
+Credentials are encrypted at rest with `BYOK_ENCRYPTION_KEY` and merchant TLS
+verification is enforced. See the backend's
+[`docs/COMMERCE.md`](../chatty-backend/docs/COMMERCE.md) for endpoint details,
+Meta setup, migration order, and the production checklist.
+
+WhatsApp uses Meta Cloud API at `/webhook/whatsapp`. The handler verifies
+`X-Hub-Signature-256`, supports text, interactive replies, images, documents,
+and voice notes, de-duplicates Meta retries with
+`chatty_channel_events`, and splits/retries long outbound messages. For high
+volume, run the Redis Streams worker described in `docs/OPERATIONS.md`.
 ### Repository Architecture & Dual-Repo Protocol
 
 Chatty maintains a synchronized dual-repository structure:
@@ -646,7 +669,8 @@ Whenever changes are made to local files:
 #### Prerequisites
 - Node.js 20+ and npm
 - Python 3.11+
-- Supabase Project URL and Service Role Key
+- Supabase Project URL and server-only Secret Key (`SUPABASE_SECRET_KEY`)
+- A stable Fernet key for encrypted provider credentials (`BYOK_ENCRYPTION_KEY`)
 
 #### Backend Setup
 ```bash
