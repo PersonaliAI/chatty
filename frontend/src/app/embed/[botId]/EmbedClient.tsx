@@ -2414,7 +2414,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               whileTap={{ scale: 0.85 }}
               transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={() => setVoiceCallOpen(true)}
-              className="ml-auto p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
+              className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
               style={{ opacity: 0.8, backgroundColor: "color-mix(in srgb, currentColor 0%, transparent)" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 0%, transparent)")}
@@ -2426,7 +2426,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           )}
           <button
             onClick={pushGranted ? toggleMute : requestPushPermission}
-            className={`${voiceEnabled ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
+            className={`${voiceEnabled || (tab === "home" && teamProfiles.length > 0) ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
             style={{ opacity: 0.8 }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -3630,7 +3630,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                             }
                             setTab(id);
                           }}
-                          className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative ${
+                          className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative isolate ${isActive ? "active" : ""} ${
                             isActive ? "font-bold" : "opacity-60 hover:opacity-100"
                           }`}
                           style={isActive ? { color: activeNavColor } : undefined}
@@ -3647,21 +3647,21 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                             indicatorType === "pill" ? (
                               <motion.span
                                 layoutId="activeNavIndicator"
-                                className="absolute inset-1 rounded-full -z-0 opacity-15"
-                                style={{ backgroundColor: activeNavColor }}
+                                className="absolute inset-1 rounded-full z-0 pointer-events-none"
+                                style={{ backgroundColor: activeNavColor, opacity: 0.15 }}
                                 transition={{ type: "spring", stiffness: 450, damping: 30 }}
                               />
                             ) : indicatorType === "dot" ? (
                               <motion.span
                                 layoutId="activeNavIndicator"
-                                className="absolute bottom-1 size-1.5 rounded-full z-10 shadow-sm"
+                                className="absolute bottom-1 size-1.5 rounded-full z-20 shadow-sm pointer-events-none"
                                 style={{ backgroundColor: activeNavColor }}
                                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
                               />
                             ) : (
                               <motion.span
                                 layoutId="activeNavIndicator"
-                                className="absolute top-0 left-3 right-3 h-[2.5px] rounded-full z-10"
+                                className="absolute top-0 left-3 right-3 h-[2.5px] rounded-full z-20 pointer-events-none"
                                 style={{ backgroundColor: activeNavColor }}
                                 transition={{ type: "spring", stiffness: 500, damping: 35 }}
                               />
