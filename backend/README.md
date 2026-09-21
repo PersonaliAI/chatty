@@ -44,6 +44,15 @@ with the media-item endpoints and kept fresh from any ERP/PIM using the signed
 `/api/integrations/catalog/webhook/{bot_id}` contract for product, price, stock,
 variant, and deletion events.
 
+### WhatsApp connection check
+
+After saving a bot's WhatsApp phone-number id and access token, the dashboard's
+**Test connection** action calls `POST /api/integrations/whatsapp/test?bot_id=...`.
+It performs a read-only Meta Graph lookup and never sends a message. A successful
+check confirms the token can read the configured phone; it does not replace Meta
+webhook delivery testing. For real messages, publish the Meta app, subscribe the
+WhatsApp Business Account to the app, and enable the `messages` webhook field.
+
 ## Local development
 
 ```bash
