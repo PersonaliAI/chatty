@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 
 import { BACKEND_URL } from "@/lib/backend-client";
+import { getOnColor } from "@/lib/color-contrast";
 const DEFAULT_BACKEND_URL = BACKEND_URL;
 
 interface TimeSlot {
@@ -267,6 +268,10 @@ export function InlineBookingCard({
   sig,
   t,
 }: InlineBookingCardProps) {
+  // Preset accents are user-configurable (including light colors such as
+  // Neubrutalism yellow). Derive the foreground instead of assuming white.
+  // This keeps date/slot/action controls readable at every brand color.
+  const primaryTextColor = getOnColor(primaryColor);
   const [loading, setLoading] = useState(true);
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -957,13 +962,14 @@ export function InlineBookingCard({
                         key={dStr}
                         type="button"
                         onClick={() => setSelectedDate(dStr)}
-                        className={`shrink-0 flex flex-col items-center justify-center px-2.5 py-1.5 rounded-xl border text-center transition-all cursor-pointer ${
+                          className={`shrink-0 flex flex-col items-center justify-center px-2.5 py-1.5 rounded-xl border text-center transition-all cursor-pointer ${
                           isSelected
-                            ? "border-transparent text-white font-medium shadow-sm"
+                            ? "border-transparent font-medium shadow-sm"
                             : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
                         }`}
                         style={{
                           backgroundColor: isSelected ? primaryColor : undefined,
+                          color: isSelected ? primaryTextColor : undefined,
                         }}
                       >
                         <span className={`text-[10px] uppercase tracking-wider ${isSelected ? "opacity-90" : "text-neutral-400 dark:text-neutral-500"}`}>
@@ -972,7 +978,7 @@ export function InlineBookingCard({
                         <span className="text-xs font-semibold leading-snug">
                           {monthDay}
                         </span>
-                        <span className={`text-[9px] mt-0.5 ${isSelected ? "text-white/80" : "text-neutral-400 dark:text-neutral-500"}`}>
+                        <span className={`text-[9px] mt-0.5 ${isSelected ? "opacity-75" : "text-neutral-400 dark:text-neutral-500"}`}>
                           {count} {count === 1 ? "slot" : "slots"}
                         </span>
                       </button>
@@ -1023,16 +1029,17 @@ export function InlineBookingCard({
                           }}
                           className={`px-2 py-2 rounded-lg border text-xs font-medium transition-all text-left cursor-pointer active:scale-95 ${
                             isSlotSelected && cardMode === "reschedule"
-                              ? "border-transparent text-white font-semibold shadow-sm"
+                              ? "border-transparent font-semibold shadow-sm"
                               : "border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50/50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
                           }`}
                           style={{
                             backgroundColor: (isSlotSelected && cardMode === "reschedule") ? primaryColor : undefined,
+                            color: (isSlotSelected && cardMode === "reschedule") ? primaryTextColor : undefined,
                           }}
                         >
                           <span className="block text-center whitespace-nowrap">{formatSlotTime(slot, activeTimezone)}</span>
                           {slot.eligible_hosts && slot.eligible_hosts.length > 0 && (
-                            <span className={`mt-1 block truncate text-center text-[9px] ${isSlotSelected && cardMode === "reschedule" ? "text-white/80" : "text-neutral-400 dark:text-neutral-500"}`}>
+                            <span className={`mt-1 block truncate text-center text-[9px] ${isSlotSelected && cardMode === "reschedule" ? "opacity-75" : "text-neutral-400 dark:text-neutral-500"}`}>
                               {slot.eligible_hosts.length === 1
                                 ? `${slot.eligible_hosts[0].name || slot.eligible_hosts[0].email}`
                                 : `${slot.eligible_hosts.length} team hosts`}
@@ -1077,7 +1084,7 @@ export function InlineBookingCard({
                           onClick={handleConfirmReschedule}
                           disabled={rescheduling}
                           className="flex-1 py-2 rounded-xl text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
-                          style={{ backgroundColor: primaryColor }}
+                          style={{ backgroundColor: primaryColor, color: primaryTextColor }}
                         >
                           {rescheduling ? (
                             <>
@@ -1205,7 +1212,7 @@ export function InlineBookingCard({
                   type="submit"
                   disabled={submitting || verificationCode.trim().length < 6}
                   className="flex-1 py-2 rounded-xl text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
-                  style={{ backgroundColor: primaryColor }}
+                  style={{ backgroundColor: primaryColor, color: primaryTextColor }}
                 >
                   {submitting ? (
                     <>
@@ -1334,7 +1341,7 @@ export function InlineBookingCard({
                   type="submit"
                   disabled={submitting}
                   className="flex-1 py-2 rounded-xl text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
-                  style={{ backgroundColor: primaryColor }}
+                  style={{ backgroundColor: primaryColor, color: primaryTextColor }}
                 >
                   {submitting ? (
                     <>
@@ -1404,7 +1411,7 @@ export function InlineBookingCard({
               target="_blank"
               rel="noopener noreferrer"
               className="w-full py-2.5 px-3 rounded-xl text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-all hover:opacity-95"
-              style={{ backgroundColor: primaryColor }}
+              style={{ backgroundColor: primaryColor, color: primaryTextColor }}
             >
               <Video className="size-4" />
               <span>Join Video Call</span>
@@ -1552,7 +1559,7 @@ export function InlineBookingCard({
                 fetchSlots(activeTimezone);
               }}
               className="w-full py-2 rounded-xl text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98"
-              style={{ backgroundColor: primaryColor }}
+              style={{ backgroundColor: primaryColor, color: primaryTextColor }}
             >
               <span>Schedule New Meeting</span>
             </button>
