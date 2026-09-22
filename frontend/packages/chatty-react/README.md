@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ## Programmatic Control with `useChatty()`
 
-Control the chat drawer from custom buttons or navbar triggers:
+Control the chat drawer or open the independent bottom-docked voice agent from custom buttons or navbar triggers:
 
 ```tsx title="components/HelpButton.tsx"
 "use client";
@@ -53,15 +53,28 @@ Control the chat drawer from custom buttons or navbar triggers:
 import { useChatty } from "@personaliai/react-widget";
 
 export function HelpButton() {
-  const { open, close, toggle } = useChatty();
+  const { open, close, toggle, openVoice } = useChatty();
 
   return (
-    <button onClick={open} className="btn-help">
-      💬 Chat with Support
-    </button>
+    <div>
+      <button onClick={open} className="btn-help">
+        💬 Chat with Support
+      </button>
+      <button onClick={openVoice} className="btn-voice">
+        🎙️ Talk to Support
+      </button>
+    </div>
   );
 }
 ```
+
+When voice is enabled for the bot in Chatty, the hosted widget also shows a
+separate waveform launcher. It opens a responsive bottom-docked LiveKit call
+surface with an animated speaking orb, real microphone activity bars, live
+visitor/agent transcription, mute and hang-up controls, and booking events.
+It does not replace or interrupt the normal chat drawer. The same surface can
+be opened from application code with `window.Chatty.openVoice()` or the
+`openVoice()` hook above.
 
 ---
 
