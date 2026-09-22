@@ -210,16 +210,17 @@ and use [`backend/env.self-host.example`](backend/env.self-host.example); do not
 
 ### Deployment-platform compatibility
 
-The portable self-host contract is Docker Compose. It is intentionally provider-neutral, so the same containers can run
-on a VPS or a container PaaS, but this repository does **not** currently claim one-click support for every platform.
-Railway, Render, and Heroku-style platforms require a platform manifest/template plus separate managed resources; those
-files are not present yet. Do not present a generic Docker deploy as a complete one-click Chatty installation.
+The managed-Supabase deployment contract is two Docker services (API + frontend).
+The root `docker-compose.yml` runs both services without provisioning a second
+database. The repository also includes a Render Blueprint; Railway and
+Heroku-style deployments use their Docker service flows and still require two
+services plus platform-managed secrets.
 
 | Platform | Official deployment guide | Current repository status |
 |---|---|---|
-| ![Docker](https://img.shields.io/badge/Docker%20%2F%20VPS-2496ED?logo=docker&logoColor=white) | [Docker Compose self-host quickstart](backend/docs/SELF_HOST_QUICKSTART.md) | **Supported now** for the backend stack; deploy the frontend separately and put TLS in front. |
+| ![Docker](https://img.shields.io/badge/Docker%20%2F%20VPS-2496ED?logo=docker&logoColor=white) | [Managed-Supabase Docker Compose](docker-compose.yml) | **Supported now** for the API + frontend; put TLS in front. |
 | ![Railway](https://img.shields.io/badge/Railway-0B0D0E?logo=railway&logoColor=white) | [Railway Docker Compose guide](https://docs.railway.com/guides/docker-compose) | Docker-compatible, but **no Railway template or one-click button yet**. |
-| ![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=111827) | [Render Docker guide](https://render.com/docs/docker) | Docker-compatible, but **no `render.yaml` Blueprint or one-click button yet**. |
+| ![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=111827) | [`render.yaml`](render.yaml) / [Render Blueprint guide](https://render.com/docs/deploy-to-render) | **Blueprint included**; it creates the API + frontend services and prompts for secrets. |
 | ![Heroku](https://img.shields.io/badge/Heroku-430098?logo=heroku&logoColor=white) | [Heroku container runtime](https://devcenter.heroku.com/articles/container-registry-and-runtime) | Individual containers may run, but **no `app.json`/Heroku Button or full-stack validation yet**. |
 
 For a managed deployment keep `DEPLOYMENT_PROFILE=managed_supabase`. For the provider-neutral stack use
