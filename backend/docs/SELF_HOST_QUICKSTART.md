@@ -15,8 +15,9 @@ curl http://localhost:8080/
 python scripts/self_host_smoke.py --base-url http://localhost:8080
 ```
 
-The first run starts PostgreSQL 15/pgvector, Redis 7, private MinIO object
-storage, the versioned schema runner, the API, and the Redis webhook worker.
+The first run starts PostgreSQL 15/pgvector, Redis 7, private SeaweedFS
+S3-compatible object storage, the versioned schema runner, the API, and the
+Redis webhook worker.
 The migration runner applies the additive files in
 the canonical `supabase/migrations/` directory and records them in
 `_chatty_schema_migrations`. The Supabase-only `pg_cron`/`pg_net` migration is
@@ -67,7 +68,7 @@ python scripts/self_host_backup.py restore backups/chatty-postgres-<timestamp>.d
 ```
 
 Run a restore drill in an isolated database before every production cutover.
-Back up MinIO/S3 objects with the storage provider's encrypted snapshot/version
+Back up SeaweedFS/S3 objects with the storage provider's encrypted snapshot/version
 policy. Redis is a queue/cache and is not a database backup. Rollback remains a
 traffic/configuration change back to the managed Supabase service; never point
 the installer at the production Supabase database or run destructive SQL there.
@@ -80,10 +81,10 @@ image or migration change; it does not touch the managed Supabase project.
 
 ## Production hardening
 
-- Terminate TLS at a reverse proxy and keep PostgreSQL, Redis, and MinIO on the
-  internal network; expose only the API/frontend.
+- Terminate TLS at a reverse proxy and keep PostgreSQL, Redis, and SeaweedFS on
+  the internal network; expose only the API/frontend.
 - Use unique per-service credentials from a secret manager and rotate them.
 - Keep the object bucket private; expose object reads through signed URLs or an
-  authenticated TLS gateway, not a public MinIO policy.
+  authenticated TLS gateway, not a public object-store policy.
 - Run dependency, image, secret, migration, backup-restore, and smoke checks
   in CI before canary traffic.
