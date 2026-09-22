@@ -229,6 +229,21 @@ async def update_dashboard_bot(
     return updated
 
 
+@router.get("/api/bots/{bot_id}")
+async def get_dashboard_bot(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return one complete dashboard bot configuration after access checks."""
+    await get_bot_role_and_permissions(bot_id, user)
+    if DEPLOYMENT_PROFILE == "self_host":
+        bot = await get_bot(bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        return bot
+    result = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).limit(1).execute())
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return result.data[0]
+
+
 @router.get("/api/bots/{bot_id}/leads")
 async def list_dashboard_leads(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Return lead rows for the dashboard's owner/team-accessible bot."""

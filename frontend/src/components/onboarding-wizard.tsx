@@ -6,6 +6,7 @@ import {
   Sparkles, Upload, Loader2, Check, ArrowRight, ArrowLeft, X, Wand2, MessageSquare, Globe,
 } from "lucide-react";
 import { getOnColor } from "@/lib/color-contrast";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 export function extractDomain(url: string): string {
   if (!url) return "";
@@ -147,8 +148,17 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
         updatePayload.allowed_domains = updatedDomains;
       }
 
-      const { error } = await supabase.from("chatty_bots").update(updatePayload).eq("id", botId);
-      if (error) throw error;
+      if (SELF_HOST_MODE) {
+        const res = await fetchBackend(`/api/bots/${botId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatePayload),
+        });
+        if (!res.ok) throw new Error(`Onboarding save failed (${res.status})`);
+      } else {
+        const { error } = await supabase.from("chatty_bots").update(updatePayload).eq("id", botId);
+        if (error) throw error;
+      }
       onComplete({
         name,
         primaryColor,
@@ -189,7 +199,15 @@ export function OnboardingWizard({ botId, initial, fetchBackend, supabase, onCom
         updatePayload.allowed_domains = updatedDomains;
       }
 
-      await supabase.from("chatty_bots").update(updatePayload).eq("id", botId);
+      if (SELF_HOST_MODE) {
+        await fetchBackend(`/api/bots/${botId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatePayload),
+        });
+      } else {
+        await supabase.from("chatty_bots").update(updatePayload).eq("id", botId);
+      }
       if (clean) {
         onComplete({
           ...initial,
