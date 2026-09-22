@@ -73,9 +73,19 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 - 🔑 **BYOK** - default is Gemini (generous free tier); swap in your own OpenAI/Anthropic/OpenRouter key per bot
 - 🤖 **MCP server** - connect Claude, ChatGPT, or any MCP client and run the entire dashboard from a conversation: create bots, edit flows, run campaigns, manage leads, configure voice, and more, all as 55 callable tools secured by OAuth 2.0 + PKCE (see [MCP Server & Agent Control](#mcp-server--agent-control))
 - 📊 **Dashboard** - manage bots, inbox/conversations, knowledge sources, booking rules, campaigns, and channel connections
-- 🐳 **One-command self-host** - `docker compose up`, point it at a free Supabase project, done
+- 🐳 **One-command deployment** - use the managed Supabase profile by default, or opt into the provider-neutral self-host stack
 
 ## Architecture
+
+The public repository has one canonical application layout: `frontend/` contains the Next.js dashboard and widget, while
+`backend/` contains the FastAPI API, workers, integrations, and migrations. The managed Supabase profile is the default
+and remains unchanged for existing deployments. A fully provider-neutral deployment is opt-in via
+`DEPLOYMENT_PROFILE=self_host`; it uses PostgreSQL/pgvector, Redis, SeaweedFS S3-compatible storage, and OIDC.
+
+![Chatty deployment architecture](docs/assets/chatty-architecture.png)
+
+The image above is a visual overview; the Mermaid diagram below remains the editable, accessible source of truth for the
+main request flow.
 
 ```mermaid
 flowchart LR
@@ -111,7 +121,15 @@ chatty/
 └── docker-compose.yml
 ```
 
-Both services talk to a single Supabase Postgres database - schema + row-level security policies, no separate ORM. Supabase's free tier is enough to get started.
+### Deployment profiles
+
+| Profile | Data and identity services | When to use |
+|---|---|---|
+| `managed_supabase` (default) | Supabase Auth, Postgres, Storage, pgvector, and RLS | Existing Chatty Cloud or Supabase-backed deployments |
+| `self_host` (opt-in) | PostgreSQL/pgvector, Redis, SeaweedFS S3-compatible storage, and an OIDC provider | Fully self-managed deployments with no Supabase dependency |
+
+The self-host stack is isolated from the managed path. Follow [`backend/docs/SELF_HOST_QUICKSTART.md`](backend/docs/SELF_HOST_QUICKSTART.md)
+and use [`backend/env.self-host.example`](backend/env.self-host.example); do not point it at a production Supabase database.
 
 ## 📋 Requirements
 
