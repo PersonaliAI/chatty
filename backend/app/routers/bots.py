@@ -317,6 +317,108 @@ async def dashboard_analytics(bot_id: str, user: dict[str, Any] = Depends(requir
     return await run_db(_read)
 
 
+@router.patch("/api/bots/{bot_id}/leads/{lead_id}")
+async def update_dashboard_lead(
+    bot_id: str,
+    lead_id: str,
+    body: dict[str, Any] = Body(...),
+    user: dict[str, Any] = Depends(require_user),
+):
+    await get_bot_role_and_permissions(bot_id, user)
+    if DEPLOYMENT_PROFILE != "self_host":
+        result = await run_db(lambda: supabase.table("chatty_leads").update(body).eq(
+            "id", lead_id
+        ).eq("bot_id", bot_id).execute())
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        return result.data[0]
+    allowed = {"name", "email", "phone", "company", "job_title", "country", "industry", "budget", "custom_fields"}
+    updates = {key: value for key, value in body.items() if key in allowed}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No supported lead fields")
+    def _update() -> dict[str, Any] | None:
+        columns = ", ".join(f"{key} = %s" for key in updates)
+        values = tuple(Json(value) if isinstance(value, (dict, list)) else value for value in updates.values())
+        with connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    f"UPDATE chatty_leads SET {columns} WHERE id = %s AND bot_id = %s RETURNING *",
+                    (*values, lead_id, bot_id),
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
+    updated = await run_db(_update)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return updated
+
+
+@router.delete("/api/bots/{bot_id}/leads/{lead_id}")
+async def delete_dashboard_lead(bot_id: str, lead_id: str, user: dict[str, Any] = Depends(require_user)):
+    await get_bot_role_and_permissions(bot_id, user)
+    if DEPLOYMENT_PROFILE != "self_host":
+        result = await run_db(lambda: supabase.table("chatty_leads").delete().eq(
+            "id", lead_id
+        ).eq("bot_id", bot_id).execute())
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        return {"ok": True}
+    def _delete() -> bool:
+        with connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM chatty_leads WHERE id = %s AND bot_id = %s", (lead_id, bot_id))
+                return cur.rowcount > 0
+    if not await run_db(_delete):
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return {"ok": True}
+
+
+@router.get("/api/bots/{bot_id}/unanswered")
+async def list_dashboard_unanswered(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    await get_bot_role_and_permissions(bot_id, user)
+    if DEPLOYMENT_PROFILE != "self_host":
+        result = await run_db(lambda: supabase.table("chatty_unanswered").select(
+            "id, question, created_at"
+        ).eq("bot_id", bot_id).eq("status", "open").order("created_at", desc=True).limit(50).execute())
+        return {"items": result.data or []}
+    def _list() -> list[dict[str, Any]]:
+        with connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, question, created_at FROM chatty_unanswered "
+                    "WHERE bot_id = %s AND status = 'open' ORDER BY created_at DESC LIMIT 50",
+                    (bot_id,),
+                )
+                return [dict(row) for row in cur.fetchall()]
+    return {"items": await run_db(_list)}
+
+
+@router.patch("/api/bots/{bot_id}/unanswered/{item_id}")
+async def update_dashboard_unanswered(
+    bot_id: str,
+    item_id: str,
+    body: dict[str, Any] = Body(...),
+    user: dict[str, Any] = Depends(require_user),
+):
+    await get_bot_role_and_permissions(bot_id, user)
+    status = body.get("status")
+    if status not in {"open", "dismissed", "resolved"}:
+        raise HTTPException(status_code=422, detail="Invalid unanswered status")
+    if DEPLOYMENT_PROFILE != "self_host":
+        result = await run_db(lambda: supabase.table("chatty_unanswered").update({"status": status}).eq(
+            "id", item_id
+        ).eq("bot_id", bot_id).execute())
+        return {"ok": bool(result.data)}
+    def _update() -> bool:
+        with connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE chatty_unanswered SET status = %s WHERE id = %s AND bot_id = %s", (status, item_id, bot_id))
+                return cur.rowcount > 0
+    if not await run_db(_update):
+        raise HTTPException(status_code=404, detail="Unanswered item not found")
+    return {"ok": True}
+
+
 @router.get("/api/bots/shared")
 async def list_shared_bots(user: dict[str, Any] = Depends(require_user)):
     """Bots the caller can access as a team member (not owner). Sensitive fields
@@ -360,6 +462,44 @@ async def get_bot_sources(bot_id: str, user: dict[str, Any] = Depends(require_us
         "id, type, name, content, status, char_count, crawl_schedule, next_crawl_at, created_at"
     ).eq("bot_id", bot_id).order("created_at", desc=False).execute())
     return {"sources": res.data or []}
+
+
+@router.post("/api/bots/{bot_id}/sources", status_code=201)
+async def create_bot_source(
+    bot_id: str,
+    body: dict[str, Any] = Body(...),
+    user: dict[str, Any] = Depends(require_user),
+):
+    await get_bot_role_and_permissions(bot_id, user)
+    source = {
+        "bot_id": bot_id,
+        "type": str(body.get("type") or "text"),
+        "name": str(body.get("name") or "Untitled")[:255],
+        "content": str(body.get("content") or ""),
+        "status": str(body.get("status") or "trained"),
+        "char_count": int(body.get("char_count") or len(str(body.get("content") or ""))),
+    }
+    if not source["content"]:
+        raise HTTPException(status_code=422, detail="content is required")
+    if DEPLOYMENT_PROFILE != "self_host":
+        result = await run_db(lambda: supabase.table("chatty_sources").insert(source).execute())
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to create source")
+        return result.data[0]
+    def _insert() -> dict[str, Any]:
+        with connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """INSERT INTO chatty_sources
+                       (bot_id, type, name, content, status, char_count)
+                       VALUES (%s, %s, %s, %s, %s, %s) RETURNING *""",
+                    tuple(source.values()),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise RuntimeError("source insert returned no row")
+                return dict(row)
+    return await run_db(_insert)
 
 
 @router.post("/api/bot/logo")
