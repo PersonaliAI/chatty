@@ -10,7 +10,7 @@ import logging
 import re
 from typing import Any, Optional
 from fastapi import HTTPException
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import Json, RealDictCursor
 
 from app.core import oauth as _oauth
 from app.core.clients import supabase
@@ -34,6 +34,11 @@ from app.schemas.bots_api import (
 )
 
 logger = logging.getLogger("chatty")
+
+
+def _pg_value(value: Any) -> Any:
+    """Adapt JSON-like bot fields explicitly for psycopg2."""
+    return Json(value) if isinstance(value, (dict, list)) else value
 
 _BOT_LIST_COLUMNS = "id, name, welcome_message, primary_color, selected_model, created_at"
 _BOT_DETAIL_FIELDS = [
@@ -72,7 +77,7 @@ def _self_host_bot_insert(row: dict[str, Any]) -> dict[str, Any] | None:
         "lead_capture_enabled",
     )
     columns = [column for column in insert_fields if column in row]
-    values = tuple(row[column] for column in columns)
+    values = tuple(_pg_value(row[column]) for column in columns)
     column_sql = ", ".join(columns)
     placeholders = ", ".join("%s" for _ in columns)
     with connection() as conn:
@@ -103,7 +108,7 @@ def _self_host_bot_update(bot_id: str, updates: dict[str, Any]) -> dict[str, Any
     if not updates:
         return None
     columns = ", ".join(f"{column} = %s" for column in updates)
-    values = [updates[column] for column in updates]
+    values = [_pg_value(updates[column]) for column in updates]
     with connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
@@ -138,9 +143,21 @@ async def _write_audit_log(bot_id: str, action: str, details: str, performed_by:
     keys, webhook signing secrets) into `details`.
     """
     try:
-        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
-            "bot_id": bot_id, "action": action, "details": details, "performed_by": performed_by,
-        }).execute())
+        if DEPLOYMENT_PROFILE == "self_host":
+            def _insert() -> None:
+                with connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """INSERT INTO chatty_audit_logs
+                               (bot_id, action, details, performed_by)
+                               VALUES (%s, %s, %s, %s)""",
+                            (bot_id, action, details, performed_by),
+                        )
+            await run_db(_insert)
+        else:
+            await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+                "bot_id": bot_id, "action": action, "details": details, "performed_by": performed_by,
+            }).execute())
     except Exception:
         logger.warning("Failed to write audit log for bot %s action %s", bot_id, action, exc_info=True)
 
