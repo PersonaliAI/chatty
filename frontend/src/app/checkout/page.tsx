@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Loader2, AlertCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { captureAffiliateReferral, getAffiliateReferral } from "@/lib/affiliate-referral";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 const VALID_PLANS = new Set(["hobby", "standard", "business"]);
 
@@ -30,17 +31,22 @@ function CheckoutPageInner() {
     let cancelled = false;
 
     (async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      let authenticated = false;
+      if (SELF_HOST_MODE) {
+        const profileRes = await fetch("/api/self-host/proxy/api/user/profile", { cache: "no-store" });
+        authenticated = profileRes.ok;
+      } else {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        authenticated = Boolean(user);
+      }
 
-      if (!user) {
+      if (!authenticated) {
         // Not signed in - route through signup, then straight back here once
         // auth completes, so the plan never gets lost along the way.
         const ref = getAffiliateReferral()?.ref;
         const self = `/checkout?plan=${encodeURIComponent(plan)}&interval=${interval}${ref ? `&ref=${encodeURIComponent(ref)}` : ""}`;
-        window.location.href = `/signup?next=${encodeURIComponent(self)}`;
+        window.location.href = `${SELF_HOST_MODE ? "/login" : "/signup"}?next=${encodeURIComponent(self)}`;
         return;
       }
 

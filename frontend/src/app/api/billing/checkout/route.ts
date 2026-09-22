@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 const LS_API = "https://api.lemonsqueezy.com/v1";
 const STORE_ID = "161795";
@@ -47,24 +48,37 @@ export async function POST(request: Request) {
   let email: string | undefined;
   let userId: string | undefined;
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
+    if (SELF_HOST_MODE) {
+      const token = request.headers.get("cookie")?.match(/(?:^|;\s*)chatty_self_host_token=([^;]+)/)?.[1];
+      const backend = process.env.SELF_HOST_BACKEND_URL;
+      if (!token || !backend) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      const profile = await fetch(`${backend.replace(/\/$/, "")}/api/user/profile`, {
+        headers: { Authorization: `Bearer ${decodeURIComponent(token)}` }, cache: "no-store",
+      });
+      if (!profile.ok) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      const user = await profile.json();
       email = user.email ?? undefined;
-      userId = user.id;
-      if (affiliateRef) {
-        await supabase
-          .from("users")
-          .update({
-            initial_referrer_code: affiliateRef,
-            initial_utm_source: clean(referral.utm_source) || "affiliate",
-            initial_utm_medium: clean(referral.utm_medium),
-            initial_utm_campaign: clean(referral.utm_campaign),
-            initial_landing_page: clean(referral.landing_page, 500),
-            referred_at: clean(referral.captured_at) || new Date().toISOString(),
-          })
-          .eq("auth_user_id", user.id)
-          .is("initial_referrer_code", null);
+      userId = user.auth_user_id || user.id;
+    } else {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        email = user.email ?? undefined;
+        userId = user.id;
+        if (affiliateRef) {
+          await supabase
+            .from("users")
+            .update({
+              initial_referrer_code: affiliateRef,
+              initial_utm_source: clean(referral.utm_source) || "affiliate",
+              initial_utm_medium: clean(referral.utm_medium),
+              initial_utm_campaign: clean(referral.utm_campaign),
+              initial_landing_page: clean(referral.landing_page, 500),
+              referred_at: clean(referral.captured_at) || new Date().toISOString(),
+            })
+            .eq("auth_user_id", user.id)
+            .is("initial_referrer_code", null);
+        }
       }
     }
   } catch { /* unauthenticated – fine */ }
