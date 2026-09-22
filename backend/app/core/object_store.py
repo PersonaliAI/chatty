@@ -38,6 +38,12 @@ def put_bytes(key: str, data: bytes, content_type: str) -> str:
     return f"{S3_PUBLIC_URL}/{S3_BUCKET}/{object_key}"
 
 
+def delete_object(key: str) -> None:
+    """Delete one object after a failed metadata write (best-effort compensation)."""
+    object_key = safe_object_key(key)
+    _client().delete_object(Bucket=S3_BUCKET, Key=object_key)
+
+
 def presigned_get_url(key: str, expires_seconds: int = 900) -> str:
     if not 60 <= expires_seconds <= 86400:
         raise ValueError("expires_seconds must be between 60 and 86400")

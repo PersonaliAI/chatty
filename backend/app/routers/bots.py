@@ -11,9 +11,16 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.clients import supabase
-from app.core.config import MODEL_NAME
-from app.core.db import run_db
+from app.core.config import DEPLOYMENT_PROFILE, MODEL_NAME
+from app.core.db import (
+    get_bot,
+    run_db,
+    update_bot_fields,
+    update_team_member_fields,
+    update_user_fields,
+)
 from app.core.deps import require_user
+from app.core.object_store import delete_object, put_bytes
 from app.core.permissions import verify_bot_permission
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.core.uploads import read_upload_capped
@@ -74,9 +81,14 @@ async def upload_bot_logo(
     file: UploadFile = File(...),
     user: dict[str, Any] = Depends(require_user),
 ):
-    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-        "user_id", user["auth_user_id"]).execute())
-    if not res.data:
+    if DEPLOYMENT_PROFILE == "self_host":
+        bot = await get_bot(bot_id)
+        authorized = bool(bot and bot.get("user_id") == user["auth_user_id"])
+    else:
+        res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+            "user_id", user["auth_user_id"]).execute())
+        authorized = bool(res.data)
+    if not authorized:
         raise HTTPException(status_code=403, detail="Unauthorized")
     data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Logo must be under 10MB")
     if not data:
@@ -88,12 +100,24 @@ async def upload_bot_logo(
     ext = (file.filename or "logo.png").split(".")[-1][:8]
     path = f"logos/{bot_id}/{_uuid.uuid4().hex[:8]}.{ext}"
     try:
-        def _upload():
-            supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
-            url = supabase.storage.from_("chatty-uploads").get_public_url(path)
-            supabase.table("chatty_bots").update({"logo_url": url}).eq("id", bot_id).execute()
-            return url
-        url = await run_db(_upload)
+        if DEPLOYMENT_PROFILE == "self_host":
+            url = await run_db(lambda: put_bytes(path, data, mime))
+            try:
+                if not await update_bot_fields(bot_id, {"logo_url": url}):
+                    raise RuntimeError("bot metadata row was not updated")
+            except Exception:
+                try:
+                    await run_db(lambda: delete_object(path))
+                except Exception:
+                    logger.exception("Failed to compensate orphaned logo object")
+                raise
+        else:
+            def _upload():
+                supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+                url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+                supabase.table("chatty_bots").update({"logo_url": url}).eq("id", bot_id).execute()
+                return url
+            url = await run_db(_upload)
         return {"logo_url": url}
     except Exception as e:
         logger.exception("Logo upload failed")
@@ -107,9 +131,14 @@ async def upload_bot_avatar(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Upload a custom assistant avatar image (separate from the header logo)."""
-    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-        "user_id", user["auth_user_id"]).execute())
-    if not res.data:
+    if DEPLOYMENT_PROFILE == "self_host":
+        bot = await get_bot(bot_id)
+        authorized = bool(bot and bot.get("user_id") == user["auth_user_id"])
+    else:
+        res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+            "user_id", user["auth_user_id"]).execute())
+        authorized = bool(res.data)
+    if not authorized:
         raise HTTPException(status_code=403, detail="Unauthorized")
     data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Avatar must be under 10MB")
     if not data:
@@ -121,12 +150,24 @@ async def upload_bot_avatar(
     ext = (file.filename or "avatar.png").split(".")[-1][:8]
     path = f"avatars/{bot_id}/{_uuid.uuid4().hex[:8]}.{ext}"
     try:
-        def _upload():
-            supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
-            url = supabase.storage.from_("chatty-uploads").get_public_url(path)
-            supabase.table("chatty_bots").update({"avatar_url": url, "avatar_icon": "custom"}).eq("id", bot_id).execute()
-            return url
-        url = await run_db(_upload)
+        if DEPLOYMENT_PROFILE == "self_host":
+            url = await run_db(lambda: put_bytes(path, data, mime))
+            try:
+                if not await update_bot_fields(bot_id, {"avatar_url": url, "avatar_icon": "custom"}):
+                    raise RuntimeError("bot metadata row was not updated")
+            except Exception:
+                try:
+                    await run_db(lambda: delete_object(path))
+                except Exception:
+                    logger.exception("Failed to compensate orphaned avatar object")
+                raise
+        else:
+            def _upload():
+                supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+                url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+                supabase.table("chatty_bots").update({"avatar_url": url, "avatar_icon": "custom"}).eq("id", bot_id).execute()
+                return url
+            url = await run_db(_upload)
         return {"avatar_url": url}
     except Exception as e:
         logger.exception("Avatar upload failed")
@@ -230,33 +271,53 @@ async def upload_user_avatar(
     path = f"avatars/users/{user_id}/{_uuid.uuid4().hex[:8]}.{ext}"
 
     try:
-        def _upload():
-            # Try chatty-uploads bucket, fallback to chatty_assets if needed
+        if DEPLOYMENT_PROFILE == "self_host":
+            url = await run_db(lambda: put_bytes(path, data, mime))
             try:
-                supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
-                url = supabase.storage.from_("chatty-uploads").get_public_url(path)
-            except Exception as bucket_err:
-                logger.warning("chatty-uploads upload error: %s, falling back to chatty_assets", bucket_err)
-                supabase.storage.from_("chatty_assets").upload(path, data, {"content-type": mime})
-                url = supabase.storage.from_("chatty_assets").get_public_url(path)
-
-            upd: dict[str, Any] = {"avatar_url": url}
-            if display_name:
-                upd["display_name"] = display_name
-            supabase.table("users").update(upd).eq("auth_user_id", user_id).execute()
-
-            if email:
-                tm_upd: dict[str, Any] = {"avatar_url": url}
+                upd: dict[str, Any] = {"avatar_url": url}
                 if display_name:
-                    tm_upd["name"] = display_name
+                    upd["display_name"] = display_name
+                if not await update_user_fields(user_id, upd):
+                    raise RuntimeError("user metadata row was not updated")
+                if email:
+                    tm_upd: dict[str, Any] = {"avatar_url": url}
+                    if display_name:
+                        tm_upd["name"] = display_name
+                    await update_team_member_fields(email, tm_upd)
+            except Exception:
                 try:
-                    supabase.table("chatty_team_members").update(tm_upd).eq("email", email).execute()
+                    await run_db(lambda: delete_object(path))
                 except Exception:
-                    pass
+                    logger.exception("Failed to compensate orphaned user avatar object")
+                raise
+        else:
+            def _upload():
+                # Try chatty-uploads bucket, fallback to chatty_assets if needed
+                try:
+                    supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+                    url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+                except Exception as bucket_err:
+                    logger.warning("chatty-uploads upload error: %s, falling back to chatty_assets", bucket_err)
+                    supabase.storage.from_("chatty_assets").upload(path, data, {"content-type": mime})
+                    url = supabase.storage.from_("chatty_assets").get_public_url(path)
 
-            return url
+                upd: dict[str, Any] = {"avatar_url": url}
+                if display_name:
+                    upd["display_name"] = display_name
+                supabase.table("users").update(upd).eq("auth_user_id", user_id).execute()
 
-        url = await run_db(_upload)
+                if email:
+                    tm_upd: dict[str, Any] = {"avatar_url": url}
+                    if display_name:
+                        tm_upd["name"] = display_name
+                    try:
+                        supabase.table("chatty_team_members").update(tm_upd).eq("email", email).execute()
+                    except Exception:
+                        pass
+
+                return url
+
+            url = await run_db(_upload)
         return {"avatar_url": url}
     except HTTPException:
         raise
