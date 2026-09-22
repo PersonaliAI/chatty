@@ -28,6 +28,7 @@ import {
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { fetchBackend } from "@/lib/backend-client";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 interface AffiliateProfile {
   id: string;
@@ -204,6 +205,26 @@ export function AffiliatePortalClient() {
   };
 
   useEffect(() => {
+    if (SELF_HOST_MODE) {
+      let cancelled = false;
+      fetchBackend(supabase, "/api/user/profile")
+        .then(async (res) => {
+          if (!res.ok || cancelled) return;
+          const data = await res.json();
+          const selfHostUser = {
+            id: data.id || data.auth_user_id,
+            email: data.email || null,
+            user_metadata: { full_name: data.display_name || data.name || "" },
+          } as unknown as SupabaseUser;
+          setUser(selfHostUser);
+          await loadProfile(selfHostUser);
+        })
+        .catch(() => {
+          if (!cancelled) setLoading(false);
+        });
+      return () => { cancelled = true; };
+    }
+
     supabase.auth.getSession().then(({ data }) => {
       const u = data.session?.user ?? null;
       setUser(u);
