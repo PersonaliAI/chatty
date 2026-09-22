@@ -70,7 +70,22 @@ jobs:
           mkdir -p artifacts/backups
           backup=$(python scripts/self_host_backup.py --env-file .env.self-host --compose-file docker-compose.self-host.yml backup --output artifacts/backups)
           test -s "$backup"
+          # Restore is intentionally destructive. Stop application processes so
+          # no request or worker transaction can hold locks during pg_restore.
+          docker compose --env-file .env.self-host -f docker-compose.self-host.yml stop api webhook-worker
           python scripts/self_host_backup.py --env-file .env.self-host --compose-file docker-compose.self-host.yml restore "$backup" --confirm
+          docker compose --env-file .env.self-host -f docker-compose.self-host.yml start api webhook-worker
+          for attempt in $(seq 1 36); do
+            if curl --fail --silent http://127.0.0.1:8080/readyz >/tmp/chatty-ready-after-restore.json; then
+              cat /tmp/chatty-ready-after-restore.json
+              break
+            fi
+            if [ "$attempt" = 36 ]; then
+              docker compose --env-file .env.self-host -f docker-compose.self-host.yml ps
+              exit 1
+            fi
+            sleep 5
+          done
           python scripts/self_host_smoke.py --base-url http://127.0.0.1:8080
 
       - name: Capture compose logs
