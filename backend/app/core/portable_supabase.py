@@ -406,7 +406,8 @@ class PortableStorage:
 
     def create_bucket(self, _bucket: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
         # Buckets are provisioned by the self-host object-store service or the
-        # operator's S3 policy. Keeping this call idempotent preserves Supabase semantics.
+        # operator's S3 policy. Keeping this call idempotent preserves Supabase semantics
+        # without allowing application traffic to create public buckets.
         return {"name": _bucket, "public": bool((options or {}).get("public", False))}
 
 
