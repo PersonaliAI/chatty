@@ -19,9 +19,12 @@ import time
 from typing import Any, Optional
 
 from fastapi import HTTPException
+from psycopg2.extras import RealDictCursor
 
 from app.core.clients import supabase
+from app.core.config import DEPLOYMENT_PROFILE
 from app.core.db import run_db
+from app.core.db_pool import connection
 
 ACCESS_TOKEN_TTL_SECONDS = 60 * 60          # 1 hour
 REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
@@ -83,7 +86,22 @@ async def issue_tokens(*, client_id: str, user_id: str, scope: str) -> dict[str,
         "access_expires_at": _iso(now + ACCESS_TOKEN_TTL_SECONDS),
         "refresh_expires_at": _iso(now + REFRESH_TOKEN_TTL_SECONDS),
     }
-    await run_db(lambda: supabase.table("chatty_oauth_tokens").insert(row).execute())
+    if DEPLOYMENT_PROFILE == "self_host":
+        def _insert() -> None:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """INSERT INTO chatty_oauth_tokens
+                           (access_token_hash, refresh_token_hash, client_id, user_id,
+                            scope, access_expires_at, refresh_expires_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                        (row["access_token_hash"], row["refresh_token_hash"],
+                         row["client_id"], row["user_id"], row["scope"],
+                         row["access_expires_at"], row["refresh_expires_at"]),
+                    )
+        await run_db(_insert)
+    else:
+        await run_db(lambda: supabase.table("chatty_oauth_tokens").insert(row).execute())
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -106,18 +124,46 @@ async def resolve_access_token(authorization: Optional[str]) -> dict[str, Any]:
     raw = authorization.split(" ", 1)[1].strip()
     if not raw.startswith(_ACCESS_TOKEN_PREFIX):
         raise HTTPException(status_code=401, detail="Not a valid OAuth access token")
-    res = await run_db(lambda: supabase.table("chatty_oauth_tokens").select("*").eq(
-        "access_token_hash", hash_token(raw)).execute())
-    if not res.data:
+    digest = hash_token(raw)
+    if DEPLOYMENT_PROFILE == "self_host":
+        def _fetch() -> dict[str, Any] | None:
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        "SELECT * FROM chatty_oauth_tokens WHERE access_token_hash = %s LIMIT 1",
+                        (digest,),
+                    )
+                    row = cur.fetchone()
+                    return dict(row) if row else None
+        row = await run_db(_fetch)
+    else:
+        res = await run_db(lambda: supabase.table("chatty_oauth_tokens").select("*").eq(
+            "access_token_hash", digest).execute())
+        row = res.data[0] if res.data else None
+    if not row:
         raise HTTPException(status_code=401, detail="Invalid or expired access token")
-    row = res.data[0]
     if row.get("revoked"):
         raise HTTPException(status_code=401, detail="Access token revoked")
     import datetime
-    expires_at = datetime.datetime.fromisoformat(row["access_expires_at"].replace("Z", "+00:00"))
+    expires_value = row["access_expires_at"]
+    expires_at = (expires_value if isinstance(expires_value, datetime.datetime)
+                  else datetime.datetime.fromisoformat(str(expires_value).replace("Z", "+00:00")))
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=datetime.timezone.utc)
     if expires_at < datetime.datetime.now(datetime.timezone.utc):
         raise HTTPException(status_code=401, detail="Access token expired")
+    if DEPLOYMENT_PROFILE == "self_host":
+        await run_db(lambda: _touch_self_host_token(digest))
     return row
+
+
+def _touch_self_host_token(digest: str) -> None:
+    with connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE chatty_oauth_tokens SET last_used_at = NOW() WHERE access_token_hash = %s",
+                (digest,),
+            )
 
 
 async def resolve_principal(authorization: Optional[str], request: Any = None) -> dict[str, Any]:
@@ -200,10 +246,22 @@ async def require_bot_access(principal: dict[str, Any], bot_id: str) -> dict[str
         if principal["bot_id"] != bot_id:
             raise HTTPException(status_code=403, detail="This API key is not authorized for this bot")
 
-    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
-    if not res.data:
+    if DEPLOYMENT_PROFILE == "self_host":
+        bot = await run_db(lambda: _get_self_host_bot(bot_id))
+    else:
+        res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+        bot = res.data[0] if res.data else None
+    if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
-    bot = res.data[0]
     if principal["auth_type"] == "oauth" and bot.get("user_id") != principal["user_id"]:
         raise HTTPException(status_code=404, detail="Bot not found")
     return bot
+
+
+def _get_self_host_bot(bot_id: str) -> dict[str, Any] | None:
+    with connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM chatty_bots WHERE id = %s LIMIT 1", (bot_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
