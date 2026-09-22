@@ -6,7 +6,7 @@
  * Injects a native vector DOM chat assistant directly into an isolated Shadow DOM container.
  * 100% Crisp-level vector font sharpness at all zoom levels, zero iframe bitmap scaling.
  *
- * JS API: window.Chatty.open() / .close() / .toggle()
+ * JS API: window.Chatty.open() / .close() / .toggle() / .openVoice()
  */
 (function () {
   "use strict";
@@ -63,6 +63,9 @@
     open: queueOrCall("open"),
     close: queueOrCall("close"),
     toggle: queueOrCall("toggle"),
+    openVoice: queueOrCall("openVoice"),
+    closeVoice: queueOrCall("closeVoice"),
+    toggleVoice: queueOrCall("toggleVoice"),
   };
   function onApiReady(api) {
     chattyApi = api;
@@ -86,7 +89,7 @@
   // cached copy silently gets an app that doesn't match what this file
   // expects - doMount()'s `window.ChattyDOM.mount` check just no-ops with
   // no error, so the widget never appears. Bump this on every release that
-  var ASSET_VERSION = "2026-09-20.2";
+  var ASSET_VERSION = "2026-09-23.1";
 
   // Preconnect to origin for fast asset loading
   try {
