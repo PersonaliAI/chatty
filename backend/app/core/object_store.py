@@ -38,6 +38,16 @@ def put_bytes(key: str, data: bytes, content_type: str) -> str:
     return f"{S3_PUBLIC_URL}/{S3_BUCKET}/{object_key}"
 
 
+def get_bytes(key: str) -> bytes:
+    """Read one private object through the configured S3-compatible store."""
+    object_key = safe_object_key(key)
+    response = _client().get_object(Bucket=S3_BUCKET, Key=object_key)
+    body = response.get("Body")
+    if body is None:
+        raise RuntimeError("object store returned no body")
+    return body.read()
+
+
 def delete_object(key: str) -> None:
     """Delete one object after a failed metadata write (best-effort compensation)."""
     object_key = safe_object_key(key)

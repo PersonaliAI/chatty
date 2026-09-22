@@ -17,7 +17,7 @@ from typing import Any, Iterable
 from psycopg2.extras import Json, RealDictCursor
 
 from app.core.db_pool import connection
-from app.core.object_store import put_bytes, safe_object_key
+from app.core.object_store import get_bytes, put_bytes, safe_object_key
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _TABLE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -322,12 +322,91 @@ class PortablePostgresClient:
     def table(self, table: str) -> PortableQuery:
         return PortableQuery(table)
 
+    def rpc(self, name: str, params: dict[str, Any] | None = None) -> "PortableRpc":
+        return PortableRpc(name, params or {})
+
+
+class PortableRpc:
+    """Allowlist the vector-search functions used by the application."""
+
+    def __init__(self, name: str, params: dict[str, Any]) -> None:
+        self.name = _identifier(name)
+        self.params = params
+
+    @staticmethod
+    def _vector(value: Any) -> str:
+        if not isinstance(value, (list, tuple)) or not value:
+            raise ValueError("vector embedding must be a non-empty list")
+        try:
+            values = [float(item) for item in value]
+        except (TypeError, ValueError) as exc:
+            raise ValueError("vector embedding contains a non-numeric value") from exc
+        if len(values) != 768:
+            raise ValueError("vector embedding must contain 768 values")
+        return "[" + ",".join(format(item, ".12g") for item in values) + "]"
+
+    def execute(self) -> PortableResult:
+        vector = self._vector(self.params.get("query_embedding"))
+        threshold = float(self.params.get("match_threshold", 0.40))
+        count = max(1, min(int(self.params.get("match_count", 8)), 100))
+        if self.name == "match_document_chunks":
+            user_id = self.params.get("match_user_id")
+            folder_id = self.params.get("match_folder_id")
+            where_folder = " AND (%s IS NULL OR d.parent_folder_id = %s)"
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        """
+                        SELECT c.id, c.document_id, c.drive_file_id, c.file_name,
+                               c.chunk_index, c.content,
+                               1 - (c.embedding <=> %s::vector) AS similarity
+                        FROM document_chunks c
+                        JOIN drive_documents d ON d.id = c.document_id
+                        WHERE c.user_id = %s
+                          AND c.embedding IS NOT NULL
+                          AND (1 - (c.embedding <=> %s::vector)) > %s
+                        """ + where_folder + """
+                        ORDER BY c.embedding <=> %s::vector
+                        LIMIT %s
+                        """,
+                        (vector, user_id, vector, threshold, folder_id, folder_id, vector, count),
+                    )
+                    return PortableResult([dict(row) for row in cur.fetchall()])
+        if self.name == "match_media_items":
+            bot_id = self.params.get("match_bot_id")
+            media_type = self.params.get("filter_media_type")
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        """
+                        SELECT m.id, m.bot_id, m.media_type, m.title, m.description,
+                               m.sku, m.price, m.currency, m.url, m.media_url,
+                               m.thumbnail_url, m.video_url, m.video_timestamp_start,
+                               m.video_timestamp_end, m.visual_attributes, m.metadata,
+                               1 - (m.embedding <=> %s::vector) AS similarity
+                        FROM chatty_media_items m
+                        WHERE m.bot_id = %s
+                          AND (%s IS NULL OR m.media_type = %s)
+                          AND m.embedding IS NOT NULL
+                          AND (1 - (m.embedding <=> %s::vector)) >= %s
+                        ORDER BY m.embedding <=> %s::vector
+                        LIMIT %s
+                        """,
+                        (vector, bot_id, media_type, media_type, vector, threshold, vector, count),
+                    )
+                    return PortableResult([dict(row) for row in cur.fetchall()])
+        raise ValueError(f"unsupported self-host RPC: {self.name}")
+
 
 class PortableStorage:
     """Small Supabase-storage-compatible facade backed by S3/MinIO."""
 
     def from_(self, bucket: str) -> "PortableBucket":
         return PortableBucket(bucket)
+
+    def create_bucket(self, _bucket: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
+        # Buckets are provisioned by Compose or the operator's S3 policy.
+        return {"name": _bucket, "public": bool((options or {}).get("public", False))}
 
 
 class PortableBucket:
@@ -347,3 +426,6 @@ class PortableBucket:
             raise RuntimeError("S3_PUBLIC_URL is required when returning public asset URLs")
         object_key = safe_object_key(f"{self.bucket}/{path}")
         return f"{S3_PUBLIC_URL}/{S3_BUCKET}/{object_key}"
+
+    def download(self, path: str) -> bytes:
+        return get_bytes(f"{self.bucket}/{path}")
