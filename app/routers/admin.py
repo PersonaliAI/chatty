@@ -1646,19 +1646,24 @@ async def admin_list_affiliates(
                         where.append("p.referral_code ILIKE %s"); params.append(f"%{search}%")
                     params.extend([limit, offset])
                     cur.execute(f"""
-                        SELECT p.*, COUNT(DISTINCT c.id) AS clicks_count,
-                               COUNT(DISTINCT r.id) AS referrals_count,
-                               COUNT(DISTINCT r.id) FILTER (WHERE r.status = 'paid') AS paid_referrals_count,
-                               COALESCE(SUM(co.commission_amount_cents) FILTER (WHERE co.status IN ('pending','approved') AND co.hold_until > NOW()), 0) AS pending_cents,
-                               COALESCE(SUM(co.commission_amount_cents) FILTER (WHERE co.status = 'payable' OR (co.status IN ('pending','approved') AND co.hold_until <= NOW())), 0) AS payable_cents,
-                               COALESCE(SUM(co.commission_amount_cents) FILTER (WHERE co.status = 'paid'), 0) AS paid_cents,
-                               COALESCE(SUM(co.commission_amount_cents) FILTER (WHERE co.status IN ('pending','approved','payable','paid')), 0) AS total_earned_cents
+                        SELECT p.*, COALESCE(clicks.clicks_count, 0) AS clicks_count,
+                               COALESCE(refs.referrals_count, 0) AS referrals_count,
+                               COALESCE(refs.paid_referrals_count, 0) AS paid_referrals_count,
+                               COALESCE(comms.pending_cents, 0) AS pending_cents,
+                               COALESCE(comms.payable_cents, 0) AS payable_cents,
+                               COALESCE(comms.paid_cents, 0) AS paid_cents,
+                               COALESCE(comms.total_earned_cents, 0) AS total_earned_cents
                         FROM affiliate_profiles p
-                        LEFT JOIN affiliate_clicks c ON c.affiliate_id = p.id
-                        LEFT JOIN affiliate_referrals r ON r.affiliate_id = p.id
-                        LEFT JOIN affiliate_commissions co ON co.affiliate_id = p.id
+                        LEFT JOIN (SELECT affiliate_id, COUNT(*) AS clicks_count FROM affiliate_clicks GROUP BY affiliate_id) clicks ON clicks.affiliate_id = p.id
+                        LEFT JOIN (SELECT affiliate_id, COUNT(*) AS referrals_count, COUNT(*) FILTER (WHERE status = 'paid') AS paid_referrals_count FROM affiliate_referrals GROUP BY affiliate_id) refs ON refs.affiliate_id = p.id
+                        LEFT JOIN (SELECT affiliate_id,
+                                   COALESCE(SUM(commission_amount_cents) FILTER (WHERE status IN ('pending','approved') AND hold_until > NOW()), 0) AS pending_cents,
+                                   COALESCE(SUM(commission_amount_cents) FILTER (WHERE status = 'payable' OR (status IN ('pending','approved') AND hold_until <= NOW())), 0) AS payable_cents,
+                                   COALESCE(SUM(commission_amount_cents) FILTER (WHERE status = 'paid'), 0) AS paid_cents,
+                                   COALESCE(SUM(commission_amount_cents) FILTER (WHERE status IN ('pending','approved','payable','paid')), 0) AS total_earned_cents
+                                   FROM affiliate_commissions GROUP BY affiliate_id) comms ON comms.affiliate_id = p.id
                         WHERE {' AND '.join(where)}
-                        GROUP BY p.id ORDER BY p.created_at DESC LIMIT %s OFFSET %s
+                        ORDER BY p.created_at DESC LIMIT %s OFFSET %s
                     """, tuple(params))
                     cols = [d[0] for d in cur.description]
                     return [dict(zip(cols, row)) for row in cur.fetchall()]
