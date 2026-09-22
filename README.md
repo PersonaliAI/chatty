@@ -21,7 +21,7 @@ Supabase project.
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Quick Start](#-quick-start-docker-compose) · [Self-Hosting Guide](#-self-hosting-step-by-step) · [Features](#-features) · [MCP Server](#mcp-server--agent-control) · [Architecture](#architecture) · [Contributing](#-contributing)
+[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Quick Start](#-quick-start-docker-compose) · [Self-Hosting Guide](#-self-hosting-step-by-step) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [Features](#-features) · [MCP Server](#mcp-server--agent-control) · [Architecture](#architecture) · [Contributing](#-contributing)
 
 </div>
 
@@ -46,6 +46,7 @@ Supabase project.
   - [9. Updating](#step-9--updating)
   - [Troubleshooting](#troubleshooting)
 - [Local Development (without Docker)](#-local-development-without-docker)
+- [Managed-Supabase platform runbook](docs/SELF_HOST_MANAGED_SUPABASE.md)
 - [MCP Server & Agent Control](#mcp-server--agent-control)
 - [Environment Variable Reference](#environment-variable-reference)
 - [Testing & CI](#-testing--ci)
@@ -85,104 +86,81 @@ The public repository has one canonical application layout: `frontend/` contains
 and remains unchanged for existing deployments. A fully provider-neutral deployment is opt-in via
 `DEPLOYMENT_PROFILE=self_host`; it uses PostgreSQL/pgvector, Redis, SeaweedFS S3-compatible storage, and OIDC.
 
-![Chatty managed Supabase deployment architecture](docs/assets/chatty-architecture.svg)
-
-The image above is a visual overview; the Mermaid diagram below remains the editable, accessible source of truth for the
-main request flow.
-
 ```mermaid
-flowchart LR
-    classDef channel fill:#0f3554,color:#fff,stroke:#38bdf8
-    classDef app fill:#073b35,color:#fff,stroke:#34d399
-    classDef service fill:#4a2811,color:#fff,stroke:#fb923c
-    classDef managed fill:#064e3b,color:#fff,stroke:#6ee7b7
-    classDef selfhost fill:#102a43,color:#fff,stroke:#60a5fa
-    classDef provider fill:#29144f,color:#fff,stroke:#c084fc
-    classDef target fill:#172554,color:#fff,stroke:#93c5fd
+flowchart TB
+    classDef actor fill:#f8fafc,stroke:#64748b,color:#0f172a
+    classDef edge fill:#eff6ff,stroke:#2563eb,color:#1e3a8a
+    classDef app fill:#ecfdf5,stroke:#059669,color:#064e3b
+    classDef data fill:#f0fdfa,stroke:#0f766e,color:#134e4a
+    classDef integration fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+    classDef deploy fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
 
-    subgraph channels["Users and channels"]
-        visitor(("Website visitors")):::channel
-        owner(("Dashboard owners")):::channel
-        whatsapp["WhatsApp"]:::channel
-        slack["Slack"]:::channel
-        mcp_client["MCP clients"]:::channel
+    subgraph clients["Clients and channels"]
+        direction LR
+        visitor(("Website visitor")):::actor
+        operator(("Workspace operator")):::actor
+        channels["WhatsApp · Slack · MCP clients"]:::actor
     end
 
-    subgraph frontend["frontend/ — Next.js public app"]
-        dashboard["Dashboard"]:::app
-        widget["Embeddable widget"]:::app
-        sdk["React SDK"]:::app
+    subgraph edge["Public edge"]
+        direction LR
+        tls["TLS / custom domain / rate limits"]:::edge
+        web["frontend/\nNext.js dashboard + widget"]:::app
     end
 
-    subgraph backend["backend/ — FastAPI and workers"]
-        api["API + auth/OIDC"]:::service
-        webhook["Webhooks"]:::service
-        rag["RAG / knowledge base"]:::service
-        booking["Bookings + calendar sync"]:::service
-        billing["Billing + subscriptions"]:::service
-        inbox["Inbox + conversations"]:::service
-        mcp["MCP server"]:::service
-        voice["Voice worker + LiveKit"]:::service
-        jobs["Redis worker"]:::service
+    subgraph compute["Chatty application containers"]
+        direction LR
+        api["backend/\nFastAPI API + workers"]:::app
+        voice["Voice worker\nLiveKit Agents"]:::app
     end
 
-    subgraph data["Data and deployment profiles"]
-        subgraph managed["managed_supabase (default)"]
-            supabase["Supabase Auth · Postgres · Storage · pgvector · RLS"]:::managed
-        end
-        subgraph selfhost["self_host (opt-in)"]
-            portable["PostgreSQL + pgvector · Redis · SeaweedFS S3 · OIDC"]:::selfhost
-            proxy["Reverse proxy + TLS"]:::selfhost
-        end
+    subgraph managed["Managed Supabase — default profile"]
+        direction LR
+        auth["Auth\n(users + sessions)"]:::data
+        postgres["Postgres + pgvector\nRLS + migrations"]:::data
+        storage["Storage\nknowledge files"]:::data
+        realtime["Realtime\nconversation updates"]:::data
     end
 
-    subgraph providers["External providers"]
-        llm["Gemini / OpenAI / Anthropic"]:::provider
-        calendar["Google / Microsoft Calendar"]:::provider
-        meta["Meta WhatsApp + Slack"]:::provider
-        livekit["LiveKit"]:::provider
-        lemonsqueezy["Lemon Squeezy"]:::provider
+    subgraph integrations["Optional integrations"]
+        direction LR
+        llm["Gemini / OpenAI / Anthropic"]:::integration
+        calendar["Google / Microsoft / Zoom"]:::integration
+        meta["Meta WhatsApp / Slack"]:::integration
+        livekit["LiveKit Cloud or self-hosted"]:::integration
+        billing["Lemon Squeezy / webhooks"]:::integration
     end
 
-    subgraph targets["Deployment targets"]
-        docker["Docker / VPS"]:::target
-        railway["Railway"]:::target
-        render["Render"]:::target
-        heroku["Heroku-style PaaS"]:::target
+    subgraph targets["Run the same two containers anywhere"]
+        direction LR
+        docker["Docker Compose / VPS"]:::deploy
+        railway["Railway"]:::deploy
+        render["Render Blueprint"]:::deploy
+        heroku["Heroku-style container host"]:::deploy
     end
 
-    visitor --> widget
-    owner --> dashboard
-    whatsapp --> webhook
-    slack --> webhook
-    mcp_client -->|OAuth 2.0 + PKCE| mcp
-    dashboard --> api
-    widget --> api
-    sdk --> widget
-    webhook --> api
-    api --> rag
-    api --> booking
-    api --> billing
-    api --> inbox
-    api --> mcp
-    api --> voice
-    api --> jobs
-    api --> supabase
-    api --> portable
-    proxy --> api
+    visitor --> tls --> web
+    operator --> web
+    channels --> api
+    web -->|HTTPS| api
+    api --> auth
+    api --> postgres
+    api --> storage
+    api --> realtime
     api --> llm
     api --> calendar
     api --> meta
-    api --> lemonsqueezy
-    voice --> livekit
-    docker -.-> dashboard
-    docker -.-> api
-    railway -.-> dashboard
-    railway -.-> api
-    render -.-> dashboard
-    render -.-> api
-    heroku -.-> dashboard
-    heroku -.-> api
+    api --> billing
+    api --> voice --> livekit
+    docker -. deploys .-> web
+    docker -. deploys .-> api
+    railway -. deploys .-> web
+    railway -. deploys .-> api
+    render -. deploys .-> web
+    render -. deploys .-> api
+    heroku -. deploys .-> web
+    heroku -. deploys .-> api
+    linkStyle default stroke:#64748b,stroke-width:1.5px
 ```
 
 ```
@@ -212,16 +190,16 @@ and use [`backend/env.self-host.example`](backend/env.self-host.example); do not
 
 The managed-Supabase deployment contract is two Docker services (API + frontend).
 The root `docker-compose.yml` runs both services without provisioning a second
-database. The repository also includes a Render Blueprint; Railway and
-Heroku-style deployments use their Docker service flows and still require two
-services plus platform-managed secrets.
+database. The complete platform runbook, including secret handling, domains,
+health checks, verification, rollback, and troubleshooting, is in
+[docs/SELF_HOST_MANAGED_SUPABASE.md](docs/SELF_HOST_MANAGED_SUPABASE.md).
 
 | Platform | Official deployment guide | Current repository status |
 |---|---|---|
 | ![Docker](https://img.shields.io/badge/Docker%20%2F%20VPS-2496ED?logo=docker&logoColor=white) | [Managed-Supabase Docker Compose](docker-compose.yml) | **Supported now** for the API + frontend; put TLS in front. |
-| ![Railway](https://img.shields.io/badge/Railway-0B0D0E?logo=railway&logoColor=white) | [Railway Docker Compose guide](https://docs.railway.com/guides/docker-compose) | Docker-compatible, but **no Railway template or one-click button yet**. |
-| ![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=111827) | [`render.yaml`](render.yaml) / [Render Blueprint guide](https://render.com/docs/deploy-to-render) | **Blueprint included**; it creates the API + frontend services and prompts for secrets. |
-| ![Heroku](https://img.shields.io/badge/Heroku-430098?logo=heroku&logoColor=white) | [Heroku container runtime](https://devcenter.heroku.com/articles/container-registry-and-runtime) | Individual containers may run, but **no `app.json`/Heroku Button or full-stack validation yet**. |
+| ![Railway](https://img.shields.io/badge/Railway-0B0D0E?logo=railway&logoColor=white) | [Railway Docker Compose guide](https://docs.railway.com/guides/docker-compose) | **Supported as two services**; Railway maps the API and frontend Dockerfiles separately. |
+| ![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=111827) | [`render.yaml`](render.yaml) / [Render Blueprint reference](https://render.com/docs/blueprint-spec) | **Blueprint included**; it creates the API + frontend services and prompts for secrets. |
+| ![Heroku](https://img.shields.io/badge/Heroku-430098?logo=heroku&logoColor=white) | [Heroku container runtime](https://devcenter.heroku.com/articles/container-registry-and-runtime) | **Supported as two container apps**; no full-stack Button is claimed. |
 
 For a managed deployment keep `DEPLOYMENT_PROFILE=managed_supabase`. For the provider-neutral stack use
 `DEPLOYMENT_PROFILE=self_host` and follow the self-host quickstart. Both profiles are in the same codebase; switching the
@@ -378,22 +356,10 @@ Each of these is opt-in - set the relevant env vars in `backend/.env` and restar
 ### Step 8 - Production deployment without Cloud Run or Firebase App Hosting
 
 The supported production shape is two Docker services (API + frontend) backed
-by the same managed Supabase project. Set `DEPLOYMENT_PROFILE=managed_supabase`,
-inject secrets through the platform secret manager, and set
-`NEXT_PUBLIC_BACKEND_URL`, `CHATTY_BACKEND_URL`, and `CHATTY_FRONTEND_URL` to
-the public HTTPS URLs. Put TLS and rate limiting at the platform edge; do not
-expose the API's secret environment variables to the browser.
-
-- **VPS / Docker Compose:** use the root `docker-compose.yml` and a reverse
-  proxy such as Caddy, nginx, or Traefik.
-- **Render:** the repository includes [`render.yaml`](render.yaml), which
-  creates the API and frontend services and prompts for secret values.
-- **Railway:** create one Docker service from `backend/Dockerfile` and one from
-  `frontend/Dockerfile`; Railway's [Dockerfile deployment guide](https://docs.railway.com/builds/dockerfiles)
-  covers the setup.
-- **Heroku-compatible hosts:** deploy the two images as separate web services;
-  keep Supabase external. Heroku's [container deployment guide](https://devcenter.heroku.com/articles/container-registry-and-runtime)
-  documents the same image flow.
+by the same managed Supabase project. The full copy/paste runbook for each
+platform is [SELF_HOST_MANAGED_SUPABASE.md](docs/SELF_HOST_MANAGED_SUPABASE.md).
+It covers `DEPLOYMENT_PROFILE=managed_supabase`, secret-manager setup, domains,
+health checks, production verification, rollback, and security boundaries.
 
 The provider-neutral Postgres/Redis/object-store stack remains available only
 as an advanced, explicit profile at
