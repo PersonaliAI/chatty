@@ -23,6 +23,7 @@ from app.core.db import run_db
 from app.core.db_pool import connection
 from app.core.crypto import decrypt_secret
 from app.services.chatty_quota_service import chatty_quota_exceeded
+from app.services.widget_session_service import upsert_session as _upsert_session
 from app.services.whatsapp_service import (
     build_whatsapp_booking_url,
     get_bot_whatsapp_secret,
@@ -619,6 +620,15 @@ async def _handle_whatsapp_message(
     if media_bytes and media_mime:
         tag = f"[attachment: {media_filename or media_mime}]"
         display_content = (text + "\n" + tag).strip() if text else tag
+
+    # WhatsApp bypasses the browser widget routes, so explicitly maintain the
+    # session row used by inbox, SLA, and analytics.
+    await _upsert_session(
+        bot_id,
+        session_id,
+        display_content or "[empty message]",
+        channel="whatsapp",
+    )
 
     try:
         await run_db(lambda: supabase.table("chatty_conversations").insert({

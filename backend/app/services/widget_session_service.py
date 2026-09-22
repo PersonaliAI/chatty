@@ -23,8 +23,12 @@ async def upsert_session(
     last_message: str,
     visitor_name: Optional[str] = None,
     visitor_email: Optional[str] = None,
+    channel: str = "web",
 ) -> tuple[dict[str, Any], bool]:
     """Create or update a conversation session. Returns (row, is_new)."""
+    session_channel = (channel or "").strip().lower() or ("whatsapp" if session_id.startswith("wa:") else "web")
+    if session_channel not in {"web", "email", "whatsapp", "voice", "slack", "api"}:
+        session_channel = "web"
     try:
         if DEPLOYMENT_PROFILE == "self_host":
             from psycopg2.extras import RealDictCursor
@@ -47,6 +51,8 @@ async def upsert_session(
                             updates["visitor_name"] = visitor_name
                         if visitor_email and not row.get("visitor_email"):
                             updates["visitor_email"] = visitor_email
+                        if row.get("channel") != session_channel:
+                            updates["channel"] = session_channel
                         assignments = ", ".join(f"{key} = %s" for key in updates)
                         cur.execute(
                             f"UPDATE chatty_sessions SET {assignments} WHERE id = %s RETURNING *",
@@ -55,12 +61,12 @@ async def upsert_session(
                         return dict(cur.fetchone()), False
                     cur.execute(
                         """INSERT INTO chatty_sessions
-                        (bot_id, session_id, status, priority, first_response_due_at,
+                        (bot_id, session_id, channel, status, priority, first_response_due_at,
                          resolution_due_at, sla_status, tags, ai_paused, visitor_name,
                          visitor_email, last_message)
-                        VALUES (%s, %s, 'open', 'normal', %s, %s, 'on_track', %s,
+                        VALUES (%s, %s, %s, 'open', 'normal', %s, %s, 'on_track', %s,
                                 false, %s, %s, %s) RETURNING *""",
-                        (bot_id, session_id, now_dt + timedelta(minutes=15),
+                        (bot_id, session_id, session_channel, now_dt + timedelta(minutes=15),
                          now_dt + timedelta(hours=4), [], visitor_name,
                          visitor_email, last_message[:300]),
                     )
@@ -78,6 +84,8 @@ async def upsert_session(
                 upd["visitor_name"] = visitor_name
             if visitor_email and not row.get("visitor_email"):
                 upd["visitor_email"] = visitor_email
+            if row.get("channel") != session_channel:
+                upd["channel"] = session_channel
             await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("id", row["id"]).execute())
             return row, False
 
@@ -85,6 +93,7 @@ async def upsert_session(
         ins = await run_db(lambda: supabase.table("chatty_sessions").insert({
             "bot_id": bot_id,
             "session_id": session_id,
+            "channel": session_channel,
             "status": "open",
             "priority": "normal",
             "first_response_due_at": (now_dt + timedelta(minutes=15)).isoformat(),

@@ -53,6 +53,36 @@ def _parse_date_param(val: Optional[str], default: datetime) -> datetime:
         return default
 
 
+def _session_channel(row: dict[str, Any]) -> str:
+    """Return a stable channel, including legacy namespaced sessions."""
+    session_id = str(row.get("session_id") or "").lower()
+    if session_id.startswith("wa:"):
+        return "whatsapp"
+    if session_id.startswith("email_"):
+        return "email"
+    channel = str(row.get("channel") or "").strip().lower()
+    return channel or "web"
+
+
+def _priced_cost_stats(rows: list[dict[str, Any]]) -> tuple[float, int, int]:
+    """Sum known costs and count calls whose provider price is unavailable."""
+    total = 0.0
+    priced = 0
+    unpriced = 0
+    for row in rows:
+        raw_cost = row.get("cost_usd")
+        if raw_cost is None:
+            if row.get("success") or int(row.get("total_tokens") or 0) > 0:
+                unpriced += 1
+            continue
+        try:
+            total += float(raw_cost)
+            priced += 1
+        except (TypeError, ValueError):
+            unpriced += 1
+    return total, priced, unpriced
+
+
 # ---------------------------------------------------------------------------
 # 1. Overview — KPI summary with period-over-period deltas
 # ---------------------------------------------------------------------------
@@ -91,7 +121,7 @@ async def analytics_overview(
     msg_res = await run_db(lambda: supabase.table("chatty_conversations")
         .select("id, sender, created_at", count="exact")
         .eq("bot_id", bot_id)
-        .eq("sender", "user")
+        .in_("sender", ["user", "visitor"])
         .gte("created_at", from_iso).lte("created_at", to_iso)
         .execute())
     total_messages = msg_res.count or 0
@@ -117,7 +147,7 @@ async def analytics_overview(
         .gte("created_at", from_iso).lte("created_at", to_iso)
         .execute())
     ai_rows = ai_res.data or []
-    ai_cost = sum(float(r.get("cost_usd") or 0) for r in ai_rows)
+    ai_cost, ai_priced_calls, ai_unpriced_calls = _priced_cost_stats(ai_rows)
     ai_tokens = sum(int(r.get("total_tokens") or 0) for r in ai_rows)
 
     csat_res = await run_db(lambda: supabase.table("chatty_csat_feedback")
@@ -162,7 +192,7 @@ async def analytics_overview(
 
     prev_msg_res = await run_db(lambda: supabase.table("chatty_conversations")
         .select("id", count="exact")
-        .eq("bot_id", bot_id).eq("sender", "user")
+        .eq("bot_id", bot_id).in_("sender", ["user", "visitor"])
         .gte("created_at", prev_from_iso).lte("created_at", prev_to_iso)
         .execute())
     prev_messages = prev_msg_res.count or 0
@@ -179,7 +209,7 @@ async def analytics_overview(
         .eq("bot_id", bot_id).eq("success", True)
         .gte("created_at", prev_from_iso).lte("created_at", prev_to_iso)
         .execute())
-    prev_ai_cost = sum(float(r.get("cost_usd") or 0) for r in (prev_ai_res.data or []))
+    prev_ai_cost, _, _ = _priced_cost_stats(prev_ai_res.data or [])
 
     def delta(curr, prev):
         if prev == 0:
@@ -197,6 +227,8 @@ async def analytics_overview(
             "csat_avg": {"value": csat_avg, "delta": None},
             "total_meetings": {"value": total_meetings, "delta": None},
             "ai_cost_usd": {"value": round(ai_cost, 4), "delta": delta(ai_cost, prev_ai_cost)},
+            "ai_cost_priced_calls": {"value": ai_priced_calls, "delta": None},
+            "ai_cost_unpriced_calls": {"value": ai_unpriced_calls, "delta": None},
             "ai_tokens": {"value": ai_tokens, "delta": None},
             "sla_breach_rate": {"value": sla_breach_rate, "delta": None},
             "total_csat_responses": {"value": len(csat_rows), "delta": None},
@@ -234,7 +266,7 @@ async def analytics_volume(
 
     msg_res = await run_db(lambda: supabase.table("chatty_conversations")
         .select("created_at")
-        .eq("bot_id", bot_id).eq("sender", "user")
+        .eq("bot_id", bot_id).in_("sender", ["user", "visitor"])
         .gte("created_at", from_iso).lte("created_at", to_iso)
         .execute())
 
@@ -292,14 +324,33 @@ async def analytics_channels(
     from_dt = _parse_date_param(from_date, to_dt - timedelta(days=30))
 
     res = await run_db(lambda: supabase.table("chatty_sessions")
-        .select("channel")
+        .select("channel, session_id")
         .eq("bot_id", bot_id)
         .gte("created_at", _iso(from_dt)).lte("created_at", _iso(to_dt))
         .execute())
 
     counts: dict[str, int] = defaultdict(int)
+    seen_session_ids: set[str] = set()
     for row in (res.data or []):
-        counts[row.get("channel") or "web"] += 1
+        session_id = str(row.get("session_id") or "")
+        if session_id and session_id in seen_session_ids:
+            continue
+        if session_id:
+            seen_session_ids.add(session_id)
+        counts[_session_channel(row)] += 1
+
+    msg_res = await run_db(lambda: supabase.table("chatty_conversations")
+        .select("session_id")
+        .eq("bot_id", bot_id)
+        .in_("sender", ["user", "visitor"])
+        .gte("created_at", _iso(from_dt)).lte("created_at", _iso(to_dt))
+        .execute())
+    for row in (msg_res.data or []):
+        session_id = str(row.get("session_id") or "")
+        if not session_id or session_id in seen_session_ids:
+            continue
+        seen_session_ids.add(session_id)
+        counts[_session_channel({"session_id": session_id})] += 1
 
     total = sum(counts.values()) or 1
     return {
@@ -377,7 +428,7 @@ async def analytics_agents(
     to_iso = _iso(to_dt)
 
     sess_res = await run_db(lambda: supabase.table("chatty_sessions")
-        .select("assigned_agent_email, assigned_agent_name, status, sla_status, first_responded_at, first_response_due_at, resolved_at, created_at")
+        .select("id, session_id, assigned_agent_email, assigned_agent_name, status, sla_status, first_responded_at, first_response_due_at, resolved_at, created_at")
         .eq("bot_id", bot_id)
         .not_.is_("assigned_agent_email", "null")
         .gte("created_at", from_iso).lte("created_at", to_iso)
@@ -532,7 +583,8 @@ async def analytics_ai_cost(
     by_model: dict[str, dict] = defaultdict(lambda: {
         "calls": 0, "successful_calls": 0, "failed_calls": 0,
         "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
-        "cost_usd": 0.0, "latency_ms_sum": 0, "latency_count": 0,
+        "cost_usd": 0.0, "priced_calls": 0, "unpriced_calls": 0,
+        "latency_ms_sum": 0, "latency_count": 0,
     })
     daily_cost: dict[str, float] = defaultdict(float)
 
@@ -547,14 +599,24 @@ async def analytics_ai_cost(
         entry["prompt_tokens"] += int(r.get("prompt_tokens") or 0)
         entry["completion_tokens"] += int(r.get("completion_tokens") or 0)
         entry["total_tokens"] += int(r.get("total_tokens") or 0)
-        entry["cost_usd"] += float(r.get("cost_usd") or 0)
+        raw_cost = r.get("cost_usd")
+        if raw_cost is None:
+            if r.get("success") or int(r.get("total_tokens") or 0) > 0:
+                entry["unpriced_calls"] += 1
+        else:
+            try:
+                entry["cost_usd"] += float(raw_cost)
+                entry["priced_calls"] += 1
+            except (TypeError, ValueError):
+                entry["unpriced_calls"] += 1
         if r.get("latency_ms"):
             entry["latency_ms_sum"] += int(r["latency_ms"])
             entry["latency_count"] += 1
 
         try:
             dt = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
-            daily_cost[dt.strftime("%Y-%m-%d")] += float(r.get("cost_usd") or 0)
+            if r.get("cost_usd") is not None:
+                daily_cost[dt.strftime("%Y-%m-%d")] += float(r["cost_usd"])
         except Exception:
             pass
 
@@ -569,6 +631,8 @@ async def analytics_ai_cost(
             "completion_tokens": e["completion_tokens"],
             "total_tokens": e["total_tokens"],
             "cost_usd": round(e["cost_usd"], 6),
+            "priced_calls": e["priced_calls"],
+            "unpriced_calls": e["unpriced_calls"],
             "avg_latency_ms": round(e["latency_ms_sum"] / e["latency_count"]) if e["latency_count"] else None,
         })
 
@@ -582,10 +646,17 @@ async def analytics_ai_cost(
 
     total_cost = sum(e["cost_usd"] for e in by_model.values())
     total_tokens = sum(e["total_tokens"] for e in by_model.values())
+    priced_calls = sum(e["priced_calls"] for e in by_model.values())
+    unpriced_calls = sum(e["unpriced_calls"] for e in by_model.values())
 
     return {
         "total_cost_usd": round(total_cost, 6),
         "total_tokens": total_tokens,
+        "cost_status": {
+            "complete": unpriced_calls == 0,
+            "priced_calls": priced_calls,
+            "unpriced_calls": unpriced_calls,
+        },
         "by_model": model_rows,
         "daily_series": daily_series,
     }

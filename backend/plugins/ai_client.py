@@ -96,7 +96,17 @@ async def _log_usage(
     cost: Optional[float] = None
     if response is not None:
         try:
-            cost = litellm.completion_cost(completion_response=response)
+            # LiteLLM records an exact provider-reported price in hidden
+            # metadata for some providers. Prefer it, then fall back to the
+            # model catalogue. Keep NULL when neither is available so the
+            # analytics UI can distinguish unknown pricing from free calls.
+            hidden_params = getattr(response, "_hidden_params", {}) or {}
+            provider_cost = hidden_params.get("response_cost")
+            if provider_cost is not None:
+                cost = float(provider_cost)
+            else:
+                catalogue_cost = litellm.completion_cost(completion_response=response)
+                cost = float(catalogue_cost) if catalogue_cost is not None else None
         except Exception:  # noqa: BLE001 - pricing unknown for this model (e.g. an unlisted BYOK model)
             cost = None
     provider, bare_model = _split_provider_model(litellm_model)
