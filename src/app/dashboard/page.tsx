@@ -1440,6 +1440,21 @@ export default function Dashboard() {
     }
   }
 
+  // OAuth returns to the dashboard before the client state has been refreshed.
+  // Reload the active bot once so a successful WhatsApp connection immediately
+  // reflects the enabled state and credentials in the Integrations tab.
+  useEffect(() => {
+    if (!user?.id || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("whatsapp") !== "connected") return;
+    setActiveTab("integrations");
+    void loadBotSettings(user.id);
+    window.history.replaceState({}, "", "/dashboard?tab=integrations");
+    showToast("WhatsApp connected successfully", "success");
+    // The callback query is consumed once; user changes do not need to rerun it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   // Create a new chatbot configuration
   async function handleCreateBot(name: string, websiteUrl?: string) {
     if (!user) return;
