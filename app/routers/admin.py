@@ -1,0 +1,2128 @@
+"""Dashboard inbox, human-agent takeover, GDPR export, and admin panel
+endpoints (/api/admin/*)."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from datetime import datetime, timezone
+import re
+from typing import Any, Optional
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+
+from app.core.clients import supabase
+from app.core.db import run_db
+from app.core.deps import require_user
+from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
+from app.core.uploads import read_upload_capped
+from app.core.config import ADMIN_BYPASS_EMAILS
+from app.core.config import DEPLOYMENT_PROFILE
+from app.core.db_pool import connection
+from plugins import notifications as notify
+from app.schemas.affiliate import (
+    AdminAffiliatePayoutCreateRequest,
+    AdminAffiliateRateUpdateRequest,
+    AdminAffiliateStatusUpdateRequest,
+)
+from app.schemas.admin import (
+    InboxAIToggle,
+    InboxDeleteRequest,
+    InboxReplyRequest,
+    MessageFeedbackRequest,
+    RescheduleMeetingRequest,
+    SessionNoteCreateRequest,
+    SessionUpdateRequest,
+    CopilotDraftRequest,
+    CopilotSummarizeRequest,
+    ViewerHeartbeatRequest,
+    AutomationRuleCreateRequest,
+    AutomationRuleTestRequest,
+)
+from app.services import copilot_service, automation_engine, pii_service
+from app.schemas.kb import (
+    ArticleCreateRequest,
+    ArticleUpdateRequest,
+    CategoryCreateRequest,
+    CategoryUpdateRequest,
+)
+from app.schemas.routing import (
+    AgentPresenceUpdateRequest,
+    RoutingSettingsUpdateRequest,
+)
+
+def _slugify(text: str) -> str:
+    s = text.lower().strip()
+    s = re.sub(r"[^\w\s-]", "", s)
+    s = re.sub(r"[\s_-]+", "-", s)
+    return s.strip("-") or "untitled"
+
+# Bridged helpers still living in main.py (shared across many route groups).
+from main import _verify_bot_access, _verify_bot_owner
+
+logger = logging.getLogger("chatty")
+
+router = APIRouter()
+
+_MEDIA_MAX_BYTES = 20 * 1024 * 1024  # 20MB - matches app/routers/widget.py
+
+
+def _actor_email(user: dict[str, Any]) -> str:
+    return (user.get("email") or user.get("auth_user_id") or "user").strip()
+
+
+async def _write_admin_audit_log(bot_id: str, action: str, details: str, user: dict[str, Any]) -> None:
+    """Best-effort audit trail for dashboard actions.
+
+    Audit logging must never break the primary user action, but sensitive
+    dashboard mutations should leave a durable row whenever the database is
+    reachable.
+    """
+    try:
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+            "bot_id": bot_id,
+            "action": action,
+            "details": details,
+            "performed_by": _actor_email(user),
+        }).execute())
+    except Exception:
+        logger.warning("Failed to write admin audit log for %s/%s", bot_id, action, exc_info=True)
+
+
+async def _verify_inbox_access(bot_id: str, user: dict[str, Any]) -> str:
+    return await verify_bot_permission(bot_id, user, "inbox")
+
+
+async def _session_row_for_access(bot_id: str, session_id: str) -> dict[str, Any]:
+    res = await run_db(lambda: supabase.table("chatty_sessions")
+        .select("bot_id, session_id, assigned_agent_email")
+        .eq("bot_id", bot_id)
+        .eq("session_id", session_id)
+        .limit(1)
+        .execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return res.data[0]
+
+
+async def _verify_session_inbox_access(bot_id: str, session_id: str, user: dict[str, Any]) -> str:
+    """Owner/admin may access any inbox session; agents only their assigned sessions."""
+    role = await _verify_inbox_access(bot_id, user)
+    session = await _session_row_for_access(bot_id, session_id)
+    if role == "agent":
+        caller_email = (user.get("email") or "").strip().lower()
+        assigned_email = (session.get("assigned_agent_email") or "").strip().lower()
+        if not caller_email or assigned_email != caller_email:
+            raise HTTPException(status_code=403, detail="Unauthorized")
+    return role
+
+
+async def _verify_audit_log_access(bot_id: str, user: dict[str, Any]) -> str:
+    """Owner or admin with Settings/Team permission may read audit logs."""
+    role, permissions = await get_bot_role_and_permissions(bot_id, user)
+    if role == "owner":
+        return role
+    if role == "admin" and ("settings" in permissions or "team" in permissions):
+        return role
+    raise HTTPException(status_code=403, detail="Only an owner or admin with Settings/Team access can view audit logs")
+
+
+@router.get("/api/admin/inbox")
+async def admin_inbox(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    role = await _verify_inbox_access(bot_id, user)
+    if role == "agent":
+        caller_email = (user.get("email") or "").strip().lower()
+        rows = (await run_db(lambda: supabase.table("chatty_sessions").select("*").eq("bot_id", bot_id)
+            .eq("assigned_agent_email", caller_email)
+            .order("last_message_at", desc=True).limit(200).execute())).data or []
+    else:
+        rows = (await run_db(lambda: supabase.table("chatty_sessions").select("*").eq("bot_id", bot_id) \
+            .order("last_message_at", desc=True).limit(200).execute())).data or []
+    # Float conversations that need a human to the top (stable: keeps recency).
+    rows.sort(key=lambda r: not r.get("needs_attention"))
+    return {"sessions": rows}
+
+
+@router.get("/api/admin/inbox/messages")
+async def admin_inbox_messages(bot_id: str, session_id: str,
+                               user: dict[str, Any] = Depends(require_user)):
+    await _verify_session_inbox_access(bot_id, session_id, user)
+    rows = (await run_db(lambda: supabase.table("chatty_conversations").select("id,role,content,sender,sender_name,sender_avatar,created_at,feedback_rating,correction") \
+        .eq("bot_id", bot_id).eq("session_id", session_id) \
+        .order("created_at", desc=False).limit(500).execute())).data or []
+    return {"messages": rows}
+
+
+@router.patch("/api/admin/inbox/messages/{message_id}/feedback")
+async def set_message_feedback(message_id: str, req: MessageFeedbackRequest, user: dict[str, Any] = Depends(require_user)):
+    """Thumbs up/down + an optional corrected answer on an assistant message
+    ("refine answers"). A saved correction is also added as a searchable
+    knowledge source so future replies on the same topic use it."""
+    await _verify_inbox_access(req.bot_id, user)
+    if req.rating not in (None, "up", "down"):
+        raise HTTPException(status_code=400, detail="rating must be up, down, or null")
+
+    msg_res = await run_db(lambda: supabase.table("chatty_conversations").select("id, bot_id, session_id, content, role").eq("id", message_id).execute())
+    if not msg_res.data or msg_res.data[0]["bot_id"] != req.bot_id:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message = msg_res.data[0]
+    if message.get("session_id"):
+        await _verify_session_inbox_access(req.bot_id, message["session_id"], user)
+
+    await run_db(lambda: supabase.table("chatty_conversations").update({
+        "feedback_rating": req.rating,
+        "correction": req.correction,
+    }).eq("id", message_id).execute())
+
+    if req.correction and req.correction.strip():
+        content = f"Original AI answer: {message.get('content', '')}\n\nCorrected answer (use this instead): {req.correction.strip()}"
+        source_name = f"Correction #{message_id[:8]}"
+        existing = await run_db(lambda: supabase.table("chatty_sources").select("id").eq("bot_id", req.bot_id).eq("type", "text").eq("name", source_name).execute())
+        if existing.data:
+            existing_id = existing.data[0]["id"]
+            await run_db(lambda: supabase.table("chatty_sources").update({"content": content, "char_count": len(content)}).eq("id", existing_id).execute())
+        else:
+            await run_db(lambda: supabase.table("chatty_sources").insert({
+                "bot_id": req.bot_id, "type": "text", "name": source_name,
+                "content": content, "status": "trained", "char_count": len(content),
+            }).execute())
+        await _write_admin_audit_log(
+            req.bot_id,
+            "conversation_correction_saved",
+            f"Saved corrected answer from message {message_id}",
+            user,
+        )
+
+    return {"success": True}
+
+
+async def _extract_agent_profile(user: dict[str, Any], bot_id: Optional[str] = None) -> tuple[str, Optional[str]]:
+    """Extract and validate the human agent's display name and avatar URL."""
+    name = user.get("display_name")
+    avatar = user.get("avatar_url")
+    email = user.get("email") or ""
+
+    # Check team members table for custom name or avatar
+    if bot_id and email and (not name or not avatar):
+        try:
+            tm = await run_db(lambda: supabase.table("chatty_team_members")
+                .select("name, avatar_url")
+                .eq("bot_id", bot_id).eq("email", email).limit(1).execute())
+            if tm.data:
+                row = tm.data[0]
+                if not name and row.get("name"):
+                    name = row.get("name")
+                if not avatar and row.get("avatar_url"):
+                    avatar = row.get("avatar_url")
+        except Exception:
+            pass
+
+    # Check auth user metadata if needed (e.g. Google OAuth photo/name)
+    if (not avatar or not name) and user.get("auth_user_id"):
+        try:
+            auth_user = await run_db(lambda: supabase.auth.admin.get_user_by_id(user["auth_user_id"]))
+            if auth_user and getattr(auth_user, "user", None):
+                u_obj = auth_user.user
+                u_meta = getattr(u_obj, "user_metadata", None) or {}
+                if not name:
+                    name = u_meta.get("full_name") or u_meta.get("name")
+                if not avatar:
+                    avatar = u_meta.get("avatar_url") or u_meta.get("picture")
+        except Exception:
+            pass
+
+    if not name:
+        name = email.split("@")[0] if email else "Support Agent"
+
+    clean_avatar: Optional[str] = None
+    if isinstance(avatar, str) and avatar.strip():
+        av = avatar.strip()
+        if av.startswith("http://") or av.startswith("https://") or av.startswith("data:image/"):
+            clean_avatar = av
+
+    return str(name), clean_avatar
+
+
+@router.post("/api/admin/inbox/reply")
+async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depends(require_user)):
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="text required")
+    safe_text = pii_service.scrub_pii(req.text)
+    agent_name, agent_avatar = await _extract_agent_profile(user, req.bot_id)
+
+    await run_db(lambda: supabase.table("chatty_conversations").insert({
+        "bot_id": req.bot_id, "session_id": req.session_id, "role": "assistant",
+        "content": safe_text, "sender": "human",
+        "sender_name": agent_name,
+        "sender_avatar": agent_avatar,
+    }).execute())
+    now_iso = datetime.now(timezone.utc).isoformat()
+    # Check if first_responded_at is already set and check for email ticket
+    sess_res = await run_db(lambda: supabase.table("chatty_sessions")
+        .select("first_responded_at, channel, visitor_email, visitor_name, subject, last_inbound_message_id")
+        .eq("bot_id", req.bot_id).eq("session_id", req.session_id)
+        .limit(1).execute())
+    upd: dict[str, Any] = {
+        "ai_paused": True, "needs_attention": False, "last_message": req.text[:300],
+        "last_message_at": now_iso,
+        "assigned_agent_name": agent_name,
+    }
+    if agent_avatar:
+        upd["assigned_agent_avatar"] = agent_avatar
+    if user.get("email"):
+        upd["assigned_agent_email"] = user.get("email")
+    if sess_res.data and not sess_res.data[0].get("first_responded_at"):
+        upd["first_responded_at"] = now_iso
+    await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    await _write_admin_audit_log(req.bot_id, "inbox_reply_sent", f"Human reply sent in session {req.session_id}", user)
+
+    # Outbound Email Threading: if session is from email channel or has customer email, deliver reply via email
+    if sess_res.data:
+        s_row = sess_res.data[0]
+        v_email = s_row.get("visitor_email")
+        if (s_row.get("channel") == "email" or v_email) and v_email:
+            try:
+                bot_name_res = await run_db(lambda: supabase.table("chatty_bots").select("name").eq("id", req.bot_id).limit(1).execute())
+                bot_name = bot_name_res.data[0]["name"] if bot_name_res.data else "Chatty Support"
+                from app.services.email_service import send_ticket_reply_email
+                asyncio.create_task(send_ticket_reply_email(
+                    to_email=v_email,
+                    subject=s_row.get("subject") or "Support Request",
+                    body_text=req.text,
+                    session_id=req.session_id,
+                    bot_name=bot_name,
+                    agent_name=agent_name,
+                    in_reply_to_message_id=s_row.get("last_inbound_message_id"),
+                ))
+            except Exception as e:
+                logger.warning("Failed to enqueue outbound ticket reply email: %s", e)
+
+    return {"success": True}
+
+
+@router.post("/api/admin/inbox/reply/media")
+async def admin_inbox_reply_media(
+    bot_id: str = Form(...),
+    session_id: str = Form(...),
+    text: str = Form(""),
+    file: UploadFile = File(...),
+    user: dict[str, Any] = Depends(require_user),
+):
+    await _verify_session_inbox_access(bot_id, session_id, user)
+    data = await read_upload_capped(file, _MEDIA_MAX_BYTES, detail="File too large (max 20MB)")
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    mime = (file.content_type or "application/octet-stream").split(";")[0]
+
+    # Upload to storage (service-role bypasses RLS)
+    import uuid as _uuid
+    ext = (file.filename or "file").split(".")[-1][:8] if "." in (file.filename or "") else "bin"
+    path = f"{bot_id}/{session_id}/reply-{int(time.time())}-{_uuid.uuid4().hex[:8]}.{ext}"
+    try:
+        def _upload():
+            supabase.storage.from_("chatty-uploads").upload(
+                path, data, {"content-type": mime, "upsert": "false"}
+            )
+            return supabase.storage.from_("chatty-uploads").get_public_url(path)
+        file_url = await run_db(_upload)
+    except Exception as e:
+        logger.exception("Admin reply storage upload failed")
+        raise HTTPException(status_code=500, detail="Upload failed") from e
+
+    display = (text.strip() + ("\n" if text.strip() else "")) + f"[attachment: {file.filename or mime}]"
+    content = display + (f"\n{file_url}" if file_url else "")
+    agent_name, agent_avatar = await _extract_agent_profile(user, bot_id)
+
+    await run_db(lambda: supabase.table("chatty_conversations").insert({
+        "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+        "content": content, "sender": "human",
+        "sender_name": agent_name,
+        "sender_avatar": agent_avatar,
+    }).execute())
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    sess_res = await run_db(lambda: supabase.table("chatty_sessions").select("first_responded_at").eq("bot_id", bot_id).eq("session_id", session_id).limit(1).execute())
+    upd: dict[str, Any] = {
+        "ai_paused": True, "needs_attention": False, "last_message": content[:300],
+        "last_message_at": now_iso,
+        "assigned_agent_name": agent_name,
+    }
+    if agent_avatar:
+        upd["assigned_agent_avatar"] = agent_avatar
+    if user.get("email"):
+        upd["assigned_agent_email"] = user.get("email")
+    if sess_res.data and not sess_res.data[0].get("first_responded_at"):
+        upd["first_responded_at"] = now_iso
+    await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+    await _write_admin_audit_log(bot_id, "inbox_media_reply_sent", f"Human media reply sent in session {session_id}", user)
+
+    return {"success": True, "file_url": file_url, "file_type": mime}
+
+
+@router.patch("/api/admin/inbox/session")
+async def update_inbox_session(req: SessionUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Update helpdesk session lifecycle state, priority, assignment, tags, and SLA status."""
+    role = await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    upd: dict[str, Any] = {}
+
+    if req.status is not None:
+        valid_statuses = ("open", "pending", "resolved", "closed")
+        if req.status not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"status must be one of {valid_statuses}")
+        upd["status"] = req.status
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if req.status in ("resolved", "closed"):
+            upd["resolved_at"] = now_iso
+            sess_res = await run_db(lambda: supabase.table("chatty_sessions").select("resolution_due_at").eq("bot_id", req.bot_id).eq("session_id", req.session_id).limit(1).execute())
+            if sess_res.data and sess_res.data[0].get("resolution_due_at"):
+                due = sess_res.data[0]["resolution_due_at"]
+                upd["sla_status"] = "breached" if now_iso > due else "met"
+            else:
+                upd["sla_status"] = "met"
+        elif req.status == "open":
+            upd["resolved_at"] = None
+            upd["sla_status"] = "on_track"
+
+    if req.priority is not None:
+        valid_priorities = ("urgent", "high", "normal", "low")
+        if req.priority not in valid_priorities:
+            raise HTTPException(status_code=400, detail=f"priority must be one of {valid_priorities}")
+        upd["priority"] = req.priority
+
+    is_unassign = (
+        req.unassign is True
+        or (req.assigned_agent_email is not None and req.assigned_agent_email.strip() == "")
+        or ("assigned_agent_email" in req.model_fields_set and req.assigned_agent_email is None)
+    )
+
+    if is_unassign:
+        upd["assigned_agent_email"] = None
+        upd["assigned_agent_name"] = None
+        upd["ai_paused"] = False
+    elif req.assigned_agent_email is not None:
+        if role == "agent":
+            raise HTTPException(status_code=403, detail="Only an owner or admin can reassign conversations")
+        email_val = req.assigned_agent_email.strip() if req.assigned_agent_email else None
+        upd["assigned_agent_email"] = email_val
+        upd["assigned_agent_name"] = req.assigned_agent_name or (email_val.split("@")[0].capitalize() if email_val else None)
+        if email_val:
+            upd["ai_paused"] = True
+
+    if req.ai_paused is not None:
+        upd["ai_paused"] = req.ai_paused
+
+    if req.needs_attention is not None:
+        upd["needs_attention"] = req.needs_attention
+        if not req.needs_attention:
+            upd["escalation_reason"] = None
+
+    if req.tags is not None:
+        upd["tags"] = req.tags
+
+    if req.escalation_reason is not None:
+        upd["escalation_reason"] = req.escalation_reason
+
+    if not upd:
+        return {"success": True, "updated": False}
+
+    res = await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    await _write_admin_audit_log(
+        req.bot_id,
+        "inbox_session_updated",
+        f"Updated session {req.session_id}: {', '.join(sorted(upd.keys()))}",
+        user,
+    )
+    return {"success": True, "session": res.data[0] if res.data else None}
+
+
+@router.get("/api/admin/inbox/notes")
+async def list_inbox_notes(bot_id: str, session_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Fetch persistent internal staff notes for a conversation."""
+    await _verify_session_inbox_access(bot_id, session_id, user)
+    rows = (await run_db(lambda: supabase.table("chatty_session_notes").select("*") \
+        .eq("bot_id", bot_id).eq("session_id", session_id) \
+        .order("created_at", desc=False).execute())).data or []
+    return {"notes": rows}
+
+
+@router.post("/api/admin/inbox/notes")
+async def create_inbox_note(req: SessionNoteCreateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Add a persistent staff note visible across all human agents."""
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    note_text = pii_service.scrub_pii((req.note or "").strip())
+    if not note_text:
+        raise HTTPException(status_code=400, detail="Note text cannot be empty")
+    author_email = (user.get("email") or "").strip()
+    author_name = user.get("user_metadata", {}).get("name") if isinstance(user.get("user_metadata"), dict) else None
+    if not author_name and author_email:
+        author_name = author_email.split("@")[0].capitalize()
+    author_id = user.get("auth_user_id")
+
+    row = {
+        "bot_id": req.bot_id,
+        "session_id": req.session_id,
+        "note": note_text,
+        "author_name": author_name or "Support Agent",
+        "author_email": author_email or None,
+        "author_id": author_id or None,
+    }
+    res = await run_db(lambda: supabase.table("chatty_session_notes").insert(row).execute())
+    await _write_admin_audit_log(req.bot_id, "inbox_note_created", f"Internal note added to session {req.session_id}", user)
+    return {"success": True, "note": res.data[0] if res.data else row}
+
+
+@router.delete("/api/admin/inbox/notes/{note_id}")
+async def delete_inbox_note(note_id: str, bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Delete a staff note."""
+    note_res = await run_db(lambda: supabase.table("chatty_session_notes").select("session_id").eq(
+        "id", note_id).eq("bot_id", bot_id).limit(1).execute())
+    if not note_res.data:
+        raise HTTPException(status_code=404, detail="Note not found")
+    await _verify_session_inbox_access(bot_id, note_res.data[0]["session_id"], user)
+    await run_db(lambda: supabase.table("chatty_session_notes").delete()
+        .eq("id", note_id).eq("bot_id", bot_id).execute())
+    await _write_admin_audit_log(bot_id, "inbox_note_deleted", f"Internal note {note_id} deleted", user)
+    return {"success": True}
+
+
+@router.get("/api/admin/inbox/assignees")
+async def get_inbox_assignees(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return all team members and agents who can be assigned conversations."""
+    await _verify_inbox_access(bot_id, user)
+    assignees: list[dict[str, Any]] = []
+    seen_emails: set[str] = set()
+
+    # Current user
+    curr_email = (user.get("email") or "").strip().lower()
+    curr_name = (user.get("user_metadata") or {}).get("name") if isinstance(user.get("user_metadata"), dict) else None
+    if not curr_name and curr_email:
+        curr_name = curr_email.split("@")[0].capitalize()
+    if curr_email:
+        assignees.append({
+            "email": curr_email,
+            "name": curr_name or "Me",
+            "role": "agent",
+        })
+        seen_emails.add(curr_email)
+
+    # Team members from chatty_team_members
+    try:
+        members = (await run_db(lambda: supabase.table("chatty_team_members").select("email, name, role") \
+            .eq("bot_id", bot_id).execute())).data or []
+        for m in members:
+            m_email = (m.get("email") or "").strip().lower()
+            if m_email and m_email not in seen_emails:
+                assignees.append({
+                    "email": m_email,
+                    "name": m.get("name") or m_email.split("@")[0].capitalize(),
+                    "role": m.get("role") or "agent",
+                })
+                seen_emails.add(m_email)
+    except Exception:
+        logger.exception("Failed to fetch team members for assignees")
+
+    return {"assignees": assignees}
+
+
+@router.post("/api/admin/inbox/ai")
+async def admin_inbox_ai(req: InboxAIToggle, user: dict[str, Any] = Depends(require_user)):
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    await run_db(lambda: supabase.table("chatty_sessions").update({"ai_paused": req.ai_paused}) \
+        .eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    await _write_admin_audit_log(
+        req.bot_id,
+        "inbox_ai_toggled",
+        f"AI {'paused' if req.ai_paused else 'resumed'} for session {req.session_id}",
+        user,
+    )
+    return {"success": True}
+
+
+@router.post("/api/admin/inbox/delete")
+async def admin_inbox_delete(req: InboxDeleteRequest, user: dict[str, Any] = Depends(require_user)):
+    """Delete a conversation (its messages + session row). Destructive, so
+    (unlike reading/replying) it's owner/admin only - an 'agent' role can
+    work the inbox but not erase history from it."""
+    role = await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    if role == "agent":
+        raise HTTPException(status_code=403, detail="Only an owner or admin can delete conversations")
+    await run_db(lambda: supabase.table("chatty_conversations").delete().eq(
+        "bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    await run_db(lambda: supabase.table("chatty_sessions").delete().eq(
+        "bot_id", req.bot_id).eq("session_id", req.session_id).execute())
+    await _write_admin_audit_log(req.bot_id, "inbox_conversation_deleted", f"Deleted session {req.session_id}", user)
+    return {"success": True}
+
+
+@router.post("/api/admin/inbox/ai-draft-reply")
+async def inbox_ai_draft_reply(req: CopilotDraftRequest, user: dict[str, Any] = Depends(require_user)):
+    """Generate an AI response draft for the human agent using ticket transcript and bot knowledge."""
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    result = await copilot_service.generate_ai_draft_reply(
+        bot_id=req.bot_id,
+        session_id=req.session_id,
+        instructions=req.instructions or "",
+    )
+    return result
+
+
+@router.post("/api/admin/inbox/ai-summarize")
+async def inbox_ai_summarize(req: CopilotSummarizeRequest, user: dict[str, Any] = Depends(require_user)):
+    """Generate a structured 3-bullet summary of the ticket and evaluate sentiment."""
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    result = await copilot_service.generate_conversation_summary(
+        bot_id=req.bot_id,
+        session_id=req.session_id,
+    )
+    return result
+
+
+@router.post("/api/admin/inbox/session/heartbeat")
+async def inbox_session_heartbeat(req: ViewerHeartbeatRequest, user: dict[str, Any] = Depends(require_user)):
+    """Record active viewing presence for collision detection."""
+    await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    agent_email = (user.get("email") or "").strip()
+    agent_name = (user.get("user_metadata") or {}).get("name") if isinstance(user.get("user_metadata"), dict) else None
+    copilot_service.record_viewer_heartbeat(
+        bot_id=req.bot_id,
+        session_id=req.session_id,
+        agent_email=agent_email,
+        agent_name=agent_name or "",
+    )
+    return {"status": "ok"}
+
+
+@router.get("/api/admin/inbox/session/viewers")
+async def inbox_session_viewers(bot_id: str, session_id: str, user: dict[str, Any] = Depends(require_user)):
+    """List other active agents currently viewing this ticket."""
+    await _verify_session_inbox_access(bot_id, session_id, user)
+    agent_email = (user.get("email") or "").strip()
+    viewers = copilot_service.get_active_viewers(
+        bot_id=bot_id,
+        session_id=session_id,
+        current_agent_email=agent_email,
+    )
+    return {"viewers": viewers}
+
+
+# In-memory storage for automation rules with database fallback
+_AUTOMATION_RULES: dict[str, list[dict[str, Any]]] = {}
+
+@router.get("/api/admin/automation-rules")
+async def list_automation_rules(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """List configured ticket automation rules for a bot."""
+    await _verify_inbox_access(bot_id, user)
+    rules = _AUTOMATION_RULES.get(bot_id, [])
+    return {"rules": rules}
+
+
+@router.post("/api/admin/automation-rules")
+async def create_automation_rule(req: AutomationRuleCreateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Create or update an automation rule."""
+    await _verify_inbox_access(req.bot_id, user)
+    import uuid as _uuid
+    rule = {
+        "id": f"rule-{_uuid.uuid4().hex[:10]}",
+        "bot_id": req.bot_id,
+        "name": req.name,
+        "event_type": req.event_type,
+        "condition_match": req.condition_match,
+        "conditions": req.conditions,
+        "actions": req.actions,
+        "is_active": req.is_active,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if req.bot_id not in _AUTOMATION_RULES:
+        _AUTOMATION_RULES[req.bot_id] = []
+    _AUTOMATION_RULES[req.bot_id].append(rule)
+    await _write_admin_audit_log(req.bot_id, "automation_rule_created", f"Created rule {req.name}", user)
+    return {"success": True, "rule": rule}
+
+
+@router.delete("/api/admin/automation-rules/{rule_id}")
+async def delete_automation_rule(rule_id: str, bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Delete an automation rule."""
+    await _verify_inbox_access(bot_id, user)
+    if bot_id in _AUTOMATION_RULES:
+        _AUTOMATION_RULES[bot_id] = [r for r in _AUTOMATION_RULES[bot_id] if r.get("id") != rule_id]
+    await _write_admin_audit_log(bot_id, "automation_rule_deleted", f"Deleted rule {rule_id}", user)
+    return {"success": True}
+
+
+@router.post("/api/admin/automation-rules/test")
+async def test_automation_rules(req: AutomationRuleTestRequest, user: dict[str, Any] = Depends(require_user)):
+    """Dry-run test evaluation of automation rules against a mock session and context."""
+    await _verify_inbox_access(req.bot_id, user)
+    rules = _AUTOMATION_RULES.get(req.bot_id, [])
+    updates, executed = automation_engine.evaluate_rules(
+        rules=rules,
+        event_type=req.event_type,
+        session=req.session,
+        context=req.context,
+    )
+    return {
+        "evaluated_rules_count": len(rules),
+        "executed_rules": executed,
+        "resulting_updates": updates,
+    }
+
+
+@router.get("/api/admin/gdpr/export")
+async def gdpr_export(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Right to data portability: export all visitor data held for a bot
+    (conversations, sessions, leads) as JSON. Owner-authenticated."""
+    await _verify_bot_owner(bot_id, user)
+    conv_res, sess_res, leads_res = await asyncio.gather(
+        run_db(lambda: supabase.table("chatty_conversations").select("*").eq("bot_id", bot_id) \
+            .order("created_at", desc=False).limit(50000).execute()),
+        run_db(lambda: supabase.table("chatty_sessions").select("*").eq("bot_id", bot_id) \
+            .limit(50000).execute()),
+        run_db(lambda: supabase.table("chatty_leads").select("*").eq("bot_id", bot_id) \
+            .limit(50000).execute()),
+    )
+    conv = conv_res.data or []
+    sess = sess_res.data or []
+    leads = leads_res.data or []
+    return {
+        "bot_id": bot_id,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "counts": {"conversations": len(conv), "sessions": len(sess), "leads": len(leads)},
+        "conversations": conv,
+        "sessions": sess,
+        "leads": leads,
+    }
+
+
+async def _verify_meeting_access(meeting: dict, user: dict[str, Any]) -> str:
+    """Owner/admin get full access to any meeting for the bot; an agent only
+    to meetings assigned to them. Returns the caller's role, or raises 403."""
+    role = await verify_bot_permission(meeting["bot_id"], user, "meetings")
+    if role == "agent":
+        caller_email = (user.get("email") or "").strip().lower()
+        if (meeting.get("assigned_to_email") or "").strip().lower() != caller_email:
+            raise HTTPException(status_code=403, detail="Unauthorized")
+    return role
+
+
+@router.get("/api/admin/meetings")
+async def admin_get_meetings(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    # Owner/admin see every meeting for the bot; an agent sees only meetings
+    # assigned to them (Phase 2's round-robin assignment) - matches the
+    # dashboard's per-role calendar view (no member selector for agents).
+    role = await verify_bot_permission(bot_id, user, "meetings")
+
+    try:
+        if role == "agent":
+            caller_email = (user.get("email") or "").strip().lower()
+            res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq(
+                "bot_id", bot_id).eq("assigned_to_email", caller_email).order("start_time", desc=True).execute())
+        else:
+            res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq(
+                "bot_id", bot_id).order("start_time", desc=True).execute())
+        return {"meetings": res.data or []}
+    except Exception as e:
+        logger.exception("Failed to fetch meetings")
+        raise HTTPException(status_code=500, detail="Failed to fetch meetings") from e
+
+
+@router.get("/api/admin/meetings/{meeting_id}/messages")
+async def admin_get_meeting_messages(
+    meeting_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """The email thread for one meeting (confirmation/reschedule/cancellation
+    emails sent, plus any visitor replies captured via the Resend inbound
+    webhook - see app/routers/webhooks.py::resend_inbound)."""
+    res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("bot_id, assigned_to_email").eq(
+        "id", meeting_id).execute())
+    if not res_meet.data:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    await _verify_meeting_access(res_meet.data[0], user)
+
+    try:
+        res = await run_db(lambda: supabase.table("chatty_meeting_messages").select("*").eq(
+            "meeting_id", meeting_id).order("created_at", desc=False).execute())
+        return {"messages": res.data or []}
+    except Exception as e:
+        logger.exception("Failed to fetch meeting messages")
+        raise HTTPException(status_code=500, detail="Failed to fetch meeting messages") from e
+
+
+@router.get("/api/admin/notifications")
+async def admin_get_notifications(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await verify_bot_permission(bot_id, user, "settings")
+
+    try:
+        res = await run_db(lambda: supabase.table("chatty_notifications").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute())
+        return {"notifications": res.data or []}
+    except Exception as e:
+        logger.exception("Failed to fetch notifications")
+        raise HTTPException(status_code=500, detail="Failed to fetch notifications") from e
+
+
+@router.get("/api/admin/audit-logs")
+async def admin_get_audit_logs(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await _verify_audit_log_access(bot_id, user)
+
+    try:
+        res = await run_db(lambda: supabase.table("chatty_audit_logs").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute())
+        return {"audit_logs": res.data or []}
+    except Exception as e:
+        logger.exception("Failed to fetch audit logs")
+        raise HTTPException(status_code=500, detail="Failed to fetch audit logs") from e
+
+
+@router.get("/api/admin/training-sources")
+async def admin_get_training_sources(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    # Verify auth
+    res_bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
+    if not res_bot.data:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    try:
+        res = await run_db(lambda: supabase.table("chatty_sources").select("*").eq("bot_id", bot_id).order("created_at", desc=True).execute())
+        return {"sources": res.data or []}
+    except Exception as e:
+        logger.exception("Failed to fetch sources")
+        raise HTTPException(status_code=500, detail="Failed to fetch sources") from e
+
+
+@router.post("/api/admin/meetings/{meeting_id}/status")
+async def admin_update_meeting_status(
+    meeting_id: str,
+    status: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    try:
+        # Get meeting details to find bot_id and verify access
+        res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq("id", meeting_id).execute())
+        if not res_meet.data:
+            raise HTTPException(status_code=404, detail="Meeting not found")
+        meeting = res_meet.data[0]
+        bot_id = meeting["bot_id"]
+
+        await _verify_meeting_access(meeting, user)
+
+        # Cancelling goes through the shared core (agent_tools.cancel_meeting_core)
+        # so the dashboard's Cancel button does the same thing the widget/email
+        # cancel_meeting tool does - deletes the real calendar event, not just
+        # the DB row - instead of duplicating that logic here.
+        if status.lower() in ("cancelled", "canceled"):
+            res_bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+            if not res_bot.data:
+                raise HTTPException(status_code=404, detail="Bot not found")
+            bot = res_bot.data[0]
+
+            from plugins.agent_tools import cancel_meeting_core
+            result = await cancel_meeting_core(meeting, bot, bot_id, user, supabase, performed_by="user")
+            if "error" in result:
+                raise HTTPException(status_code=400, detail=result["error"])
+            return {"success": True, "message": "Meeting status updated successfully"}
+
+        await run_db(lambda: supabase.table("chatty_meetings").update({"status": status}).eq("id", meeting_id).execute())
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+            "bot_id": bot_id,
+            "action": "meeting_status_updated",
+            "details": f"Meeting status for {meeting.get('attendee_name')} updated to {status}",
+            "performed_by": "user"
+        }).execute())
+
+        return {"success": True, "message": "Meeting status updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to update meeting status")
+        raise HTTPException(status_code=500, detail="Failed to update meeting status") from e
+
+
+@router.post("/api/admin/meetings/{meeting_id}/reschedule")
+async def admin_reschedule_meeting(
+    meeting_id: str,
+    req: RescheduleMeetingRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Owner/admin-initiated reschedule from the dashboard - reuses the same
+    core logic (agent_tools.reschedule_meeting_core) the widget's
+    reschedule_meeting tool uses, just starting from a meeting_id already in
+    hand instead of looking one up by visitor email."""
+    res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq("id", meeting_id).execute())
+    if not res_meet.data:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    meeting = res_meet.data[0]
+    bot_id = meeting["bot_id"]
+
+    await _verify_meeting_access(meeting, user)
+
+    res_bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+    if not res_bot.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = res_bot.data[0]
+
+    from plugins.agent_tools import _parse_iso, reschedule_meeting_core
+    try:
+        new_start = _parse_iso(req.new_start)
+        new_end = _parse_iso(req.new_end)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid new_start/new_end - use ISO 8601 with a timezone offset.")
+    if new_start.tzinfo is None:
+        new_start = new_start.replace(tzinfo=timezone.utc)
+    if new_end.tzinfo is None:
+        new_end = new_end.replace(tzinfo=timezone.utc)
+    if new_end <= new_start:
+        raise HTTPException(status_code=400, detail="new_end must be after new_start.")
+
+    result = await reschedule_meeting_core(meeting, new_start, new_end, bot, bot_id, user, supabase, performed_by="user")
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+# ---------------------------------------------------------------------------
+# ENTERPRISE KNOWLEDGE BASE & HELP CENTER
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/kb/categories")
+async def admin_get_kb_categories(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Fetch all knowledge base categories for a bot, with article counts."""
+    await _verify_bot_access(bot_id, user)
+    res = await run_db(lambda: supabase.table("chatty_kb_categories")
+        .select("*")
+        .eq("bot_id", bot_id)
+        .order("order_index")
+        .order("created_at")
+        .execute())
+    categories = res.data or []
+
+    # Fetch article counts per category
+    art_res = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("category_id")
+        .eq("bot_id", bot_id)
+        .execute())
+    counts: dict[str, int] = {}
+    for a in (art_res.data or []):
+        cat_id = a.get("category_id")
+        if cat_id:
+            counts[cat_id] = counts.get(cat_id, 0) + 1
+
+    for c in categories:
+        c["article_count"] = counts.get(c["id"], 0)
+
+    return {"categories": categories}
+
+
+@router.post("/api/admin/kb/categories")
+async def admin_create_kb_category(req: CategoryCreateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Create a new knowledge base category."""
+    await _verify_bot_access(req.bot_id, user)
+    slug = _slugify(req.slug or req.name)
+
+    # Ensure unique slug
+    existing = await run_db(lambda: supabase.table("chatty_kb_categories")
+        .select("id")
+        .eq("bot_id", req.bot_id)
+        .eq("slug", slug)
+        .execute())
+    if existing.data:
+        slug = f"{slug}-{int(time.time())}"
+
+    row = {
+        "bot_id": req.bot_id,
+        "name": req.name.strip(),
+        "slug": slug,
+        "description": (req.description or "").strip(),
+        "icon": (req.icon or "Folder").strip(),
+        "order_index": req.order_index or 0,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = await run_db(lambda: supabase.table("chatty_kb_categories").insert(row).execute())
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create category")
+    return {"category": res.data[0]}
+
+
+@router.patch("/api/admin/kb/categories/{cat_id}")
+async def admin_update_kb_category(cat_id: str, req: CategoryUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Update an existing knowledge base category."""
+    cat_res = await run_db(lambda: supabase.table("chatty_kb_categories").select("*").eq("id", cat_id).execute())
+    if not cat_res.data:
+        raise HTTPException(status_code=404, detail="Category not found")
+    cat = cat_res.data[0]
+    await _verify_bot_access(cat["bot_id"], user)
+
+    updates: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if req.name is not None:
+        updates["name"] = req.name.strip()
+    if req.slug is not None:
+        updates["slug"] = _slugify(req.slug)
+    if req.description is not None:
+        updates["description"] = req.description.strip()
+    if req.icon is not None:
+        updates["icon"] = req.icon.strip()
+    if req.order_index is not None:
+        updates["order_index"] = req.order_index
+
+    res = await run_db(lambda: supabase.table("chatty_kb_categories").update(updates).eq("id", cat_id).execute())
+    return {"category": res.data[0] if res.data else cat}
+
+
+@router.delete("/api/admin/kb/categories/{cat_id}")
+async def admin_delete_kb_category(cat_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Delete a category (articles inside have their category_id set to NULL)."""
+    cat_res = await run_db(lambda: supabase.table("chatty_kb_categories").select("id, bot_id").eq("id", cat_id).execute())
+    if not cat_res.data:
+        raise HTTPException(status_code=404, detail="Category not found")
+    await _verify_bot_access(cat_res.data[0]["bot_id"], user)
+
+    await run_db(lambda: supabase.table("chatty_kb_categories").delete().eq("id", cat_id).execute())
+    return {"success": True}
+
+
+@router.get("/api/admin/kb/articles")
+async def admin_get_kb_articles(
+    bot_id: str,
+    category_id: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """List all knowledge base articles with optional filters."""
+    await _verify_bot_access(bot_id, user)
+    q = supabase.table("chatty_kb_articles").select("*, category:chatty_kb_categories(name, slug, icon)").eq("bot_id", bot_id)
+    if category_id:
+        q = q.eq("category_id", category_id)
+    if status:
+        q = q.eq("status", status)
+    q = q.order("order_index").order("created_at", desc=True)
+
+    res = await run_db(lambda: q.execute())
+    articles = res.data or []
+
+    if search:
+        s = search.lower().strip()
+        articles = [a for a in articles if s in (a.get("title") or "").lower() or s in (a.get("content") or "").lower() or any(s in t.lower() for t in (a.get("tags") or []))]
+
+    return {"articles": articles}
+
+
+@router.get("/api/admin/kb/articles/{article_id}")
+async def admin_get_kb_article(article_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Fetch single knowledge base article."""
+    res = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("*, category:chatty_kb_categories(name, slug, icon)")
+        .eq("id", article_id)
+        .execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Article not found")
+    article = res.data[0]
+    await _verify_bot_access(article["bot_id"], user)
+    return {"article": article}
+
+
+@router.post("/api/admin/kb/articles")
+async def admin_create_kb_article(req: ArticleCreateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Create a new knowledge base article, automatically syncing to chatty_sources for AI RAG memory."""
+    await _verify_bot_access(req.bot_id, user)
+    slug = _slugify(req.slug or req.title)
+
+    # Check slug collision for this bot
+    existing = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("id")
+        .eq("bot_id", req.bot_id)
+        .eq("slug", slug)
+        .execute())
+    if existing.data:
+        slug = f"{slug}-{int(time.time())}"
+
+    author_email = user.get("email") or ""
+    author_name = (user.get("user_metadata") or {}).get("name") or (author_email.split("@")[0] if author_email else "Staff")
+    author_id = user.get("id")
+
+    source_id = None
+    # Auto-sync to chatty_sources if published & public
+    if req.status == "published" and req.visibility == "public" and req.content.strip():
+        source_name = f"Article: {req.title.strip()}"
+        src_res = await run_db(lambda: supabase.table("chatty_sources").insert({
+            "bot_id": req.bot_id,
+            "type": "text",
+            "name": source_name,
+            "content": req.content.strip(),
+            "char_count": len(req.content.strip()),
+            "status": "trained",
+        }).execute())
+        if src_res.data:
+            source_id = src_res.data[0]["id"]
+
+    row = {
+        "bot_id": req.bot_id,
+        "category_id": req.category_id or None,
+        "title": req.title.strip(),
+        "slug": slug,
+        "subtitle": (req.subtitle or "").strip(),
+        "content": req.content.strip(),
+        "status": req.status or "published",
+        "visibility": req.visibility or "public",
+        "author_id": author_id,
+        "author_name": author_name,
+        "author_email": author_email,
+        "tags": req.tags or [],
+        "is_promoted": bool(req.is_promoted),
+        "order_index": req.order_index or 0,
+        "source_id": source_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = await run_db(lambda: supabase.table("chatty_kb_articles").insert(row).execute())
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create article")
+    return {"article": res.data[0]}
+
+
+@router.patch("/api/admin/kb/articles/{article_id}")
+async def admin_update_kb_article(article_id: str, req: ArticleUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Update a knowledge base article, keeping chatty_sources RAG memory in sync."""
+    art_res = await run_db(lambda: supabase.table("chatty_kb_articles").select("*").eq("id", article_id).execute())
+    if not art_res.data:
+        raise HTTPException(status_code=404, detail="Article not found")
+    article = art_res.data[0]
+    bot_id = article["bot_id"]
+    await _verify_bot_access(bot_id, user)
+
+    updates: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if req.title is not None:
+        updates["title"] = req.title.strip()
+    if req.slug is not None:
+        updates["slug"] = _slugify(req.slug)
+    if req.category_id is not None:
+        updates["category_id"] = req.category_id if req.category_id != "" else None
+    if req.subtitle is not None:
+        updates["subtitle"] = req.subtitle.strip()
+    if req.content is not None:
+        updates["content"] = req.content.strip()
+    if req.status is not None:
+        updates["status"] = req.status
+    if req.visibility is not None:
+        updates["visibility"] = req.visibility
+    if req.tags is not None:
+        updates["tags"] = req.tags
+    if req.is_promoted is not None:
+        updates["is_promoted"] = req.is_promoted
+    if req.order_index is not None:
+        updates["order_index"] = req.order_index
+
+    # Resolve resulting state for RAG sync
+    eff_status = updates.get("status", article.get("status"))
+    eff_visibility = updates.get("visibility", article.get("visibility"))
+    eff_title = updates.get("title", article.get("title"))
+    eff_content = updates.get("content", article.get("content"))
+    source_id = article.get("source_id")
+
+    if eff_status == "published" and eff_visibility == "public" and eff_content:
+        source_name = f"Article: {eff_title}"
+        if source_id:
+            await run_db(lambda: supabase.table("chatty_sources").update({
+                "name": source_name,
+                "content": eff_content,
+                "char_count": len(eff_content),
+                "status": "trained",
+            }).eq("id", source_id).execute())
+        else:
+            src_res = await run_db(lambda: supabase.table("chatty_sources").insert({
+                "bot_id": bot_id,
+                "type": "text",
+                "name": source_name,
+                "content": eff_content,
+                "char_count": len(eff_content),
+                "status": "trained",
+            }).execute())
+            if src_res.data:
+                updates["source_id"] = src_res.data[0]["id"]
+    else:
+        # Article is unpublished/internal/empty - unlink from RAG sources so bot doesn't expose it
+        if source_id:
+            await run_db(lambda: supabase.table("chatty_sources").delete().eq("id", source_id).execute())
+            updates["source_id"] = None
+
+    res = await run_db(lambda: supabase.table("chatty_kb_articles").update(updates).eq("id", article_id).execute())
+    return {"article": res.data[0] if res.data else article}
+
+
+@router.delete("/api/admin/kb/articles/{article_id}")
+async def admin_delete_kb_article(article_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Delete an article and its linked RAG memory."""
+    art_res = await run_db(lambda: supabase.table("chatty_kb_articles").select("id, bot_id, source_id").eq("id", article_id).execute())
+    if not art_res.data:
+        raise HTTPException(status_code=404, detail="Article not found")
+    article = art_res.data[0]
+    await _verify_bot_access(article["bot_id"], user)
+
+    source_id = article.get("source_id")
+    if source_id:
+        await run_db(lambda: supabase.table("chatty_sources").delete().eq("id", source_id).execute())
+
+    await run_db(lambda: supabase.table("chatty_kb_articles").delete().eq("id", article_id).execute())
+    return {"success": True}
+
+
+@router.get("/api/admin/kb/analytics")
+async def admin_get_kb_analytics(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Enterprise Knowledge Base Analytics & Content Gap Detection."""
+    await _verify_bot_access(bot_id, user)
+
+    # 1. Articles stats
+    art_res = await run_db(lambda: supabase.table("chatty_kb_articles")
+        .select("id, title, slug, status, view_count, helpful_count, not_helpful_count")
+        .eq("bot_id", bot_id)
+        .execute())
+    articles = art_res.data or []
+
+    total_articles = len(articles)
+    published_count = sum(1 for a in articles if a.get("status") == "published")
+    draft_count = sum(1 for a in articles if a.get("status") == "draft")
+    archived_count = sum(1 for a in articles if a.get("status") == "archived")
+
+    total_views = sum(a.get("view_count") or 0 for a in articles)
+    total_helpful = sum(a.get("helpful_count") or 0 for a in articles)
+    total_not_helpful = sum(a.get("not_helpful_count") or 0 for a in articles)
+    total_votes = total_helpful + total_not_helpful
+    csat_percent = round((total_helpful / total_votes * 100), 1) if total_votes > 0 else 100.0
+
+    # Sort top articles by view_count
+    top_articles = sorted(articles, key=lambda a: a.get("view_count") or 0, reverse=True)[:5]
+
+    # 2. Content Gaps: searches where results_count == 0
+    search_res = await run_db(lambda: supabase.table("chatty_kb_searches")
+        .select("query, created_at")
+        .eq("bot_id", bot_id)
+        .eq("results_count", 0)
+        .order("created_at", desc=True)
+        .limit(50)
+        .execute())
+    searches = search_res.data or []
+    # Deduplicate / group frequency of search terms
+    query_freq: dict[str, int] = {}
+    for s in searches:
+        q = (s.get("query") or "").strip().lower()
+        if q:
+            query_freq[q] = query_freq.get(q, 0) + 1
+    content_gaps = [{"query": q, "count": cnt} for q, cnt in sorted(query_freq.items(), key=lambda x: x[1], reverse=True)[:10]]
+
+    # 3. Categories count
+    cat_res = await run_db(lambda: supabase.table("chatty_kb_categories").select("id", count="exact").eq("bot_id", bot_id).execute())
+    total_categories = cat_res.count if cat_res.count is not None else len(cat_res.data or [])
+
+    return {
+        "total_articles": total_articles,
+        "published_count": published_count,
+        "draft_count": draft_count,
+        "archived_count": archived_count,
+        "total_categories": total_categories,
+        "total_views": total_views,
+        "total_helpful": total_helpful,
+        "total_not_helpful": total_not_helpful,
+        "csat_percent": csat_percent,
+        "top_articles": top_articles,
+        "content_gaps": content_gaps,
+    }
+
+
+# ---------------------------------------------------------------------------
+# PILLAR 3: OMNICHANNEL ROUTING, AGENT PRESENCE & LIVE QUEUE
+# ---------------------------------------------------------------------------
+
+async def _dispatch_ticket_to_agent(bot_id: str, session_id: str) -> dict[str, Any]:
+    """Auto-dispatch an unassigned or escalated ticket to an online agent
+    respecting capacity rules and routing algorithms (spare_capacity or round_robin)."""
+    try:
+        # 1. Fetch routing settings
+        try:
+            set_res = await run_db(lambda: supabase.table("chatty_routing_settings").select("*").eq("bot_id", bot_id).execute())
+            settings = set_res.data[0] if set_res.data else {
+                "routing_enabled": True,
+                "algorithm": "spare_capacity",
+                "default_capacity": 5,
+                "offline_fallback": "unassigned_queue",
+            }
+        except Exception:
+            settings = {
+                "routing_enabled": True,
+                "algorithm": "spare_capacity",
+                "default_capacity": 5,
+                "offline_fallback": "unassigned_queue",
+            }
+
+        if not settings.get("routing_enabled", True):
+            return {"dispatched": False, "reason": "routing_disabled"}
+
+        algorithm = settings.get("algorithm") or "spare_capacity"
+        offline_fallback = settings.get("offline_fallback") or "unassigned_queue"
+
+        # 2. Fetch online agents
+        pres_res = await run_db(lambda: supabase.table("chatty_agent_presence")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("status", "online")
+            .execute())
+        online_agents = pres_res.data or []
+
+        if not online_agents:
+            return {"dispatched": False, "reason": "no_online_agents", "fallback": offline_fallback}
+
+        # 3. Calculate current workload for each online agent
+        open_tickets_res = await run_db(lambda: supabase.table("chatty_sessions")
+            .select("assigned_agent_email")
+            .eq("bot_id", bot_id)
+            .in_("status", ["open", "pending"])
+            .execute())
+
+        agent_workload: dict[str, int] = {}
+        for s in (open_tickets_res.data or []):
+            em = s.get("assigned_agent_email")
+            if em:
+                agent_workload[em.lower()] = agent_workload.get(em.lower(), 0) + 1
+
+        # Filter agents with spare capacity
+        eligible: list[dict[str, Any]] = []
+        for ag in online_agents:
+            email = (ag.get("agent_email") or "").lower()
+            active = agent_workload.get(email, 0)
+            cap = ag.get("max_capacity") or settings.get("default_capacity", 5)
+            spare = cap - active
+            if spare > 0:
+                eligible.append({
+                    **ag,
+                    "active_count": active,
+                    "spare_capacity": spare,
+                })
+
+        if not eligible:
+            return {"dispatched": False, "reason": "all_agents_at_capacity", "fallback": offline_fallback}
+
+        # 4. Pick best agent according to algorithm
+        if algorithm == "round_robin":
+            # Sort by last_assigned_at ASC (oldest assignment first)
+            eligible.sort(key=lambda a: a.get("last_assigned_at") or "1970-01-01")
+        else:
+            # Highest spare capacity first
+            eligible.sort(key=lambda a: a.get("spare_capacity", 0), reverse=True)
+
+        chosen = eligible[0]
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # Look up chosen agent avatar
+        chosen_av = None
+        try:
+            u_res = None
+            if chosen.get("agent_email"):
+                u_res = await run_db(lambda: supabase.table("users").select("avatar_url").eq("email", chosen["agent_email"]).limit(1).execute())
+            if (not u_res or not u_res.data) and chosen.get("user_id"):
+                u_res = await run_db(lambda: supabase.table("users").select("avatar_url").eq("id", chosen["user_id"]).limit(1).execute())
+            if (not u_res or not u_res.data) and chosen.get("user_id"):
+                u_res = await run_db(lambda: supabase.table("users").select("avatar_url").eq("auth_user_id", chosen["user_id"]).limit(1).execute())
+            if u_res and u_res.data and u_res.data[0].get("avatar_url"):
+                chosen_av = u_res.data[0]["avatar_url"]
+        except Exception:
+            pass
+
+        # 5. Assign ticket and stamp last_assigned_at
+        sess_upd: dict[str, Any] = {
+            "assigned_agent_email": chosen["agent_email"],
+            "assigned_agent_name": chosen["agent_name"],
+            "ai_paused": True,
+        }
+        if chosen_av:
+            sess_upd["assigned_agent_avatar"] = chosen_av
+        await run_db(lambda: supabase.table("chatty_sessions").update(sess_upd).eq("session_id", session_id).eq("bot_id", bot_id).execute())
+
+        try:
+            await run_db(lambda: supabase.table("chatty_agent_presence").update({
+                "last_assigned_at": now_iso,
+            }).eq("id", chosen["id"]).execute())
+        except Exception:
+            pass
+
+        return {
+            "dispatched": True,
+            "assigned_agent_email": chosen["agent_email"],
+            "assigned_agent_name": chosen["agent_name"],
+            "algorithm": algorithm,
+        }
+    except Exception as e:
+        logger.warning("Ticket auto-dispatch failed: %s", e)
+        return {"dispatched": False, "reason": str(e)}
+
+
+@router.get("/api/admin/routing/presence")
+async def admin_get_routing_presence(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Fetch live presence, active workloads, and capacity for all team agents."""
+    await _verify_bot_access(bot_id, user)
+
+    user_id = user.get("id")
+    email = user.get("email") or ""
+    name = (user.get("user_metadata") or {}).get("name") or (email.split("@")[0] if email else "Agent")
+    default_my_presence = {
+        "bot_id": bot_id,
+        "user_id": user_id,
+        "agent_email": email,
+        "agent_name": name,
+        "status": "online",
+        "max_capacity": 5,
+        "active_tickets_count": 0,
+    }
+
+    try:
+        # 1. Fetch presence records
+        pres_res = await run_db(lambda: supabase.table("chatty_agent_presence")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .order("status")
+            .order("agent_name")
+            .execute())
+        presence_list = pres_res.data or []
+
+        # 2. Fetch active workloads
+        open_tickets_res = await run_db(lambda: supabase.table("chatty_sessions")
+            .select("assigned_agent_email")
+            .eq("bot_id", bot_id)
+            .in_("status", ["open", "pending"])
+            .execute())
+        workload: dict[str, int] = {}
+        for s in (open_tickets_res.data or []):
+            em = s.get("assigned_agent_email")
+            if em:
+                workload[em.lower()] = workload.get(em.lower(), 0) + 1
+
+        for p in presence_list:
+            p_email = (p.get("agent_email") or "").lower()
+            p["active_tickets_count"] = workload.get(p_email, 0)
+
+        # 3. Find current user's presence
+        my_presence = next((p for p in presence_list if p.get("user_id") == user_id), None)
+
+        if not my_presence and user_id:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            init_row = {
+                "bot_id": bot_id,
+                "user_id": user_id,
+                "agent_email": email,
+                "agent_name": name,
+                "status": "online",
+                "max_capacity": 5,
+                "last_assigned_at": now_iso,
+                "last_seen_at": now_iso,
+                "updated_at": now_iso,
+            }
+            try:
+                res_init = await run_db(lambda: supabase.table("chatty_agent_presence").insert(init_row).execute())
+                if res_init.data:
+                    my_presence = {**res_init.data[0], "active_tickets_count": workload.get(email.lower(), 0)}
+                    presence_list.append(my_presence)
+            except Exception:
+                my_presence = default_my_presence
+                presence_list.append(my_presence)
+
+        return {
+            "agents": presence_list if presence_list else [default_my_presence],
+            "my_presence": my_presence or default_my_presence,
+        }
+    except Exception as e:
+        logger.warning("Failed to fetch routing presence (migration may be pending): %s", e)
+        return {
+            "agents": [default_my_presence],
+            "my_presence": default_my_presence,
+        }
+
+
+@router.post("/api/admin/routing/status")
+async def admin_set_routing_status(req: AgentPresenceUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Set current user's live presence status (online, away, busy, offline)."""
+    await _verify_bot_access(req.bot_id, user)
+    user_id = user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing user id")
+
+    email = user.get("email") or ""
+    name = (user.get("user_metadata") or {}).get("name") or (email.split("@")[0] if email else "Agent")
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    updates: dict[str, Any] = {
+        "status": req.status,
+        "last_seen_at": now_iso,
+        "updated_at": now_iso,
+    }
+    if req.max_capacity is not None and req.max_capacity > 0:
+        updates["max_capacity"] = req.max_capacity
+
+    try:
+        existing = await run_db(lambda: supabase.table("chatty_agent_presence")
+            .select("id")
+            .eq("bot_id", req.bot_id)
+            .eq("user_id", user_id)
+            .execute())
+
+        if existing.data:
+            res = await run_db(lambda: supabase.table("chatty_agent_presence")
+                .update(updates)
+                .eq("id", existing.data[0]["id"])
+                .execute())
+        else:
+            row = {
+                "bot_id": req.bot_id,
+                "user_id": user_id,
+                "agent_email": email,
+                "agent_name": name,
+                "status": req.status,
+                "max_capacity": req.max_capacity or 5,
+                "last_assigned_at": now_iso,
+                "last_seen_at": now_iso,
+                "updated_at": now_iso,
+            }
+            res = await run_db(lambda: supabase.table("chatty_agent_presence").insert(row).execute())
+
+        return {"success": True, "presence": res.data[0] if res.data else updates}
+    except Exception as e:
+        logger.warning("Failed to update routing status (migration may be pending): %s", e)
+        return {"success": True, "presence": {**updates, "agent_email": email, "agent_name": name}}
+
+
+
+
+@router.get("/api/admin/routing/settings")
+async def admin_get_routing_settings(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Get bot omnichannel routing configuration."""
+    await _verify_bot_access(bot_id, user)
+    default_settings = {
+        "bot_id": bot_id,
+        "routing_enabled": True,
+        "algorithm": "spare_capacity",
+        "default_capacity": 5,
+        "offline_fallback": "unassigned_queue",
+    }
+    try:
+        res = await run_db(lambda: supabase.table("chatty_routing_settings").select("*").eq("bot_id", bot_id).execute())
+        if res.data:
+            return {"settings": res.data[0]}
+        return {"settings": default_settings}
+    except Exception as e:
+        logger.warning("Failed to get routing settings (migration may be pending): %s", e)
+        return {"settings": default_settings}
+
+
+@router.patch("/api/admin/routing/settings")
+async def admin_update_routing_settings(req: RoutingSettingsUpdateRequest, user: dict[str, Any] = Depends(require_user)):
+    """Update bot omnichannel routing configuration."""
+    await _verify_bot_access(req.bot_id, user)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    updates: dict[str, Any] = {"updated_at": now_iso}
+    if req.routing_enabled is not None:
+        updates["routing_enabled"] = req.routing_enabled
+    if req.algorithm is not None:
+        updates["algorithm"] = req.algorithm
+    if req.default_capacity is not None and req.default_capacity > 0:
+        updates["default_capacity"] = req.default_capacity
+    if req.offline_fallback is not None:
+        updates["offline_fallback"] = req.offline_fallback
+
+    try:
+        existing = await run_db(lambda: supabase.table("chatty_routing_settings").select("id").eq("bot_id", req.bot_id).execute())
+        if existing.data:
+            res = await run_db(lambda: supabase.table("chatty_routing_settings").update(updates).eq("id", existing.data[0]["id"]).execute())
+        else:
+            row = {
+                "bot_id": req.bot_id,
+                "routing_enabled": req.routing_enabled if req.routing_enabled is not None else True,
+                "algorithm": req.algorithm or "spare_capacity",
+                "default_capacity": req.default_capacity or 5,
+                "offline_fallback": req.offline_fallback or "unassigned_queue",
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            }
+            res = await run_db(lambda: supabase.table("chatty_routing_settings").insert(row).execute())
+
+        return {"settings": res.data[0] if res.data else updates}
+    except Exception as e:
+        logger.warning("Failed to update routing settings (migration may be pending): %s", e)
+        return {"settings": updates}
+
+
+@router.post("/api/admin/routing/dispatch-queue")
+async def admin_dispatch_routing_queue(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Dispatch all unassigned open/pending tickets in the queue to online agents with capacity."""
+    await _verify_bot_access(bot_id, user)
+
+    try:
+        # Find unassigned sessions
+        res_sessions = await run_db(lambda: supabase.table("chatty_sessions")
+            .select("session_id, assigned_agent_email, status, last_message_at")
+            .eq("bot_id", bot_id)
+            .order("last_message_at", desc=False)
+            .limit(100)
+            .execute())
+
+        all_sess = res_sessions.data or []
+        sessions = [
+            s for s in all_sess
+            if (not (s.get("assigned_agent_email") or "").strip())
+            and (s.get("status") or "open") not in ("resolved", "closed")
+        ][:20]
+        dispatched_count = 0
+        results = []
+
+        for s in sessions:
+            sid = s["session_id"]
+            res = await _dispatch_ticket_to_agent(bot_id, sid)
+            if res.get("dispatched"):
+                dispatched_count += 1
+                results.append({"session_id": sid, "assigned_to": res.get("assigned_agent_email")})
+
+        return {
+            "unassigned_found": len(sessions),
+            "dispatched_count": dispatched_count,
+            "results": results,
+        }
+    except Exception as e:
+        logger.warning("Failed to dispatch routing queue: %s", e)
+        return {
+            "unassigned_found": 0,
+            "dispatched_count": 0,
+            "results": [],
+            "error": str(e)
+        }
+
+
+# ---------------------------------------------------------------------------
+# Platform Admin: Affiliate Program Management
+# ---------------------------------------------------------------------------
+
+def _is_platform_admin(user: dict[str, Any]) -> bool:
+    email = (user.get("email") or "").strip().lower()
+    role = (user.get("role") or "").strip().lower()
+    return bool(email in ADMIN_BYPASS_EMAILS or role in ("admin", "superadmin"))
+
+
+def _self_host() -> bool:
+    return DEPLOYMENT_PROFILE == "self_host"
+
+
+def require_platform_admin(user: dict[str, Any] = Depends(require_user)) -> dict[str, Any]:
+    if not _is_platform_admin(user):
+        raise HTTPException(status_code=403, detail="Platform administrator privileges required")
+    return user
+
+
+@router.get("/api/admin/affiliates")
+async def admin_list_affiliates(
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """List all affiliate partner profiles with summarized performance metrics."""
+    if _self_host():
+        def _list() -> list[dict[str, Any]]:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    where = ["TRUE"]
+                    params: list[Any] = []
+                    if status:
+                        where.append("p.status = %s"); params.append(status)
+                    if search:
+                        where.append("p.referral_code ILIKE %s"); params.append(f"%{search}%")
+                    params.extend([limit, offset])
+                    cur.execute(f"""
+                        SELECT p.*, COUNT(DISTINCT c.id) AS clicks_count,
+                               COUNT(DISTINCT r.id) AS referrals_count,
+                               COUNT(DISTINCT r.id) FILTER (WHERE r.status = 'paid') AS paid_referrals_count,
+                               COALESCE(SUM(co.commission_amount_cents) FILTER (WHERE co.status IN ('pending','approved') AND co.hold_until > NOW()), 0) AS pending_cents,
+                               COALESCE(SUM(co.commission_amount_cents) FILTER (WHERE co.status = 'payable' OR (co.status IN ('pending','approved') AND co.hold_until <= NOW())), 0) AS payable_cents,
+                               COALESCE(SUM(co.commission_amount_cents) FILTER (WHERE co.status = 'paid'), 0) AS paid_cents,
+                               COALESCE(SUM(co.commission_amount_cents) FILTER (WHERE co.status IN ('pending','approved','payable','paid')), 0) AS total_earned_cents
+                        FROM affiliate_profiles p
+                        LEFT JOIN affiliate_clicks c ON c.affiliate_id = p.id
+                        LEFT JOIN affiliate_referrals r ON r.affiliate_id = p.id
+                        LEFT JOIN affiliate_commissions co ON co.affiliate_id = p.id
+                        WHERE {' AND '.join(where)}
+                        GROUP BY p.id ORDER BY p.created_at DESC LIMIT %s OFFSET %s
+                    """, tuple(params))
+                    cols = [d[0] for d in cur.description]
+                    return [dict(zip(cols, row)) for row in cur.fetchall()]
+        rows = await run_db(_list)
+        return {"affiliates": rows, "limit": limit, "offset": offset}
+
+    query = supabase.table("affiliate_profiles").select("*")
+    if status:
+        query = query.eq("status", status)
+    if search:
+        query = query.ilike("referral_code", f"%{search}%")
+
+    profiles_res = await run_db(lambda: query.order("created_at", desc=True).range(offset, offset + limit - 1).execute())
+    profiles = profiles_res.data or []
+
+    if not profiles:
+        return {"affiliates": [], "limit": limit, "offset": offset}
+
+    affiliate_ids = [p["id"] for p in profiles]
+
+    # Aggregate clicks
+    clicks_res = await run_db(lambda: supabase.table("affiliate_clicks").select("affiliate_id").in_("affiliate_id", affiliate_ids).execute())
+    clicks_count: dict[str, int] = {}
+    for c in (clicks_res.data or []):
+        aid = c.get("affiliate_id")
+        clicks_count[aid] = clicks_count.get(aid, 0) + 1
+
+    # Aggregate referrals
+    refs_res = await run_db(lambda: supabase.table("affiliate_referrals").select("affiliate_id, status").in_("affiliate_id", affiliate_ids).execute())
+    referrals_count: dict[str, int] = {}
+    paid_referrals_count: dict[str, int] = {}
+    for r in (refs_res.data or []):
+        aid = r.get("affiliate_id")
+        referrals_count[aid] = referrals_count.get(aid, 0) + 1
+        if r.get("status") == "paid":
+            paid_referrals_count[aid] = paid_referrals_count.get(aid, 0) + 1
+
+    # Aggregate commissions
+    comms_res = await run_db(lambda: supabase.table("affiliate_commissions").select("affiliate_id, commission_amount_cents, status, hold_until").in_("affiliate_id", affiliate_ids).execute())
+    now_iso = datetime.now(timezone.utc).isoformat()
+    comm_stats: dict[str, dict[str, int]] = {}
+    for c in (comms_res.data or []):
+        aid = c.get("affiliate_id")
+        if aid not in comm_stats:
+            comm_stats[aid] = {"pending_cents": 0, "payable_cents": 0, "paid_cents": 0, "total_earned_cents": 0}
+        amt = int(c.get("commission_amount_cents") or 0)
+        c_status = c.get("status")
+        if c_status in ("pending", "approved"):
+            hold_until = c.get("hold_until")
+            if hold_until and hold_until <= now_iso:
+                comm_stats[aid]["payable_cents"] += amt
+            else:
+                comm_stats[aid]["pending_cents"] += amt
+            comm_stats[aid]["total_earned_cents"] += amt
+        elif c_status == "payable":
+            comm_stats[aid]["payable_cents"] += amt
+            comm_stats[aid]["total_earned_cents"] += amt
+        elif c_status == "paid":
+            comm_stats[aid]["paid_cents"] += amt
+            comm_stats[aid]["total_earned_cents"] += amt
+
+    results = []
+    for p in profiles:
+        aid = p["id"]
+        c_stat = comm_stats.get(aid, {"pending_cents": 0, "payable_cents": 0, "paid_cents": 0, "total_earned_cents": 0})
+        results.append({
+            **p,
+            "clicks_count": clicks_count.get(aid, 0),
+            "referrals_count": referrals_count.get(aid, 0),
+            "paid_referrals_count": paid_referrals_count.get(aid, 0),
+            "pending_cents": c_stat["pending_cents"],
+            "payable_cents": c_stat["payable_cents"],
+            "paid_cents": c_stat["paid_cents"],
+            "total_earned_cents": c_stat["total_earned_cents"],
+        })
+
+    return {"affiliates": results, "limit": limit, "offset": offset}
+
+
+@router.patch("/api/admin/affiliates/{affiliate_id}/status")
+async def admin_update_affiliate_status(
+    affiliate_id: str,
+    body: AdminAffiliateStatusUpdateRequest,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Approve, pause, or reject an affiliate partner."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    updates: dict[str, Any] = {
+        "status": body.status,
+        "updated_at": now_iso,
+    }
+    if body.status == "active":
+        updates["approved_at"] = now_iso
+
+    if _self_host():
+        def _update() -> dict[str, Any] | None:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE affiliate_profiles SET status = %s, updated_at = %s, approved_at = CASE WHEN %s = 'active' THEN %s ELSE approved_at END WHERE id = %s RETURNING *", (body.status, now_iso, body.status, now_iso, affiliate_id))
+                    row = cur.fetchone()
+                    if not row: return None
+                    return dict(zip([d[0] for d in cur.description], row))
+        updated = await run_db(_update)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Affiliate profile not found")
+        return {"success": True, "affiliate": updated}
+
+    res = await run_db(
+        lambda: supabase.table("affiliate_profiles")
+        .update(updates)
+        .eq("id", affiliate_id)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Affiliate profile not found")
+
+    return {"success": True, "affiliate": res.data[0]}
+
+
+@router.patch("/api/admin/affiliates/{affiliate_id}/rate")
+async def admin_update_affiliate_rate(
+    affiliate_id: str,
+    body: AdminAffiliateRateUpdateRequest,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Adjust custom commission rate (basis points) for an affiliate partner."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if _self_host():
+        def _update() -> dict[str, Any] | None:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE affiliate_profiles SET commission_rate_bps = %s, updated_at = %s WHERE id = %s RETURNING *", (body.commission_rate_bps, now_iso, affiliate_id))
+                    row = cur.fetchone()
+                    if not row: return None
+                    return dict(zip([d[0] for d in cur.description], row))
+        updated = await run_db(_update)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Affiliate profile not found")
+        return {"success": True, "affiliate": updated}
+
+    res = await run_db(
+        lambda: supabase.table("affiliate_profiles")
+        .update({"commission_rate_bps": body.commission_rate_bps, "updated_at": now_iso})
+        .eq("id", affiliate_id)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Affiliate profile not found")
+
+    return {"success": True, "affiliate": res.data[0]}
+
+
+@router.get("/api/admin/affiliate-commissions")
+async def admin_list_affiliate_commissions(
+    affiliate_id: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """List affiliate commissions with optional filtering by partner ID and status."""
+    if _self_host():
+        def _list() -> tuple[list[dict[str, Any]], int]:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    where = ["TRUE"]; params: list[Any] = []
+                    if affiliate_id: where.append("affiliate_id = %s"); params.append(affiliate_id)
+                    if status: where.append("status = %s"); params.append(status)
+                    cur.execute(f"SELECT COUNT(*) FROM affiliate_commissions WHERE {' AND '.join(where)}", tuple(params))
+                    total = int(cur.fetchone()[0] or 0)
+                    cur.execute(f"SELECT * FROM affiliate_commissions WHERE {' AND '.join(where)} ORDER BY created_at DESC LIMIT %s OFFSET %s", (*params, limit, offset))
+                    cols = [d[0] for d in cur.description]
+                    return [dict(zip(cols, row)) for row in cur.fetchall()], total
+        commissions, total = await run_db(_list)
+        return {"commissions": commissions, "total": total, "limit": limit, "offset": offset}
+
+    query = supabase.table("affiliate_commissions").select("*", count="exact")
+    if affiliate_id:
+        query = query.eq("affiliate_id", affiliate_id)
+    if status:
+        query = query.eq("status", status)
+
+    res = await run_db(
+        lambda: query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    )
+    return {
+        "commissions": res.data or [],
+        "total": res.count or len(res.data or []),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.post("/api/admin/affiliate-commissions/approve-mature")
+async def admin_approve_mature_commissions(
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Scan and transition pending/approved commissions past their hold period to payable."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    if _self_host():
+        def _approve() -> int:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE affiliate_commissions SET status = 'payable', updated_at = %s WHERE status IN ('pending','approved') AND hold_until <= %s", (now_iso, now_iso))
+                    return cur.rowcount
+        count = await run_db(_approve)
+        return {"success": True, "matured_count": count, "message": "No mature commissions pending approval" if not count else None}
+
+    mature_res = await run_db(
+        lambda: supabase.table("affiliate_commissions")
+        .select("id")
+        .in_("status", ["pending", "approved"])
+        .lte("hold_until", now_iso)
+        .execute()
+    )
+    mature_ids = [c["id"] for c in (mature_res.data or []) if c.get("id")]
+    if not mature_ids:
+        return {"success": True, "matured_count": 0, "message": "No mature commissions pending approval"}
+
+    await run_db(
+        lambda: supabase.table("affiliate_commissions")
+        .update({"status": "payable", "updated_at": now_iso})
+        .in_("id", mature_ids)
+        .execute()
+    )
+
+    return {"success": True, "matured_count": len(mature_ids)}
+
+
+@router.post("/api/admin/affiliate-payouts")
+async def admin_create_affiliate_payout(
+    body: AdminAffiliatePayoutCreateRequest,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Record an external payout (PayPal/Wise/Bank) and mark corresponding commissions as paid."""
+    if _self_host():
+        def _payout() -> dict[str, Any]:
+            now = datetime.now(timezone.utc)
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT payout_email, referral_code FROM affiliate_profiles WHERE id = %s LIMIT 1", (body.affiliate_id,))
+                    aff = cur.fetchone()
+                    if not aff: raise HTTPException(status_code=404, detail="Affiliate profile not found")
+                    cur.execute("SELECT id, commission_amount_cents FROM affiliate_commissions WHERE affiliate_id = %s AND status = 'payable' ORDER BY created_at ASC", (body.affiliate_id,))
+                    payable = cur.fetchall(); total = sum(int(row[1] or 0) for row in payable)
+                    if total <= 0: raise HTTPException(status_code=400, detail="This affiliate has no payable commissions to settle.")
+                    if body.amount_cents != total: raise HTTPException(status_code=400, detail="Payout amount must exactly match the current payable commission balance. Partial affiliate payouts are not supported yet.")
+                    cur.execute("INSERT INTO affiliate_payouts (affiliate_id, amount_cents, payout_method, external_payout_id, notes, status, paid_at, created_at, updated_at) VALUES (%s,%s,%s,%s,%s,'paid',%s,%s,%s) RETURNING *", (body.affiliate_id, body.amount_cents, body.payout_method or 'manual', body.external_payout_id, body.notes, now, now, now))
+                    payout_row = cur.fetchone(); payout_cols = [d[0] for d in cur.description]
+                    payout = dict(zip(payout_cols, payout_row))
+                    ids = [row[0] for row in payable]
+                    cur.execute("UPDATE affiliate_commissions SET status = 'paid', payout_id = %s, updated_at = %s WHERE id = ANY(%s)", (payout['id'], now, ids))
+                    return {"success": True, "payout": payout, "commissions_marked_paid": len(ids), "total_marked_cents": total}
+        return await run_db(_payout)
+
+    aff_res = await run_db(
+        lambda: supabase.table("affiliate_profiles")
+        .select("id, payout_email, referral_code")
+        .eq("id", body.affiliate_id)
+        .limit(1)
+        .execute()
+    )
+    if not aff_res.data:
+        raise HTTPException(status_code=404, detail="Affiliate profile not found")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    payout_payload = {
+        "affiliate_id": body.affiliate_id,
+        "amount_cents": body.amount_cents,
+        "payout_method": "paypal",
+        "external_payout_id": body.external_payout_id,
+        "notes": body.notes,
+        "status": "paid",
+        "paid_at": now_iso,
+        "created_at": now_iso,
+        "updated_at": now_iso,
+    }
+
+    payable_res = await run_db(
+        lambda: supabase.table("affiliate_commissions")
+        .select("id, commission_amount_cents")
+        .eq("affiliate_id", body.affiliate_id)
+        .eq("status", "payable")
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    payable_commissions = payable_res.data or []
+    payable_cents = sum(int(comm.get("commission_amount_cents") or 0) for comm in payable_commissions)
+    if payable_cents <= 0:
+        raise HTTPException(status_code=400, detail="This affiliate has no payable commissions to settle.")
+    if body.amount_cents != payable_cents:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Payout amount must exactly match the current payable commission balance. "
+                "Partial affiliate payouts are not supported yet."
+            ),
+        )
+
+    comm_ids_to_update = [comm["id"] for comm in payable_commissions if comm.get("id")]
+    allocated = payable_cents
+
+    payout_res = await run_db(
+        lambda: supabase.table("affiliate_payouts").insert(payout_payload).execute()
+    )
+    if not payout_res.data:
+        raise HTTPException(status_code=500, detail="Failed to create payout record")
+
+    payout = payout_res.data[0]
+    payout_id = payout["id"]
+
+    if comm_ids_to_update:
+        await run_db(
+            lambda: supabase.table("affiliate_commissions")
+            .update({"status": "paid", "payout_id": payout_id, "updated_at": now_iso})
+            .in_("id", comm_ids_to_update)
+            .execute()
+        )
+
+    # Send payout confirmation email to affiliate
+    payout_email = aff_res.data[0].get("payout_email")
+    referral_code = aff_res.data[0].get("referral_code") or "Partner"
+    if payout_email:
+        formatted_amount = f"${body.amount_cents / 100:.2f}"
+        tx_line = f"<p style='margin: 0; color: #525252;'><strong>PayPal Transaction ID:</strong> <code>{body.external_payout_id}</code></p>" if body.external_payout_id else ""
+        email_html = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e5e5e5; border-radius: 16px;">
+            <div style="margin-bottom: 16px;">
+                <span style="background: #ffedd5; color: #ea580c; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 9999px; text-transform: uppercase;">Affiliate Payout</span>
+            </div>
+            <h2 style="color: #171717; margin: 0 0 12px 0;">Payment Disbursed to Your PayPal!</h2>
+            <p style="color: #525252; line-height: 1.5; margin: 0 0 16px 0;">Hi {referral_code},</p>
+            <p style="color: #525252; line-height: 1.5; margin: 0 0 16px 0;">We have disbursed your Chatty affiliate commission payment of <strong>{formatted_amount} USD</strong> to your PayPal account.</p>
+            <div style="background: #f5f5f5; padding: 16px; border-radius: 12px; margin: 16px 0;">
+                <p style="margin: 0 0 8px 0; color: #525252;"><strong>Amount:</strong> {formatted_amount} USD</p>
+                <p style="margin: 0 0 8px 0; color: #525252;"><strong>Payment Method:</strong> PayPal ({payout_email})</p>
+                <p style="margin: 0 0 8px 0; color: #525252;"><strong>Date:</strong> {datetime.now(timezone.utc).strftime('%B %d, %Y')}</p>
+                {tx_line}
+            </div>
+            <p style="color: #525252; line-height: 1.5; margin: 0 0 20px 0;">Your dashboard balance has been updated. Keep sharing your link to continue earning recurring monthly revenue!</p>
+            <div>
+                <a href="https://chatty.personaliai.com/dashboard" style="display: inline-block; background: #171717; color: #ffffff; padding: 10px 20px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 13px;">View Dashboard</a>
+            </div>
+        </div>
+        """
+        try:
+            for _, sender in notify._email_channels():
+                if await sender(to=payout_email, subject=f"Payment Sent: {formatted_amount} USD Chatty Affiliate Commission", html=email_html):
+                    break
+        except Exception:
+            logger.warning("Failed to send affiliate payout notification email to %s", payout_email, exc_info=True)
+
+    return {
+        "success": True,
+        "payout": payout,
+        "commissions_marked_paid": len(comm_ids_to_update),
+        "total_marked_cents": allocated,
+    }
+
+
+@router.get("/api/admin/affiliate-fraud-flags")
+async def admin_list_affiliate_fraud_flags(
+    affiliate_id: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    admin_user: dict[str, Any] = Depends(require_platform_admin),
+):
+    """Retrieve audit log of suspicious referral events or self-referral attempts."""
+    if _self_host():
+        def _list() -> tuple[list[dict[str, Any]], int]:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    where = ["TRUE"]; params: list[Any] = []
+                    if affiliate_id: where.append("affiliate_id = %s"); params.append(affiliate_id)
+                    cur.execute(f"SELECT COUNT(*) FROM affiliate_fraud_flags WHERE {' AND '.join(where)}", tuple(params)); total = int(cur.fetchone()[0] or 0)
+                    cur.execute(f"SELECT id, affiliate_id, referred_user_id, reason AS flag_reason, severity, metadata AS event_payload, created_at FROM affiliate_fraud_flags WHERE {' AND '.join(where)} ORDER BY created_at DESC LIMIT %s OFFSET %s", (*params, limit, offset))
+                    cols = [d[0] for d in cur.description]
+                    return [dict(zip(cols, row)) for row in cur.fetchall()], total
+        flags, total = await run_db(_list)
+        return {"fraud_flags": flags, "total": total, "limit": limit, "offset": offset}
+
+    query = supabase.table("affiliate_fraud_flags").select("*", count="exact")
+    if affiliate_id:
+        query = query.eq("affiliate_id", affiliate_id)
+
+    res = await run_db(
+        lambda: query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    )
+    return {
+        "fraud_flags": res.data or [],
+        "total": res.count or len(res.data or []),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Webhook delivery log
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/api/admin/webhooks/{webhook_id}/deliveries",
+    tags=["Dashboard - Webhooks"],
+    summary="List delivery attempts for a webhook",
+    description=(
+        "Return the last 100 delivery attempts for a specific webhook endpoint, "
+        "ordered most-recent first. Shows HTTP status, latency, attempt number, "
+        "and a truncated response body preview."
+    ),
+)
+async def webhook_delivery_log(
+    webhook_id: str,
+    bot_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await _verify_bot_owner(bot_id, user)
+
+    # Verify the webhook belongs to this bot before exposing its deliveries
+    wh = await run_db(lambda: supabase.table("chatty_webhooks")
+        .select("id, bot_id, url")
+        .eq("id", webhook_id)
+        .eq("bot_id", bot_id)
+        .limit(1)
+        .execute())
+    if not wh.data:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+
+    res = await run_db(lambda: supabase.table("chatty_webhook_deliveries")
+        .select(
+            "id, event_type, status, http_status, attempt, latency_ms, "
+            "response_body, error_message, next_retry_at, created_at"
+        )
+        .eq("webhook_id", webhook_id)
+        .order("created_at", desc=True)
+        .range(offset, offset + limit - 1)
+        .execute())
+
+    total_res = await run_db(lambda: supabase.table("chatty_webhook_deliveries")
+        .select("id", count="exact")
+        .eq("webhook_id", webhook_id)
+        .execute())
+
+    deliveries = []
+    for d in (res.data or []):
+        # Truncate response body to 500 chars for the dashboard preview
+        body = d.get("response_body") or ""
+        deliveries.append({
+            **d,
+            "response_preview": body[:500] + ("…" if len(body) > 500 else ""),
+        })
+
+    return {
+        "webhook_id": webhook_id,
+        "webhook_url": wh.data[0]["url"],
+        "deliveries": deliveries,
+        "total": total_res.count or 0,
+        "limit": limit,
+        "offset": offset,
+    }
