@@ -41,7 +41,7 @@ services:
       - chatty-objects:/data
     expose: ["9000", "9001"]
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -97,7 +97,7 @@ services:
       redis: {condition: service_healthy}
       minio-init: {condition: service_completed_successfully}
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/', timeout=3)\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=3)\""]
       interval: 10s
       timeout: 5s
       retries: 12

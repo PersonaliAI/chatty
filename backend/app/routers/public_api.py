@@ -18,6 +18,7 @@ from app.core.clients import supabase
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
+from app.core.providers import provider_status
 from app.schemas.public_api import (
     ApiKeyCreateRequest,
     ApiKeyUpdateRequest,
@@ -66,6 +67,32 @@ async def health_check(request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "request_id": _sec.get_request_id(request),
     }
+
+
+@router.get(
+    "/readyz",
+    tags=["Health"],
+    summary="Readiness check",
+    description="Returns whether the selected provider contract is ready to receive traffic.",
+)
+async def readiness_check(request: Request):
+    status = provider_status()
+    ready = status.profile != "self_host" or status.ready_for_self_host_adapters
+    payload = {
+        "status": "ready" if ready else "not_ready",
+        "profile": status.profile,
+        "providers": {
+            "database": status.database_configured,
+            "queue": status.queue_configured,
+            "object_store": status.object_store_configured,
+        },
+        "request_id": _sec.get_request_id(request),
+    }
+    if not ready:
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(status_code=503, content=payload)
+    return payload
 
 
 # ---------------------------------------------------------------------------
