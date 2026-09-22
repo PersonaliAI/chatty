@@ -18,6 +18,8 @@ import {
   BarChart2,
   Minus,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   HardDrive,
 } from "lucide-react";
 
@@ -36,6 +38,8 @@ export interface AnalyticsOverview {
     csat_avg: KpiValue;
     total_meetings: KpiValue;
     ai_cost_usd: KpiValue;
+    ai_cost_priced_calls: KpiValue;
+    ai_cost_unpriced_calls: KpiValue;
     ai_tokens: KpiValue;
     sla_breach_rate: KpiValue;
     total_csat_responses: KpiValue;
@@ -54,7 +58,8 @@ export interface AgentRow {
 export interface SlaPoint { date: string; on_track: number; met: number; breached: number }
 export interface AiCostData {
   total_cost_usd: number; total_tokens: number;
-  by_model: { model: string; calls: number; successful_calls: number; failed_calls: number; total_tokens: number; cost_usd: number; avg_latency_ms: number | null }[];
+  cost_status: { complete: boolean; priced_calls: number; unpriced_calls: number };
+  by_model: { model: string; calls: number; successful_calls: number; failed_calls: number; total_tokens: number; cost_usd: number; priced_calls: number; unpriced_calls: number; avg_latency_ms: number | null }[];
   daily_series: { date: string; cost_usd: number }[];
 }
 export interface CsatData {
@@ -80,6 +85,98 @@ function fmtDate(iso: string) {
   try {
     return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   } catch { return iso; }
+}
+
+function parseLocalDate(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
+function DateRangePicker({
+  fromDate,
+  toDate,
+  onChange,
+  onApply,
+}: {
+  fromDate: string;
+  toDate: string;
+  onChange: (from: string, to: string) => void;
+  onApply: () => void;
+}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [month, setMonth] = useState(() => {
+    const d = parseLocalDate(fromDate);
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [draftFrom, setDraftFrom] = useState(fromDate);
+  const [draftTo, setDraftTo] = useState(toDate);
+
+  useEffect(() => {
+    setDraftFrom(fromDate);
+    setDraftTo(toDate);
+  }, [fromDate, toDate]);
+
+  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(1 - monthStart.getDay());
+  const days = Array.from({ length: 42 }, (_, index) => {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + index);
+    return d;
+  });
+  const monthLabel = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const dateKey = (d: Date) => toIso(d);
+  const isFuture = (d: Date) => d > today;
+  const choose = (d: Date) => {
+    if (isFuture(d)) return;
+    const key = dateKey(d);
+    if (!draftFrom || (draftFrom && draftTo)) {
+      setDraftFrom(key);
+      setDraftTo("");
+      return;
+    }
+    const [from, to] = key < draftFrom ? [key, draftFrom] : [draftFrom, key];
+    setDraftFrom(from);
+    setDraftTo(to);
+    onChange(from, to);
+  };
+
+  return (
+    <div className="relative z-20">
+      <div className="flex items-center gap-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-1.5 shadow-sm">
+        <Calendar className="size-3.5 text-[#f97316]" />
+        <span className="text-[11px] font-medium text-neutral-700 dark:text-neutral-200 tabular-nums">{fmtDate(draftFrom)} – {draftTo ? fmtDate(draftTo) : "Select end"}</span>
+      </div>
+      <div className="absolute right-0 top-10 w-[292px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-xl">
+        <div className="flex items-center justify-between mb-3">
+          <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Previous month"><ChevronLeft className="size-4" /></button>
+          <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-100">{monthLabel}</span>
+          <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Next month"><ChevronRight className="size-4" /></button>
+        </div>
+        <div className="grid grid-cols-7 mb-1">
+          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(day => <span key={day} className="text-center text-[9px] font-semibold text-neutral-400">{day}</span>)}
+        </div>
+        <div className="grid grid-cols-7 gap-y-1">
+          {days.map(d => {
+            const key = dateKey(d);
+            const inMonth = d.getMonth() === month.getMonth();
+            const selected = key === draftFrom || key === draftTo;
+            const inRange = Boolean(draftFrom && draftTo && key > draftFrom && key < draftTo);
+            return (
+              <button key={key} type="button" disabled={isFuture(d)} onClick={() => choose(d)} className={`h-8 text-[11px] rounded-lg transition-colors ${!inMonth ? "text-neutral-300 dark:text-neutral-700" : "text-neutral-700 dark:text-neutral-200"} ${selected ? "bg-[#f97316] text-white font-semibold" : inRange ? "bg-orange-50 dark:bg-orange-950/30 text-[#ea580c]" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"} ${isFuture(d) ? "opacity-30 cursor-not-allowed" : ""}`}>
+                {d.getDate()}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 mt-3 pt-3">
+          <span className="text-[10px] text-neutral-400">{draftTo ? `${fmtDate(draftFrom)} – ${fmtDate(draftTo)}` : "Choose an end date"}</span>
+          <button type="button" disabled={!draftFrom || !draftTo} onClick={onApply} className="px-3 py-1.5 rounded-lg bg-[#f97316] text-white text-[10px] font-semibold disabled:opacity-40">Apply</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -276,13 +373,14 @@ function HeatmapGrid({ data }: { data: HeatmapCell[] }) {
 function ChannelBars({ data }: { data: ChannelRow[] }) {
   if (!data.length) return <EmptyChart label="No channel data" />;
   const COLORS = ["#f97316", "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#06b6d4"];
+  const labels: Record<string, string> = { whatsapp: "WhatsApp", web: "Web", email: "Email", voice: "Voice", slack: "Slack", api: "API" };
   const maxV = Math.max(...data.map(d => d.sessions), 1);
   return (
     <div className="space-y-3">
       {data.map((row, i) => (
         <div key={row.channel}>
           <div className="flex justify-between items-center mb-1">
-            <span className="text-xs font-medium capitalize text-neutral-700 dark:text-neutral-300">{row.channel}</span>
+            <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{labels[row.channel] ?? row.channel}</span>
             <span className="text-xs text-neutral-400">{row.sessions.toLocaleString()} ({row.pct}%)</span>
           </div>
           <div className="h-2.5 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
@@ -708,24 +806,12 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
 
           {/* Custom date range */}
           {showCustom && (
-            <div className="flex items-center gap-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-1.5">
-              <input
-                type="date"
-                value={fromDate}
-                max={toDate}
-                onChange={e => { setFromDate(e.target.value); setPresetDays(0); }}
-                className="text-[11px] bg-transparent border-none outline-none text-neutral-700 dark:text-neutral-200"
-              />
-              <span className="text-neutral-400 text-[11px]">→</span>
-              <input
-                type="date"
-                value={toDate}
-                min={fromDate}
-                max={toIso(new Date())}
-                onChange={e => { setToDate(e.target.value); setPresetDays(0); }}
-                className="text-[11px] bg-transparent border-none outline-none text-neutral-700 dark:text-neutral-200"
-              />
-            </div>
+            <DateRangePicker
+              fromDate={fromDate}
+              toDate={toDate}
+              onChange={(from, to) => { setFromDate(from); setToDate(to); setPresetDays(0); }}
+              onApply={() => setShowCustom(false)}
+            />
           )}
 
           {/* Refresh */}
@@ -800,11 +886,12 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
               <div className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600"><DollarSign className="size-4" /></div>
               <div>
                 <span className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-wide">AI Spend</span>
-                <p className="text-xl font-bold tabular-nums">${(k.ai_cost_usd.value ?? 0).toFixed(4)}</p>
+                <p className="text-xl font-bold tabular-nums">{(k.ai_cost_unpriced_calls?.value ?? 0) > 0 ? "~" : ""}${(k.ai_cost_usd.value ?? 0).toFixed(4)}</p>
               </div>
             </div>
             <div className="text-right">
               <p className="text-[10px] text-neutral-500">{(k.ai_tokens.value ?? 0).toLocaleString()} tokens</p>
+              {(k.ai_cost_unpriced_calls?.value ?? 0) > 0 && <p className="text-[10px] text-amber-600 dark:text-amber-400">{k.ai_cost_unpriced_calls?.value} calls not priced</p>}
               {k.ai_cost_usd.delta !== null && (
                 <span className={`text-[10px] font-semibold ${(k.ai_cost_usd.delta ?? 0) >= 0 ? "text-red-400" : "text-green-500"}`}>
                   {(k.ai_cost_usd.delta ?? 0) >= 0 ? "↑" : "↓"} {Math.abs(k.ai_cost_usd.delta ?? 0)}% vs prev period
@@ -924,6 +1011,12 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
       <Section title="AI Cost Breakdown">
         {aiCost ? (
           <>
+            {aiCost.cost_status?.unpriced_calls > 0 && (
+              <div className="flex items-start gap-2 mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 text-[11px] text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                <span>Estimated spend includes only {aiCost.cost_status.priced_calls.toLocaleString()} priced calls. {aiCost.cost_status.unpriced_calls.toLocaleString()} successful call{aiCost.cost_status.unpriced_calls === 1 ? " is" : "s are"} missing provider pricing and are excluded from the dollar total.</span>
+              </div>
+            )}
             <div className="mb-4">
               <CostSparkline data={aiCost.daily_series} />
             </div>
@@ -947,7 +1040,7 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
                       </td>
                       <td className="text-right px-2 tabular-nums text-neutral-500">{m.total_tokens.toLocaleString()}</td>
                       <td className="text-right px-2 text-neutral-500">{m.avg_latency_ms ? `${m.avg_latency_ms}ms` : "—"}</td>
-                      <td className="text-right pl-2 font-mono font-semibold">${m.cost_usd.toFixed(4)}</td>
+                      <td className="text-right pl-2 font-mono font-semibold">{m.unpriced_calls > 0 ? "~" : ""}${m.cost_usd.toFixed(4)}{m.unpriced_calls > 0 && <span className="text-[9px] text-amber-600 ml-1">partial</span>}</td>
                     </tr>
                   ))}
                 </tbody>
