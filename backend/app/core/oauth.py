@@ -264,4 +264,3 @@ def _get_self_host_bot(bot_id: str) -> dict[str, Any] | None:
             cur.execute("SELECT * FROM chatty_bots WHERE id = %s LIMIT 1", (bot_id,))
             row = cur.fetchone()
             return dict(row) if row else None
-

@@ -902,4 +902,3 @@ async def bot_analytics(principal: dict[str, Any], bot_id: str, since: Optional[
         "unique_sessions": len({m["session_id"] for m in messages if m.get("session_id")}),
         "total_leads": leads_res.count or 0,
     }
-

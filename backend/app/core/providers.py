@@ -1,20 +1,24 @@
-"""Provider profile validation for managed and self-host deployments."""
+"""Provider profile validation for managed and self-host deployments.
+
+This module is deliberately small and side-effect free. It lets health checks,
+startup diagnostics, and future database/auth adapters share one contract
+without changing the current Supabase implementation.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-
 from app.core.config import (
     DATABASE_URL,
     DEPLOYMENT_PROFILE,
-    OIDC_AUDIENCE,
-    OIDC_ISSUER_URL,
     REDIS_URL,
     S3_ACCESS_KEY,
     S3_ENDPOINT,
-    S3_PUBLIC_URL,
     S3_SECRET_KEY,
     S3_BUCKET,
+    S3_PUBLIC_URL,
+    OIDC_ISSUER_URL,
+    OIDC_AUDIENCE,
 )
 from app.core.db_pool import connection
 
@@ -32,10 +36,17 @@ class ProviderStatus:
 
 
 def provider_status() -> ProviderStatus:
-    return ProviderStatus(DEPLOYMENT_PROFILE, bool(DATABASE_URL), bool(REDIS_URL), bool(S3_ENDPOINT and S3_ACCESS_KEY and S3_SECRET_KEY))
+    """Return configuration status without making network calls or leaking secrets."""
+    return ProviderStatus(
+        profile=DEPLOYMENT_PROFILE,
+        database_configured=bool(DATABASE_URL),
+        queue_configured=bool(REDIS_URL),
+        object_store_configured=bool(S3_ENDPOINT and S3_ACCESS_KEY and S3_SECRET_KEY),
+    )
 
 
 def validate_self_host_contract() -> None:
+    """Fail closed when self-host mode is explicitly selected but incomplete."""
     if DEPLOYMENT_PROFILE != "self_host":
         return
     status = provider_status()
@@ -57,7 +68,13 @@ def validate_self_host_contract() -> None:
 
 
 def check_self_host_dependencies() -> dict[str, bool]:
-    """Probe configured self-host dependencies without exposing credentials."""
+    """Probe configured self-host dependencies without exposing credentials.
+
+    This is deliberately separate from :func:`provider_status`, which is a
+    cheap configuration-only report used by the dashboard. Readiness must
+    prove that the actual database, queue, and object store are reachable.
+    Callers should run this synchronous probe off the event loop.
+    """
     if DEPLOYMENT_PROFILE != "self_host":
         return {"database": True, "queue": True, "object_store": True}
 
@@ -67,7 +84,7 @@ def check_self_host_dependencies() -> dict[str, bool]:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1")
                 checks["database"] = cur.fetchone() == (1,)
-    except Exception:  # noqa: BLE001 - readiness must fail closed
+    except Exception:  # noqa: BLE001 - readiness must fail closed, not leak DSNs
         checks["database"] = False
 
     try:

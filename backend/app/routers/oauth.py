@@ -444,4 +444,3 @@ async def revoke_token(
         await run_db(lambda: supabase.table("chatty_oauth_tokens").update({"revoked": True}).or_(
             f"access_token_hash.eq.{digest},refresh_token_hash.eq.{digest}").execute())
     return {"status": "ok"}
-

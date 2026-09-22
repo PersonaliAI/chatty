@@ -26,7 +26,13 @@ _jwks_client = (
 
 
 def _self_host_subject_uuid(subject: str) -> uuid.UUID:
-    """Map an OIDC subject to a stable UUID for the portable SQL schema."""
+    """Map an OIDC subject to a stable UUID for the portable SQL schema.
+
+    OIDC `sub` values are opaque strings, while the existing schema uses UUID
+    foreign keys (matching Supabase Auth). UUID5 gives every issuer/subject
+    pair a deterministic, non-secret identifier without storing the raw token
+    subject in a UUID column.
+    """
     issuer = os.environ.get("OIDC_ISSUER_URL", "").rstrip("/")
     return uuid.uuid5(uuid.NAMESPACE_URL, f"chatty:{issuer}:{subject}")
 
@@ -85,22 +91,36 @@ def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str
 
 def get_user_by_auth_id(auth_user_id: str) -> dict[str, Any]:
     if DEPLOYMENT_PROFILE == "self_host":
+        # The self-host path uses the same logical users table but does not
+        # depend on Supabase PostgREST. `auth_user_id` is the stable OIDC `sub`.
         from psycopg2.extras import RealDictCursor
 
         canonical_id = _self_host_subject_uuid(auth_user_id)
         with connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT * FROM users WHERE auth_user_id = %s LIMIT 1", (str(canonical_id),))
+                cur.execute(
+                    "SELECT * FROM users WHERE auth_user_id = %s LIMIT 1",
+                    (str(canonical_id),),
+                )
                 row = cur.fetchone()
                 if row:
                     return dict(row)
+                # Keep an auth.users-compatible row so the portable schema's
+                # foreign keys (chatty_bots.user_id, subscriptions, etc.)
+                # remain valid. The trigger installed by the self-host
+                # migrations creates public.users; the explicit upsert below
+                # also makes this safe when an operator disables triggers.
                 cur.execute(
                     """
                     INSERT INTO auth.users (id, email, raw_user_meta_data)
                     VALUES (%s, %s, %s::jsonb)
                     ON CONFLICT (id) DO NOTHING
                     """,
-                    (str(canonical_id), None, "{}"),
+                    (
+                        str(canonical_id),
+                        None,
+                        "{}",
+                    ),
                 )
                 cur.execute(
                     """

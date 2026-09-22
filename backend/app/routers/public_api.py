@@ -893,4 +893,3 @@ async def public_api_webhook_delete(
     await run_db(lambda: supabase.table("chatty_webhooks").delete().eq("id", webhook_id).execute())
     await run_db(lambda: _update_key_usage(key_row))
     return {"success": True, "deleted_id": webhook_id}
-

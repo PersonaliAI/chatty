@@ -99,4 +99,3 @@ CREATE INDEX IF NOT EXISTS idx_chatty_oauth_tokens_refresh
   ON chatty_oauth_tokens(refresh_token_hash);
 CREATE INDEX IF NOT EXISTS idx_chatty_oauth_tokens_user
   ON chatty_oauth_tokens(user_id);
-
