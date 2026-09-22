@@ -29,11 +29,11 @@ def _require_env(name: str) -> str:
     return value
 
 
-SUPABASE_URL = _require_env("SUPABASE_URL")
+SUPABASE_URL = "" if SELF_HOST_MODE else _require_env("SUPABASE_URL")
 # Supabase's new Secret Key is the server-only replacement for the legacy
 # service_role JWT. Keep the historical constant name for its call sites,
 # but fail closed so deployments cannot silently retain a legacy JWT.
-SUPABASE_SECRET_KEY = _require_env("SUPABASE_SECRET_KEY")
+SUPABASE_SECRET_KEY = "" if SELF_HOST_MODE else _require_env("SUPABASE_SECRET_KEY")
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
 OIDC_ISSUER_URL = os.environ.get("OIDC_ISSUER_URL", "").rstrip("/")
 OIDC_AUDIENCE = os.environ.get("OIDC_AUDIENCE", "chatty")

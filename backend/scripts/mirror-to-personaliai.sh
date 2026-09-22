@@ -66,8 +66,9 @@ import re, sys
 path = sys.argv[1]
 MIRRORED_PREFIXES = (
     "main.py", "app/", "plugins/", "tests/", "sql/", "scripts/",
-    "requirements.txt", "Dockerfile", "voice-agent/", "env.yaml",
-    "supabase/migrations/",
+    "requirements.txt", "Dockerfile", "docker-compose.self-host.yml",
+    "env.yaml", "env.self-host.example", "voice-agent/",
+    "supabase/migrations/", "docs/",
 )
 
 def rewrite_path(p):

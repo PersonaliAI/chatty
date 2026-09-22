@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 from typing import Any, Optional
+import os
+import uuid
 
 import jwt
 from fastapi import Depends, Header, HTTPException
@@ -17,6 +19,12 @@ from app.core.oidc import verify_oidc_jwt
 
 _JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
 _jwks_client = PyJWKClient(_JWKS_URL, cache_keys=True, lifespan=3600)
+
+
+def _self_host_subject_uuid(subject: str) -> uuid.UUID:
+    """Map an OIDC subject to a stable UUID for the portable SQL schema."""
+    issuer = os.environ.get("OIDC_ISSUER_URL", "").rstrip("/")
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"chatty:{issuer}:{subject}")
 
 
 def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str, Any]:
@@ -73,13 +81,30 @@ def get_user_by_auth_id(auth_user_id: str) -> dict[str, Any]:
     if DEPLOYMENT_PROFILE == "self_host":
         from psycopg2.extras import RealDictCursor
 
+        canonical_id = _self_host_subject_uuid(auth_user_id)
         with connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT * FROM users WHERE auth_user_id = %s LIMIT 1", (auth_user_id,))
+                cur.execute("SELECT * FROM users WHERE auth_user_id = %s LIMIT 1", (str(canonical_id),))
                 row = cur.fetchone()
                 if row:
                     return dict(row)
-                cur.execute("INSERT INTO users (auth_user_id) VALUES (%s) RETURNING *", (auth_user_id,))
+                cur.execute(
+                    """
+                    INSERT INTO auth.users (id, email, raw_user_meta_data)
+                    VALUES (%s, %s, %s::jsonb)
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    (str(canonical_id), None, "{}"),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO users (auth_user_id)
+                    VALUES (%s)
+                    ON CONFLICT (auth_user_id) DO UPDATE SET updated_at = NOW()
+                    RETURNING *
+                    """,
+                    (str(canonical_id),),
+                )
                 return dict(cur.fetchone())
 
     res = (

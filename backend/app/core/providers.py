@@ -4,7 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.core.config import DATABASE_URL, DEPLOYMENT_PROFILE, REDIS_URL, S3_ACCESS_KEY, S3_ENDPOINT, S3_SECRET_KEY
+from app.core.config import (
+    DATABASE_URL,
+    DEPLOYMENT_PROFILE,
+    OIDC_AUDIENCE,
+    OIDC_ISSUER_URL,
+    REDIS_URL,
+    S3_ACCESS_KEY,
+    S3_ENDPOINT,
+    S3_PUBLIC_URL,
+    S3_SECRET_KEY,
+)
 
 
 @dataclass(frozen=True)
@@ -34,5 +44,11 @@ def validate_self_host_contract() -> None:
         missing.append("REDIS_URL")
     if not status.object_store_configured:
         missing.append("S3_ENDPOINT/S3_ACCESS_KEY/S3_SECRET_KEY")
+    if not S3_PUBLIC_URL:
+        missing.append("S3_PUBLIC_URL")
+    if not OIDC_ISSUER_URL:
+        missing.append("OIDC_ISSUER_URL")
+    if not OIDC_AUDIENCE:
+        missing.append("OIDC_AUDIENCE")
     if missing:
         raise RuntimeError("self_host deployment is missing: " + ", ".join(missing))
