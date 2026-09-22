@@ -36,10 +36,18 @@ the OIDC redirect/origin in the frontend deployment and keep
 `ALLOWED_ORIGINS` exact. Do not use a Supabase service key in this profile.
 
 The self-host backend exposes the OIDC-protected REST/MCP/API-key surfaces. The
-existing hosted dashboard/frontend remains on its managed-Supabase adapter in
-this phase; keep it pointed at the managed deployment unless you have completed
-the separate frontend data/auth adapter rollout. This boundary is deliberate so
-self-host validation cannot interrupt the live Supabase site.
+dashboard now has an opt-in OIDC/BFF path for self-host login, bot bootstrap and
+configuration, profile/billing metadata, sources, leads, analytics, integrations,
+and voice settings. Remaining legacy feature panels that still call Supabase
+directly should stay on the managed deployment until their adapter is migrated;
+the managed Supabase path remains the default and is unchanged.
+
+For the frontend deployment, set `NEXT_PUBLIC_DEPLOYMENT_PROFILE=self_host`,
+`SELF_HOST_BACKEND_URL` to the private API origin, and configure the server-only
+OIDC variables (`OIDC_AUTHORIZATION_ENDPOINT`, `OIDC_TOKEN_ENDPOINT`,
+`OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and `OIDC_SCOPES`). The browser receives
+only an HttpOnly same-origin session cookie; never expose the OIDC client secret
+or backend service credentials as `NEXT_PUBLIC_*` values.
 
 ## Backups and rollback
 
@@ -63,4 +71,3 @@ the installer at the production Supabase database or run destructive SQL there.
   authenticated TLS gateway, not a public MinIO policy.
 - Run dependency, image, secret, migration, backup-restore, and smoke checks
   in CI before canary traffic.
-
