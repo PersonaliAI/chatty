@@ -15,14 +15,14 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
         language: ["javascript-typescript", "python"]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -37,7 +37,7 @@ jobs:
           upload: false
 
       - name: Upload SARIF report artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: codeql-${{ matrix.language }}-sarif
           path: ${{ runner.temp }}/results
