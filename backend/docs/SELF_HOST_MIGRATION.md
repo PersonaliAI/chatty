@@ -35,6 +35,15 @@ identity. Keep the Supabase adapters as the default implementation. Add the
 self-host adapters behind the profile flag and run contract tests against both
 implementations.
 
+The current self-host object-storage adapter covers bot logos, bot avatars, and
+user avatars. Configure `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`,
+`S3_BUCKET`, and an explicit `S3_PUBLIC_URL` before enabling those uploads.
+Uploads use server-side AES-256 encryption, reject traversal/control-character
+keys, and compensate by deleting the object if the metadata transaction fails.
+The adapter never makes an object public implicitly. Other Supabase storage
+consumers remain on the managed path until their own compatibility slice is
+implemented and tested.
+
 ### Phase 2 — shadow verification
 
 Replay sanitized events and read-only workloads into the self-host stack.
