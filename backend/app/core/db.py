@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, TypeVar
+from typing import Any, Callable, TypeVar
 
 from psycopg2.extras import RealDictCursor
 
@@ -47,6 +47,7 @@ async def run_db(fn: Callable[[], T]) -> T:
 
 
 async def get_bot(bot_id: str) -> dict | None:
+    """Fetch a bot through the active provider without accepting raw SQL."""
     if DEPLOYMENT_PROFILE != "self_host":
         return None
     def _fetch() -> dict | None:
@@ -68,3 +69,79 @@ async def get_user(auth_user_id: str) -> dict | None:
                 row = cur.fetchone()
                 return dict(row) if row else None
     return await run_db(_fetch)
+
+
+def _validated_updates(updates: dict[str, Any], allowed: frozenset[str]) -> dict[str, Any]:
+    """Validate dynamic column names before constructing a parameterized UPDATE."""
+    unknown = set(updates) - allowed
+    if unknown:
+        raise ValueError("unsupported update field")
+    return {key: value for key, value in updates.items() if key in allowed}
+
+
+async def update_bot_fields(bot_id: str, updates: dict[str, Any]) -> dict | None:
+    """Update a small, explicitly allow-listed bot field set in self-host mode."""
+    if DEPLOYMENT_PROFILE != "self_host":
+        return None
+    safe_updates = _validated_updates(updates, frozenset({"logo_url", "avatar_url", "avatar_icon"}))
+    if not safe_updates:
+        return None
+
+    def _update() -> dict | None:
+        columns = ", ".join(f"{column} = %s" for column in safe_updates)
+        values = [safe_updates[column] for column in safe_updates]
+        with connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    f"UPDATE chatty_bots SET {columns} WHERE id = %s RETURNING *",
+                    (*values, bot_id),
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
+
+    return await run_db(_update)
+
+
+async def update_user_fields(auth_user_id: str, updates: dict[str, Any]) -> dict | None:
+    """Update a small, explicitly allow-listed user field set in self-host mode."""
+    if DEPLOYMENT_PROFILE != "self_host":
+        return None
+    safe_updates = _validated_updates(updates, frozenset({"display_name", "avatar_url"}))
+    if not safe_updates:
+        return None
+
+    def _update() -> dict | None:
+        columns = ", ".join(f"{column} = %s" for column in safe_updates)
+        values = [safe_updates[column] for column in safe_updates]
+        with connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    f"UPDATE users SET {columns} WHERE auth_user_id = %s RETURNING *",
+                    (*values, auth_user_id),
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
+
+    return await run_db(_update)
+
+
+async def update_team_member_fields(email: str, updates: dict[str, Any]) -> int:
+    """Update profile fields for matching team members in self-host mode."""
+    if DEPLOYMENT_PROFILE != "self_host" or not email:
+        return 0
+    safe_updates = _validated_updates(updates, frozenset({"name", "avatar_url"}))
+    if not safe_updates:
+        return 0
+
+    def _update() -> int:
+        columns = ", ".join(f"{column} = %s" for column in safe_updates)
+        values = [safe_updates[column] for column in safe_updates]
+        with connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE chatty_team_members SET {columns} WHERE email = %s",
+                    (*values, email),
+                )
+                return cur.rowcount
+
+    return await run_db(_update)
