@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { SELF_HOST_MODE } from '@/lib/deployment'
 
 function publicOrigin(request: Request, fallback: string): string {
   // Firebase/App Hosting can supply an internal forwarded host during a
@@ -15,6 +16,11 @@ function publicOrigin(request: Request, fallback: string): string {
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
+  if (SELF_HOST_MODE) {
+    const next = url.searchParams.get('next') ?? '/dashboard'
+    const target = next.startsWith('/') ? next : '/dashboard'
+    return NextResponse.redirect(`${url.origin}/login?next=${encodeURIComponent(target)}`)
+  }
   const code = url.searchParams.get('code')
   const requestedNext = url.searchParams.get('next') ?? '/dashboard'
   const origin = publicOrigin(request, url.origin)

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AuthShell, GoogleIcon, MicrosoftIcon } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
 import { captureAffiliateReferral, getAffiliateReferral } from "@/lib/affiliate-referral";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 type BusyKey = "password" | "google" | "microsoft" | null;
 
@@ -96,6 +97,21 @@ function SignupPageInner() {
       setError(error.message);
       setBusy(null);
     }
+  }
+
+  if (SELF_HOST_MODE) {
+    return (
+      <AuthShell title="Create your account" subtitle="Your identity provider manages self-hosted access">
+        <div className="space-y-3 text-center">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Self-hosted Chatty uses OIDC (Google, Microsoft, or your configured provider). Create the account there, then return to Chatty.
+          </p>
+          <Link href={`/login?next=${encodeURIComponent(dest)}`} className="inline-flex w-full h-10 items-center justify-center rounded-md bg-foreground text-background text-sm font-medium">
+            Continue to sign in
+          </Link>
+        </div>
+      </AuthShell>
+    );
   }
 
   if (sent) {
