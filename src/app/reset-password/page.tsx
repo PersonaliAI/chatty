@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 export default function ResetPasswordPage() {
   const supabase = createClient();
@@ -57,6 +58,21 @@ export default function ResetPasswordPage() {
       return;
     }
     setDone(true);
+  }
+
+  if (SELF_HOST_MODE) {
+    return (
+      <AuthShell title="Password management" subtitle="Managed by your identity provider">
+        <div className="space-y-3 text-center">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Self-hosted Chatty delegates password changes to your configured OIDC provider.
+          </p>
+          <Link href="/login" className="inline-flex w-full h-10 items-center justify-center rounded-md bg-foreground text-background text-sm font-medium">
+            Return to sign in
+          </Link>
+        </div>
+      </AuthShell>
+    );
   }
 
   if (done) {

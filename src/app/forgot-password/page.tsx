@@ -6,6 +6,7 @@ import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 export default function ForgotPasswordPage() {
   const supabase = createClient();
@@ -29,6 +30,21 @@ export default function ForgotPasswordPage() {
       return;
     }
     setSent(true);
+  }
+
+  if (SELF_HOST_MODE) {
+    return (
+      <AuthShell title="Password management" subtitle="Managed by your identity provider">
+        <div className="space-y-3 text-center">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Self-hosted Chatty delegates sign-in and password recovery to your configured OIDC provider.
+          </p>
+          <Link href="/login" className="inline-flex w-full h-10 items-center justify-center rounded-md bg-foreground text-background text-sm font-medium">
+            Return to sign in
+          </Link>
+        </div>
+      </AuthShell>
+    );
   }
 
   if (sent) {
