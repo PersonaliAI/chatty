@@ -9,7 +9,9 @@ from typing import Any, Optional
 import httpx
 
 from app.core.clients import supabase
+from app.core.config import DEPLOYMENT_PROFILE
 from app.core.db import run_db
+from app.core.db_pool import connection
 from plugins import notifications as notify
 
 logger = logging.getLogger("chatty.widget.session")
@@ -24,6 +26,33 @@ async def upsert_session(
 ) -> tuple[dict[str, Any], bool]:
     """Create or update a conversation session. Returns (row, is_new)."""
     try:
+        if DEPLOYMENT_PROFILE == "self_host":
+            from psycopg2.extras import RealDictCursor
+            now_dt = datetime.now(timezone.utc)
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("SELECT * FROM chatty_sessions WHERE bot_id = %s AND session_id = %s LIMIT 1", (bot_id, session_id))
+                    row = cur.fetchone()
+                    if row:
+                        row = dict(row)
+                        updates = {"last_message": last_message[:300], "last_message_at": now_dt}
+                        if visitor_name and not row.get("visitor_name"):
+                            updates["visitor_name"] = visitor_name
+                        if visitor_email and not row.get("visitor_email"):
+                            updates["visitor_email"] = visitor_email
+                        assignments = ", ".join(f"{key} = %s" for key in updates)
+                        cur.execute(f"UPDATE chatty_sessions SET {assignments} WHERE id = %s RETURNING *", (*updates.values(), row["id"]))
+                        return dict(cur.fetchone()), False
+                    cur.execute("""INSERT INTO chatty_sessions
+                        (bot_id, session_id, status, priority, first_response_due_at,
+                         resolution_due_at, sla_status, tags, ai_paused, visitor_name,
+                         visitor_email, last_message)
+                        VALUES (%s, %s, 'open', 'normal', %s, %s, 'on_track', %s,
+                                false, %s, %s, %s) RETURNING *""",
+                        (bot_id, session_id, now_dt + timedelta(minutes=15), now_dt + timedelta(hours=4),
+                         [], visitor_name, visitor_email, last_message[:300]))
+                    return dict(cur.fetchone()), True
+
         existing = await run_db(lambda: supabase.table("chatty_sessions").select("*").eq(
             "bot_id", bot_id).eq("session_id", session_id).execute())
         if existing.data:
