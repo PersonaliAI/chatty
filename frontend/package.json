@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
@@ -48,7 +48,7 @@
     "livekit-client": "^2.22.0",
     "lucide-react": "^1.14.0",
     "moment-timezone": "^0.6.3",
-    "next": "16.3.2",
+    "next": "16.3.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
