@@ -562,7 +562,17 @@ async def get_capabilities(user: dict[str, Any] = Depends(require_user)):
     UI can gate provider choices."""
     from plugins import notifications as _notify
     from plugins import zoom_integration as _zoom
+    from app.core.providers import provider_status
+
+    providers = provider_status()
     return {
         "onesignal_configured": _notify.onesignal_configured(),
         "zoom_configured": _zoom.zoom_configured(),
+        "deployment_profile": providers.profile,
+        "self_host_ready": providers.ready_for_self_host,
+        "self_host_providers": {
+            "database": providers.database_configured,
+            "queue": providers.queue_configured,
+            "object_store": providers.object_store_configured,
+        },
     }
