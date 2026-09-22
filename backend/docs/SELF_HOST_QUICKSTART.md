@@ -17,7 +17,7 @@ curl http://localhost:8080/
 The first run starts PostgreSQL 15/pgvector, Redis 7, private MinIO object
 storage, the versioned schema runner, the API, and the Redis webhook worker.
 The migration runner applies the additive files in
-`supabase/migrations_chatty_standalone/` and records them in
+the canonical `supabase/migrations/` directory and records them in
 `_chatty_schema_migrations`. The Supabase-only `pg_cron`/`pg_net` migration is
 skipped; schedule the worker/cron endpoint with the host's scheduler instead.
 
@@ -57,3 +57,4 @@ the installer at the production Supabase database or run destructive SQL there.
   authenticated TLS gateway, not a public MinIO policy.
 - Run dependency, image, secret, migration, backup-restore, and smoke checks
   in CI before canary traffic.
+

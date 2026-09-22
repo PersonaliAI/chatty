@@ -1,10 +1,11 @@
-"""Apply Chatty's portable PostgreSQL schema exactly once per migration.
+"""Apply Chatty's canonical PostgreSQL schema exactly once per migration.
 
-The source migrations are the same additive migrations used by the project;
-the runner only supplies the small ``auth`` compatibility prelude required by
-the non-Supabase deployment. The Supabase cron/net migration is intentionally
-skipped because those extensions are provider-specific; operators should run
-the documented scheduler/worker service instead.
+The runner applies the canonical ``supabase/migrations`` directory, not a
+second hand-maintained subset. It supplies the small ``auth`` compatibility
+prelude required by the non-Supabase deployment. The Supabase cron/net
+migration is intentionally skipped because those extensions are
+provider-specific; operators should run the documented scheduler/worker
+service instead.
 
 Usage:
     DATABASE_URL=postgresql://... python scripts/self_host_migrate.py
@@ -20,7 +21,7 @@ import psycopg2
 
 ROOT = Path(__file__).resolve().parents[1]
 PRELUDE = ROOT / "sql" / "self_host_prelude.sql"
-MIGRATIONS = ROOT / "supabase" / "migrations_chatty_standalone"
+MIGRATIONS = ROOT / "supabase" / "migrations"
 SKIP = {"20260510090611_setup_cron.sql"}
 
 
@@ -64,3 +65,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
