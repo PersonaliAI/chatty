@@ -1911,7 +1911,10 @@ async def admin_create_affiliate_payout(
                     payout_row = cur.fetchone(); payout_cols = [d[0] for d in cur.description]
                     payout = dict(zip(payout_cols, payout_row))
                     ids = [row[0] for row in payable]
-                    cur.execute("UPDATE affiliate_commissions SET status = 'paid', payout_id = %s, updated_at = %s WHERE id = ANY(%s)", (payout['id'], now, ids))
+                    # The portable schema intentionally keeps payout linkage in
+                    # the payout row; affiliate_commissions has no payout_id
+                    # column, so only transition the commission state here.
+                    cur.execute("UPDATE affiliate_commissions SET status = 'paid', updated_at = %s WHERE id = ANY(%s)", (now, ids))
                     return {"success": True, "payout": payout, "commissions_marked_paid": len(ids), "total_marked_cents": total}
         return await run_db(_payout)
 
