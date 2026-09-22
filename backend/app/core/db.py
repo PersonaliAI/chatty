@@ -27,6 +27,11 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, TypeVar
 
+from psycopg2.extras import RealDictCursor
+
+from app.core.config import DEPLOYMENT_PROFILE
+from app.core.db_pool import connection
+
 T = TypeVar("T")
 
 # Dedicated I/O thread pool for synchronous Supabase REST calls.
@@ -39,3 +44,27 @@ async def run_db(fn: Callable[[], T]) -> T:
     """Run a synchronous supabase-py call in a dedicated I/O worker thread."""
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(_DB_EXECUTOR, fn)
+
+
+async def get_bot(bot_id: str) -> dict | None:
+    if DEPLOYMENT_PROFILE != "self_host":
+        return None
+    def _fetch() -> dict | None:
+        with connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM chatty_bots WHERE id = %s LIMIT 1", (bot_id,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+    return await run_db(_fetch)
+
+
+async def get_user(auth_user_id: str) -> dict | None:
+    if DEPLOYMENT_PROFILE != "self_host":
+        return None
+    def _fetch() -> dict | None:
+        with connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM users WHERE auth_user_id = %s LIMIT 1", (auth_user_id,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+    return await run_db(_fetch)

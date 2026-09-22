@@ -17,8 +17,8 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from fastapi.responses import StreamingResponse
 
 from app.core.clients import supabase
-from app.core.config import GEMINI_FALLBACK_MODELS, MODEL_NAME
-from app.core.db import run_db
+from app.core.config import DEPLOYMENT_PROFILE, GEMINI_FALLBACK_MODELS, MODEL_NAME
+from app.core.db import get_bot, get_user, run_db
 from app.core.uploads import read_upload_capped
 from app.services.chatty_quota_service import WHITELABEL_PLANS, chatty_quota_exceeded, plan_for
 from app.services.widget_session_service import (
@@ -85,10 +85,15 @@ async def widget_verify_origin(body: WidgetVerifyOriginRequest):
     every chat/media call. Never hard-fails - always returns a token, even
     when unverified, so a missing Referer just falls into the stricter rate
     tier rather than breaking the widget outright."""
-    res = await run_db(lambda: supabase.table("chatty_bots").select("allowed_domains").eq("id", body.bot_id).execute())
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    bot = res.data[0]
+    if DEPLOYMENT_PROFILE == "self_host":
+        bot = await get_bot(body.bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail="Bot not found")
+    else:
+        res = await run_db(lambda: supabase.table("chatty_bots").select("allowed_domains").eq("id", body.bot_id).execute())
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        bot = res.data[0]
     allowed = bot.get("allowed_domains") or []
     verified = (not allowed) or bool(
         _normalize_host(body.referer or "") and _normalize_host(body.referer or "") in {_normalize_host(a) for a in allowed if a}
@@ -119,10 +124,15 @@ async def widget_chat(
         raise HTTPException(status_code=400, detail=f"Message too long (max {WIDGET_MAX_CHARS} characters)")
 
     # 1. Fetch bot
-    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    bot = res.data[0]
+    if DEPLOYMENT_PROFILE == "self_host":
+        bot = await get_bot(bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail="Bot not found")
+    else:
+        res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        bot = res.data[0]
 
     # --- Rate limit per bot + IP - unverified-origin traffic gets a much
     # tighter tier instead of an outright 403 (see _widget_rate_limit_or_429).
@@ -131,10 +141,13 @@ async def widget_chat(
 
     # 2. Fetch owner
     owner_id = bot["user_id"]
-    res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
-    if not res_user.data:
+    if DEPLOYMENT_PROFILE == "self_host":
+        owner_user = await get_user(owner_id)
+    else:
+        res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
+        owner_user = res_user.data[0] if res_user.data else None
+    if not owner_user:
         raise HTTPException(status_code=404, detail="Bot owner not found")
-    owner_user = res_user.data[0]
 
     # 2b. Session tracking + new-conversation email
     session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
@@ -292,19 +305,27 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     if len(text) > WIDGET_MAX_CHARS:
         raise HTTPException(status_code=400, detail=f"Message too long (max {WIDGET_MAX_CHARS} characters)")
 
-    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    bot = res.data[0]
+    if DEPLOYMENT_PROFILE == "self_host":
+        bot = await get_bot(bot_id)
+        if not bot:
+            raise HTTPException(status_code=404, detail="Bot not found")
+    else:
+        res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        bot = res.data[0]
 
     ip = _client_ip(request)
     await _widget_rate_limit_or_429(bot, bot_id, ip, request.headers.get("x-widget-token"))
 
     owner_id = bot["user_id"]
-    res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
-    if not res_user.data:
+    if DEPLOYMENT_PROFILE == "self_host":
+        owner_user = await get_user(owner_id)
+    else:
+        res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
+        owner_user = res_user.data[0] if res_user.data else None
+    if not owner_user:
         raise HTTPException(status_code=404, detail="Bot owner not found")
-    owner_user = res_user.data[0]
 
     session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
     if is_new:
