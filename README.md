@@ -89,23 +89,97 @@ main request flow.
 
 ```mermaid
 flowchart LR
-    visitor(("Website visitor")) -->|chat / voice| widget["Embeddable widget\n(Next.js)"]
-    owner(("Bot owner")) --> dashboard["Dashboard\n(Next.js)"]
-    agent(("AI agent\n(Claude, etc.)")) -->|MCP / OAuth 2.0| api
-    widget --> api["chatty-backend\n(FastAPI)"]
-    dashboard --> api
-    caller(("Phone-call-style\nvoice visitor")) -->|WebRTC| voice["voice_worker.py\n(LiveKit Agents)"]
-    voice --> api
-    api --> db[("Supabase\nPostgres + pgvector + RLS")]
-    api --> llm["Gemini / BYOK LLM"]
-    voice --> livekit["LiveKit Server\n(Self-Hosted / Cloud)"]
+    classDef channel fill:#0f3554,color:#fff,stroke:#38bdf8
+    classDef app fill:#073b35,color:#fff,stroke:#34d399
+    classDef service fill:#4a2811,color:#fff,stroke:#fb923c
+    classDef managed fill:#064e3b,color:#fff,stroke:#6ee7b7
+    classDef selfhost fill:#102a43,color:#fff,stroke:#60a5fa
+    classDef provider fill:#29144f,color:#fff,stroke:#c084fc
+    classDef target fill:#172554,color:#fff,stroke:#93c5fd
 
-    style widget fill:#6366f1,color:#fff,stroke:none
-    style dashboard fill:#6366f1,color:#fff,stroke:none
-    style api fill:#009688,color:#fff,stroke:none
-    style voice fill:#ff6600,color:#fff,stroke:none
-    style db fill:#3ecf8e,color:#000,stroke:none
-    style agent fill:#8b5cf6,color:#fff,stroke:none
+    subgraph channels["Users and channels"]
+        visitor(("Website visitors")):::channel
+        owner(("Dashboard owners")):::channel
+        whatsapp["WhatsApp"]:::channel
+        slack["Slack"]:::channel
+        mcp_client["MCP clients"]:::channel
+    end
+
+    subgraph frontend["frontend/ — Next.js public app"]
+        dashboard["Dashboard"]:::app
+        widget["Embeddable widget"]:::app
+        sdk["React SDK"]:::app
+    end
+
+    subgraph backend["backend/ — FastAPI and workers"]
+        api["API + auth/OIDC"]:::service
+        webhook["Webhooks"]:::service
+        rag["RAG / knowledge base"]:::service
+        booking["Bookings + calendar sync"]:::service
+        billing["Billing + subscriptions"]:::service
+        inbox["Inbox + conversations"]:::service
+        mcp["MCP server"]:::service
+        voice["Voice worker + LiveKit"]:::service
+        jobs["Redis worker"]:::service
+    end
+
+    subgraph data["Data and deployment profiles"]
+        subgraph managed["managed_supabase (default)"]
+            supabase["Supabase Auth · Postgres · Storage · pgvector · RLS"]:::managed
+        end
+        subgraph selfhost["self_host (opt-in)"]
+            portable["PostgreSQL + pgvector · Redis · SeaweedFS S3 · OIDC"]:::selfhost
+            proxy["Reverse proxy + TLS"]:::selfhost
+        end
+    end
+
+    subgraph providers["External providers"]
+        llm["Gemini / OpenAI / Anthropic"]:::provider
+        calendar["Google / Microsoft Calendar"]:::provider
+        meta["Meta WhatsApp + Slack"]:::provider
+        livekit["LiveKit"]:::provider
+        lemonsqueezy["Lemon Squeezy"]:::provider
+    end
+
+    subgraph targets["Deployment targets"]
+        docker["Docker / VPS"]:::target
+        railway["Railway"]:::target
+        render["Render"]:::target
+        heroku["Heroku-style PaaS"]:::target
+    end
+
+    visitor --> widget
+    owner --> dashboard
+    whatsapp --> webhook
+    slack --> webhook
+    mcp_client -->|OAuth 2.0 + PKCE| mcp
+    dashboard --> api
+    widget --> api
+    sdk --> widget
+    webhook --> api
+    api --> rag
+    api --> booking
+    api --> billing
+    api --> inbox
+    api --> mcp
+    api --> voice
+    api --> jobs
+    api --> supabase
+    api --> portable
+    proxy --> api
+    api --> llm
+    api --> calendar
+    api --> meta
+    api --> lemonsqueezy
+    voice --> livekit
+    docker -.-> dashboard
+    docker -.-> api
+    railway -.-> dashboard
+    railway -.-> api
+    render -.-> dashboard
+    render -.-> api
+    heroku -.-> dashboard
+    heroku -.-> api
 ```
 
 ```
@@ -130,6 +204,24 @@ chatty/
 
 The self-host stack is isolated from the managed path. Follow [`backend/docs/SELF_HOST_QUICKSTART.md`](backend/docs/SELF_HOST_QUICKSTART.md)
 and use [`backend/env.self-host.example`](backend/env.self-host.example); do not point it at a production Supabase database.
+
+### Deployment-platform compatibility
+
+The portable self-host contract is Docker Compose. It is intentionally provider-neutral, so the same containers can run
+on a VPS or a container PaaS, but this repository does **not** currently claim one-click support for every platform.
+Railway, Render, and Heroku-style platforms require a platform manifest/template plus separate managed resources; those
+files are not present yet. Do not present a generic Docker deploy as a complete one-click Chatty installation.
+
+| Platform | Official deployment guide | Current repository status |
+|---|---|---|
+| ![Docker](https://img.shields.io/badge/Docker%20%2F%20VPS-2496ED?logo=docker&logoColor=white) | [Docker Compose self-host quickstart](backend/docs/SELF_HOST_QUICKSTART.md) | **Supported now** for the backend stack; deploy the frontend separately and put TLS in front. |
+| ![Railway](https://img.shields.io/badge/Railway-0B0D0E?logo=railway&logoColor=white) | [Railway Docker Compose guide](https://docs.railway.com/guides/docker-compose) | Docker-compatible, but **no Railway template or one-click button yet**. |
+| ![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=111827) | [Render Docker guide](https://render.com/docs/docker) | Docker-compatible, but **no `render.yaml` Blueprint or one-click button yet**. |
+| ![Heroku](https://img.shields.io/badge/Heroku-430098?logo=heroku&logoColor=white) | [Heroku container runtime](https://devcenter.heroku.com/articles/container-registry-and-runtime) | Individual containers may run, but **no `app.json`/Heroku Button or full-stack validation yet**. |
+
+For a managed deployment keep `DEPLOYMENT_PROFILE=managed_supabase`. For the provider-neutral stack use
+`DEPLOYMENT_PROFILE=self_host` and follow the self-host quickstart. Both profiles are in the same codebase; switching the
+profile is an explicit deployment decision and does not migrate or modify the other environment.
 
 ## 📋 Requirements
 
