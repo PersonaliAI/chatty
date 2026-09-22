@@ -12,6 +12,7 @@ cp env.self-host.example .env.self-host
 docker compose --env-file .env.self-host -f docker-compose.self-host.yml up -d --build
 docker compose --env-file .env.self-host -f docker-compose.self-host.yml ps
 curl http://localhost:8080/
+python scripts/self_host_smoke.py --base-url http://localhost:8080
 ```
 
 The first run starts PostgreSQL 15/pgvector, Redis 7, private MinIO object
@@ -70,6 +71,12 @@ Back up MinIO/S3 objects with the storage provider's encrypted snapshot/version
 policy. Redis is a queue/cache and is not a database backup. Rollback remains a
 traffic/configuration change back to the managed Supabase service; never point
 the installer at the production Supabase database or run destructive SQL there.
+
+The same smoke and restore gate runs in `.github/workflows/self-host-smoke.yml`.
+It checks health, live PostgreSQL/Redis/S3 readiness, the OpenAPI surface, the
+unauthenticated API boundary, then creates and restores a PostgreSQL dump before
+running the smoke checks again. Run it against a staging deployment after every
+image or migration change; it does not touch the managed Supabase project.
 
 ## Production hardening
 

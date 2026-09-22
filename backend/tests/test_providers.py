@@ -10,3 +10,12 @@ def test_provider_status_does_not_expose_secret_values():
     status = providers.ProviderStatus("self_host", True, True, True)
     assert "SECRET" not in repr(status)
     assert status.ready_for_self_host_adapters is True
+
+
+def test_managed_dependency_probe_is_green_without_network(monkeypatch):
+    monkeypatch.setattr(providers, "DEPLOYMENT_PROFILE", "managed_supabase")
+    assert providers.check_self_host_dependencies() == {
+        "database": True,
+        "queue": True,
+        "object_store": True,
+    }

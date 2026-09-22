@@ -21,7 +21,7 @@ from app.core.db_pool import connection
 from app.core.config import DEPLOYMENT_PROFILE
 from app.core.deps import require_user
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
-from app.core.providers import provider_status
+from app.core.providers import check_self_host_dependencies, provider_status
 from app.schemas.public_api import (
     ApiKeyCreateRequest,
     ApiKeyUpdateRequest,
@@ -107,7 +107,11 @@ async def health_check(request: Request):
 )
 async def readiness_check(request: Request):
     status = provider_status()
+    dependency_checks = None
     ready = status.profile != "self_host" or status.ready_for_self_host_adapters
+    if status.profile == "self_host" and ready:
+        dependency_checks = await run_db(check_self_host_dependencies)
+        ready = all(dependency_checks.values())
     payload = {
         "status": "ready" if ready else "not_ready",
         "profile": status.profile,
@@ -118,6 +122,8 @@ async def readiness_check(request: Request):
         },
         "request_id": _sec.get_request_id(request),
     }
+    if dependency_checks is not None:
+        payload["dependencies"] = dependency_checks
     if not ready:
         from fastapi.responses import JSONResponse
 

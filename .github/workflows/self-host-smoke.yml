@@ -1,0 +1,90 @@
+name: Self-host compose smoke and restore drill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/**'
+      - 'backend/plugins/**'
+      - 'backend/sql/**'
+      - 'backend/supabase/migrations/**'
+      - 'backend/scripts/self_host_*.py'
+      - 'backend/Dockerfile'
+      - 'backend/docker-compose.self-host.yml'
+      - 'backend/requirements.txt'
+      - 'backend/env.self-host.example'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-host-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create isolated CI environment
+        run: |
+          cp env.self-host.example .env.self-host
+          sed -i \
+            -e 's#replace-with-a-server-side-llm-key#ci-test-key#' \
+            -e 's#replace-with-a-long-random-password#Chatty-ci-Postgres-2026-Secret#' \
+            -e 's#replace-with-a-random-access-key#chattyciaccess#' \
+            -e 's#replace-with-a-32-character-random-secret#Chatty-ci-MinIO-2026-Secret-Long#' \
+            -e 's#https://objects.example.com#http://127.0.0.1:9000#' \
+            -e 's#replace-with-your-oidc-client-id#chatty-ci-oidc#' \
+            -e 's#replace-with-a-long-random-secret#Chatty-ci-function-secret-2026#' \
+            .env.self-host
+
+      - name: Start self-host stack
+        run: docker compose --env-file .env.self-host -f docker-compose.self-host.yml up -d --build
+
+      - name: Wait for API readiness
+        run: |
+          for attempt in $(seq 1 36); do
+            if curl --fail --silent http://127.0.0.1:8080/readyz >/tmp/chatty-ready.json; then
+              cat /tmp/chatty-ready.json
+              break
+            fi
+            if [ "$attempt" = 36 ]; then
+              docker compose --env-file .env.self-host -f docker-compose.self-host.yml ps
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Run API smoke gate
+        run: python scripts/self_host_smoke.py --base-url http://127.0.0.1:8080
+
+      - name: Run PostgreSQL backup and restore drill
+        run: |
+          mkdir -p artifacts/backups
+          backup=$(python scripts/self_host_backup.py --env-file .env.self-host --compose-file docker-compose.self-host.yml backup --output artifacts/backups)
+          test -s "$backup"
+          python scripts/self_host_backup.py --env-file .env.self-host --compose-file docker-compose.self-host.yml restore "$backup" --confirm
+          python scripts/self_host_smoke.py --base-url http://127.0.0.1:8080
+
+      - name: Capture compose logs
+        if: always()
+        run: docker compose --env-file .env.self-host -f docker-compose.self-host.yml logs --no-color > artifacts/self-host.log || true
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-host-smoke-${{ github.sha }}
+          path: backend/artifacts/
+          if-no-files-found: ignore
+
+      - name: Stop self-host stack
+        if: always()
+        run: docker compose --env-file .env.self-host -f docker-compose.self-host.yml down -v
