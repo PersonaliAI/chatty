@@ -13,6 +13,7 @@ from app.core.config import (
     SUPABASE_SECRET_KEY,
     SUPABASE_URL,
 )
+from app.core.portable_supabase import PortablePostgresClient
 
 class _UnavailableSupabase:
     """Fail clearly if a managed-only code path is used in self-host mode."""
@@ -24,8 +25,10 @@ class _UnavailableSupabase:
         )
 
 
-supabase: Client | _UnavailableSupabase
-if DEPLOYMENT_PROFILE != "self_host" and SUPABASE_URL and SUPABASE_SECRET_KEY:
+supabase: Client | PortablePostgresClient | _UnavailableSupabase
+if DEPLOYMENT_PROFILE == "self_host":
+    supabase = PortablePostgresClient()
+elif SUPABASE_URL and SUPABASE_SECRET_KEY:
     supabase = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
 else:
     supabase = _UnavailableSupabase()

@@ -18,6 +18,8 @@ from app.core.deps import require_user
 from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
 from app.core.uploads import read_upload_capped
 from app.core.config import ADMIN_BYPASS_EMAILS
+from app.core.config import DEPLOYMENT_PROFILE
+from app.core.db_pool import connection
 from plugins import notifications as notify
 from app.schemas.affiliate import (
     AdminAffiliatePayoutCreateRequest,
@@ -217,7 +219,7 @@ async def _extract_agent_profile(user: dict[str, Any], bot_id: Optional[str] = N
             pass
 
     # Check auth user metadata if needed (e.g. Google OAuth photo/name)
-    if (not avatar or not name) and user.get("auth_user_id"):
+    if (not avatar or not name) and user.get("auth_user_id") and DEPLOYMENT_PROFILE != "self_host":
         try:
             auth_user = await run_db(lambda: supabase.auth.admin.get_user_by_id(user["auth_user_id"]))
             if auth_user and getattr(auth_user, "user", None):
@@ -1613,6 +1615,10 @@ def _is_platform_admin(user: dict[str, Any]) -> bool:
     return bool(email in ADMIN_BYPASS_EMAILS or role in ("admin", "superadmin"))
 
 
+def _self_host() -> bool:
+    return DEPLOYMENT_PROFILE == "self_host"
+
+
 def require_platform_admin(user: dict[str, Any] = Depends(require_user)) -> dict[str, Any]:
     if not _is_platform_admin(user):
         raise HTTPException(status_code=403, detail="Platform administrator privileges required")
@@ -1628,6 +1634,42 @@ async def admin_list_affiliates(
     admin_user: dict[str, Any] = Depends(require_platform_admin),
 ):
     """List all affiliate partner profiles with summarized performance metrics."""
+    if _self_host():
+        def _list() -> list[dict[str, Any]]:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    where = ["TRUE"]
+                    params: list[Any] = []
+                    if status:
+                        where.append("p.status = %s"); params.append(status)
+                    if search:
+                        where.append("p.referral_code ILIKE %s"); params.append(f"%{search}%")
+                    params.extend([limit, offset])
+                    cur.execute(f"""
+                        SELECT p.*, COALESCE(clicks.clicks_count, 0) AS clicks_count,
+                               COALESCE(refs.referrals_count, 0) AS referrals_count,
+                               COALESCE(refs.paid_referrals_count, 0) AS paid_referrals_count,
+                               COALESCE(comms.pending_cents, 0) AS pending_cents,
+                               COALESCE(comms.payable_cents, 0) AS payable_cents,
+                               COALESCE(comms.paid_cents, 0) AS paid_cents,
+                               COALESCE(comms.total_earned_cents, 0) AS total_earned_cents
+                        FROM affiliate_profiles p
+                        LEFT JOIN (SELECT affiliate_id, COUNT(*) AS clicks_count FROM affiliate_clicks GROUP BY affiliate_id) clicks ON clicks.affiliate_id = p.id
+                        LEFT JOIN (SELECT affiliate_id, COUNT(*) AS referrals_count, COUNT(*) FILTER (WHERE status = 'paid') AS paid_referrals_count FROM affiliate_referrals GROUP BY affiliate_id) refs ON refs.affiliate_id = p.id
+                        LEFT JOIN (SELECT affiliate_id,
+                                   COALESCE(SUM(commission_amount_cents) FILTER (WHERE status IN ('pending','approved') AND hold_until > NOW()), 0) AS pending_cents,
+                                   COALESCE(SUM(commission_amount_cents) FILTER (WHERE status = 'payable' OR (status IN ('pending','approved') AND hold_until <= NOW())), 0) AS payable_cents,
+                                   COALESCE(SUM(commission_amount_cents) FILTER (WHERE status = 'paid'), 0) AS paid_cents,
+                                   COALESCE(SUM(commission_amount_cents) FILTER (WHERE status IN ('pending','approved','payable','paid')), 0) AS total_earned_cents
+                                   FROM affiliate_commissions GROUP BY affiliate_id) comms ON comms.affiliate_id = p.id
+                        WHERE {' AND '.join(where)}
+                        ORDER BY p.created_at DESC LIMIT %s OFFSET %s
+                    """, tuple(params))
+                    cols = [d[0] for d in cur.description]
+                    return [dict(zip(cols, row)) for row in cur.fetchall()]
+        rows = await run_db(_list)
+        return {"affiliates": rows, "limit": limit, "offset": offset}
+
     query = supabase.table("affiliate_profiles").select("*")
     if status:
         query = query.eq("status", status)
@@ -1716,6 +1758,19 @@ async def admin_update_affiliate_status(
     if body.status == "active":
         updates["approved_at"] = now_iso
 
+    if _self_host():
+        def _update() -> dict[str, Any] | None:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE affiliate_profiles SET status = %s, updated_at = %s, approved_at = CASE WHEN %s = 'active' THEN %s ELSE approved_at END WHERE id = %s RETURNING *", (body.status, now_iso, body.status, now_iso, affiliate_id))
+                    row = cur.fetchone()
+                    if not row: return None
+                    return dict(zip([d[0] for d in cur.description], row))
+        updated = await run_db(_update)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Affiliate profile not found")
+        return {"success": True, "affiliate": updated}
+
     res = await run_db(
         lambda: supabase.table("affiliate_profiles")
         .update(updates)
@@ -1736,6 +1791,19 @@ async def admin_update_affiliate_rate(
 ):
     """Adjust custom commission rate (basis points) for an affiliate partner."""
     now_iso = datetime.now(timezone.utc).isoformat()
+    if _self_host():
+        def _update() -> dict[str, Any] | None:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE affiliate_profiles SET commission_rate_bps = %s, updated_at = %s WHERE id = %s RETURNING *", (body.commission_rate_bps, now_iso, affiliate_id))
+                    row = cur.fetchone()
+                    if not row: return None
+                    return dict(zip([d[0] for d in cur.description], row))
+        updated = await run_db(_update)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Affiliate profile not found")
+        return {"success": True, "affiliate": updated}
+
     res = await run_db(
         lambda: supabase.table("affiliate_profiles")
         .update({"commission_rate_bps": body.commission_rate_bps, "updated_at": now_iso})
@@ -1757,6 +1825,21 @@ async def admin_list_affiliate_commissions(
     admin_user: dict[str, Any] = Depends(require_platform_admin),
 ):
     """List affiliate commissions with optional filtering by partner ID and status."""
+    if _self_host():
+        def _list() -> tuple[list[dict[str, Any]], int]:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    where = ["TRUE"]; params: list[Any] = []
+                    if affiliate_id: where.append("affiliate_id = %s"); params.append(affiliate_id)
+                    if status: where.append("status = %s"); params.append(status)
+                    cur.execute(f"SELECT COUNT(*) FROM affiliate_commissions WHERE {' AND '.join(where)}", tuple(params))
+                    total = int(cur.fetchone()[0] or 0)
+                    cur.execute(f"SELECT * FROM affiliate_commissions WHERE {' AND '.join(where)} ORDER BY created_at DESC LIMIT %s OFFSET %s", (*params, limit, offset))
+                    cols = [d[0] for d in cur.description]
+                    return [dict(zip(cols, row)) for row in cur.fetchall()], total
+        commissions, total = await run_db(_list)
+        return {"commissions": commissions, "total": total, "limit": limit, "offset": offset}
+
     query = supabase.table("affiliate_commissions").select("*", count="exact")
     if affiliate_id:
         query = query.eq("affiliate_id", affiliate_id)
@@ -1780,6 +1863,15 @@ async def admin_approve_mature_commissions(
 ):
     """Scan and transition pending/approved commissions past their hold period to payable."""
     now_iso = datetime.now(timezone.utc).isoformat()
+
+    if _self_host():
+        def _approve() -> int:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE affiliate_commissions SET status = 'payable', updated_at = %s WHERE status IN ('pending','approved') AND hold_until <= %s", (now_iso, now_iso))
+                    return cur.rowcount
+        count = await run_db(_approve)
+        return {"success": True, "matured_count": count, "message": "No mature commissions pending approval" if not count else None}
 
     mature_res = await run_db(
         lambda: supabase.table("affiliate_commissions")
@@ -1808,6 +1900,29 @@ async def admin_create_affiliate_payout(
     admin_user: dict[str, Any] = Depends(require_platform_admin),
 ):
     """Record an external payout (PayPal/Wise/Bank) and mark corresponding commissions as paid."""
+    if _self_host():
+        def _payout() -> dict[str, Any]:
+            now = datetime.now(timezone.utc)
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT payout_email, referral_code FROM affiliate_profiles WHERE id = %s LIMIT 1", (body.affiliate_id,))
+                    aff = cur.fetchone()
+                    if not aff: raise HTTPException(status_code=404, detail="Affiliate profile not found")
+                    cur.execute("SELECT id, commission_amount_cents FROM affiliate_commissions WHERE affiliate_id = %s AND status = 'payable' ORDER BY created_at ASC", (body.affiliate_id,))
+                    payable = cur.fetchall(); total = sum(int(row[1] or 0) for row in payable)
+                    if total <= 0: raise HTTPException(status_code=400, detail="This affiliate has no payable commissions to settle.")
+                    if body.amount_cents != total: raise HTTPException(status_code=400, detail="Payout amount must exactly match the current payable commission balance. Partial affiliate payouts are not supported yet.")
+                    cur.execute("INSERT INTO affiliate_payouts (affiliate_id, amount_cents, payout_method, external_payout_id, notes, status, paid_at, created_at, updated_at) VALUES (%s,%s,%s,%s,%s,'paid',%s,%s,%s) RETURNING *", (body.affiliate_id, body.amount_cents, body.payout_method or 'manual', body.external_payout_id, body.notes, now, now, now))
+                    payout_row = cur.fetchone(); payout_cols = [d[0] for d in cur.description]
+                    payout = dict(zip(payout_cols, payout_row))
+                    ids = [row[0] for row in payable]
+                    # The portable schema intentionally keeps payout linkage in
+                    # the payout row; affiliate_commissions has no payout_id
+                    # column, so only transition the commission state here.
+                    cur.execute("UPDATE affiliate_commissions SET status = 'paid', updated_at = %s WHERE id = ANY(%s)", (now, ids))
+                    return {"success": True, "payout": payout, "commissions_marked_paid": len(ids), "total_marked_cents": total}
+        return await run_db(_payout)
+
     aff_res = await run_db(
         lambda: supabase.table("affiliate_profiles")
         .select("id, payout_email, referral_code")
@@ -1922,6 +2037,19 @@ async def admin_list_affiliate_fraud_flags(
     admin_user: dict[str, Any] = Depends(require_platform_admin),
 ):
     """Retrieve audit log of suspicious referral events or self-referral attempts."""
+    if _self_host():
+        def _list() -> tuple[list[dict[str, Any]], int]:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    where = ["TRUE"]; params: list[Any] = []
+                    if affiliate_id: where.append("affiliate_id = %s"); params.append(affiliate_id)
+                    cur.execute(f"SELECT COUNT(*) FROM affiliate_fraud_flags WHERE {' AND '.join(where)}", tuple(params)); total = int(cur.fetchone()[0] or 0)
+                    cur.execute(f"SELECT id, affiliate_id, referred_user_id, reason AS flag_reason, severity, metadata AS event_payload, created_at FROM affiliate_fraud_flags WHERE {' AND '.join(where)} ORDER BY created_at DESC LIMIT %s OFFSET %s", (*params, limit, offset))
+                    cols = [d[0] for d in cur.description]
+                    return [dict(zip(cols, row)) for row in cur.fetchall()], total
+        flags, total = await run_db(_list)
+        return {"fraud_flags": flags, "total": total, "limit": limit, "offset": offset}
+
     query = supabase.table("affiliate_fraud_flags").select("*", count="exact")
     if affiliate_id:
         query = query.eq("affiliate_id", affiliate_id)

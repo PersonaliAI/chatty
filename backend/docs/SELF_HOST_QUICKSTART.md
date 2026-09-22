@@ -45,6 +45,12 @@ self-host mode. Password-reset/signup are intentionally delegated to the
 configured OIDC provider rather than a second password store; the managed
 Supabase path remains the default and is unchanged.
 
+The backend's legacy Supabase query call sites are routed through a constrained,
+parameterized PostgreSQL compatibility adapter in self-host mode, including
+widget/API reads and writes, KB relation projections, counts, pagination, and
+team/inbox flows. Uploads use the S3-compatible object store configured below;
+Supabase is not contacted by the self-host profile.
+
 For the frontend deployment, set `NEXT_PUBLIC_DEPLOYMENT_PROFILE=self_host`,
 `SELF_HOST_BACKEND_URL` to the private API origin, and configure the server-only
 OIDC variables (`OIDC_AUTHORIZATION_ENDPOINT`, `OIDC_TOKEN_ENDPOINT`,
