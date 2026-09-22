@@ -584,11 +584,20 @@ export default function Dashboard() {
           customFieldsUpdate[field] = value;
         }
       }
-      const { error } = await supabase
-        .from("chatty_leads")
-        .update({ ...topLevelUpdate, custom_fields: customFieldsUpdate })
-        .eq("id", editingLeadId);
-      if (error) throw error;
+      if (SELF_HOST_MODE) {
+        const response = await fetchWithFallback(`/api/bots/${botId}/leads/${editingLeadId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...topLevelUpdate, custom_fields: customFieldsUpdate }),
+        });
+        if (!response.ok) throw new Error(`Lead update failed (${response.status})`);
+      } else {
+        const { error } = await supabase
+          .from("chatty_leads")
+          .update({ ...topLevelUpdate, custom_fields: customFieldsUpdate })
+          .eq("id", editingLeadId);
+        if (error) throw error;
+      }
       setLeads((prev) => prev.map((l) => (l.id === editingLeadId ? { ...l, ...topLevelUpdate, custom_fields: customFieldsUpdate } : l)));
       showToast("Lead updated.", "success");
       cancelEditLead();
@@ -601,10 +610,12 @@ export default function Dashboard() {
 
   const deleteLead = (lead: Lead) => {
     showConfirm("Delete lead?", `Remove ${lead.name || "this lead"}'s captured contact details. This can't be undone.`, async () => {
-      const { error } = await supabase.from("chatty_leads").delete().eq("id", lead.id);
-      if (error) {
-        showToast("Failed to delete lead.", "error");
-        return;
+      if (SELF_HOST_MODE) {
+        const response = await fetchWithFallback(`/api/bots/${botId}/leads/${lead.id}`, { method: "DELETE" });
+        if (!response.ok) { showToast("Failed to delete lead.", "error"); return; }
+      } else {
+        const { error } = await supabase.from("chatty_leads").delete().eq("id", lead.id);
+        if (error) { showToast("Failed to delete lead.", "error"); return; }
       }
       setLeads((prev) => prev.filter((l) => l.id !== lead.id));
       showToast("Lead deleted.", "success");
@@ -2031,14 +2042,20 @@ export default function Dashboard() {
   async function loadUnanswered() {
     if (!botId) return;
     try {
-      const { data } = await supabase
-        .from("chatty_unanswered")
-        .select("id, question, created_at")
-        .eq("bot_id", botId)
-        .eq("status", "open")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      setUnanswered(data || []);
+      if (SELF_HOST_MODE) {
+        const response = await fetchWithFallback(`/api/bots/${botId}/unanswered`);
+        const payload = response.ok ? await response.json() : { items: [] };
+        setUnanswered(payload.items || []);
+      } else {
+        const { data } = await supabase
+          .from("chatty_unanswered")
+          .select("id, question, created_at")
+          .eq("bot_id", botId)
+          .eq("status", "open")
+          .order("created_at", { ascending: false })
+          .limit(50);
+        setUnanswered(data || []);
+      }
     } catch {
       setUnanswered([]);
     }
@@ -2047,7 +2064,13 @@ export default function Dashboard() {
   async function dismissUnanswered(id: string) {
     setUnanswered((p) => p.filter((u) => u.id !== id));
     try {
-      await supabase.from("chatty_unanswered").update({ status: "dismissed" }).eq("id", id);
+      if (SELF_HOST_MODE) {
+        await fetchWithFallback(`/api/bots/${botId}/unanswered/${id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "dismissed" }),
+        });
+      } else {
+        await supabase.from("chatty_unanswered").update({ status: "dismissed" }).eq("id", id);
+      }
     } catch { /* optimistic */ }
   }
 
@@ -2057,11 +2080,22 @@ export default function Dashboard() {
     if (!answer || !botId) return;
     const content = `Q: ${question}\nA: ${answer}`;
     try {
-      await supabase.from("chatty_sources").insert({
-        bot_id: botId, type: "text", name: question.slice(0, 80),
-        content, status: "trained", char_count: content.length,
-      });
-      await supabase.from("chatty_unanswered").update({ status: "resolved" }).eq("id", id);
+      if (SELF_HOST_MODE) {
+        const sourceResponse = await fetchWithFallback(`/api/bots/${botId}/sources`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "text", name: question.slice(0, 80), content, status: "trained", char_count: content.length }),
+        });
+        if (!sourceResponse.ok) throw new Error("Failed to save knowledge source");
+        await fetchWithFallback(`/api/bots/${botId}/unanswered/${id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "resolved" }),
+        });
+      } else {
+        await supabase.from("chatty_sources").insert({
+          bot_id: botId, type: "text", name: question.slice(0, 80),
+          content, status: "trained", char_count: content.length,
+        });
+        await supabase.from("chatty_unanswered").update({ status: "resolved" }).eq("id", id);
+      }
       setUnanswered((p) => p.filter((u) => u.id !== id));
       setAnsweringId(null);
       setAnswerText("");
@@ -3676,7 +3710,7 @@ export default function Dashboard() {
       setLiveThinkingSteps(prev => [...prev, `[guardrail_checks] Evaluated safety guardrails (strict_mode = ${strictMode ? "ON" : "OFF"})`]);
     }, 1300);
 
-    if (user && botId) {
+    if (user && botId && !SELF_HOST_MODE) {
       try {
         await supabase.from("chatty_conversations").insert({
           bot_id: botId,
