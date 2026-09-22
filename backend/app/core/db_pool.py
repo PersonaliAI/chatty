@@ -1,4 +1,9 @@
-"""Lazy, bounded PostgreSQL pool for self-host deployments."""
+"""Lazy, bounded PostgreSQL pool for the self-host adapter.
+
+No connection is opened unless the self-host profile explicitly supplies a
+DATABASE_URL and a caller asks for the pool. The managed Supabase path is
+therefore unaffected.
+"""
 
 from __future__ import annotations
 
