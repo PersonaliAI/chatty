@@ -42,6 +42,7 @@ from fastapi.responses import RedirectResponse, StreamingResponse, PlainTextResp
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 from pydantic import BaseModel
+from psycopg2.extras import RealDictCursor
 
 from plugins import agent_tools
 from plugins import doc_rag
@@ -63,6 +64,7 @@ from app.core import security as _sec
 from app.core.app_factory import create_app
 from app.core.clients import genai_client, supabase
 from app.core.db import run_db
+from app.core.db_pool import connection
 from app.core.config import (
     ADMIN_BYPASS_EMAILS,
     ALLOWED_ORIGINS,
@@ -71,6 +73,7 @@ from app.core.config import (
     LEMON_VARIANT_TO_PLAN,
     LEMON_WEBHOOK_SECRET,
     MODEL_NAME,
+    DEPLOYMENT_PROFILE,
     SUPABASE_URL,
 )
 from app.core.deps import require_user
@@ -301,11 +304,27 @@ async def _resolve_api_key(
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing Bearer API key")
     raw = authorization.split(" ", 1)[1].strip()
-    key_res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq(
-        "key_hash", _hash_api_key(raw)).execute())
-    if not key_res.data:
+    key_hash = _hash_api_key(raw)
+    if DEPLOYMENT_PROFILE == "self_host":
+        def _fetch_key() -> dict[str, Any] | None:
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("SELECT * FROM chatty_api_keys WHERE key_hash = %s LIMIT 1", (key_hash,))
+                    row = cur.fetchone()
+                    if not row:
+                        return None
+                    cur.execute(
+                        "UPDATE chatty_api_keys SET last_used_at = NOW(), request_count = COALESCE(request_count, 0) + 1 WHERE id = %s",
+                        (row["id"],),
+                    )
+                    return dict(row)
+        key_row = await run_db(_fetch_key)
+    else:
+        key_res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq(
+            "key_hash", key_hash).execute())
+        key_row = key_res.data[0] if key_res.data else None
+    if not key_row:
         raise HTTPException(status_code=401, detail="Invalid API key")
-    key_row = key_res.data[0]
     if key_row.get("revoked"):
         raise HTTPException(status_code=401, detail="API key revoked")
     # IP allowlist (optional - only enforced when the key has entries)
@@ -622,3 +641,4 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
