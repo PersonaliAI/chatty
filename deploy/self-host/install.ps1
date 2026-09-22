@@ -1,0 +1,24 @@
+$ErrorActionPreference = "Stop"
+$root = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+Set-Location $root
+
+function Copy-IfMissing($source, $target) {
+  if (-not (Test-Path $target)) { Copy-Item $source $target }
+}
+
+Copy-IfMissing ".env.example" ".env"
+Copy-IfMissing "backend/.env.example" "backend/.env"
+Copy-IfMissing "frontend/.env.example" "frontend/.env"
+
+$envPath = Join-Path $root ".env"
+$envText = Get-Content $envPath -Raw
+if ($envText -notmatch "(?m)^POSTGRES_PASSWORD=(?!change-me$).+") {
+  $bytes = New-Object byte[] 24
+  [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+  $password = [Convert]::ToBase64String($bytes).TrimEnd("=").Replace("+","-").Replace("/","_")
+  Add-Content $envPath "`nPOSTGRES_PASSWORD=$password`nS3_SECRET_KEY=$password"
+}
+
+docker compose --env-file .env -f docker-compose.selfhost.yml up -d --build
+docker compose --env-file .env -f docker-compose.selfhost.yml ps
+Write-Host "Chatty is starting at http://localhost:3000"
