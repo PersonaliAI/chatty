@@ -22,7 +22,7 @@ jobs:
         language: ["javascript-typescript", "python"]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -37,7 +37,7 @@ jobs:
           upload: false
 
       - name: Upload SARIF report artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: codeql-${{ matrix.language }}-sarif
           path: ${{ runner.temp }}/results
