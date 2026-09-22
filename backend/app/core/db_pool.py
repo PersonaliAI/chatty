@@ -27,5 +27,9 @@ def connection() -> Iterator[object]:
     conn = pool.getconn()
     try:
         yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         pool.putconn(conn)
