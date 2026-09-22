@@ -30,11 +30,11 @@ def put_bytes(key: str, data: bytes, content_type: str) -> str:
     object_key = safe_object_key(key)
     if not data:
         raise ValueError("cannot store an empty object")
+    if not S3_PUBLIC_URL:
+        raise RuntimeError("S3_PUBLIC_URL is required when returning public asset URLs")
     _client().put_object(Bucket=S3_BUCKET, Key=object_key, Body=data,
                          ContentType=content_type or "application/octet-stream",
                          ServerSideEncryption="AES256")
-    if not S3_PUBLIC_URL:
-        raise RuntimeError("S3_PUBLIC_URL is required when returning public asset URLs")
     return f"{S3_PUBLIC_URL}/{S3_BUCKET}/{object_key}"
 
 
