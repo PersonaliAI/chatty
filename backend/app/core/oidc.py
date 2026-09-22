@@ -1,4 +1,9 @@
-"""Provider-neutral OIDC JWT verification for self-host deployments."""
+"""Provider-neutral OIDC JWT verification for the self-host profile.
+
+The existing Supabase verifier remains untouched and is still the default.
+This verifier is isolated so it can be wired into dashboard dependencies only
+after the self-host identity provider has passed staging contract tests.
+"""
 
 from __future__ import annotations
 
@@ -21,7 +26,7 @@ def verify_oidc_jwt(authorization: Optional[str] = Header(None)) -> dict[str, An
         jwks = PyJWKClient(f"{OIDC_ISSUER_URL}/.well-known/jwks.json", cache_keys=True, lifespan=3600)
         key = jwks.get_signing_key_from_jwt(token).key
         claims = jwt.decode(token, key, algorithms=["RS256", "ES256"], audience=OIDC_AUDIENCE, issuer=OIDC_ISSUER_URL)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - convert all provider errors to a safe auth response
         raise HTTPException(status_code=401, detail="invalid token") from exc
     if not claims.get("sub"):
         raise HTTPException(status_code=401, detail="invalid token")

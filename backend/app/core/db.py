@@ -47,6 +47,7 @@ async def run_db(fn: Callable[[], T]) -> T:
 
 
 async def get_bot(bot_id: str) -> dict | None:
+    """Fetch a bot through the active provider without accepting raw SQL."""
     if DEPLOYMENT_PROFILE != "self_host":
         return None
     def _fetch() -> dict | None:

@@ -1,10 +1,22 @@
-"""Provider profile validation for managed and self-host deployments."""
+"""Provider profile validation for managed and self-host deployments.
+
+This module is deliberately small and side-effect free. It lets health checks,
+startup diagnostics, and future database/auth adapters share one contract
+without changing the current Supabase implementation.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.core.config import DATABASE_URL, DEPLOYMENT_PROFILE, REDIS_URL, S3_ACCESS_KEY, S3_ENDPOINT, S3_SECRET_KEY
+from app.core.config import (
+    DATABASE_URL,
+    DEPLOYMENT_PROFILE,
+    REDIS_URL,
+    S3_ACCESS_KEY,
+    S3_ENDPOINT,
+    S3_SECRET_KEY,
+)
 
 
 @dataclass(frozen=True)
@@ -20,10 +32,17 @@ class ProviderStatus:
 
 
 def provider_status() -> ProviderStatus:
-    return ProviderStatus(DEPLOYMENT_PROFILE, bool(DATABASE_URL), bool(REDIS_URL), bool(S3_ENDPOINT and S3_ACCESS_KEY and S3_SECRET_KEY))
+    """Return configuration status without making network calls or leaking secrets."""
+    return ProviderStatus(
+        profile=DEPLOYMENT_PROFILE,
+        database_configured=bool(DATABASE_URL),
+        queue_configured=bool(REDIS_URL),
+        object_store_configured=bool(S3_ENDPOINT and S3_ACCESS_KEY and S3_SECRET_KEY),
+    )
 
 
 def validate_self_host_contract() -> None:
+    """Fail closed when self-host mode is explicitly selected but incomplete."""
     if DEPLOYMENT_PROFILE != "self_host":
         return
     status = provider_status()
