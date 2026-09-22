@@ -34,7 +34,9 @@ interface VoiceCallWidgetProps {
   botId: string;
   sessionId: string;
   backendUrl: string;
-  originToken: string | null;
+  /** Pass null to intentionally use the unverified tier; omit to verify the
+   * embedding page origin automatically before requesting a LiveKit token. */
+  originToken?: string | null;
   visitorTimezone: string;
   primaryColor: string;
   onClose: () => void;
@@ -68,6 +70,7 @@ export default function VoiceCallWidget({
   // pipeline downstream (VAD/STT) picks it up.
   const analyserRef = useRef<AnalyserNode | null>(null);
   const analyserCtxRef = useRef<AudioContext | null>(null);
+  const autoOriginTokenRef = useRef<string | null>(null);
 
   // Smoothed orb scale/glow driven by the agent's remote audio level. Same
   // spring feel used for the rest of the widget's motion (bouncy overshoot).
@@ -76,12 +79,31 @@ export default function VoiceCallWidget({
   useEffect(() => {
     mountedRef.current = true;
 
-    const widgetTokenHeader: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
     let cancelled = false;
 
     async function start() {
       let room: Room | null = null;
       try {
+        // Same-realm website embeds have no iframe Referer for the host
+        // application to forward. Verify the current page directly before
+        // requesting the short-lived voice token when the caller omitted a
+        // token. Explicit null remains an escape hatch for previews/tests.
+        if (originToken === undefined && !autoOriginTokenRef.current && typeof window !== "undefined") {
+          try {
+            const originRes = await fetch(`${backendUrl}/api/widget/verify-origin`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ bot_id: botId, referer: window.location.href }),
+            });
+            const originData = originRes.ok ? await originRes.json() : null;
+            if (originData?.token) autoOriginTokenRef.current = originData.token;
+          } catch {
+            // The token endpoint still returns the correct unverified-tier
+            // response when an origin cannot be verified.
+          }
+        }
+        const resolvedOriginToken = originToken === undefined ? autoOriginTokenRef.current : originToken;
+        const widgetTokenHeader: Record<string, string> = resolvedOriginToken ? { "X-Widget-Token": resolvedOriginToken } : {};
         const res = await fetch(`${backendUrl}/api/widget/voice/token`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...widgetTokenHeader },

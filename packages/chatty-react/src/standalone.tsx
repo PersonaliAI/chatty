@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import ChatWidgetCore, { type ChatWidgetCoreProps } from "./ChatWidgetCore";
+import VoiceCallWidget from "./voice-call-widget";
 import { getOnColor, hexToRgb } from "./color-contrast";
 import { normalizeWidgetStyle } from "./widget-style";
 import "./standalone.css";
@@ -13,6 +14,7 @@ import {
   Sparkles,
   MessageSquare,
   MessageCircle,
+  AudioWaveform,
   User,
   X,
   type LucideIcon,
@@ -82,6 +84,9 @@ export interface ChattyWidgetApi {
   open: () => void;
   close: () => void;
   toggle: () => void;
+  openVoice: () => void;
+  closeVoice: () => void;
+  toggleVoice: () => void;
 }
 
 export interface StandaloneMountOptions {
@@ -114,6 +119,19 @@ export function ChattyStandaloneApp({
 }: StandaloneMountOptions) {
   const side = position === "left" ? "left" : "right";
   const [open, setOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceSessionId] = useState(() => {
+    if (typeof window === "undefined") return `widget-voice-${botId}`;
+    const host = window.location.hostname || "direct";
+    const key = `chatty_voice_sid_${botId}_${host}`;
+    let value = localStorage.getItem(key);
+    if (!value) {
+      value = `v-${crypto.randomUUID()}`;
+      localStorage.setItem(key, value);
+    }
+    return value;
+  });
   const [unread, setUnread] = useState(0);
   const [coreReady, setCoreReady] = useState(false);
   const [themeLoaded, setThemeLoaded] = useState(false);
@@ -256,6 +274,7 @@ export function ChattyStandaloneApp({
     if (logo) setCustomIconUrl(logo);
 
     if (d.panel_size && PANEL_SIZE_PRESETS[d.panel_size]) setPanelSize(d.panel_size);
+    if (typeof d.voice_enabled === "boolean") setVoiceEnabled(d.voice_enabled);
 
     if (d.teaser_message || d.welcome_message) {
       setTeaserText(d.teaser_message || d.welcome_message);
@@ -352,6 +371,9 @@ export function ChattyStandaloneApp({
       open: () => handleOpen(true),
       close: () => handleOpen(false),
       toggle: () => handleOpen(!openRef.current),
+      openVoice: () => setVoiceOpen(true),
+      closeVoice: () => setVoiceOpen(false),
+      toggleVoice: () => setVoiceOpen((current) => !current),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onApiReady, revealed]);
@@ -560,7 +582,6 @@ export function ChattyStandaloneApp({
         )}
         <ChatWidgetCore
           botId={botId}
-          originToken={null}
           forceFullscreen={isMobile && mobileFullscreen}
           notificationGranted={notificationGranted}
           onThemeLoaded={(themeData) => applyThemeData(themeData)}
@@ -659,6 +680,86 @@ export function ChattyStandaloneApp({
             </span>
           )}
         </button>
+      )}
+
+      {/* Separate voice-agent surface. It is intentionally independent from
+          the chat drawer so a host site can offer live voice support without
+          taking over the conversation panel. */}
+      {voiceEnabled && !voiceOpen && revealed && (
+        <button
+          type="button"
+          onClick={() => setVoiceOpen(true)}
+          aria-label="Start voice assistant"
+          title="Talk to the assistant"
+          style={{
+            position: "fixed",
+            bottom: "88px",
+            [side]: "24px",
+            width: "46px",
+            height: "46px",
+            border: `1px solid ${iconColor}33`,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,.96)",
+            color: launcherBg.startsWith("#") ? launcherBg : iconColor,
+            boxShadow: "0 8px 26px rgba(0,0,0,.18)",
+            cursor: "pointer",
+            zIndex: 2147483647,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            animation: "chatty-voice-launcher-in .32s cubic-bezier(.16,1,.3,1)",
+          }}
+        >
+          <AudioWaveform style={{ width: 22, height: 22 }} />
+          <span style={{ position: "absolute", inset: -4, borderRadius: "50%", border: `1px solid ${iconColor}40`, animation: "chatty-voice-pulse 2.2s ease-out infinite" }} />
+        </button>
+      )}
+
+      {voiceEnabled && voiceOpen && (
+        <div
+          role="dialog"
+          aria-label="Voice assistant"
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: "16px",
+            transform: "translateX(-50%)",
+            width: "min(760px, calc(100vw - 24px))",
+            height: "min(620px, calc(100vh - 32px))",
+            maxHeight: "calc(100vh - 32px)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            borderRadius: isMobile ? "22px" : "26px",
+            border: `1px solid ${iconColor}25`,
+            background: "rgba(255,255,255,.98)",
+            boxShadow: "0 24px 80px rgba(0,0,0,.3)",
+            zIndex: 2147483647,
+            animation: "chatty-voice-dock-in .35s cubic-bezier(.16,1,.3,1)",
+          }}
+        >
+          <div style={{ height: 52, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: "1px solid rgba(15,23,42,.08)", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", color: iconColor, background: `${launcherBg.startsWith("#") ? launcherBg : "#f97316"}18` }}><AudioWaveform style={{ width: 16, height: 16 }} /></span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>Voice assistant</div>
+                <div style={{ fontSize: 10, color: "#64748b" }}>Live transcription · booking enabled</div>
+              </div>
+            </div>
+            <button type="button" onClick={() => setVoiceOpen(false)} aria-label="Close voice assistant" style={{ width: 32, height: 32, border: 0, borderRadius: "50%", background: "transparent", color: "#64748b", cursor: "pointer", display: "grid", placeItems: "center" }}><X style={{ width: 18, height: 18 }} /></button>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+            <VoiceCallWidget
+              botId={botId}
+              sessionId={voiceSessionId}
+              backendUrl={BACKEND_URL}
+              visitorTimezone={typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" : "UTC"}
+              primaryColor={launcherBg.startsWith("#") ? launcherBg : "#f97316"}
+              onClose={() => setVoiceOpen(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

@@ -41,6 +41,9 @@ export interface ChattyAPI {
   open: () => void;
   close: () => void;
   toggle: () => void;
+  openVoice: () => void;
+  closeVoice: () => void;
+  toggleVoice: () => void;
 }
 
 declare global {
@@ -118,7 +121,8 @@ export const ChatWidget = ChattyWidget;
 export type ChatWidgetProps = ChattyWidgetProps;
 
 /**
- * Hook to programmatically open, close, or toggle the Chatty chat drawer.
+ * Hook to programmatically open, close, or toggle Chatty's chat drawer and
+ * independent bottom-docked voice agent.
  *
  * @example
  * ```tsx
@@ -149,7 +153,19 @@ export function useChatty() {
     }
   }, []);
 
-  return { open, close, toggle };
+  const openVoice = useCallback(() => {
+    if (typeof window !== "undefined" && window.Chatty && typeof window.Chatty.openVoice === "function") window.Chatty.openVoice();
+  }, []);
+
+  const closeVoice = useCallback(() => {
+    if (typeof window !== "undefined" && window.Chatty && typeof window.Chatty.closeVoice === "function") window.Chatty.closeVoice();
+  }, []);
+
+  const toggleVoice = useCallback(() => {
+    if (typeof window !== "undefined" && window.Chatty && typeof window.Chatty.toggleVoice === "function") window.Chatty.toggleVoice();
+  }, []);
+
+  return { open, close, toggle, openVoice, closeVoice, toggleVoice };
 }
 
 export { ProductCard, type ProductCardData } from "./product-card";

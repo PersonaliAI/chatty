@@ -550,6 +550,7 @@ export interface WidgetThemeData {
   font_family?: string | null;
   font_size_percent?: number;
   voice_message_mode?: "transcribe" | "audio";
+  voice_enabled?: boolean;
   panel_size?: string;
 }
 
@@ -1772,6 +1773,7 @@ export default function ChatWidgetCore({
               trigger_rules: bot.trigger_rules,
               font_family: bot.font_family ?? null,
               font_size_percent: bot.font_size_percent || 100,
+              voice_enabled: !!bot.voice_enabled,
               panel_size: bot.panel_size,
             });
           }
