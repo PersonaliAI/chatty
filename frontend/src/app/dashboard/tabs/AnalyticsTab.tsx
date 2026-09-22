@@ -79,11 +79,16 @@ const PRESETS = [
   { label: "90d", days: 90 },
 ];
 
-function toIso(d: Date) { return d.toISOString().split("T")[0]; }
+function toIso(d: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 function addDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 function fmtDate(iso: string) {
   try {
-    return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const [year, month, day] = iso.split("-").map(Number);
+    const date = year && month && day ? new Date(year, month - 1, day) : new Date(iso);
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   } catch { return iso; }
 }
 
