@@ -71,15 +71,23 @@ def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str
 
 def get_user_by_auth_id(auth_user_id: str) -> dict[str, Any]:
     if DEPLOYMENT_PROFILE == "self_host":
+        # The self-host path uses the same logical users table but does not
+        # depend on Supabase PostgREST. `auth_user_id` is the stable OIDC `sub`.
         from psycopg2.extras import RealDictCursor
 
         with connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT * FROM users WHERE auth_user_id = %s LIMIT 1", (auth_user_id,))
+                cur.execute(
+                    "SELECT * FROM users WHERE auth_user_id = %s LIMIT 1",
+                    (auth_user_id,),
+                )
                 row = cur.fetchone()
                 if row:
                     return dict(row)
-                cur.execute("INSERT INTO users (auth_user_id) VALUES (%s) RETURNING *", (auth_user_id,))
+                cur.execute(
+                    "INSERT INTO users (auth_user_id) VALUES (%s) RETURNING *",
+                    (auth_user_id,),
+                )
                 return dict(cur.fetchone())
 
     res = (
