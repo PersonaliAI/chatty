@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import os
 import subprocess
 from pathlib import Path
 
@@ -18,31 +17,15 @@ def compose_args(env_file: str, compose_file: str) -> list[str]:
     return ["docker", "compose", "--env-file", env_file, "-f", compose_file]
 
 
-def env_value(env_file: str, key: str, default: str) -> str:
-    path = Path(env_file)
-    if not path.is_file():
-        return default
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line.startswith(f"{key}="):
-            return line.split("=", 1)[1].strip().strip('"\'') or default
-    return default
-
-
 def backup(args: argparse.Namespace) -> None:
     output_dir = Path(args.output).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output = output_dir / f"chatty-postgres-{stamp}.dump"
     command = compose_args(args.env_file, args.compose_file) + [
-        "exec", "-T", "postgres", "pg_dump", "--format=custom", "--no-owner", "--no-acl",
-        "--dbname", "${POSTGRES_DB}",
+        "exec", "-T", "postgres", "sh", "-ec",
+        "pg_dump --format=custom --no-owner --no-acl -U \"$POSTGRES_USER\" --dbname \"$POSTGRES_DB\"",
     ]
-    # Compose expands ${POSTGRES_DB} only in YAML, not command arguments.
-    # Supplying the database name from the local env avoids shell interpolation
-    # and keeps passwords out of process arguments.
-    db_name = env_value(args.env_file, "POSTGRES_DB", os.environ.get("POSTGRES_DB", "chatty"))
-    command[-1] = db_name
     with output.open("wb") as handle:
         subprocess.run(command, check=True, stdout=handle)
     print(output)
@@ -55,9 +38,8 @@ def restore(args: argparse.Namespace) -> None:
     if not source.is_file() or source.stat().st_size == 0:
         raise SystemExit(f"backup not found or empty: {source}")
     command = compose_args(args.env_file, args.compose_file) + [
-        "exec", "-T", "postgres", "pg_restore", "--clean", "--if-exists",
-        "--no-owner", "--no-acl", "--dbname",
-        env_value(args.env_file, "POSTGRES_DB", os.environ.get("POSTGRES_DB", "chatty")),
+        "exec", "-T", "postgres", "sh", "-ec",
+        "pg_restore --clean --if-exists --no-owner --no-acl -U \"$POSTGRES_USER\" --dbname \"$POSTGRES_DB\"",
     ]
     with source.open("rb") as handle:
         subprocess.run(command, check=True, stdin=handle)
