@@ -14,6 +14,7 @@ from app.core.clients import supabase
 from app.core.config import DEPLOYMENT_PROFILE, MODEL_NAME
 from app.core.db import (
     get_bot,
+    get_user,
     run_db,
     update_bot_fields,
     update_team_member_fields,
@@ -184,9 +185,12 @@ async def get_user_profile(user: dict[str, Any] = Depends(require_user)):
     avatar_url = user.get("avatar_url")
 
     try:
-        res = await run_db(lambda: supabase.table("users").select("display_name, avatar_url, email").eq("auth_user_id", user_id).limit(1).execute())
-        if res.data:
-            row = res.data[0]
+        if DEPLOYMENT_PROFILE == "self_host":
+            row = await get_user(user_id)
+        else:
+            res = await run_db(lambda: supabase.table("users").select("display_name, avatar_url, email").eq("auth_user_id", user_id).limit(1).execute())
+            row = res.data[0] if res.data else None
+        if row:
             display_name = row.get("display_name") or display_name
             avatar_url = row.get("avatar_url") or avatar_url
     except Exception as e:
@@ -224,7 +228,10 @@ async def update_user_profile(
 
     if updates:
         try:
-            await run_db(lambda: supabase.table("users").update(updates).eq("auth_user_id", user_id).execute())
+            if DEPLOYMENT_PROFILE == "self_host":
+                await update_user_fields(user_id, updates)
+            else:
+                await run_db(lambda: supabase.table("users").update(updates).eq("auth_user_id", user_id).execute())
         except Exception as e:
             logger.warning("Failed to update users table: %s", e)
 
@@ -236,7 +243,10 @@ async def update_user_profile(
                 if "avatar_url" in body:
                     tm_updates["avatar_url"] = avatar_url
                 if tm_updates:
-                    await run_db(lambda: supabase.table("chatty_team_members").update(tm_updates).eq("email", email).execute())
+                    if DEPLOYMENT_PROFILE == "self_host":
+                        await update_team_member_fields(email, tm_updates)
+                    else:
+                        await run_db(lambda: supabase.table("chatty_team_members").update(tm_updates).eq("email", email).execute())
             except Exception as e:
                 logger.warning("Failed to sync team member profile: %s", e)
 
