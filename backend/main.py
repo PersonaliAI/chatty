@@ -606,6 +606,11 @@ app.mount("/", _router_mcp.mcp_asgi_app)
 # long-lived ASGI server both papered over it locally.
 @contextlib.asynccontextmanager
 async def _lifespan(_app):
+    # Self-host mode must fail closed before accepting traffic when a required
+    # provider is missing. The default managed_supabase profile is unaffected.
+    from app.core.providers import validate_self_host_contract
+
+    validate_self_host_contract()
     async with _router_mcp.mcp.session_manager.run():
         yield
 
