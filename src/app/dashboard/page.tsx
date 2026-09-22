@@ -21,6 +21,7 @@ import { KBManager } from "@/components/kb-manager";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import { BACKEND_URL, fetchBackend } from "@/lib/backend-client";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 import { GOOGLE_FONTS, LOCALE_TEXTS, MAX_BOTS_BY_PLAN, PLAN_LABELS } from "./dashboard-constants";
 import {
   CloudProviderMenu,
@@ -846,6 +847,36 @@ export default function Dashboard() {
   useEffect(() => {
     async function checkSession() {
       try {
+        if (SELF_HOST_MODE) {
+          const profileResponse = await fetchBackend("/api/user/profile");
+          if (!profileResponse.ok) return;
+          const profile = await profileResponse.json();
+          const selfHostUser = {
+            id: profile.user_id,
+            email: profile.email || undefined,
+            user_metadata: { name: profile.display_name, avatar_url: profile.avatar_url },
+          } as unknown as SupabaseUser;
+          setUser(selfHostUser);
+          setUserPlatformRole(profile.role || null);
+          setBillingInfo({
+            plan: profile.plan || "free",
+            status: profile.subscription_status || null,
+            renewsAt: profile.subscription_renews_at || null,
+          });
+          await checkCloudConnections(profile.user_id);
+          await loadBotSettings(profile.user_id);
+          try {
+            const capRes = await fetchBackend("/api/capabilities");
+            if (capRes.ok) {
+              const cap = await capRes.json();
+              setZoomConfigured(!!cap.zoom_configured);
+              setOnesignalConfigured(!!cap.onesignal_configured);
+            }
+          } catch (e) {
+            console.error("Failed to load capabilities:", e);
+          }
+          return;
+        }
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           setUser(session.user);
@@ -890,13 +921,26 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchWithFallback = (path: string, options: RequestInit = {}) => fetchBackend(supabase, path, options);
+  const fetchWithFallback = (path: string, options: RequestInit = {}) =>
+    SELF_HOST_MODE ? fetchBackend(path, options) : fetchBackend(supabase, path, options);
 
   // Check backend integration state & query email accounts
   async function checkCloudConnections(userId: string) {
     try {
       // Fetch from API to check calendar/auth session
       const res = await fetchWithFallback("/api/integrations/calendar/events");
+
+      if (SELF_HOST_MODE) {
+        if (res.ok) {
+          const body = await res.json();
+          setGoogleEmail(body.google_email || null);
+          setMicrosoftEmail(body.microsoft_email || null);
+          setTelegramId(body.telegram_id || null);
+          setGoogleConnected(!!body.connected?.google || !!body.google_email);
+          setMicrosoftConnected(!!body.connected?.microsoft || !!body.microsoft_email);
+        }
+        return;
+      }
 
       // Query public users table for integrated emails
       const { data: uData } = await supabase
@@ -925,6 +969,68 @@ export default function Dashboard() {
   async function loadAnalyticsData(activeBotId: string, currentLeadsCount: number) {
     setLoadingAnalytics(true);
     try {
+      if (SELF_HOST_MODE) {
+        const response = await fetchWithFallback(`/api/bots/${activeBotId}/dashboard-analytics`);
+        if (!response.ok) throw new Error(`Analytics request failed (${response.status})`);
+        const payload = await response.json();
+        const conversations = Array.isArray(payload.conversations) ? payload.conversations : [];
+        const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+        const feedback = Array.isArray(payload.feedback) ? payload.feedback : [];
+        const csatRows = Array.isArray(payload.csat_feedback) ? payload.csat_feedback : [];
+        const usageRows = Array.isArray(payload.usage) ? payload.usage : [];
+        const queryRows = conversations.filter((row: { role?: string }) => row.role === "user");
+        setTotalQueries(queryRows.length);
+        setTotalSessions(new Set(conversations.map((row: { session_id?: string }) => row.session_id).filter(Boolean)).size);
+        const uniqueSessions = new Set(conversations.map((row: { session_id?: string }) => row.session_id).filter(Boolean)).size;
+        setConversionRate(uniqueSessions > 0 ? ((currentLeadsCount / uniqueSessions) * 100).toFixed(1) : "0.0");
+
+        const last7Days: Array<{ dateString: string; dayLabel: string; count: number }> = [];
+        const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          date.setHours(0, 0, 0, 0);
+          last7Days.push({ dateString: date.toDateString(), dayLabel: daysOfWeek[date.getDay()], count: 0 });
+        }
+        queryRows.forEach((row: { created_at?: string }) => {
+          if (!row.created_at) return;
+          const day = last7Days.find((entry) => entry.dateString === new Date(row.created_at as string).toDateString());
+          if (day) day.count += 1;
+        });
+        const maxCount = Math.max(...last7Days.map((day) => day.count), 1);
+        setAnalyticsChartData(last7Days.map((day) => ({ day: day.dayLabel, count: day.count, height: `${(day.count / maxCount) * 100}%` })));
+
+        if (sessions.length) {
+          const resolved = sessions.filter((row: { needs_attention?: boolean }) => !row.needs_attention).length;
+          setResolutionRate(`${((resolved / sessions.length) * 100).toFixed(0)}%`);
+        } else setResolutionRate("-");
+        if (feedback.length) {
+          const ups = feedback.filter((row: { feedback_rating?: string }) => row.feedback_rating === "up").length;
+          setCsatScore(`${((ups / feedback.length) * 100).toFixed(0)}%`);
+        } else setCsatScore("-");
+        setCsatFeedback(csatRows);
+        if (queryRows.length) {
+          const hours = new Array(24).fill(0) as number[];
+          queryRows.forEach((row: { created_at?: string }) => { if (row.created_at) hours[new Date(row.created_at).getHours()] += 1; });
+          const peak = hours.indexOf(Math.max(...hours));
+          setBusiestHour(`${peak % 12 || 12} ${peak < 12 ? "AM" : "PM"}`);
+        } else setBusiestHour("-");
+        const successful = usageRows.filter((row: { success?: boolean }) => row.success);
+        setAiUsageTotalCalls(successful.length);
+        setAiUsageTotalTokens(successful.reduce((sum: number, row: { total_tokens?: number }) => sum + (row.total_tokens || 0), 0));
+        setAiUsageTotalCost(successful.reduce((sum: number, row: { cost_usd?: number }) => sum + (Number(row.cost_usd) || 0), 0));
+        const byModel = new Map<string, { calls: number; tokens: number; cost: number }>();
+        successful.forEach((row: { model?: string; total_tokens?: number; cost_usd?: number }) => {
+          const model = row.model || "unknown";
+          const entry = byModel.get(model) || { calls: 0, tokens: 0, cost: 0 };
+          entry.calls += 1;
+          entry.tokens += row.total_tokens || 0;
+          entry.cost += Number(row.cost_usd) || 0;
+          byModel.set(model, entry);
+        });
+        setAiUsageByModel(Array.from(byModel.entries()).map(([model, values]) => ({ model, ...values })).sort((a, b) => b.cost - a.cost));
+        return;
+      }
       // 1. Total user queries
       const { count: queriesCount } = await supabase
         .from("chatty_conversations")
@@ -1089,12 +1195,19 @@ export default function Dashboard() {
       // member of, per the "Team members can view bots they're added to"
       // policy), so an explicit owner-only filter here would silently hide
       // every team-invited bot even though the user is allowed to read it.
-      const { data: bots, error } = await supabase
-        .from("chatty_bots")
-        .select("*")
-        .order("updated_at", { ascending: false });
-
-      if (error) throw error;
+      let bots: Bot[] | null = null;
+      if (SELF_HOST_MODE) {
+        const response = await fetchWithFallback("/api/bots");
+        if (!response.ok) throw new Error(`Bot list request failed (${response.status})`);
+        bots = (await response.json()) as Bot[];
+      } else {
+        const result = await supabase
+          .from("chatty_bots")
+          .select("*")
+          .order("updated_at", { ascending: false });
+        if (result.error) throw result.error;
+        bots = result.data as Bot[];
+      }
 
       setUserBots(bots || []);
       // chatty_bots.updated_at has no update trigger - it only ever reflects
@@ -1108,36 +1221,45 @@ export default function Dashboard() {
 
       if (!activeBot) {
         // Create a default chatbot configuration if none exists
-        const { data: newBot, error: createError } = await supabase
-          .from("chatty_bots")
-          .insert({
-            user_id: userId,
-            name: "Chatty Assistant",
-            welcome_message: "Hello! How can I help you today?",
-            primary_color: "#f97316",
-            widget_style: "minimal",
-            send_button_style: "plane",
-            selected_model: "gemini",
-            system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
-            strict_mode: true,
-            email_notify: true
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        activeBot = newBot;
-        setUserBots([newBot]);
+        if (SELF_HOST_MODE) {
+          const createResponse = await fetchWithFallback("/api/bots", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: "Chatty Assistant", allowed_domains: [] }),
+          });
+          if (!createResponse.ok) throw new Error(`Bot creation failed (${createResponse.status})`);
+          activeBot = await createResponse.json();
+        } else {
+          const { data: newBot, error: createError } = await supabase
+            .from("chatty_bots")
+            .insert({
+              user_id: userId,
+              name: "Chatty Assistant",
+              welcome_message: "Hello! How can I help you today?",
+              primary_color: "#f97316",
+              widget_style: "minimal",
+              send_button_style: "plane",
+              selected_model: "gemini",
+              system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
+              strict_mode: true,
+              email_notify: true
+            })
+            .select()
+            .single();
+          if (createError) throw createError;
+          activeBot = newBot as Bot;
+        }
+        if (activeBot) setUserBots([activeBot]);
       }
 
       if (activeBot) {
         setBotId(activeBot.id);
         setBotName(activeBot.name);
-        setWelcomeMsg(activeBot.welcome_message);
+        setWelcomeMsg(activeBot.welcome_message || "Hello! How can I help you today?");
         setConversationStarters(Array.isArray(activeBot.conversation_starters) ? activeBot.conversation_starters : []);
         setTeaserMessage(activeBot.teaser_message || "👋 Need help? Chat with us.");
-        setPrimaryColor(activeBot.primary_color);
-        setColorScheme(activeBot.color_scheme || null);
+        setPrimaryColor(activeBot.primary_color || "#f97316");
+        setColorScheme((activeBot.color_scheme as WidgetColorScheme | null) || null);
         setFontFamily(activeBot.font_family || null);
         setFontSizePercent(activeBot.font_size_percent || 100);
         setPanelSize(activeBot.panel_size || "default");
@@ -1151,17 +1273,17 @@ export default function Dashboard() {
         setAvatarUrl(activeBot.avatar_url || null);
         setAvatarIconLibrarySelection(null); // not persisted - a freshly-loaded bot has no known icon/color to resume editing
         setLogoUrl(activeBot.logo_url || null);
-        setSelectedModel(activeBot.selected_model);
-        setSystemInstructions(activeBot.system_instructions);
-        setStrictMode(activeBot.strict_mode);
+        setSelectedModel(activeBot.selected_model || "gemini");
+        setSystemInstructions(activeBot.system_instructions || "");
+        setStrictMode(activeBot.strict_mode ?? true);
         setAnswerMode(activeBot.answer_mode || "strict");
-        setEmailNotify(activeBot.email_notify);
+        setEmailNotify(activeBot.email_notify ?? true);
         setHideBranding(activeBot.hide_branding || false);
         setShowSenderTag(activeBot.show_sender_tag || false);
         setCsatEnabled(activeBot.csat_enabled !== false);
         setVoiceMessageMode(activeBot.voice_message_mode === "audio" ? "audio" : "transcribe");
         setWebhookUrl(activeBot.webhook_url || "");
-        setNotificationEmails(activeBot.notification_emails || "");
+        setNotificationEmails(String(activeBot.notification_emails || ""));
         setCustomCss(activeBot.custom_css || "");
         setCustomJs(activeBot.custom_js || "");
         setResponseLanguage(activeBot.response_language || "");
@@ -1203,12 +1325,12 @@ export default function Dashboard() {
         setBookingRequireBusinessEmail(activeBot.booking_require_business_email || false);
 
         // WhatsApp Business Channel
-        setWhatsappEnabled(activeBot.whatsapp_enabled || false);
-        setWhatsappPhoneNumberId(activeBot.whatsapp_phone_number_id || "");
-        setWhatsappWabaId(activeBot.whatsapp_waba_id || "");
-        setWhatsappAccessToken(activeBot.whatsapp_access_token || "");
-        setWhatsappVerifyToken(activeBot.whatsapp_verify_token || "");
-        setWhatsappAppSecret(activeBot.whatsapp_app_secret || "");
+        setWhatsappEnabled(Boolean(activeBot.whatsapp_enabled));
+        setWhatsappPhoneNumberId(String(activeBot.whatsapp_phone_number_id || ""));
+        setWhatsappWabaId(String(activeBot.whatsapp_waba_id || ""));
+        setWhatsappAccessToken(String(activeBot.whatsapp_access_token || ""));
+        setWhatsappVerifyToken(String(activeBot.whatsapp_verify_token || ""));
+        setWhatsappAppSecret(String(activeBot.whatsapp_app_secret || ""));
         setWhatsappQuickReplies(Array.isArray(activeBot.whatsapp_quick_replies) ? activeBot.whatsapp_quick_replies : []);
 
         if (!activeBot.onboarding_completed) {
@@ -1218,10 +1340,14 @@ export default function Dashboard() {
 
         // Fetch sources
         let srcList: SourceRecord[] | null = null;
-        const { data: dbSources } = await supabase
-          .from("chatty_sources")
-          .select("*")
-          .eq("bot_id", activeBot.id);
+        let dbSources: SourceRecord[] | null = null;
+        if (!SELF_HOST_MODE) {
+          const sourceResult = await supabase
+            .from("chatty_sources")
+            .select("*")
+            .eq("bot_id", activeBot.id);
+          dbSources = sourceResult.data as SourceRecord[] | null;
+        }
 
         if (dbSources && dbSources.length > 0) {
           srcList = dbSources;
@@ -1258,11 +1384,21 @@ export default function Dashboard() {
         }
 
         // Fetch leads
-        const { data: leadList } = await supabase
-          .from("chatty_leads")
-          .select("*")
-          .eq("bot_id", activeBot.id)
-          .order("created_at", { ascending: false });
+        let leadList: Lead[] | null = null;
+        if (SELF_HOST_MODE) {
+          const leadsResponse = await fetchWithFallback(`/api/bots/${activeBot.id}/leads`);
+          if (leadsResponse.ok) {
+            const leadPayload = await leadsResponse.json();
+            leadList = leadPayload.leads || [];
+          }
+        } else {
+          const leadResult = await supabase
+            .from("chatty_leads")
+            .select("*")
+            .eq("bot_id", activeBot.id)
+            .order("created_at", { ascending: false });
+          leadList = leadResult.data as Lead[] | null;
+        }
 
         let currentLeadsCount = 0;
         if (leadList) {
@@ -1478,27 +1614,38 @@ export default function Dashboard() {
 
     setLoadingLists(true);
     try {
-      const { data: newBot, error } = await supabase
-        .from("chatty_bots")
-        .insert({
-          user_id: user.id,
-          name: name.trim(),
-          welcome_message: "Hello! How can I help you today?",
-          primary_color: "#f97316",
-          widget_style: "minimal",
-          send_button_style: "plane",
-          selected_model: "gemini",
-          system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
-          strict_mode: true,
-          email_notify: true,
-          allowed_domains: initialAllowed,
-          onboarding_step: 9,
-          onboarding_completed: true
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      let newBot: Bot | null = null;
+      if (SELF_HOST_MODE) {
+        const response = await fetchWithFallback("/api/bots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim(), allowed_domains: initialAllowed }),
+        });
+        if (!response.ok) throw new Error(`Bot creation failed (${response.status})`);
+        newBot = await response.json();
+      } else {
+        const result = await supabase
+          .from("chatty_bots")
+          .insert({
+            user_id: user.id,
+            name: name.trim(),
+            welcome_message: "Hello! How can I help you today?",
+            primary_color: "#f97316",
+            widget_style: "minimal",
+            send_button_style: "plane",
+            selected_model: "gemini",
+            system_instructions: "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
+            strict_mode: true,
+            email_notify: true,
+            allowed_domains: initialAllowed,
+            onboarding_step: 9,
+            onboarding_completed: true
+          })
+          .select()
+          .single();
+        if (result.error) throw result.error;
+        newBot = result.data as Bot | null;
+      }
 
       if (newBot) {
         setUserBots((prev) => [newBot, ...prev]);
@@ -1535,12 +1682,16 @@ export default function Dashboard() {
 
     setLoadingLists(true);
     try {
-      const { error } = await supabase
-        .from("chatty_bots")
-        .delete()
-        .eq("id", targetBotId);
-
-      if (error) throw error;
+      if (SELF_HOST_MODE) {
+        const response = await fetchWithFallback(`/api/bots/${targetBotId}`, { method: "DELETE" });
+        if (!response.ok) throw new Error(`Bot deletion failed (${response.status})`);
+      } else {
+        const result = await supabase
+          .from("chatty_bots")
+          .delete()
+          .eq("id", targetBotId);
+        if (result.error) throw result.error;
+      }
 
       const remainingBots = userBots.filter((b) => b.id !== targetBotId);
       setUserBots(remainingBots);
@@ -1946,9 +2097,11 @@ export default function Dashboard() {
       }
       
       // Reload bot settings to sync state
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData.session?.user?.id) {
-        await loadBotSettings(sessionData.session.user.id);
+      if (SELF_HOST_MODE) {
+        if (user?.id) await loadBotSettings(user.id);
+      } else {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session?.user?.id) await loadBotSettings(sessionData.session.user.id);
       }
     } catch (err) {
       console.error("Error saving onboarding step:", err);
@@ -2187,9 +2340,6 @@ export default function Dashboard() {
       `Are you sure you want to disconnect ${provider === "google" ? "Google" : "Microsoft"}? This will turn off all syncing sources and clear connection tokens.`,
       async () => {
         try {
-          const { data } = await supabase.auth.getSession();
-          if (!data.session?.access_token) return;
-
           const res = await fetchWithFallback(`/api/integrations/${provider}/disconnect`, {
             method: "POST"
           });
@@ -2216,9 +2366,6 @@ export default function Dashboard() {
   // Telegram link and unlink
   const handleLinkTelegram = async (chatIdNum: number) => {
     try {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.access_token) return false;
-
       const res = await fetchWithFallback(`/api/integrations/telegram/link`, {
         method: "POST",
         headers: {
@@ -2316,26 +2463,37 @@ export default function Dashboard() {
           updated_at: new Date().toISOString()
       };
 
-      let { error } = await supabase.from("chatty_bots").update(payload).eq("id", botId);
       let missingColWarning: string | null = null;
-      // A column this build knows about (e.g. color_scheme) can lag behind
-      // its migration being applied - PostgREST rejects the WHOLE update
-      // with a 400 in that case, silently breaking every other field too.
-      // Retry once without the field PostgREST names, so a pending
-      // migration degrades to "that one setting didn't save" instead of
-      // "nothing saved and no error shown".
-      if (error && /schema cache/i.test(error.message || "")) {
-        const missingCol = error.message.match(/'([a-z_]+)' column/)?.[1];
-        if (missingCol && missingCol in payload) {
-          const { [missingCol]: _omit, ...retryPayload } = payload;
-          void _omit;
-          const retry = await supabase.from("chatty_bots").update(retryPayload).eq("id", botId);
-          error = retry.error;
-          if (!error) missingColWarning = missingCol;
+      if (SELF_HOST_MODE) {
+        const response = await fetchWithFallback(`/api/bots/${botId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const details = await response.text().catch(() => "");
+          throw new Error(`Save failed (${response.status})${details ? `: ${details}` : ""}`);
         }
+      } else {
+        let { error } = await supabase.from("chatty_bots").update(payload).eq("id", botId);
+        // A column this build knows about (e.g. color_scheme) can lag behind
+        // its migration being applied - PostgREST rejects the WHOLE update
+        // with a 400 in that case, silently breaking every other field too.
+        // Retry once without the field PostgREST names, so a pending
+        // migration degrades to "that one setting didn't save" instead of
+        // "nothing saved and no error shown".
+        if (error && /schema cache/i.test(error.message || "")) {
+          const missingCol = error.message.match(/'([a-z_]+)' column/)?.[1];
+          if (missingCol && missingCol in payload) {
+            const { [missingCol]: _omit, ...retryPayload } = payload;
+            void _omit;
+            const retry = await supabase.from("chatty_bots").update(retryPayload).eq("id", botId);
+            error = retry.error;
+            if (!error) missingColWarning = missingCol;
+          }
+        }
+        if (error) throw error;
       }
-
-      if (error) throw error;
       setHasUnsavedChanges(false);
       showToast(
         missingColWarning ? `Saved, but "${missingColWarning}" needs a pending database update first.` : "Changes saved.",
@@ -2619,12 +2777,6 @@ export default function Dashboard() {
   const handleConnectCloud = async (provider: "google" | "microsoft") => {
     setConnectingProvider(provider);
     try {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.access_token) {
-        setConnectingProvider(null);
-        return;
-      }
-
       const res = await fetchWithFallback(`/api/integrations/${provider}/start?redirect_path=/dashboard`, {
         method: "POST"
       });
@@ -3327,11 +3479,20 @@ export default function Dashboard() {
     if (!botId) return;
     setSavingVoiceField(true);
     try {
-      const { error } = await supabase
-        .from("chatty_bots")
-        .update({ ...fields, updated_at: new Date().toISOString() })
-        .eq("id", botId);
-      if (error) throw error;
+      if (SELF_HOST_MODE) {
+        const response = await fetchWithFallback(`/api/bots/${botId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fields),
+        });
+        if (!response.ok) throw new Error(`Voice settings save failed (${response.status})`);
+      } else {
+        const { error } = await supabase
+          .from("chatty_bots")
+          .update({ ...fields, updated_at: new Date().toISOString() })
+          .eq("id", botId);
+        if (error) throw error;
+      }
       setUserBots((prev) => prev.map((b) => (b.id === botId ? { ...b, ...fields } : b)));
       showToast("Voice settings saved.", "success");
     } catch (err) {
@@ -3595,7 +3756,11 @@ export default function Dashboard() {
 
   // Sign out handler
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    if (SELF_HOST_MODE) {
+      await fetch("/api/self-host/auth/logout", { method: "POST" });
+    } else {
+      await supabase.auth.signOut();
+    }
     window.location.href = "/";
   };
 

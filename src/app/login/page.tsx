@@ -7,6 +7,7 @@ import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell, GoogleIcon, MicrosoftIcon } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 type BusyKey = "password" | "google" | "microsoft" | null;
 
@@ -19,7 +20,7 @@ export default function LoginPage() {
 }
 
 function LoginPageInner() {
-  const supabase = createClient();
+  const supabase = SELF_HOST_MODE ? null : createClient();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
   const dest = next && next.startsWith("/") ? next : "/dashboard";
@@ -34,8 +35,39 @@ function LoginPageInner() {
     return `${origin}/auth/callback?next=${encodeURIComponent(dest)}`;
   }
 
+  if (SELF_HOST_MODE) {
+    return (
+      <AuthShell
+        title="Welcome back"
+        subtitle="Sign in with your configured identity provider"
+        footer={
+          <>
+            Self-host authentication is managed by your OIDC provider.
+          </>
+        }
+      >
+        <Button
+          type="button"
+          className="w-full h-10 font-medium cursor-pointer"
+          onClick={() => handleOAuth("google")}
+          disabled={busy !== null}
+        >
+          {busy === "google" && <Loader2 className="size-4 animate-spin" />}
+          Continue with identity provider
+        </Button>
+        {error && (
+          <div className="mt-4 flex items-start gap-2 text-xs text-destructive">
+            <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+      </AuthShell>
+    );
+  }
+
   async function handlePassword(e: React.FormEvent) {
     e.preventDefault();
+    if (!supabase) return;
     if (!email.trim() || !password || busy) return;
     setBusy("password");
     setError(null);
@@ -57,6 +89,11 @@ function LoginPageInner() {
     if (busy) return;
     setBusy(provider === "azure" ? "microsoft" : "google");
     setError(null);
+    if (SELF_HOST_MODE) {
+      window.location.href = `/api/self-host/auth/start?next=${encodeURIComponent(dest)}`;
+      return;
+    }
+    if (!supabase) return;
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
