@@ -35,6 +35,8 @@ SUPABASE_URL = _require_env("SUPABASE_URL")
 # but fail closed so deployments cannot silently retain a legacy JWT.
 SUPABASE_SECRET_KEY = _require_env("SUPABASE_SECRET_KEY")
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
+OIDC_ISSUER_URL = os.environ.get("OIDC_ISSUER_URL", "").rstrip("/")
+OIDC_AUDIENCE = os.environ.get("OIDC_AUDIENCE", "chatty")
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 REDIS_URL = os.environ.get("REDIS_URL", "")
