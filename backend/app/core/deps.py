@@ -11,7 +11,9 @@ from fastapi import Depends, Header, HTTPException
 from jwt import PyJWKClient
 
 from app.core.clients import supabase
-from app.core.config import SUPABASE_JWT_SECRET, SUPABASE_URL
+from app.core.config import DEPLOYMENT_PROFILE, SUPABASE_JWT_SECRET, SUPABASE_URL
+from app.core.db_pool import connection
+from app.core.oidc import verify_oidc_jwt
 
 _JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
 _jwks_client = PyJWKClient(_JWKS_URL, cache_keys=True, lifespan=3600)
@@ -68,6 +70,26 @@ def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str
 
 
 def get_user_by_auth_id(auth_user_id: str) -> dict[str, Any]:
+    if DEPLOYMENT_PROFILE == "self_host":
+        # The self-host path uses the same logical users table but does not
+        # depend on Supabase PostgREST. `auth_user_id` is the stable OIDC `sub`.
+        from psycopg2.extras import RealDictCursor
+
+        with connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT * FROM users WHERE auth_user_id = %s LIMIT 1",
+                    (auth_user_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    return dict(row)
+                cur.execute(
+                    "INSERT INTO users (auth_user_id) VALUES (%s) RETURNING *",
+                    (auth_user_id,),
+                )
+                return dict(cur.fetchone())
+
     res = (
         supabase.table("users")
         .select("*")
@@ -81,5 +103,11 @@ def get_user_by_auth_id(auth_user_id: str) -> dict[str, Any]:
     return res.data[0]
 
 
-def require_user(claims: dict[str, Any] = Depends(verify_supabase_jwt)) -> dict[str, Any]:
+def verify_bearer_jwt(authorization: Optional[str] = Header(None)) -> dict[str, Any]:
+    if DEPLOYMENT_PROFILE == "self_host":
+        return verify_oidc_jwt(authorization)
+    return verify_supabase_jwt(authorization)
+
+
+def require_user(claims: dict[str, Any] = Depends(verify_bearer_jwt)) -> dict[str, Any]:
     return get_user_by_auth_id(claims["sub"])
