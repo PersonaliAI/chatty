@@ -110,14 +110,21 @@ async def whatsapp_callback(code: Optional[str] = None, state: Optional[str] = N
             businesses = (await client.get(f"{graph}/me/businesses", params={"fields": "id,name", "limit": 50}, headers=headers)).json().get("data", [])
             selected_waba: Optional[dict[str, Any]] = None
             selected_phone: Optional[dict[str, Any]] = None
+            waba_candidates: dict[str, dict[str, Any]] = {}
             for business in businesses:
-                wabas = (await client.get(f"{graph}/{business['id']}/owned_whatsapp_business_accounts", params={"fields": "id,name", "limit": 50}, headers=headers)).json().get("data", [])
-                for waba in wabas:
-                    phones = (await client.get(f"{graph}/{waba['id']}/phone_numbers", params={"fields": "id,display_phone_number,verified_name", "limit": 50}, headers=headers)).json().get("data", [])
-                    if phones:
-                        selected_waba, selected_phone = waba, phones[0]
-                        break
-                if selected_phone:
+                for edge in ("owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"):
+                    wabas = (await client.get(f"{graph}/{business['id']}/{edge}", params={"fields": "id,name", "limit": 50}, headers=headers)).json().get("data", [])
+                    for waba in wabas:
+                        waba_candidates[waba["id"]] = waba
+            # Embedded Signup may expose selected WABAs directly rather than
+            # through the business-owned edge, so include that collection too.
+            direct_wabas = (await client.get(f"{graph}/me/whatsapp_business_accounts", params={"fields": "id,name", "limit": 50}, headers=headers)).json().get("data", [])
+            for waba in direct_wabas:
+                waba_candidates[waba["id"]] = waba
+            for waba in waba_candidates.values():
+                phones = (await client.get(f"{graph}/{waba['id']}/phone_numbers", params={"fields": "id,display_phone_number,verified_name", "limit": 50}, headers=headers)).json().get("data", [])
+                if phones:
+                    selected_waba, selected_phone = waba, phones[0]
                     break
             if not selected_waba or not selected_phone:
                 return _whatsapp_redirect(frontend, path, "no_phone")
