@@ -47,6 +47,7 @@ import {
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import { createClient } from "@/lib/supabase/client";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 import { MessageList, type Msg } from "@/components/inbox-message-list";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 
@@ -606,9 +607,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   useEffect(() => {
     async function fetchUser() {
       try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        if (data?.user?.email) setCurrentUserEmail(data.user.email);
+        if (SELF_HOST_MODE) {
+          const response = await fetchBackend("/api/user/profile");
+          if (response.ok) {
+            const profile = await response.json();
+            if (profile.email) setCurrentUserEmail(profile.email);
+          }
+        } else {
+          const supabase = createClient();
+          const { data } = await supabase.auth.getUser();
+          if (data?.user?.email) setCurrentUserEmail(data.user.email);
+        }
       } catch {}
     }
     fetchUser();

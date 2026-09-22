@@ -45,6 +45,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { BACKEND_URL } from "@/lib/backend-client";
+import { fetchBackend } from "@/lib/backend-client";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 interface Props {
   botId: string | null;
@@ -503,12 +505,19 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
     if (!botId) return;
     (async () => {
       try {
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("chatty_bots")
-          .select("custom_js")
-          .eq("id", botId)
-          .maybeSingle();
+        let data: { custom_js?: string | null } | null = null;
+        if (SELF_HOST_MODE) {
+          const response = await fetchBackend(`/api/bots/${botId}`);
+          if (response.ok) data = await response.json();
+        } else {
+          const supabase = createClient();
+          const result = await supabase
+            .from("chatty_bots")
+            .select("custom_js")
+            .eq("id", botId)
+            .maybeSingle();
+          data = result.data;
+        }
         if (data?.custom_js) {
           const flow = extractFlowFromJs(data.custom_js);
           if (flow) {
@@ -553,14 +562,20 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
       if (!botId) return;
       setSaveStatus("saving");
       try {
-        const supabase = createClient();
         const flowConfig = { status: flowStatus, nodes, edges };
-
-        const { data: botData } = await supabase
-          .from("chatty_bots")
-          .select("custom_js")
-          .eq("id", botId)
-          .maybeSingle();
+        let botData: { custom_js?: string | null } | null = null;
+        if (SELF_HOST_MODE) {
+          const response = await fetchBackend(`/api/bots/${botId}`);
+          if (response.ok) botData = await response.json();
+        } else {
+          const supabase = createClient();
+          const result = await supabase
+            .from("chatty_bots")
+            .select("custom_js")
+            .eq("id", botId)
+            .maybeSingle();
+          botData = result.data;
+        }
 
         let baseJs = botData?.custom_js || "";
         baseJs = baseJs.replace(/\/\* CHATTY_FLOW_START \*\/[\s\S]*?\/\* CHATTY_FLOW_END \*\//g, "").trim();
@@ -569,12 +584,21 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         const flowJs = `\n/* CHATTY_FLOW_DATA\n${JSON.stringify(flowConfig, null, 2)}\nCHATTY_FLOW_DATA */`;
         const finalJs = (baseJs + flowJs).trim();
 
-        const { error } = await supabase
-          .from("chatty_bots")
-          .update({ custom_js: finalJs })
-          .eq("id", botId);
-
-        if (error) throw error;
+        if (SELF_HOST_MODE) {
+          const response = await fetchBackend(`/api/bots/${botId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ custom_js: finalJs }),
+          });
+          if (!response.ok) throw new Error(`Flow save failed (${response.status})`);
+        } else {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("chatty_bots")
+            .update({ custom_js: finalJs })
+            .eq("id", botId);
+          if (error) throw error;
+        }
         setSaveStatus("saved");
         if (showNotification) {
           showToast("Flow saved! Widget will sync in real time.", "success");
@@ -884,16 +908,32 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
     setFlowStatus("paused");
     if (!botId) return;
     try {
-      const supabase = createClient();
-      const { data: botData } = await supabase
-        .from("chatty_bots")
-        .select("custom_js")
-        .eq("id", botId)
-        .maybeSingle();
+      let botData: { custom_js?: string | null } | null = null;
+      if (SELF_HOST_MODE) {
+        const response = await fetchBackend(`/api/bots/${botId}`);
+        if (response.ok) botData = await response.json();
+      } else {
+        const supabase = createClient();
+        const result = await supabase
+          .from("chatty_bots")
+          .select("custom_js")
+          .eq("id", botId)
+          .maybeSingle();
+        botData = result.data;
+      }
       let baseJs = botData?.custom_js || "";
       baseJs = baseJs.replace(/\/\* CHATTY_FLOW_START \*\/[\s\S]*?\/\* CHATTY_FLOW_END \*\//g, "").trim();
       baseJs = baseJs.replace(/\/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*\//g, "").trim();
-      await supabase.from("chatty_bots").update({ custom_js: baseJs || null }).eq("id", botId);
+      if (SELF_HOST_MODE) {
+        await fetchBackend(`/api/bots/${botId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ custom_js: baseJs || null }),
+        });
+      } else {
+        const supabase = createClient();
+        await supabase.from("chatty_bots").update({ custom_js: baseJs || null }).eq("id", botId);
+      }
     } catch {}
     showToast("Flow deleted and reset.", "success");
   };
