@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: chatty-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /readyz
+    envVars:
+      - key: DEPLOYMENT_PROFILE
+        value: managed_supabase
+      - key: PORT
+        value: "10000"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_DB_HOST
+        sync: false
+      - key: SUPABASE_DB_PASSWORD
+        sync: false
+      - key: FUNCTION_SECRET
+        sync: false
+      - key: BYOK_ENCRYPTION_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: CHATTY_BACKEND_URL
+        sync: false
+      - key: CHATTY_FRONTEND_URL
+        sync: false
+
+  - type: web
+    name: chatty-frontend
+    runtime: docker
+    rootDir: frontend
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: NEXT_PUBLIC_BACKEND_URL
+        sync: false
+      - key: NEXT_PUBLIC_LEMON_PORTAL_URL
+        sync: false

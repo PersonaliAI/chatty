@@ -6,7 +6,10 @@
 
 **Open-source AI customer support: chat widget + real-time voice agent + a full MCP server, grounded in your own knowledge base.**
 
-Self-host it in about ten minutes with Docker, or let us run it for you. No vendor lock-in either way - the hosted version and this repo are the same code.
+Run the application containers on your own host while keeping Supabase Auth,
+Postgres, Storage, and Realtime managed. The same deployment contract works on
+a VPS, Railway, Render, or another Docker host without touching the live
+Supabase project.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/PersonaliAI/chatty/actions/workflows/ci.yml/badge.svg)](https://github.com/PersonaliAI/chatty/actions/workflows/ci.yml)
@@ -73,7 +76,7 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 - 🔑 **BYOK** - default is Gemini (generous free tier); swap in your own OpenAI/Anthropic/OpenRouter key per bot
 - 🤖 **MCP server** - connect Claude, ChatGPT, or any MCP client and run the entire dashboard from a conversation: create bots, edit flows, run campaigns, manage leads, configure voice, and more, all as 55 callable tools secured by OAuth 2.0 + PKCE (see [MCP Server & Agent Control](#mcp-server--agent-control))
 - 📊 **Dashboard** - manage bots, inbox/conversations, knowledge sources, booking rules, campaigns, and channel connections
-- 🐳 **One-command deployment** - use the managed Supabase profile by default, or opt into the provider-neutral self-host stack
+- 🐳 **One-command managed self-host** - `docker compose up`, point it at a Supabase project, done
 
 ## Architecture
 
@@ -319,8 +322,7 @@ Open `backend/.env` and fill in, at minimum:
 
 ```bash
 SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_ANON_KEY=<anon key from Step 1>
-SUPABASE_SERVICE_ROLE_KEY=<service_role key from Step 1>
+SUPABASE_SECRET_KEY=<secret key from Step 1>
 SUPABASE_DB_HOST=<from the connection string in Step 1>
 SUPABASE_DB_PASSWORD=<your database password from Step 1>
 
@@ -363,7 +365,7 @@ Each of these is opt-in - set the relevant env vars in `backend/.env` and restar
 
 | Feature | Env vars | Notes |
 |---|---|---|
-| **Voice agent** | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Free tier at [cloud.livekit.io](https://cloud.livekit.io), or self-host LiveKit. Then also run the voice worker: `docker compose up --build` (no service names - this brings up `voice-worker` too). |
+| **Voice agent** | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Free tier at [cloud.livekit.io](https://cloud.livekit.io), or self-host LiveKit. Run the worker from [`backend/voice-agent`](backend/voice-agent) as a separate service; the managed-Supabase compose keeps it opt-in. |
 | **WhatsApp channel** | `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Meta Cloud API - see [Meta's developer docs](https://developers.facebook.com/docs/whatsapp/cloud-api). |
 | **Slack channel** | `SLACK_SIGNING_SECRET` | From your Slack app's **Basic Information** page. |
 | **Google Calendar/Gmail booking** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Create OAuth credentials at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials). |
@@ -372,20 +374,31 @@ Each of these is opt-in - set the relevant env vars in `backend/.env` and restar
 | **Billing / paid plans** | `LEMONSQUEEZY_API_KEY` + related vars | Only relevant if you're reselling access; skip entirely for internal/free use. |
 | **Error monitoring** | `SENTRY_DSN` | Optional - leave blank and errors just go to stdout/logs. |
 
-### Step 8 - Production deployment
+### Step 8 - Production deployment without Cloud Run or Firebase App Hosting
 
-Docker Compose works on any VPS that runs Docker (a $6/mo droplet is plenty to start) - clone the repo, follow Steps 1–7 with your real domain in `CHATTY_BACKEND_URL`/`CHATTY_FRONTEND_URL`/`NEXT_PUBLIC_BACKEND_URL`, and put a reverse proxy (Caddy, nginx, or Traefik) in front for TLS.
+The supported production shape is two Docker services (API + frontend) backed
+by the same managed Supabase project. Set `DEPLOYMENT_PROFILE=managed_supabase`,
+inject secrets through the platform secret manager, and set
+`NEXT_PUBLIC_BACKEND_URL`, `CHATTY_BACKEND_URL`, and `CHATTY_FRONTEND_URL` to
+the public HTTPS URLs. Put TLS and rate limiting at the platform edge; do not
+expose the API's secret environment variables to the browser.
 
-For reference, this is exactly the recipe Chatty Cloud's own backend deploys with (Google Cloud Run, source-based, no separate Dockerfile registry push needed):
+- **VPS / Docker Compose:** use the root `docker-compose.yml` and a reverse
+  proxy such as Caddy, nginx, or Traefik.
+- **Render:** the repository includes [`render.yaml`](render.yaml), which
+  creates the API and frontend services and prompts for secret values.
+- **Railway:** create one Docker service from `backend/Dockerfile` and one from
+  `frontend/Dockerfile`; Railway's [Dockerfile deployment guide](https://docs.railway.com/builds/dockerfiles)
+  covers the setup.
+- **Heroku-compatible hosts:** deploy the two images as separate web services;
+  keep Supabase external. Heroku's [container deployment guide](https://devcenter.heroku.com/articles/container-registry-and-runtime)
+  documents the same image flow.
 
-```bash
-cd backend
-gcloud run deploy chatty-api --source . --region=us-central1 --project=YOUR_PROJECT --clear-base-image --quiet
-```
-
-`--clear-base-image` avoids a base-image mismatch error on redeploys. Set every `backend/.env` variable as Cloud Run environment variables (or secrets) instead of a `.env` file. The frontend deploys the same way any Next.js app does on your platform of choice (Firebase App Hosting, Vercel, or `frontend/Dockerfile` on Cloud Run/any container host) - set `NEXT_PUBLIC_BACKEND_URL` to your deployed backend's real URL.
-
-Other platforms (Railway, Render, Fly.io) should work with `backend/Dockerfile` and `frontend/Dockerfile` as-is, but aren't validated by us yet - see [Contributing](#-contributing) if you write up a guide for one.
+The provider-neutral Postgres/Redis/object-store stack remains available only
+as an advanced, explicit profile at
+[`backend/docker-compose.self-host.yml`](backend/docker-compose.self-host.yml).
+It is not started by the default compose file and is not required for the
+managed-Supabase deployment.
 
 ### Step 9 - Updating
 
@@ -399,7 +412,7 @@ cd .. && docker compose up --build backend frontend
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `docker compose up` fails immediately on `backend` with `RuntimeError: ... environment variable is required` | `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing from `backend/.env` - these two fail startup on purpose rather than silently falling back to nothing. |
+| `docker compose up` fails immediately on `backend` with `RuntimeError: ... environment variable is required` | `SUPABASE_URL` or `SUPABASE_SECRET_KEY` is missing from `backend/.env` - these two fail startup on purpose rather than silently falling back to nothing. |
 | Backend starts but BYOK/booking/other features error at request time | `GEMINI_API_KEY`, `FUNCTION_SECRET`, or `BYOK_ENCRYPTION_KEY` is blank - these don't crash startup, but the specific feature that needs them fails when you actually use it. Fill them in per [Step 4](#step-4--configure-environment-variables). |
 | Migration script hangs or times out | You're using the transaction pooler connection string. Switch to the **Session pooler** or **direct connection** string from Supabase's Connection string page. |
 | Dashboard loads but sign-up fails | `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` in `frontend/.env` don't match the project you ran migrations against. |
@@ -463,7 +476,7 @@ Every environment variable is documented inline in [`backend/.env.example`](back
 
 | Variable | Purpose |
 |---|---|
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Database + auth connection |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Database + auth connection; the secret key stays server-side |
 | `SUPABASE_DB_HOST`, `SUPABASE_DB_PASSWORD` | Direct Postgres connection for a few operations PostgREST can't do |
 | `FUNCTION_SECRET` | Signs widget origin tokens + OAuth state JWTs; gates internal cron/admin endpoints |
 | `BYOK_ENCRYPTION_KEY` | Encrypts customer-supplied BYOK API keys at rest |
@@ -501,7 +514,7 @@ python -m pytest tests/ -q
 
 Found a security issue? Please **don't** open a public GitHub issue for it. Instead, use GitHub's private reporting: this repo's **Security** tab → **Report a vulnerability**. We'll respond as quickly as we can.
 
-`SUPABASE_SERVICE_ROLE_KEY`, `FUNCTION_SECRET`, `BYOK_ENCRYPTION_KEY`, and every OAuth/API client secret should be treated as production credentials - never commit a filled-in `.env` file (all three `.env.example` templates are already gitignored under their real names).
+`SUPABASE_SECRET_KEY`, `FUNCTION_SECRET`, `BYOK_ENCRYPTION_KEY`, and every OAuth/API client secret should be treated as production credentials - never commit a filled-in `.env` file (all three `.env.example` templates are already gitignored under their real names).
 
 ## 🤝 Contributing
 

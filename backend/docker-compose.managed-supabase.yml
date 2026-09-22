@@ -1,0 +1,26 @@
+name: chatty-managed-supabase
+
+# This compose file runs only Chatty's API. Supabase remains the managed
+# provider for Auth, Postgres, Storage, and Realtime. It deliberately does not
+# start a second database, Redis, or object store beside the live Supabase
+# project.
+services:
+  api:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      DEPLOYMENT_PROFILE: managed_supabase
+      PORT: 8080
+    ports:
+      - "${BACKEND_PORT:-8000}:8080"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
