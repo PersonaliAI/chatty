@@ -12,7 +12,7 @@ import {
   TranscriptionSegment,
   Participant,
 } from "livekit-client";
-import { Mic, MicOff, PhoneOff, Loader2, AlertCircle } from "lucide-react";
+import { AudioWaveform, Mic, MicOff, PhoneOff, AlertCircle } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -559,30 +559,22 @@ export default function VoiceCallWidget({
         </motion.div>
       ) : (
         <>
-          {/* Compact status row - small orb + state text, replacing what used
-              to be a full-height centered orb, since the transcript below is
-              now the primary focus of the call view. */}
-          <div className="flex items-center gap-3 w-full pb-3 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
-            <Orb status={status} level={orbLevel} primaryColor={primaryColor} compact />
-            <div className="flex-1 min-w-0">
-              {status === "listening" ? (
-                <div className="flex items-center gap-[3px] h-4" aria-hidden>
-                  {localLevels.map((level, i) => (
-                    <span
-                      key={i}
-                      className="w-0.5 rounded-full transition-[height] duration-[50ms] ease-out"
-                      style={{ height: `${Math.max(3, level * 16)}px`, background: primaryColor }}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 tracking-wide truncate">
-                  {(status === "connecting" || status === "requesting-mic") && (
-                    <Loader2 className="inline size-3.5 animate-spin mr-1.5 -mt-0.5" />
-                  )}
-                  {statusLabel}
-                </p>
-              )}
+          {/* Animated voice stage: the orb reacts to the remote speaker while
+              the bars prove that the visitor's microphone is live. */}
+          <div className="relative overflow-hidden rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 px-4 py-5 shrink-0">
+            <div className="absolute -right-10 -top-12 size-32 rounded-full blur-3xl opacity-20" style={{ background: primaryColor }} />
+            <div className="relative flex flex-col items-center gap-3">
+              <Orb status={status} level={orbLevel} primaryColor={primaryColor} />
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400">
+                <AudioWaveform className="size-3.5" style={{ color: primaryColor }} />
+                {status === "listening" ? "Listening" : statusLabel}
+              </div>
+              <div className="flex items-center justify-center gap-[3px] h-5" aria-label="Microphone activity">
+                {localLevels.map((level, i) => (
+                  <span key={i} className="w-1 rounded-full transition-[height] duration-[50ms] ease-out" style={{ height: `${Math.max(3, level * 20)}px`, background: primaryColor, opacity: status === "listening" ? 0.9 : 0.25 }} />
+                ))}
+              </div>
+              <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
             </div>
           </div>
 

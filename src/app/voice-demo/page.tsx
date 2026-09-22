@@ -2,7 +2,7 @@
 
 import React from "react";
 import VoiceCallWidget from "@/components/voice-call-widget";
-import { ArrowLeft, Phone, Bell, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, AudioWaveform, Bell, RefreshCw, X } from "lucide-react";
 
 export default function VoiceDemoPage() {
   return (
@@ -94,7 +94,7 @@ export default function VoiceDemoPage() {
                 color: "#fff",
               }}
             >
-              <Phone style={{ width: "13px", height: "13px" }} />
+              <AudioWaveform style={{ width: "13px", height: "13px" }} />
             </div>
             <div
               style={{

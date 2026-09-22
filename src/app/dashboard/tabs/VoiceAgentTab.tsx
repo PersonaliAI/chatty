@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, Mic, Check } from "lucide-react";
+import { AudioWaveform, Mic, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ModernSelect } from "@/components/ui/modern-select";
 
@@ -82,9 +82,9 @@ export function VoiceAgentTab({
       <div className="w-full max-w-2xl space-y-6">
         <div>
           <h2 className="text-sm font-bold flex items-center gap-2">
-            <Phone className="size-4 text-[#f97316]" /> Voice Agent
+            <AudioWaveform className="size-4 text-[#f97316]" /> Voice Agent
             <span className="text-[10px] font-semibold tracking-tight px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] border border-[#f97316]/20">
-              Launching soon
+              LiveKit voice
             </span>
           </h2>
           <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
@@ -98,7 +98,7 @@ export function VoiceAgentTab({
             Launching soon
           </span>
           <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-400">
-            Real-time interactive voice agents with WebRTC &amp; LiveKit are currently in final testing. You can preview configurations and provider keys now in preparation for rollout.
+            Real-time voice agents use WebRTC &amp; LiveKit with live transcription, booking tools, and a continuous conversation loop. Choose pipeline mode for provider flexibility or realtime mode for speech-to-speech latency.
           </p>
         </div>
 
@@ -111,7 +111,7 @@ export function VoiceAgentTab({
               </h3>
             </div>
             <span className="text-[10px] font-semibold tracking-tight px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] border border-[#f97316]/20">
-              Launching soon
+              LiveKit voice
             </span>
           </div>
 
