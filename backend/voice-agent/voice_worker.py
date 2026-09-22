@@ -436,7 +436,15 @@ def _log_voice_call(
         logger.exception("voice worker: failed to log voice call cost")
 
 
-def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str, Any]) -> list:
+def _build_realtime_tools(
+    bot: dict[str, Any],
+    bot_id: str,
+    owner_user: dict[str, Any],
+    *,
+    room: Optional[Any] = None,
+    session_id: Optional[str] = None,
+    visitor_timezone: str = "UTC",
+) -> list:
     """Tools available to a realtime-mode (speech-to-speech) session - the
     same knowledge-base search and booking/lead-capture actions pipeline
     mode gets for free via widget_brain.run_widget_assistant's own RAG step
@@ -446,6 +454,18 @@ def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str
     exposed as ordinary function-calling tools instead - which Gemini
     Live/OpenAI Realtime support natively, same as any other LLM tool call."""
     tools: list = []
+
+    async def _publish_booking_packet(packet: dict[str, Any]) -> None:
+        """Send booking state to the widget without making voice tools UI-aware."""
+        if not room or not getattr(room, "local_participant", None):
+            return
+        try:
+            await room.local_participant.publish_data(
+                json.dumps(packet, default=str).encode("utf-8"),
+                reliable=True,
+            )
+        except Exception:
+            logger.exception("voice worker: failed to publish booking packet")
 
     @function_tool(
         name="search_knowledge_base",
@@ -474,15 +494,53 @@ def _build_realtime_tools(bot: dict[str, Any], bot_id: str, owner_user: dict[str
             continue
 
         async def _run(raw_arguments: dict[str, Any], context: RunContext, _name: str = tool_name) -> Any:
-            return await agent_tools.execute(
+            tool_context = {
+                "bot_id": bot_id,
+                "bot": bot,
+                "source": "widget",
+                "session_id": session_id,
+                "visitor_timezone": visitor_timezone,
+            }
+            result = await agent_tools.execute(
                 _name, raw_arguments, user=owner_user, supabase=supabase,
                 # "bot" is required here (not just bot_id) - agent_tools.execute's
                 # round-robin assignment/conflict-guard and get_available_slots/
                 # reschedule_meeting handlers all key off context["bot"]; without
                 # it those silently no-op back to "always book the owner's own
                 # calendar, no real conflict check", exactly the gap this fixes.
-                context={"bot_id": bot_id, "bot": bot, "source": "widget"},
+                context=tool_context,
             )
+
+            if not isinstance(result, dict) or result.get("error"):
+                return result
+            if _name == "get_available_slots" and result.get("slots"):
+                await _publish_booking_packet({"type": "booking_widget", "action": "open"})
+            if _name in ("create_calendar_event", "create_outlook_event"):
+                attendees = raw_arguments.get("attendees") or []
+                if isinstance(attendees, str):
+                    attendees = [attendees]
+                summary = raw_arguments.get("summary") or raw_arguments.get("subject") or "Meeting"
+                attendee_email = next((a for a in attendees if isinstance(a, str) and "@" in a), "")
+                meeting_link = (
+                    result.get("hangout_link")
+                    or result.get("online_meeting_url")
+                    or result.get("web_link")
+                    or result.get("html_link")
+                )
+                meeting = {
+                    "id": result.get("meeting_id") or result.get("chatty_meeting_id") or result.get("id"),
+                    "meeting_link": meeting_link or "",
+                    "formatted_time": raw_arguments.get("start") or "Scheduled time",
+                    "summary": summary,
+                    "start_time": raw_arguments.get("start") or result.get("start") or "",
+                    "end_time": raw_arguments.get("end") or result.get("end") or "",
+                    "attendee_name": summary.replace("Demo Meeting with ", "").strip(),
+                    "attendee_email": attendee_email,
+                    "assigned_to_email": result.get("assigned_to_email"),
+                    "status": "scheduled",
+                }
+                await _publish_booking_packet({"type": "meeting_confirmed", "meeting": meeting})
+            return result
 
         tools.append(function_tool(_run, raw_schema=schema))
 
@@ -496,19 +554,40 @@ class ChattyRealtimeAgent(Agent):
     entire turn (listening, thinking, speaking) itself, so there's no
     separate text-generation step to intercept the way there is for the
     STT->LLM->TTS pipeline."""
-    def __init__(self, *, bot: dict[str, Any], owner_user: dict[str, Any], bot_id: str, realtime_llm) -> None:
+    def __init__(
+        self,
+        *,
+        bot: dict[str, Any],
+        owner_user: dict[str, Any],
+        bot_id: str,
+        realtime_llm,
+        room: Optional[Any] = None,
+        session_id: Optional[str] = None,
+        visitor_timezone: str = "UTC",
+    ) -> None:
         system_instructions = (bot.get("system_instructions") or "").strip()
         instructions = (
             (system_instructions + "\n\n" if system_instructions else "")
             + "You are having a live voice conversation with a website visitor. Keep replies "
-            "conversational and concise - this is speech, not a chat window. Use the "
+            "conversational, warm, and concise - this is speech, not a chat window. Use brief "
+            "natural acknowledgements, ask one clear follow-up question at a time, and if the "
+            "visitor pauses, wait patiently rather than filling the silence. You can gently "
+            "check in after a long silence. Use the "
             "search_knowledge_base tool for any question about this specific business rather "
-            "than guessing."
+            "than guessing. When a visitor wants to book, always use the availability and "
+            "calendar tools; never invent a time, and collect the required name and email."
         )
         super().__init__(
             instructions=instructions,
             llm=realtime_llm,
-            tools=_build_realtime_tools(bot, bot_id, owner_user),
+            tools=_build_realtime_tools(
+                bot,
+                bot_id,
+                owner_user,
+                room=room,
+                session_id=session_id,
+                visitor_timezone=visitor_timezone,
+            ),
         )
         self._greeting = (bot.get("welcome_message") or "").strip() or "Hi! How can I help you today?"
 
@@ -609,6 +688,20 @@ async def entrypoint(ctx: JobContext) -> None:
             turn_detection=inference.TurnDetector(),
         )
 
+    # Keep the conversation human-like when a visitor pauses after the
+    # greeting. The client receives this through LiveKit's transcription stream.
+    last_user_activity = time.monotonic()
+
+    def _record_user_input(ev) -> None:
+        nonlocal last_user_activity
+        if getattr(ev, "is_final", False) and (getattr(ev, "transcript", "") or "").strip():
+            last_user_activity = time.monotonic()
+        logger.info(
+            "voice worker: transcript (final=%s) %r",
+            getattr(ev, "is_final", False),
+            (getattr(ev, "transcript", "") or "")[:120],
+        )
+
     # Targeted diagnostics (INFO level, so these survive without the earlier
     # DEBUG-dump noise): confirms exactly where a real call's audio pipeline
     # is versus isn't producing signal - was previously impossible to tell
@@ -618,12 +711,7 @@ async def entrypoint(ctx: JobContext) -> None:
         "user_state_changed",
         lambda ev: logger.info("voice worker: user_state %s -> %s", ev.old_state, ev.new_state),
     )
-    session.on(
-        "user_input_transcribed",
-        lambda ev: logger.info(
-            "voice worker: transcript (final=%s) %r", ev.is_final, ev.transcript[:120]
-        ),
-    )
+    session.on("user_input_transcribed", _record_user_input)
     session.on(
         "user_transcription_timeout",
         lambda ev: logger.warning("voice worker: user_transcription_timeout - speech detected, no transcript"),
@@ -640,7 +728,15 @@ async def entrypoint(ctx: JobContext) -> None:
         elif realtime_provider == "google":
             api_key = api_key or GEMINI_API_KEY or None
         realtime_llm = build_realtime(realtime_provider, realtime_model, bot.get("voice_tts_voice"), api_key)
-        agent = ChattyRealtimeAgent(bot=bot, owner_user=owner_user, bot_id=bot_id, realtime_llm=realtime_llm)
+        agent = ChattyRealtimeAgent(
+            bot=bot,
+            owner_user=owner_user,
+            bot_id=bot_id,
+            realtime_llm=realtime_llm,
+            room=ctx.room,
+            session_id=session_id,
+            visitor_timezone=visitor_timezone,
+        )
     else:
         agent = ChattyVoiceAgent(
             bot=bot,
@@ -721,6 +817,33 @@ async def entrypoint(ctx: JobContext) -> None:
             pass
 
     asyncio.create_task(_enforce_max_duration())
+
+    async def _nudge_when_idle() -> None:
+        """Offer a gentle follow-up instead of leaving a silent call hanging."""
+        nonlocal last_user_activity
+        try:
+            await asyncio.sleep(18)
+            while True:
+                idle_for = time.monotonic() - last_user_activity
+                if idle_for >= 18:
+                    await session.say(
+                        "Hey, are you still there? Just checking in to see if you've still got questions."
+                    )
+                    last_user_activity = time.monotonic()
+                    await asyncio.sleep(45)
+                else:
+                    await asyncio.sleep(min(10, max(1, 18 - idle_for)))
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("voice worker: idle follow-up failed")
+
+    idle_nudge_task = asyncio.create_task(_nudge_when_idle())
+
+    async def _cancel_idle_nudge() -> None:
+        idle_nudge_task.cancel()
+
+    ctx.add_shutdown_callback(_cancel_idle_nudge)
 
 
 server.setup_fnc = prewarm_fnc
