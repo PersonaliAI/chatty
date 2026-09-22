@@ -8,7 +8,8 @@ import logging
 import secrets
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+from psycopg2.extras import Json, RealDictCursor
 
 from app.core.clients import supabase
 from app.core.config import DEPLOYMENT_PROFILE, MODEL_NAME
@@ -22,7 +23,8 @@ from app.core.db import (
 )
 from app.core.deps import require_user
 from app.core.object_store import delete_object, put_bytes
-from app.core.permissions import verify_bot_permission
+from app.core.db_pool import connection
+from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
@@ -41,6 +43,263 @@ import json
 logger = logging.getLogger("chatty")
 
 router = APIRouter()
+
+
+def _dashboard_bot_columns() -> str:
+    """Return the dashboard-safe bot projection.
+
+    The dashboard needs the complete configuration to hydrate its editor, but
+    it must never receive database credentials or other server-only fields.
+    `chatty_bots` contains only bot configuration, so selecting the table's
+    columns here preserves the managed-Supabase behaviour while keeping the
+    self-host path provider-neutral.
+    """
+    return "*"
+
+
+@router.get("/api/bots")
+async def list_dashboard_bots(user: dict[str, Any] = Depends(require_user)):
+    """List bots visible to the dashboard's authenticated user.
+
+    This endpoint is intentionally separate from `/api/v1/bots`: the latter
+    is the public OAuth API and must keep its OAuth scopes/response contract.
+    Dashboard authentication is the browser's OIDC/Supabase session instead.
+    """
+    if DEPLOYMENT_PROFILE == "self_host":
+        email = (user.get("email") or "").strip().lower()
+
+        def _list() -> list[dict[str, Any]]:
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    if email:
+                        cur.execute(
+                            """SELECT b.*
+                               FROM chatty_bots b
+                               WHERE b.user_id = %s
+                                  OR EXISTS (
+                                      SELECT 1 FROM chatty_team_members tm
+                                      WHERE tm.bot_id = b.id AND lower(tm.email) = lower(%s)
+                                  )
+                               ORDER BY b.updated_at DESC NULLS LAST, b.created_at DESC""",
+                            (user["auth_user_id"], email),
+                        )
+                    else:
+                        cur.execute(
+                            "SELECT * FROM chatty_bots WHERE user_id = %s "
+                            "ORDER BY updated_at DESC NULLS LAST, created_at DESC",
+                            (user["auth_user_id"],),
+                        )
+                    return [dict(row) for row in cur.fetchall()]
+
+        return await run_db(_list)
+
+    result = await run_db(lambda: supabase.table("chatty_bots").select(_dashboard_bot_columns()).order(
+        "updated_at", desc=True
+    ).execute())
+    return result.data or []
+
+
+@router.post("/api/bots", status_code=201)
+async def create_dashboard_bot(
+    body: dict[str, Any] = Body(...),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Create a dashboard bot without exposing the public OAuth API."""
+    name = str(body.get("name") or "").strip()
+    if not name or len(name) > 100:
+        raise HTTPException(status_code=422, detail="name must be between 1 and 100 characters")
+    allowed_domains = body.get("allowed_domains") or []
+    if not isinstance(allowed_domains, list) or len(allowed_domains) > 100:
+        raise HTTPException(status_code=422, detail="allowed_domains must be a list")
+    row = {
+        "user_id": user["auth_user_id"],
+        "name": name,
+        "welcome_message": "Hello! How can I help you today?",
+        "primary_color": "#f97316",
+        "widget_style": "minimal",
+        "send_button_style": "plane",
+        "selected_model": "gemini",
+        "system_instructions": "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite.",
+        "strict_mode": True,
+        "email_notify": True,
+        "allowed_domains": allowed_domains,
+        "onboarding_step": 9,
+        "onboarding_completed": True,
+    }
+    if DEPLOYMENT_PROFILE == "self_host":
+        def _insert() -> dict[str, Any]:
+            columns = list(row)
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        f"INSERT INTO chatty_bots ({', '.join(columns)}) "
+                        f"VALUES ({', '.join('%s' for _ in columns)}) RETURNING *",
+                        tuple(Json(value) if isinstance(value, (dict, list)) else value for value in row.values()),
+                    )
+                    created = cur.fetchone()
+                    if not created:
+                        raise RuntimeError("bot insert returned no row")
+                    return dict(created)
+        return await run_db(_insert)
+
+    created = await run_db(lambda: supabase.table("chatty_bots").insert(row).execute())
+    if not created.data:
+        raise HTTPException(status_code=500, detail="Failed to create bot")
+    return created.data[0]
+
+
+@router.delete("/api/bots/{bot_id}")
+async def delete_dashboard_bot(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Delete an owned dashboard bot; team members can never delete it."""
+    if DEPLOYMENT_PROFILE == "self_host":
+        def _delete() -> bool:
+            with connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM chatty_bots WHERE id = %s AND user_id = %s",
+                        (bot_id, user["auth_user_id"]),
+                    )
+                    return cur.rowcount > 0
+        if not await run_db(_delete):
+            raise HTTPException(status_code=404, detail="Bot not found")
+        return {"ok": True}
+
+    result = await run_db(lambda: supabase.table("chatty_bots").delete().eq(
+        "id", bot_id
+    ).eq("user_id", user["auth_user_id"]).execute())
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return {"ok": True}
+
+
+_DASHBOARD_BOT_UPDATE_FIELDS = frozenset({
+    "name", "welcome_message", "conversation_starters", "teaser_message", "primary_color",
+    "color_scheme", "widget_style", "font_family", "font_size_percent", "panel_size",
+    "send_button_style", "avatar_icon", "avatar_url", "logo_url", "selected_model",
+    "system_instructions", "strict_mode", "answer_mode", "email_notify", "hide_branding",
+    "show_sender_tag", "csat_enabled", "voice_message_mode", "webhook_url", "notification_emails",
+    "custom_css", "custom_js", "response_language", "guardrail_topics", "guardrail_block_profanity",
+    "guardrail_refusal_message", "sync_google_drive", "sync_google_calendar", "google_connected_account_id",
+    "google_calendar_id", "google_calendar_name", "google_calendar_color", "google_drive_folder_id",
+    "google_drive_folder_name", "sync_outlook_calendar", "sync_office365_calendar",
+    "calendar_scheduling_enabled", "scheduling_duration_minutes", "bot_timezone", "bot_country",
+    "meeting_provider", "business_hours_start", "business_hours_end", "working_days", "buffer_minutes",
+    "advance_notice_hours", "max_daily_meetings", "max_weekly_meetings", "booking_email_verification",
+    "booking_block_disposable_emails", "booking_limit_one_active", "booking_require_business_email",
+    "allowed_domains", "voice_enabled", "voice_stt_provider", "voice_tts_provider", "voice_tts_voice",
+    "whatsapp_enabled", "whatsapp_phone_number_id", "whatsapp_waba_id", "whatsapp_access_token",
+    "whatsapp_verify_token", "whatsapp_app_secret", "whatsapp_quick_replies", "onboarding_step",
+    "onboarding_completed", "lead_fields", "lead_capture_enabled", "lead_required_fields",
+})
+
+
+@router.patch("/api/bots/{bot_id}")
+async def update_dashboard_bot(
+    bot_id: str,
+    body: dict[str, Any] = Body(...),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Update dashboard configuration using a strict column allow-list."""
+    role, _ = await get_bot_role_and_permissions(bot_id, user)
+    if role != "owner":
+        raise HTTPException(status_code=403, detail="Only the bot owner can update configuration")
+    updates = {key: value for key, value in body.items() if key in _DASHBOARD_BOT_UPDATE_FIELDS}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No supported fields to update")
+    if DEPLOYMENT_PROFILE == "self_host":
+        def _update() -> dict[str, Any] | None:
+            columns = ", ".join(f"{key} = %s" for key in updates)
+            values = tuple(Json(value) if isinstance(value, (dict, list)) else value for value in updates.values())
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        f"UPDATE chatty_bots SET {columns}, updated_at = NOW() WHERE id = %s RETURNING *",
+                        (*values, bot_id),
+                    )
+                    row = cur.fetchone()
+                    return dict(row) if row else None
+        updated = await run_db(_update)
+    else:
+        result = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq(
+            "id", bot_id
+        ).eq("user_id", user["auth_user_id"]).execute())
+        updated = result.data[0] if result.data else None
+    if not updated:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return updated
+
+
+@router.get("/api/bots/{bot_id}/leads")
+async def list_dashboard_leads(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return lead rows for the dashboard's owner/team-accessible bot."""
+    await get_bot_role_and_permissions(bot_id, user)
+    if DEPLOYMENT_PROFILE == "self_host":
+        def _list() -> list[dict[str, Any]]:
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        "SELECT * FROM chatty_leads WHERE bot_id = %s ORDER BY created_at DESC",
+                        (bot_id,),
+                    )
+                    return [dict(row) for row in cur.fetchall()]
+        return {"leads": await run_db(_list)}
+    result = await run_db(lambda: supabase.table("chatty_leads").select("*").eq(
+        "bot_id", bot_id
+    ).order("created_at", desc=True).execute())
+    return {"leads": result.data or []}
+
+
+@router.get("/api/bots/{bot_id}/dashboard-analytics")
+async def dashboard_analytics(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return the small, aggregate dataset used by the dashboard home tab.
+
+    Raw rows stay server-side in self-host mode; the response contains only
+    the bounded fields needed to render the existing cards and charts.
+    """
+    await get_bot_role_and_permissions(bot_id, user)
+    if DEPLOYMENT_PROFILE != "self_host":
+        raise HTTPException(status_code=404, detail="Use managed dashboard data path")
+
+    def _read() -> dict[str, Any]:
+        with connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT role, session_id, created_at FROM chatty_conversations "
+                    "WHERE bot_id = %s ORDER BY created_at DESC LIMIT 10000",
+                    (bot_id,),
+                )
+                conversations = [dict(row) for row in cur.fetchall()]
+                cur.execute(
+                    "SELECT needs_attention FROM chatty_sessions WHERE bot_id = %s LIMIT 10000",
+                    (bot_id,),
+                )
+                sessions = [dict(row) for row in cur.fetchall()]
+                cur.execute(
+                    "SELECT feedback_rating FROM chatty_conversations "
+                    "WHERE bot_id = %s AND feedback_rating IN ('up', 'down') LIMIT 10000",
+                    (bot_id,),
+                )
+                feedback = [dict(row) for row in cur.fetchall()]
+                cur.execute(
+                    "SELECT id, rating, comment, session_id, created_at FROM chatty_csat_feedback "
+                    "WHERE bot_id = %s ORDER BY created_at DESC LIMIT 500",
+                    (bot_id,),
+                )
+                csat = [dict(row) for row in cur.fetchall()]
+                cur.execute(
+                    "SELECT model, total_tokens, cost_usd, success FROM chatty_ai_usage "
+                    "WHERE bot_id = %s AND created_at >= NOW() - INTERVAL '30 days' LIMIT 10000",
+                    (bot_id,),
+                )
+                usage = [dict(row) for row in cur.fetchall()]
+                return {
+                    "conversations": conversations,
+                    "sessions": sessions,
+                    "feedback": feedback,
+                    "csat_feedback": csat,
+                    "usage": usage,
+                }
+    return await run_db(_read)
 
 
 @router.get("/api/bots/shared")
@@ -70,6 +329,18 @@ async def get_bot_sources(bot_id: str, user: dict[str, Any] = Depends(require_us
     bypassing direct Supabase RLS which gates writes on the 'sources' tab permission."""
     from app.core.permissions import get_bot_role_and_permissions
     await get_bot_role_and_permissions(bot_id, user)
+    if DEPLOYMENT_PROFILE == "self_host":
+        def _list() -> list[dict[str, Any]]:
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        """SELECT id, type, name, content, status, char_count,
+                                  crawl_schedule, next_crawl_at, created_at
+                           FROM chatty_sources WHERE bot_id = %s ORDER BY created_at ASC""",
+                        (bot_id,),
+                    )
+                    return [dict(row) for row in cur.fetchall()]
+        return {"sources": await run_db(_list)}
     res = await run_db(lambda: supabase.table("chatty_sources").select(
         "id, type, name, content, status, char_count, crawl_schedule, next_crawl_at, created_at"
     ).eq("bot_id", bot_id).order("created_at", desc=False).execute())
@@ -183,12 +454,15 @@ async def get_user_profile(user: dict[str, Any] = Depends(require_user)):
     email = user.get("email", "")
     display_name = user.get("display_name")
     avatar_url = user.get("avatar_url")
+    row: dict[str, Any] | None = None
 
     try:
         if DEPLOYMENT_PROFILE == "self_host":
             row = await get_user(user_id)
         else:
-            res = await run_db(lambda: supabase.table("users").select("display_name, avatar_url, email").eq("auth_user_id", user_id).limit(1).execute())
+            res = await run_db(lambda: supabase.table("users").select(
+                "display_name, avatar_url, email, plan, subscription_status, subscription_renews_at, role"
+            ).eq("auth_user_id", user_id).limit(1).execute())
             row = res.data[0] if res.data else None
         if row:
             display_name = row.get("display_name") or display_name
@@ -204,7 +478,11 @@ async def get_user_profile(user: dict[str, Any] = Depends(require_user)):
         "email": email,
         "display_name": display_name or "User",
         "avatar_url": avatar_url,
+        "role": (row or {}).get("role") or user.get("role") or "user",
         "role_title": "Team Member",
+        "plan": (row or {}).get("plan") or "free",
+        "subscription_status": (row or {}).get("subscription_status"),
+        "subscription_renews_at": (row or {}).get("subscription_renews_at"),
     }
 
 

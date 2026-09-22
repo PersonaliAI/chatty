@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
+import { SELF_HOST_MODE } from '@/lib/deployment'
 
 function publicOrigin(request: NextRequest): string {
   const configured = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL
@@ -21,7 +22,21 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(`${publicOrigin(request)}/auth/callback?code=${code}`)
   }
 
-  const response = await updateSession(request)
+  let response: NextResponse
+  if (SELF_HOST_MODE) {
+    const isProtected = request.nextUrl.pathname.startsWith('/dashboard') ||
+      request.nextUrl.pathname.startsWith('/affiliate') ||
+      request.nextUrl.pathname.startsWith('/checkout')
+    const hasToken = Boolean(request.cookies.get('chatty_self_host_token')?.value)
+    if (isProtected && !hasToken && request.nextUrl.pathname !== '/login') {
+      const login = new URL('/login', request.url)
+      login.searchParams.set('next', request.nextUrl.pathname + request.nextUrl.search)
+      return NextResponse.redirect(login)
+    }
+    response = NextResponse.next()
+  } else {
+    response = await updateSession(request)
+  }
 
   // Embed domain lock: restrict which sites may iframe the widget (browser-enforced).
   const embedMatch = request.nextUrl.pathname.match(/^\/embed\/([^/]+)/)
