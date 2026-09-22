@@ -36,7 +36,7 @@ SUPABASE_URL = "" if SELF_HOST_MODE else _require_env("SUPABASE_URL")
 SUPABASE_SECRET_KEY = "" if SELF_HOST_MODE else _require_env("SUPABASE_SECRET_KEY")
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
 OIDC_ISSUER_URL = os.environ.get("OIDC_ISSUER_URL", "").rstrip("/")
-OIDC_AUDIENCE = os.environ.get("OIDC_AUDIENCE", "chatty")
+OIDC_AUDIENCE = os.environ.get("OIDC_AUDIENCE", "" if SELF_HOST_MODE else "chatty")
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 REDIS_URL = os.environ.get("REDIS_URL", "")

@@ -18,7 +18,11 @@ from app.core.db_pool import connection
 from app.core.oidc import verify_oidc_jwt
 
 _JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
-_jwks_client = PyJWKClient(_JWKS_URL, cache_keys=True, lifespan=3600)
+_jwks_client = (
+    PyJWKClient(_JWKS_URL, cache_keys=True, lifespan=3600)
+    if SUPABASE_URL
+    else None
+)
 
 
 def _self_host_subject_uuid(subject: str) -> uuid.UUID:
@@ -45,6 +49,8 @@ def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str
 
     # 1) Asymmetric (JWKS)
     try:
+        if _jwks_client is None:
+            raise RuntimeError("Supabase JWT verifier is disabled")
         signing_key = _jwks_client.get_signing_key_from_jwt(token).key
         claims = jwt.decode(
             token,
