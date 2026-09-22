@@ -95,7 +95,7 @@ export function VoiceAgentTab({
 
         <div className="flex items-center gap-3 p-3.5 bg-[#f97316]/5 border border-[#f97316]/20 rounded-2xl text-xs">
           <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#f97316] text-white shrink-0">
-            Launching soon
+            Available
           </span>
           <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-400">
             Real-time voice agents use WebRTC &amp; LiveKit with live transcription, booking tools, and a continuous conversation loop. Choose pipeline mode for provider flexibility or realtime mode for speech-to-speech latency.
