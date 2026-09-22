@@ -14,6 +14,7 @@ on:
       - 'backend/docker-compose.self-host.yml'
       - 'backend/requirements.txt'
       - 'backend/env.self-host.example'
+      - '.github/workflows/self-host-smoke.yml'
 
 permissions:
   contents: read
