@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Enables the small standalone runtime used by the self-host Docker image.
+  // This keeps the production image independent from the host's Node install.
+  output: "standalone",
   // Playwright's deterministic local server uses 127.0.0.1. Allow it in
   // development so browser checks exercise real client bundles without
   // cross-origin dev-resource warnings.
