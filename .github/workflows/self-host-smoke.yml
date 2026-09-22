@@ -31,7 +31,7 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Create isolated CI environment
         run: |
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: self-host-smoke-${{ github.sha }}
           path: backend/artifacts/
