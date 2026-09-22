@@ -35,6 +35,12 @@ Self-host authentication uses OIDC JWTs (Google is supported with issuer
 the OIDC redirect/origin in the frontend deployment and keep
 `ALLOWED_ORIGINS` exact. Do not use a Supabase service key in this profile.
 
+The self-host backend exposes the OIDC-protected REST/MCP/API-key surfaces. The
+existing hosted dashboard/frontend remains on its managed-Supabase adapter in
+this phase; keep it pointed at the managed deployment unless you have completed
+the separate frontend data/auth adapter rollout. This boundary is deliberate so
+self-host validation cannot interrupt the live Supabase site.
+
 ## Backups and rollback
 
 ```bash
