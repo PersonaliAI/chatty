@@ -13,6 +13,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.core.config import DEPLOYMENT_PROFILE
 from app.core.db import run_db
 
 # Dashboard-tab permission keys. Keep in sync with the frontend's
@@ -41,6 +42,37 @@ async def get_bot_role_and_permissions(bot_id: str, user: dict[str, Any]) -> tup
 
     Raises 403 if the caller has no relationship to the bot at all.
     """
+    if DEPLOYMENT_PROFILE == "self_host":
+        from psycopg2.extras import RealDictCursor
+        from app.core.db_pool import connection
+
+        email = (user.get("email") or "").strip().lower()
+
+        def _fetch_relationship() -> tuple[str, list[str]] | None:
+            with connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        "SELECT id FROM chatty_bots WHERE id = %s AND user_id = %s LIMIT 1",
+                        (bot_id, user["auth_user_id"]),
+                    )
+                    if cur.fetchone():
+                        return "owner", list(ALL_TABS)
+                    if email:
+                        cur.execute(
+                            "SELECT role, permissions FROM chatty_team_members "
+                            "WHERE bot_id = %s AND lower(email) = lower(%s) LIMIT 1",
+                            (bot_id, email),
+                        )
+                        row = cur.fetchone()
+                        if row:
+                            return row.get("role") or "agent", list(row.get("permissions") or [])
+            return None
+
+        relationship = await run_db(_fetch_relationship)
+        if relationship:
+            return relationship
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
     from app.core.clients import supabase  # local import avoids a cycle with clients importing config only
 
     owned = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(

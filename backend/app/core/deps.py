@@ -102,4 +102,13 @@ def verify_bearer_jwt(authorization: Optional[str] = Header(None)) -> dict[str, 
 
 
 def require_user(claims: dict[str, Any] = Depends(verify_bearer_jwt)) -> dict[str, Any]:
-    return get_user_by_auth_id(claims["sub"])
+    user = get_user_by_auth_id(claims["sub"])
+    # OIDC claims are the source of identity attributes in self-host mode.
+    # Overlay only non-sensitive display fields so team authorization can use
+    # the IdP email without trusting arbitrary request data or changing the
+    # managed Supabase path.
+    if DEPLOYMENT_PROFILE == "self_host":
+        for field in ("email", "display_name"):
+            if claims.get(field) and not user.get(field):
+                user[field] = claims[field]
+    return user
