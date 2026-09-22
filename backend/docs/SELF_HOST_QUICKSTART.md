@@ -39,9 +39,11 @@ The self-host backend exposes the OIDC-protected REST/MCP/API-key surfaces. The
 dashboard now has an opt-in OIDC/BFF path for self-host login, bot bootstrap and
 configuration, profile/billing metadata, sources, leads, analytics, integrations,
 voice settings, the affiliate portal/admin operations, and checkout identity
-handoff. Password-reset/signup and any explicitly managed-only billing webhook
-operations still belong to the managed deployment until their provider adapter
-is selected; the managed Supabase path remains the default and is unchanged.
+handoff. Lemon Squeezy webhook idempotency, subscription state, affiliate
+conversion, refund, and cancellation processing also use PostgreSQL in
+self-host mode. Password-reset/signup are intentionally delegated to the
+configured OIDC provider rather than a second password store; the managed
+Supabase path remains the default and is unchanged.
 
 For the frontend deployment, set `NEXT_PUBLIC_DEPLOYMENT_PROFILE=self_host`,
 `SELF_HOST_BACKEND_URL` to the private API origin, and configure the server-only
