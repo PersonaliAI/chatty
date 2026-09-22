@@ -95,9 +95,9 @@ redirect URI and request the WhatsApp business scopes.
 The Integrations dashboard provides **Test connection** after credentials are
 saved. It calls `POST /api/integrations/whatsapp/test?bot_id=...` and performs a
 read-only Graph API phone lookup; it does not send a WhatsApp message. A valid
-lookup confirms credentials only. Meta must still deliver a real
-`POST /webhook/whatsapp` event, and the Meta app must be published before
-production messages are delivered.
+lookup confirms credentials only. Meta must still deliver a real `POST
+/webhook/whatsapp` event, and the Meta app must be published before production
+messages from admins, developers, or testers are delivered.
 
 Text, interactive replies, voice notes, documents, and images are routed to the
 same assistant and multimodal catalog search as the web widget. Incoming Meta
