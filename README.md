@@ -85,7 +85,7 @@ The public repository has one canonical application layout: `frontend/` contains
 and remains unchanged for existing deployments. A fully provider-neutral deployment is opt-in via
 `DEPLOYMENT_PROFILE=self_host`; it uses PostgreSQL/pgvector, Redis, SeaweedFS S3-compatible storage, and OIDC.
 
-![Chatty deployment architecture](docs/assets/chatty-architecture.png)
+![Chatty managed Supabase deployment architecture](docs/assets/chatty-architecture.svg)
 
 The image above is a visual overview; the Mermaid diagram below remains the editable, accessible source of truth for the
 main request flow.
