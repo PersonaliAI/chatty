@@ -44,6 +44,7 @@ S3_ENDPOINT = os.environ.get("S3_ENDPOINT", "")
 S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY", "")
 S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY", "")
 S3_BUCKET = os.environ.get("S3_BUCKET", "chatty")
+S3_PUBLIC_URL = os.environ.get("S3_PUBLIC_URL", "").rstrip("/")
 
 # Primary model. Override with KIN_MODEL or (legacy) GEMMA_MODEL env vars.
 #

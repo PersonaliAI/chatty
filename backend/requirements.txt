@@ -17,6 +17,7 @@ markitdown[pptx]==0.1.7
 cryptography==50.0.0
 croniter==6.2.2
 redis==5.3.1
+boto3==1.40.28
 PyYAML==6.0.3
 Pillow==12.3.0
 litellm==1.98.0
