@@ -38,9 +38,10 @@ the OIDC redirect/origin in the frontend deployment and keep
 The self-host backend exposes the OIDC-protected REST/MCP/API-key surfaces. The
 dashboard now has an opt-in OIDC/BFF path for self-host login, bot bootstrap and
 configuration, profile/billing metadata, sources, leads, analytics, integrations,
-and voice settings. Remaining legacy feature panels that still call Supabase
-directly should stay on the managed deployment until their adapter is migrated;
-the managed Supabase path remains the default and is unchanged.
+voice settings, the affiliate portal/admin operations, and checkout identity
+handoff. Password-reset/signup and any explicitly managed-only billing webhook
+operations still belong to the managed deployment until their provider adapter
+is selected; the managed Supabase path remains the default and is unchanged.
 
 For the frontend deployment, set `NEXT_PUBLIC_DEPLOYMENT_PROFILE=self_host`,
 `SELF_HOST_BACKEND_URL` to the private API origin, and configure the server-only
