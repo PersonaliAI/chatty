@@ -624,12 +624,10 @@ function Orb({
   primaryColor: string;
   compact?: boolean;
 }) {
-  const [scale, setScale] = useState(1);
   const [glow, setGlow] = useState(0);
 
   useEffect(() => {
     const unsub = level.on("change", (v) => {
-      setScale(1 + v * 0.28);
       setGlow(v);
     });
     return () => unsub();
@@ -642,18 +640,7 @@ function Orb({
 
   return (
     <motion.div
-      animate={
-        isActive
-          ? { scale }
-          : status === "connecting" || status === "requesting-mic"
-          ? { scale: [1, 1.06, 1] }
-          : { scale: 1 }
-      }
-      transition={
-        isActive
-          ? { duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }
-          : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
-      }
+      animate={{ scale: 1 }}
       className={`relative isolate shrink-0 overflow-hidden rounded-full flex items-center justify-center ${compact ? "size-9" : "size-28"}`}
       style={{
         background: "linear-gradient(145deg, #062b42 0%, #087e98 48%, #6caa78 100%)",
@@ -674,25 +661,25 @@ function Orb({
         <motion.div
           className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[18px]`}
           style={{ left: "-8%", top: "-12%", background: "radial-gradient(circle at 55% 55%, rgba(34,211,238,.98), rgba(14,116,144,.68) 48%, transparent 73%)", mixBlendMode: "screen" }}
-          animate={{ x: ["-8%", "34%", "5%", "-8%"], y: ["8%", "-12%", "26%", "8%"], scale: [1, 1.18, 0.9, 1], rotate: [0, 22, -12, 0] }}
+          animate={{ x: ["-8%", "34%", "5%", "-8%"], y: ["8%", "-12%", "26%", "8%"], scale: [1, 1.18, 0.9, 1] }}
           transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
           className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[19px]`}
           style={{ right: "-12%", top: "10%", background: "radial-gradient(circle at 45% 50%, rgba(96,165,250,.95), rgba(37,99,235,.58) 46%, transparent 74%)", mixBlendMode: "screen" }}
-          animate={{ x: ["5%", "-22%", "10%", "5%"], y: ["-8%", "22%", "6%", "-8%"], scale: [0.92, 1.16, 1.04, 0.92], rotate: [8, -18, 14, 8] }}
+          animate={{ x: ["5%", "-22%", "10%", "5%"], y: ["-8%", "22%", "6%", "-8%"], scale: [0.92, 1.16, 1.04, 0.92] }}
           transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
           className={`absolute ${blobSize} rounded-full blur-[11px] sm:blur-[20px]`}
           style={{ left: "18%", bottom: "-22%", background: "radial-gradient(circle at 50% 42%, rgba(134,239,172,.96), rgba(34,197,94,.58) 45%, transparent 74%)", mixBlendMode: "screen" }}
-          animate={{ x: ["4%", "-18%", "24%", "4%"], y: ["0%", "-24%", "-4%", "0%"], scale: [1, 0.88, 1.2, 1], rotate: [0, -25, 18, 0] }}
+          animate={{ x: ["4%", "-18%", "24%", "4%"], y: ["0%", "-24%", "-4%", "0%"], scale: [1, 0.88, 1.2, 1] }}
           transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
           className={`absolute ${blobSize} rounded-full blur-[9px] sm:blur-[16px]`}
           style={{ left: "30%", top: "12%", background: "radial-gradient(circle, rgba(253,224,71,.9), rgba(250,204,21,.48) 42%, transparent 70%)", mixBlendMode: "screen" }}
-          animate={{ x: ["0%", "18%", "-16%", "0%"], y: ["0%", "28%", "16%", "0%"], scale: [0.76, 1.08, 0.9, 0.76], rotate: [0, 28, -20, 0] }}
+          animate={{ x: ["0%", "18%", "-16%", "0%"], y: ["0%", "28%", "16%", "0%"], scale: [0.76, 1.08, 0.9, 0.76] }}
           transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
         />
       </div>
