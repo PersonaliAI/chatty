@@ -12,7 +12,7 @@ import {
   TranscriptionSegment,
   Participant,
 } from "livekit-client";
-import { AudioWaveform, Mic, MicOff, PhoneOff, AlertCircle } from "lucide-react";
+import { AudioWaveform, Mic, MicOff, Paperclip, Send, X, AlertCircle } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -57,6 +57,9 @@ export default function VoiceCallWidget({
   const [duration, setDuration] = useState(0);
   const [localLevels, setLocalLevels] = useState<number[]>(() => Array(WAVE_BAR_COUNT).fill(0));
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [messageText, setMessageText] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   const roomRef = useRef<Room | null>(null);
   const audioElRef = useRef<HTMLMediaElement | null>(null);
@@ -362,6 +365,46 @@ export default function VoiceCallWidget({
     onClose();
   };
 
+  const sendComposerMessage = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const text = messageText.trim();
+    const file = pendingFile;
+    if ((!text && !file) || sendingMessage) return;
+    const visitorText = text || `Attachment: ${file?.name || "file"}`;
+    setMessageText("");
+    setPendingFile(null);
+    setTranscript((prev) => [...prev, { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true }]);
+    setSendingMessage(true);
+    try {
+      const resolvedToken = originToken === undefined ? autoOriginTokenRef.current : originToken;
+      const authHeaders: Record<string, string> = resolvedToken ? { "X-Widget-Token": resolvedToken } : {};
+      let response: Response;
+      if (file) {
+        const body = new FormData();
+        body.append("bot_id", botId);
+        body.append("session_id", sessionId);
+        body.append("text", text);
+        body.append("visitor_timezone", visitorTimezone);
+        body.append("file", file, file.name);
+        response = await fetch(`${backendUrl}/api/widget/chat/media`, { method: "POST", headers: authHeaders, body });
+      } else {
+        response = await fetch(`${backendUrl}/api/widget/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: visitorTimezone }),
+        });
+      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.detail || "Message could not be sent");
+      const reply = String(data?.reply || "").trim();
+      if (reply) setTranscript((prev) => [...prev, { id: `typed-reply-${Date.now()}`, speaker: "agent", text: reply, final: true }]);
+    } catch {
+      setTranscript((prev) => [...prev, { id: `typed-error-${Date.now()}`, speaker: "agent", text: "I couldn't send that message. Please try again.", final: true }]);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const transcriptMdComponents: Components = {
     p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
     ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
@@ -433,7 +476,7 @@ export default function VoiceCallWidget({
             className="size-12 rounded-full flex items-center justify-center"
             style={{ background: `${primaryColor}1a` }}
           >
-            <PhoneOff className="size-5" style={{ color: primaryColor }} />
+            <X className="size-5" style={{ color: primaryColor }} />
           </div>
           <div>
             <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Call ended</p>
@@ -528,7 +571,17 @@ export default function VoiceCallWidget({
             <div ref={transcriptEndRef} />
           </div>
 
-          <div className="flex items-center gap-4 pb-2 pt-1 shrink-0">
+          <form onSubmit={sendComposerMessage} className="mb-3 flex shrink-0 items-center gap-2 rounded-2xl border border-neutral-200 bg-white/80 p-2 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
+              <input type="file" className="hidden" id="chatty-voice-attachment" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => setPendingFile(event.target.files?.[0] || null)} />
+              <button type="button" onClick={() => document.getElementById("chatty-voice-attachment")?.click()} aria-label="Attach a file" title="Attach a file" className="grid size-9 shrink-0 place-items-center rounded-xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"><Paperclip className="size-4" /></button>
+              <div className="min-w-0 flex-1">
+                <input value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder={pendingFile ? pendingFile.name : "Send a message while you talk…"} disabled={sendingMessage} className="w-full bg-transparent px-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200" />
+                {pendingFile && <p className="truncate px-1 text-[9px] text-neutral-400">Attachment ready · click send to share</p>}
+              </div>
+              <button type="submit" disabled={sendingMessage || (!messageText.trim() && !pendingFile)} aria-label="Send message" title="Send message" className="grid size-9 shrink-0 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: primaryColor }}><Send className="size-4" /></button>
+          </form>
+
+          <div className="flex items-center justify-center gap-4 pb-2 pt-1 shrink-0">
             <motion.button
               type="button"
               whileTap={{ scale: 0.85 }}
@@ -536,7 +589,8 @@ export default function VoiceCallWidget({
               onClick={toggleMute}
               disabled={status === "connecting" || status === "requesting-mic"}
               aria-label={muted ? "Unmute microphone" : "Mute microphone"}
-              className="size-12 rounded-full flex items-center justify-center border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 disabled:opacity-40"
+              className="size-12 rounded-2xl flex items-center justify-center border disabled:opacity-40 transition-colors"
+              style={{ background: muted ? `${primaryColor}18` : primaryColor, borderColor: muted ? `${primaryColor}45` : primaryColor, color: muted ? primaryColor : "#fff", boxShadow: muted ? "none" : `0 8px 20px ${primaryColor}35` }}
             >
               {muted ? <MicOff className="size-5" /> : <Mic className="size-5" />}
             </motion.button>
@@ -545,10 +599,12 @@ export default function VoiceCallWidget({
               whileTap={{ scale: 0.85 }}
               transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={handleHangup}
-              aria-label="End call"
-              className="size-14 rounded-full flex items-center justify-center bg-red-500 text-white shadow-lg"
+              aria-label="Close voice call"
+              title="Close voice call"
+              className="size-12 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform hover:scale-105"
+              style={{ background: "#1f2937" }}
             >
-              <PhoneOff className="size-6" />
+              <X className="size-5" />
             </motion.button>
           </div>
         </>
