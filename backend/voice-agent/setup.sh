@@ -100,6 +100,10 @@ ufw allow 80/tcp comment "ACME HTTP"
 ufw allow 443/tcp comment "LiveKit WSS"
 ufw allow 7881/tcp comment "LiveKit ICE TCP"
 ufw allow 50000:60000/udp comment "LiveKit WebRTC UDP"
+# The worker stays on Docker's bridge network and reaches the host-networked
+# signaling port through host.docker.internal. Keep this path private to
+# Docker's RFC1918 bridge ranges; port 7880 is never public.
+ufw allow from 172.16.0.0/12 to any port 7880 proto tcp comment "LiveKit internal worker"
 printf 'y\n' | ufw enable >/dev/null
 
 if grep -Eq 'REPLACE_ME|YOUR_PROJECT|YOUR-PROJECT|example\.com|203\.0\.113\.10' .env; then
