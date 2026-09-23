@@ -68,13 +68,13 @@ export function HelpButton() {
 }
 ```
 
-When voice is enabled for the bot in Chatty, the hosted widget also shows a
-separate waveform launcher. It opens a responsive bottom-docked LiveKit call
-surface with an animated speaking orb, real microphone activity bars, live
-visitor/agent transcription, mute and hang-up controls, and booking events.
-It does not replace or interrupt the normal chat drawer. The same surface can
-be opened from application code with `window.Chatty.openVoice()` or the
-`openVoice()` hook above.
+When voice is enabled for the bot in Chatty, the hosted widget keeps the
+default launcher uncluttered. Your site can open the responsive bottom-docked
+LiveKit call surface with an animated speaking orb, real microphone activity
+bars, live visitor/agent transcription, mute and hang-up controls, and booking
+events using `window.Chatty.openVoice()` or the `openVoice()` hook above. It
+does not replace or interrupt the normal chat drawer, so you can place your
+own branded voice button wherever it fits your site.
 
 ---
 

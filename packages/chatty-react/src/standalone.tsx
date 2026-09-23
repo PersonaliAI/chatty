@@ -683,39 +683,10 @@ export function ChattyStandaloneApp({
       )}
 
       {/* Separate voice-agent surface. It is intentionally independent from
-          the chat drawer so a host site can offer live voice support without
-          taking over the conversation panel. */}
-      {voiceEnabled && !voiceOpen && revealed && (
-        <button
-          type="button"
-          onClick={() => setVoiceOpen(true)}
-          aria-label="Start voice assistant"
-          title="Talk to the assistant"
-          style={{
-            position: "fixed",
-            bottom: "88px",
-            [side]: "24px",
-            width: "46px",
-            height: "46px",
-            border: `1px solid ${iconColor}33`,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,.96)",
-            color: launcherBg.startsWith("#") ? launcherBg : iconColor,
-            boxShadow: "0 8px 26px rgba(0,0,0,.18)",
-            cursor: "pointer",
-            zIndex: 2147483647,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            animation: "chatty-voice-launcher-in .32s cubic-bezier(.16,1,.3,1)",
-          }}
-        >
-          <AudioWaveform style={{ width: 22, height: 22 }} />
-          <span style={{ position: "absolute", inset: -4, borderRadius: "50%", border: `1px solid ${iconColor}40`, animation: "chatty-voice-pulse 2.2s ease-out infinite" }} />
-        </button>
-      )}
-
+          the chat drawer, but opens only from a host-controlled trigger
+          (`window.Chatty.openVoice()` / `useChatty().openVoice()`). This keeps
+          the default widget uncluttered while preserving a fully embeddable
+          voice-agent surface for sites that want their own button. */}
       {voiceEnabled && voiceOpen && (
         <div
           role="dialog"
