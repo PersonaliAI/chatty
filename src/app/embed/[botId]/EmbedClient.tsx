@@ -21,7 +21,7 @@ import { AVATAR_ICONS, SEND_BUTTON_STYLES } from "./widget-style-options";
 import { detectCountryCode, detectTimezone } from "@/lib/locale-data";
 import {
   Send, Loader2, Sparkles, MessageSquare, MessageCircle, FileText, Search,
-  Paperclip, Smile, AudioWaveform, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
+  Paperclip, Smile, AudioWaveform, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Play, Pause, Trash2,
   BookOpen, Star, Home, HelpCircle, Megaphone, Compass, Clock, Calendar,
@@ -3543,6 +3543,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               <div className="flex items-center gap-0.5">
                 <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
                 <motion.button ref={attachButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4" /></motion.button>
+                {voiceEnabled && (
+                  <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => setVoiceCallOpen(true)} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Start voice call" title="Talk to the assistant"><AudioWaveform className="size-4" /></motion.button>
+                )}
+                <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
+                  {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
+                </button>
               </div>
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
