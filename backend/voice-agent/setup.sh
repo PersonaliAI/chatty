@@ -81,7 +81,10 @@ fi
 set_env DOMAIN "$DOMAIN"
 set_env LIVEKIT_HOST "$LIVEKIT_HOST"
 set_env LIVEKIT_URL "wss://${DOMAIN}"
-set_env LIVEKIT_WORKER_URL "ws://livekit:7880"
+# The LiveKit service uses host networking so Docker does not create a proxy
+# process for every UDP media port. The worker stays isolated in the Compose
+# bridge network and reaches the host endpoint through Docker's gateway alias.
+set_env LIVEKIT_WORKER_URL "ws://host.docker.internal:7880"
 set_env LIVEKIT_API_KEY "$API_KEY"
 set_env LIVEKIT_API_SECRET "$API_SECRET"
 chmod 600 .env

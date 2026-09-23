@@ -17,7 +17,8 @@ rtc:
 # Redis is private to the Compose network. It is used for LiveKit node
 # coordination and is never published to the internet.
 redis:
-  address: redis:6379
+  # LiveKit uses host networking; Redis is published on loopback only.
+  address: 127.0.0.1:6379
 
 room:
   auto_create: true

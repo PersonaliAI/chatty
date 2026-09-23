@@ -35,6 +35,11 @@ services:
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       FISH_API_KEY: ${FISH_API_KEY:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+    extra_hosts:
+      # LiveKit runs in host networking so its 50k-port UDP range is not
+      # expanded into thousands of docker-proxy processes. This mapping lets
+      # the worker reach the host-networked signaling endpoint privately.
+      - "host.docker.internal:host-gateway"
 
   # Everything below is opt-in. Start it with:
   #   docker compose --profile self-hosted up -d --build
@@ -42,14 +47,14 @@ services:
     profiles: [self-hosted]
     image: ${LIVEKIT_SERVER_IMAGE:-livekit/livekit-server:v1.13.7}
     restart: unless-stopped
+    # Host networking is intentional: Docker's port-range publishing creates
+    # one proxy process per UDP port (50,000 processes for this range).
+    network_mode: host
     # The fallback keeps the Cloud-only profile parseable; setup.sh requires
     # and writes the real public address before self-hosted startup.
     command: ["--config", "/etc/livekit.yaml", "--node-ip", "${LIVEKIT_HOST:-127.0.0.1}"]
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
-    ports:
-      - "7881:7881/tcp"
-      - "50000-60000:50000-60000/udp"
     depends_on:
       redis:
         condition: service_healthy
@@ -61,8 +66,10 @@ services:
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
     volumes:
       - redis_data:/data
-    expose:
-      - "6379"
+    # LiveKit uses host networking; publish Redis only on loopback so it is
+    # reachable by LiveKit but never exposed to the public internet.
+    ports:
+      - "127.0.0.1:6379:6379/tcp"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -73,13 +80,11 @@ services:
     profiles: [self-hosted]
     image: ${CADDY_IMAGE:-caddy:2-alpine}
     restart: unless-stopped
+    network_mode: host
     environment:
       # The fallback keeps `docker compose up` (Cloud mode) valid even though
       # Caddy is disabled. setup.sh requires a real DNS name for self-hosting.
       DOMAIN: ${DOMAIN:-localhost}
-    ports:
-      - "80:80/tcp"
-      - "443:443/tcp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
