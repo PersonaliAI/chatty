@@ -9,29 +9,11 @@ from app.core.config import (
     GEMINI_API_KEY,
     GOOGLE_CLOUD_LOCATION,
     GOOGLE_CLOUD_PROJECT,
-    DEPLOYMENT_PROFILE,
     SUPABASE_SECRET_KEY,
     SUPABASE_URL,
 )
-from app.core.portable_supabase import PortablePostgresClient
 
-class _UnavailableSupabase:
-    """Fail clearly if a managed-only code path is used in self-host mode."""
-
-    def table(self, _name: str):  # pragma: no cover - defensive runtime guard
-        raise RuntimeError(
-            "Supabase is disabled for DEPLOYMENT_PROFILE=self_host; "
-            "use the corresponding self-host adapter"
-        )
-
-
-supabase: Client | PortablePostgresClient | _UnavailableSupabase
-if DEPLOYMENT_PROFILE == "self_host":
-    supabase = PortablePostgresClient()
-elif SUPABASE_URL and SUPABASE_SECRET_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
-else:
-    supabase = _UnavailableSupabase()
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
 
 # GEMINI_API_KEY (Google AI Studio, free tier) is a separate billing surface
 # from Vertex AI - set it to route all Gemini calls through AI Studio instead

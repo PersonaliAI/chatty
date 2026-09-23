@@ -2,14 +2,10 @@
 
 ## Goal
 
-Chatty is a multi-tenant customer-support platform with two supported modes:
-
-1. **Hosted Chatty** — managed infrastructure operated by PersonaliAI.
-2. **Self-hosted Chatty** — Docker/PostgreSQL/Redis-compatible deployment with
-   no mandatory Supabase account.
-
-The hosted deployment may use Supabase, Cloud Run, and managed providers. Those
-are infrastructure choices, not product-domain dependencies.
+Chatty is a multi-tenant customer-support platform using managed Supabase for
+identity, persistence, storage, and realtime data. The API, frontend, and voice
+worker remain portable Docker workloads, while LiveKit Cloud provides realtime
+voice media.
 
 ## Runtime boundaries
 
@@ -40,7 +36,7 @@ This is an incremental strangler migration, not a rewrite:
 2. Wrap the existing Supabase implementation in an adapter.
 3. Move one call site behind the port without changing its API response.
 4. Add contract tests that every adapter must satisfy.
-5. Add a PostgreSQL/Redis/self-hosted adapter when the port is stable.
+5. Keep provider-specific details behind the managed-service boundary.
 
 The first migrated boundaries are conversation history (`app/ports/conversations.py`),
 audit events (`app/ports/audit.py`), and durable background jobs
@@ -52,9 +48,7 @@ request handlers should enqueue work rather than run crawling, embedding, email,
 or webhook retries inline.
 
 `app/workers/job_worker.py` provides the reference Redis Streams consumer with
-ack-after-success, bounded retries, and a dead-letter stream. Domain handlers
-remain injectable so the same worker contract can run against hosted Redis or a
-self-hosted Redis 7 deployment. Webhook delivery has a runnable entrypoint in
+ack-after-success, bounded retries, and a dead-letter stream. Webhook delivery has a runnable entrypoint in
 `app/workers/webhook_worker.py`; it keeps application imports lazy and closes
 the Redis client cleanly on shutdown.
 

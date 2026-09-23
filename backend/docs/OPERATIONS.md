@@ -1,16 +1,16 @@
 # Chatty operations runbook
 
-This runbook describes the supported production paths. It deliberately keeps
-provider-specific commands out of application code so hosted and self-hosted
-deployments use the same runtime contract.
+This runbook describes the supported production path. Chatty keeps the
+application portable across Docker hosts while Supabase and LiveKit Cloud
+remain the managed data and realtime services.
 
 ## Environments
 
 | Environment | Frontend | API | Data | Deployment owner |
 |---|---|---|---|---|
-| Local | Next.js dev server | FastAPI/Uvicorn | Docker PostgreSQL + Redis | Developer |
+| Local | Next.js dev server | FastAPI/Uvicorn | Managed Supabase project | Developer |
 | Hosted | Firebase App Hosting | Cloud Run | Managed PostgreSQL/Supabase | PersonaliAI |
-| Self-hosted | Any static/Node host | Docker image | PostgreSQL 15 + Redis 7 + S3 | Operator |
+| Voice worker | Any Ubuntu Docker host | LiveKit worker container | Managed Supabase + LiveKit Cloud | Operator |
 
 Never copy production secrets into `.env.example`, a Docker image, a browser
 bundle, or a GitHub repository. Use Secret Manager, an equivalent vault, or a

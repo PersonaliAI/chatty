@@ -14,9 +14,7 @@ from psycopg2.extras import Json, RealDictCursor
 
 from app.core import oauth as _oauth
 from app.core.clients import supabase
-from app.core.config import DEPLOYMENT_PROFILE
 from app.core.db import run_db
-from app.core.db_pool import connection
 from app.core.permissions import OWNER_ONLY_TABS, default_permissions_for_role, verify_bot_permission
 from plugins import color_scheme as color_scheme_mod
 from plugins import llm_providers
@@ -61,69 +59,14 @@ _BOT_DETAIL_FIELDS = [
     "color_scheme",
 ]
 
-_SELF_HOST_BOT_UPDATE_FIELDS = frozenset({
-    "name", "welcome_message", "system_instructions", "selected_model", "primary_color",
-    "response_language", "widget_style", "strict_mode", "lead_capture_enabled", "avatar_url",
-    "avatar_icon", "logo_url", "teaser_message", "conversation_starters", "custom_css",
-    "hide_branding", "allowed_domains", "max_daily_meetings", "max_weekly_meetings",
-    "color_scheme", "google_connected_account_id",
-})
 
 
-def _self_host_bot_insert(row: dict[str, Any]) -> dict[str, Any] | None:
-    insert_fields = (
-        "user_id", "name", "welcome_message", "system_instructions", "selected_model",
-        "primary_color", "response_language", "widget_style", "strict_mode",
-        "lead_capture_enabled",
-    )
-    columns = [column for column in insert_fields if column in row]
-    values = tuple(_pg_value(row[column]) for column in columns)
-    column_sql = ", ".join(columns)
-    placeholders = ", ".join("%s" for _ in columns)
-    with connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                f"INSERT INTO chatty_bots ({column_sql}) VALUES ({placeholders}) RETURNING *",
-                values,
-            )
-            result = cur.fetchone()
-            return dict(result) if result else None
 
 
-def _self_host_bot_list(user_id: str) -> list[dict[str, Any]]:
-    with connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """SELECT id, name, welcome_message, primary_color, selected_model, created_at
-                   FROM chatty_bots WHERE user_id = %s ORDER BY created_at DESC""",
-                (user_id,),
-            )
-            return [dict(row) for row in cur.fetchall()]
 
 
-def _self_host_bot_update(bot_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
-    unknown = set(updates) - _SELF_HOST_BOT_UPDATE_FIELDS
-    if unknown:
-        raise ValueError("unsupported bot update field")
-    if not updates:
-        return None
-    columns = ", ".join(f"{column} = %s" for column in updates)
-    values = [_pg_value(updates[column]) for column in updates]
-    with connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                f"UPDATE chatty_bots SET {columns}, updated_at = NOW() WHERE id = %s RETURNING *",
-                (*values, bot_id),
-            )
-            result = cur.fetchone()
-            return dict(result) if result else None
 
 
-def _self_host_bot_delete(bot_id: str) -> bool:
-    with connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM chatty_bots WHERE id = %s", (bot_id,))
-            return cur.rowcount > 0
 
 
 def _project_bot(row: dict[str, Any]) -> dict[str, Any]:
@@ -143,21 +86,9 @@ async def _write_audit_log(bot_id: str, action: str, details: str, performed_by:
     keys, webhook signing secrets) into `details`.
     """
     try:
-        if DEPLOYMENT_PROFILE == "self_host":
-            def _insert() -> None:
-                with connection() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            """INSERT INTO chatty_audit_logs
-                               (bot_id, action, details, performed_by)
-                               VALUES (%s, %s, %s, %s)""",
-                            (bot_id, action, details, performed_by),
-                        )
-            await run_db(_insert)
-        else:
-            await run_db(lambda: supabase.table("chatty_audit_logs").insert({
-                "bot_id": bot_id, "action": action, "details": details, "performed_by": performed_by,
-            }).execute())
+        await run_db(lambda: supabase.table("chatty_audit_logs").insert({
+            "bot_id": bot_id, "action": action, "details": details, "performed_by": performed_by,
+        }).execute())
     except Exception:
         logger.warning("Failed to write audit log for bot %s action %s", bot_id, action, exc_info=True)
 
@@ -177,11 +108,8 @@ async def create_bot(principal: dict[str, Any], body: BotCreateRequest) -> dict[
         "primary_color": body.primary_color or "#f97316",
         "response_language": body.response_language,
     }
-    if DEPLOYMENT_PROFILE == "self_host":
-        created = await run_db(lambda: _self_host_bot_insert(row))
-    else:
-        res = await run_db(lambda: supabase.table("chatty_bots").insert(row).execute())
-        created = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_bots").insert(row).execute())
+    created = res.data[0] if res.data else None
     if not created:
         raise HTTPException(status_code=500, detail="Failed to create bot")
     return _project_bot(created)
@@ -193,8 +121,6 @@ async def list_bots(principal: dict[str, Any]) -> list[dict[str, Any]]:
             status_code=403,
             detail="Listing bots requires an OAuth2 access token.",
         )
-    if DEPLOYMENT_PROFILE == "self_host":
-        return await run_db(lambda: _self_host_bot_list(principal["user_id"]))
     res = await run_db(lambda: supabase.table("chatty_bots").select(_BOT_LIST_COLUMNS).eq(
         "user_id", principal["user_id"]).order("created_at", desc=True).execute())
     return res.data or []
@@ -219,11 +145,8 @@ async def update_bot(principal: dict[str, Any], bot_id: str, body: BotUpdateRequ
         if not acc_res.data:
             raise HTTPException(status_code=403, detail="Forbidden: Connected account not owned by user")
 
-    if DEPLOYMENT_PROFILE == "self_host":
-        updated = await run_db(lambda: _self_host_bot_update(bot_id, updates))
-    else:
-        res = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
-        updated = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
+    updated = res.data[0] if res.data else None
     if not updated:
         raise HTTPException(status_code=500, detail="Failed to update bot")
     return _project_bot(updated)
@@ -236,12 +159,7 @@ async def delete_bot(principal: dict[str, Any], bot_id: str) -> dict[str, Any]:
     # bot is deleted. Recording a bot's deletion durably needs an
     # account-scoped log table, not this bot-scoped one; out of scope here.
     bot = await _oauth.require_bot_access(principal, bot_id)
-    if DEPLOYMENT_PROFILE == "self_host":
-        deleted = await run_db(lambda: _self_host_bot_delete(bot_id))
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Bot not found")
-    else:
-        await run_db(lambda: supabase.table("chatty_bots").delete().eq("id", bot_id).execute())
+    await run_db(lambda: supabase.table("chatty_bots").delete().eq("id", bot_id).execute())
     return {"deleted": True, "bot_id": bot_id, "name": bot.get("name")}
 
 
@@ -259,11 +177,8 @@ async def clone_bot(principal: dict[str, Any], bot_id: str, new_name: str) -> di
         "strict_mode": bot.get("strict_mode", False),
         "lead_capture_enabled": bot.get("lead_capture_enabled", True),
     }
-    if DEPLOYMENT_PROFILE == "self_host":
-        cloned = await run_db(lambda: _self_host_bot_insert(clone_row))
-    else:
-        res = await run_db(lambda: supabase.table("chatty_bots").insert(clone_row).execute())
-        cloned = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_bots").insert(clone_row).execute())
+    cloned = res.data[0] if res.data else None
     if not cloned:
         raise HTTPException(status_code=500, detail="Failed to clone bot")
     return _project_bot(cloned)

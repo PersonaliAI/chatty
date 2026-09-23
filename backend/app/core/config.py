@@ -12,14 +12,6 @@ from dotenv import load_dotenv
 # call it first) guarantees correct env state regardless of import order.
 load_dotenv()
 
-# Deployment profile is deliberately opt-in. Production remains on the
-# existing managed Supabase path until the self-host adapters pass contract
-# and rollback tests.
-DEPLOYMENT_PROFILE = os.environ.get("DEPLOYMENT_PROFILE", "managed_supabase").strip().lower()
-if DEPLOYMENT_PROFILE not in {"managed_supabase", "self_host"}:
-    raise RuntimeError("DEPLOYMENT_PROFILE must be managed_supabase or self_host")
-SELF_HOST_MODE = DEPLOYMENT_PROFILE == "self_host"
-
 def _require_env(name: str) -> str:
     """Fail loudly at startup instead of silently falling back to a
     hardcoded production credential - a previous version of this file did
@@ -32,25 +24,12 @@ def _require_env(name: str) -> str:
     return value
 
 
-SUPABASE_URL = "" if SELF_HOST_MODE else _require_env("SUPABASE_URL")
+SUPABASE_URL = _require_env("SUPABASE_URL")
 # Supabase's new Secret Key is the server-only replacement for the legacy
 # service_role JWT. Keep the historical constant name for its call sites,
 # but fail closed so deployments cannot silently retain a legacy JWT.
-SUPABASE_SECRET_KEY = "" if SELF_HOST_MODE else _require_env("SUPABASE_SECRET_KEY")
+SUPABASE_SECRET_KEY = _require_env("SUPABASE_SECRET_KEY")
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
-
-# Provider-neutral service contract. These values are intentionally optional
-# while the managed profile remains the default; adapters validate them when
-# self-host mode is explicitly enabled.
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
-REDIS_URL = os.environ.get("REDIS_URL", "")
-S3_ENDPOINT = os.environ.get("S3_ENDPOINT", "")
-S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY", "")
-S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY", "")
-S3_BUCKET = os.environ.get("S3_BUCKET", "chatty")
-S3_PUBLIC_URL = os.environ.get("S3_PUBLIC_URL", "").rstrip("/")
-OIDC_ISSUER_URL = os.environ.get("OIDC_ISSUER_URL", "").rstrip("/")
-OIDC_AUDIENCE = os.environ.get("OIDC_AUDIENCE", "" if SELF_HOST_MODE else "chatty")
 
 # Primary model. Override with KIN_MODEL or (legacy) GEMMA_MODEL env vars.
 #
@@ -91,11 +70,7 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://chatty.personaliai.com")
 # Chatty name everywhere new code needs a product frontend URL.
 CHATTY_FRONTEND_URL = os.environ.get("CHATTY_FRONTEND_URL", "https://chatty.personaliai.com")
 # This service's own public URL - the OAuth issuer/resource identifiers the
-# MCP server (app/routers/mcp.py) advertises in its metadata must exactly
-# match the domain a client actually reaches it at, or every real OAuth
-# client rejects the token as issued by the wrong party. Was hardcoded to
-# PersonaliAI's own Cloud Run domain, which silently broke MCP/OAuth for
-# anyone self-hosting this repo under their own domain.
+# MCP server advertises must match the domain clients actually reach.
 CHATTY_BACKEND_URL = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com")
 
 ALLOWED_ORIGINS = [

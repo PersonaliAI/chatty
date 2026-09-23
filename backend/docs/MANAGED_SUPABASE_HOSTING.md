@@ -1,13 +1,12 @@
 # Managed Supabase hosting
 
-This is the supported self-hosting path for Chatty: run the frontend and API
-containers on your own host while keeping Supabase Auth, Postgres, Storage, and
-Realtime managed. It replaces only the application hosting layer; it does not
-copy or migrate the production Supabase project.
+Chatty uses Supabase Auth, Postgres, Storage, and Realtime as its managed data
+layer. The application containers and the voice worker can run on any Docker
+host without provisioning a replacement database or object store.
 
 ## Required environment
 
-Set `DEPLOYMENT_PROFILE=managed_supabase` in the API environment. At minimum,
+The API uses the managed Supabase profile by default. At minimum,
 configure the Supabase URL and secret key, `SUPABASE_DB_HOST` and
 `SUPABASE_DB_PASSWORD`, `FUNCTION_SECRET`, `BYOK_ENCRYPTION_KEY`, and
 `GEMINI_API_KEY`. Keep all secret values in the platform's secret manager or an
@@ -37,10 +36,9 @@ verification, rollback, and incident response, see the repository-level
 Railway and Render can each build `Dockerfile` directly. Create one service for
 the API and one for the Next.js frontend, set the public frontend/backend URLs,
 and inject the same managed-Supabase secrets. Heroku-style platforms can run
-the same images; use a separate web service for each container and an external
+the same images; use a separate web service for each container and the existing
 Supabase project for persistence.
 
-Do not run `backend/docker-compose.self-host.yml` for this profile. That file is
-the advanced provider-neutral mode and provisions a separate
-Postgres/Redis/object store; it is intentionally not part of the default
-managed-Supabase path.
+For voice, deploy only `voice-agent/` as a persistent worker. It connects
+outbound to LiveKit Cloud and Supabase; it does not need database, queue,
+object-storage, proxy, or LiveKit server containers.

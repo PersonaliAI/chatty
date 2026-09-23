@@ -9,21 +9,10 @@ import secrets
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
-from psycopg2.extras import Json, RealDictCursor
-
 from app.core.clients import supabase
-from app.core.config import DEPLOYMENT_PROFILE, MODEL_NAME
-from app.core.db import (
-    get_bot,
-    get_user,
-    run_db,
-    update_bot_fields,
-    update_team_member_fields,
-    update_user_fields,
-)
+from app.core.config import MODEL_NAME
+from app.core.db import run_db
 from app.core.deps import require_user
-from app.core.object_store import delete_object, put_bytes
-from app.core.db_pool import connection
 from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.core.uploads import read_upload_capped
@@ -46,14 +35,7 @@ router = APIRouter()
 
 
 def _dashboard_bot_columns() -> str:
-    """Return the dashboard-safe bot projection.
-
-    The dashboard needs the complete configuration to hydrate its editor, but
-    it must never receive database credentials or other server-only fields.
-    `chatty_bots` contains only bot configuration, so selecting the table's
-    columns here preserves the managed-Supabase behaviour while keeping the
-    self-host path provider-neutral.
-    """
+    """Return the dashboard-safe bot projection."""
     return "*"
 
 
@@ -65,33 +47,6 @@ async def list_dashboard_bots(user: dict[str, Any] = Depends(require_user)):
     is the public OAuth API and must keep its OAuth scopes/response contract.
     Dashboard authentication is the browser's OIDC/Supabase session instead.
     """
-    if DEPLOYMENT_PROFILE == "self_host":
-        email = (user.get("email") or "").strip().lower()
-
-        def _list() -> list[dict[str, Any]]:
-            with connection() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    if email:
-                        cur.execute(
-                            """SELECT b.*
-                               FROM chatty_bots b
-                               WHERE b.user_id = %s
-                                  OR EXISTS (
-                                      SELECT 1 FROM chatty_team_members tm
-                                      WHERE tm.bot_id = b.id AND lower(tm.email) = lower(%s)
-                                  )
-                               ORDER BY b.updated_at DESC NULLS LAST, b.created_at DESC""",
-                            (user["auth_user_id"], email),
-                        )
-                    else:
-                        cur.execute(
-                            "SELECT * FROM chatty_bots WHERE user_id = %s "
-                            "ORDER BY updated_at DESC NULLS LAST, created_at DESC",
-                            (user["auth_user_id"],),
-                        )
-                    return [dict(row) for row in cur.fetchall()]
-
-        return await run_db(_list)
 
     result = await run_db(lambda: supabase.table("chatty_bots").select(_dashboard_bot_columns()).order(
         "updated_at", desc=True
@@ -126,21 +81,6 @@ async def create_dashboard_bot(
         "onboarding_step": 9,
         "onboarding_completed": True,
     }
-    if DEPLOYMENT_PROFILE == "self_host":
-        def _insert() -> dict[str, Any]:
-            columns = list(row)
-            with connection() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        f"INSERT INTO chatty_bots ({', '.join(columns)}) "
-                        f"VALUES ({', '.join('%s' for _ in columns)}) RETURNING *",
-                        tuple(Json(value) if isinstance(value, (dict, list)) else value for value in row.values()),
-                    )
-                    created = cur.fetchone()
-                    if not created:
-                        raise RuntimeError("bot insert returned no row")
-                    return dict(created)
-        return await run_db(_insert)
 
     created = await run_db(lambda: supabase.table("chatty_bots").insert(row).execute())
     if not created.data:
@@ -151,18 +91,6 @@ async def create_dashboard_bot(
 @router.delete("/api/bots/{bot_id}")
 async def delete_dashboard_bot(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Delete an owned dashboard bot; team members can never delete it."""
-    if DEPLOYMENT_PROFILE == "self_host":
-        def _delete() -> bool:
-            with connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "DELETE FROM chatty_bots WHERE id = %s AND user_id = %s",
-                        (bot_id, user["auth_user_id"]),
-                    )
-                    return cur.rowcount > 0
-        if not await run_db(_delete):
-            raise HTTPException(status_code=404, detail="Bot not found")
-        return {"ok": True}
 
     result = await run_db(lambda: supabase.table("chatty_bots").delete().eq(
         "id", bot_id
@@ -206,24 +134,10 @@ async def update_dashboard_bot(
     updates = {key: value for key, value in body.items() if key in _DASHBOARD_BOT_UPDATE_FIELDS}
     if not updates:
         raise HTTPException(status_code=400, detail="No supported fields to update")
-    if DEPLOYMENT_PROFILE == "self_host":
-        def _update() -> dict[str, Any] | None:
-            columns = ", ".join(f"{key} = %s" for key in updates)
-            values = tuple(Json(value) if isinstance(value, (dict, list)) else value for value in updates.values())
-            with connection() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        f"UPDATE chatty_bots SET {columns}, updated_at = NOW() WHERE id = %s RETURNING *",
-                        (*values, bot_id),
-                    )
-                    row = cur.fetchone()
-                    return dict(row) if row else None
-        updated = await run_db(_update)
-    else:
-        result = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq(
-            "id", bot_id
-        ).eq("user_id", user["auth_user_id"]).execute())
-        updated = result.data[0] if result.data else None
+    result = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq(
+        "id", bot_id
+    ).eq("user_id", user["auth_user_id"]).execute())
+    updated = result.data[0] if result.data else None
     if not updated:
         raise HTTPException(status_code=404, detail="Bot not found")
     return updated
@@ -233,11 +147,6 @@ async def update_dashboard_bot(
 async def get_dashboard_bot(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Return one complete dashboard bot configuration after access checks."""
     await get_bot_role_and_permissions(bot_id, user)
-    if DEPLOYMENT_PROFILE == "self_host":
-        bot = await get_bot(bot_id)
-        if not bot:
-            raise HTTPException(status_code=404, detail="Bot not found")
-        return bot
     result = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).limit(1).execute())
     if not result.data:
         raise HTTPException(status_code=404, detail="Bot not found")
@@ -248,16 +157,6 @@ async def get_dashboard_bot(bot_id: str, user: dict[str, Any] = Depends(require_
 async def list_dashboard_leads(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Return lead rows for the dashboard's owner/team-accessible bot."""
     await get_bot_role_and_permissions(bot_id, user)
-    if DEPLOYMENT_PROFILE == "self_host":
-        def _list() -> list[dict[str, Any]]:
-            with connection() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        "SELECT * FROM chatty_leads WHERE bot_id = %s ORDER BY created_at DESC",
-                        (bot_id,),
-                    )
-                    return [dict(row) for row in cur.fetchall()]
-        return {"leads": await run_db(_list)}
     result = await run_db(lambda: supabase.table("chatty_leads").select("*").eq(
         "bot_id", bot_id
     ).order("created_at", desc=True).execute())
@@ -266,55 +165,10 @@ async def list_dashboard_leads(bot_id: str, user: dict[str, Any] = Depends(requi
 
 @router.get("/api/bots/{bot_id}/dashboard-analytics")
 async def dashboard_analytics(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    """Return the small, aggregate dataset used by the dashboard home tab.
-
-    Raw rows stay server-side in self-host mode; the response contains only
-    the bounded fields needed to render the existing cards and charts.
-    """
+    """Return the small, aggregate dataset used by the dashboard home tab."""
     await get_bot_role_and_permissions(bot_id, user)
-    if DEPLOYMENT_PROFILE != "self_host":
-        raise HTTPException(status_code=404, detail="Use managed dashboard data path")
+    raise HTTPException(status_code=404, detail="Use managed dashboard data path")
 
-    def _read() -> dict[str, Any]:
-        with connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(
-                    "SELECT role, session_id, created_at FROM chatty_conversations "
-                    "WHERE bot_id = %s ORDER BY created_at DESC LIMIT 10000",
-                    (bot_id,),
-                )
-                conversations = [dict(row) for row in cur.fetchall()]
-                cur.execute(
-                    "SELECT needs_attention FROM chatty_sessions WHERE bot_id = %s LIMIT 10000",
-                    (bot_id,),
-                )
-                sessions = [dict(row) for row in cur.fetchall()]
-                cur.execute(
-                    "SELECT feedback_rating FROM chatty_conversations "
-                    "WHERE bot_id = %s AND feedback_rating IN ('up', 'down') LIMIT 10000",
-                    (bot_id,),
-                )
-                feedback = [dict(row) for row in cur.fetchall()]
-                cur.execute(
-                    "SELECT id, rating, comment, session_id, created_at FROM chatty_csat_feedback "
-                    "WHERE bot_id = %s ORDER BY created_at DESC LIMIT 500",
-                    (bot_id,),
-                )
-                csat = [dict(row) for row in cur.fetchall()]
-                cur.execute(
-                    "SELECT model, total_tokens, cost_usd, success FROM chatty_ai_usage "
-                    "WHERE bot_id = %s AND created_at >= NOW() - INTERVAL '30 days' LIMIT 10000",
-                    (bot_id,),
-                )
-                usage = [dict(row) for row in cur.fetchall()]
-                return {
-                    "conversations": conversations,
-                    "sessions": sessions,
-                    "feedback": feedback,
-                    "csat_feedback": csat,
-                    "usage": usage,
-                }
-    return await run_db(_read)
 
 
 @router.patch("/api/bots/{bot_id}/leads/{lead_id}")
@@ -325,50 +179,21 @@ async def update_dashboard_lead(
     user: dict[str, Any] = Depends(require_user),
 ):
     await get_bot_role_and_permissions(bot_id, user)
-    if DEPLOYMENT_PROFILE != "self_host":
-        result = await run_db(lambda: supabase.table("chatty_leads").update(body).eq(
-            "id", lead_id
-        ).eq("bot_id", bot_id).execute())
-        if not result.data:
-            raise HTTPException(status_code=404, detail="Lead not found")
-        return result.data[0]
-    allowed = {"name", "email", "phone", "company", "job_title", "country", "industry", "budget", "custom_fields"}
-    updates = {key: value for key, value in body.items() if key in allowed}
-    if not updates:
-        raise HTTPException(status_code=400, detail="No supported lead fields")
-    def _update() -> dict[str, Any] | None:
-        columns = ", ".join(f"{key} = %s" for key in updates)
-        values = tuple(Json(value) if isinstance(value, (dict, list)) else value for value in updates.values())
-        with connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(
-                    f"UPDATE chatty_leads SET {columns} WHERE id = %s AND bot_id = %s RETURNING *",
-                    (*values, lead_id, bot_id),
-                )
-                row = cur.fetchone()
-                return dict(row) if row else None
-    updated = await run_db(_update)
-    if not updated:
+    result = await run_db(lambda: supabase.table("chatty_leads").update(body).eq(
+        "id", lead_id
+    ).eq("bot_id", bot_id).execute())
+    if not result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
-    return updated
+    return result.data[0]
 
 
 @router.delete("/api/bots/{bot_id}/leads/{lead_id}")
 async def delete_dashboard_lead(bot_id: str, lead_id: str, user: dict[str, Any] = Depends(require_user)):
     await get_bot_role_and_permissions(bot_id, user)
-    if DEPLOYMENT_PROFILE != "self_host":
-        result = await run_db(lambda: supabase.table("chatty_leads").delete().eq(
-            "id", lead_id
-        ).eq("bot_id", bot_id).execute())
-        if not result.data:
-            raise HTTPException(status_code=404, detail="Lead not found")
-        return {"ok": True}
-    def _delete() -> bool:
-        with connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM chatty_leads WHERE id = %s AND bot_id = %s", (lead_id, bot_id))
-                return cur.rowcount > 0
-    if not await run_db(_delete):
+    result = await run_db(lambda: supabase.table("chatty_leads").delete().eq(
+        "id", lead_id
+    ).eq("bot_id", bot_id).execute())
+    if not result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
     return {"ok": True}
 
@@ -376,21 +201,10 @@ async def delete_dashboard_lead(bot_id: str, lead_id: str, user: dict[str, Any] 
 @router.get("/api/bots/{bot_id}/unanswered")
 async def list_dashboard_unanswered(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     await get_bot_role_and_permissions(bot_id, user)
-    if DEPLOYMENT_PROFILE != "self_host":
-        result = await run_db(lambda: supabase.table("chatty_unanswered").select(
-            "id, question, created_at"
-        ).eq("bot_id", bot_id).eq("status", "open").order("created_at", desc=True).limit(50).execute())
-        return {"items": result.data or []}
-    def _list() -> list[dict[str, Any]]:
-        with connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(
-                    "SELECT id, question, created_at FROM chatty_unanswered "
-                    "WHERE bot_id = %s AND status = 'open' ORDER BY created_at DESC LIMIT 50",
-                    (bot_id,),
-                )
-                return [dict(row) for row in cur.fetchall()]
-    return {"items": await run_db(_list)}
+    result = await run_db(lambda: supabase.table("chatty_unanswered").select(
+        "id, question, created_at"
+    ).eq("bot_id", bot_id).eq("status", "open").order("created_at", desc=True).limit(50).execute())
+    return {"items": result.data or []}
 
 
 @router.patch("/api/bots/{bot_id}/unanswered/{item_id}")
@@ -404,19 +218,10 @@ async def update_dashboard_unanswered(
     status = body.get("status")
     if status not in {"open", "dismissed", "resolved"}:
         raise HTTPException(status_code=422, detail="Invalid unanswered status")
-    if DEPLOYMENT_PROFILE != "self_host":
-        result = await run_db(lambda: supabase.table("chatty_unanswered").update({"status": status}).eq(
-            "id", item_id
-        ).eq("bot_id", bot_id).execute())
-        return {"ok": bool(result.data)}
-    def _update() -> bool:
-        with connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("UPDATE chatty_unanswered SET status = %s WHERE id = %s AND bot_id = %s", (status, item_id, bot_id))
-                return cur.rowcount > 0
-    if not await run_db(_update):
-        raise HTTPException(status_code=404, detail="Unanswered item not found")
-    return {"ok": True}
+    result = await run_db(lambda: supabase.table("chatty_unanswered").update({"status": status}).eq(
+        "id", item_id
+    ).eq("bot_id", bot_id).execute())
+    return {"ok": bool(result.data)}
 
 
 @router.get("/api/bots/shared")
@@ -446,18 +251,6 @@ async def get_bot_sources(bot_id: str, user: dict[str, Any] = Depends(require_us
     bypassing direct Supabase RLS which gates writes on the 'sources' tab permission."""
     from app.core.permissions import get_bot_role_and_permissions
     await get_bot_role_and_permissions(bot_id, user)
-    if DEPLOYMENT_PROFILE == "self_host":
-        def _list() -> list[dict[str, Any]]:
-            with connection() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        """SELECT id, type, name, content, status, char_count,
-                                  crawl_schedule, next_crawl_at, created_at
-                           FROM chatty_sources WHERE bot_id = %s ORDER BY created_at ASC""",
-                        (bot_id,),
-                    )
-                    return [dict(row) for row in cur.fetchall()]
-        return {"sources": await run_db(_list)}
     res = await run_db(lambda: supabase.table("chatty_sources").select(
         "id, type, name, content, status, char_count, crawl_schedule, next_crawl_at, created_at"
     ).eq("bot_id", bot_id).order("created_at", desc=False).execute())
@@ -481,25 +274,10 @@ async def create_bot_source(
     }
     if not source["content"]:
         raise HTTPException(status_code=422, detail="content is required")
-    if DEPLOYMENT_PROFILE != "self_host":
-        result = await run_db(lambda: supabase.table("chatty_sources").insert(source).execute())
-        if not result.data:
-            raise HTTPException(status_code=500, detail="Failed to create source")
-        return result.data[0]
-    def _insert() -> dict[str, Any]:
-        with connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(
-                    """INSERT INTO chatty_sources
-                       (bot_id, type, name, content, status, char_count)
-                       VALUES (%s, %s, %s, %s, %s, %s) RETURNING *""",
-                    tuple(source.values()),
-                )
-                row = cur.fetchone()
-                if not row:
-                    raise RuntimeError("source insert returned no row")
-                return dict(row)
-    return await run_db(_insert)
+    result = await run_db(lambda: supabase.table("chatty_sources").insert(source).execute())
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to create source")
+    return result.data[0]
 
 
 @router.post("/api/bot/logo")
@@ -508,13 +286,9 @@ async def upload_bot_logo(
     file: UploadFile = File(...),
     user: dict[str, Any] = Depends(require_user),
 ):
-    if DEPLOYMENT_PROFILE == "self_host":
-        bot = await get_bot(bot_id)
-        authorized = bool(bot and bot.get("user_id") == user["auth_user_id"])
-    else:
-        res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-            "user_id", user["auth_user_id"]).execute())
-        authorized = bool(res.data)
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
+    authorized = bool(res.data)
     if not authorized:
         raise HTTPException(status_code=403, detail="Unauthorized")
     data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Logo must be under 10MB")
@@ -527,24 +301,12 @@ async def upload_bot_logo(
     ext = (file.filename or "logo.png").split(".")[-1][:8]
     path = f"logos/{bot_id}/{_uuid.uuid4().hex[:8]}.{ext}"
     try:
-        if DEPLOYMENT_PROFILE == "self_host":
-            url = await run_db(lambda: put_bytes(path, data, mime))
-            try:
-                if not await update_bot_fields(bot_id, {"logo_url": url}):
-                    raise RuntimeError("bot metadata row was not updated")
-            except Exception:
-                try:
-                    await run_db(lambda: delete_object(path))
-                except Exception:
-                    logger.exception("Failed to compensate orphaned logo object")
-                raise
-        else:
-            def _upload():
-                supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
-                url = supabase.storage.from_("chatty-uploads").get_public_url(path)
-                supabase.table("chatty_bots").update({"logo_url": url}).eq("id", bot_id).execute()
-                return url
-            url = await run_db(_upload)
+        def _upload():
+            supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+            url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+            supabase.table("chatty_bots").update({"logo_url": url}).eq("id", bot_id).execute()
+            return url
+        url = await run_db(_upload)
         return {"logo_url": url}
     except Exception as e:
         logger.exception("Logo upload failed")
@@ -558,13 +320,9 @@ async def upload_bot_avatar(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Upload a custom assistant avatar image (separate from the header logo)."""
-    if DEPLOYMENT_PROFILE == "self_host":
-        bot = await get_bot(bot_id)
-        authorized = bool(bot and bot.get("user_id") == user["auth_user_id"])
-    else:
-        res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-            "user_id", user["auth_user_id"]).execute())
-        authorized = bool(res.data)
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
+    authorized = bool(res.data)
     if not authorized:
         raise HTTPException(status_code=403, detail="Unauthorized")
     data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Avatar must be under 10MB")
@@ -577,24 +335,12 @@ async def upload_bot_avatar(
     ext = (file.filename or "avatar.png").split(".")[-1][:8]
     path = f"avatars/{bot_id}/{_uuid.uuid4().hex[:8]}.{ext}"
     try:
-        if DEPLOYMENT_PROFILE == "self_host":
-            url = await run_db(lambda: put_bytes(path, data, mime))
-            try:
-                if not await update_bot_fields(bot_id, {"avatar_url": url, "avatar_icon": "custom"}):
-                    raise RuntimeError("bot metadata row was not updated")
-            except Exception:
-                try:
-                    await run_db(lambda: delete_object(path))
-                except Exception:
-                    logger.exception("Failed to compensate orphaned avatar object")
-                raise
-        else:
-            def _upload():
-                supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
-                url = supabase.storage.from_("chatty-uploads").get_public_url(path)
-                supabase.table("chatty_bots").update({"avatar_url": url, "avatar_icon": "custom"}).eq("id", bot_id).execute()
-                return url
-            url = await run_db(_upload)
+        def _upload():
+            supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+            url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+            supabase.table("chatty_bots").update({"avatar_url": url, "avatar_icon": "custom"}).eq("id", bot_id).execute()
+            return url
+        url = await run_db(_upload)
         return {"avatar_url": url}
     except Exception as e:
         logger.exception("Avatar upload failed")
@@ -612,13 +358,10 @@ async def get_user_profile(user: dict[str, Any] = Depends(require_user)):
     row: dict[str, Any] | None = None
 
     try:
-        if DEPLOYMENT_PROFILE == "self_host":
-            row = await get_user(user_id)
-        else:
-            res = await run_db(lambda: supabase.table("users").select(
-                "display_name, avatar_url, email, plan, subscription_status, subscription_renews_at, role"
-            ).eq("auth_user_id", user_id).limit(1).execute())
-            row = res.data[0] if res.data else None
+        res = await run_db(lambda: supabase.table("users").select(
+            "display_name, avatar_url, email, plan, subscription_status, subscription_renews_at, role"
+        ).eq("auth_user_id", user_id).limit(1).execute())
+        row = res.data[0] if res.data else None
         if row:
             display_name = row.get("display_name") or display_name
             avatar_url = row.get("avatar_url") or avatar_url
@@ -661,10 +404,7 @@ async def update_user_profile(
 
     if updates:
         try:
-            if DEPLOYMENT_PROFILE == "self_host":
-                await update_user_fields(user_id, updates)
-            else:
-                await run_db(lambda: supabase.table("users").update(updates).eq("auth_user_id", user_id).execute())
+            await run_db(lambda: supabase.table("users").update(updates).eq("auth_user_id", user_id).execute())
         except Exception as e:
             logger.warning("Failed to update users table: %s", e)
 
@@ -676,10 +416,7 @@ async def update_user_profile(
                 if "avatar_url" in body:
                     tm_updates["avatar_url"] = avatar_url
                 if tm_updates:
-                    if DEPLOYMENT_PROFILE == "self_host":
-                        await update_team_member_fields(email, tm_updates)
-                    else:
-                        await run_db(lambda: supabase.table("chatty_team_members").update(tm_updates).eq("email", email).execute())
+                    await run_db(lambda: supabase.table("chatty_team_members").update(tm_updates).eq("email", email).execute())
             except Exception as e:
                 logger.warning("Failed to sync team member profile: %s", e)
 
@@ -714,53 +451,33 @@ async def upload_user_avatar(
     path = f"avatars/users/{user_id}/{_uuid.uuid4().hex[:8]}.{ext}"
 
     try:
-        if DEPLOYMENT_PROFILE == "self_host":
-            url = await run_db(lambda: put_bytes(path, data, mime))
+        def _upload():
+            # Try chatty-uploads bucket, fallback to chatty_assets if needed
             try:
-                upd: dict[str, Any] = {"avatar_url": url}
+                supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
+                url = supabase.storage.from_("chatty-uploads").get_public_url(path)
+            except Exception as bucket_err:
+                logger.warning("chatty-uploads upload error: %s, falling back to chatty_assets", bucket_err)
+                supabase.storage.from_("chatty_assets").upload(path, data, {"content-type": mime})
+                url = supabase.storage.from_("chatty_assets").get_public_url(path)
+
+            upd: dict[str, Any] = {"avatar_url": url}
+            if display_name:
+                upd["display_name"] = display_name
+            supabase.table("users").update(upd).eq("auth_user_id", user_id).execute()
+
+            if email:
+                tm_upd: dict[str, Any] = {"avatar_url": url}
                 if display_name:
-                    upd["display_name"] = display_name
-                if not await update_user_fields(user_id, upd):
-                    raise RuntimeError("user metadata row was not updated")
-                if email:
-                    tm_upd: dict[str, Any] = {"avatar_url": url}
-                    if display_name:
-                        tm_upd["name"] = display_name
-                    await update_team_member_fields(email, tm_upd)
-            except Exception:
+                    tm_upd["name"] = display_name
                 try:
-                    await run_db(lambda: delete_object(path))
+                    supabase.table("chatty_team_members").update(tm_upd).eq("email", email).execute()
                 except Exception:
-                    logger.exception("Failed to compensate orphaned user avatar object")
-                raise
-        else:
-            def _upload():
-                # Try chatty-uploads bucket, fallback to chatty_assets if needed
-                try:
-                    supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
-                    url = supabase.storage.from_("chatty-uploads").get_public_url(path)
-                except Exception as bucket_err:
-                    logger.warning("chatty-uploads upload error: %s, falling back to chatty_assets", bucket_err)
-                    supabase.storage.from_("chatty_assets").upload(path, data, {"content-type": mime})
-                    url = supabase.storage.from_("chatty_assets").get_public_url(path)
+                    pass
 
-                upd: dict[str, Any] = {"avatar_url": url}
-                if display_name:
-                    upd["display_name"] = display_name
-                supabase.table("users").update(upd).eq("auth_user_id", user_id).execute()
+            return url
 
-                if email:
-                    tm_upd: dict[str, Any] = {"avatar_url": url}
-                    if display_name:
-                        tm_upd["name"] = display_name
-                    try:
-                        supabase.table("chatty_team_members").update(tm_upd).eq("email", email).execute()
-                    except Exception:
-                        pass
-
-                return url
-
-            url = await run_db(_upload)
+        url = await run_db(_upload)
         return {"avatar_url": url}
     except HTTPException:
         raise
@@ -995,17 +712,8 @@ async def get_capabilities(user: dict[str, Any] = Depends(require_user)):
     UI can gate provider choices."""
     from plugins import notifications as _notify
     from plugins import zoom_integration as _zoom
-    from app.core.providers import provider_status
-
-    providers = provider_status()
     return {
         "onesignal_configured": _notify.onesignal_configured(),
         "zoom_configured": _zoom.zoom_configured(),
-        "deployment_profile": providers.profile,
-        "self_host_ready": providers.ready_for_self_host,
-        "self_host_providers": {
-            "database": providers.database_configured,
-            "queue": providers.queue_configured,
-            "object_store": providers.object_store_configured,
-        },
+        "deployment_profile": "managed_supabase",
     }

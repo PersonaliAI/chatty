@@ -1,11 +1,4 @@
-"""Per-bot team-member permission tabs.
-
-A `chatty_team_members` row's `role` ('admin' | 'agent') sets the DEFAULT
-permission set on invite; `permissions` is the actual, editable source of
-truth an owner/admin can adjust per member afterward. The owner always has
-every permission implicitly - there's no chatty_team_members row for the
-owner, so checks short-circuit on bot ownership first.
-"""
+"""Per-bot team-member permission tabs for the managed Supabase path."""
 
 from __future__ import annotations
 
@@ -13,24 +6,13 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from app.core.config import DEPLOYMENT_PROFILE
+from app.core.clients import supabase
 from app.core.db import run_db
 
-# Dashboard-tab permission keys. Keep in sync with the frontend's
-# CHATTY_TEAM_TABS in src/app/dashboard/page.tsx.
 ALL_TABS = ("inbox", "sources", "design", "settings", "voice", "team", "meetings", "billing", "byok", "webhooks")
-
-# Only the bot owner may grant/revoke these, regardless of who is editing a
-# member's permissions (an admin with the 'team' permission can manage the
-# roster but can't hand out billing/API-key/webhook access).
 OWNER_ONLY_TABS = frozenset({"billing", "byok", "webhooks"})
-
-# 'meetings' is deliberately NOT in an agent's default set - an agent only
-# gets visibility once they're actually bookable/assigned meetings exist for
-# them (see plugins/availability_engine.py's round-robin); an admin manages
-# scheduling for the whole team by default, same as the other admin tabs.
 DEFAULT_ADMIN_PERMISSIONS = ["inbox", "sources", "design", "settings", "voice", "team", "meetings"]
-DEFAULT_AGENT_PERMISSIONS = ["inbox"]  # the most useful single tab for a first invite
+DEFAULT_AGENT_PERMISSIONS = ["inbox"]
 
 
 def default_permissions_for_role(role: str) -> list[str]:
@@ -38,62 +20,22 @@ def default_permissions_for_role(role: str) -> list[str]:
 
 
 async def get_bot_role_and_permissions(bot_id: str, user: dict[str, Any]) -> tuple[str, list[str]]:
-    """Return (role, permissions) for the caller on this bot, or ('owner', [*ALL_TABS]).
-
-    Raises 403 if the caller has no relationship to the bot at all.
-    """
-    if DEPLOYMENT_PROFILE == "self_host":
-        from psycopg2.extras import RealDictCursor
-        from app.core.db_pool import connection
-
-        email = (user.get("email") or "").strip().lower()
-
-        def _fetch_relationship() -> tuple[str, list[str]] | None:
-            with connection() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        "SELECT id FROM chatty_bots WHERE id = %s AND user_id = %s LIMIT 1",
-                        (bot_id, user["auth_user_id"]),
-                    )
-                    if cur.fetchone():
-                        return "owner", list(ALL_TABS)
-                    if email:
-                        cur.execute(
-                            "SELECT role, permissions FROM chatty_team_members "
-                            "WHERE bot_id = %s AND lower(email) = lower(%s) LIMIT 1",
-                            (bot_id, email),
-                        )
-                        row = cur.fetchone()
-                        if row:
-                            return row.get("role") or "agent", list(row.get("permissions") or [])
-            return None
-
-        relationship = await run_db(_fetch_relationship)
-        if relationship:
-            return relationship
-        raise HTTPException(status_code=403, detail="Unauthorized")
-
-    from app.core.clients import supabase  # local import avoids a cycle with clients importing config only
-
-    owned = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-        "user_id", user["auth_user_id"]).execute())
+    owned = await run_db(lambda: supabase.table("chatty_bots").select("id").eq(
+        "id", bot_id).eq("user_id", user["auth_user_id"]).execute())
     if owned.data:
         return "owner", list(ALL_TABS)
 
     email = (user.get("email") or "").strip().lower()
     if email:
-        m = await run_db(lambda: supabase.table("chatty_team_members").select("role, permissions").eq(
-            "bot_id", bot_id).ilike("email", email).limit(1).execute())
-        if m.data:
-            row = m.data[0]
+        members = await run_db(lambda: supabase.table("chatty_team_members").select(
+            "role, permissions").eq("bot_id", bot_id).ilike("email", email).limit(1).execute())
+        if members.data:
+            row = members.data[0]
             return row.get("role") or "agent", list(row.get("permissions") or [])
     raise HTTPException(status_code=403, detail="Unauthorized")
 
 
 async def verify_bot_permission(bot_id: str, user: dict[str, Any], tab: str) -> str:
-    """Raise 403 unless the caller (owner, or a team member with `tab` in
-    their permissions) may use this dashboard tab for this bot. Returns the
-    caller's role on success."""
     role, permissions = await get_bot_role_and_permissions(bot_id, user)
     if role == "owner" or tab in permissions:
         return role

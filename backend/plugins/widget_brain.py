@@ -583,7 +583,7 @@ async def run_widget_assistant(
             f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking.\n\n"
             f"MANDATORY BOOKING & LEAD CAPTURE WORKFLOW:\n"
             f"CRITICAL UI INSTRUCTION:\n"
-            f"- Whenever the visitor asks to book a demo, meeting, or appointment, or inquires about scheduling or open slots, ALWAYS warmly confirm and append the exact marker `[BOOKING_WIDGET]` at the end of your message. This automatically opens the interactive self-hosted slot picker and contact form directly in the chat!\n\n"
+            f"- Whenever the visitor asks to book a demo, meeting, or appointment, or inquires about scheduling or open slots, ALWAYS warmly confirm and append the exact marker `[BOOKING_WIDGET]` at the end of your message. This automatically opens the interactive booking slot picker and contact form directly in the chat!\n\n"
             f"1. PREFERRED DAY & TIME INQUIRY:\n"
             f"   - When the visitor asks to book a demo, meeting, or appointment, warmly confirm: 'Yes, you can book a demo! You can pick a time slot below or let me know what day and time works best for you.' and append `[BOOKING_WIDGET]`.\n"
             f"   - The visitor's timezone is ALREADY known as {visitor_timezone or 'UTC'}. NEVER ask the visitor what timezone they are in.\n"

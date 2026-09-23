@@ -1,138 +1,66 @@
-# Chatty Voice Stack - Self-Hosted VPS Deployment
+# Chatty voice worker on a VPS
 
-Fully self-hosted **LiveKit Server + Redis + Caddy + Chatty Voice Worker** stack designed to run on a single **Contabo VPS 4** (4 vCPU / 8 GB RAM / €4.40/mo) or any Ubuntu VPS.
+This directory deploys only Chatty's persistent LiveKit agent worker. The
+production data plane remains managed:
 
-Zero LiveKit Cloud dependency - all API keys and JWT signing are self-hosted and self-generated.
-
----
-
-## Architecture
-
-```
-Internet (Browser / Widget)
-   │
-   ▼ (HTTPS / WSS via Let's Encrypt)
-[Caddy :80/:443]
-   │
-   ▼ (ws://localhost:7880)
-[LiveKit Server :7880 / :7881 / :50000-50200 UDP] ◄──► [Redis :6379]
-   ▲
-   │ (job dispatch via internal Docker network)
-   ▼
-[Voice Worker (voice_worker.py)]
-   │
-   ├──► Supabase (conversations, bot settings, owner lookup)
-   └──► LLM / STT / TTS APIs (Gemini, Google, Deepgram, Cartesia, ElevenLabs, etc.)
+```text
+Chatty API/dashboard ──┬── Supabase (managed Auth, Postgres, Storage, Realtime)
+                       └── LiveKit Cloud (managed realtime media)
+                                  ▲
+                                  │ outbound WebSocket only
+                           VPS: Chatty voice worker
 ```
 
----
+The VPS does **not** run the database, queue, object storage, proxy, or a LiveKit
+server. No public worker port is required.
 
-## 1. Prerequisites
+## Requirements
 
-1. **A VPS running Ubuntu 22.04 or 24.04** (e.g., Contabo Cloud VPS 4).
-2. **A Domain Name** pointing an `A` record to your VPS Public IP:
-   - Example: `livekit.personaliai.com` ──► `123.45.67.89`
+- Ubuntu 22.04 or 24.04 VPS
+- Docker Engine and the Compose plugin
+- LiveKit Cloud project credentials
+- The same managed Supabase URL/secret used by the Chatty API
+- Gemini and BYOK encryption keys used by the production backend
 
----
-
-## 2. Quick Setup (Automated)
-
-SSH into your VPS as `root` and run:
+## Install
 
 ```bash
 git clone https://github.com/PersonaliAI/chatty-backend.git /opt/chatty-backend
 cd /opt/chatty-backend/voice-agent
-chmod +x setup.sh
-./setup.sh
+cp .env.example .env
+chmod 600 .env
+nano .env
 ```
 
-The script will:
-1. Install Docker and Docker Compose plugin
-2. Configure UFW Firewall (SSH 22, HTTP 80, HTTPS 443, LiveKit TCP 7881, UDP 50000-50200)
-3. Auto-generate a secure `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET`
-4. Detect the public IP and write `.env` and `livekit.yaml`
-
----
-
-## 3. Configure `.env`
-
-Open `/opt/chatty-backend/voice-agent/.env`:
+Fill every `REPLACE_ME` value, then start the worker:
 
 ```bash
-nano /opt/chatty-backend/voice-agent/.env
-```
-
-Ensure these variables are filled in:
-
-```ini
-DOMAIN=livekit.personaliai.com
-LIVEKIT_HOST=<YOUR_VPS_PUBLIC_IP>
-LIVEKIT_API_KEY=<GENERATED_KEY>
-LIVEKIT_API_SECRET=<GENERATED_SECRET>
-
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_KEY=eyJh...
-GEMINI_API_KEY=AIza...
-BYOK_ENCRYPTION_KEY=...
-```
-
----
-
-## 4. Start the Stack
-
-```bash
-cd /opt/chatty-backend/voice-agent
 docker compose up -d --build
+docker compose ps
+docker compose logs -f voice-worker
 ```
 
-View live logs:
+The worker registers in the LiveKit Cloud agent dashboard and remains in the
+`running` state. It makes outbound connections to LiveKit Cloud, Supabase, and
+the configured model providers; it does not accept internet requests.
 
-```bash
-docker compose logs -f
-```
-
----
-
-## 5. Connect Chatty API (Cloud Run)
-
-In your main backend API (running on Cloud Run or wherever Chatty API is hosted), update the environment variables:
-
-```ini
-LIVEKIT_URL=wss://livekit.personaliai.com
-LIVEKIT_API_KEY=<GENERATED_KEY>
-LIVEKIT_API_SECRET=<GENERATED_SECRET>
-```
-
-Restart or redeploy the API service.
-
----
-
-## 6. Verification
-
-1. **Caddy & SSL:**
-   ```bash
-   curl -I https://livekit.personaliai.com
-   ```
-   Should return `HTTP/2 200` or `404` (LiveKit returns 404 on root HTTP GET, which is expected since it listens for WebSocket upgrades).
-
-2. **LiveKit Connection Tester:**
-   Visit https://livekit.io/connection-test and enter `wss://livekit.personaliai.com` with your key and secret.
-
-3. **Check Container Status:**
-   ```bash
-   docker compose ps
-   ```
-   All 4 containers (`caddy`, `livekit`, `redis`, `voice-worker`) should be in `Up` state.
-
----
-
-## Maintenance & Updates
-
-To update the voice worker after making code changes:
+## Updates
 
 ```bash
 cd /opt/chatty-backend
-git pull
+git pull --ff-only
 cd voice-agent
-docker compose up -d --build voice-worker
+docker compose up -d --build --force-recreate voice-worker
+docker compose logs --tail=200 voice-worker
 ```
+
+Keep the previous image available until the new worker has registered and
+handled a test call. Take a provider snapshot before upgrades.
+
+## Security baseline
+
+- Use SSH keys and disable password/root SSH login.
+- Allow inbound SSH only; keep worker ports closed.
+- Keep `.env` mode `600` and never commit it.
+- Pin production image/dependency versions and rotate provider keys regularly.
+- Configure Docker restart-on-failure and host security updates.

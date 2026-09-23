@@ -12,16 +12,12 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from psycopg2.extras import RealDictCursor
 
 from app.core import security as _sec
 from app.core.clients import supabase
 from app.core.db import run_db
-from app.core.db_pool import connection
-from app.core.config import DEPLOYMENT_PROFILE
 from app.core.deps import require_user
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
-from app.core.providers import check_self_host_dependencies, provider_status
 from app.schemas.public_api import (
     ApiKeyCreateRequest,
     ApiKeyUpdateRequest,
@@ -49,33 +45,6 @@ from plugins.widget_brain import run_widget_assistant
 logger = logging.getLogger("chatty")
 
 router = APIRouter()
-
-
-async def _self_host_key_row(sql: str, params: tuple[Any, ...]) -> dict[str, Any] | None:
-    def _fetch() -> dict[str, Any] | None:
-        with connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(sql, params)
-                row = cur.fetchone()
-                return dict(row) if row else None
-    return await run_db(_fetch)
-
-
-async def _self_host_key_rows(sql: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
-    def _fetch() -> list[dict[str, Any]]:
-        with connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(sql, params)
-                return [dict(row) for row in cur.fetchall()]
-    return await run_db(_fetch)
-
-
-async def _self_host_key_exec(sql: str, params: tuple[Any, ...]) -> None:
-    def _execute() -> None:
-        with connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, params)
-    await run_db(_execute)
 
 
 # ---------------------------------------------------------------------------
@@ -106,28 +75,14 @@ async def health_check(request: Request):
     description="Returns whether the selected provider contract is ready to receive traffic.",
 )
 async def readiness_check(request: Request):
-    status = provider_status()
-    dependency_checks = None
-    ready = status.profile != "self_host" or status.ready_for_self_host_adapters
-    if status.profile == "self_host" and ready:
-        dependency_checks = await run_db(check_self_host_dependencies)
-        ready = all(dependency_checks.values())
     payload = {
-        "status": "ready" if ready else "not_ready",
-        "profile": status.profile,
+        "status": "ready",
+        "profile": "managed_supabase",
         "providers": {
-            "database": status.database_configured,
-            "queue": status.queue_configured,
-            "object_store": status.object_store_configured,
+            "supabase": True,
         },
         "request_id": _sec.get_request_id(request),
     }
-    if dependency_checks is not None:
-        payload["dependencies"] = dependency_checks
-    if not ready:
-        from fastapi.responses import JSONResponse
-
-        return JSONResponse(status_code=503, content=payload)
     return payload
 
 
@@ -150,15 +105,9 @@ async def create_api_key(
     req: ApiKeyCreateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    if DEPLOYMENT_PROFILE == "self_host":
-        owned_bot = await _self_host_key_row(
-            "SELECT id FROM chatty_bots WHERE id = %s AND user_id = %s LIMIT 1",
-            (req.bot_id, user["auth_user_id"]),
-        )
-    else:
-        res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(
-            "user_id", user["auth_user_id"]).execute())
-        owned_bot = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
+    owned_bot = res.data[0] if res.data else None
     if not owned_bot:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
@@ -171,25 +120,16 @@ async def create_api_key(
     raw = _API_KEY_PREFIX + secrets.token_hex(24)
     prefix = raw[: len(_API_KEY_PREFIX) + 6]
     try:
-        if DEPLOYMENT_PROFILE == "self_host":
-            created = await _self_host_key_row(
-                """INSERT INTO chatty_api_keys
-                   (bot_id, user_id, name, key_prefix, key_hash, scopes, allowed_ips)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *""",
-                (req.bot_id, user["auth_user_id"], req.name or "API Key", prefix,
-                 _hash_api_key(raw), requested_scopes, req.allowed_ips or None),
-            ) or {}
-        else:
-            row = await run_db(lambda: supabase.table("chatty_api_keys").insert({
-                "bot_id": req.bot_id,
-                "user_id": user["auth_user_id"],
-                "name": req.name or "API Key",
-                "key_prefix": prefix,
-                "key_hash": _hash_api_key(raw),
-                "scopes": requested_scopes,
-                "allowed_ips": req.allowed_ips or None,
-            }).execute())
-            created = row.data[0] if row.data else {}
+        row = await run_db(lambda: supabase.table("chatty_api_keys").insert({
+            "bot_id": req.bot_id,
+            "user_id": user["auth_user_id"],
+            "name": req.name or "API Key",
+            "key_prefix": prefix,
+            "key_hash": _hash_api_key(raw),
+            "scopes": requested_scopes,
+            "allowed_ips": req.allowed_ips or None,
+        }).execute())
+        created = row.data[0] if row.data else {}
         return {
             "id": created.get("id"),
             "name": created.get("name"),
@@ -215,30 +155,16 @@ async def list_api_keys(
     bot_id: str,
     user: dict[str, Any] = Depends(require_user),
 ):
-    if DEPLOYMENT_PROFILE == "self_host":
-        owned_bot = await _self_host_key_row(
-            "SELECT id FROM chatty_bots WHERE id = %s AND user_id = %s LIMIT 1",
-            (bot_id, user["auth_user_id"]),
-        )
-    else:
-        res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
-            "user_id", user["auth_user_id"]).execute())
-        owned_bot = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq(
+        "user_id", user["auth_user_id"]).execute())
+    owned_bot = res.data[0] if res.data else None
     if not owned_bot:
         raise HTTPException(status_code=403, detail="Unauthorized")
     try:
-        if DEPLOYMENT_PROFILE == "self_host":
-            keys = await _self_host_key_rows(
-                """SELECT id, name, key_prefix, scopes, allowed_ips, last_used_at,
-                          request_count, revoked, created_at
-                   FROM chatty_api_keys WHERE bot_id = %s ORDER BY created_at DESC""",
-                (bot_id,),
-            )
-        else:
-            keys_res = await run_db(lambda: supabase.table("chatty_api_keys").select(
-                "id, name, key_prefix, scopes, allowed_ips, last_used_at, request_count, revoked, created_at"
-            ).eq("bot_id", bot_id).order("created_at", desc=True).execute())
-            keys = keys_res.data or []
+        keys_res = await run_db(lambda: supabase.table("chatty_api_keys").select(
+            "id, name, key_prefix, scopes, allowed_ips, last_used_at, request_count, revoked, created_at"
+        ).eq("bot_id", bot_id).order("created_at", desc=True).execute())
+        keys = keys_res.data or []
         return {"keys": keys}
     except Exception as e:
         logger.exception("Failed to list API keys")
@@ -256,15 +182,9 @@ async def update_api_key(
     req: ApiKeyUpdateRequest,
     user: dict[str, Any] = Depends(require_user),
 ):
-    if DEPLOYMENT_PROFILE == "self_host":
-        existing = await _self_host_key_row(
-            "SELECT * FROM chatty_api_keys WHERE id = %s AND user_id = %s LIMIT 1",
-            (key_id, user["auth_user_id"]),
-        )
-    else:
-        res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq("id", key_id).eq(
-            "user_id", user["auth_user_id"]).execute())
-        existing = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq("id", key_id).eq(
+        "user_id", user["auth_user_id"]).execute())
+    existing = res.data[0] if res.data else None
     if not existing:
         raise HTTPException(status_code=404, detail="Key not found")
     updates: dict[str, Any] = {}
@@ -280,15 +200,7 @@ async def update_api_key(
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
     try:
-        if DEPLOYMENT_PROFILE == "self_host":
-            assignments = ", ".join(f"{column} = %s" for column in updates)
-            values = list(updates.values())
-            await _self_host_key_exec(
-                f"UPDATE chatty_api_keys SET {assignments} WHERE id = %s",
-                (*values, key_id),
-            )
-        else:
-            await run_db(lambda: supabase.table("chatty_api_keys").update(updates).eq("id", key_id).execute())
+        await run_db(lambda: supabase.table("chatty_api_keys").update(updates).eq("id", key_id).execute())
         return {"success": True}
     except Exception as e:
         logger.exception("Failed to update API key")
@@ -305,22 +217,13 @@ async def revoke_api_key(
     key_id: str,
     user: dict[str, Any] = Depends(require_user),
 ):
-    if DEPLOYMENT_PROFILE == "self_host":
-        existing = await _self_host_key_row(
-            "SELECT * FROM chatty_api_keys WHERE id = %s AND user_id = %s LIMIT 1",
-            (key_id, user["auth_user_id"]),
-        )
-    else:
-        res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq("id", key_id).eq(
-            "user_id", user["auth_user_id"]).execute())
-        existing = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq("id", key_id).eq(
+        "user_id", user["auth_user_id"]).execute())
+    existing = res.data[0] if res.data else None
     if not existing:
         raise HTTPException(status_code=404, detail="Key not found")
     try:
-        if DEPLOYMENT_PROFILE == "self_host":
-            await _self_host_key_exec("UPDATE chatty_api_keys SET revoked = TRUE WHERE id = %s", (key_id,))
-        else:
-            await run_db(lambda: supabase.table("chatty_api_keys").update({"revoked": True}).eq("id", key_id).execute())
+        await run_db(lambda: supabase.table("chatty_api_keys").update({"revoked": True}).eq("id", key_id).execute())
         return {"success": True}
     except Exception as e:
         logger.exception("Failed to revoke API key")

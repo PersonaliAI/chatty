@@ -1,4 +1,4 @@
-"""Unit tests for self-hosted interactive widget booking endpoints (/api/widget/booking/*)."""
+"""Unit tests for the managed interactive widget booking endpoints."""
 from __future__ import annotations
 
 import pytest
@@ -293,5 +293,3 @@ async def test_widget_booking_slots_returns_prefilled_lead():
         assert res["prefilled_lead"]["email"] == "sarah@cyberdyne.com"
         assert res["prefilled_lead"]["phone"] == "+1-555-0199"
         assert res["prefilled_lead"]["company"] == "Cyberdyne Systems"
-
-

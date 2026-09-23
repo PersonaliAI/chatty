@@ -1,62 +1,28 @@
-"""FastAPI dependencies - Supabase session-JWT verification and the
-`require_user` dependency routes use to get the authenticated user's row.
-"""
+"""FastAPI dependencies for managed Supabase authentication."""
 
 from __future__ import annotations
 
 from typing import Any, Optional
-import os
-import uuid
 
 import jwt
 from fastapi import Depends, Header, HTTPException
 from jwt import PyJWKClient
 
 from app.core.clients import supabase
-from app.core.config import DEPLOYMENT_PROFILE, SUPABASE_JWT_SECRET, SUPABASE_URL
-from app.core.db_pool import connection
-from app.core.oidc import verify_oidc_jwt
+from app.core.config import SUPABASE_JWT_SECRET, SUPABASE_URL
 
 _JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
-_jwks_client = (
-    PyJWKClient(_JWKS_URL, cache_keys=True, lifespan=3600)
-    if SUPABASE_URL
-    else None
-)
-
-
-def _self_host_subject_uuid(subject: str) -> uuid.UUID:
-    """Map an OIDC subject to a stable UUID for the portable SQL schema.
-
-    OIDC `sub` values are opaque strings, while the existing schema uses UUID
-    foreign keys (matching Supabase Auth). UUID5 gives every issuer/subject
-    pair a deterministic, non-secret identifier without storing the raw token
-    subject in a UUID column.
-    """
-    issuer = os.environ.get("OIDC_ISSUER_URL", "").rstrip("/")
-    return uuid.uuid5(uuid.NAMESPACE_URL, f"chatty:{issuer}:{subject}")
+_jwks_client = PyJWKClient(_JWKS_URL, cache_keys=True, lifespan=3600)
 
 
 def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str, Any]:
-    """Verify a Supabase access-token JWT.
-
-    Supabase projects can sign tokens two ways:
-      * Legacy: HS256 with a shared `SUPABASE_JWT_SECRET`.
-      * New: ES256/RS256 with rotating keys exposed via JWKS.
-
-    We try JWKS first (the modern path), and fall back to the shared secret
-    only if JWKS isn't available. Either way the JWT must have `aud=authenticated`.
-    """
+    """Verify a Supabase access-token JWT using JWKS, with legacy HS256 fallback."""
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="missing bearer token")
     token = authorization.split(" ", 1)[1].strip()
 
     last_err: Optional[Exception] = None
-
-    # 1) Asymmetric (JWKS)
     try:
-        if _jwks_client is None:
-            raise RuntimeError("Supabase JWT verifier is disabled")
         signing_key = _jwks_client.get_signing_key_from_jwt(token).key
         claims = jwt.decode(
             token,
@@ -69,7 +35,6 @@ def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str
     except Exception as exc:  # noqa: BLE001 - fall through to legacy
         last_err = exc
 
-    # 2) Legacy HS256 with shared secret
     if SUPABASE_JWT_SECRET:
         try:
             claims = jwt.decode(
@@ -83,56 +48,11 @@ def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str
         except jwt.PyJWTError as exc:
             last_err = exc
 
-    detail = "invalid token"
-    if last_err:
-        detail = f"invalid token: {last_err}"
+    detail = f"invalid token: {last_err}" if last_err else "invalid token"
     raise HTTPException(status_code=401, detail=detail)
 
 
 def get_user_by_auth_id(auth_user_id: str) -> dict[str, Any]:
-    if DEPLOYMENT_PROFILE == "self_host":
-        # The self-host path uses the same logical users table but does not
-        # depend on Supabase PostgREST. `auth_user_id` is the stable OIDC `sub`.
-        from psycopg2.extras import RealDictCursor
-
-        canonical_id = _self_host_subject_uuid(auth_user_id)
-        with connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(
-                    "SELECT * FROM users WHERE auth_user_id = %s LIMIT 1",
-                    (str(canonical_id),),
-                )
-                row = cur.fetchone()
-                if row:
-                    return dict(row)
-                # Keep an auth.users-compatible row so the portable schema's
-                # foreign keys (chatty_bots.user_id, subscriptions, etc.)
-                # remain valid. The trigger installed by the self-host
-                # migrations creates public.users; the explicit upsert below
-                # also makes this safe when an operator disables triggers.
-                cur.execute(
-                    """
-                    INSERT INTO auth.users (id, email, raw_user_meta_data)
-                    VALUES (%s, %s, %s::jsonb)
-                    ON CONFLICT (id) DO NOTHING
-                    """,
-                    (
-                        str(canonical_id),
-                        None,
-                        "{}",
-                    ),
-                )
-                cur.execute(
-                    """
-                    INSERT INTO users (auth_user_id)
-                    VALUES (%s)
-                    ON CONFLICT (auth_user_id) DO UPDATE SET updated_at = NOW()
-                    RETURNING *
-                    """,
-                    (str(canonical_id),),
-                )
-                return dict(cur.fetchone())
-
     res = (
         supabase.table("users")
         .select("*")
@@ -147,19 +67,8 @@ def get_user_by_auth_id(auth_user_id: str) -> dict[str, Any]:
 
 
 def verify_bearer_jwt(authorization: Optional[str] = Header(None)) -> dict[str, Any]:
-    if DEPLOYMENT_PROFILE == "self_host":
-        return verify_oidc_jwt(authorization)
     return verify_supabase_jwt(authorization)
 
 
 def require_user(claims: dict[str, Any] = Depends(verify_bearer_jwt)) -> dict[str, Any]:
-    user = get_user_by_auth_id(claims["sub"])
-    # OIDC claims are the source of identity attributes in self-host mode.
-    # Overlay only non-sensitive display fields so team authorization can use
-    # the IdP email without trusting arbitrary request data or changing the
-    # managed Supabase path.
-    if DEPLOYMENT_PROFILE == "self_host":
-        for field in ("email", "display_name"):
-            if claims.get(field) and not user.get(field):
-                user[field] = claims[field]
-    return user
+    return get_user_by_auth_id(claims["sub"])

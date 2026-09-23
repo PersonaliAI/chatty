@@ -25,13 +25,10 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import RedirectResponse
-from psycopg2.extras import RealDictCursor
-
 from app.core import oauth as _oauth
 from app.core.clients import supabase
-from app.core.config import CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL, DEPLOYMENT_PROFILE
+from app.core.config import CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL
 from app.core.db import run_db
-from app.core.db_pool import connection
 from app.core.deps import require_user
 from app.schemas.oauth import (
     AuthorizeDecisionRequest,
@@ -54,22 +51,8 @@ _SCOPE_DESCRIPTIONS = {
 }
 
 
-async def _self_host_one(sql: str, params: tuple[Any, ...]) -> dict[str, Any] | None:
-    def _fetch() -> dict[str, Any] | None:
-        with connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(sql, params)
-                row = cur.fetchone()
-                return dict(row) if row else None
-    return await run_db(_fetch)
 
 
-async def _self_host_exec(sql: str, params: tuple[Any, ...]) -> None:
-    def _execute() -> None:
-        with connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, params)
-    await run_db(_execute)
 
 
 # ---------------------------------------------------------------------------
@@ -153,16 +136,7 @@ async def register_client(body: ClientRegistrationRequest):
         "client_name": body.client_name[:100],
         "redirect_uris": body.redirect_uris,
     }
-    if DEPLOYMENT_PROFILE == "self_host":
-        await _self_host_exec(
-            """INSERT INTO chatty_oauth_clients
-               (client_id, client_secret_hash, is_confidential, client_name, redirect_uris)
-               VALUES (%s, %s, %s, %s, %s)""",
-            (row["client_id"], row["client_secret_hash"], row["is_confidential"],
-             row["client_name"], row["redirect_uris"]),
-        )
-    else:
-        await run_db(lambda: supabase.table("chatty_oauth_clients").insert(row).execute())
+    await run_db(lambda: supabase.table("chatty_oauth_clients").insert(row).execute())
 
     return ClientRegistrationResponse(
         client_id=client_id,
@@ -206,15 +180,9 @@ async def authorize_redirect(
 
 
 async def _get_client_or_404(client_id: str) -> dict[str, Any]:
-    if DEPLOYMENT_PROFILE == "self_host":
-        client = await _self_host_one(
-            "SELECT * FROM chatty_oauth_clients WHERE client_id = %s LIMIT 1",
-            (client_id,),
-        )
-    else:
-        res = await run_db(lambda: supabase.table("chatty_oauth_clients").select("*").eq(
-            "client_id", client_id).execute())
-        client = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_oauth_clients").select("*").eq(
+        "client_id", client_id).execute())
+    client = res.data[0] if res.data else None
     if not client:
         raise HTTPException(status_code=400, detail="Unknown client_id")
     return client
@@ -274,18 +242,7 @@ async def authorize_decision(
         "expires_at": (datetime.datetime.now(datetime.timezone.utc)
                        + datetime.timedelta(seconds=_oauth.AUTH_CODE_TTL_SECONDS)).isoformat(),
     }
-    if DEPLOYMENT_PROFILE == "self_host":
-        await _self_host_exec(
-            """INSERT INTO chatty_oauth_codes
-               (code, client_id, user_id, redirect_uri, scope, code_challenge,
-                code_challenge_method, expires_at)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-            (row["code"], row["client_id"], row["user_id"], row["redirect_uri"],
-             row["scope"], row["code_challenge"], row["code_challenge_method"],
-             row["expires_at"]),
-        )
-    else:
-        await run_db(lambda: supabase.table("chatty_oauth_codes").insert(row).execute())
+    await run_db(lambda: supabase.table("chatty_oauth_codes").insert(row).execute())
 
     params = {"code": code}
     if body.state:
@@ -342,14 +299,8 @@ async def _grant_authorization_code(body: TokenRequest):
         raise HTTPException(status_code=400, detail="code and redirect_uri are required")
     client = await _authenticate_client(body.client_id, body.client_secret)
 
-    if DEPLOYMENT_PROFILE == "self_host":
-        code_row = await _self_host_one(
-            "SELECT * FROM chatty_oauth_codes WHERE code = %s LIMIT 1",
-            (body.code,),
-        )
-    else:
-        res = await run_db(lambda: supabase.table("chatty_oauth_codes").select("*").eq("code", body.code).execute())
-        code_row = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_oauth_codes").select("*").eq("code", body.code).execute())
+    code_row = res.data[0] if res.data else None
     if not code_row:
         raise HTTPException(status_code=400, detail="Invalid authorization code")
 
@@ -373,10 +324,7 @@ async def _grant_authorization_code(body: TokenRequest):
     # Single-use: mark consumed before issuing tokens, not after - a crash
     # between issuing and marking would otherwise let the same code be
     # replayed to mint a second token pair.
-    if DEPLOYMENT_PROFILE == "self_host":
-        await _self_host_exec("UPDATE chatty_oauth_codes SET used = TRUE WHERE code = %s", (body.code,))
-    else:
-        await run_db(lambda: supabase.table("chatty_oauth_codes").update({"used": True}).eq("code", body.code).execute())
+    await run_db(lambda: supabase.table("chatty_oauth_codes").update({"used": True}).eq("code", body.code).execute())
 
     return await _oauth.issue_tokens(client_id=client["client_id"], user_id=code_row["user_id"], scope=code_row["scope"])
 
@@ -387,15 +335,9 @@ async def _grant_refresh_token(body: TokenRequest):
     client = await _authenticate_client(body.client_id, body.client_secret)
 
     refresh_digest = _oauth.hash_token(body.refresh_token)
-    if DEPLOYMENT_PROFILE == "self_host":
-        old = await _self_host_one(
-            "SELECT * FROM chatty_oauth_tokens WHERE refresh_token_hash = %s LIMIT 1",
-            (refresh_digest,),
-        )
-    else:
-        res = await run_db(lambda: supabase.table("chatty_oauth_tokens").select("*").eq(
-            "refresh_token_hash", refresh_digest).execute())
-        old = res.data[0] if res.data else None
+    res = await run_db(lambda: supabase.table("chatty_oauth_tokens").select("*").eq(
+        "refresh_token_hash", refresh_digest).execute())
+    old = res.data[0] if res.data else None
     if not old:
         raise HTTPException(status_code=400, detail="Invalid refresh token")
 
@@ -413,10 +355,7 @@ async def _grant_refresh_token(body: TokenRequest):
 
     # Rotate: revoke the old pair, issue a fresh one - standard practice so a
     # leaked refresh token has a bounded, single-use lifetime.
-    if DEPLOYMENT_PROFILE == "self_host":
-        await _self_host_exec("UPDATE chatty_oauth_tokens SET revoked = TRUE WHERE id = %s", (old["id"],))
-    else:
-        await run_db(lambda: supabase.table("chatty_oauth_tokens").update({"revoked": True}).eq("id", old["id"]).execute())
+    await run_db(lambda: supabase.table("chatty_oauth_tokens").update({"revoked": True}).eq("id", old["id"]).execute())
     return await _oauth.issue_tokens(client_id=client["client_id"], user_id=old["user_id"], scope=old["scope"])
 
 
@@ -434,13 +373,6 @@ async def revoke_token(
     # error (RFC 7009 §2.2), so a client can't probe token validity via
     # this endpoint's response code.
     digest = _oauth.hash_token(token)
-    if DEPLOYMENT_PROFILE == "self_host":
-        await _self_host_exec(
-            """UPDATE chatty_oauth_tokens SET revoked = TRUE
-               WHERE access_token_hash = %s OR refresh_token_hash = %s""",
-            (digest, digest),
-        )
-    else:
-        await run_db(lambda: supabase.table("chatty_oauth_tokens").update({"revoked": True}).or_(
-            f"access_token_hash.eq.{digest},refresh_token_hash.eq.{digest}").execute())
+    await run_db(lambda: supabase.table("chatty_oauth_tokens").update({"revoked": True}).or_(
+        f"access_token_hash.eq.{digest},refresh_token_hash.eq.{digest}").execute())
     return {"status": "ok"}
