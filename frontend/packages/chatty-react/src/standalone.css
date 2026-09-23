@@ -62,13 +62,3 @@
   from { opacity: 0; transform: translate(-50%, 24px) scale(.97); }
   to { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
-
-@keyframes chatty-voice-launcher-in {
-  from { opacity: 0; transform: scale(.7); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes chatty-voice-pulse {
-  0% { opacity: .5; transform: scale(.92); }
-  70%, 100% { opacity: 0; transform: scale(1.35); }
-}
