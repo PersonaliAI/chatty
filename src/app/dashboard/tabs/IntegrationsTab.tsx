@@ -536,6 +536,7 @@ export function IntegrationsTab({
         {[
           { id: "whatsapp", label: "WhatsApp" },
           { id: "embed", label: "Embed & SDKs" },
+          { id: "voice", label: "Voice agent" },
           { id: "domains", label: "Security" },
         ].map((item) => (
           <button
@@ -654,6 +655,38 @@ export function IntegrationsTab({
             ))}
           </div>
         )}
+      </div>
+
+      {/* Dedicated voice agent */}
+      <div id="integration-voice" className="order-3 scroll-mt-24 p-6 bg-gradient-to-br from-[#fff8f2] to-white dark:from-orange-950/20 dark:to-neutral-900 border border-orange-200/70 dark:border-orange-900/50 rounded-2xl">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold">Talk to voice agent</h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-2xl leading-relaxed">
+              Embed the standalone animated call surface with live transcription, microphone activity, mute/hang-up controls, and booking support. It runs independently from the chat widget.
+            </p>
+          </div>
+          <a href={`/voice/${botId || "YOUR_BOT_ID"}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-[#c67139] px-3 py-1.5 text-[10px] font-semibold text-white hover:opacity-90">
+            Preview voice agent <ExternalLink className="size-3" />
+          </a>
+        </div>
+        <div className="mt-4 space-y-2">
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">Paste this iframe where you want the dedicated call UI:</p>
+          <div className="relative">
+            <pre className="p-4 rounded-xl bg-neutral-950 text-[10px] font-mono text-neutral-200 overflow-x-auto leading-relaxed">{`<iframe
+  src="https://chatty.personaliai.com/voice/${botId || "YOUR_BOT_ID"}"
+  title="Talk to our voice agent"
+  width="100%" height="760"
+  style="border:0;border-radius:24px;overflow:hidden"
+  allow="microphone"
+></iframe>`}</pre>
+            <button onClick={() => copyToClipboard(`<iframe\n  src="https://chatty.personaliai.com/voice/${botId || "YOUR_BOT_ID"}"\n  title="Talk to our voice agent"\n  width="100%" height="760"\n  style="border:0;border-radius:24px;overflow:hidden"\n  allow="microphone"\n></iframe>`, "iframe")} className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-white transition-colors cursor-pointer bg-neutral-900 px-2 py-1 rounded-md border border-neutral-700">
+              {copiedScript ? <Check className="size-3 text-green-400" /> : <Copy className="size-3" />}
+              {copiedScript ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Add the parent site to the bot allow list and keep <code>allow=&quot;microphone&quot;</code> so browsers can grant audio access.</p>
+        </div>
       </div>
 
       {/* Mobile SDKs */}

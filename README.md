@@ -56,6 +56,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 }
 ```
 
+## Embed the standalone voice agent
+
+Chatty also provides a dedicated voice-call surface for websites that want a
+“Talk to voice agent” experience instead of opening the chat drawer. It has an
+animated speaking orb, real microphone activity, live visitor/agent
+transcription, mute and hang-up controls, and booking support.
+
+```html
+<iframe
+  src="https://chatty.personaliai.com/voice/YOUR_BOT_UUID"
+  title="Talk to our voice agent"
+  width="100%"
+  height="760"
+  style="border:0;border-radius:24px;overflow:hidden"
+  allow="microphone"
+></iframe>
+```
+
+Add the parent site to the bot allow list before publishing. Keep
+`allow="microphone"` on the iframe; the visitor will be asked for permission
+when the call starts. You can also link a custom button directly to
+`/voice/YOUR_BOT_UUID` or open that URL in a modal.
+
 ## Local Development
 
 ```bash
