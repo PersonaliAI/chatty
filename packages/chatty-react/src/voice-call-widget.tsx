@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
 import { motion, AnimatePresence, useSpring } from "framer-motion";
 import {
   Room,
@@ -636,6 +636,9 @@ function Orb({
   }, [level]);
 
   const isActive = status === "agent-speaking";
+  const noiseInstanceId = useId().replace(/:/g, "");
+  const noiseId = `chatty-fluid-noise-${noiseInstanceId}-${compact ? "compact" : "full"}`;
+  const blobSize = compact ? "size-8" : "size-[78%]";
 
   return (
     <motion.div
@@ -651,13 +654,55 @@ function Orb({
           ? { duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }
           : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
       }
-      className={`shrink-0 rounded-full flex items-center justify-center ${compact ? "size-9" : "size-28"}`}
+      className={`relative isolate shrink-0 overflow-hidden rounded-full flex items-center justify-center ${compact ? "size-9" : "size-28"}`}
       style={{
-        background: `radial-gradient(circle at 35% 30%, ${primaryColor}dd, ${primaryColor}88)`,
+        background: "linear-gradient(145deg, #062b42 0%, #087e98 48%, #6caa78 100%)",
         boxShadow: `0 0 ${(compact ? 8 : 20) + (isActive ? glow * (compact ? 20 : 60) : compact ? 4 : 10)}px ${primaryColor}${isActive ? "aa" : "55"}`,
       }}
     >
-      <div className={`rounded-full bg-white/25 backdrop-blur-sm ${compact ? "size-5" : "size-16"}`} />
+      <svg aria-hidden="true" className="absolute size-0" focusable="false">
+        <defs>
+          <filter id={noiseId} x="-25%" y="-25%" width="150%" height="150%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="9" result="noise">
+              <animate attributeName="baseFrequency" values="0.009;0.016;0.011;0.009" dur="10s" repeatCount="indefinite" />
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale={compact ? 5 : 18} xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
+      <div className="absolute inset-[-18%]" style={{ filter: `url(#${noiseId})` }}>
+        <motion.div
+          className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[18px]`}
+          style={{ left: "-8%", top: "-12%", background: "radial-gradient(circle at 55% 55%, rgba(34,211,238,.98), rgba(14,116,144,.68) 48%, transparent 73%)", mixBlendMode: "screen" }}
+          animate={{ x: ["-8%", "34%", "5%", "-8%"], y: ["8%", "-12%", "26%", "8%"], scale: [1, 1.18, 0.9, 1], rotate: [0, 22, -12, 0] }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[19px]`}
+          style={{ right: "-12%", top: "10%", background: "radial-gradient(circle at 45% 50%, rgba(96,165,250,.95), rgba(37,99,235,.58) 46%, transparent 74%)", mixBlendMode: "screen" }}
+          animate={{ x: ["5%", "-22%", "10%", "5%"], y: ["-8%", "22%", "6%", "-8%"], scale: [0.92, 1.16, 1.04, 0.92], rotate: [8, -18, 14, 8] }}
+          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className={`absolute ${blobSize} rounded-full blur-[11px] sm:blur-[20px]`}
+          style={{ left: "18%", bottom: "-22%", background: "radial-gradient(circle at 50% 42%, rgba(134,239,172,.96), rgba(34,197,94,.58) 45%, transparent 74%)", mixBlendMode: "screen" }}
+          animate={{ x: ["4%", "-18%", "24%", "4%"], y: ["0%", "-24%", "-4%", "0%"], scale: [1, 0.88, 1.2, 1], rotate: [0, -25, 18, 0] }}
+          transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className={`absolute ${blobSize} rounded-full blur-[9px] sm:blur-[16px]`}
+          style={{ left: "30%", top: "12%", background: "radial-gradient(circle, rgba(253,224,71,.9), rgba(250,204,21,.48) 42%, transparent 70%)", mixBlendMode: "screen" }}
+          animate={{ x: ["0%", "18%", "-16%", "0%"], y: ["0%", "28%", "16%", "0%"], scale: [0.76, 1.08, 0.9, 0.76], rotate: [0, 28, -20, 0] }}
+          transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-full"
+        style={{ background: "radial-gradient(circle at 32% 24%, rgba(255,255,255,.42), transparent 24%), radial-gradient(circle at 62% 70%, rgba(8,30,50,.24), transparent 55%)", mixBlendMode: "screen" }}
+        animate={{ opacity: isActive ? [0.7, 1, 0.72] : [0.55, 0.82, 0.55] }}
+        transition={{ duration: isActive ? 2.4 : 4.5, repeat: Infinity, ease: "easeInOut" }}
+      />
     </motion.div>
   );
 }
