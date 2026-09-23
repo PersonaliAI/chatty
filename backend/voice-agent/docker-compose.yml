@@ -42,7 +42,9 @@ services:
     profiles: [self-hosted]
     image: ${LIVEKIT_SERVER_IMAGE:-livekit/livekit-server:v1.13.7}
     restart: unless-stopped
-    command: ["--config", "/etc/livekit.yaml", "--node-ip", "${LIVEKIT_HOST:?Set LIVEKIT_HOST to the VPS public IPv4}"]
+    # The fallback keeps the Cloud-only profile parseable; setup.sh requires
+    # and writes the real public address before self-hosted startup.
+    command: ["--config", "/etc/livekit.yaml", "--node-ip", "${LIVEKIT_HOST:-127.0.0.1}"]
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     ports:
@@ -72,7 +74,9 @@ services:
     image: ${CADDY_IMAGE:-caddy:2-alpine}
     restart: unless-stopped
     environment:
-      DOMAIN: ${DOMAIN:?Set DOMAIN to the LiveKit DNS name}
+      # The fallback keeps `docker compose up` (Cloud mode) valid even though
+      # Caddy is disabled. setup.sh requires a real DNS name for self-hosting.
+      DOMAIN: ${DOMAIN:-localhost}
     ports:
       - "80:80/tcp"
       - "443:443/tcp"
