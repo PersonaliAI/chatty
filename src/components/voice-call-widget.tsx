@@ -623,7 +623,7 @@ export default function VoiceCallWidget({
           {/* Live transcript - auto-scrolls to the newest line; interim
               (not-yet-final) segments render with a bouncy typing indicator
               instead of raw text jitter, then settle into place once final. */}
-          <div className={`flex-1 min-h-0 w-full ${previewMode ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin py-2 space-y-2`}>
+          <div className={`flex-1 min-h-0 w-full ${previewMode ? "overflow-hidden" : "overflow-y-auto"} chatty-voice-scrollbar py-2 space-y-2`}>
             {transcript.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center px-6">

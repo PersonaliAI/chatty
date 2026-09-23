@@ -546,3 +546,26 @@
 .dark .epr-body::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.4);
 }
+
+/* Voice transcript scrollbar: brand-tinted, rounded, and layout-stable. */
+.chatty-voice-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(198, 113, 57, 0.48) transparent;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.chatty-voice-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.chatty-voice-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chatty-voice-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 34px;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(198, 113, 57, 0.42), rgba(140, 73, 26, 0.58)) padding-box;
+}
+.chatty-voice-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(198, 113, 57, 0.72), rgba(140, 73, 26, 0.86)) padding-box;
+}
