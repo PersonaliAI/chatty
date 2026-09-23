@@ -52,8 +52,7 @@ RUN chown -R appuser:appuser /app
 
 USER appuser
 
-# Persistent worker process — connects out to LiveKit Cloud and waits for
-# job dispatch; unlike the API, this is not a request/response HTTP server,
-# so there's no ${PORT} to bind (Cloud Run still needs a container that
-# doesn't exit, which `start` satisfies by running forever).
+# Persistent worker process — connects to either LiveKit Cloud or the private
+# self-hosted LiveKit service and waits for job dispatch. Unlike the API, this
+# is not a request/response HTTP server, so there is no ${PORT} to bind.
 CMD ["python", "voice-agent/voice_worker.py", "start"]

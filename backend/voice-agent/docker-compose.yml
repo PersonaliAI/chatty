@@ -1,9 +1,9 @@
-name: chatty-voice-worker
+name: chatty-voice
 
-# Worker-only deployment for a VPS.
-# Supabase remains managed and LiveKit Cloud remains the realtime media layer.
-# This file deliberately does not start LiveKit, Redis, Caddy, PostgreSQL, or
-# object storage.
+# The API and Supabase remain managed. This file supports either LiveKit Cloud
+# (the default) or a small self-hosted LiveKit media plane on the same VPS.
+# Self-hosted mode adds only LiveKit, Redis, and Caddy; it does not recreate
+# Postgres, Supabase Auth, Storage, or the Chatty API.
 
 services:
   voice-worker:
@@ -15,7 +15,10 @@ services:
     env_file:
       - .env
     environment:
-      LIVEKIT_URL: ${LIVEKIT_URL:?Set LIVEKIT_URL to your LiveKit Cloud URL}
+      # The worker uses the private Docker network in self-hosted mode. In
+      # Cloud mode leave LIVEKIT_WORKER_URL empty and it falls back to the
+      # public LIVEKIT_URL below.
+      LIVEKIT_URL: ${LIVEKIT_WORKER_URL:-${LIVEKIT_URL:?Set LIVEKIT_URL}}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}
       SUPABASE_URL: ${SUPABASE_URL:?Set SUPABASE_URL}
@@ -32,3 +35,56 @@ services:
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       FISH_API_KEY: ${FISH_API_KEY:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+
+  # Everything below is opt-in. Start it with:
+  #   docker compose --profile self-hosted up -d --build
+  livekit:
+    profiles: [self-hosted]
+    image: ${LIVEKIT_SERVER_IMAGE:-livekit/livekit-server:v1.13.7}
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit.yaml", "--node-ip", "${LIVEKIT_HOST:?Set LIVEKIT_HOST to the VPS public IPv4}"]
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7881:7881/tcp"
+      - "50000-60000:50000-60000/udp"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    profiles: [self-hosted]
+    image: ${REDIS_IMAGE:-redis:7-alpine}
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis_data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  caddy:
+    profiles: [self-hosted]
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN to the LiveKit DNS name}
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      livekit:
+        condition: service_started
+
+volumes:
+  redis_data:
+  caddy_data:
+  caddy_config:

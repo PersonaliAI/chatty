@@ -1,66 +1,113 @@
-# Chatty voice worker on a VPS
+# Chatty voice worker and optional self-hosted LiveKit
 
-This directory deploys only Chatty's persistent LiveKit agent worker. The
-production data plane remains managed:
+The voice deployment has two interchangeable media transports:
 
 ```text
-Chatty API/dashboard ──┬── Supabase (managed Auth, Postgres, Storage, Realtime)
-                       └── LiveKit Cloud (managed realtime media)
-                                  ▲
-                                  │ outbound WebSocket only
-                           VPS: Chatty voice worker
+                         ┌── LiveKit Cloud ─────────┐
+Chatty API ── Supabase ──┤                           ├── browser voice call
+                         └── VPS: LiveKit + Redis ───┘
+                                     │
+                              Chatty voice worker
 ```
 
-The VPS does **not** run the database, queue, object storage, proxy, or a LiveKit
-server. No public worker port is required.
+Supabase remains the source of truth for Auth, Postgres, Storage, and
+Realtime. Self-hosting here replaces only the LiveKit media/signaling layer;
+it does not bring back a second database, object store, auth server, or API.
 
-## Requirements
+## Option A: LiveKit Cloud
 
-- Ubuntu 22.04 or 24.04 VPS
-- Docker Engine and the Compose plugin
-- LiveKit Cloud project credentials
-- The same managed Supabase URL/secret used by the Chatty API
-- Gemini and BYOK encryption keys used by the production backend
-
-## Install
+Use this when you do not want to operate a media server:
 
 ```bash
-git clone https://github.com/PersonaliAI/chatty-backend.git /opt/chatty-backend
-cd /opt/chatty-backend/voice-agent
+cd voice-agent
 cp .env.example .env
 chmod 600 .env
-nano .env
-```
-
-Fill every `REPLACE_ME` value, then start the worker:
-
-```bash
+# Set LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET,
+# SUPABASE_URL, SUPABASE_SECRET_KEY, GEMINI_API_KEY, and BYOK_ENCRYPTION_KEY.
 docker compose up -d --build
-docker compose ps
 docker compose logs -f voice-worker
 ```
 
-The worker registers in the LiveKit Cloud agent dashboard and remains in the
-`running` state. It makes outbound connections to LiveKit Cloud, Supabase, and
-the configured model providers; it does not accept internet requests.
+The worker makes outbound connections to LiveKit Cloud, Supabase, and the
+configured model providers. It does not accept internet requests.
 
-## Updates
+## Option B: self-host LiveKit on an Ubuntu VPS
+
+### 1. DNS and firewall prerequisites
+
+Create an A record such as `livekit.example.com` pointing to the VPS public
+IPv4 address. Do not put the Chatty API or Supabase credentials in DNS or in a
+browser bundle. The setup script opens only SSH, ACME/TLS, LiveKit ICE TCP, and
+the LiveKit WebRTC UDP range.
+
+### 2. Install the stack
 
 ```bash
-cd /opt/chatty-backend
-git pull --ff-only
-cd voice-agent
-docker compose up -d --build --force-recreate voice-worker
-docker compose logs --tail=200 voice-worker
+git clone https://github.com/PersonaliAI/chatty.git /opt/chatty
+cd /opt/chatty/backend/voice-agent
+cp .env.example .env
+chmod 600 .env
+nano .env
+sudo ./setup.sh
 ```
 
-Keep the previous image available until the new worker has registered and
-handled a test call. Take a provider snapshot before upgrades.
+On its first run the script installs Docker and UFW, creates the configuration,
+and tells you which managed Supabase/model values are still required. On the
+next run it generates a LiveKit key pair, writes the matching `livekit.yaml`,
+validates Compose, and starts LiveKit, Redis, Caddy, and the worker:
 
-## Security baseline
+```bash
+docker compose --profile self-hosted ps
+docker compose --profile self-hosted logs -f livekit voice-worker
+```
 
-- Use SSH keys and disable password/root SSH login.
-- Allow inbound SSH only; keep worker ports closed.
-- Keep `.env` mode `600` and never commit it.
-- Pin production image/dependency versions and rotate provider keys regularly.
-- Configure Docker restart-on-failure and host security updates.
+Caddy obtains the TLS certificate for `DOMAIN`. The public endpoint is
+`wss://DOMAIN`; the worker uses the private `ws://livekit:7880` network path.
+Set `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` to the same
+values in the Chatty API deployment. Never publish port 7880 or Redis port
+6379.
+
+### 3. VPS sizing and ports
+
+A 4 vCPU / 8 GB VPS is a sensible starting point for the LiveKit server plus a
+small voice worker. Capacity depends on concurrent calls and STT/TTS provider
+latency; monitor CPU, memory, packet loss, and UDP saturation before adding
+users. The Compose stack exposes:
+
+| Port | Purpose | Public? |
+| --- | --- | --- |
+| 80/tcp | ACME certificate validation | Yes |
+| 443/tcp | LiveKit signaling over WSS | Yes |
+| 7881/tcp | ICE/TCP fallback | Yes |
+| 50000–60000/udp | WebRTC media | Yes |
+| 6379/tcp | Redis coordination | No |
+| 7880/tcp | LiveKit HTTP/signaling upstream | No |
+
+The base config uses UDP/TCP ICE. If users must connect from networks that
+block UDP, add and secure a LiveKit TURN/TLS endpoint separately; do not expose
+Redis or the internal 7880 endpoint as a workaround.
+
+## Operations
+
+```bash
+# Update deliberately; keep the previous image available for rollback.
+git pull --ff-only
+docker compose --profile self-hosted pull
+docker compose --profile self-hosted up -d --build
+docker compose --profile self-hosted ps
+
+# Stop only the optional self-hosted media plane.
+docker compose --profile self-hosted down
+```
+
+Pin `LIVEKIT_SERVER_IMAGE`, `REDIS_IMAGE`, and `CADDY_IMAGE` to reviewed
+versions in `.env` before production upgrades. Back up the `caddy_data` and
+`redis_data` volumes, rotate LiveKit/API keys, and keep the VPS kernel and
+Docker packages patched. Use SSH keys, disable password/root SSH login, and
+keep `.env` mode `600`.
+
+## Provider requirements
+
+The worker still requires the same managed Supabase and model-provider secrets
+as the Cloud Run deployment. LiveKit self-hosting does not remove the need for
+STT, LLM, or TTS credentials; it only changes where realtime media rooms run.

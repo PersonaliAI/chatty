@@ -1,0 +1,5 @@
+# Caddy terminates TLS for the LiveKit signaling WebSocket endpoint.
+# DNS for DOMAIN must point to this VPS before the stack is started.
+{$DOMAIN} {
+    reverse_proxy livekit:7880
+}

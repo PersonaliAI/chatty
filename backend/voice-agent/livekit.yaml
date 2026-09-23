@@ -1,0 +1,35 @@
+# LiveKit media server configuration for the optional self-hosted profile.
+# Keep this file in sync with LIVEKIT_API_KEY/LIVEKIT_API_SECRET in .env.
+# `setup.sh` does this automatically when it generates the credentials.
+
+port: 7880
+log_level: info
+
+keys:
+  CHATTY_VOICE_KEY: CHATTY_VOICE_SECRET_REPLACE_ME
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+
+# Redis is private to the Compose network. It is used for LiveKit node
+# coordination and is never published to the internet.
+redis:
+  address: redis:6379
+
+room:
+  auto_create: true
+  empty_timeout: 60
+  max_participants: 20
+
+# UDP/TCP ICE is enabled by default. If a deployment must support networks
+# that block UDP, configure LiveKit's TURN/TLS endpoint separately and expose
+# only the required TURN ports through the firewall.
+turn:
+  enabled: false
+
+logging:
+  json: true
+  level: info

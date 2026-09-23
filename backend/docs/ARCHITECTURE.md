@@ -4,8 +4,12 @@
 
 Chatty is a multi-tenant customer-support platform using managed Supabase for
 identity, persistence, storage, and realtime data. The API, frontend, and voice
-worker remain portable Docker workloads, while LiveKit Cloud provides realtime
-voice media.
+worker remain portable Docker workloads, while realtime voice media can use
+LiveKit Cloud or an operator-managed LiveKit server on a VPS.
+
+The self-hosted option is deliberately limited to the media plane: LiveKit,
+its private Redis coordination service, and TLS termination. It does not
+duplicate Supabase Auth, Postgres, Storage, Realtime, or the Chatty API.
 
 ## Runtime boundaries
 

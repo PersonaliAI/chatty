@@ -39,6 +39,16 @@ and inject the same managed-Supabase secrets. Heroku-style platforms can run
 the same images; use a separate web service for each container and the existing
 Supabase project for persistence.
 
-For voice, deploy only `voice-agent/` as a persistent worker. It connects
-outbound to LiveKit Cloud and Supabase; it does not need database, queue,
-object-storage, proxy, or LiveKit server containers.
+For voice, deploy `voice-agent/` as a persistent worker. Choose LiveKit Cloud
+for a managed media plane, or run the optional `self-hosted` Compose profile
+on an Ubuntu VPS. The self-hosted profile contains only LiveKit, its private
+Redis coordination service, and Caddy TLS; Supabase remains the managed source
+of truth and no replacement database, auth, storage, or Chatty API is started.
+
+```bash
+# LiveKit Cloud
+cd voice-agent && docker compose up -d --build
+
+# Self-hosted LiveKit on a VPS (after DNS and .env are ready)
+cd voice-agent && sudo ./setup.sh
+```

@@ -1,8 +1,9 @@
 # Chatty operations runbook
 
 This runbook describes the supported production path. Chatty keeps the
-application portable across Docker hosts while Supabase and LiveKit Cloud
-remain the managed data and realtime services.
+application portable across Docker hosts while Supabase remains the managed
+data service. Realtime voice can use LiveKit Cloud or the optional self-hosted
+LiveKit profile documented in `voice-agent/README.md`.
 
 ## Environments
 
@@ -10,7 +11,7 @@ remain the managed data and realtime services.
 |---|---|---|---|---|
 | Local | Next.js dev server | FastAPI/Uvicorn | Managed Supabase project | Developer |
 | Hosted | Firebase App Hosting | Cloud Run | Managed PostgreSQL/Supabase | PersonaliAI |
-| Voice worker | Any Ubuntu Docker host | LiveKit worker container | Managed Supabase + LiveKit Cloud | Operator |
+| Voice worker | Any Ubuntu Docker host | LiveKit worker container | Managed Supabase + LiveKit Cloud, or self-hosted LiveKit + private Redis | Operator |
 
 Never copy production secrets into `.env.example`, a Docker image, a browser
 bundle, or a GitHub repository. Use Secret Manager, an equivalent vault, or a
