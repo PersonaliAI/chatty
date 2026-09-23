@@ -114,4 +114,4 @@ docker compose --profile self-hosted ps
 echo
 echo "LiveKit is running at wss://${DOMAIN}"
 echo "Set the same LIVEKIT_URL/API_KEY/API_SECRET in the Chatty API environment."
-echo "The worker uses ws://livekit:7880 inside Docker; do not expose port 7880."
+echo "The worker uses ws://host.docker.internal:7880 via the private Docker gateway; do not expose port 7880."

@@ -62,7 +62,10 @@ docker compose --profile self-hosted logs -f livekit voice-worker
 ```
 
 Caddy obtains the TLS certificate for `DOMAIN`. The public endpoint is
-`wss://DOMAIN`; the worker uses the private `ws://livekit:7880` network path.
+`wss://DOMAIN`; the worker uses the private Docker gateway path
+`ws://host.docker.internal:7880`. LiveKit and Caddy use host networking so
+the 50,000-port UDP media range is bound directly without creating one
+Docker proxy process per port. Redis remains bound to `127.0.0.1:6379` only.
 Set `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` to the same
 values in the Chatty API deployment. Never publish port 7880 or Redis port
 6379.
