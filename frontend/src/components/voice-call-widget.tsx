@@ -24,6 +24,7 @@ import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
 
 const WAVE_BAR_COUNT = 14;
+const MICROPHONE_PERMISSION_TIMEOUT_MS = 15000;
 
 type CallStatus = "connecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
 
@@ -74,6 +75,7 @@ export default function VoiceCallWidget({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [connectAttempt, setConnectAttempt] = useState(0);
 
   // Auto-extract visitor contact info if spoken/transcribed during the call
   const extractedVisitorInfo = useMemo(() => {
@@ -331,8 +333,21 @@ export default function VoiceCallWidget({
         // miss inside an embedded iframe) - show an explicit state for this
         // rather than a generic "Connecting…" that looks stuck.
         if (!cancelled && mountedRef.current) setStatus("requesting-mic");
+        let microphoneTimeout: number | undefined;
         try {
-          await room.localParticipant.setMicrophoneEnabled(true);
+          // LiveKit requests permission internally, but an unanswered browser
+          // prompt can leave that promise pending forever (especially in an
+          // embedded widget). Bound the wait so the visitor gets an actionable
+          // error and can retry after changing the browser permission.
+          await Promise.race([
+            room.localParticipant.setMicrophoneEnabled(true),
+            new Promise<never>((_, reject) => {
+              microphoneTimeout = window.setTimeout(
+                () => reject(new Error("MICROPHONE_PERMISSION_TIMEOUT")),
+                MICROPHONE_PERMISSION_TIMEOUT_MS,
+              );
+            }),
+          ]);
           // LiveKit already exposes local speaking state through
           // ActiveSpeakersChanged below. Avoid creating an AudioContext here:
           // this callback runs after an async permission request and browsers
@@ -340,13 +355,18 @@ export default function VoiceCallWidget({
         } catch (micErr) {
           console.error("Microphone permission failed:", micErr);
           if (!cancelled && mountedRef.current) {
+            const micMessage = micErr instanceof Error && micErr.message === "MICROPHONE_PERMISSION_TIMEOUT"
+              ? "Microphone permission is still waiting. Allow microphone access for this site, then try again."
+              : "Microphone access is required for voice calls. Please allow microphone access in your browser and try again.";
             setErrorMessage(
-              "Microphone access is required for voice calls. Please allow microphone access in your browser and try again."
+              micMessage
             );
             setStatus("error");
           }
           room.disconnect();
           return;
+        } finally {
+          if (microphoneTimeout !== undefined) window.clearTimeout(microphoneTimeout);
         }
         if (!cancelled && mountedRef.current) setStatus("connected");
       } catch (err) {
@@ -376,8 +396,10 @@ export default function VoiceCallWidget({
       }
       analyserRef.current = null;
     };
+    // The retry counter deliberately restarts the room and microphone flow.
+    // Other props are immutable for the lifetime of an opened call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [connectAttempt]);
 
   // Compute the latest agent entry ID in transcript
   const lastAgentEntryId = useMemo(() => {
@@ -484,6 +506,18 @@ export default function VoiceCallWidget({
       room.disconnect();
     }
     onClose();
+  };
+
+  const retryVoiceConnection = () => {
+    const room = roomRef.current;
+    roomRef.current = null;
+    if (room) {
+      room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+      room.disconnect();
+    }
+    setErrorMessage(null);
+    setStatus("connecting");
+    setConnectAttempt((attempt) => attempt + 1);
   };
 
   const sendComposerMessage = async (event: React.FormEvent) => {
@@ -594,16 +628,30 @@ export default function VoiceCallWidget({
             <AlertCircle className="size-6 text-red-500" />
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-[220px] leading-relaxed">{errorMessage}</p>
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.85 }}
-            transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-            onClick={onClose}
-            className="px-4 py-2 rounded-full text-xs font-semibold text-white"
-            style={{ background: primaryColor }}
-          >
-            Close
-          </motion.button>
+          <div className="flex items-center gap-2">
+            {(errorMessage || "").toLowerCase().includes("microphone") && (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.85 }}
+                transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                onClick={retryVoiceConnection}
+                className="px-4 py-2 rounded-full text-xs font-semibold text-white"
+                style={{ background: primaryColor }}
+              >
+                Try microphone again
+              </motion.button>
+            )}
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.85 }}
+              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+              onClick={onClose}
+              className="px-4 py-2 rounded-full text-xs font-semibold text-white"
+              style={{ background: primaryColor }}
+            >
+              Close
+            </motion.button>
+          </div>
         </div>
       ) : status === "ended" ? (
         // Distinct end-of-call summary instead of leaving the active-call
