@@ -1169,6 +1169,12 @@ async def entrypoint(ctx: JobContext) -> None:
                     await asyncio.sleep(min(10, max(1, threshold - idle_for)))
         except asyncio.CancelledError:
             pass
+        except RuntimeError as exc:
+            # A visitor can hang up while a reminder is being generated. The
+            # session is already shutting down in that case; don't report a
+            # normal disconnect as a worker failure.
+            if "AgentSession isn't running" not in str(exc):
+                logger.exception("voice worker: idle follow-up failed")
         except Exception:
             logger.exception("voice worker: idle follow-up failed")
 
