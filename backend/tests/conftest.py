@@ -1,6 +1,17 @@
 """Test bootstrap: provide dummy env + stub the Vertex client so `import main`
-succeeds in CI without real Google Cloud / Supabase credentials."""
+succeeds in CI without real Google Cloud / Supabase credentials.
+
+The backend is also tested from the monorepo root (``pytest backend/tests``),
+so make the backend package root importable in that invocation as well as in
+the CI job that runs with ``backend/`` as its working directory.
+"""
 import os
+import sys
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_SECRET_KEY", "sb_secret_test")
