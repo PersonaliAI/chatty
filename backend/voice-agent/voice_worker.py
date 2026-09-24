@@ -498,9 +498,13 @@ def _cost_of_realtime_usage(provider: str, model: str, agg: "_RealtimeUsageTotal
 
 
 class _RealtimeUsageTotals:
-    """Accumulates RealtimeModelMetrics across every response in a call -
-    each `metrics_collected` event covers one response, not the whole
-    session."""
+    """Accumulates realtime usage across a call.
+
+    LiveKit now emits ``session_usage_updated`` with cumulative usage. Keep
+    the older per-response ``add`` helper for compatibility with older worker
+    images, but prefer replacing totals from the cumulative event so a retry
+    or duplicate metric can never double-count billing.
+    """
     def __init__(self) -> None:
         self.input_tokens = 0
         self.output_tokens = 0
@@ -516,6 +520,18 @@ class _RealtimeUsageTotals:
         self.output_audio_tokens += m.output_token_details.audio_tokens
         self.input_text_tokens += m.input_token_details.text_tokens
         self.output_text_tokens += m.output_token_details.text_tokens
+
+    def replace_from_session_usage(self, event: Any) -> None:
+        """Replace totals from a LiveKit ``SessionUsageUpdatedEvent``."""
+        usage = getattr(event, "usage", None)
+        summaries = getattr(usage, "model_usage", None) or []
+        llm_summaries = [item for item in summaries if getattr(item, "type", None) == "llm_usage"]
+        self.input_tokens = sum(int(getattr(item, "input_tokens", 0) or 0) for item in llm_summaries)
+        self.output_tokens = sum(int(getattr(item, "output_tokens", 0) or 0) for item in llm_summaries)
+        self.input_audio_tokens = sum(int(getattr(item, "input_audio_tokens", 0) or 0) for item in llm_summaries)
+        self.output_audio_tokens = sum(int(getattr(item, "output_audio_tokens", 0) or 0) for item in llm_summaries)
+        self.input_text_tokens = sum(int(getattr(item, "input_text_tokens", 0) or 0) for item in llm_summaries)
+        self.output_text_tokens = sum(int(getattr(item, "output_text_tokens", 0) or 0) for item in llm_summaries)
 
 
 def _log_voice_call(
@@ -924,14 +940,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # listening, thinking, and speaking as one speech-to-speech session
         # (set on the Agent itself below, not here).
         session = AgentSession()
-        session.on(
-            "metrics_collected",
-            lambda ev: (
-                realtime_usage.add(ev.metrics)
-                if isinstance(ev.metrics, metrics.RealtimeModelMetrics)
-                else None
-            ),
-        )
+        session.on("session_usage_updated", realtime_usage.replace_from_session_usage)
     else:
         session = AgentSession(
             stt=_build_stt(bot),
@@ -1088,7 +1097,9 @@ async def entrypoint(ctx: JobContext) -> None:
         # actually produces it, decoupled from how fast TTS is speaking it -
         # what the widget's transcript view actually wants: fast, ChatGPT-
         # style token streaming, not audio-paced reveal.
-        room_output_options=room_io.RoomOutputOptions(sync_transcription=False),
+        room_options=room_io.RoomOptions(
+            text_output=room_io.TextOutputOptions(sync_transcription=False),
+        ),
     )
 
     async def _speak(text: str):
