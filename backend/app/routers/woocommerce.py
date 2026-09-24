@@ -104,7 +104,7 @@ async def get_woocommerce_status(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Get connection status, sync progress, and webhook config for WooCommerce."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     integration = await woocommerce_service.get_integration(bot_id)
 
     # Count total synced WooCommerce products in media table
@@ -149,7 +149,7 @@ async def connect_woocommerce(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Test WooCommerce credentials and save the connection."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
 
     # Verify credentials with store
     verify_res = await woocommerce_service.verify_credentials(
@@ -187,7 +187,7 @@ async def trigger_woocommerce_sync(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Trigger a 1-click bulk import of all products from WooCommerce."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     integration = await woocommerce_service.get_integration(bot_id)
 
     if not integration:
@@ -216,7 +216,7 @@ async def disconnect_woocommerce(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Disconnect WooCommerce store and optionally remove synced products."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     success = await woocommerce_service.delete_integration(bot_id)
 
     deleted_count = 0
@@ -280,7 +280,7 @@ async def get_woocommerce_authorize_url(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Generate a 1-click WooCommerce authorization URL (wc-auth/v1/authorize flow)."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
 
     base_url = woocommerce_service._normalize_store_url(req.store_url)
     parsed = urllib.parse.urlparse(base_url)

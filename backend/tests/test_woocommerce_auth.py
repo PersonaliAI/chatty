@@ -77,6 +77,23 @@ def test_get_woocommerce_authorize_url():
         app.dependency_overrides.pop(require_user, None)
 
 
+def test_get_woocommerce_status_uses_sources_permission():
+    """The catalog status route must pass the required permission tab."""
+    app.dependency_overrides[require_user] = lambda: {"auth_user_id": "user-123", "id": "user-123"}
+    try:
+        with patch("app.routers.woocommerce.verify_bot_permission", new_callable=AsyncMock) as mock_permission, \
+             patch("app.routers.woocommerce.woocommerce_service.get_integration", new_callable=AsyncMock, return_value=None), \
+             patch("app.routers.woocommerce.run_db", new_callable=AsyncMock) as mock_db:
+            mock_db.return_value = type("Result", (), {"count": 0, "data": []})()
+            resp = client.get(f"/api/bots/{BOT_ID}/integrations/woocommerce")
+
+        assert resp.status_code == 200
+        mock_permission.assert_awaited_once_with(BOT_ID, {"auth_user_id": "user-123", "id": "user-123"}, "sources")
+        assert resp.json()["connected"] is False
+    finally:
+        app.dependency_overrides.pop(require_user, None)
+
+
 def test_woocommerce_auth_callback_success():
     state = _generate_auth_state(BOT_ID, STORE_URL)
 
