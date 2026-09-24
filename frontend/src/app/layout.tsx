@@ -23,11 +23,14 @@ const inter = Inter({
 // One additional font per widget design preset (see globals.css's "Assistant
 // Design Presets" section) - each design in the source gallery used a
 // distinct typeface as part of its identity, not just color/shape.
-const dmSans = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin"], display: "swap" });
-const quicksand = Quicksand({ variable: "--font-quicksand", subsets: ["latin"], display: "swap" });
-const spaceGrotesk = Space_Grotesk({ variable: "--font-space-grotesk", subsets: ["latin"], display: "swap" });
-const lora = Lora({ variable: "--font-lora", subsets: ["latin"], display: "swap" });
-const playfair = Playfair_Display({ variable: "--font-playfair", subsets: ["latin"], display: "swap" });
+// These fonts are selected per widget preset and are not used by the dashboard
+// shell. Keep their font-face rules available, but do not preload every preset
+// on every route (which produces unused-preload warnings and wasted requests).
+const dmSans = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin"], display: "swap", preload: false });
+const quicksand = Quicksand({ variable: "--font-quicksand", subsets: ["latin"], display: "swap", preload: false });
+const spaceGrotesk = Space_Grotesk({ variable: "--font-space-grotesk", subsets: ["latin"], display: "swap", preload: false });
+const lora = Lora({ variable: "--font-lora", subsets: ["latin"], display: "swap", preload: false });
+const playfair = Playfair_Display({ variable: "--font-playfair", subsets: ["latin"], display: "swap", preload: false });
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://personaliai.com'),
