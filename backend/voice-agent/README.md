@@ -109,6 +109,13 @@ versions in `.env` before production upgrades. Back up the `caddy_data` and
 Docker packages patched. Use SSH keys, disable password/root SSH login, and
 keep `.env` mode `600`.
 
+The worker bounds every knowledge-base, catalog, and booking tool call with
+`VOICE_TOOL_TIMEOUT_SECONDS` (default `20`, accepted range `5`–`120`). Keep
+the default unless provider latency measurements justify a change. Each call
+also records duration, first-response latency, turns, nudges, errors, CPU time,
+and peak RSS for capacity planning; the shutdown path is idempotent so a call
+is never recorded twice.
+
 ## Provider requirements
 
 The worker still requires the same managed Supabase and model-provider secrets
