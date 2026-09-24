@@ -2410,13 +2410,30 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               type="button"
               whileTap={{ scale: 0.85 }}
               onClick={() => {
-                if (activeArticle) setActiveArticle(null);
-                else setTab("home");
+                // The header back affordance should return to the visitor's
+                // conversation, not discard it. This is especially important
+                // after leaving the voice surface: the persisted voice turns
+                // are visible in the same thread with their Voice/Text labels.
+                if (voiceCallOpen) {
+                  setVoiceCallOpen(false);
+                  setChatView("chat");
+                  setTab("messages");
+                  void refetchNow().finally(() => {
+                    requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }));
+                  });
+                } else if (activeArticle) {
+                  setActiveArticle(null);
+                } else if (tab === "messages" && chatView === "list") {
+                  setChatView("chat");
+                } else if (tab !== "messages") {
+                  setChatView("chat");
+                  setTab("messages");
+                }
               }}
               className="p-1 -ml-1 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
               style={{ opacity: 0.9 }}
-              aria-label="Back to home"
-              title="Back"
+              aria-label="Back to chat history"
+              title="Back to chat history"
             >
               <ArrowLeft className="size-4" />
             </motion.button>
