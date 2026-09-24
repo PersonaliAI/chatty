@@ -551,7 +551,13 @@ def _build_realtime_tools(
     # completed booking with a fresh availability card.
     booking_state = {"picker_published": False, "booked": False}
     published_media_ids: set[str] = set()
-    tool_timeout_seconds = max(5.0, float(os.environ.get("VOICE_TOOL_TIMEOUT_SECONDS", "20")))
+    try:
+        tool_timeout_seconds = min(
+            120.0,
+            max(5.0, float(os.environ.get("VOICE_TOOL_TIMEOUT_SECONDS", "20"))),
+        )
+    except (TypeError, ValueError):
+        tool_timeout_seconds = 20.0
 
     async def _publish_booking_packet(packet: dict[str, Any]) -> None:
         """Send booking state to the widget without making voice tools UI-aware.
@@ -956,6 +962,12 @@ async def entrypoint(ctx: JobContext) -> None:
         if first_response_at is None and state in {"speaking", "listening"}:
             first_response_at = time.monotonic()
     session.on("agent_state_changed", _record_agent_state)
+    def _record_close(ev) -> None:
+        nonlocal error_count
+        if getattr(ev, "error", None) is not None:
+            error_count += 1
+            logger.error("voice worker: session closed with an error: %s", ev.error)
+    session.on("close", _record_close)
     session.on(
         "user_transcription_timeout",
         lambda ev: logger.warning("voice worker: user_transcription_timeout - speech detected, no transcript"),
@@ -1089,7 +1101,10 @@ async def entrypoint(ctx: JobContext) -> None:
     # inline) so it doesn't hold up normal job completion/cleanup when the
     # call ends naturally well before the limit - ctx.shutdown() cancels
     # this along with everything else once the job is done either way.
-    max_minutes = bot.get("voice_max_duration_minutes") or 15
+    try:
+        max_minutes = min(120, max(1, int(bot.get("voice_max_duration_minutes") or 15)))
+    except (TypeError, ValueError):
+        max_minutes = 15
 
     async def _enforce_max_duration() -> None:
         try:
