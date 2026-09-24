@@ -71,7 +71,7 @@ export function McpTab() {
           { name: "Customizer & Design Studio", count: 4, desc: "Widget styling, WCAG contrast audits, HTML preview, embed code." },
           { name: "Visual Flow Builder", count: 4, desc: "AI-generate, read, update, and simulate conversation flows." },
           { name: "Proactive Campaigns", count: 5, desc: "Create, list, update, delete campaigns, and read their analytics." },
-          { name: "Voice Agent", count: 2, desc: "Configure the real-time LiveKit voice agent and mint session tokens." },
+          { name: "Voice Agent", count: 2, desc: "Configure the real-time voice agent and mint secure session tokens." },
           { name: "Knowledge Base & RAG", count: 7, desc: "Add text, crawl URLs, upload documents, sync Drive/OneDrive, test retrieval." },
           { name: "Inbox, Live Chat & Takeover", count: 6, desc: "List conversations, read transcripts, human takeover, agent replies and notes." },
           { name: "Leads, Calendar & Meetings", count: 7, desc: "Lead capture config, export, calendar booking, and meeting lists." },

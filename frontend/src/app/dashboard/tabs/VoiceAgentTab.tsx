@@ -117,7 +117,7 @@ export function VoiceAgentTab({
           <h2 className="text-sm font-bold flex items-center gap-2">
             <AudioWaveform className="size-4 text-[#f97316]" /> Voice Agent
             <span className="text-[10px] font-semibold tracking-tight px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] border border-[#f97316]/20">
-              LiveKit voice
+              Production voice
             </span>
           </h2>
           <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
@@ -131,7 +131,7 @@ export function VoiceAgentTab({
             Available
           </span>
           <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-400">
-            Real-time voice agents use WebRTC &amp; LiveKit with live transcription, booking tools, and a continuous conversation loop. Choose pipeline mode for provider flexibility or realtime mode for speech-to-speech latency.
+            Real-time voice agents use secure WebRTC with live transcription, booking tools, and a continuous conversation loop. Choose pipeline mode for provider flexibility or realtime mode for speech-to-speech latency.
           </p>
         </div>
 
@@ -144,7 +144,7 @@ export function VoiceAgentTab({
               </h3>
             </div>
             <span className="text-[10px] font-semibold tracking-tight px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] border border-[#f97316]/20">
-              LiveKit voice
+              Production voice
             </span>
           </div>
 

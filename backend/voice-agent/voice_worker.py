@@ -551,6 +551,7 @@ def _build_realtime_tools(
     # completed booking with a fresh availability card.
     booking_state = {"picker_published": False, "booked": False}
     published_media_ids: set[str] = set()
+    tool_timeout_seconds = max(5.0, float(os.environ.get("VOICE_TOOL_TIMEOUT_SECONDS", "20")))
 
     async def _publish_booking_packet(packet: dict[str, Any]) -> None:
         """Send booking state to the widget without making voice tools UI-aware.
@@ -613,10 +614,23 @@ def _build_realtime_tools(
         ),
     )
     async def search_knowledge_base(query: str, context: RunContext) -> str:
-        knowledge_context, _ = await widget_brain.search_knowledge(bot_id, owner_user, bot, query)
+        # A voice turn must never remain open indefinitely if an embedding or
+        # provider request stalls. Keep the call responsive and let the model
+        # continue with a safe fallback instead of holding an audio session.
         try:
-            items, visual_attrs = await multimodal_service.search_multimodal_catalog(
-                bot_id=bot_id, query_text=query, top_k=5,
+            knowledge_context, _ = await asyncio.wait_for(
+                widget_brain.search_knowledge(bot_id, owner_user, bot, query),
+                timeout=tool_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("voice worker: knowledge search timed out after %.1fs", tool_timeout_seconds)
+            knowledge_context = ""
+        try:
+            items, visual_attrs = await asyncio.wait_for(
+                multimodal_service.search_multimodal_catalog(
+                    bot_id=bot_id, query_text=query, top_k=5,
+                ),
+                timeout=tool_timeout_seconds,
             )
             if items or visual_attrs:
                 await _publish_catalog_packets(items)
@@ -655,15 +669,22 @@ def _build_realtime_tools(
                 # the same lead used by the booking confirmation flow.
                 tool_arguments.setdefault("bot_id", bot_id)
                 tool_arguments.setdefault("session_id", session_id)
-            result = await agent_tools.execute(
-                _name, tool_arguments, user=owner_user, supabase=supabase,
-                # "bot" is required here (not just bot_id) - agent_tools.execute's
-                # round-robin assignment/conflict-guard and get_available_slots/
-                # reschedule_meeting handlers all key off context["bot"]; without
-                # it those silently no-op back to "always book the owner's own
-                # calendar, no real conflict check", exactly the gap this fixes.
-                context=tool_context,
-            )
+            try:
+                result = await asyncio.wait_for(
+                    agent_tools.execute(
+                        _name, tool_arguments, user=owner_user, supabase=supabase,
+                        # "bot" is required here (not just bot_id) - agent_tools.execute's
+                        # round-robin assignment/conflict-guard and get_available_slots/
+                        # reschedule_meeting handlers all key off context["bot"]; without
+                        # it those silently no-op back to "always book the owner's own
+                        # calendar, no real conflict check", exactly the gap this fixes.
+                        context=tool_context,
+                    ),
+                    timeout=tool_timeout_seconds,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("voice worker: tool %s timed out after %.1fs", _name, tool_timeout_seconds)
+                return {"error": f"{_name} timed out; please try again."}
 
             if not isinstance(result, dict) or result.get("error"):
                 return result
@@ -853,6 +874,9 @@ async def entrypoint(ctx: JobContext) -> None:
     turn_count = 0
     nudge_count = 0
     error_count = 0
+    max_duration_task: Optional[asyncio.Task] = None
+    idle_nudge_task: Optional[asyncio.Task] = None
+    call_logged = False
 
     # A Google pipeline needs service-account ADC for both STT and TTS. The
     # managed worker image intentionally carries only the Gemini API key, so
@@ -968,6 +992,13 @@ async def entrypoint(ctx: JobContext) -> None:
         )
 
     async def _log_call_cost() -> None:
+        nonlocal call_logged
+        # AgentServer shutdown callbacks can be reached through more than one
+        # teardown path. The usage row must be exactly once per session so
+        # analytics and billing never double-count a call.
+        if call_logged:
+            return
+        call_logged = True
         duration = time.monotonic() - call_start
         cpu_seconds = max(0.0, time.process_time() - process_cpu_start)
         peak_rss_mb = _process_rss_mb()
@@ -1001,6 +1032,20 @@ async def entrypoint(ctx: JobContext) -> None:
             )
 
     ctx.add_shutdown_callback(_log_call_cost)
+
+    async def _cancel_background_tasks() -> None:
+        current_task = asyncio.current_task()
+        tasks = [
+            task for task in (max_duration_task, idle_nudge_task)
+            if task is not None and task is not current_task
+        ]
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    ctx.add_shutdown_callback(_cancel_background_tasks)
 
     await session.start(
         agent=agent,
@@ -1058,7 +1103,7 @@ async def entrypoint(ctx: JobContext) -> None:
         except asyncio.CancelledError:
             pass
 
-    asyncio.create_task(_enforce_max_duration())
+    max_duration_task = asyncio.create_task(_enforce_max_duration(), name=f"voice-max-duration:{session_id}")
 
     async def _nudge_when_idle() -> None:
         """Monitor silence and re-engage a few times without spamming visitors."""
@@ -1094,7 +1139,7 @@ async def entrypoint(ctx: JobContext) -> None:
         except Exception:
             logger.exception("voice worker: idle follow-up failed")
 
-    idle_nudge_task = asyncio.create_task(_nudge_when_idle())
+    idle_nudge_task = asyncio.create_task(_nudge_when_idle(), name=f"voice-idle-nudge:{session_id}")
 
     async def _cancel_idle_nudge() -> None:
         idle_nudge_task.cancel()

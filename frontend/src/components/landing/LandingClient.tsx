@@ -133,7 +133,7 @@ const MEGA_MENU_RESOURCES = [
   },
   {
     title: "Voice AI Demo",
-    desc: "Test bidirectional voice agents with LiveKit models.",
+    desc: "Test bidirectional voice agents with real-time speech models.",
     href: "/voice-demo",
     external: false,
   },
