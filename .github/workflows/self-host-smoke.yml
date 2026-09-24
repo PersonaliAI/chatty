@@ -1,106 +1,67 @@
-name: Self-host compose smoke and restore drill
+name: Managed Supabase compose smoke
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - 'backend/app/**'
-      - 'backend/plugins/**'
-      - 'backend/sql/**'
-      - 'backend/supabase/migrations/**'
-      - 'backend/scripts/self_host_*.py'
-      - 'backend/Dockerfile'
-      - 'backend/docker-compose.self-host.yml'
-      - 'backend/requirements.txt'
-      - 'backend/env.self-host.example'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'docker-compose.yml'
       - '.github/workflows/self-host-smoke.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: self-host-smoke-${{ github.ref }}
+  group: managed-compose-smoke-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   compose-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: backend
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
-      - name: Create isolated CI environment
+      - name: Create CI-only Compose environment
+        shell: bash
         run: |
-          cp env.self-host.example .env.self-host
-          sed -i \
-            -e 's#replace-with-a-server-side-llm-key#ci-test-key#' \
-            -e 's#replace-with-a-long-random-password#Chatty-ci-Postgres-2026-Secret#' \
-            -e 's#replace-with-a-random-access-key#chattyciaccess#' \
-            -e 's#replace-with-a-32-character-random-secret#Chatty-ci-S3-2026-Secret-Long#' \
-            -e 's#https://objects.example.com#http://127.0.0.1:8333#' \
-            -e 's#replace-with-your-oidc-client-id#chatty-ci-oidc#' \
-            -e 's#replace-with-a-long-random-secret#Chatty-ci-function-secret-2026#' \
-            .env.self-host
+          cat > .ci-compose.env <<'EOF'
+          NEXT_PUBLIC_SUPABASE_URL=https://ci.invalid.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=ci-publishable-key
+          NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+          BACKEND_PORT=18000
+          FRONTEND_PORT=13000
+          EOF
+          printf 'DEPLOYMENT_PROFILE=managed_supabase\nSUPABASE_URL=https://ci.invalid.supabase.co\nSUPABASE_SECRET_KEY=ci-secret-key\nFUNCTION_SECRET=ci-function-secret\nBYOK_ENCRYPTION_KEY=kLaaohqu72wbf-6sqsj4_yNq2MYBEREBnQ42qEtwRIk=\nGEMINI_API_KEY=ci-test-key\nPORT=8000\n' > backend/.env
+          : > frontend/.env
 
-      - name: Start self-host stack
-        run: docker compose --env-file .env.self-host -f docker-compose.self-host.yml up -d --build
-
-      - name: Wait for API readiness
+      - name: Validate managed Supabase Compose contract
         run: |
-          for attempt in $(seq 1 36); do
-            if curl --fail --silent http://127.0.0.1:8080/readyz >/tmp/chatty-ready.json; then
-              cat /tmp/chatty-ready.json
-              break
-            fi
-            if [ "$attempt" = 36 ]; then
-              docker compose --env-file .env.self-host -f docker-compose.self-host.yml ps
-              exit 1
-            fi
-            sleep 5
-          done
+          docker compose --env-file .ci-compose.env config --quiet
+          services=$(docker compose --env-file .ci-compose.env config --services)
+          test "$(printf '%s\n' "$services" | sort | tr '\n' ' ')" = 'backend frontend '
+          if docker compose --env-file .ci-compose.env config | grep -Eiq 'postgres|redis|seaweedfs|minio'; then
+            echo 'Managed Supabase Compose must not start a second database, queue, or object store.' >&2
+            exit 1
+          fi
 
-      - name: Run API smoke gate
-        run: python scripts/self_host_smoke.py --base-url http://127.0.0.1:8080
-
-      - name: Run PostgreSQL backup and restore drill
-        run: |
-          mkdir -p artifacts/backups
-          backup=$(python scripts/self_host_backup.py --env-file .env.self-host --compose-file docker-compose.self-host.yml backup --output artifacts/backups)
-          test -s "$backup"
-          # Restore is intentionally destructive. Stop application processes so
-          # no request or worker transaction can hold locks during pg_restore.
-          docker compose --env-file .env.self-host -f docker-compose.self-host.yml stop api webhook-worker
-          python scripts/self_host_backup.py --env-file .env.self-host --compose-file docker-compose.self-host.yml restore "$backup" --confirm
-          docker compose --env-file .env.self-host -f docker-compose.self-host.yml start api webhook-worker
-          for attempt in $(seq 1 36); do
-            if curl --fail --silent http://127.0.0.1:8080/readyz >/tmp/chatty-ready-after-restore.json; then
-              cat /tmp/chatty-ready-after-restore.json
-              break
-            fi
-            if [ "$attempt" = 36 ]; then
-              docker compose --env-file .env.self-host -f docker-compose.self-host.yml ps
-              exit 1
-            fi
-            sleep 5
-          done
-          python scripts/self_host_smoke.py --base-url http://127.0.0.1:8080
-
-      - name: Capture compose logs
-        if: always()
-        run: docker compose --env-file .env.self-host -f docker-compose.self-host.yml logs --no-color > artifacts/self-host.log || true
-
-      - name: Upload smoke artifacts
-        if: always()
-        uses: actions/upload-artifact@v6
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          name: self-host-smoke-${{ github.sha }}
-          path: backend/artifacts/
-          if-no-files-found: ignore
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
 
-      - name: Stop self-host stack
-        if: always()
-        run: docker compose --env-file .env.self-host -f docker-compose.self-host.yml down -v
+      - name: Install backend test dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Run backend smoke tests
+        working-directory: backend
+        env:
+          BYOK_ENCRYPTION_KEY: kLaaohqu72wbf-6sqsj4_yNq2MYBEREBnQ42qEtwRIk=
+        run: python -m pytest tests/test_smoke.py -q
