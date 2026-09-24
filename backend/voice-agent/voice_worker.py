@@ -243,7 +243,17 @@ def _build_stt(bot: dict[str, Any]):
     """
     provider = (bot.get("voice_stt_provider") or "google").strip().lower()
     if provider == "google":
-        return google.STT(languages="en-US", model="latest_long")
+        try:
+            return google.STT(languages="en-US", model="latest_long")
+        except ValueError as exc:
+            # Google STT requires Application Default Credentials, which are
+            # not present on a normal VPS. Keep Google as the preferred path,
+            # but fail over to the configured server key instead of crashing
+            # the entire LiveKit job before it can transcribe anything.
+            if OPENAI_API_KEY:
+                logger.warning("voice worker: Google STT credentials unavailable; falling back to OpenAI STT: %s", exc)
+                return openai.STT(api_key=OPENAI_API_KEY)
+            raise
 
     key = _decrypt_byok(bot.get("voice_stt_byok_key_encrypted"))
 
@@ -279,7 +289,15 @@ def _build_tts(bot: dict[str, Any]):
     voice = bot.get("voice_tts_voice") or None
 
     if provider == "google":
-        return google.TTS(language="en-US", voice_name=voice) if voice else google.TTS(language="en-US")
+        try:
+            return google.TTS(language="en-US", voice_name=voice) if voice else google.TTS(language="en-US")
+        except ValueError as exc:
+            if OPENAI_API_KEY:
+                # A Google voice id is not valid for OpenAI TTS, so let the
+                # OpenAI plugin select its configured default voice.
+                logger.warning("voice worker: Google TTS credentials unavailable; falling back to OpenAI TTS: %s", exc)
+                return openai.TTS(api_key=OPENAI_API_KEY)
+            raise
 
     key = _decrypt_byok(bot.get("voice_tts_byok_key_encrypted"))
 
