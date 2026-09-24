@@ -622,7 +622,9 @@ class ChattyRealtimeAgent(Agent):
         self._greeting = (bot.get("welcome_message") or "").strip() or "Hi! How can I help you today?"
 
     async def on_enter(self) -> None:
-        await self.session.say(self._greeting)
+        # Realtime sessions synthesize through the model; AgentSession.say()
+        # only works when a standalone TTS model is attached.
+        await self.session.generate_reply(instructions=self._greeting, input_modality="text")
 
 
 # AgentServer's built-in HTTP port (health/monitoring endpoint, distinct from
@@ -831,6 +833,12 @@ async def entrypoint(ctx: JobContext) -> None:
         room_output_options=room_io.RoomOutputOptions(sync_transcription=False),
     )
 
+    async def _speak(text: str):
+        """Speak text through the correct LiveKit API for this session mode."""
+        if voice_mode == "realtime":
+            return await session.generate_reply(instructions=text, input_modality="text")
+        return await session.say(text)
+
     if voice_mode != "realtime":
         # Greet with the bot's own configured welcome message (same field text
         # chat already shows via GET /api/widget/theme) rather than a generic
@@ -839,7 +847,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # route through llm_node/run_widget_assistant at all. Realtime mode's
         # own ChattyRealtimeAgent.on_enter already does this greeting itself.
         greeting = (bot.get("welcome_message") or "").strip() or "Hi! How can I help you today?"
-        await session.say(greeting)
+        await _speak(greeting)
 
     # Cost/abuse circuit-breaker: no per-minute quota exists yet (a known,
     # explicitly-accepted gap - usage is tracked, not gated), but an
@@ -854,7 +862,7 @@ async def entrypoint(ctx: JobContext) -> None:
         try:
             await asyncio.sleep(max_minutes * 60)
             logger.info("voice worker: call for bot %s hit the %d-minute limit - ending", bot_id, max_minutes)
-            await session.say(
+            await _speak(
                 "We're at the time limit for this call - thanks for chatting! "
                 "Feel free to reach out again anytime."
             )
@@ -872,7 +880,7 @@ async def entrypoint(ctx: JobContext) -> None:
             while True:
                 idle_for = time.monotonic() - last_user_activity
                 if idle_for >= 18:
-                    await session.say(
+                    await _speak(
                         "Hey, are you still there? Just checking in to see if you've still got questions."
                     )
                     last_user_activity = time.monotonic()
