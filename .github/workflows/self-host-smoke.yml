@@ -14,7 +14,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: managed-compose-smoke-${{ github.ref }}
+  # Keep manual verification separate from push-triggered checks. A manual
+  # dispatch should never cancel the smoke run that protects a release push.
+  group: managed-compose-smoke-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
