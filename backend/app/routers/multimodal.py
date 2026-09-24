@@ -405,11 +405,19 @@ async def receive_catalog_webhook(
     event = str(body.get("event") or "product.updated").lower()
     if not external_id:
         raise HTTPException(status_code=400, detail="external_id is required")
-    found = await run_db(lambda: supabase.table("chatty_media_items").select("*").eq("bot_id", bot_id).contains("metadata", {"external_id": external_id}).limit(1).execute())
+    # The webhook key is scoped by bot_id and must identify exactly one item.
+    # Fetch at most two rows so duplicate IDs are detected without allowing an
+    # unbounded response from the catalog table.
+    found = await run_db(lambda: supabase.table("chatty_media_items").select("*").eq("bot_id", bot_id).contains("metadata", {"external_id": external_id}).limit(2).execute())
+    if len(found.data or []) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="external_id is not unique within this bot; assign a unique value to each catalog item",
+        )
     if "deleted" in event:
         if found.data:
             await run_db(lambda: supabase.table("chatty_media_items").delete().eq("id", found.data[0]["id"]).eq("bot_id", bot_id).execute())
-        return {"status": "ok", "event": "deleted", "external_id": external_id}
+        return {"status": "ok", "event": "deleted", "external_id": external_id, "item_id": found.data[0]["id"] if found.data else None}
     item = body.get("item") or {}
     if not isinstance(item, dict):
         raise HTTPException(status_code=400, detail="item must be an object")
@@ -426,7 +434,7 @@ async def receive_catalog_webhook(
             updates["embedding"] = await _embedding_for_item(merged_item)
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await run_db(lambda: supabase.table("chatty_media_items").update(updates).eq("id", found.data[0]["id"]).eq("bot_id", bot_id).execute())
-        return {"status": "ok", "event": "updated", "external_id": external_id}
+        return {"status": "ok", "event": "updated", "external_id": external_id, "item_id": found.data[0]["id"]}
     if "created" not in event:
         raise HTTPException(status_code=404, detail="Catalog item not found")
     required = {"title", "media_url"}

@@ -81,6 +81,7 @@ def test_manual_catalog_webhook_rejects_bad_signature_and_updates_by_external_id
 
         assert good.status_code == 200
         assert good.json()["event"] == "updated"
+        assert good.json()["item_id"] == "item-1"
         update_payload = db.call_args_list[-1].args[0] if db.call_args_list else None
         assert update_payload is not None
     finally:
@@ -99,3 +100,27 @@ def test_manual_catalog_webhook_rejects_non_object_item():
             headers={"x-chatty-signature": _signature(raw)},
         )
     assert response.status_code == 400
+
+
+def test_manual_catalog_webhook_rejects_ambiguous_external_id():
+    payload = {"event": "product.updated", "external_id": "ERP-duplicate", "item": {"price": 10}}
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    try:
+        with patch("app.routers.multimodal.run_db", new_callable=AsyncMock) as db, \
+             patch("app.routers.multimodal.decrypt_secret", return_value=SECRET):
+            db.side_effect = [
+                MagicMock(data=[{"signing_secret": SECRET, "enabled": True}]),
+                MagicMock(data=[
+                    {"id": "item-1", "metadata": {"external_id": "ERP-duplicate"}},
+                    {"id": "item-2", "metadata": {"external_id": "ERP-duplicate"}},
+                ]),
+            ]
+            response = client.post(
+                f"/api/integrations/catalog/webhook/{BOT_ID}",
+                content=raw,
+                headers={"x-chatty-signature": _signature(raw)},
+            )
+        assert response.status_code == 409
+        assert "not unique" in response.json()["detail"]
+    finally:
+        app.dependency_overrides.pop(require_user, None)

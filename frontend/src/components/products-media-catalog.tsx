@@ -538,11 +538,15 @@ export function ProductsMediaCatalog({
   return (
     <div className="space-y-6">
       {/* Top Banner / Mode Switcher */}
-      <div className="p-1.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl flex items-center gap-1 border border-neutral-200/80 dark:border-neutral-800">
+      <div
+        className="p-1.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl border border-neutral-200/80 dark:border-neutral-800 overflow-x-auto"
+        aria-label="Catalog source"
+      >
+        <div className="flex min-w-[36rem] items-center gap-1">
         <button
           type="button"
           onClick={() => setActiveSubTab("woocommerce")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+          className={`flex-1 shrink-0 whitespace-nowrap flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
             activeSubTab === "woocommerce"
               ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -560,7 +564,7 @@ export function ProductsMediaCatalog({
         <button
           type="button"
           onClick={() => setActiveSubTab("manual_product")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+          className={`flex-1 shrink-0 whitespace-nowrap flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
             activeSubTab === "manual_product"
               ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -573,7 +577,7 @@ export function ProductsMediaCatalog({
         <button
           type="button"
           onClick={() => setActiveSubTab("video")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+          className={`flex-1 shrink-0 whitespace-nowrap flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
             activeSubTab === "video"
               ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -582,6 +586,7 @@ export function ProductsMediaCatalog({
           <Video className="size-4 text-[#0ea5e9]" />
           <span>Add Video Clip</span>
         </button>
+        </div>
       </div>
 
       {activeSubTab !== "woocommerce" && (
@@ -594,7 +599,7 @@ export function ProductsMediaCatalog({
               <div>
                 <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Automatic updates for manual items</h4>
                 <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-1 max-w-2xl">
-                  Send signed product or media events from your ERP, store, or spreadsheet automation. Items are matched by the External ID and re-embedded when searchable details change.
+                  Send signed product or media events from your ERP, store, or spreadsheet automation. Chatty matches the exact <code className="font-mono">external_id</code> within this bot; keep it stable and unique for every item.
                 </p>
               </div>
             </div>
@@ -1571,6 +1576,12 @@ export function ProductsMediaCatalog({
 
                       {item.sku && (
                         <p className="text-[10px] font-mono text-neutral-400">SKU: {item.sku}</p>
+                      )}
+
+                      {item.metadata?.external_id && (
+                        <p className="text-[10px] font-mono text-[#c2410c] dark:text-[#fb923c] truncate" title={String(item.metadata.external_id)}>
+                          External ID: {String(item.metadata.external_id)}
+                        </p>
                       )}
 
                       {item.description && (
