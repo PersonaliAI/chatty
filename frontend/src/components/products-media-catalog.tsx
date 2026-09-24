@@ -23,6 +23,7 @@ import {
   Sparkles,
   HelpCircle,
   Globe,
+  Link2,
   SlidersHorizontal,
   UploadCloud,
   Camera,
@@ -70,6 +71,14 @@ export interface WooCommerceStatus {
   product_count?: number;
 }
 
+interface CatalogWebhookStatus {
+  configured: boolean;
+  enabled: boolean;
+  webhook_url?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
 interface ProductsMediaCatalogProps {
   botId: string;
   fetchWithFallback: (url: string, init?: RequestInit) => Promise<Response>;
@@ -96,6 +105,11 @@ export function ProductsMediaCatalog({
   const [authMode, setAuthMode] = useState<"oauth" | "manual">("oauth");
   const [authorizingWc, setAuthorizingWc] = useState<boolean>(false);
   const [wcSuccessMsg, setWcSuccessMsg] = useState<string | null>(null);
+  const [catalogWebhook, setCatalogWebhook] = useState<CatalogWebhookStatus | null>(null);
+  const [loadingCatalogWebhook, setLoadingCatalogWebhook] = useState<boolean>(true);
+  const [provisioningCatalogWebhook, setProvisioningCatalogWebhook] = useState<boolean>(false);
+  const [catalogWebhookSecret, setCatalogWebhookSecret] = useState<string | null>(null);
+  const [catalogWebhookError, setCatalogWebhookError] = useState<string | null>(null);
 
   // Catalog items list state
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -109,6 +123,7 @@ export function ProductsMediaCatalog({
   const [prodPrice, setProdPrice] = useState<string>("");
   const [prodCurrency, setProdCurrency] = useState<string>("USD");
   const [prodSku, setProdSku] = useState<string>("");
+  const [prodExternalId, setProdExternalId] = useState<string>("");
   const [prodUrl, setProdUrl] = useState<string>("");
   const [prodImageUrl, setProdImageUrl] = useState<string>("");
   const [prodDesc, setProdDesc] = useState<string>("");
@@ -156,6 +171,7 @@ export function ProductsMediaCatalog({
   // Manual Video Form State
   const [vidTitle, setVidTitle] = useState<string>("");
   const [vidUrl, setVidUrl] = useState<string>("");
+  const [vidExternalId, setVidExternalId] = useState<string>("");
   const [vidTimestamp, setVidTimestamp] = useState<string>("0");
   const [vidThumbnail, setVidThumbnail] = useState<string>("");
   const [vidDesc, setVidDesc] = useState<string>("");
@@ -198,10 +214,50 @@ export function ProductsMediaCatalog({
     }
   }, [botId, fetchWithFallback]);
 
+  const loadCatalogWebhook = useCallback(async () => {
+    if (!botId) return;
+    try {
+      setLoadingCatalogWebhook(true);
+      const res = await fetchWithFallback(`/api/bots/${botId}/media-webhook`);
+      if (res.ok) {
+        setCatalogWebhook(await res.json());
+        setCatalogWebhookError(null);
+      }
+    } catch (err) {
+      console.error("Failed to load catalog webhook status", err);
+    } finally {
+      setLoadingCatalogWebhook(false);
+    }
+  }, [botId, fetchWithFallback]);
+
   useEffect(() => {
     loadWcStatus();
     loadCatalogItems();
-  }, [loadWcStatus, loadCatalogItems]);
+    loadCatalogWebhook();
+  }, [loadWcStatus, loadCatalogItems, loadCatalogWebhook]);
+
+  const handleProvisionCatalogWebhook = async (rotate = false) => {
+    if (rotate && !confirm("Rotate this signing secret? Existing senders will stop working until updated.")) return;
+    setProvisioningCatalogWebhook(true);
+    setCatalogWebhookError(null);
+    try {
+      const res = await fetchWithFallback(`/api/bots/${botId}/media-webhook${rotate ? "?rotate=true" : ""}`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Could not provision the catalog webhook.");
+      setCatalogWebhook({
+        configured: true,
+        enabled: true,
+        webhook_url: data.webhook_url,
+      });
+      setCatalogWebhookSecret(data.signing_secret || null);
+    } catch (err: any) {
+      setCatalogWebhookError(err?.message || "Could not provision the catalog webhook.");
+    } finally {
+      setProvisioningCatalogWebhook(false);
+    }
+  };
 
   // Polling when sync is active
   useEffect(() => {
@@ -393,6 +449,7 @@ export function ProductsMediaCatalog({
           thumbnail_url: prodImageUrl.trim(),
           metadata: {
             source: "manual",
+            ...(prodExternalId.trim() ? { external_id: prodExternalId.trim() } : {}),
             in_stock: prodInStock,
             stock_status: prodInStock ? "instock" : "outofstock",
           },
@@ -403,6 +460,7 @@ export function ProductsMediaCatalog({
         setProdTitle("");
         setProdPrice("");
         setProdSku("");
+        setProdExternalId("");
         setProdUrl("");
         setProdImageUrl("");
         setProdDesc("");
@@ -436,6 +494,7 @@ export function ProductsMediaCatalog({
           video_timestamp_start: parsedSeconds,
           metadata: {
             source: "manual",
+            ...(vidExternalId.trim() ? { external_id: vidExternalId.trim() } : {}),
           },
         }),
       });
@@ -443,6 +502,7 @@ export function ProductsMediaCatalog({
       if (res.ok) {
         setVidTitle("");
         setVidUrl("");
+        setVidExternalId("");
         setVidTimestamp("0");
         setVidThumbnail("");
         setVidDesc("");
@@ -523,6 +583,82 @@ export function ProductsMediaCatalog({
           <span>Add Video Clip</span>
         </button>
       </div>
+
+      {activeSubTab !== "woocommerce" && (
+        <div className="p-5 rounded-2xl border border-[#f97316]/20 bg-[#f97316]/5 dark:bg-[#f97316]/10 space-y-3">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-white dark:bg-neutral-900 text-[#f97316] border border-[#f97316]/20">
+                <Link2 className="size-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Automatic updates for manual items</h4>
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-1 max-w-2xl">
+                  Send signed product or media events from your ERP, store, or spreadsheet automation. Items are matched by the External ID and re-embedded when searchable details change.
+                </p>
+              </div>
+            </div>
+            {!catalogWebhook?.configured && (
+              <button
+                type="button"
+                onClick={() => handleProvisionCatalogWebhook()}
+                disabled={loadingCatalogWebhook || provisioningCatalogWebhook}
+                className="px-3 py-2 bg-[#f97316] hover:bg-[#ea580c] text-white rounded-lg text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {provisioningCatalogWebhook ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
+                Enable webhook
+              </button>
+            )}
+          </div>
+
+          {catalogWebhookError && (
+            <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-[11px] text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="size-3.5 shrink-0" /> {catalogWebhookError}
+            </div>
+          )}
+
+          {catalogWebhook?.configured && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+                <div className="p-3 bg-white/70 dark:bg-neutral-950/50 border border-[#f97316]/15 rounded-xl space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Delivery URL</span>
+                    <button type="button" onClick={() => copyToClipboard(catalogWebhook.webhook_url || "", "catalog-webhook-url")} className="text-[11px] text-[#f97316] hover:underline flex items-center gap-1 cursor-pointer">
+                      {copiedField === "catalog-webhook-url" ? <Check className="size-3" /> : <Copy className="size-3" />}
+                      {copiedField === "catalog-webhook-url" ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <p className="font-mono text-[11px] text-neutral-700 dark:text-neutral-300 break-all select-all">{catalogWebhook.webhook_url}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleProvisionCatalogWebhook(true)}
+                  disabled={provisioningCatalogWebhook}
+                  className="px-3 py-2 border border-[#f97316]/30 text-[#c2410c] dark:text-[#fb923c] rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {provisioningCatalogWebhook ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                  Rotate secret
+                </button>
+              </div>
+              {catalogWebhookSecret && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider">Signing secret · shown once</span>
+                    <button type="button" onClick={() => copyToClipboard(catalogWebhookSecret, "catalog-webhook-secret")} className="text-[11px] text-amber-700 dark:text-amber-300 hover:underline flex items-center gap-1 cursor-pointer">
+                      {copiedField === "catalog-webhook-secret" ? <Check className="size-3" /> : <Copy className="size-3" />}
+                      {copiedField === "catalog-webhook-secret" ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <p className="font-mono text-[11px] text-amber-900 dark:text-amber-200 break-all select-all">{catalogWebhookSecret}</p>
+                </div>
+              )}
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                Sign the exact JSON body with HMAC-SHA256 and send <code className="font-mono">X-Chatty-Signature: sha256=&lt;hex&gt;</code>. Include <code className="font-mono">event</code>, <code className="font-mono">external_id</code>, and an <code className="font-mono">item</code> object; use <code className="font-mono">product.deleted</code> to remove an item.
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Subtab 1: WooCommerce Integration */}
       {activeSubTab === "woocommerce" && (
@@ -1087,6 +1223,20 @@ export function ProductsMediaCatalog({
 
             <div className="md:col-span-2">
               <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1">
+                External ID (for automatic updates)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. ERP-10042 or product_123"
+                value={prodExternalId}
+                onChange={(e) => setProdExternalId(e.target.value)}
+                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#f97316]"
+              />
+              <p className="text-[10px] text-neutral-400 mt-1">Your webhook payload must use this exact value as <code>external_id</code>.</p>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1">
                 Product Page URL (Buy Link)
               </label>
               <input
@@ -1170,6 +1320,19 @@ export function ProductsMediaCatalog({
                 placeholder="https://www.youtube.com/watch?v=..."
                 value={vidUrl}
                 onChange={(e) => setVidUrl(e.target.value)}
+                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#0ea5e9]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1">
+                External ID (for automatic updates)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. guide_10042"
+                value={vidExternalId}
+                onChange={(e) => setVidExternalId(e.target.value)}
                 className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#0ea5e9]"
               />
             </div>

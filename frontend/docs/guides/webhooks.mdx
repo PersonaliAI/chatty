@@ -107,6 +107,30 @@ echo json_encode(['ok' => true]);
 
 </CodeGroup>
 
+## Manual catalog auto-sync
+
+Manual products and video/media items can receive updates from an ERP, store,
+PIM, or spreadsheet automation. Open **Dashboard → Knowledge → Products &
+Media → Add Custom Product** (or **Add Video Clip**), enter an **External ID**,
+then enable the manual catalog webhook. Chatty shows the delivery URL and a
+signing secret once; store that secret in your sender's secret manager.
+
+Send the exact JSON bytes with an HMAC-SHA256 signature:
+
+```bash
+body='{"event":"product.updated","external_id":"ERP-10042","item":{"price":79.99,"metadata":{"in_stock":false}}}'
+signature=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$CHATTY_CATALOG_WEBHOOK_SECRET" -hex | sed 's/^.* //')
+curl -X POST "$CHATTY_CATALOG_WEBHOOK_URL" \
+  -H 'Content-Type: application/json' \
+  -H "X-Chatty-Signature: sha256=$signature" \
+  --data "$body"
+```
+
+Supported events are `product.created`, `product.updated`, and
+`product.deleted`. Updates are matched by `external_id`; searchable changes
+automatically refresh the item's embedding. Re-sending the same update is
+safe, and `product.deleted` removes the matching catalog item.
+
 ## Reliability
 
 - Webhooks are **fire-and-forget** — Chatty sends one POST with a 10-second timeout and does not retry on failure.

@@ -85,6 +85,7 @@ async def _embedding_for_item(item: dict[str, Any]) -> Optional[list[float]]:
 @router.post("/api/bots/{bot_id}/media-webhook")
 async def provision_catalog_webhook(
     bot_id: str,
+    request: Request,
     rotate: bool = False,
     user: dict[str, Any] = Depends(require_user),
 ):
@@ -103,7 +104,39 @@ async def provision_catalog_webhook(
         res = await run_db(lambda: supabase.table("chatty_catalog_webhooks").insert(payload).execute())
     if not getattr(res, "data", None):
         raise HTTPException(status_code=500, detail="Could not provision catalog webhook")
-    return {"webhook_url": f"/api/integrations/catalog/webhook/{bot_id}", "signing_secret": secret}
+    return {
+        "webhook_url": f"{str(request.base_url).rstrip('/')}/api/integrations/catalog/webhook/{bot_id}",
+        "signing_secret": secret,
+        "enabled": True,
+    }
+
+
+@router.get("/api/bots/{bot_id}/media-webhook")
+async def get_catalog_webhook(
+    bot_id: str,
+    request: Request,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Return manual catalog webhook status without ever exposing its secret."""
+    await verify_bot_permission(bot_id, user)
+    existing = await run_db(
+        lambda: supabase.table("chatty_catalog_webhooks")
+        .select("enabled,created_at,updated_at")
+        .eq("bot_id", bot_id)
+        .limit(1)
+        .execute()
+    )
+    configured = bool(existing.data)
+    return {
+        "configured": configured,
+        "enabled": bool(existing.data[0].get("enabled")) if configured else False,
+        "created_at": existing.data[0].get("created_at") if configured else None,
+        "updated_at": existing.data[0].get("updated_at") if configured else None,
+        "webhook_url": (
+            f"{str(request.base_url).rstrip('/')}/api/integrations/catalog/webhook/{bot_id}"
+            if configured else None
+        ),
+    }
 
 
 @router.patch("/api/bots/{bot_id}/media-items/{item_id}")
@@ -351,6 +384,8 @@ async def receive_catalog_webhook(
     ``product.deleted`` removes the matching manual item.
     """
     raw = await request.body()
+    if len(raw) > 512 * 1024:
+        raise HTTPException(status_code=413, detail="Catalog webhook payload exceeds the 512KB limit")
     if not x_chatty_signature:
         raise HTTPException(status_code=401, detail="Missing catalog webhook signature")
     cfg = await run_db(lambda: supabase.table("chatty_catalog_webhooks").select("signing_secret,enabled").eq("bot_id", bot_id).limit(1).execute())
@@ -365,6 +400,8 @@ async def receive_catalog_webhook(
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
     external_id = str(body.get("external_id") or "").strip()
+    if len(external_id) > 256:
+        raise HTTPException(status_code=400, detail="external_id must be 256 characters or fewer")
     event = str(body.get("event") or "product.updated").lower()
     if not external_id:
         raise HTTPException(status_code=400, detail="external_id is required")
@@ -374,6 +411,8 @@ async def receive_catalog_webhook(
             await run_db(lambda: supabase.table("chatty_media_items").delete().eq("id", found.data[0]["id"]).eq("bot_id", bot_id).execute())
         return {"status": "ok", "event": "deleted", "external_id": external_id}
     item = body.get("item") or {}
+    if not isinstance(item, dict):
+        raise HTTPException(status_code=400, detail="item must be an object")
     existing_item = found.data[0] if found.data else {}
     metadata = dict(existing_item.get("metadata") or {})
     metadata.update(item.get("metadata") or {})
