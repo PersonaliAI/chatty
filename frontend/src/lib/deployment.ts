@@ -1,13 +1,12 @@
 /** Runtime deployment switches shared by browser and server code.
  *
- * The managed Supabase profile remains the default. Self-host mode deliberately
- * uses a same-origin BFF route so OIDC tokens never enter client JavaScript.
+ * Chatty's application data plane is Supabase-backed in every supported
+ * deployment. Only the LiveKit voice media plane may be self-hosted (see
+ * backend/voice-agent); the retired full-stack OIDC deployment is deliberately
+ * disabled so an old environment variable cannot silently select dead routes.
  */
-export const SELF_HOST_MODE = process.env.NEXT_PUBLIC_DEPLOYMENT_PROFILE === "self_host";
+export const SELF_HOST_MODE = false;
 
+/** Kept as a stable internal constant for the backend-client compatibility
+ * branches while downstream mirrors remove those unreachable branches. */
 export const SELF_HOST_PROXY_PREFIX = "/api/self-host/proxy";
-
-export function safeNextPath(value: string | null | undefined, fallback = "/dashboard"): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return fallback;
-  return value;
-}
