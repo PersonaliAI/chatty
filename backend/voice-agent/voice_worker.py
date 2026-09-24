@@ -347,6 +347,18 @@ def _build_tts(bot: dict[str, Any]):
     return google.TTS(language="en-US")
 
 
+def _google_pipeline_credentials_available() -> bool:
+    """Return whether Google Cloud ADC is explicitly mounted for the worker.
+
+    Google STT/TTS use service-account ADC, while Gemini realtime uses the
+    server's Gemini API key. A normal VPS has no metadata-server ADC, so the
+    explicit file check lets the worker choose the realtime path without
+    mutating the bot's saved settings or crashing a LiveKit job.
+    """
+    credentials_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+    return bool(credentials_file and Path(credentials_file).is_file())
+
+
 # Model ids confirmed against the installed livekit-plugins-google/openai
 # versions and litellm's model_cost map (both need to recognize these exact
 # strings - google.realtime.RealtimeModel/openai.realtime.RealtimeModel for
@@ -678,6 +690,22 @@ async def entrypoint(ctx: JobContext) -> None:
     realtime_model = bot.get("voice_realtime_model") or REALTIME_DEFAULT_MODEL.get(realtime_provider, "")
     realtime_usage = _RealtimeUsageTotals()
     call_start = time.monotonic()
+
+    # A Google pipeline needs service-account ADC for both STT and TTS. The
+    # managed worker image intentionally carries only the Gemini API key, so
+    # promote this specific unusable configuration to Gemini realtime in
+    # memory. The saved dashboard settings remain unchanged and a VPS owner
+    # can opt back into the pipeline by mounting ADC later.
+    if (
+        voice_mode == "pipeline"
+        and (bot.get("voice_stt_provider") or "google").strip().lower() == "google"
+        and (bot.get("voice_tts_provider") or "google").strip().lower() == "google"
+        and realtime_provider == "google"
+        and GEMINI_API_KEY
+        and not _google_pipeline_credentials_available()
+    ):
+        logger.warning("voice worker: Google pipeline selected without ADC; using Gemini realtime for this session")
+        voice_mode = "realtime"
 
     if voice_mode == "realtime":
         # No stt/tts/vad/turn_detection at all - the RealtimeModel handles
