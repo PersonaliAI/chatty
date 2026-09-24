@@ -83,6 +83,16 @@ function toIso(d: Date) {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+export interface VoiceAnalytics {
+  calls: number;
+  duration_seconds: { avg: number | null; p95: number | null };
+  first_response_latency_ms: { avg: number | null; p95: number | null };
+  peak_rss_mb: { avg: number | null; p95: number | null };
+  avg_cpu_percent: { avg: number | null; p95: number | null };
+  turns: number; nudges: number; errors: number; cost_usd: number;
+  cost_status: { complete: boolean; priced_calls: number; unpriced_calls: number };
+  by_mode: { mode: string; calls: number; cost_usd: number }[];
+}
 function addDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 function fmtDate(iso: string) {
   try {
@@ -618,6 +628,16 @@ function Section({ title, children, action }: { title: string; children: React.R
   );
 }
 
+function MetricTile({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 dark:border-neutral-800 dark:bg-neutral-900/60">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-neutral-400">{label}</p>
+      <p className="mt-1 text-base font-bold tabular-nums text-neutral-800 dark:text-neutral-100">{value}</p>
+      {detail && <p className="mt-0.5 text-[9px] text-neutral-400">{detail}</p>}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Storage Progress Component
 // ---------------------------------------------------------------------------
@@ -700,6 +720,7 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
   const [sla, setSla] = useState<SlaPoint[]>([]);
   const [aiCost, setAiCost] = useState<AiCostData | null>(null);
   const [csat, setCsat] = useState<CsatData | null>(null);
+  const [voice, setVoice] = useState<VoiceAnalytics | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -717,7 +738,7 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
     const qs = `bot_id=${botId}&from=${from}&to=${to}`;
 
     try {
-      const [ovRes, volRes, chRes, hmRes, agRes, slaRes, aiRes, csatRes] = await Promise.all([
+      const [ovRes, volRes, chRes, hmRes, agRes, slaRes, aiRes, csatRes, voiceRes] = await Promise.all([
         fetch(`${base}/overview?${qs}`, { headers, signal: ctrl.signal }),
         fetch(`${base}/volume?${qs}&granularity=${presetDays <= 14 ? "day" : "day"}`, { headers, signal: ctrl.signal }),
         fetch(`${base}/channels?${qs}`, { headers, signal: ctrl.signal }),
@@ -726,13 +747,14 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
         fetch(`${base}/sla?${qs}`, { headers, signal: ctrl.signal }),
         fetch(`${base}/ai-cost?${qs}`, { headers, signal: ctrl.signal }),
         fetch(`${base}/csat?${qs}`, { headers, signal: ctrl.signal }),
+        fetch(`${base}/voice?${qs}`, { headers, signal: ctrl.signal }),
       ]);
 
       if (!ovRes.ok) throw new Error(`Overview failed: ${ovRes.status}`);
 
-      const [ov, vol, ch, hm, ag, sl, ai, cs] = await Promise.all([
+      const [ov, vol, ch, hm, ag, sl, ai, cs, vo] = await Promise.all([
         ovRes.json(), volRes.json(), chRes.json(), hmRes.json(),
-        agRes.json(), slaRes.json(), aiRes.json(), csatRes.json(),
+        agRes.json(), slaRes.json(), aiRes.json(), csatRes.json(), voiceRes.json(),
       ]);
 
       setOverview(ov);
@@ -743,6 +765,7 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
       setSla(sl.data ?? []);
       setAiCost(ai);
       setCsat(cs);
+      setVoice(vo);
     } catch (e: unknown) {
       if ((e as Error)?.name === "AbortError") return;
       setError("Failed to load analytics. Please try again.");
@@ -908,6 +931,24 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
           <StorageProgressBar plan={plan} botId={botId} backendUrl={backendUrl} authToken={authToken} />
         </div>
       )}
+
+      {/* ── Voice worker health ───────────────────────────────────────── */}
+      <Section title="Voice agent health" action={<span className="text-[9px] text-neutral-400">worker telemetry · p95 where available</span>}>
+        {!voice || voice.calls === 0 ? (
+          <p className="py-5 text-center text-[11px] text-neutral-400">No voice calls in this period.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <MetricTile label="Calls" value={voice.calls.toLocaleString()} />
+            <MetricTile label="First response" value={voice.first_response_latency_ms.avg !== null ? `${Math.round(voice.first_response_latency_ms.avg)}ms` : "—"} detail={voice.first_response_latency_ms.p95 !== null ? `p95 ${Math.round(voice.first_response_latency_ms.p95)}ms` : undefined} />
+            <MetricTile label="Peak memory" value={voice.peak_rss_mb.avg !== null ? `${voice.peak_rss_mb.avg.toFixed(1)} MB` : "—"} detail={voice.peak_rss_mb.p95 !== null ? `p95 ${voice.peak_rss_mb.p95.toFixed(1)} MB` : undefined} />
+            <MetricTile label="CPU" value={voice.avg_cpu_percent.avg !== null ? `${voice.avg_cpu_percent.avg.toFixed(1)}%` : "—"} detail={voice.avg_cpu_percent.p95 !== null ? `p95 ${voice.avg_cpu_percent.p95.toFixed(1)}%` : undefined} />
+            <MetricTile label="Turns" value={voice.turns.toLocaleString()} />
+            <MetricTile label="Re-engagements" value={voice.nudges.toLocaleString()} />
+            <MetricTile label="Errors" value={voice.errors.toLocaleString()} />
+            <MetricTile label="Voice cost" value={`$${voice.cost_usd.toFixed(4)}`} detail={voice.cost_status.unpriced_calls ? `${voice.cost_status.unpriced_calls} unpriced` : undefined} />
+          </div>
+        )}
+      </Section>
 
       {/* ── Volume Chart ───────────────────────────────────────────────── */}
       <Section title="Conversation Volume">

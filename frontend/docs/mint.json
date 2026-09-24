@@ -146,7 +146,8 @@
         "guides/mobile-sdks",
         "guides/webhooks",
         "guides/byok",
-        "guides/languages"
+        "guides/languages",
+        "guides/voice-self-hosting"
       ]
     },
     {

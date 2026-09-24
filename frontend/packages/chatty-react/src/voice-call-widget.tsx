@@ -18,6 +18,8 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { SafeMarkdownLink } from "./safe-markdown-link";
+import { ProductCard, type ProductCardData } from "./product-card";
+import { VideoCard, type VideoClipData } from "./video-card";
 
 const WAVE_BAR_COUNT = 14;
 
@@ -67,6 +69,7 @@ export default function VoiceCallWidget({
   const localLevelFrameRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const richPacketIdsRef = useRef(new Set<string>());
   // Real mic analyser (not a fake random waveform) - lets us tell, just by
   // watching the bars while talking, whether the browser is actually
   // capturing audio from the mic at all, independent of whether the voice
@@ -160,6 +163,26 @@ export default function VoiceCallWidget({
 
         room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
           track.detach().forEach((el) => el.remove());
+        });
+
+        room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+          if (cancelled || !mountedRef.current) return;
+          try {
+            const data = JSON.parse(new TextDecoder().decode(payload));
+            if (data?.type === "product_card" && data.product) {
+              const id = String(data.product.id || data.product.sku || data.product.title || "product");
+              if (!richPacketIdsRef.current.has(`product:${id}`)) {
+                richPacketIdsRef.current.add(`product:${id}`);
+                setTranscript((prev) => [...prev, { id: `voice-product-${id}`, speaker: "agent", text: `[PRODUCT_CARD:${JSON.stringify(data.product)}]`, final: true }]);
+              }
+            } else if (data?.type === "video_clip" && data.clip) {
+              const id = String(data.clip.video_url || data.clip.title || "video");
+              if (!richPacketIdsRef.current.has(`video:${id}`)) {
+                richPacketIdsRef.current.add(`video:${id}`);
+                setTranscript((prev) => [...prev, { id: `voice-video-${id}`, speaker: "agent", text: `[VIDEO_CLIP:${JSON.stringify(data.clip)}]`, final: true }]);
+              }
+            }
+          } catch { /* unrelated LiveKit packet */ }
         });
 
         // Live transcript - the agent worker already publishes STT/reply text
@@ -544,7 +567,10 @@ export default function VoiceCallWidget({
               </div>
             ) : (
               <AnimatePresence initial={false}>
-                {transcript.map((entry) => (
+                {transcript.map((entry) => {
+                  const rich = entry.speaker === "agent" ? parseVoiceRichContent(entry.text) : { cleanContent: entry.text, products: [], videoClips: [] };
+                  const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
+                  return (
                   <motion.div
                     key={entry.id}
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
@@ -552,42 +578,47 @@ export default function VoiceCallWidget({
                     transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
                     className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"}`}
                   >
-                    <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} max-w-[80%]`}>
+                    <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasRichCards ? "w-full" : "max-w-[80%]"}`}>
                       <span className="flex items-center gap-1 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
                         <span className={`size-1.5 rounded-full ${entry.speaker === "agent" ? "bg-emerald-500" : "bg-sky-500"}`} />
                         {entry.speaker === "agent" ? "Chatty" : "You"}
                       </span>
                       <div
-                        className={`max-w-full px-3 py-2 text-xs leading-relaxed ${
+                        className={`${hasRichCards ? "w-full" : "max-w-full"} px-3 py-2 text-xs leading-relaxed ${
                           entry.speaker === "visitor"
                             ? "user-bubble rounded-br-md"
                             : "bot-bubble rounded-bl-md"
                         }`}
                       >
-                      {entry.text.trim() ? (
+                      {rich.cleanContent.trim() ? (
                         <>
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm, remarkMath]}
                             rehypePlugins={[rehypeKatex]}
                             components={transcriptMdComponents}
                           >
-                            {entry.text}
+                            {rich.cleanContent}
                           </ReactMarkdown>
                           {!entry.final && (
                             <span className="inline-block w-1 h-3 ml-0.5 -mb-0.5 bg-current opacity-60 animate-pulse" />
                           )}
                         </>
-                      ) : (
+                      ) : !hasRichCards ? (
                         <span className="flex items-center gap-1 py-0.5" aria-label="typing">
                           <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce" />
                           <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:150ms]" />
                           <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:300ms]" />
                         </span>
-                      )}
+                      ) : null}
+                      {hasRichCards && <div className="mt-1.5 w-full space-y-1">
+                        {rich.products.map((product, index) => <ProductCard key={`${product.id || product.sku || product.title}-${index}`} product={product} primaryColor={primaryColor} />)}
+                        {rich.videoClips.map((clip, index) => <VideoCard key={`${clip.video_url}-${index}`} clip={clip} primaryColor={primaryColor} />)}
+                      </div>}
                       </div>
                     </div>
                   </motion.div>
-                ))}
+                  );
+                })}
               </AnimatePresence>
             )}
             <div ref={transcriptEndRef} />
@@ -714,4 +745,18 @@ function Orb({
       />
     </motion.div>
   );
+}
+
+function parseVoiceRichContent(content: string) {
+  const products: ProductCardData[] = [];
+  const videoClips: VideoClipData[] = [];
+  let clean = content.replace(/\[PRODUCT_CARD:(\{.*?\})\]/g, (_, json: string) => {
+    try { products.push(JSON.parse(json)); } catch { /* ignore malformed card */ }
+    return "";
+  });
+  clean = clean.replace(/\[VIDEO_CLIP:(\{.*?\})\]/g, (_, json: string) => {
+    try { videoClips.push(JSON.parse(json)); } catch { /* ignore malformed clip */ }
+    return "";
+  });
+  return { cleanContent: clean.replace(/\[BOOKING_WIDGET\]/g, "").trim(), products, videoClips };
 }

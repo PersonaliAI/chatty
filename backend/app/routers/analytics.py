@@ -72,6 +72,8 @@ def _priced_cost_stats(rows: list[dict[str, Any]]) -> tuple[float, int, int]:
     for row in rows:
         raw_cost = row.get("cost_usd")
         if raw_cost is None:
+            # A failed call with no response is not necessarily billable. A
+            # successful/token-bearing call without a price is unknown, not $0.
             if row.get("success") or int(row.get("total_tokens") or 0) > 0:
                 unpriced += 1
             continue
@@ -81,6 +83,14 @@ def _priced_cost_stats(rows: list[dict[str, Any]]) -> tuple[float, int, int]:
         except (TypeError, ValueError):
             unpriced += 1
     return total, priced, unpriced
+
+
+def _percentile(values: list[float], percentile: float) -> Optional[float]:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, max(0, int(round((percentile / 100) * (len(ordered) - 1)))))
+    return round(ordered[index], 2)
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +349,8 @@ async def analytics_channels(
             seen_session_ids.add(session_id)
         counts[_session_channel(row)] += 1
 
+    # Older WhatsApp traffic may predate the session upsert. Recover those
+    # sessions from message rows so the breakdown reflects actual channels.
     msg_res = await run_db(lambda: supabase.table("chatty_conversations")
         .select("session_id")
         .eq("bot_id", bot_id)
@@ -663,7 +675,80 @@ async def analytics_ai_cost(
 
 
 # ---------------------------------------------------------------------------
-# 8. CSAT trend
+# 8. Voice agent health and capacity
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/analytics/voice", tags=["Dashboard - Analytics"])
+async def analytics_voice(
+    bot_id: str = Query(...),
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Return aggregate voice latency, resource and cost telemetry only."""
+    await _require_bot_access(bot_id, user)
+    now = datetime.now(timezone.utc)
+    to_dt = _parse_date_param(to_date, now)
+    from_dt = _parse_date_param(from_date, to_dt - timedelta(days=30))
+    columns = (
+        "mode, provider, model, duration_seconds, input_tokens, output_tokens, cost_usd, "
+        "peak_rss_mb, cpu_seconds, avg_cpu_percent, first_response_latency_ms, turn_count, "
+        "nudge_count, error_count, created_at"
+    )
+    try:
+        res = await run_db(lambda: supabase.table("chatty_voice_calls")
+            .select(columns)
+            .eq("bot_id", bot_id)
+            .gte("created_at", _iso(from_dt)).lte("created_at", _iso(to_dt))
+            .execute())
+        rows = res.data or []
+    except Exception:
+        # The endpoint remains safe during a rolling migration; it reports no
+        # telemetry until the additive columns have been applied.
+        logger.exception("voice analytics query failed")
+        rows = []
+
+    def nums(name: str) -> list[float]:
+        out: list[float] = []
+        for row in rows:
+            try:
+                if row.get(name) is not None:
+                    out.append(float(row[name]))
+            except (TypeError, ValueError):
+                pass
+        return out
+
+    duration = nums("duration_seconds")
+    latency = nums("first_response_latency_ms")
+    rss = nums("peak_rss_mb")
+    cpu = nums("avg_cpu_percent")
+    costs = _priced_cost_stats(rows)
+    by_mode: dict[str, dict[str, Any]] = defaultdict(lambda: {"calls": 0, "cost_usd": 0.0})
+    for row in rows:
+        mode = str(row.get("mode") or "unknown")
+        by_mode[mode]["calls"] += 1
+        if row.get("cost_usd") is not None:
+            try: by_mode[mode]["cost_usd"] += float(row["cost_usd"])
+            except (TypeError, ValueError): pass
+
+    return {
+        "period": {"from": _iso(from_dt), "to": _iso(to_dt)},
+        "calls": len(rows),
+        "duration_seconds": {"avg": round(sum(duration) / len(duration), 2) if duration else None, "p95": _percentile(duration, 95)},
+        "first_response_latency_ms": {"avg": round(sum(latency) / len(latency), 2) if latency else None, "p95": _percentile(latency, 95)},
+        "peak_rss_mb": {"avg": round(sum(rss) / len(rss), 2) if rss else None, "p95": _percentile(rss, 95)},
+        "avg_cpu_percent": {"avg": round(sum(cpu) / len(cpu), 2) if cpu else None, "p95": _percentile(cpu, 95)},
+        "turns": sum(int(row.get("turn_count") or 0) for row in rows),
+        "nudges": sum(int(row.get("nudge_count") or 0) for row in rows),
+        "errors": sum(int(row.get("error_count") or 0) for row in rows),
+        "cost_usd": round(costs[0], 6),
+        "cost_status": {"priced_calls": costs[1], "unpriced_calls": costs[2], "complete": costs[2] == 0},
+        "by_mode": [{"mode": mode, "calls": value["calls"], "cost_usd": round(value["cost_usd"], 6)} for mode, value in sorted(by_mode.items())],
+    }
+
+
+# ---------------------------------------------------------------------------
+# 9. CSAT trend
 # ---------------------------------------------------------------------------
 
 @router.get("/api/admin/analytics/csat", tags=["Dashboard - Analytics"])

@@ -26,7 +26,12 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
+try:
+    import resource
+except ImportError:  # pragma: no cover - Windows development hosts
+    resource = None
 from pathlib import Path
 import sys
 from typing import Any, AsyncIterable, Optional
@@ -85,8 +90,35 @@ from app.core.config import (
 from plugins import agent_tools
 from plugins import widget_brain
 from plugins import llm_providers
+from app.services import multimodal_service
 
 logger = logging.getLogger("chatty.voice_worker")
+
+
+def _process_rss_mb() -> Optional[float]:
+    """Return this worker process' peak resident memory in MiB when available."""
+    if resource is None:
+        return None
+
+
+def _extract_rich_media(reply: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    products: list[dict[str, Any]] = []
+    clips: list[dict[str, Any]] = []
+    for marker, target in (("PRODUCT_CARD", products), ("VIDEO_CLIP", clips)):
+        for match in re.finditer(rf"\[{marker}:(\{{.*?\}})\]", reply or ""):
+            try:
+                value = json.loads(match.group(1))
+                if isinstance(value, dict):
+                    target.append(value)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+    return products, clips
+    try:
+        # Linux reports ru_maxrss in KiB; macOS reports bytes.
+        raw = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        return round(raw / (1024 * 1024 if raw > 1024 * 1024 * 4 else 1024), 2)
+    except Exception:
+        return None
 
 
 class _NullLLM(llm.LLM):
@@ -172,8 +204,9 @@ class ChattyVoiceAgent(Agent):
         # with "object is not awaitable"). asyncio.Queue.put_nowait itself is
         # sync/non-blocking, so this async wrapper just awaits nothing extra.
         async def _on_token(tok: str) -> None:
-            # Strip [BOOKING_WIDGET] marker so TTS audio engine does not speak it aloud
+            # Strip UI-only markers so the TTS engine never reads JSON aloud.
             clean_tok = tok.replace("[BOOKING_WIDGET]", "")
+            clean_tok = re.sub(r"\[(?:PRODUCT_CARD|VIDEO_CLIP):\{.*?\}\]", "", clean_tok)
             if clean_tok:
                 queue.put_nowait(clean_tok)
 
@@ -209,6 +242,25 @@ class ChattyVoiceAgent(Agent):
                 )
             except Exception:
                 logger.exception("voice worker: failed to publish booking_widget data packet")
+
+        if self._room and getattr(self._room, "local_participant", None):
+            products, clips = _extract_rich_media(reply)
+            for product in products:
+                try:
+                    await self._room.local_participant.publish_data(
+                        json.dumps({"type": "product_card", "product": product}, default=str).encode("utf-8"),
+                        reliable=True,
+                    )
+                except Exception:
+                    logger.exception("voice worker: failed to publish pipeline product card")
+            for clip in clips:
+                try:
+                    await self._room.local_participant.publish_data(
+                        json.dumps({"type": "video_clip", "clip": clip}, default=str).encode("utf-8"),
+                        reliable=True,
+                    )
+                except Exception:
+                    logger.exception("voice worker: failed to publish pipeline video clip")
 
         try:
             supabase.table("chatty_conversations").insert({
@@ -451,6 +503,10 @@ def _log_voice_call(
     *, bot_id: str, session_id: str, mode: str, provider: Optional[str], model: Optional[str],
     duration_seconds: float, input_tokens: Optional[int] = None, output_tokens: Optional[int] = None,
     cost_usd: Optional[float] = None,
+    peak_rss_mb: Optional[float] = None, cpu_seconds: Optional[float] = None,
+    avg_cpu_percent: Optional[float] = None, first_response_latency_ms: Optional[int] = None,
+    turn_count: Optional[int] = None, nudge_count: Optional[int] = None,
+    error_count: Optional[int] = None,
 ) -> None:
     """Writes the per-call usage/cost row `chatty_voice_calls` didn't have
     before this - voice usage was previously tracked nowhere at all."""
@@ -461,6 +517,11 @@ def _log_voice_call(
             "duration_seconds": round(duration_seconds, 1),
             "input_tokens": input_tokens, "output_tokens": output_tokens,
             "cost_usd": cost_usd,
+            "peak_rss_mb": peak_rss_mb, "cpu_seconds": cpu_seconds,
+            "avg_cpu_percent": avg_cpu_percent,
+            "first_response_latency_ms": first_response_latency_ms,
+            "turn_count": turn_count, "nudge_count": nudge_count,
+            "error_count": error_count,
         }).execute()
     except Exception:
         logger.exception("voice worker: failed to log voice call cost")
@@ -489,6 +550,7 @@ def _build_realtime_tools(
     # idempotent for the call: one picker is enough, and it must not replace a
     # completed booking with a fresh availability card.
     booking_state = {"picker_published": False, "booked": False}
+    published_media_ids: set[str] = set()
 
     async def _publish_booking_packet(packet: dict[str, Any]) -> None:
         """Send booking state to the widget without making voice tools UI-aware.
@@ -507,6 +569,40 @@ def _build_realtime_tools(
         except Exception:
             logger.exception("voice worker: failed to publish booking packet")
 
+    async def _publish_catalog_packets(items: list[dict[str, Any]]) -> None:
+        """Publish commerce cards so voice has the same rich UI as chat."""
+        if not room or not getattr(room, "local_participant", None):
+            return
+        for item in items:
+            item_id = str(item.get("id") or item.get("sku") or item.get("title") or "")
+            if not item_id or item_id in published_media_ids:
+                continue
+            published_media_ids.add(item_id)
+            metadata = item.get("metadata") or {}
+            media_type = str(item.get("media_type") or "product").lower()
+            if media_type in {"video", "video_frame", "clip"} and item.get("video_url"):
+                packet = {"type": "video_clip", "clip": {
+                    "title": item.get("title") or "Video",
+                    "video_url": item.get("video_url"),
+                    "timestamp": item.get("video_timestamp_start"),
+                    "thumbnail_url": item.get("thumbnail_url") or item.get("media_url"),
+                }}
+            else:
+                packet = {"type": "product_card", "product": {
+                    "id": item.get("id"), "title": item.get("title") or "Product",
+                    "price": item.get("price"), "currency": item.get("currency") or "USD",
+                    "url": item.get("url") or item.get("media_url"),
+                    "image_url": item.get("thumbnail_url") or item.get("media_url"),
+                    "thumbnail_url": item.get("thumbnail_url"), "sku": item.get("sku"),
+                    "in_stock": metadata.get("in_stock", True),
+                }}
+            try:
+                await room.local_participant.publish_data(
+                    json.dumps(packet, default=str).encode("utf-8"), reliable=True,
+                )
+            except Exception:
+                logger.exception("voice worker: failed to publish catalog packet")
+
     @function_tool(
         name="search_knowledge_base",
         description=(
@@ -518,6 +614,16 @@ def _build_realtime_tools(
     )
     async def search_knowledge_base(query: str, context: RunContext) -> str:
         knowledge_context, _ = await widget_brain.search_knowledge(bot_id, owner_user, bot, query)
+        try:
+            items, visual_attrs = await multimodal_service.search_multimodal_catalog(
+                bot_id=bot_id, query_text=query, top_k=5,
+            )
+            if items or visual_attrs:
+                await _publish_catalog_packets(items)
+                knowledge_context = (knowledge_context + "\n\n" +
+                    multimodal_service.format_multimodal_context_for_prompt(items, visual_attrs)).strip()
+        except Exception:
+            logger.exception("voice worker: multimodal catalog search failed")
         return knowledge_context.strip() or "No relevant information found in the knowledge base."
 
     tools.append(search_knowledge_base)
@@ -635,7 +741,9 @@ class ChattyRealtimeAgent(Agent):
             "check in after a long silence. Use the "
             "search_knowledge_base tool for any question about this specific business rather "
             "than guessing. When a visitor wants to book, always use the availability and "
-            "calendar tools; never invent a time, and collect the required name and email.\n\n"
+            "calendar tools; never invent a time, and collect the required name and email. "
+            "When knowledge search returns products, images, or videos, describe them naturally "
+            "and let the interface render rich cards; never read JSON or card markers aloud.\n\n"
             "BOOKING WORKFLOW (follow this exact state machine):\n"
             "1. When the visitor asks to book or gives a preferred date/time, call "
             "get_available_slots with near set to that spoken date/time. Offer only the "
@@ -740,6 +848,11 @@ async def entrypoint(ctx: JobContext) -> None:
     realtime_model = bot.get("voice_realtime_model") or REALTIME_DEFAULT_MODEL.get(realtime_provider, "")
     realtime_usage = _RealtimeUsageTotals()
     call_start = time.monotonic()
+    process_cpu_start = time.process_time()
+    first_response_at: Optional[float] = None
+    turn_count = 0
+    nudge_count = 0
+    error_count = 0
 
     # A Google pipeline needs service-account ADC for both STT and TTS. The
     # managed worker image intentionally carries only the Gemini API key, so
@@ -792,10 +905,11 @@ async def entrypoint(ctx: JobContext) -> None:
     idle_nudge_count = 0
 
     def _record_user_input(ev) -> None:
-        nonlocal last_user_activity, idle_nudge_count
+        nonlocal last_user_activity, idle_nudge_count, turn_count
         if getattr(ev, "is_final", False) and (getattr(ev, "transcript", "") or "").strip():
             last_user_activity = time.monotonic()
             idle_nudge_count = 0
+            turn_count += 1
         logger.info(
             "voice worker: transcript (final=%s) %r",
             getattr(ev, "is_final", False),
@@ -812,6 +926,12 @@ async def entrypoint(ctx: JobContext) -> None:
         lambda ev: logger.info("voice worker: user_state %s -> %s", ev.old_state, ev.new_state),
     )
     session.on("user_input_transcribed", _record_user_input)
+    def _record_agent_state(ev) -> None:
+        nonlocal first_response_at
+        state = str(getattr(ev, "new_state", "") or "").lower()
+        if first_response_at is None and state in {"speaking", "listening"}:
+            first_response_at = time.monotonic()
+    session.on("agent_state_changed", _record_agent_state)
     session.on(
         "user_transcription_timeout",
         lambda ev: logger.warning("voice worker: user_transcription_timeout - speech detected, no transcript"),
@@ -849,6 +969,10 @@ async def entrypoint(ctx: JobContext) -> None:
 
     async def _log_call_cost() -> None:
         duration = time.monotonic() - call_start
+        cpu_seconds = max(0.0, time.process_time() - process_cpu_start)
+        peak_rss_mb = _process_rss_mb()
+        avg_cpu_percent = round((cpu_seconds / duration) * 100, 2) if duration > 0 else None
+        first_latency = round((first_response_at - call_start) * 1000) if first_response_at else None
         if voice_mode == "realtime":
             cost = _cost_of_realtime_usage(realtime_provider, realtime_model, realtime_usage)
             _log_voice_call(
@@ -856,6 +980,9 @@ async def entrypoint(ctx: JobContext) -> None:
                 provider=realtime_provider, model=realtime_model, duration_seconds=duration,
                 input_tokens=realtime_usage.input_tokens, output_tokens=realtime_usage.output_tokens,
                 cost_usd=cost,
+                peak_rss_mb=peak_rss_mb, cpu_seconds=round(cpu_seconds, 3),
+                avg_cpu_percent=avg_cpu_percent, first_response_latency_ms=first_latency,
+                turn_count=turn_count, nudge_count=nudge_count, error_count=error_count,
             )
         else:
             # STT/TTS providers here (Deepgram, ElevenLabs, etc.) aren't
@@ -868,6 +995,9 @@ async def entrypoint(ctx: JobContext) -> None:
             _log_voice_call(
                 bot_id=bot_id, session_id=session_id, mode="pipeline",
                 provider=bot.get("voice_stt_provider"), model=None, duration_seconds=duration,
+                peak_rss_mb=peak_rss_mb, cpu_seconds=round(cpu_seconds, 3),
+                avg_cpu_percent=avg_cpu_percent, first_response_latency_ms=first_latency,
+                turn_count=turn_count, nudge_count=nudge_count, error_count=error_count,
             )
 
     ctx.add_shutdown_callback(_log_call_cost)
@@ -945,6 +1075,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 threshold = 18 if idle_nudge_count == 0 else 35
                 if idle_for >= threshold:
                     idle_nudge_count += 1
+                    nudge_count += 1
                     if idle_nudge_count == 1:
                         nudge = "Hey, are you still there? I'm here if you'd like help with anything."
                     elif idle_nudge_count == 2:

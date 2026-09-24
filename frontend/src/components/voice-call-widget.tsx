@@ -20,6 +20,8 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
+import { ProductCard, type ProductCardData } from "@/components/product-card";
+import { VideoCard, type VideoClipData } from "@/components/video-card";
 
 const WAVE_BAR_COUNT = 14;
 
@@ -134,6 +136,7 @@ export default function VoiceCallWidget({
   const localLevelFrameRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const richPacketIdsRef = useRef(new Set<string>());
   // Real mic analyser (not a fake random waveform) - lets us tell, just by
   // watching the bars while talking, whether the browser is actually
   // capturing audio from the mic at all, independent of whether the voice
@@ -232,6 +235,24 @@ export default function VoiceCallWidget({
               setConfirmedMeeting(data.meeting);
               setShowBookingCard(true);
               onBookingSuccess?.(data.meeting);
+            } else if (data?.type === "product_card" && data?.product) {
+              const productId = String(data.product.id || data.product.sku || data.product.title || "product");
+              if (!richPacketIdsRef.current.has(`product:${productId}`)) {
+                richPacketIdsRef.current.add(`product:${productId}`);
+                setTranscript((prev) => [...prev, {
+                  id: `voice-product-${productId}`, speaker: "agent",
+                  text: `[PRODUCT_CARD:${JSON.stringify(data.product)}]`, final: true,
+                }]);
+              }
+            } else if (data?.type === "video_clip" && data?.clip) {
+              const clipId = String(data.clip.video_url || data.clip.title || "video");
+              if (!richPacketIdsRef.current.has(`video:${clipId}`)) {
+                richPacketIdsRef.current.add(`video:${clipId}`);
+                setTranscript((prev) => [...prev, {
+                  id: `voice-video-${clipId}`, speaker: "agent",
+                  text: `[VIDEO_CLIP:${JSON.stringify(data.clip)}]`, final: true,
+                }]);
+              }
             }
           } catch {
             // Ignore non-JSON or unrelated packets
@@ -654,7 +675,9 @@ export default function VoiceCallWidget({
                   const isAgent = entry.speaker === "agent";
                   const containsBookingTag = isAgent && entry.text.includes("[BOOKING_WIDGET]");
                   const hasBookingOnEntry = isAgent && (entry.id === activeBookingId || containsBookingTag);
-                  const cleanText = entry.text.replace(/\[BOOKING_WIDGET\]/g, "").trim();
+                  const rich = isAgent ? parseVoiceRichContent(entry.text) : { cleanContent: entry.text, products: [], videoClips: [] };
+                  const cleanText = rich.cleanContent;
+                  const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
 
                     return (
                       <motion.div
@@ -664,14 +687,14 @@ export default function VoiceCallWidget({
                         transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
                         className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"} ${hasBookingOnEntry ? "w-full" : ""}`}
                       >
-                        <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasBookingOnEntry ? "w-full" : "max-w-[85%]"}`}>
+                        <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasBookingOnEntry || hasRichCards ? "w-full" : "max-w-[85%]"}`}>
                           <span className="flex items-center gap-1 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
                             <span className={`size-1.5 rounded-full ${isAgent ? "bg-emerald-500" : "bg-sky-500"}`} />
                             {isAgent ? "Chatty" : "You"}
                           </span>
                           <div
                             className={`${
-                              hasBookingOnEntry ? "w-full p-2" : "max-w-full px-3 py-2"
+                              hasBookingOnEntry || hasRichCards ? "w-full p-2" : "max-w-full px-3 py-2"
                             } text-xs leading-relaxed ${
                               entry.speaker === "visitor"
                                 ? "user-bubble rounded-br-md"
@@ -692,13 +715,19 @@ export default function VoiceCallWidget({
                             )}
                           </>
                         ) : (
-                          !hasBookingOnEntry && (
+                          !hasBookingOnEntry && !hasRichCards && (
                             <span className="flex items-center gap-1 py-0.5" aria-label="typing">
                               <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce" />
                               <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:150ms]" />
                               <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:300ms]" />
                             </span>
                           )
+                        )}
+                        {hasRichCards && (
+                          <div className="mt-1.5 w-full space-y-1">
+                            {rich.products.map((product, index) => <ProductCard key={`${product.id || product.sku || product.title}-${index}`} product={product} primaryColor={primaryColor} />)}
+                            {rich.videoClips.map((clip, index) => <VideoCard key={`${clip.video_url}-${index}`} clip={clip} primaryColor={primaryColor} />)}
+                          </div>
                         )}
                         {hasBookingOnEntry && (
                           <div className="mt-2.5 w-full">
@@ -858,4 +887,18 @@ function Orb({
       />
     </motion.div>
   );
+}
+
+function parseVoiceRichContent(content: string) {
+  const products: ProductCardData[] = [];
+  const videoClips: VideoClipData[] = [];
+  let clean = content.replace(/\[PRODUCT_CARD:(\{.*?\})\]/g, (_, json: string) => {
+    try { products.push(JSON.parse(json)); } catch { /* keep malformed marker out of the transcript */ }
+    return "";
+  });
+  clean = clean.replace(/\[VIDEO_CLIP:(\{.*?\})\]/g, (_, json: string) => {
+    try { videoClips.push(JSON.parse(json)); } catch { /* keep malformed marker out of the transcript */ }
+    return "";
+  });
+  return { cleanContent: clean.replace(/\[BOOKING_WIDGET\]/g, "").trim(), products, videoClips };
 }
