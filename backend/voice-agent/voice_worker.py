@@ -491,7 +491,12 @@ def _build_realtime_tools(
     booking_state = {"picker_published": False, "booked": False}
 
     async def _publish_booking_packet(packet: dict[str, Any]) -> None:
-        """Send booking state to the widget without making voice tools UI-aware."""
+        """Send booking state to the widget without making voice tools UI-aware.
+
+        The browser already renders these packets into the same InlineBookingCard
+        used by text chat. Keeping this at the LiveKit boundary means calendar
+        tools stay reusable and realtime calls get the same booking UX.
+        """
         if not room or not getattr(room, "local_participant", None):
             return
         try:
@@ -556,10 +561,12 @@ def _build_realtime_tools(
 
             if not isinstance(result, dict) or result.get("error"):
                 return result
+
             if _name == "get_available_slots" and result.get("slots"):
                 if not booking_state["picker_published"] and not booking_state["booked"]:
                     booking_state["picker_published"] = True
                     await _publish_booking_packet({"type": "booking_widget", "action": "open"})
+
             if _name in ("create_calendar_event", "create_outlook_event"):
                 attendees = raw_arguments.get("attendees") or []
                 if isinstance(attendees, str):
@@ -658,7 +665,9 @@ class ChattyRealtimeAgent(Agent):
                 visitor_timezone=visitor_timezone,
             ),
         )
-        self._greeting = (bot.get("welcome_message") or "").strip() or "Hi! How can I help you today?"
+        self._greeting = (bot.get("welcome_message") or "").strip() or (
+            "Hi, I'm Chatty. I'm here and ready to help. What would you like to do today?"
+        )
 
     async def on_enter(self) -> None:
         # Realtime sessions synthesize through the model; AgentSession.say()
@@ -776,13 +785,17 @@ async def entrypoint(ctx: JobContext) -> None:
         )
 
     # Keep the conversation human-like when a visitor pauses after the
-    # greeting. The client receives this through LiveKit's transcription stream.
+    # greeting. The client still receives this through LiveKit's normal
+    # transcription stream, so it appears as a real agent turn (and is saved
+    # with the rest of the call transcript), rather than a browser-only hint.
     last_user_activity = time.monotonic()
+    idle_nudge_count = 0
 
     def _record_user_input(ev) -> None:
-        nonlocal last_user_activity
+        nonlocal last_user_activity, idle_nudge_count
         if getattr(ev, "is_final", False) and (getattr(ev, "transcript", "") or "").strip():
             last_user_activity = time.monotonic()
+            idle_nudge_count = 0
         logger.info(
             "voice worker: transcript (final=%s) %r",
             getattr(ev, "is_final", False),
@@ -885,8 +898,14 @@ async def entrypoint(ctx: JobContext) -> None:
         # (not generate_reply) since there's no user turn yet - this doesn't
         # route through llm_node/run_widget_assistant at all. Realtime mode's
         # own ChattyRealtimeAgent.on_enter already does this greeting itself.
-        greeting = (bot.get("welcome_message") or "").strip() or "Hi! How can I help you today?"
+        greeting = (bot.get("welcome_message") or "").strip() or (
+            "Hi, I'm Chatty. I'm here and ready to help. What would you like to do today?"
+        )
         await _speak(greeting)
+
+    # Start idle monitoring after the greeting has finished so a long first
+    # response cannot trigger a follow-up over the top of the introduction.
+    last_user_activity = time.monotonic()
 
     # Cost/abuse circuit-breaker: no per-minute quota exists yet (a known,
     # explicitly-accepted gap - usage is tracked, not gated), but an
@@ -912,20 +931,33 @@ async def entrypoint(ctx: JobContext) -> None:
     asyncio.create_task(_enforce_max_duration())
 
     async def _nudge_when_idle() -> None:
-        """Offer a gentle follow-up instead of leaving a silent call hanging."""
-        nonlocal last_user_activity
+        """Monitor silence and re-engage a few times without spamming visitors."""
+        nonlocal last_user_activity, idle_nudge_count
         try:
-            await asyncio.sleep(18)
+            await asyncio.sleep(8)
             while True:
+                # Three nudges is enough to recover an attentive visitor. Keep
+                # monitoring after that, but stay quiet until they speak again.
+                if idle_nudge_count >= 3:
+                    await asyncio.sleep(5)
+                    continue
                 idle_for = time.monotonic() - last_user_activity
-                if idle_for >= 18:
+                threshold = 18 if idle_nudge_count == 0 else 35
+                if idle_for >= threshold:
+                    idle_nudge_count += 1
+                    if idle_nudge_count == 1:
+                        nudge = "Hey, are you still there? I'm here if you'd like help with anything."
+                    elif idle_nudge_count == 2:
+                        nudge = "I'm still here. You can ask a question, share a time to book, or type a message below."
+                    else:
+                        nudge = "No problem if you need a moment. I'll keep this call open quietly until you're ready."
                     await _speak(
-                        "Hey, are you still there? Just checking in to see if you've still got questions."
+                        nudge
                     )
                     last_user_activity = time.monotonic()
-                    await asyncio.sleep(45)
+                    await asyncio.sleep(5)
                 else:
-                    await asyncio.sleep(min(10, max(1, 18 - idle_for)))
+                    await asyncio.sleep(min(10, max(1, threshold - idle_for)))
         except asyncio.CancelledError:
             pass
         except Exception:

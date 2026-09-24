@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useId } from "react";
 import { motion, AnimatePresence, useSpring } from "framer-motion";
 import {
   Room,
@@ -12,7 +12,7 @@ import {
   TranscriptionSegment,
   Participant,
 } from "livekit-client";
-import { AudioWaveform, Mic, MicOff, PhoneOff, AlertCircle } from "lucide-react";
+import { AudioWaveform, Mic, MicOff, Paperclip, Send, X, AlertCircle } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -68,6 +68,9 @@ export default function VoiceCallWidget({
         ]
       : []
   );
+  const [messageText, setMessageText] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   // Auto-extract visitor contact info if spoken/transcribed during the call
   const extractedVisitorInfo = useMemo(() => {
@@ -469,20 +472,75 @@ export default function VoiceCallWidget({
     onClose();
   };
 
+  const sendComposerMessage = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const text = messageText.trim();
+    const file = pendingFile;
+    if ((!text && !file) || sendingMessage) return;
+    const visitorText = text || `Attachment: ${file?.name || "file"}`;
+    setMessageText("");
+    setPendingFile(null);
+    setTranscript((prev) => [...prev, { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true }]);
+    setSendingMessage(true);
+    try {
+      const authHeaders: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
+      let response: Response;
+      if (file) {
+        const body = new FormData();
+        body.append("bot_id", botId);
+        body.append("session_id", sessionId);
+        body.append("text", text);
+        body.append("visitor_timezone", visitorTimezone);
+        body.append("file", file, file.name);
+        response = await fetch(`${backendUrl}/api/widget/chat/media`, { method: "POST", headers: authHeaders, body });
+      } else {
+        response = await fetch(`${backendUrl}/api/widget/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: visitorTimezone }),
+        });
+      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.detail || "Message could not be sent");
+      const reply = String(data?.reply || "").trim();
+      if (reply) setTranscript((prev) => [...prev, { id: `typed-reply-${Date.now()}`, speaker: "agent", text: reply, final: true }]);
+    } catch {
+      setTranscript((prev) => [...prev, { id: `typed-error-${Date.now()}`, speaker: "agent", text: "I couldn't send that message. Please try again.", final: true }]);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const transcriptMdComponents: Components = {
-    p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
-    ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
-    ol: ({ children }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
+    h1: ({ children }) => <h1 className="mb-2 text-sm font-bold leading-snug">{children}</h1>,
+    h2: ({ children }) => <h2 className="mb-1.5 text-xs font-bold leading-snug">{children}</h2>,
+    h3: ({ children }) => <h3 className="mb-1 text-xs font-semibold leading-snug">{children}</h3>,
+    p: ({ children }) => <p className="mb-1.5 last:mb-0 break-words">{children}</p>,
+    ul: ({ children }) => <ul className="mb-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
+    ol: ({ children }) => <ol className="mb-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>,
+    li: ({ children }) => <li className="break-words">{children}</li>,
+    blockquote: ({ children }) => <blockquote className="my-1.5 border-l-2 border-current/30 pl-2 italic opacity-85">{children}</blockquote>,
+    hr: () => <hr className="my-2 border-current/15" />,
+    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+    em: ({ children }) => <em className="italic">{children}</em>,
     a: ({ href, children }) => (
       <SafeMarkdownLink href={href} className="underline break-all" style={{ color: "currentColor" }}>
         {children}
       </SafeMarkdownLink>
     ),
+    table: ({ children }) => (
+      <div className="my-1.5 max-w-full overflow-x-auto rounded-md border border-current/15">
+        <table className="min-w-full text-[10px]">{children}</table>
+      </div>
+    ),
+    thead: ({ children }) => <thead className="bg-black/5 dark:bg-white/5">{children}</thead>,
+    th: ({ children }) => <th className="whitespace-nowrap px-2 py-1 text-left font-semibold">{children}</th>,
+    td: ({ children }) => <td className="border-t border-current/10 px-2 py-1 align-top">{children}</td>,
     code: ({ className, children, ...rest }) => {
       const isBlock = className?.startsWith("language-");
       if (!isBlock) return <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
       return (
-        <pre className="bg-black/10 dark:bg-white/10 rounded-lg p-2 my-1 overflow-x-auto text-[10px] font-mono">
+        <pre className="my-1.5 max-w-full overflow-x-auto rounded-lg bg-black/10 p-2 text-[10px] leading-relaxed dark:bg-white/10" tabIndex={0}>
           <code {...rest}>{children}</code>
         </pre>
       );
@@ -509,7 +567,7 @@ export default function VoiceCallWidget({
   })();
 
   return (
-    <div className="flex-1 flex flex-col p-4 bg-card h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card p-3 sm:p-4">
       {status === "error" ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-4">
           <div className="size-12 rounded-full flex items-center justify-center bg-red-50 dark:bg-red-950/40">
@@ -540,7 +598,7 @@ export default function VoiceCallWidget({
             className="size-12 rounded-full flex items-center justify-center"
             style={{ background: `${primaryColor}1a` }}
           >
-            <PhoneOff className="size-5" style={{ color: primaryColor }} />
+            <X className="size-5" style={{ color: primaryColor }} />
           </div>
           <div>
             <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Call ended</p>
@@ -561,7 +619,7 @@ export default function VoiceCallWidget({
         <>
           {/* Animated voice stage: the orb reacts to the remote speaker while
               the bars prove that the visitor's microphone is live. */}
-          <div className="relative overflow-hidden rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 px-4 py-5 shrink-0">
+          <div className="relative shrink-0 overflow-hidden rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 px-3 py-4 dark:border-neutral-800 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 sm:px-4 sm:py-5">
             <div className="absolute -right-10 -top-12 size-32 rounded-full blur-3xl opacity-20" style={{ background: primaryColor }} />
             <div className="relative flex flex-col items-center gap-3">
               <Orb status={status} level={orbLevel} primaryColor={primaryColor} />
@@ -574,14 +632,14 @@ export default function VoiceCallWidget({
                   <span key={i} className="w-1 rounded-full transition-[height] duration-[50ms] ease-out" style={{ height: `${Math.max(3, level * 20)}px`, background: primaryColor, opacity: status === "listening" ? 0.9 : 0.25 }} />
                 ))}
               </div>
-              <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
+              <span className="text-center text-[10px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
             </div>
           </div>
 
           {/* Live transcript - auto-scrolls to the newest line; interim
               (not-yet-final) segments render with a bouncy typing indicator
               instead of raw text jitter, then settle into place once final. */}
-          <div className={`flex-1 min-h-0 w-full ${previewMode ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin py-2 space-y-2`}>
+          <div className={`min-h-[7rem] flex-1 w-full ${previewMode ? "overflow-hidden" : "overflow-y-auto overscroll-contain"} chatty-voice-scrollbar space-y-2 py-2`}>
             {transcript.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center px-6">
@@ -598,20 +656,28 @@ export default function VoiceCallWidget({
                   const hasBookingOnEntry = isAgent && (entry.id === activeBookingId || containsBookingTag);
                   const cleanText = entry.text.replace(/\[BOOKING_WIDGET\]/g, "").trim();
 
-                  return (
-                    <motion.div
-                      key={entry.id}
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                      className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"} ${hasBookingOnEntry ? "w-full" : ""}`}
-                    >
-                      <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasBookingOnEntry ? "w-full" : "max-w-[85%]"}`}>
-                        <span className="flex items-center gap-1 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
-                          <span className={`size-1.5 rounded-full ${isAgent ? "bg-emerald-500" : "bg-sky-500"}`} />
-                          {isAgent ? "Chatty" : "You"}
-                        </span>
-                        <div className={`${hasBookingOnEntry ? "w-full p-2" : "max-w-full px-3 py-2"} text-xs leading-relaxed ${entry.speaker === "visitor" ? "user-bubble rounded-br-md" : "bot-bubble rounded-bl-md"}`}>
+                    return (
+                      <motion.div
+                        key={entry.id}
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                        className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"} ${hasBookingOnEntry ? "w-full" : ""}`}
+                      >
+                        <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasBookingOnEntry ? "w-full" : "max-w-[85%]"}`}>
+                          <span className="flex items-center gap-1 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
+                            <span className={`size-1.5 rounded-full ${isAgent ? "bg-emerald-500" : "bg-sky-500"}`} />
+                            {isAgent ? "Chatty" : "You"}
+                          </span>
+                          <div
+                            className={`${
+                              hasBookingOnEntry ? "w-full p-2" : "max-w-full px-3 py-2"
+                            } text-xs leading-relaxed ${
+                              entry.speaker === "visitor"
+                                ? "user-bubble rounded-br-md"
+                                : "bot-bubble rounded-bl-md"
+                            }`}
+                          >
                         {cleanText ? (
                           <>
                             <ReactMarkdown
@@ -661,17 +727,27 @@ export default function VoiceCallWidget({
                             />
                           </div>
                         )}
+                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  );
+                      </motion.div>
+                    );
                 })}
               </AnimatePresence>
             )}
             <div ref={transcriptEndRef} />
           </div>
 
-          <div className="flex items-center gap-4 pb-2 pt-1 shrink-0">
+          <form onSubmit={sendComposerMessage} className="mb-2 flex min-w-0 shrink-0 items-center gap-1.5 rounded-2xl border border-neutral-200 bg-white/80 p-1.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 sm:mb-3 sm:gap-2 sm:p-2">
+            <input type="file" className="hidden" id="chatty-voice-attachment-app" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => setPendingFile(event.target.files?.[0] || null)} />
+            <button type="button" onClick={() => document.getElementById("chatty-voice-attachment-app")?.click()} aria-label="Attach a file" title="Attach a file" className="grid size-9 shrink-0 place-items-center rounded-xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"><Paperclip className="size-4" /></button>
+            <div className="min-w-0 flex-1">
+              <input value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder={pendingFile ? pendingFile.name : "Send a message while you talk…"} disabled={sendingMessage} className="w-full bg-transparent px-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200" />
+              {pendingFile && <p className="truncate px-1 text-[9px] text-neutral-400">Attachment ready · click send to share</p>}
+            </div>
+            <button type="submit" disabled={sendingMessage || (!messageText.trim() && !pendingFile)} aria-label="Send message" title="Send message" className="grid size-9 shrink-0 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: primaryColor }}><Send className="size-4" /></button>
+          </form>
+
+          <div className="flex shrink-0 items-center gap-3 pb-1 pt-1 sm:gap-4 sm:pb-2">
             <motion.button
               type="button"
               whileTap={{ scale: 0.85 }}
@@ -679,7 +755,8 @@ export default function VoiceCallWidget({
               onClick={toggleMute}
               disabled={status === "connecting" || status === "requesting-mic"}
               aria-label={muted ? "Unmute microphone" : "Mute microphone"}
-              className="size-12 rounded-full flex items-center justify-center border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 disabled:opacity-40"
+              className="flex size-11 items-center justify-center rounded-2xl border transition-colors disabled:opacity-40 sm:size-12"
+              style={{ background: muted ? `${primaryColor}18` : primaryColor, borderColor: muted ? `${primaryColor}45` : primaryColor, color: muted ? primaryColor : "#fff", boxShadow: muted ? "none" : `0 8px 20px ${primaryColor}35` }}
             >
               {muted ? <MicOff className="size-5" /> : <Mic className="size-5" />}
             </motion.button>
@@ -688,10 +765,12 @@ export default function VoiceCallWidget({
               whileTap={{ scale: 0.85 }}
               transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={handleHangup}
-              aria-label="End call"
-              className="size-14 rounded-full flex items-center justify-center bg-red-500 text-white shadow-lg"
+              aria-label="Close voice call"
+              title="Close voice call"
+              className="flex size-11 items-center justify-center rounded-2xl text-white shadow-lg transition-transform hover:scale-105 sm:size-12"
+              style={{ background: "#1f2937" }}
             >
-              <PhoneOff className="size-6" />
+              <X className="size-5" />
             </motion.button>
           </div>
         </>
@@ -734,14 +813,49 @@ function Orb({
         boxShadow: `0 0 ${(compact ? 8 : 20) + (isActive ? glow * (compact ? 20 : 60) : compact ? 4 : 10)}px ${primaryColor}${isActive ? "aa" : "55"}`,
       }}
     >
-      <svg aria-hidden="true" className="absolute size-0" focusable="false"><defs><filter id={noiseId} x="-25%" y="-25%" width="150%" height="150%"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="9" result="noise"><animate attributeName="baseFrequency" values="0.009;0.016;0.011;0.009" dur="5.5s" repeatCount="indefinite" /></feTurbulence><feDisplacementMap in="SourceGraphic" in2="noise" scale={compact ? 5 : 18} xChannelSelector="R" yChannelSelector="G" /></filter></defs></svg>
+      <svg aria-hidden="true" className="absolute size-0" focusable="false">
+        <defs>
+          <filter id={noiseId} x="-25%" y="-25%" width="150%" height="150%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="9" result="noise">
+              <animate attributeName="baseFrequency" values="0.009;0.016;0.011;0.009" dur="5.5s" repeatCount="indefinite" />
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale={compact ? 5 : 18} xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
       <div className="absolute inset-[-18%]" style={{ filter: `url(#${noiseId})` }}>
-        <motion.div className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[18px]`} style={{ left: "-8%", top: "-12%", background: "radial-gradient(circle at 55% 55%, rgba(34,211,238,.98), rgba(14,116,144,.68) 48%, transparent 73%)", mixBlendMode: "screen" }} animate={{ x: ["-8%", "34%", "5%", "-8%"], y: ["8%", "-12%", "26%", "8%"], scale: [1, 1.18, 0.9, 1] }} transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }} />
-        <motion.div className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[19px]`} style={{ right: "-12%", top: "10%", background: "radial-gradient(circle at 45% 50%, rgba(96,165,250,.95), rgba(37,99,235,.58) 46%, transparent 74%)", mixBlendMode: "screen" }} animate={{ x: ["5%", "-22%", "10%", "5%"], y: ["-8%", "22%", "6%", "-8%"], scale: [0.92, 1.16, 1.04, 0.92] }} transition={{ duration: 7.5, repeat: Infinity, ease: "easeInOut" }} />
-        <motion.div className={`absolute ${blobSize} rounded-full blur-[11px] sm:blur-[20px]`} style={{ left: "18%", bottom: "-22%", background: "radial-gradient(circle at 50% 42%, rgba(134,239,172,.96), rgba(34,197,94,.58) 45%, transparent 74%)", mixBlendMode: "screen" }} animate={{ x: ["4%", "-18%", "24%", "4%"], y: ["0%", "-24%", "-4%", "0%"], scale: [1, 0.88, 1.2, 1] }} transition={{ duration: 8.5, repeat: Infinity, ease: "easeInOut" }} />
-        <motion.div className={`absolute ${blobSize} rounded-full blur-[9px] sm:blur-[16px]`} style={{ left: "30%", top: "12%", background: "radial-gradient(circle, rgba(253,224,71,.9), rgba(250,204,21,.48) 42%, transparent 70%)", mixBlendMode: "screen" }} animate={{ x: ["0%", "18%", "-16%", "0%"], y: ["0%", "28%", "16%", "0%"], scale: [0.76, 1.08, 0.9, 0.76] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} />
+        <motion.div
+          className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[18px]`}
+          style={{ left: "-8%", top: "-12%", background: "radial-gradient(circle at 55% 55%, rgba(34,211,238,.98), rgba(14,116,144,.68) 48%, transparent 73%)", mixBlendMode: "screen" }}
+          animate={{ x: ["-8%", "34%", "5%", "-8%"], y: ["8%", "-12%", "26%", "8%"], scale: [1, 1.18, 0.9, 1] }}
+          transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[19px]`}
+          style={{ right: "-12%", top: "10%", background: "radial-gradient(circle at 45% 50%, rgba(96,165,250,.95), rgba(37,99,235,.58) 46%, transparent 74%)", mixBlendMode: "screen" }}
+          animate={{ x: ["5%", "-22%", "10%", "5%"], y: ["-8%", "22%", "6%", "-8%"], scale: [0.92, 1.16, 1.04, 0.92] }}
+          transition={{ duration: 7.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className={`absolute ${blobSize} rounded-full blur-[11px] sm:blur-[20px]`}
+          style={{ left: "18%", bottom: "-22%", background: "radial-gradient(circle at 50% 42%, rgba(134,239,172,.96), rgba(34,197,94,.58) 45%, transparent 74%)", mixBlendMode: "screen" }}
+          animate={{ x: ["4%", "-18%", "24%", "4%"], y: ["0%", "-24%", "-4%", "0%"], scale: [1, 0.88, 1.2, 1] }}
+          transition={{ duration: 8.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className={`absolute ${blobSize} rounded-full blur-[9px] sm:blur-[16px]`}
+          style={{ left: "30%", top: "12%", background: "radial-gradient(circle, rgba(253,224,71,.9), rgba(250,204,21,.48) 42%, transparent 70%)", mixBlendMode: "screen" }}
+          animate={{ x: ["0%", "18%", "-16%", "0%"], y: ["0%", "28%", "16%", "0%"], scale: [0.76, 1.08, 0.9, 0.76] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        />
       </div>
-      <motion.div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full" style={{ background: "radial-gradient(circle at 32% 24%, rgba(255,255,255,.42), transparent 24%), radial-gradient(circle at 62% 70%, rgba(8,30,50,.24), transparent 55%)", mixBlendMode: "screen" }} animate={{ opacity: isActive ? [0.7, 1, 0.72] : [0.55, 0.82, 0.55] }} transition={{ duration: isActive ? 2.4 : 4.5, repeat: Infinity, ease: "easeInOut" }} />
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-full"
+        style={{ background: "radial-gradient(circle at 32% 24%, rgba(255,255,255,.42), transparent 24%), radial-gradient(circle at 62% 70%, rgba(8,30,50,.24), transparent 55%)", mixBlendMode: "screen" }}
+        animate={{ opacity: isActive ? [0.7, 1, 0.72] : [0.55, 0.82, 0.55] }}
+        transition={{ duration: isActive ? 2.4 : 4.5, repeat: Infinity, ease: "easeInOut" }}
+      />
     </motion.div>
   );
 }
