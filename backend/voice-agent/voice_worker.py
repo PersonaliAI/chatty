@@ -191,7 +191,7 @@ class ChattyVoiceAgent(Agent):
         try:
             supabase.table("chatty_conversations").insert({
                 "bot_id": self._bot_id, "session_id": self._session_id,
-                "role": "user", "content": user_text,
+                "role": "user", "sender": "voice", "content": user_text,
             }).execute()
         except Exception:
             logger.exception("voice worker: failed to save user conversation message")
@@ -265,7 +265,7 @@ class ChattyVoiceAgent(Agent):
         try:
             supabase.table("chatty_conversations").insert({
                 "bot_id": self._bot_id, "session_id": self._session_id,
-                "role": "assistant", "content": reply,
+                "role": "assistant", "sender": "voice", "content": reply,
             }).execute()
         except Exception:
             logger.exception("voice worker: failed to save assistant conversation message")
@@ -1004,6 +1004,34 @@ async def entrypoint(ctx: JobContext) -> None:
         "agent_false_interruption",
         lambda ev: logger.warning("voice worker: agent_false_interruption - resuming agent speech"),
     )
+
+    if voice_mode == "realtime":
+        # Realtime models do not pass through ChattyVoiceAgent.llm_node, so
+        # there is no single interception point for persistence. LiveKit
+        # commits both visitor and agent turns to the session history and
+        # emits this event for each committed ChatMessage. Persist those turns
+        # with an explicit voice sender so closing the voice surface can merge
+        # them back into the normal widget thread.
+        def _persist_realtime_item(ev) -> None:
+            item = getattr(ev, "item", None)
+            role = str(getattr(item, "role", "") or "").lower()
+            if role not in {"user", "assistant"}:
+                return
+            content = (getattr(item, "text_content", None) or getattr(item, "raw_text_content", None) or "").strip()
+            if not content:
+                return
+            try:
+                supabase.table("chatty_conversations").insert({
+                    "bot_id": bot_id,
+                    "session_id": session_id,
+                    "role": role,
+                    "sender": "voice",
+                    "content": content,
+                }).execute()
+            except Exception:
+                logger.exception("voice worker: failed to persist realtime %s conversation item", role)
+
+        session.on("conversation_item_added", _persist_realtime_item)
 
     if voice_mode == "realtime":
         api_key = _decrypt_byok(bot.get("voice_realtime_byok_key_encrypted"))
