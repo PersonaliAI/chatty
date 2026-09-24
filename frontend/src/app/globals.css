@@ -911,6 +911,41 @@ body {
   background: rgba(156, 163, 175, 0.7);
 }
 
+/* Voice transcript scrollbar and KaTeX overflow guard. Keep long equations
+ * inside the call surface on narrow screens instead of widening the widget. */
+.chatty-voice-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(198, 113, 57, 0.48) transparent;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.chatty-voice-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.chatty-voice-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chatty-voice-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 34px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(198, 113, 57, 0.42), rgba(140, 73, 26, 0.58)) padding-box;
+}
+.chatty-voice-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(198, 113, 57, 0.72), rgba(140, 73, 26, 0.86)) padding-box;
+}
+.chatty-voice-scrollbar .katex-display {
+  max-width: 100%;
+  margin: 0.35rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15rem 0.1rem;
+  scrollbar-width: thin;
+}
+.chatty-voice-scrollbar .katex {
+  font-size: 0.95em;
+}
+
 
 
 
