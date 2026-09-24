@@ -116,6 +116,32 @@ also records duration, first-response latency, turns, nudges, errors, CPU time,
 and peak RSS for capacity planning; the shutdown path is idempotent so a call
 is never recorded twice.
 
+### Reproducible worker releases and rollback
+
+Deploy a reviewed, immutable Git commit from a clean checkout. Do not run a
+release from a worktree containing local `.env`, Compose, or worker edits:
+
+```bash
+RELEASE=<reviewed-commit-sha>
+git fetch origin
+git checkout --detach "$RELEASE"
+git diff --exit-code
+docker compose --profile self-hosted config --quiet
+docker compose --profile self-hosted build --pull voice-worker
+docker compose --profile self-hosted up -d --no-deps voice-worker
+docker compose --profile self-hosted ps
+docker inspect --format '{{.State.Health.Status}}' chatty-voice-voice-worker-1
+```
+
+The release is healthy only when the worker reports `healthy`, remains
+registered with LiveKit, and `/readyz` on the Chatty API still returns 2xx.
+Keep the previous image tag or commit recorded in the deployment log. To roll
+back, check out that known-good commit and repeat the `config`, `build`, and
+`up` commands above; never reset the Supabase database to recover a media-plane
+release. If the checkout is intentionally retained for rollback, use a second
+release directory or Git worktree so the active service is never rebuilt from
+an ambiguous working tree.
+
 ## Provider requirements
 
 The worker still requires the same managed Supabase and model-provider secrets
