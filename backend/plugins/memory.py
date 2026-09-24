@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import math
 from typing import Optional
 
 from plugins import ai_client
@@ -28,6 +29,33 @@ EMBED_DIMENSIONS = int(os.environ.get("KIN_EMBED_DIMENSIONS", "768"))
 # gemini-embedding-2 uses prompt prefixes for task; gemini-embedding-001 (the
 # current default) uses a separate task_type param instead.
 IS_EMBED_V2 = "gemini-embedding-2" in EMBED_MODEL
+
+
+def _fit_embedding_dimensions(vector: list[float]) -> list[float]:
+    """Keep vectors compatible with the Supabase pgvector column.
+
+    Some LiteLLM/Vertex combinations ignore the requested output dimension and
+    return Gemini's native 3072-dimensional vector. The schema and RPCs use a
+    768-dimensional column, so reduce that response deterministically and
+    normalize it before writing or querying. Vectors already at the target
+    dimension are returned unchanged.
+    """
+    if len(vector) == EMBED_DIMENSIONS:
+        return vector
+    if len(vector) < EMBED_DIMENSIONS:
+        raise ValueError(
+            f"embedding provider returned {len(vector)} dimensions; expected at least {EMBED_DIMENSIONS}"
+        )
+    fitted = vector[:EMBED_DIMENSIONS]
+    norm = math.sqrt(sum(value * value for value in fitted))
+    if norm > 0:
+        fitted = [value / norm for value in fitted]
+    logger.warning(
+        "embedding provider returned %d dimensions; reduced to configured %d dimensions",
+        len(vector),
+        EMBED_DIMENSIONS,
+    )
+    return fitted
 
 
 def _format_doc(text: str, title: Optional[str] = None) -> str:
@@ -86,7 +114,7 @@ async def _embed_with_retry(
                 values = item.get("embedding") if isinstance(item, dict) else getattr(item, "embedding", None)
                 if not values:
                     raise RuntimeError("embedding value missing")
-                vectors.append(list(values))
+                vectors.append(_fit_embedding_dimensions(list(values)))
             return vectors
         except Exception as exc:  # noqa: BLE001
             transient = isinstance(exc, ai_client._TRANSIENT_EXCEPTIONS)

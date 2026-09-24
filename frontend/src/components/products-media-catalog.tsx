@@ -1486,29 +1486,30 @@ export function ProductsMediaCatalog({
 
       {/* Catalog Table / Grid View */}
       <div className="space-y-4 pt-2">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0 pt-1">
             <h4 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
               <Package className="size-4 text-neutral-500" />
               Indexed Catalog Items ({filteredItems.length})
             </h4>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="w-full sm:w-auto min-w-0 overflow-x-auto pb-1 -mb-1">
+          <div className="flex w-max min-w-full sm:min-w-0 items-center justify-end gap-2">
             {/* Search */}
-            <div className="relative">
+            <div className="relative shrink-0">
               <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
               <input
                 type="text"
                 placeholder="Search catalog..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs w-44 focus:outline-none focus:border-neutral-400"
+                className="pl-8 pr-3 py-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs w-[min(11rem,58vw)] focus:outline-none focus:border-neutral-400"
               />
             </div>
 
             {/* Filter pills */}
-            <div className="p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg flex items-center gap-0.5 border border-neutral-200 dark:border-neutral-700">
+            <div className="p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg flex items-center gap-0.5 border border-neutral-200 dark:border-neutral-700 shrink-0">
               <button
                 type="button"
                 onClick={() => setFilterType("all")}
@@ -1547,6 +1548,7 @@ export function ProductsMediaCatalog({
             >
               <RefreshCw className={`size-3.5 ${loadingItems ? "animate-spin" : ""}`} />
             </button>
+          </div>
           </div>
         </div>
 

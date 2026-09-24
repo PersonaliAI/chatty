@@ -418,6 +418,17 @@ def _google_pipeline_credentials_available() -> bool:
 # - check both before assuming a newer model id works, these move fast.
 REALTIME_DEFAULT_MODEL = {"google": "gemini-2.5-flash-native-audio-preview-12-2025", "openai": "gpt-realtime"}
 REALTIME_DEFAULT_VOICE = {"google": "Puck", "openai": "marin"}
+# The dashboard stores the selected Google TTS voice in `voice_tts_voice`.
+# Google Chirp voice ids (for example `en-US-Chirp3-HD-Aoede`) are valid for
+# Cloud TTS but are rejected by Gemini Live's native-audio model. Keep the
+# shared setting backward-compatible while allowing only Gemini Live voices in
+# realtime mode.
+GOOGLE_REALTIME_VOICES = frozenset({
+    "Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr",
+    "Achird", "Gacrux", "Schedar", "Sulafat", "Vindemiatrix", "Sadachbia",
+    "Sadaltager", "Laomedeia", "Callirrhoe", "Autonoe", "Enceladus", "Iapetus",
+    "Umbriel", "Alnilam", "Rasalgethi", "Algenib",
+})
 # litellm.cost_per_token needs an explicit provider for "gemini-*" model ids
 # (it can't infer one the way it can for "gpt-*") - openai's own model ids
 # already resolve without this.
@@ -433,6 +444,14 @@ def build_realtime(provider: str, model: Optional[str], voice: Optional[str], ap
     build_realtime() (same two providers, same LiveKit plugin classes)."""
     model = model or REALTIME_DEFAULT_MODEL.get(provider, "")
     voice = voice or REALTIME_DEFAULT_VOICE.get(provider)
+    if provider == "google" and voice not in GOOGLE_REALTIME_VOICES:
+        if voice:
+            logger.warning(
+                "voice worker: %r is a Cloud TTS voice, not a Gemini Live voice; using %s",
+                voice,
+                REALTIME_DEFAULT_VOICE["google"],
+            )
+        voice = REALTIME_DEFAULT_VOICE["google"]
     if provider == "google":
         kwargs: dict[str, Any] = {"model": model}
         if api_key:
