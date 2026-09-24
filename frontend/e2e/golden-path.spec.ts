@@ -12,7 +12,9 @@ const BOT_ID = "c8fa19c8-dd25-43a3-9c55-e8099e6f532e";
 
 test.describe("widget golden path", () => {
   test("embed page opens and completes a message round-trip", async ({ page }) => {
-    await page.goto(`/embed/${BOT_ID}`);
+    // The composer belongs to the Chat tab; make that state explicit so the
+    // smoke test validates the message round-trip rather than the landing tab.
+    await page.goto(`/embed/${BOT_ID}?tab=messages`);
 
     const input = page.getByPlaceholder("Compose your message…");
     await expect(input).toBeVisible({ timeout: 15_000 });
