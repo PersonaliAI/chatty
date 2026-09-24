@@ -703,10 +703,20 @@ async def analytics_voice(
             .execute())
         rows = res.data or []
     except Exception:
-        # The endpoint remains safe during a rolling migration; it reports no
-        # telemetry until the additive columns have been applied.
-        logger.exception("voice analytics query failed")
-        rows = []
+        # Rolling deploys can briefly run before the additive telemetry
+        # migration. Fall back to the legacy columns so calls/duration/cost
+        # remain visible instead of turning the panel blank.
+        logger.warning("voice analytics telemetry columns unavailable; using legacy fields")
+        try:
+            res = await run_db(lambda: supabase.table("chatty_voice_calls")
+                .select("mode, provider, model, duration_seconds, input_tokens, output_tokens, cost_usd, created_at")
+                .eq("bot_id", bot_id)
+                .gte("created_at", _iso(from_dt)).lte("created_at", _iso(to_dt))
+                .execute())
+            rows = res.data or []
+        except Exception:
+            logger.exception("voice analytics query failed")
+            rows = []
 
     def nums(name: str) -> list[float]:
         out: list[float] = []
