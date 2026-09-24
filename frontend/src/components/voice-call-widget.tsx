@@ -22,6 +22,7 @@ import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
+import { parseRichContent } from "@/lib/rich-content";
 
 const WAVE_BAR_COUNT = 14;
 const MICROPHONE_PERMISSION_TIMEOUT_MS = 15000;
@@ -34,7 +35,6 @@ interface TranscriptEntry {
   text: string;
   final: boolean;
 }
-
 interface VoiceCallWidgetProps {
   botId: string;
   sessionId: string;
@@ -227,6 +227,10 @@ export default function VoiceCallWidget({
             el.setAttribute("playsinline", "true");
             audioElRef.current = el;
             document.body.appendChild(el);
+            // Realtime calls are connected asynchronously, so the browser may
+            // reject playback even though the user already clicked the call
+            // button. Expose a one-tap recovery instead of silently muting the
+            // agent's response.
             void el.play().then(() => setAudioBlocked(false)).catch(() => {
               if (!cancelled && mountedRef.current) setAudioBlocked(true);
             });
@@ -317,14 +321,14 @@ export default function VoiceCallWidget({
           let remoteLevel = 0;
           let localSpeaking = false;
           for (const p of speakers) {
-            if (p.identity === localIdentity) {
-              localSpeaking = true;
-              localAudioLevelRef.current = Math.max(0, Math.min(1, p.audioLevel ?? 0));
-            } else {
-              remoteLevel = Math.max(remoteLevel, p.audioLevel ?? 0);
-            }
+          if (p.identity === localIdentity) {
+            localSpeaking = true;
+            localAudioLevelRef.current = Math.max(0, Math.min(1, p.audioLevel ?? 0));
+          } else {
+            remoteLevel = Math.max(remoteLevel, p.audioLevel ?? 0);
           }
-          if (!localSpeaking) localAudioLevelRef.current = 0;
+        }
+        if (!localSpeaking) localAudioLevelRef.current = 0;
           orbLevel.set(Math.min(1, remoteLevel * 3.5));
           setStatus((prev) => {
             if (prev === "connecting" || prev === "requesting-mic" || prev === "error" || prev === "ended") return prev;
@@ -369,9 +373,7 @@ export default function VoiceCallWidget({
             const micMessage = micErr instanceof Error && micErr.message === "MICROPHONE_PERMISSION_TIMEOUT"
               ? "Microphone permission is still waiting. Allow microphone access for this site, then try again."
               : "Microphone access is required for voice calls. Please allow microphone access in your browser and try again.";
-            setErrorMessage(
-              micMessage
-            );
+            setErrorMessage(micMessage);
             setStatus("error");
           }
           room.disconnect();
@@ -757,7 +759,7 @@ export default function VoiceCallWidget({
                   const isAgent = entry.speaker === "agent";
                   const containsBookingTag = isAgent && entry.text.includes("[BOOKING_WIDGET]");
                   const hasBookingOnEntry = isAgent && (entry.id === activeBookingId || containsBookingTag);
-                  const rich = isAgent ? parseVoiceRichContent(entry.text) : { cleanContent: entry.text, products: [], videoClips: [] };
+                  const rich = isAgent ? parseRichContent<ProductCardData, VideoClipData>(entry.text) : { cleanContent: entry.text, products: [], videoClips: [] };
                   const cleanText = rich.cleanContent;
                   const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
 
@@ -969,18 +971,4 @@ function Orb({
       />
     </motion.div>
   );
-}
-
-function parseVoiceRichContent(content: string) {
-  const products: ProductCardData[] = [];
-  const videoClips: VideoClipData[] = [];
-  let clean = content.replace(/\[PRODUCT_CARD:(\{.*?\})\]/g, (_, json: string) => {
-    try { products.push(JSON.parse(json)); } catch { /* keep malformed marker out of the transcript */ }
-    return "";
-  });
-  clean = clean.replace(/\[VIDEO_CLIP:(\{.*?\})\]/g, (_, json: string) => {
-    try { videoClips.push(JSON.parse(json)); } catch { /* keep malformed marker out of the transcript */ }
-    return "";
-  });
-  return { cleanContent: clean.replace(/\[BOOKING_WIDGET\]/g, "").trim(), products, videoClips };
 }

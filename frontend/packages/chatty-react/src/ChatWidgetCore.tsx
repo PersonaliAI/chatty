@@ -13,6 +13,7 @@ import VoiceCallWidget from "./voice-call-widget";
 import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
+import { parseRichContent } from "./rich-content";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
 import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
 // CSS is shipped separately (dist/styles.css, plus katex's own CSS) instead
@@ -137,30 +138,6 @@ function AudioBubble({ src }: { src: string }) {
   );
 }
 
-function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[] } {
-  const products: ProductCardData[] = [];
-  const videoClips: VideoClipData[] = [];
-
-  let clean = content.replace(/\[PRODUCT_CARD:(\{.*?\})\]/g, (_, jsonStr) => {
-    try {
-      const parsed = JSON.parse(jsonStr);
-      if (parsed && typeof parsed === "object") products.push(parsed);
-    } catch {}
-    return "";
-  });
-
-  clean = clean.replace(/\[VIDEO_CLIP:(\{.*?\})\]/g, (_, jsonStr) => {
-    try {
-      const parsed = JSON.parse(jsonStr);
-      if (parsed && typeof parsed === "object") videoClips.push(parsed);
-    } catch {}
-    return "";
-  });
-
-  clean = clean.replace(/\[BOOKING_WIDGET\]/g, "").trim();
-
-  return { cleanContent: clean, products, videoClips };
-}
 
 // Preset assistant avatar icons (selectable in the customizer).
 const AVATAR_ICONS: Record<string, LucideIcon> = {
@@ -3071,7 +3048,7 @@ export default function ChatWidgetCore({
                               {msg.role === "assistant" ? (
                                 <>
                                   {(() => {
-                                    const { cleanContent, products, videoClips } = parseProductCards(msg.content);
+                                    const { cleanContent, products, videoClips } = parseRichContent<ProductCardData, VideoClipData>(msg.content);
                                     return (
                                       <>
                                         {cleanContent && (
@@ -3662,7 +3639,10 @@ export default function ChatWidgetCore({
               <div className="flex items-center gap-0.5">
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4" /></motion.button>
-                <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio">
+                {voiceEnabled && (
+                  <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => setVoiceCallOpen(true)} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Start voice call" title="Talk to the assistant"><AudioWaveform className="size-4" /></motion.button>
+                )}
+                <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
               </div>
