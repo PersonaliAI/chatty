@@ -152,7 +152,11 @@ async def chat(
     import asyncio
     import random
 
-    candidates = [model] + [m for m in (fallback_models or []) if m != model]
+    candidates = [model]
+    candidates.extend(
+        m for m in (fallback_models or [])
+        if m and m not in candidates
+    )
     last_err: Optional[Exception] = None
 
     for attempt in range(max_attempts):
@@ -298,16 +302,25 @@ async def chat_stream(
         return await _run(model)
     except Exception:  # noqa: BLE001
         logger.exception("stream failed on %s", model)
+        stream_fallbacks: list[str] = []
         for fallback_model in (fallback_models or []):
-            if fallback_model == model:
-                continue
+            if fallback_model and fallback_model != model and fallback_model not in stream_fallbacks:
+                stream_fallbacks.append(fallback_model)
+        for fallback_model in stream_fallbacks:
             try:
                 return await _run(fallback_model)
             except Exception:  # noqa: BLE001
                 logger.exception("stream fallback failed on %s", fallback_model)
         # Last resort: non-streaming call (has its own retry + fallback chain).
+        # Streaming providers can fail after opening a stream (or reject
+        # stream_options entirely).  We already attempted every fallback above;
+        # use one non-streaming pass as the final compatibility escape hatch
+        # instead of replaying the primary model's full exponential retry loop.
+        # This keeps an exhausted free-tier key from holding an HTTP stream open
+        # for ~30 seconds before the visitor sees a useful error.
         resp = await chat(model=model, messages=messages, fallback_models=fallback_models,
-                           bot_id=bot_id, session_id=session_id, call_type=call_type, **kwargs)
+                           max_attempts=1, bot_id=bot_id, session_id=session_id,
+                           call_type=call_type, **kwargs)
         msg = resp.choices[0].message
         text = (msg.content or "").strip()
         if on_token and text and not getattr(msg, "tool_calls", None):

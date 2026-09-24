@@ -75,6 +75,10 @@ _TRANSCRIBE_PROMPT = (
     "no commentary, no markdown, no quotes, no translation. Only output "
     "nothing if the audio is truly silent with no speech at all."
 )
+_AI_UNAVAILABLE_REPLY = (
+    "I'm sorry, the assistant is temporarily unavailable. "
+    "Please try again in a moment, or leave your contact details and our team will follow up."
+)
 
 
 @router.post("/api/widget/verify-origin")
@@ -405,9 +409,12 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
 
     visitor_geo = await geoip_lookup(ip)
     queue: asyncio.Queue = asyncio.Queue()
+    streamed_any = False
     _DONE = object()
 
     async def _on_token(delta: str):
+        nonlocal streamed_any
+        streamed_any = True
         await queue.put(_sse({"type": "token", "text": delta}))
 
     async def _runner():
@@ -437,8 +444,33 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
             await queue.put(_sse({"type": "done", "reply": reply, "sources": result.get("sources") or [], "flow_action": result.get("flow_action")}))
         except Exception:  # noqa: BLE001
-            logger.exception("Widget stream assistant failed")
-            await queue.put(_sse({"type": "error", "detail": "An internal error occurred while generating a response."}))
+            request_id = getattr(request.state, "request_id", "")
+            logger.exception("Widget stream assistant failed (request_id=%s)", request_id or "unknown")
+            # If the provider failed before emitting any tokens, complete the
+            # SSE contract with a persisted, visitor-safe response instead of
+            # leaving the composer spinning forever with no assistant turn.
+            # Mid-stream failures keep the explicit error event so we never
+            # append a second reply after partial model output.
+            if not streamed_any:
+                try:
+                    await run_db(lambda: supabase.table("chatty_conversations").insert({
+                        "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                        "content": _AI_UNAVAILABLE_REPLY, "sender": "ai",
+                    }).execute())
+                    background_tasks.add_task(
+                        notify.enqueue_webhook_event, supabase, bot_id=bot_id,
+                        event="message.assistant", session_id=session_id,
+                        data={"content": _AI_UNAVAILABLE_REPLY, "degraded": True},
+                    )
+                except Exception:
+                    logger.exception("Failed to persist degraded widget reply (request_id=%s)", request_id or "unknown")
+                await queue.put(_sse({"type": "token", "text": _AI_UNAVAILABLE_REPLY}))
+                await queue.put(_sse({"type": "done", "reply": _AI_UNAVAILABLE_REPLY, "degraded": True}))
+            else:
+                await queue.put(_sse({
+                    "type": "error",
+                    "detail": "The assistant connection was interrupted. Please try again.",
+                }))
         finally:
             await queue.put(_DONE)
 
@@ -722,20 +754,13 @@ async def widget_csat(body: WidgetCsatRequest, request: Request):
 
 
 @router.get("/api/widget/poll")
-async def widget_poll(bot_id: str, session_id: str, after: str = "", include_voice: bool = False):
+async def widget_poll(bot_id: str, session_id: str, after: str = ""):
     """Visitor's widget polls for human-agent replies + AI-pause state.
     Retained as a fallback for clients that can't use the SSE /live stream."""
     try:
-        # Normal polling only returns human-agent replies. After a voice call
-        # the widget explicitly asks for the complete turn so both the spoken
-        # visitor input and the assistant transcript can be restored in the
-        # same thread. This keeps the long-lived SSE/poll path duplicate-free.
-        q = supabase.table("chatty_conversations").select(
-            "content,created_at,role,sender,sender_name,sender_avatar"
-        ).eq("bot_id", bot_id).eq("session_id", session_id)
-        if not include_voice:
-            q = q.eq("sender", "human")
-        q = q.order("created_at", desc=False)
+        q = supabase.table("chatty_conversations").select("content,created_at,sender,sender_name,sender_avatar") \
+            .eq("bot_id", bot_id).eq("session_id", session_id).eq("sender", "human") \
+            .order("created_at", desc=False)
         if after:
             q = q.gt("created_at", after)
         res = await run_db(q.execute)
