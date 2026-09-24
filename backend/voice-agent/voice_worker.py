@@ -566,6 +566,11 @@ def _build_realtime_tools(
                     attendees = [attendees]
                 summary = raw_arguments.get("summary") or raw_arguments.get("subject") or "Meeting"
                 attendee_email = next((a for a in attendees if isinstance(a, str) and "@" in a), "")
+                start_value = raw_arguments.get("start") or result.get("start") or ""
+                try:
+                    formatted_time = agent_tools._format_invitation_time(start_value, visitor_timezone) or start_value
+                except Exception:
+                    formatted_time = start_value or "Scheduled time"
                 meeting_link = (
                     result.get("hangout_link")
                     or result.get("hangoutLink")
@@ -577,9 +582,9 @@ def _build_realtime_tools(
                 meeting = {
                     "id": result.get("meeting_id") or result.get("chatty_meeting_id") or result.get("id"),
                     "meeting_link": meeting_link or "",
-                    "formatted_time": raw_arguments.get("start") or "Scheduled time",
+                    "formatted_time": formatted_time,
                     "summary": summary,
-                    "start_time": raw_arguments.get("start") or result.get("start") or "",
+                    "start_time": start_value,
                     "end_time": raw_arguments.get("end") or result.get("end") or "",
                     "attendee_name": summary.replace("Demo Meeting with ", "").strip(),
                     "attendee_email": attendee_email,
