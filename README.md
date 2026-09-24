@@ -21,7 +21,7 @@ Supabase project.
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Quick Start](#-quick-start-docker-compose) · [Self-Hosting Guide](#-self-hosting-step-by-step) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [Features](#-features) · [MCP Server](#mcp-server--agent-control) · [Architecture](#architecture) · [Contributing](#-contributing)
+[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Quick Start](#-quick-start-docker-compose) · [Managed deployment guide](#-self-hosting-step-by-step) · [Voice worker guide](backend/voice-agent/README.md) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [Features](#-features) · [MCP Server](#mcp-server--agent-control) · [Architecture](#architecture) · [Contributing](#-contributing)
 
 </div>
 
@@ -82,9 +82,10 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 ## Architecture
 
 The public repository has one canonical application layout: `frontend/` contains the Next.js dashboard and widget, while
-`backend/` contains the FastAPI API, workers, integrations, and migrations. The managed Supabase profile is the default
-and remains unchanged for existing deployments. A fully provider-neutral deployment is opt-in via
-`DEPLOYMENT_PROFILE=self_host`; it uses PostgreSQL/pgvector, Redis, SeaweedFS S3-compatible storage, and OIDC.
+`backend/` contains the FastAPI API, workers, integrations, and migrations. The application runs against a managed
+Supabase project (the same contract used by Chatty Cloud). The optional voice worker can use LiveKit Cloud or the
+isolated self-hosted LiveKit media-plane stack under `backend/voice-agent`; that stack does not replace Supabase,
+Postgres, Auth, Storage, or the Chatty API.
 
 ```mermaid
 flowchart TB
@@ -170,11 +171,11 @@ chatty/
 
 | Profile | Data and identity services | When to use |
 |---|---|---|
-| `managed_supabase` (default) | Supabase Auth, Postgres, Storage, pgvector, and RLS | Existing Chatty Cloud or Supabase-backed deployments |
-| `self_host` (opt-in) | PostgreSQL/pgvector, Redis, SeaweedFS S3-compatible storage, and an OIDC provider | Fully self-managed deployments with no Supabase dependency |
+| `managed_supabase` (default) | Supabase Auth, Postgres, Storage, pgvector, and RLS | Chatty Cloud and every supported application deployment |
+| Voice media plane (optional) | LiveKit + private Redis on a VPS | Keep audio media on your own VPS while the application data remains in Supabase |
 
-The self-host stack is isolated from the managed path. Follow [`backend/docs/SELF_HOST_QUICKSTART.md`](backend/docs/SELF_HOST_QUICKSTART.md)
-and use [`backend/env.self-host.example`](backend/env.self-host.example); do not point it at a production Supabase database.
+For voice deployment, follow [`backend/voice-agent/README.md`](backend/voice-agent/README.md) and
+[`frontend/docs/guides/voice-self-hosting.mdx`](frontend/docs/guides/voice-self-hosting.mdx).
 
 ### Deployment-platform compatibility
 
@@ -191,9 +192,9 @@ health checks, verification, rollback, and troubleshooting, is in
 | ![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=111827) | [`render.yaml`](render.yaml) / [Render Blueprint reference](https://render.com/docs/blueprint-spec) | **Blueprint included**; it creates the API + frontend services and prompts for secrets. |
 | ![Heroku](https://img.shields.io/badge/Heroku-430098?logo=heroku&logoColor=white) | [Heroku container runtime](https://devcenter.heroku.com/articles/container-registry-and-runtime) | **Supported as two container apps**; no full-stack Button is claimed. |
 
-For a managed deployment keep `DEPLOYMENT_PROFILE=managed_supabase`. For the provider-neutral stack use
-`DEPLOYMENT_PROFILE=self_host` and follow the self-host quickstart. Both profiles are in the same codebase; switching the
-profile is an explicit deployment decision and does not migrate or modify the other environment.
+For every supported application deployment keep `DEPLOYMENT_PROFILE=managed_supabase`. LiveKit self-hosting is an
+independent media-plane choice configured only in `backend/voice-agent/.env`; it does not introduce a second database,
+object store, or authentication system.
 
 ## 📋 Requirements
 
@@ -351,11 +352,10 @@ platform is [SELF_HOST_MANAGED_SUPABASE.md](docs/SELF_HOST_MANAGED_SUPABASE.md).
 It covers `DEPLOYMENT_PROFILE=managed_supabase`, secret-manager setup, domains,
 health checks, production verification, rollback, and security boundaries.
 
-The provider-neutral Postgres/Redis/object-store stack remains available only
-as an advanced, explicit profile at
-[`backend/docker-compose.self-host.yml`](backend/docker-compose.self-host.yml).
-It is not started by the default compose file and is not required for the
-managed-Supabase deployment.
+The retired provider-neutral Postgres/Redis/object-store stack is intentionally
+not part of this repository. Do not use old `install-self-host.ps1` instructions;
+the supported self-hosted component is the LiveKit voice media plane described
+in [`backend/voice-agent/README.md`](backend/voice-agent/README.md).
 
 ### Step 9 - Updating
 

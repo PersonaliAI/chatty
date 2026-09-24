@@ -49,6 +49,25 @@ jobs:
             exit 1
           fi
 
+      - name: Validate self-hosted LiveKit worker Compose contract
+        working-directory: backend/voice-agent
+        run: |
+          cat > .env <<'EOF'
+          LIVEKIT_URL=ws://livekit:7880
+          LIVEKIT_WORKER_URL=ws://livekit:7880
+          LIVEKIT_API_KEY=ci-livekit-key
+          LIVEKIT_API_SECRET=ci-livekit-secret
+          SUPABASE_URL=https://ci.invalid.supabase.co
+          SUPABASE_SECRET_KEY=ci-secret-key
+          GEMINI_API_KEY=ci-test-key
+          DOMAIN=voice.example.invalid
+          LIVEKIT_HOST=127.0.0.1
+          EOF
+          docker compose --profile self-hosted config --quiet
+          services=$(docker compose --profile self-hosted config --services | sort | tr '\n' ' ')
+          test "$services" = 'caddy livekit redis voice-worker '
+          docker compose --profile self-hosted config | grep -q "127.0.0.1:8081"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

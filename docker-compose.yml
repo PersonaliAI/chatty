@@ -2,8 +2,8 @@ name: chatty-managed-supabase
 
 # Supported self-hosting profile: move only the Chatty containers to your
 # host. Auth, Postgres, Storage, and Realtime remain in your Supabase project.
-# The provider-neutral stack is kept separately at backend/docker-compose.self-host.yml
-# for advanced deployments and is not started by this file.
+# The retired provider-neutral stack is intentionally not included. The optional
+# self-hosted component is the LiveKit media plane in backend/voice-agent.
 services:
   backend:
     build: ./backend

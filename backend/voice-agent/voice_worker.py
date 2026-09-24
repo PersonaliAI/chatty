@@ -99,6 +99,12 @@ def _process_rss_mb() -> Optional[float]:
     """Return this worker process' peak resident memory in MiB when available."""
     if resource is None:
         return None
+    try:
+        # Linux reports ru_maxrss in KiB; macOS reports bytes.
+        raw = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        return round(raw / (1024 * 1024 if raw > 1024 * 1024 * 4 else 1024), 2)
+    except Exception:
+        return None
 
 
 def _extract_rich_media(reply: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -113,12 +119,6 @@ def _extract_rich_media(reply: str) -> tuple[list[dict[str, Any]], list[dict[str
             except (TypeError, ValueError, json.JSONDecodeError):
                 continue
     return products, clips
-    try:
-        # Linux reports ru_maxrss in KiB; macOS reports bytes.
-        raw = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-        return round(raw / (1024 * 1024 if raw > 1024 * 1024 * 4 else 1024), 2)
-    except Exception:
-        return None
 
 
 class _NullLLM(llm.LLM):
