@@ -90,7 +90,7 @@ async def provision_catalog_webhook(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Create/rotate a signing secret for a manual catalog or ERP webhook."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     existing = await run_db(lambda: supabase.table("chatty_catalog_webhooks").select("bot_id").eq("bot_id", bot_id).limit(1).execute())
     if existing.data and not rotate:
         raise HTTPException(status_code=409, detail="Catalog webhook already exists; pass rotate=true to rotate it")
@@ -118,7 +118,7 @@ async def get_catalog_webhook(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Return manual catalog webhook status without ever exposing its secret."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     existing = await run_db(
         lambda: supabase.table("chatty_catalog_webhooks")
         .select("enabled,created_at,updated_at")
@@ -147,7 +147,7 @@ async def update_media_item(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Update stock/price/variants or other manual catalog facts."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     updates = {k: v for k, v in req.model_dump(exclude_unset=True).items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="At least one field is required")
@@ -182,7 +182,7 @@ async def search_multimodal_image(
     This endpoint is intentionally authenticated and is useful for dashboard
     QA/import tooling; visitor traffic goes through ``run_widget_assistant``.
     """
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     content_type = (file.content_type or "").split(";")[0].lower()
     if content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
         raise HTTPException(status_code=415, detail="Only JPEG, PNG, WebP, and GIF images are supported")
@@ -208,7 +208,7 @@ async def list_bot_media_items(
     user: dict[str, Any] = Depends(require_user),
 ):
     """List all indexed media/product items for a bot."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     q = supabase.table("chatty_media_items").select("*", count="exact").eq("bot_id", bot_id)
     if media_type:
         q = q.eq("media_type", media_type)
@@ -229,7 +229,7 @@ async def create_media_item(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Add a product or media asset to the bot's multimodal catalog with auto-embedding."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     try:
         item = await multimodal_service.ingest_media_item(
             bot_id=bot_id,
@@ -261,7 +261,7 @@ async def delete_media_item(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Delete a media/product item from the bot's catalog."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     res = await run_db(
         lambda: supabase.table("chatty_media_items")
         .delete()
@@ -279,7 +279,7 @@ async def batch_import_media_items(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Batch-import a catalog of products or media items."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     if not items:
         return {"indexed_count": 0}
 
@@ -317,7 +317,7 @@ async def test_multimodal_search(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Simulate a multimodal search against the bot's catalog."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     results, visual_attrs = await multimodal_service.search_multimodal_catalog(
         bot_id=bot_id,
         query_text=req.query_text,
@@ -334,7 +334,7 @@ async def upload_media_image(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Upload a product or media image."""
-    await verify_bot_permission(bot_id, user)
+    await verify_bot_permission(bot_id, user, "sources")
     content = await file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 10MB)")

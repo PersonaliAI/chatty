@@ -23,7 +23,7 @@ def _signature(raw: bytes) -> str:
 def test_manual_catalog_webhook_provision_returns_url_and_secret():
     app.dependency_overrides[require_user] = lambda: {"id": "user-123"}
     try:
-        with patch("app.routers.multimodal.verify_bot_permission", new_callable=AsyncMock), \
+        with patch("app.routers.multimodal.verify_bot_permission", new_callable=AsyncMock) as permission, \
              patch("app.routers.multimodal.encrypt_secret", side_effect=lambda value: value), \
              patch("app.routers.multimodal.run_db", new_callable=AsyncMock) as db:
             db.side_effect = [
@@ -37,6 +37,7 @@ def test_manual_catalog_webhook_provision_returns_url_and_secret():
         assert body["webhook_url"].endswith(f"/api/integrations/catalog/webhook/{BOT_ID}")
         assert body["signing_secret"]
         assert body["enabled"] is True
+        permission.assert_awaited_once_with(BOT_ID, {"id": "user-123"}, "sources")
     finally:
         app.dependency_overrides.pop(require_user, None)
 
