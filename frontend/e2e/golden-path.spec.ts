@@ -30,6 +30,24 @@ test.describe("widget golden path", () => {
     await expect(replies).toHaveCount(2, { timeout: 30_000 }); // welcome message + this reply
   });
 
+  test("back from a thread opens labeled conversation history and clears the composer", async ({ page }) => {
+    await page.goto(`/embed/${BOT_ID}`);
+
+    const input = page.getByPlaceholder("Compose your message…");
+    await expect(input).toBeVisible({ timeout: 15_000 });
+    await input.fill("Show me the conversation history");
+    await input.press("Enter");
+
+    // The sent text must leave the controlled composer immediately, without
+    // waiting for the streamed assistant response to finish.
+    await expect(input).toHaveValue("");
+    await expect(page.getByText("Show me the conversation history")).toBeVisible();
+
+    await page.getByRole("button", { name: "Back to chat history" }).click();
+    await expect(page.getByText("Your conversations")).toBeVisible();
+    await expect(page.getByText("Text", { exact: true }).first()).toBeVisible();
+  });
+
   test("selected design actually paints on the live widget", async ({ page }) => {
     await page.goto(`/embed/${BOT_ID}`);
 

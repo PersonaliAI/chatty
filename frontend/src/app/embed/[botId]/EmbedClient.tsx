@@ -177,6 +177,8 @@ export interface VisitorConversationItem {
   sessionId: string;
   lastSnippet: string;
   lastSender: "user" | "assistant";
+  /** Channel of the most recent turn, shown in the history list. */
+  lastChannel?: "voice" | "text";
   updatedAt: string;
   messageCount: number;
   agentName?: string;
@@ -1287,6 +1289,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               sessionId,
               lastSnippet: snippet || "Welcome conversation",
               lastSender: lastM?.role || "assistant",
+              lastChannel: lastM?.channel === "voice" ? "voice" : "text",
               updatedAt: new Date().toISOString(),
               messageCount: saved.length,
             };
@@ -1420,6 +1423,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             sessionId,
             lastSnippet: snippet.slice(0, 100),
             lastSender: lastM.role,
+            lastChannel: lastM.channel === "voice" ? "voice" : "text",
             updatedAt: new Date().toISOString(),
             messageCount: messages.length,
             agentName: lastM.sender === "human" ? (lastM.sender_name || activeAgentName || undefined) : (existingIdx >= 0 ? prev[existingIdx]?.agentName : undefined),
@@ -2423,8 +2427,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                   });
                 } else if (activeArticle) {
                   setActiveArticle(null);
+                } else if (tab === "messages" && chatView === "chat") {
+                  // A thread's back button is a history affordance.  Returning
+                  // to Home loses the visitor's conversation context and made
+                  // the arrow appear to do nothing when the list was hidden.
+                  setChatView("list");
                 } else if (tab === "messages" && chatView === "list") {
-                  setChatView("chat");
+                  setTab("home");
                 } else if (tab !== "messages") {
                   setChatView("chat");
                   setTab("messages");
@@ -2973,9 +2982,15 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                                     {formatTimeCompact(conv.updatedAt)}
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
-                                  {conv.lastSnippet || "No messages yet"}
-                                </p>
+                                <div className="flex items-center gap-1.5 min-w-0 mt-0.5">
+                                  <span className="inline-flex items-center gap-0.5 rounded-full border border-neutral-200/80 dark:border-neutral-700/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-400 shrink-0">
+                                    {conv.lastChannel === "voice" ? <AudioWaveform className="size-2.5" /> : <MessageSquare className="size-2.5" />}
+                                    {conv.lastChannel === "voice" ? "Voice" : "Text"}
+                                  </span>
+                                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
+                                    {conv.lastSnippet || "No messages yet"}
+                                  </p>
+                                </div>
                               </div>
                             </div>
                             <ChevronRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />

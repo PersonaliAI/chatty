@@ -3541,17 +3541,29 @@ export default function ChatWidgetCore({
           <form onSubmit={async (e) => {
               e.preventDefault();
               if (pendingFiles.length > 0) {
-                for (let i = 0; i < pendingFiles.length; i++) {
-                  const pf = pendingFiles[i];
-                  const caption = i === 0 ? inputValue.trim() : "";
-                  await sendMedia(pf.file, pf.file.name, caption);
-                  if (pf.preview) URL.revokeObjectURL(pf.preview);
-                }
+                // Snapshot and clear the composer before the first network
+                // request. Keeping the preview in state while the assistant
+                // responds makes it look like the attachment is still queued.
+                const filesToSend = pendingFiles;
+                const caption = inputValue.trim();
                 setPendingFiles([]);
                 setInputValue("");
+                setAttachOpen(false);
+                setEmojiOpen(false);
+                for (let i = 0; i < filesToSend.length; i++) {
+                  const pf = filesToSend[i];
+                  await sendMedia(pf.file, pf.file.name, i === 0 ? caption : "");
+                  if (pf.preview) URL.revokeObjectURL(pf.preview);
+                }
                 return;
               }
-              sendText(inputValue);
+              // Clear synchronously at submit time, before the streamed
+              // response starts. sendText also clears its own state, but the
+              // snapshot prevents a stale event from putting the sent text
+              // back into the controlled textarea.
+              const textToSend = inputValue;
+              setInputValue("");
+              sendText(textToSend);
             }}
             className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2 pb-1 transition-all">
             {recording ? (
