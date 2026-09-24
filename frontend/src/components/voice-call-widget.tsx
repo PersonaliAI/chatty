@@ -137,6 +137,7 @@ export default function VoiceCallWidget({
   const audioElRef = useRef<HTMLMediaElement | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const localLevelFrameRef = useRef<number | null>(null);
+  const localAudioLevelRef = useRef(0);
   const mountedRef = useRef(true);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const richPacketIdsRef = useRef(new Set<string>());
@@ -199,6 +200,14 @@ export default function VoiceCallWidget({
 
         room = new Room();
         roomRef.current = room;
+
+        // LiveKit may attach the agent track after the original click has
+        // completed. Browsers then reject autoplay even though the visitor
+        // explicitly started the call. Keep the state in sync with LiveKit's
+        // playback probe so the recovery button is deterministic.
+        room.on(RoomEvent.AudioPlaybackStatusChanged, (playing: boolean) => {
+          if (!cancelled && mountedRef.current) setAudioBlocked(!playing);
+        });
 
         room.on(RoomEvent.Disconnected, () => {
           if (!cancelled && mountedRef.current) setStatus((s) => (s === "error" ? s : "ended"));
@@ -310,10 +319,12 @@ export default function VoiceCallWidget({
           for (const p of speakers) {
             if (p.identity === localIdentity) {
               localSpeaking = true;
+              localAudioLevelRef.current = Math.max(0, Math.min(1, p.audioLevel ?? 0));
             } else {
               remoteLevel = Math.max(remoteLevel, p.audioLevel ?? 0);
             }
           }
+          if (!localSpeaking) localAudioLevelRef.current = 0;
           orbLevel.set(Math.min(1, remoteLevel * 3.5));
           setStatus((prev) => {
             if (prev === "connecting" || prev === "requesting-mic" || prev === "error" || prev === "ended") return prev;
@@ -478,8 +489,14 @@ export default function VoiceCallWidget({
         const levels = Array.from({ length: WAVE_BAR_COUNT }, () => Math.min(1, boosted * (0.7 + Math.random() * 0.3)));
         setLocalLevels(levels);
       } else {
-        const phase = Date.now() / 140;
-        setLocalLevels(Array.from({ length: WAVE_BAR_COUNT }, (_, i) => 0.28 + 0.24 * ((Math.sin(phase + i * 0.7) + 1) / 2)));
+        // ActiveSpeakersChanged is backed by the actual WebRTC microphone
+        // stream. It remains available even when Web Audio is suspended by
+        // browser autoplay policy, so never animate bars as if the mic were
+        // live when the measured level is zero.
+        const level = localAudioLevelRef.current;
+        setLocalLevels(Array.from({ length: WAVE_BAR_COUNT }, (_, i) =>
+          Math.min(1, level * (0.72 + 0.28 * ((Math.sin(i * 1.7) + 1) / 2)))
+        ));
       }
       localLevelFrameRef.current = requestAnimationFrame(tick);
     };
@@ -614,7 +631,15 @@ export default function VoiceCallWidget({
     }
   })();
 
-  const enableAudio = () => {
+  const enableAudio = async () => {
+    const room = roomRef.current;
+    try {
+      // startAudio is LiveKit's supported user-gesture recovery path. It
+      // resumes the SDK audio context and retries every attached remote track.
+      await room?.startAudio();
+    } catch {
+      // Fall through to the attached element retry below.
+    }
     const audio = audioElRef.current;
     if (!audio) return;
     void audio.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));

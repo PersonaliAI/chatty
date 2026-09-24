@@ -40,6 +40,8 @@ export interface TeamProfile {
 interface Message {
   role: "user" | "assistant";
   content: string;
+  /** Origin of the turn, used to keep voice and text history distinguishable. */
+  channel?: "voice" | "text";
   fileUrl?: string;
   fileType?: string;
   sources?: Citation[];
@@ -53,24 +55,70 @@ interface Message {
 interface Source { id: string; name: string; content: string; }
 
 function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[] } {
-  const products: ProductCardData[] = [];
-  const videoClips: VideoClipData[] = [];
+  const extract = <T extends object>(source: string, marker: string): { text: string; items: T[] } => {
+    const items: T[] = [];
+    let cursor = 0;
+    let text = "";
+    while (cursor < source.length) {
+      const markerStart = source.indexOf(marker, cursor);
+      if (markerStart < 0) {
+        text += source.slice(cursor);
+        break;
+      }
+      const jsonStart = markerStart + marker.length;
+      if (source[jsonStart] !== "{") {
+        text += source.slice(cursor, jsonStart);
+        cursor = jsonStart;
+        continue;
+      }
 
-  let clean = content.replace(/\[PRODUCT_CARD:(\{.*?\})\]/g, (_, jsonStr) => {
-    try {
-      const parsed = JSON.parse(jsonStr);
-      if (parsed && typeof parsed === "object") products.push(parsed);
-    } catch {}
-    return "";
-  });
+      let depth = 0;
+      let end = -1;
+      let inString = false;
+      let escaped = false;
+      for (let i = jsonStart; i < source.length; i++) {
+        const char = source[i];
+        if (inString) {
+          if (escaped) escaped = false;
+          else if (char === "\\") escaped = true;
+          else if (char === '"') inString = false;
+          continue;
+        }
+        if (char === '"') { inString = true; continue; }
+        if (char === "{") depth++;
+        else if (char === "}" && --depth === 0) {
+          end = i;
+          break;
+        }
+      }
 
-  clean = clean.replace(/\[VIDEO_CLIP:(\{.*?\})\]/g, (_, jsonStr) => {
-    try {
-      const parsed = JSON.parse(jsonStr);
-      if (parsed && typeof parsed === "object") videoClips.push(parsed);
-    } catch {}
-    return "";
-  });
+      if (end < 0 || source[end + 1] !== "]") {
+        // Keep malformed markers visible instead of dropping user/model text.
+        text += source.slice(cursor, jsonStart + 1);
+        cursor = jsonStart + 1;
+        continue;
+      }
+      let parsedOk = false;
+      try {
+        const parsed = JSON.parse(source.slice(jsonStart, end + 1));
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          items.push(parsed as T);
+          parsedOk = true;
+        }
+      } catch {
+      }
+      text += source.slice(cursor, markerStart);
+      if (!parsedOk) text += source.slice(markerStart, end + 2);
+      cursor = end + 2;
+    }
+    return { text, items };
+  };
+
+  const productResult = extract<ProductCardData>(content, "[PRODUCT_CARD:");
+  const videoResult = extract<VideoClipData>(productResult.text, "[VIDEO_CLIP:");
+  const products = productResult.items;
+  const videoClips = videoResult.items;
+  let clean = videoResult.text;
 
   clean = clean.replace(/\[BOOKING_WIDGET\]/g, "").trim();
 
@@ -1421,6 +1469,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             role: "assistant" as const,
             content: textContent,
             sender: isHuman ? "human" : "ai",
+            channel: "text",
             sender_name: payload.sender_name,
             sender_avatar: payload.sender_avatar,
             created_at: payload.created_at || new Date().toISOString(),
@@ -1463,6 +1512,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             role: "assistant" as const,
             content: m.content,
             sender: "human" as const,
+            channel: "text" as const,
             sender_name: m.sender_name,
             sender_avatar: m.sender_avatar,
             created_at: m.created_at || new Date().toISOString(),
@@ -1515,19 +1565,33 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   // One-shot manual refetch of any new messages since the last poll - used
   // right after a voice call ends so the transcript (written server-side by
   // the voice worker) shows up promptly instead of waiting for the next
-  // SSE/poll cycle.
+  // SSE/poll cycle. The voice worker writes both sides of a turn, whereas
+  // the normal poll intentionally returns human-agent replies only.
   const refetchNow = async () => {
     try {
-      const url = `${BACKEND_URL}/api/widget/poll?bot_id=${botId}&session_id=${encodeURIComponent(sessionId)}&after=${encodeURIComponent(lastPollRef.current)}`;
+      const url = `${BACKEND_URL}/api/widget/poll?bot_id=${botId}&session_id=${encodeURIComponent(sessionId)}&after=${encodeURIComponent(lastPollRef.current)}&include_voice=true`;
       const res = await fetch(url);
       if (!res.ok) return;
       const d = await res.json();
       setLiveAgent(!!d.ai_paused);
       if (Array.isArray(d.messages) && d.messages.length) {
         lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-        // Same endpoint as pollOnce above - human-agent replies only.
-        const newMsgs = d.messages.map((m: { content: string }) => ({ role: "assistant" as const, content: m.content, sender: "human" as const }));
-        setMessages((p) => [...p, ...newMsgs]);
+        const newMsgs: Message[] = d.messages.map((m: { content: string; role?: string; created_at?: string }) => ({
+          role: m.role === "user" ? "user" as const : "assistant" as const,
+          content: m.content,
+          sender: m.role === "user" ? undefined : "ai" as const,
+          channel: "voice" as const,
+          created_at: m.created_at || new Date().toISOString(),
+        }));
+        setMessages((p) => {
+          const seen = new Set(p.map((m) => `${m.role}|${m.created_at || ""}|${m.content}`));
+          return [...p, ...newMsgs.filter((m) => {
+            const key = `${m.role}|${m.created_at || ""}|${m.content}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })];
+        });
         notifyParent();
       }
     } catch {}
@@ -1770,7 +1834,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   const sendText = async (text: string) => {
     if (!text.trim() || isBotResponding) return;
-    setMessages((p) => [...p, { role: "user", content: text, created_at: new Date().toISOString() }]);
+    setMessages((p) => [...p, { role: "user", content: text, channel: "text", created_at: new Date().toISOString() }]);
     setInputValue("");
     setEmojiOpen(false);
 
@@ -1842,7 +1906,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       if (!created) {
         created = true;
         setIsBotResponding(false);
-        setMessages((p) => [...p, { role: "assistant" as const, content, sender: "ai", created_at: new Date().toISOString() }]);
+        setMessages((p) => [...p, { role: "assistant" as const, content, sender: "ai", channel: "text", created_at: new Date().toISOString() }]);
       } else {
         setStreamingAssistant(content);
       }
@@ -1943,7 +2007,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     const isImage = file.type.startsWith("image/");
     const isAudio = file.type.startsWith("audio/");
     const localUrl = URL.createObjectURL(file);
-    setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? VOICE_MESSAGE_PLACEHOLDER : `📎 ${filename}`), fileUrl: localUrl, fileType: file.type, created_at: new Date().toISOString() }]);
+    setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? VOICE_MESSAGE_PLACEHOLDER : `📎 ${filename}`), channel: "text", fileUrl: localUrl, fileType: file.type, created_at: new Date().toISOString() }]);
     setIsBotResponding(true);
     try {
       const fd = new FormData();
@@ -1969,7 +2033,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             return copy;
           });
         }
-        setMessages((p) => [...p, { role: "assistant", content: body.reply, sender: "ai", created_at: new Date().toISOString() }]);
+        setMessages((p) => [...p, { role: "assistant", content: body.reply, sender: "ai", channel: "text", created_at: new Date().toISOString() }]);
       } else {
         setMessages((p) => [...p, { role: "assistant", content: `⚠️ ${body.detail || "Couldn't process that file."}` }]);
       }
@@ -2472,7 +2536,17 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             originToken={originToken}
             visitorTimezone={visitorTimezone}
             primaryColor={primaryColor}
-            onClose={() => { setVoiceCallOpen(false); refetchNow(); }}
+            onClose={() => {
+              // Keep the existing thread mounted when leaving voice mode. The
+              // voice turn is persisted by the worker and merged below, so the
+              // visitor returns to the same history instead of a blank view.
+              setVoiceCallOpen(false);
+              setChatView("chat");
+              setTab("messages");
+              void refetchNow().finally(() => {
+                requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }));
+              });
+            }}
             onBookingSuccess={(meeting) => {
               setMessages((prev) => {
                 const updated = [...prev];
@@ -3009,7 +3083,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                         )}
                         <div className={`space-y-1 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col ${hasBooking ? "w-full min-w-0" : ""}`}>
                           {msg.role === "assistant" && showSenderTag && (
-                            <span className="text-[10px] text-neutral-400 font-medium px-1 flex items-center gap-1">
+                          <span className="text-[10px] text-neutral-400 font-medium px-1 flex items-center gap-1">
                               {(msg.sender === "human" || (liveAgent && !msg.sender)) ? (
                                 <>
                                   <User className="size-2.5 text-blue-500" />
@@ -3021,6 +3095,16 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                                   <span>{botName}</span>
                                 </>
                               )}
+                              <span className="inline-flex items-center gap-0.5 rounded-full border border-neutral-200/70 dark:border-neutral-700/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-400">
+                                {msg.channel === "voice" ? <AudioWaveform className="size-2.5" /> : <MessageSquare className="size-2.5" />}
+                                {msg.channel === "voice" ? "Voice" : "Text"}
+                              </span>
+                            </span>
+                          )}
+                          {!(msg.role === "assistant" && showSenderTag) && (
+                            <span className="inline-flex items-center gap-0.5 px-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-400">
+                              {msg.channel === "voice" ? <AudioWaveform className="size-2.5" /> : <MessageSquare className="size-2.5" />}
+                              {msg.channel === "voice" ? "Voice" : "Text"}
                             </span>
                           )}
                           <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
@@ -3453,14 +3537,20 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           <form onSubmit={async (e) => {
               e.preventDefault();
               if (pendingFiles.length > 0) {
-                for (let i = 0; i < pendingFiles.length; i++) {
-                  const pf = pendingFiles[i];
-                  const caption = i === 0 ? inputValue.trim() : "";
-                  await sendMedia(pf.file, pf.file.name, caption);
-                  if (pf.preview) URL.revokeObjectURL(pf.preview);
-                }
+                // Snapshot and clear the composer before the first network
+                // request. Keeping the preview in state while the assistant
+                // responds makes it look like the attachment is still queued.
+                const filesToSend = pendingFiles;
+                const caption = inputValue.trim();
                 setPendingFiles([]);
                 setInputValue("");
+                setAttachOpen(false);
+                setEmojiOpen(false);
+                for (let i = 0; i < filesToSend.length; i++) {
+                  const pf = filesToSend[i];
+                  await sendMedia(pf.file, pf.file.name, i === 0 ? caption : "");
+                  if (pf.preview) URL.revokeObjectURL(pf.preview);
+                }
                 return;
               }
               sendText(inputValue);
