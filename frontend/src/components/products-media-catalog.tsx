@@ -176,6 +176,22 @@ export function ProductsMediaCatalog({
   const [vidThumbnail, setVidThumbnail] = useState<string>("");
   const [vidDesc, setVidDesc] = useState<string>("");
   const [savingVideo, setSavingVideo] = useState<boolean>(false);
+  const prodDescRef = useRef<HTMLTextAreaElement | null>(null);
+  const vidDescRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const resizeDescription = useCallback((element: HTMLTextAreaElement | null) => {
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${Math.min(Math.max(element.scrollHeight, 72), 320)}px`;
+  }, []);
+
+  useEffect(() => {
+    resizeDescription(prodDescRef.current);
+  }, [prodDesc, resizeDescription]);
+
+  useEffect(() => {
+    resizeDescription(vidDescRef.current);
+  }, [vidDesc, resizeDescription]);
 
   // Fetch WooCommerce Status
   const loadWcStatus = useCallback(async () => {
@@ -589,6 +605,21 @@ export function ProductsMediaCatalog({
         </div>
       </div>
 
+      <div className="flex items-start justify-between gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">Trained agent access is enabled</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-emerald-800/80 dark:text-emerald-300/80">
+              Saved products and media are embedded into this bot&apos;s multimodal catalog and can be retrieved by chat, voice, and WhatsApp.
+            </p>
+          </div>
+        </div>
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-white/80 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+          {loadingItems ? "Syncing…" : `${items.length} indexed`}
+        </span>
+      </div>
+
       {activeSubTab !== "woocommerce" && (
         <div className="p-5 rounded-2xl border border-[#f97316]/20 bg-[#f97316]/5 dark:bg-[#f97316]/10 space-y-3">
           <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -707,11 +738,12 @@ export function ProductsMediaCatalog({
               )}
 
               {/* Mode Switcher Tabs */}
-              <div className="flex items-center gap-2 p-1 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl border border-neutral-200/60 dark:border-neutral-700/60 max-w-md">
+              <div className="max-w-full overflow-x-auto rounded-xl border border-neutral-200/60 bg-neutral-100 p-1 dark:border-neutral-700/60 dark:bg-neutral-800/60">
+                <div className="flex min-w-[30rem] items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setAuthMode("oauth")}
-                  className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  className={`flex-1 shrink-0 whitespace-nowrap flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     authMode === "oauth"
                       ? "bg-white dark:bg-neutral-900 text-[#9b51e0] dark:text-[#9b51e0] shadow-sm"
                       : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -726,7 +758,7 @@ export function ProductsMediaCatalog({
                 <button
                   type="button"
                   onClick={() => setAuthMode("manual")}
-                  className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  className={`flex-1 shrink-0 whitespace-nowrap flex items-center justify-center gap-2 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     authMode === "manual"
                       ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
                       : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -735,6 +767,7 @@ export function ProductsMediaCatalog({
                   <Key className="size-3.5" />
                   <span>Manual API Keys</span>
                 </button>
+                </div>
               </div>
 
               {authMode === "oauth" ? (
@@ -1258,11 +1291,12 @@ export function ProductsMediaCatalog({
                 Visual Description / Features
               </label>
               <textarea
+                ref={prodDescRef}
                 rows={2}
                 placeholder="Vintage wash blue denim, button-up front, spread collar, two chest flap pockets..."
                 value={prodDesc}
                 onChange={(e) => setProdDesc(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#f97316] resize-y"
+                className="min-h-[4.5rem] max-h-80 w-full overflow-y-auto bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#f97316] resize-none"
               />
             </div>
           </div>
@@ -1376,11 +1410,12 @@ export function ProductsMediaCatalog({
                 Description & Topics Covered
               </label>
               <textarea
+                ref={vidDescRef}
                 rows={2}
                 placeholder="Explains sizing differences, washing instructions, and fit details..."
                 value={vidDesc}
                 onChange={(e) => setVidDesc(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#0ea5e9] resize-y"
+                className="min-h-[4.5rem] max-h-80 w-full overflow-y-auto bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#0ea5e9] resize-none"
               />
             </div>
           </div>
