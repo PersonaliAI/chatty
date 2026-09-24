@@ -143,7 +143,6 @@ export default function VoiceCallWidget({
   // capturing audio from the mic at all, independent of whether the voice
   // pipeline downstream (VAD/STT) picks it up.
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const analyserCtxRef = useRef<AudioContext | null>(null);
 
   // Smoothed orb scale/glow driven by the agent's remote audio level. Same
   // spring feel used for the rest of the widget's motion (bouncy overshoot).
@@ -334,18 +333,10 @@ export default function VoiceCallWidget({
         if (!cancelled && mountedRef.current) setStatus("requesting-mic");
         try {
           await room.localParticipant.setMicrophoneEnabled(true);
-          const pub = Array.from(room.localParticipant.audioTrackPublications.values())[0];
-          const mediaTrack = pub?.track?.mediaStreamTrack;
-          if (mediaTrack) {
-            const ctx = new AudioContext();
-            const source = ctx.createMediaStreamSource(new MediaStream([mediaTrack]));
-            const analyser = ctx.createAnalyser();
-            analyser.fftSize = 256;
-            analyser.smoothingTimeConstant = 0.6;
-            source.connect(analyser);
-            analyserCtxRef.current = ctx;
-            analyserRef.current = analyser;
-          }
+          // LiveKit already exposes local speaking state through
+          // ActiveSpeakersChanged below. Avoid creating an AudioContext here:
+          // this callback runs after an async permission request and browsers
+          // correctly reject a non-gesture audio context with a console warning.
         } catch (micErr) {
           console.error("Microphone permission failed:", micErr);
           if (!cancelled && mountedRef.current) {
@@ -384,10 +375,6 @@ export default function VoiceCallWidget({
         audioElRef.current = null;
       }
       analyserRef.current = null;
-      if (analyserCtxRef.current) {
-        analyserCtxRef.current.close().catch(() => {});
-        analyserCtxRef.current = null;
-      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -469,7 +456,8 @@ export default function VoiceCallWidget({
         const levels = Array.from({ length: WAVE_BAR_COUNT }, () => Math.min(1, boosted * (0.7 + Math.random() * 0.3)));
         setLocalLevels(levels);
       } else {
-        setLocalLevels(Array(WAVE_BAR_COUNT).fill(0));
+        const phase = Date.now() / 140;
+        setLocalLevels(Array.from({ length: WAVE_BAR_COUNT }, (_, i) => 0.28 + 0.24 * ((Math.sin(phase + i * 0.7) + 1) / 2)));
       }
       localLevelFrameRef.current = requestAnimationFrame(tick);
     };
@@ -594,8 +582,6 @@ export default function VoiceCallWidget({
 
   const enableAudio = () => {
     const audio = audioElRef.current;
-    const context = analyserCtxRef.current;
-    if (context?.state === "suspended") void context.resume();
     if (!audio) return;
     void audio.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));
   };
