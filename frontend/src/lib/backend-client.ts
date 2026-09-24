@@ -33,15 +33,50 @@ export async function fetchBackend(
 
   if (!supabase) throw new Error("Supabase client is required in managed_supabase mode");
   const { data } = await supabase.auth.getSession();
-  const headers = new Headers(options.headers);
-  if (data.session?.access_token) headers.set("Authorization", `Bearer ${data.session.access_token}`);
+  let accessToken = data.session?.access_token;
+
+  // A browser can retain an expired access token while Supabase's refresh
+  // listener is still catching up (especially after a key rotation or a tab
+  // restored from sleep). Do not send a request without first using the
+  // session that is already available to the client.
+  const request = (url: string, token?: string) => {
+    const headers = new Headers(options.headers);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return fetch(`${url}${path}`, { ...options, headers });
+  };
 
   const configuredUrl = BACKEND_URL;
-  try {
-    return await fetch(`${configuredUrl}${path}`, { ...options, headers });
-  } catch (error) {
-    if (configuredUrl === PRODUCTION_BACKEND_URL) throw error;
-    console.warn(`Configured backend unavailable for ${path}; retrying production API.`);
-    return fetch(`${PRODUCTION_BACKEND_URL}${path}`, { ...options, headers });
+  const requestWithFallback = async (token?: string): Promise<Response> => {
+    try {
+      return await request(configuredUrl, token);
+    } catch (error) {
+      if (configuredUrl === PRODUCTION_BACKEND_URL) throw error;
+      console.warn(`Configured backend unavailable for ${path}; retrying production API.`);
+      return request(PRODUCTION_BACKEND_URL, token);
+    }
+  };
+
+  let response = await requestWithFallback(accessToken);
+
+  // Refresh exactly once after an authorization failure. A 401 means the
+  // request was rejected before application work, so retrying the same
+  // request with a newly issued token is safe for dashboard reads and writes.
+  // ReadableStream bodies cannot be replayed; leave those responses alone.
+  const body = options.body;
+  const canReplayBody = !(body && typeof body === "object" && "getReader" in body);
+  if (response.status === 401 && canReplayBody) {
+    try {
+      const refreshed = await supabase.auth.refreshSession();
+      const refreshedToken = refreshed.data.session?.access_token;
+      if (refreshedToken && refreshedToken !== accessToken) {
+        accessToken = refreshedToken;
+        response = await requestWithFallback(accessToken);
+      }
+    } catch {
+      // Return the original 401. The caller can surface the normal
+      // authentication error instead of masking it with a refresh failure.
+    }
   }
+
+  return response;
 }
