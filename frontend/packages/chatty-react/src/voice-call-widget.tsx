@@ -62,6 +62,7 @@ export default function VoiceCallWidget({
   const [messageText, setMessageText] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
   const roomRef = useRef<Room | null>(null);
   const audioElRef = useRef<HTMLMediaElement | null>(null);
@@ -155,8 +156,12 @@ export default function VoiceCallWidget({
           if (track.kind === Track.Kind.Audio) {
             const el = track.attach();
             el.autoplay = true;
+            el.setAttribute("playsinline", "true");
             audioElRef.current = el;
             document.body.appendChild(el);
+            void el.play().then(() => setAudioBlocked(false)).catch(() => {
+              if (!cancelled && mountedRef.current) setAudioBlocked(true);
+            });
             void participant;
           }
         });
@@ -483,6 +488,14 @@ export default function VoiceCallWidget({
     }
   })();
 
+  const enableAudio = () => {
+    const audio = audioElRef.current;
+    const context = analyserCtxRef.current;
+    if (context?.state === "suspended") void context.resume();
+    if (!audio) return;
+    void audio.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card p-3 sm:p-4">
       {status === "error" ? (
@@ -550,6 +563,16 @@ export default function VoiceCallWidget({
                 ))}
               </div>
               <span className="text-center text-[10px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
+              {audioBlocked && (
+                <button
+                  type="button"
+                  onClick={enableAudio}
+                  className="rounded-full px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm"
+                  style={{ background: primaryColor }}
+                >
+                  Tap to enable agent audio
+                </button>
+              )}
             </div>
           </div>
 
