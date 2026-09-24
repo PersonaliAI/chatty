@@ -176,6 +176,8 @@ export function ProductsMediaCatalog({
   const [vidThumbnail, setVidThumbnail] = useState<string>("");
   const [vidDesc, setVidDesc] = useState<string>("");
   const [savingVideo, setSavingVideo] = useState<boolean>(false);
+  const [catalogFormMessage, setCatalogFormMessage] = useState<string | null>(null);
+  const [catalogFormError, setCatalogFormError] = useState<string | null>(null);
   const prodDescRef = useRef<HTMLTextAreaElement | null>(null);
   const vidDescRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -449,6 +451,8 @@ export function ProductsMediaCatalog({
     e.preventDefault();
     if (!prodTitle.trim() || !prodImageUrl.trim()) return;
     setSavingProduct(true);
+    setCatalogFormMessage(null);
+    setCatalogFormError(null);
     try {
       const res = await fetchWithFallback(`/api/bots/${botId}/media-items`, {
         method: "POST",
@@ -473,6 +477,7 @@ export function ProductsMediaCatalog({
       });
 
       if (res.ok) {
+        setCatalogFormMessage("Product indexed successfully. Chat, voice, and WhatsApp can now retrieve it.");
         setProdTitle("");
         setProdPrice("");
         setProdSku("");
@@ -482,8 +487,12 @@ export function ProductsMediaCatalog({
         setProdDesc("");
         setProdInStock(true);
         loadCatalogItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Could not index this product.");
       }
     } catch (err) {
+      setCatalogFormError(err instanceof Error ? err.message : "Could not index this product.");
       console.error("Failed to save product", err);
     } finally {
       setSavingProduct(false);
@@ -495,6 +504,8 @@ export function ProductsMediaCatalog({
     e.preventDefault();
     if (!vidTitle.trim() || !vidUrl.trim()) return;
     setSavingVideo(true);
+    setCatalogFormMessage(null);
+    setCatalogFormError(null);
     try {
       const parsedSeconds = parseFloat(vidTimestamp) || 0;
       const res = await fetchWithFallback(`/api/bots/${botId}/media-items`, {
@@ -516,6 +527,7 @@ export function ProductsMediaCatalog({
       });
 
       if (res.ok) {
+        setCatalogFormMessage("Media indexed successfully. Chat, voice, and WhatsApp can now retrieve it.");
         setVidTitle("");
         setVidUrl("");
         setVidExternalId("");
@@ -523,8 +535,12 @@ export function ProductsMediaCatalog({
         setVidThumbnail("");
         setVidDesc("");
         loadCatalogItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Could not index this media item.");
       }
     } catch (err) {
+      setCatalogFormError(err instanceof Error ? err.message : "Could not index this media item.");
       console.error("Failed to save video", err);
     } finally {
       setSavingVideo(false);
@@ -1045,6 +1061,19 @@ export function ProductsMediaCatalog({
             <h4 className="text-sm font-bold text-neutral-900 dark:text-white">Add Custom Product</h4>
           </div>
 
+          {catalogFormMessage && (
+            <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[11px] text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+              <CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />
+              <span>{catalogFormMessage}</span>
+            </div>
+          )}
+          {catalogFormError && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <span>{catalogFormError}</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1">
@@ -1333,6 +1362,19 @@ export function ProductsMediaCatalog({
             <Video className="size-5 text-[#0ea5e9]" />
             <h4 className="text-sm font-bold text-neutral-900 dark:text-white">Add Video Clip / Guide</h4>
           </div>
+
+          {catalogFormMessage && (
+            <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[11px] text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+              <CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />
+              <span>{catalogFormMessage}</span>
+            </div>
+          )}
+          {catalogFormError && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <span>{catalogFormError}</span>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
