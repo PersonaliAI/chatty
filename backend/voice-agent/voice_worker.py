@@ -484,6 +484,11 @@ def _build_realtime_tools(
     exposed as ordinary function-calling tools instead - which Gemini
     Live/OpenAI Realtime support natively, same as any other LLM tool call."""
     tools: list = []
+    # Realtime models can call get_available_slots more than once while they
+    # are trying to understand a spoken date. Keep the interactive picker
+    # idempotent for the call: one picker is enough, and it must not replace a
+    # completed booking with a fresh availability card.
+    booking_state = {"picker_published": False, "booked": False}
 
     async def _publish_booking_packet(packet: dict[str, Any]) -> None:
         """Send booking state to the widget without making voice tools UI-aware."""
@@ -531,8 +536,16 @@ def _build_realtime_tools(
                 "session_id": session_id,
                 "visitor_timezone": visitor_timezone,
             }
+            tool_arguments = dict(raw_arguments or {})
+            if _name == "create_lead":
+                # The realtime tool schema exposes bot_id for model
+                # compatibility, but the session is trusted server context and
+                # must be attached here so spoken name/email capture updates
+                # the same lead used by the booking confirmation flow.
+                tool_arguments.setdefault("bot_id", bot_id)
+                tool_arguments.setdefault("session_id", session_id)
             result = await agent_tools.execute(
-                _name, raw_arguments, user=owner_user, supabase=supabase,
+                _name, tool_arguments, user=owner_user, supabase=supabase,
                 # "bot" is required here (not just bot_id) - agent_tools.execute's
                 # round-robin assignment/conflict-guard and get_available_slots/
                 # reschedule_meeting handlers all key off context["bot"]; without
@@ -544,7 +557,9 @@ def _build_realtime_tools(
             if not isinstance(result, dict) or result.get("error"):
                 return result
             if _name == "get_available_slots" and result.get("slots"):
-                await _publish_booking_packet({"type": "booking_widget", "action": "open"})
+                if not booking_state["picker_published"] and not booking_state["booked"]:
+                    booking_state["picker_published"] = True
+                    await _publish_booking_packet({"type": "booking_widget", "action": "open"})
             if _name in ("create_calendar_event", "create_outlook_event"):
                 attendees = raw_arguments.get("attendees") or []
                 if isinstance(attendees, str):
@@ -569,6 +584,7 @@ def _build_realtime_tools(
                     "assigned_to_email": result.get("assigned_to_email"),
                     "status": "scheduled",
                 }
+                booking_state["booked"] = True
                 await _publish_booking_packet({"type": "meeting_confirmed", "meeting": meeting})
             return result
 
@@ -605,7 +621,23 @@ class ChattyRealtimeAgent(Agent):
             "check in after a long silence. Use the "
             "search_knowledge_base tool for any question about this specific business rather "
             "than guessing. When a visitor wants to book, always use the availability and "
-            "calendar tools; never invent a time, and collect the required name and email."
+            "calendar tools; never invent a time, and collect the required name and email.\n\n"
+            "BOOKING WORKFLOW (follow this exact state machine):\n"
+            "1. When the visitor asks to book or gives a preferred date/time, call "
+            "get_available_slots with near set to that spoken date/time. Offer only the "
+            "returned slots. Never calculate or invent a slot.\n"
+            "2. After the visitor chooses one returned slot, remember that exact slot's "
+            "start and end values. Ask for their full name and email in the same turn. Do "
+            "not call get_available_slots again just because they supplied their details.\n"
+            "3. Once the visitor has supplied both a real name and a real email, call "
+            "create_calendar_event (or create_outlook_event for Teams) immediately using "
+            "the remembered start/end and the real email in attendees. Also call create_lead "
+            "with the same bot and session context.\n"
+            "4. Only say the meeting is scheduled after the calendar tool returns success. "
+            "Read the returned meeting link and time back to the visitor. Do not append a "
+            "booking widget marker or request another slot after successful booking.\n"
+            "5. If a booking tool returns an error asking for missing information, ask only "
+            "for that missing field; do not reopen the availability picker."
         )
         super().__init__(
             instructions=instructions,

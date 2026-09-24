@@ -4,6 +4,39 @@ import { AudioWaveform, Mic, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ModernSelect } from "@/components/ui/modern-select";
 
+const TTS_VOICE_OPTIONS: Record<string, { value: string; label: string; hint?: string }[]> = {
+  google: [
+    { value: "en-US-Chirp3-HD-Aoede", label: "Aoede · expressive female" },
+    { value: "en-US-Chirp3-HD-Charon", label: "Charon · warm male" },
+    { value: "en-US-Chirp3-HD-Fenrir", label: "Fenrir · confident male" },
+    { value: "en-US-Chirp3-HD-Kore", label: "Kore · clear female" },
+    { value: "en-US-Chirp3-HD-Leda", label: "Leda · calm female" },
+    { value: "en-US-Chirp3-HD-Orus", label: "Orus · natural male" },
+    { value: "en-US-Chirp3-HD-Puck", label: "Puck · friendly male" },
+    { value: "en-US-Chirp3-HD-Zephyr", label: "Zephyr · bright female" },
+  ],
+  cartesia: [
+    { value: "694f9389-aac1-45b6-b726-9d9369183238", label: "English · natural (Cartesia preset)" },
+  ],
+  elevenlabs: [
+    { value: "21m00Tcm4TlvDq8ikWAM", label: "Rachel · calm female" },
+    { value: "EXAVITQu4vr4xnSDxMaL", label: "Bella · warm female" },
+    { value: "ErXwobaYiN019PkySvjV", label: "Antoni · expressive male" },
+    { value: "MF3mGyEYCl7XYWbV9V6O", label: "Elli · friendly female" },
+    { value: "TxGEqnHWrfWFTfGW9XjX", label: "Josh · deep male" },
+    { value: "pNInz6obpgDQGcFmaJgB", label: "Adam · confident male" },
+  ],
+  openai: [
+    { value: "alloy", label: "Alloy · balanced" },
+    { value: "echo", label: "Echo · clear male" },
+    { value: "fable", label: "Fable · expressive" },
+    { value: "nova", label: "Nova · warm female" },
+    { value: "onyx", label: "Onyx · deep male" },
+    { value: "shimmer", label: "Shimmer · bright female" },
+  ],
+  fishaudio: [],
+};
+
 interface VoiceAgentTabProps {
   voiceEnabled: boolean;
   setVoiceEnabled: (b: boolean) => void;
@@ -417,7 +450,9 @@ export function VoiceAgentTab({
                         value={voiceTtsProvider}
                         onChange={(v) => {
                           setVoiceTtsProvider(v);
-                          handleAutoSaveVoiceField({ voice_tts_provider: v });
+                          const firstVoice = TTS_VOICE_OPTIONS[v]?.[0]?.value || "";
+                          setVoiceTtsVoice(firstVoice);
+                          handleAutoSaveVoiceField({ voice_tts_provider: v, voice_tts_voice: firstVoice || null });
                         }}
                         options={[
                           { value: "google", label: "Google", hint: "Included, no setup" },
@@ -429,23 +464,42 @@ export function VoiceAgentTab({
                       />
                     </div>
 
-                    {voiceTtsProvider === "google" && (
+                    {voiceTtsProvider !== "fishaudio" && (
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
-                          Google TTS Voice (optional)
+                          {voiceTtsProvider === "google" ? "Google" : voiceTtsProvider === "cartesia" ? "Cartesia" : voiceTtsProvider === "elevenlabs" ? "ElevenLabs" : "OpenAI"} TTS Voice
+                        </label>
+                        <ModernSelect
+                          value={voiceTtsVoice}
+                          searchable
+                          onChange={(v) => {
+                            setVoiceTtsVoice(v);
+                            handleAutoSaveVoiceField({ voice_tts_voice: v || null });
+                          }}
+                          options={TTS_VOICE_OPTIONS[voiceTtsProvider] || []}
+                          placeholder="Select a voice"
+                        />
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
+                          Choose a voice preset for this provider. The voice ID is stored with this assistant.
+                        </p>
+                      </div>
+                    )}
+
+                    {voiceTtsProvider === "fishaudio" && (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
+                          Fish Audio Voice ID
                         </label>
                         <input
                           type="text"
                           value={voiceTtsVoice}
                           onChange={(e) => setVoiceTtsVoice(e.target.value)}
-                          onBlur={(e) =>
-                            handleAutoSaveVoiceField({ voice_tts_voice: e.target.value || null })
-                          }
-                          placeholder="en-US-Chirp3-HD-Aoede"
+                          onBlur={(e) => handleAutoSaveVoiceField({ voice_tts_voice: e.target.value || null })}
+                          placeholder="Paste your Fish Audio voice ID"
                           className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                         />
                         <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
-                          Leave blank to use the default voice.
+                          Fish Audio voices are account-specific, so enter the voice ID from your Fish Audio library.
                         </p>
                       </div>
                     )}

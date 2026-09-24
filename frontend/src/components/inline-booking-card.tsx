@@ -250,6 +250,16 @@ function formatSlotTime(slot: TimeSlot, timeZone: string): string {
   }
 }
 
+function slotHostLabel(slot: TimeSlot): string {
+  const hosts = slot.eligible_hosts || [];
+  if (hosts.length > 1) return `${hosts.length} team hosts`;
+  // Never expose a calendar owner's login email in a public booking picker.
+  // A configured display name is safe and useful; otherwise keep the label
+  // generic instead of leaking the admin account used for OAuth.
+  const name = hosts[0]?.name?.trim();
+  return name && !name.includes("@") ? name : "Available";
+}
+
 export function InlineBookingCard({
   botId,
   sessionId,
@@ -1040,9 +1050,7 @@ export function InlineBookingCard({
                           <span className="block text-center whitespace-normal leading-tight">{formatSlotTime(slot, activeTimezone)}</span>
                           {slot.eligible_hosts && slot.eligible_hosts.length > 0 && (
                             <span className={`mt-1 block truncate text-center text-[9px] ${isSlotSelected && cardMode === "reschedule" ? "opacity-75" : "text-neutral-400 dark:text-neutral-500"}`}>
-                              {slot.eligible_hosts.length === 1
-                                ? `${slot.eligible_hosts[0].name || slot.eligible_hosts[0].email}`
-                                : `${slot.eligible_hosts.length} team hosts`}
+                              {slotHostLabel(slot)}
                             </span>
                           )}
                         </button>
@@ -1125,9 +1133,7 @@ export function InlineBookingCard({
                 </div>
                 {selectedSlot.eligible_hosts && selectedSlot.eligible_hosts.length > 0 && (
                   <div className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 break-words">
-                    Host: {selectedSlot.eligible_hosts.length === 1
-                      ? selectedSlot.eligible_hosts[0].name || selectedSlot.eligible_hosts[0].email
-                      : `${selectedSlot.eligible_hosts.length} available team members`}
+                    Host: {slotHostLabel(selectedSlot)}
                   </div>
                 )}
               </div>
