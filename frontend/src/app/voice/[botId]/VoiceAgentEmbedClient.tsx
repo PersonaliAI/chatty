@@ -73,7 +73,7 @@ export default function VoiceAgentEmbedClient({
             </div>
           </div>
 
-          <div className="relative mx-auto flex h-[calc(100dvh-92px)] min-h-[500px] w-full max-w-[560px] flex-col overflow-hidden rounded-[24px] border border-white/15 bg-white/[0.97] shadow-[0_30px_100px_rgba(0,0,0,.5)] ring-1 ring-black/20 sm:h-[min(760px,calc(100dvh-112px))] sm:min-h-[600px] sm:rounded-[30px]">
+          <div className="relative mx-auto flex h-[calc(100dvh-128px)] min-h-0 w-full max-w-[560px] flex-col overflow-hidden rounded-[24px] border border-white/15 bg-white/[0.97] shadow-[0_30px_100px_rgba(0,0,0,.5)] ring-1 ring-black/20 sm:h-[min(760px,calc(100dvh-112px))] sm:min-h-[600px] sm:rounded-[30px]">
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-black/10 bg-gradient-to-r from-[#b2622d] to-[#c67139] px-3 text-white sm:h-16 sm:px-5">
               <div className="flex items-center gap-3">
                 <div className="grid size-8 place-items-center rounded-full bg-white text-[#b2622d] shadow-sm sm:size-9">
