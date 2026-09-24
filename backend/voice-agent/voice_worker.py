@@ -987,7 +987,9 @@ async def entrypoint(ctx: JobContext) -> None:
     def _record_agent_state(ev) -> None:
         nonlocal first_response_at
         state = str(getattr(ev, "new_state", "") or "").lower()
-        if first_response_at is None and state in {"speaking", "listening"}:
+        # Listening is the normal initial state and must not make first
+        # response latency appear to be zero. Record only actual agent speech.
+        if first_response_at is None and state == "speaking":
             first_response_at = time.monotonic()
     session.on("agent_state_changed", _record_agent_state)
     def _record_close(ev) -> None:
@@ -1180,7 +1182,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     async def _nudge_when_idle() -> None:
         """Monitor silence and re-engage a few times without spamming visitors."""
-        nonlocal last_user_activity, idle_nudge_count
+        nonlocal last_user_activity, idle_nudge_count, nudge_count
         try:
             await asyncio.sleep(8)
             while True:
@@ -1193,6 +1195,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 threshold = 18 if idle_nudge_count == 0 else 35
                 if idle_for >= threshold:
                     idle_nudge_count += 1
+                    nudge_count += 1
                     if idle_nudge_count == 1:
                         nudge = "Hey, are you still there? I'm here if you'd like help with anything."
                     elif idle_nudge_count == 2:
