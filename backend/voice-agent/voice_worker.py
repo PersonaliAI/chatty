@@ -1154,7 +1154,6 @@ async def entrypoint(ctx: JobContext) -> None:
                 threshold = 18 if idle_nudge_count == 0 else 35
                 if idle_for >= threshold:
                     idle_nudge_count += 1
-                    nudge_count += 1
                     if idle_nudge_count == 1:
                         nudge = "Hey, are you still there? I'm here if you'd like help with anything."
                     elif idle_nudge_count == 2:
