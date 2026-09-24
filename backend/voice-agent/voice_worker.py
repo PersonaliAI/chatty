@@ -568,9 +568,11 @@ def _build_realtime_tools(
                 attendee_email = next((a for a in attendees if isinstance(a, str) and "@" in a), "")
                 meeting_link = (
                     result.get("hangout_link")
+                    or result.get("hangoutLink")
                     or result.get("online_meeting_url")
                     or result.get("web_link")
                     or result.get("html_link")
+                    or result.get("htmlLink")
                 )
                 meeting = {
                     "id": result.get("meeting_id") or result.get("chatty_meeting_id") or result.get("id"),
