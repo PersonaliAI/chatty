@@ -99,67 +99,57 @@ flowchart TB
         direction LR
         visitor(("Website visitor")):::actor
         operator(("Workspace operator")):::actor
-        channels["WhatsApp · Slack · MCP clients"]:::actor
+        channels["WhatsApp · Slack · MCP"]:::actor
     end
-
     subgraph edge["Public edge"]
         direction LR
-        tls["TLS / custom domain / rate limits"]:::edge
-        web["frontend/\nNext.js dashboard + widget"]:::app
+        tls["TLS · domains · rate limits"]:::edge
+        web["Next.js frontend"]:::app
     end
-
-    subgraph compute["Chatty application containers"]
+    subgraph runtime["Chatty runtime"]
         direction LR
-        api["backend/\nFastAPI API + workers"]:::app
-        voice["Voice worker\nLiveKit Agents"]:::app
+        api["FastAPI API · chat · RAG · webhooks"]:::app
+        voice["Voice worker · LiveKit Agents"]:::app
     end
-
     subgraph managed["Managed Supabase — default profile"]
         direction LR
-        auth["Auth\n(users + sessions)"]:::data
-        postgres["Postgres + pgvector\nRLS + migrations"]:::data
-        storage["Storage\nknowledge files"]:::data
-        realtime["Realtime\nconversation updates"]:::data
+        auth["Supabase Auth"]:::data
+        postgres["Postgres + pgvector · RLS"]:::data
+        storage["Supabase Storage"]:::data
+        realtime["Supabase Realtime"]:::data
     end
-
     subgraph integrations["Optional integrations"]
-        direction LR
-        llm["Gemini / OpenAI / Anthropic"]:::integration
-        calendar["Google / Microsoft / Zoom"]:::integration
-        meta["Meta WhatsApp / Slack"]:::integration
+        direction TB
+        llm["LLM providers"]:::integration
+        calendar["Calendar providers"]:::integration
+        channelsApi["WhatsApp / Slack"]:::integration
         livekit["LiveKit Cloud or self-hosted"]:::integration
-        billing["Lemon Squeezy / webhooks"]:::integration
+        billing["Billing + webhooks"]:::integration
     end
-
-    subgraph targets["Run the same two containers anywhere"]
+    subgraph targets["Deployment targets"]
         direction LR
         docker["Docker Compose / VPS"]:::deploy
         railway["Railway"]:::deploy
         render["Render Blueprint"]:::deploy
-        heroku["Heroku-style container host"]:::deploy
+        heroku["Heroku-style host"]:::deploy
     end
 
-    visitor --> tls --> web
+    visitor --> tls
     operator --> web
     channels --> api
+    tls --> web
     web -->|HTTPS| api
+    api --> voice
     api --> auth
     api --> postgres
     api --> storage
     api --> realtime
     api --> llm
     api --> calendar
-    api --> meta
+    api --> channelsApi
+    voice --> livekit
     api --> billing
-    api --> voice --> livekit
-    docker -. deploys .-> web
-    docker -. deploys .-> api
-    railway -. deploys .-> web
-    railway -. deploys .-> api
-    render -. deploys .-> web
-    render -. deploys .-> api
-    heroku -. deploys .-> web
-    heroku -. deploys .-> api
+    targets -. runs .-> runtime
     linkStyle default stroke:#64748b,stroke-width:1.5px
 ```
 
