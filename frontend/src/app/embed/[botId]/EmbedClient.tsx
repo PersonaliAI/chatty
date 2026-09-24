@@ -3585,7 +3585,14 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 }
                 return;
               }
-              sendText(inputValue);
+              // Snapshot and clear the text field before starting the request.
+              // This keeps the composer available for the next message while
+              // the assistant is streaming its response.
+              const textToSend = inputValue.trim();
+              setInputValue("");
+              setAttachOpen(false);
+              setEmojiOpen(false);
+              void sendText(textToSend);
             }}
             className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2 pb-1 transition-all">
             {recording ? (
