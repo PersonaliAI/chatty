@@ -34,7 +34,7 @@ const TTS_VOICE_OPTIONS: Record<string, { value: string; label: string; hint?: s
     { value: "onyx", label: "Onyx · deep male" },
     { value: "shimmer", label: "Shimmer · bright female" },
   ],
-  fishaudio: [],
+  fishaudio: [{ value: "", label: "Custom voice ID" }],
 };
 
 interface VoiceAgentTabProps {
@@ -464,10 +464,9 @@ export function VoiceAgentTab({
                       />
                     </div>
 
-                    {voiceTtsProvider !== "fishaudio" && (
-                      <div>
+                    <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
-                          {voiceTtsProvider === "google" ? "Google" : voiceTtsProvider === "cartesia" ? "Cartesia" : voiceTtsProvider === "elevenlabs" ? "ElevenLabs" : "OpenAI"} TTS Voice
+                          {voiceTtsProvider === "google" ? "Google" : voiceTtsProvider === "cartesia" ? "Cartesia" : voiceTtsProvider === "elevenlabs" ? "ElevenLabs" : voiceTtsProvider === "fishaudio" ? "Fish Audio" : "OpenAI"} TTS Voice
                         </label>
                         <ModernSelect
                           value={voiceTtsVoice}
@@ -482,8 +481,7 @@ export function VoiceAgentTab({
                         <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
                           Choose a voice preset for this provider. The voice ID is stored with this assistant.
                         </p>
-                      </div>
-                    )}
+                    </div>
 
                     {voiceTtsProvider === "fishaudio" && (
                       <div>
