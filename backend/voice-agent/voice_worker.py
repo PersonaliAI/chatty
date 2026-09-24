@@ -364,7 +364,7 @@ def _google_pipeline_credentials_available() -> bool:
 # strings - google.realtime.RealtimeModel/openai.realtime.RealtimeModel for
 # the actual call, litellm.cost_per_token for _cost_of_realtime_usage below)
 # - check both before assuming a newer model id works, these move fast.
-REALTIME_DEFAULT_MODEL = {"google": "gemini-3.1-flash-live-preview", "openai": "gpt-realtime"}
+REALTIME_DEFAULT_MODEL = {"google": "gemini-2.5-flash-native-audio-preview-12-2025", "openai": "gpt-realtime"}
 REALTIME_DEFAULT_VOICE = {"google": "Puck", "openai": "marin"}
 # litellm.cost_per_token needs an explicit provider for "gemini-*" model ids
 # (it can't infer one the way it can for "gpt-*") - openai's own model ids
