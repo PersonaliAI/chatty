@@ -36,6 +36,13 @@ _commerce_job_queue = (
 )
 
 
+def _allow_ephemeral_jobs() -> bool:
+    """Allow request-process jobs only when explicitly enabled for local dev."""
+    return os.environ.get("CHATTY_ALLOW_EPHEMERAL_JOBS", "false").strip().lower() in {
+        "1", "true", "yes"
+    }
+
+
 async def _start_woocommerce_sync(bot_id: str) -> str:
     """Start a sync durably when the production job queue is configured."""
     if _commerce_job_queue:
@@ -57,6 +64,11 @@ async def _start_woocommerce_sync(bot_id: str) -> str:
                 status_code=503,
                 detail="WooCommerce sync queue is temporarily unavailable; please retry",
             )
+    if not _allow_ephemeral_jobs():
+        raise HTTPException(
+            status_code=503,
+            detail="Durable job queue is required for WooCommerce syncs; configure CHATTY_JOB_QUEUE_URL",
+        )
     asyncio.create_task(woocommerce_service.run_woocommerce_sync_task(bot_id))
     return "background"
 

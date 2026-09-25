@@ -98,6 +98,27 @@ def test_woocommerce_sync_does_not_fall_back_to_ephemeral_task_when_queue_fails(
     create_task.assert_not_called()
 
 
+def test_woocommerce_sync_fails_closed_without_durable_queue(monkeypatch):
+    monkeypatch.delenv("CHATTY_ALLOW_EPHEMERAL_JOBS", raising=False)
+    with patch.object(woocommerce_router, "_commerce_job_queue", None), \
+         patch.object(woocommerce_router.asyncio, "create_task") as create_task:
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(woocommerce_router._start_woocommerce_sync(BOT_ID))
+
+    assert exc_info.value.status_code == 503
+    create_task.assert_not_called()
+
+
+def test_woocommerce_sync_allows_explicit_local_ephemeral_fallback(monkeypatch):
+    monkeypatch.setenv("CHATTY_ALLOW_EPHEMERAL_JOBS", "true")
+    with patch.object(woocommerce_router, "_commerce_job_queue", None), \
+         patch.object(woocommerce_router.asyncio, "create_task", side_effect=lambda coro: coro.close()) as create_task:
+        mode = asyncio.run(woocommerce_router._start_woocommerce_sync(BOT_ID))
+
+    assert mode == "background"
+    create_task.assert_called_once()
+
+
 def test_woocommerce_bulk_sync_keeps_tls_certificate_verification_enabled():
     source = inspect.getsource(woocommerce_router.woocommerce_service.run_woocommerce_sync_task)
     assert "verify=False" not in source
@@ -198,10 +219,19 @@ def test_get_woocommerce_authorize_url_rejects_non_https():
 def test_woocommerce_auth_callback_success():
     state = _generate_auth_state(BOT_ID, STORE_URL)
 
+    class FakeQueue:
+        async def enqueue(self, **kwargs):
+            self.payload = kwargs
+            return "1-0"
+
+    queue = FakeQueue()
+
     with patch("app.routers.woocommerce.run_db", new_callable=AsyncMock) as mock_db, \
          patch("app.routers.woocommerce.woocommerce_service.save_integration", new_callable=AsyncMock) as mock_save, \
+         patch("app.routers.woocommerce.woocommerce_service.get_integration", new_callable=AsyncMock, return_value={"store_url": STORE_URL}), \
          patch("app.routers.woocommerce.woocommerce_service.run_woocommerce_sync_task", new_callable=AsyncMock) as mock_sync, \
-         patch("app.routers.woocommerce.ssrf.assert_safe_url_async", new_callable=AsyncMock):
+         patch("app.routers.woocommerce.ssrf.assert_safe_url_async", new_callable=AsyncMock), \
+         patch.object(woocommerce_router, "_commerce_job_queue", queue):
 
         class MockRes:
             data = [{"id": BOT_ID}]
@@ -227,7 +257,12 @@ def test_woocommerce_auth_callback_success():
             consumer_key="ck_test1234567890",
             consumer_secret="cs_test1234567890",
         )
-        mock_sync.assert_called_once_with(BOT_ID)
+        assert queue.payload == {
+            "name": "woocommerce.sync",
+            "payload": {"bot_id": BOT_ID, "concurrency_key": f"woocommerce:{STORE_URL.lower()}"},
+            "idempotency_key": f"woocommerce.sync:{BOT_ID}",
+        }
+        mock_sync.assert_not_called()
 
 
 def test_woocommerce_auth_callback_invalid_state():

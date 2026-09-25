@@ -84,6 +84,8 @@ jobs for the same merchant store through Redis. Configure
 `CHATTY_WORKER_CONCURRENCY_LOCK_TTL_SECONDS` longer than the maximum expected
 sync duration and `CHATTY_WORKER_CONCURRENCY_LOCK_WAIT_SECONDS` for the bounded
 wait before a busy job is requeued without consuming a retry attempt.
+Production sync requests fail closed when `CHATTY_JOB_QUEUE_URL` is missing.
+Set `CHATTY_ALLOW_EPHEMERAL_JOBS=true` only for local development.
 
 ## Incident response
 
