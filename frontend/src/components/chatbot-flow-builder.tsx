@@ -467,6 +467,8 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   const [validationOpen, setValidationOpen] = useState(false);
   const [testRunning, setTestRunning] = useState(false);
   const [testTrace, setTestTrace] = useState<Array<{ node_id: string; label: string }> | null>(null);
+  const [versions, setVersions] = useState<Array<{ id: string; version: number; status: string; note?: string | null; created_at: string }>>([]);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -607,6 +609,24 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
       }
       setSaveStatus("saving");
       try {
+        // Manual saves create an auditable revision; autosave keeps the
+        // existing draft path lightweight and avoids a revision per keystroke.
+        if (showNotification && fetchDashboardBackend) {
+          const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/versions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              nodes,
+              edges,
+              status: flowStatus === "active" ? "published" : "draft",
+              note: flowStatus === "active" ? "Published from Flow Builder" : "Saved draft from Flow Builder",
+            }),
+          });
+          if (!response.ok) throw new Error(`Flow version save failed (${response.status})`);
+          setSaveStatus("saved");
+          showToast(flowStatus === "active" ? "Flow published and versioned." : "Draft version saved.", "success");
+          return;
+        }
         const flowConfig = { status: flowStatus, nodes, edges };
         let botData: { custom_js?: string | null } | null = null;
         if (SELF_HOST_MODE) {
@@ -655,7 +675,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
         }
       }
     },
-    [botId, nodes, edges, flowStatus, validation.errors.length]
+    [botId, nodes, edges, flowStatus, validation.errors.length, fetchDashboardBackend]
   );
 
   // Debounced Auto-Save Trigger
@@ -740,6 +760,25 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     } finally {
       setTestRunning(false);
     }
+  };
+
+  const loadVersions = async () => {
+    if (!botId || !fetchDashboardBackend) return;
+    const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/versions`);
+    if (response.ok) setVersions(await response.json());
+    setVersionsOpen(true);
+  };
+
+  const rollbackVersion = async (versionId: string) => {
+    if (!botId || !fetchDashboardBackend) return;
+    const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/versions/${versionId}/rollback`, { method: "POST" });
+    if (!response.ok) {
+      showToast("Rollback failed.", "error");
+      return;
+    }
+    showToast("Version rolled back and published.", "success");
+    await loadVersions();
+    window.location.reload();
   };
 
   const generateFlowWithAI = async () => {
@@ -1360,6 +1399,16 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
             {validation.warnings.map((warning) => <p key={warning} className="text-amber-600">• {warning}</p>)}
             {!validation.errors.length && !validation.warnings.length && <p className="text-emerald-600">Ready to save and publish.</p>}
           </div>}
+          {fetchDashboardBackend && <>
+            <button type="button" onClick={loadVersions} className="w-full mt-2 rounded-lg border border-neutral-200 px-3 py-2 text-left text-[10px] font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-850">{versionsOpen ? "Version history" : "View version history"}</button>
+            {versionsOpen && <div className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-lg bg-neutral-50 p-2 dark:bg-neutral-950">
+              {!versions.length && <p className="text-[10px] text-neutral-400">No published revisions yet.</p>}
+              {versions.map((version) => <div key={version.id} className="flex items-center justify-between gap-2 text-[10px]">
+                <span className="truncate text-neutral-600 dark:text-neutral-300">v{version.version} · {version.status}</span>
+                {version.status === "published" && <button type="button" onClick={() => rollbackVersion(version.id)} className="shrink-0 font-semibold text-indigo-600 hover:underline dark:text-indigo-300">Rollback</button>}
+              </div>)}
+            </div>}
+          </>}
         </div>
 
         {/* Industrial Visual Editor Canvas */}

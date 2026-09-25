@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
@@ -23,7 +24,7 @@ from app.schemas.bots import (
     GenerateBusinessRequest,
     VoiceSettingsUpdate,
 )
-from app.schemas.bots_api import CampaignCreateRequest, CampaignSuggestRequest, CampaignUpdateRequest, FlowSimulationRequest
+from app.schemas.bots_api import CampaignCreateRequest, CampaignSuggestRequest, CampaignUpdateRequest, FlowSimulationRequest, FlowVersionCreateRequest
 from plugins import ai_client
 from plugins import llm_providers
 from plugins import notifications as notify
@@ -50,6 +51,71 @@ def _campaign_row(body: CampaignCreateRequest) -> dict[str, Any]:
         "end_date": body.end_date,
         "is_active": body.is_active,
     }
+
+
+def _inject_flow_version(custom_js: str | None, flow: dict[str, Any]) -> str:
+    base = custom_js or ""
+    base = re.sub(r"/\* CHATTY_FLOW_START \*/[\s\S]*?/\* CHATTY_FLOW_END \*/", "", base).strip()
+    base = re.sub(r"/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*/", "", base).strip()
+    return f'{base}\n/* CHATTY_FLOW_DATA\n{json.dumps(flow, indent=2)}\nCHATTY_FLOW_DATA */'.strip()
+
+
+@router.get("/api/bots/{bot_id}/flow/versions")
+async def list_dashboard_flow_versions(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    await verify_bot_permission(bot_id, user, "settings")
+    result = await run_db(lambda: supabase.table("chatty_flow_versions").select(
+        "id, version, status, note, created_by, created_at, published_at"
+    ).eq("bot_id", bot_id).order("version", desc=True).limit(50).execute())
+    return result.data or []
+
+
+@router.post("/api/bots/{bot_id}/flow/versions", status_code=201)
+async def create_dashboard_flow_version(
+    bot_id: str,
+    body: FlowVersionCreateRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await verify_bot_permission(bot_id, user, "settings")
+    if not body.nodes or not any(node.get("id") == "start" for node in body.nodes):
+        raise HTTPException(status_code=422, detail="A flow version must contain a Start node")
+    latest = await run_db(lambda: supabase.table("chatty_flow_versions").select("version").eq(
+        "bot_id", bot_id).order("version", desc=True).limit(1).execute())
+    version = int((latest.data or [{}])[0].get("version") or 0) + 1
+    if body.status == "published":
+        await run_db(lambda: supabase.table("chatty_flow_versions").update({"status": "draft"}).eq(
+            "bot_id", bot_id).eq("status", "published").execute())
+    flow_data = {"status": "active" if body.status == "published" else "paused", "nodes": body.nodes, "edges": body.edges}
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("custom_js").eq("id", bot_id).maybe_single().execute())
+    if body.status == "published":
+        updated = await run_db(lambda: supabase.table("chatty_bots").update({
+            "custom_js": _inject_flow_version((bot.data or {}).get("custom_js"), flow_data)
+        }).eq("id", bot_id).execute())
+        if not updated.data:
+            raise HTTPException(status_code=500, detail="Failed to publish flow")
+    created = await run_db(lambda: supabase.table("chatty_flow_versions").insert({
+        "bot_id": bot_id, "version": version, "status": body.status, "flow_data": flow_data,
+        "note": body.note, "created_by": user["auth_user_id"],
+        "published_at": datetime.now(timezone.utc).isoformat() if body.status == "published" else None,
+    }).execute())
+    if not created.data:
+        raise HTTPException(status_code=500, detail="Failed to create flow version")
+    return created.data[0]
+
+
+@router.post("/api/bots/{bot_id}/flow/versions/{version_id}/rollback")
+async def rollback_dashboard_flow_version(
+    bot_id: str,
+    version_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await verify_bot_permission(bot_id, user, "settings")
+    source = await run_db(lambda: supabase.table("chatty_flow_versions").select("flow_data, version").eq(
+        "id", version_id).eq("bot_id", bot_id).maybe_single().execute())
+    if not source.data:
+        raise HTTPException(status_code=404, detail="Flow version not found")
+    flow_data = source.data.get("flow_data") or {}
+    request = FlowVersionCreateRequest(nodes=flow_data.get("nodes") or [], edges=flow_data.get("edges") or [], status="published", note=f"Rollback of version {source.data.get('version')}")
+    return await create_dashboard_flow_version(bot_id, request, user)
 
 
 @router.post("/api/bots/{bot_id}/flow/simulate")

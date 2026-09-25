@@ -108,6 +108,13 @@ class FlowSimulationRequest(BaseModel):
     inputs: list[str] = Field(default_factory=lambda: ["Hello"])
 
 
+class FlowVersionCreateRequest(BaseModel):
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    edges: list[dict[str, Any]] = Field(default_factory=list)
+    status: str = Field("draft", pattern="^(draft|published)$")
+    note: Optional[str] = Field(None, max_length=500)
+
+
 class CampaignCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     campaign_type: str = Field("chat_bubble", description="chat_bubble, popup_modal, top_banner, slide_in")
