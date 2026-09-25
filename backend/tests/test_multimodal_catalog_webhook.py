@@ -62,7 +62,8 @@ def test_manual_catalog_webhook_rejects_bad_signature_and_updates_by_external_id
             assert bad.status_code == 401
 
         with patch("app.routers.multimodal.run_db", new_callable=AsyncMock) as db, \
-             patch("app.routers.multimodal.decrypt_secret", return_value=SECRET):
+             patch("app.routers.multimodal.decrypt_secret", return_value=SECRET), \
+             patch("app.routers.multimodal.multimodal_service.embed_catalog_item", new_callable=AsyncMock, return_value=[0.1] * 768) as embed:
             db.side_effect = [
                 MagicMock(data=[{"signing_secret": SECRET, "enabled": True}]),
                 MagicMock(data=[{
@@ -83,6 +84,8 @@ def test_manual_catalog_webhook_rejects_bad_signature_and_updates_by_external_id
         assert good.status_code == 200
         assert good.json()["event"] == "updated"
         assert good.json()["item_id"] == "item-1"
+        embed.assert_awaited_once()
+        assert embed.await_args.kwargs["metadata"]["in_stock"] is False
         update_payload = db.call_args_list[-1].args[0] if db.call_args_list else None
         assert update_payload is not None
     finally:

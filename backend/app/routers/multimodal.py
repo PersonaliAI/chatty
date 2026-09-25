@@ -70,16 +70,28 @@ def _catalog_signature(secret: str, raw_body: bytes) -> str:
 
 async def _embedding_for_item(item: dict[str, Any]) -> Optional[list[float]]:
     """Refresh semantic retrieval when searchable product fields change."""
-    parts = [str(item.get("title") or "")]
-    if item.get("description"):
-        parts.append(str(item["description"]))
-    if item.get("sku"):
-        parts.append(f"SKU: {item['sku']}")
-    attrs = item.get("visual_attributes") or {}
-    if attrs:
-        parts.append(", ".join(f"{k}: {v}" for k, v in attrs.items() if v))
-    vector = await multimodal_service.embed_multimodal_text(" | ".join(p for p in parts if p))
+    vector = await multimodal_service.embed_catalog_item(
+        title=str(item.get("title") or ""),
+        description=str(item.get("description") or ""),
+        sku=item.get("sku"),
+        visual_attributes=item.get("visual_attributes") or {},
+        metadata=item.get("metadata") or {},
+    )
     return vector or None
+
+
+def _embedding_metadata_for_item(item: dict[str, Any], *, status: str) -> dict[str, Any]:
+    kwargs = {
+        "title": str(item.get("title") or ""),
+        "description": str(item.get("description") or ""),
+        "sku": item.get("sku"),
+        "visual_attributes": item.get("visual_attributes") or {},
+        "metadata": item.get("metadata") or {},
+    }
+    fingerprint = multimodal_service.catalog_embedding_fingerprint(**kwargs)
+    return multimodal_service.catalog_metadata_with_embedding(
+        item.get("metadata") or {}, fingerprint, status=status
+    )
 
 
 @router.post("/api/bots/{bot_id}/media-webhook")
@@ -158,10 +170,14 @@ async def update_media_item(
         merged = dict((current.data or {}).get("metadata") or {})
         merged.update(updates["metadata"] or {})
         updates["metadata"] = merged
-    if any(k in updates for k in {"title", "description", "sku", "visual_attributes"}):
+    if "metadata" in updates or any(k in updates for k in {"title", "description", "sku", "visual_attributes"}):
         merged_item = dict(current.data or {})
         merged_item.update(updates)
-        updates["embedding"] = await _embedding_for_item(merged_item)
+        vector = await _embedding_for_item(merged_item)
+        updates["embedding"] = vector
+        updates["metadata"] = _embedding_metadata_for_item(
+            merged_item, status="ready" if vector else "stale"
+        )
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     res = await run_db(lambda: supabase.table("chatty_media_items").update(updates).eq("id", item_id).eq("bot_id", bot_id).execute())
     if not res.data:
@@ -428,10 +444,14 @@ async def receive_catalog_webhook(
     if found.data:
         updates = {k: v for k, v in item.items() if k in {"title", "description", "sku", "price", "currency", "url", "media_url", "thumbnail_url", "visual_attributes"} and v is not None}
         updates["metadata"] = metadata
-        if any(k in updates for k in {"title", "description", "sku", "visual_attributes"}):
+        if "metadata" in updates or any(k in updates for k in {"title", "description", "sku", "visual_attributes"}):
             merged_item = dict(existing_item)
             merged_item.update(updates)
-            updates["embedding"] = await _embedding_for_item(merged_item)
+            vector = await _embedding_for_item(merged_item)
+            updates["embedding"] = vector
+            updates["metadata"] = _embedding_metadata_for_item(
+                merged_item, status="ready" if vector else "stale"
+            )
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await run_db(lambda: supabase.table("chatty_media_items").update(updates).eq("id", found.data[0]["id"]).eq("bot_id", bot_id).execute())
         return {"status": "ok", "event": "updated", "external_id": external_id, "item_id": found.data[0]["id"]}
