@@ -40,9 +40,14 @@ async def _start_woocommerce_sync(bot_id: str) -> str:
     """Start a sync durably when the production job queue is configured."""
     if _commerce_job_queue:
         try:
+            integration = await woocommerce_service.get_integration(bot_id)
+            store_url = str((integration or {}).get("store_url") or "").strip().rstrip("/").lower()
             await _commerce_job_queue.enqueue(
                 name="woocommerce.sync",
-                payload={"bot_id": bot_id},
+                payload={
+                    "bot_id": bot_id,
+                    "concurrency_key": f"woocommerce:{store_url}" if store_url else f"woocommerce:bot:{bot_id}",
+                },
                 idempotency_key=f"woocommerce.sync:{bot_id}",
             )
             return "queued"

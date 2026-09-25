@@ -7,10 +7,16 @@ import hashlib
 import inspect
 import json
 import logging
+import time
+import uuid
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Mapping
 
 logger = logging.getLogger("chatty.job_worker")
+
+
+class JobConcurrencyBusy(RuntimeError):
+    """Raised when a distributed job lock is held by another worker."""
 
 JobHandler = Callable[[Mapping[str, Any]], Any | Awaitable[Any]]
 
@@ -46,6 +52,8 @@ class RedisStreamWorker:
         retry_backoff_base_seconds: float = 0.0,
         retry_backoff_cap_seconds: float = 30.0,
         dedupe_ttl_seconds: int = 7 * 24 * 60 * 60,
+        concurrency_lock_ttl_seconds: int = 60 * 60,
+        concurrency_lock_wait_seconds: float = 5.0,
         handlers: Mapping[str, JobHandler] | None = None,
     ) -> None:
         if max_attempts < 1:
@@ -60,6 +68,8 @@ class RedisStreamWorker:
             raise ValueError("retry_backoff_cap_seconds must not be below the base")
         if dedupe_ttl_seconds < 1:
             raise ValueError("dedupe_ttl_seconds must be positive")
+        if concurrency_lock_ttl_seconds < 1 or concurrency_lock_wait_seconds < 0:
+            raise ValueError("invalid concurrency lock settings")
         self.client = client
         self.stream = stream
         self.group = group
@@ -71,6 +81,8 @@ class RedisStreamWorker:
         self.retry_backoff_base_seconds = retry_backoff_base_seconds
         self.retry_backoff_cap_seconds = retry_backoff_cap_seconds
         self.dedupe_ttl_seconds = dedupe_ttl_seconds
+        self.concurrency_lock_ttl_seconds = concurrency_lock_ttl_seconds
+        self.concurrency_lock_wait_seconds = concurrency_lock_wait_seconds
         self.handlers = dict(handlers or {})
 
     def _dedupe_key(self, job: JobEnvelope) -> str:
@@ -90,6 +102,50 @@ class RedisStreamWorker:
         if not callable(setter):
             return
         await setter(self._dedupe_key(job), "1", ex=self.dedupe_ttl_seconds)
+
+    @staticmethod
+    def _concurrency_lock_key(concurrency_key: str) -> str:
+        digest = hashlib.sha256(concurrency_key.encode("utf-8")).hexdigest()
+        return f"chatty:jobs:lock:{digest}"
+
+    async def _acquire_concurrency_lock(self, job: JobEnvelope) -> tuple[str, str] | None:
+        raw_key = str(job.payload.get("concurrency_key") or "").strip()
+        setter = getattr(self.client, "set", None)
+        if not raw_key or not callable(setter):
+            return None
+        lock_key = self._concurrency_lock_key(raw_key)
+        token = uuid.uuid4().hex
+        deadline = time.monotonic() + self.concurrency_lock_wait_seconds
+        while True:
+            acquired = await setter(
+                lock_key,
+                token,
+                nx=True,
+                ex=self.concurrency_lock_ttl_seconds,
+            )
+            if acquired:
+                return lock_key, token
+            if time.monotonic() >= deadline:
+                raise JobConcurrencyBusy(f"concurrency lock is held for {raw_key}")
+            await asyncio.sleep(0.25)
+
+    async def _release_concurrency_lock(self, lock: tuple[str, str] | None) -> None:
+        if not lock:
+            return
+        lock_key, token = lock
+        evaluator = getattr(self.client, "eval", None)
+        if callable(evaluator):
+            await evaluator(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+                1,
+                lock_key,
+                token,
+            )
+            return
+        getter = getattr(self.client, "get", None)
+        deleter = getattr(self.client, "delete", None)
+        if callable(getter) and callable(deleter) and await getter(lock_key) == token:
+            await deleter(lock_key)
 
     async def ensure_group(self) -> None:
         try:
@@ -173,12 +229,16 @@ class RedisStreamWorker:
                         await self.client.xack(self.stream, self.group, stream_id)
                         stats["succeeded"] += 1
                         continue
-                    result = handler(job.payload)
-                    if inspect.isawaitable(result):
-                        await result
-                    await self._mark_succeeded(job)
-                    await self.client.xack(self.stream, self.group, stream_id)
-                    stats["succeeded"] += 1
+                    lock = await self._acquire_concurrency_lock(job)
+                    try:
+                        result = handler(job.payload)
+                        if inspect.isawaitable(result):
+                            await result
+                        await self._mark_succeeded(job)
+                        await self.client.xack(self.stream, self.group, stream_id)
+                        stats["succeeded"] += 1
+                    finally:
+                        await self._release_concurrency_lock(lock)
                 except Exception as exc:  # noqa: BLE001 - worker isolation boundary
                     try:
                         job = self._decode(stream_id, fields)
@@ -206,6 +266,21 @@ class RedisStreamWorker:
                         stats["dead_lettered"] += 1
                         continue
                     try:
+                        if isinstance(exc, JobConcurrencyBusy):
+                            await self.client.xadd(
+                                self.stream,
+                                {
+                                    "name": job.name,
+                                    "payload": json.dumps(dict(job.payload), separators=(",", ":")),
+                                    "idempotency_key": job.idempotency_key,
+                                    "attempts": str(job.attempts),
+                                },
+                                maxlen=100_000,
+                                approximate=True,
+                            )
+                            await self.client.xack(self.stream, self.group, stream_id)
+                            stats["retried"] += 1
+                            continue
                         if job.attempts + 1 < self.max_attempts:
                             retry_delay = min(
                                 self.retry_backoff_cap_seconds,

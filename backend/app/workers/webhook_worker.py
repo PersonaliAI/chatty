@@ -60,6 +60,8 @@ async def run() -> None:
     retry_backoff_base_seconds = float(os.environ.get("CHATTY_WORKER_RETRY_BACKOFF_BASE_SECONDS", "1"))
     retry_backoff_cap_seconds = float(os.environ.get("CHATTY_WORKER_RETRY_BACKOFF_CAP_SECONDS", "30"))
     dedupe_ttl_seconds = int(os.environ.get("CHATTY_WORKER_DEDUPE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
+    concurrency_lock_ttl_seconds = int(os.environ.get("CHATTY_WORKER_CONCURRENCY_LOCK_TTL_SECONDS", str(60 * 60)))
+    concurrency_lock_wait_seconds = float(os.environ.get("CHATTY_WORKER_CONCURRENCY_LOCK_WAIT_SECONDS", "5"))
     client = redis_asyncio.from_url(queue_url, decode_responses=True)
     worker = RedisStreamWorker(
         client,
@@ -72,6 +74,8 @@ async def run() -> None:
         retry_backoff_base_seconds=retry_backoff_base_seconds,
         retry_backoff_cap_seconds=retry_backoff_cap_seconds,
         dedupe_ttl_seconds=dedupe_ttl_seconds,
+        concurrency_lock_ttl_seconds=concurrency_lock_ttl_seconds,
+        concurrency_lock_wait_seconds=concurrency_lock_wait_seconds,
         handlers={
             "webhook.deliver": _deliver,
             "woocommerce.sync": _sync_woocommerce,

@@ -31,7 +31,13 @@ class FakeRedis:
         return self.done.get(key)
 
     async def set(self, key, value, **kwargs):
+        if kwargs.get("nx") and key in self.done:
+            return None
         self.done[key] = value
+        return True
+
+    async def delete(self, key):
+        self.done.pop(key, None)
 
 
 class RecoveringFakeRedis(FakeRedis):
@@ -81,6 +87,20 @@ def test_worker_skips_a_successful_redelivery_using_idempotency_marker():
     assert first["succeeded"] == 1
     assert second["succeeded"] == 1
     assert seen == [{"id": "1"}]
+
+
+def test_worker_releases_distributed_concurrency_lock_after_success():
+    client = FakeRedis([("1-0", {
+        "name": "ok",
+        "payload": json.dumps({"concurrency_key": "woocommerce:https://shop.example"}),
+        "idempotency_key": "event-1",
+    })])
+    worker = RedisStreamWorker(client, handlers={"ok": lambda payload: None})
+
+    stats = asyncio.run(worker.run_once())
+
+    assert stats["succeeded"] == 1
+    assert not [key for key in client.done if key.startswith("chatty:jobs:lock:")]
 
 
 def test_worker_retries_then_dead_letters_poison_job():

@@ -70,13 +70,15 @@ def test_woocommerce_sync_uses_durable_queue_when_configured():
 
     queue = FakeQueue()
     with patch.object(woocommerce_router, "_commerce_job_queue", queue), \
+         patch.object(woocommerce_router.woocommerce_service, "get_integration", new_callable=AsyncMock) as get_integration, \
          patch.object(woocommerce_router.asyncio, "create_task") as create_task:
+        get_integration.return_value = {"store_url": STORE_URL}
         mode = asyncio.run(woocommerce_router._start_woocommerce_sync(BOT_ID))
 
     assert mode == "queued"
     assert queue.calls[0] == {
         "name": "woocommerce.sync",
-        "payload": {"bot_id": BOT_ID},
+        "payload": {"bot_id": BOT_ID, "concurrency_key": f"woocommerce:{STORE_URL.lower()}"},
         "idempotency_key": f"woocommerce.sync:{BOT_ID}",
     }
     create_task.assert_not_called()

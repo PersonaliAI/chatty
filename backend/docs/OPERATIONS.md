@@ -79,6 +79,11 @@ another consumer reclaims it; `CHATTY_WORKER_RECOVER_COUNT` bounds each recovery
 batch so reclaim work cannot starve new deliveries.
 Retryable handler failures use bounded exponential backoff between attempts;
 the base and cap settings prevent an outage from creating a hot retry loop.
+WooCommerce sync jobs include a hashed `concurrency_key`; workers serialize
+jobs for the same merchant store through Redis. Configure
+`CHATTY_WORKER_CONCURRENCY_LOCK_TTL_SECONDS` longer than the maximum expected
+sync duration and `CHATTY_WORKER_CONCURRENCY_LOCK_WAIT_SECONDS` for the bounded
+wait before a busy job is requeued without consuming a retry attempt.
 
 ## Incident response
 
