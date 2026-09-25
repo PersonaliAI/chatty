@@ -2,6 +2,7 @@
 
 import { AudioWaveform, Mic, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { ModernSelect } from "@/components/ui/modern-select";
 
 const TTS_VOICE_OPTIONS: Record<string, { value: string; label: string; hint?: string }[]> = {
@@ -124,6 +125,14 @@ export function VoiceAgentTab({
             Let visitors talk to your bot instead of typing - configure speech recognition, voice
             synthesis, the agent&apos;s call persona, and call safety limits.
           </p>
+          <Link
+            href="https://docs.chatty.personaliai.com/guides/voice-agent"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center text-[11px] font-semibold text-[#f97316] hover:underline"
+          >
+            Open the Voice Agent guide →
+          </Link>
         </div>
 
         <div className="flex items-center gap-3 p-3.5 bg-[#f97316]/5 border border-[#f97316]/20 rounded-2xl text-xs">

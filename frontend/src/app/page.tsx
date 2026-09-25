@@ -7,6 +7,7 @@ import Script from "next/script";
 import { Caprasimo, Figtree } from "next/font/google";
 import {
   ArrowRight,
+  AudioWaveform,
   Zap,
   UserCheck,
   CalendarCheck,
@@ -471,8 +472,9 @@ export default function Home() {
               Start free 14-day trial
               <ArrowRight className="size-[15px]" />
             </Link>
-            <Link href="#features" className="inline-flex items-center rounded-full px-5 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent)" }}>
-              Explore features
+            <Link href="/voice-demo" className="inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent)" }}>
+              <AudioWaveform className="size-4" />
+              Talk to voice agent
             </Link>
           </div>
           <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
@@ -780,8 +782,9 @@ export default function Home() {
               <Link href="/signup" className="rounded-full px-7 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", background: "var(--color-bg)", color: "var(--color-accent-700)" }}>
                 Start free 14-day trial
               </Link>
-              <Link href="#features" className="rounded-full px-6 py-3.5 text-[15px] font-medium border" style={{ fontFamily: "var(--font-heading)", borderColor: "color-mix(in srgb, var(--color-bg) 60%, transparent)", color: "var(--color-bg)" }}>
-                Explore features
+              <Link href="/voice-demo" className="inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-[15px] font-medium border" style={{ fontFamily: "var(--font-heading)", borderColor: "color-mix(in srgb, var(--color-bg) 60%, transparent)", color: "var(--color-bg)" }}>
+                <AudioWaveform className="size-4" />
+                Talk to voice agent
               </Link>
             </div>
           </div>
