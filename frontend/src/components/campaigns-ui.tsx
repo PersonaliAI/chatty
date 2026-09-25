@@ -39,6 +39,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [sequenceText, setSequenceText] = useState("[]");
   const [goal, setGoal] = useState("");
   const [suggesting, setSuggesting] = useState(false);
+  const [suggestingAudience, setSuggestingAudience] = useState(false);
+  const [audienceRationale, setAudienceRationale] = useState("");
 
   const typeOptions: ModernSelectOption[] = [
     { value: "time", label: "Time on page (Seconds)" },
@@ -181,6 +183,24 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       .finally(() => setSuggesting(false));
   };
 
+  const suggestAudience = () => {
+    if (!botId || !goal.trim()) return;
+    setSuggestingAudience(true);
+    setError(null);
+    fetchBackend(`/api/bots/${botId}/campaigns/audience-suggest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: goal.trim(), audience }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("AI audience suggestion failed");
+      const result = await response.json() as { audience_rules?: { segment?: string }; rationale?: string };
+      const segment = result.audience_rules?.segment;
+      if (segment === "all" || segment === "returning" || segment === "high_intent") setAudience(segment);
+      setAudienceRationale(String(result.rationale ?? "").slice(0, 240));
+    }).catch((suggestionError: unknown) => setError(suggestionError instanceof Error ? suggestionError.message : "AI audience suggestion failed."))
+      .finally(() => setSuggestingAudience(false));
+  };
+
   const deleteRule = (id: string) => {
     if (!botId) return;
     setSaving(true);
@@ -215,6 +235,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-orange-800 dark:text-orange-200"><Sparkles className="size-3.5" /> AI campaign copilot</div>
             <input value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="Goal, e.g. convert pricing visitors" className="w-full rounded-lg border border-orange-200 bg-white px-2.5 py-1.5 text-xs focus:outline-none dark:border-orange-900 dark:bg-neutral-950" />
             <button type="button" onClick={suggestCampaign} disabled={!goal.trim() || suggesting} className="w-full rounded-lg border border-orange-200 px-3 py-1.5 text-[11px] font-semibold text-orange-700 disabled:opacity-50 dark:border-orange-900 dark:text-orange-200">{suggesting ? "Thinking…" : "Suggest campaign"}</button>
+            <button type="button" onClick={suggestAudience} disabled={!goal.trim() || suggestingAudience} className="w-full rounded-lg border border-orange-200 px-3 py-1.5 text-[11px] font-semibold text-orange-700 disabled:opacity-50 dark:border-orange-900 dark:text-orange-200">{suggestingAudience ? "Selecting audience…" : "Suggest audience"}</button>
+            {audienceRationale && <p className="text-[10px] leading-relaxed text-orange-800/80 dark:text-orange-200/80">{audienceRationale}</p>}
           </div>
           
           <div className="space-y-3">
