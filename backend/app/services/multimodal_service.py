@@ -366,17 +366,24 @@ async def search_multimodal_catalog(
     # 3. Fallback / Hybrid text search if vector returned few results
     if len(results) < top_k:
         try:
-            tokens = [token for token in re.findall(r"[a-z0-9]+", search_keywords.lower()) if len(token) > 2 and token not in _FALLBACK_STOPWORDS][:8]
+            tokens = [
+                token for token in re.findall(r"[a-z0-9]+", search_keywords.lower())
+                if len(token) > 2 and token not in _FALLBACK_STOPWORDS
+            ][:8]
             q = supabase.table("chatty_media_items").select("*").eq("bot_id", bot_id)
             if media_type:
                 q = q.eq("media_type", media_type)
             if tokens and callable(getattr(q, "or_", None)):
-                filters = ",".join(f"{field}.ilike.%{token}%" for token in tokens for field in ("title", "description", "sku"))
+                filters = ",".join(
+                    f"{field}.ilike.%{token}%"
+                    for token in tokens
+                    for field in ("title", "description", "sku")
+                )
                 q = q.or_(filters)
 
             existing_ids = {r["id"] for r in results if "id" in r}
             res_all = await run_db(lambda: q.limit(100).execute())
-            fallback_candidates = []
+            fallback_candidates: list[tuple[float, dict[str, Any]]] = []
             for item in (res_all.data or []):
                 if item["id"] in existing_ids:
                     continue
