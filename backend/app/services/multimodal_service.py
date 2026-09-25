@@ -301,6 +301,7 @@ def format_multimodal_context_for_prompt(
             meta = item.get("metadata") or {}
             in_stock = meta.get("in_stock", True)
             sizes = meta.get("sizes") or []
+            variations = meta.get("variations") or []
 
             lines.append(f"[{idx}] {title}")
             lines.append(f"    • Type: {m_type}")
@@ -310,6 +311,23 @@ def format_multimodal_context_for_prompt(
             lines.append(f"    • Availability: {'In Stock' if in_stock else 'Out of Stock'}")
             if sizes:
                 lines.append(f"    • Available Sizes: {', '.join(sizes)}")
+            if variations:
+                lines.append("    • Concrete variants:")
+                for variant in variations[:20]:
+                    attrs = variant.get("attributes") or []
+                    attr_text = ", ".join(
+                        f"{a.get('name')}: {a.get('option')}"
+                        for a in attrs if isinstance(a, dict) and a.get("option")
+                    )
+                    variant_price = variant.get("sale_price") or variant.get("price")
+                    variant_stock = variant.get("in_stock", variant.get("stock_status") == "instock")
+                    variant_id = variant.get("id") or "N/A"
+                    variant_sku = variant.get("sku") or "N/A"
+                    lines.append(
+                        f"      - id={variant_id}; sku={variant_sku}; "
+                        f"attributes={attr_text or 'N/A'}; price={variant_price if variant_price is not None else 'N/A'}; "
+                        f"in_stock={bool(variant_stock)}; url={variant.get('url') or url}"
+                    )
             if url:
                 lines.append(f"    • Product Link: {url}")
             if img:
@@ -323,8 +341,9 @@ def format_multimodal_context_for_prompt(
         lines.append("1. Answer the visitor warmly and directly based on whether the matching product is available.")
         lines.append("2. Include pricing, size/variant details, and direct links.")
         lines.append("3. Whenever recommending or answering about a specific catalog product, append a structured card token:")
-        lines.append('   [PRODUCT_CARD:{"id": "...", "title": "...", "price": "...", "currency": "...", "url": "...", "image_url": "...", "in_stock": true}]')
-        lines.append("4. If a video demonstration or clip is relevant, append:")
+        lines.append('   [PRODUCT_CARD:{"id": "...", "variant_id": "...", "variant_sku": "...", "title": "...", "price": "...", "currency": "...", "url": "...", "image_url": "...", "in_stock": true}]')
+        lines.append("5. For variable products, select a concrete in-stock variant matching the visitor's requested attributes; use that variant's id, SKU, price, availability, and URL in PRODUCT_CARD. Never present the parent price as a confirmed variant price.")
+        lines.append("6. If a video demonstration or clip is relevant, append:")
         lines.append('   [VIDEO_CLIP:{"title": "...", "video_url": "...", "timestamp": 12, "thumbnail_url": "..."}]')
     else:
         lines.append("No exact matching products found in the catalog for this visual query.")

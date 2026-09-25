@@ -244,6 +244,7 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
     variations = []
     for variation in product.get("variations") or []:
         if isinstance(variation, dict):
+            variation_attributes = variation.get("attributes") or []
             variations.append({
                 "id": variation.get("id"),
                 "sku": variation.get("sku") or None,
@@ -251,7 +252,10 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
                 "regular_price": _number(variation.get("regular_price")),
                 "sale_price": _number(variation.get("sale_price")),
                 "stock_status": variation.get("stock_status"),
-                "attributes": variation.get("attributes") or [],
+                "in_stock": variation.get("stock_status") == "instock",
+                "stock_quantity": variation.get("stock_quantity"),
+                "attributes": variation_attributes,
+                "url": variation.get("permalink") or None,
             })
 
     metadata = {
@@ -267,6 +271,7 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
         "sale_price": sale_price,
         "on_sale": bool(product.get("on_sale")) or sale_price is not None,
         "variations": variations,
+        "has_variants": bool(variations),
         "attributes": product.get("attributes") or [],
         "shipping_required": product.get("virtual") is not True,
     }
