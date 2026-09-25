@@ -4931,7 +4931,7 @@ export default function Dashboard() {
 
           {/* TAB: CAMPAIGNS */}
           {activeTab === "campaigns" && (
-            <CampaignsUI botId={botId} color={primaryColor} />
+            <CampaignsUI botId={botId} color={primaryColor} fetchBackend={fetchWithFallback} />
           )}
         </div>
       </main>

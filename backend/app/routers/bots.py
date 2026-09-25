@@ -22,6 +22,7 @@ from app.schemas.bots import (
     GenerateBusinessRequest,
     VoiceSettingsUpdate,
 )
+from app.schemas.bots_api import CampaignCreateRequest, CampaignUpdateRequest
 from plugins import ai_client
 from plugins import llm_providers
 from plugins import notifications as notify
@@ -32,6 +33,83 @@ import json
 logger = logging.getLogger("chatty")
 
 router = APIRouter()
+
+
+def _campaign_row(body: CampaignCreateRequest) -> dict[str, Any]:
+    """Map the dashboard/API model to the canonical campaign table columns."""
+    return {
+        "name": body.name,
+        "type": body.campaign_type,
+        "message": body.message_content,
+        "url_patterns": body.url_patterns,
+        "trigger_type": body.trigger_type,
+        "trigger_value": body.trigger_value,
+        "target_devices": body.target_devices,
+        "start_date": body.start_date,
+        "end_date": body.end_date,
+        "is_active": body.is_active,
+    }
+
+
+@router.get("/api/bots/{bot_id}/campaigns")
+async def list_dashboard_campaigns(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """List persisted campaigns for the dashboard (not browser localStorage)."""
+    await verify_bot_permission(bot_id, user, "settings")
+    result = await run_db(lambda: supabase.table("chatty_campaigns").select("*").eq(
+        "bot_id", bot_id).order("created_at", desc=True).execute())
+    return result.data or []
+
+
+@router.post("/api/bots/{bot_id}/campaigns", status_code=201)
+async def create_dashboard_campaign(
+    bot_id: str,
+    body: CampaignCreateRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await verify_bot_permission(bot_id, user, "settings")
+    result = await run_db(lambda: supabase.table("chatty_campaigns").insert({
+        "bot_id": bot_id, **_campaign_row(body)
+    }).execute())
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to create campaign")
+    return result.data[0]
+
+
+@router.patch("/api/bots/{bot_id}/campaigns/{campaign_id}")
+async def update_dashboard_campaign(
+    bot_id: str,
+    campaign_id: str,
+    body: CampaignUpdateRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await verify_bot_permission(bot_id, user, "settings")
+    column_map = {"campaign_type": "type", "message_content": "message"}
+    updates = {
+        column_map.get(key, key): value
+        for key, value in body.model_dump(exclude_unset=True).items()
+        if value is not None
+    }
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    result = await run_db(lambda: supabase.table("chatty_campaigns").update(updates).eq(
+        "id", campaign_id).eq("bot_id", bot_id).execute())
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return result.data[0]
+
+
+@router.delete("/api/bots/{bot_id}/campaigns/{campaign_id}")
+async def delete_dashboard_campaign(
+    bot_id: str,
+    campaign_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await verify_bot_permission(bot_id, user, "settings")
+    result = await run_db(lambda: supabase.table("chatty_campaigns").delete().eq(
+        "id", campaign_id).eq("bot_id", bot_id).execute())
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return {"deleted": True, "campaign_id": campaign_id}
 
 
 def _dashboard_bot_columns() -> str:

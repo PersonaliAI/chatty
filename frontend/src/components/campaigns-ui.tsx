@@ -14,10 +14,14 @@ interface TriggerRule {
 interface Props {
   botId: string | null;
   color?: string;
+  fetchBackend: (path: string, options?: RequestInit) => Promise<Response>;
 }
 
-export function CampaignsUI({ botId, color = "#f97316" }: Props) {
+export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [rules, setRules] = useState<TriggerRule[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [type, setType] = useState<"time" | "scroll" | "exit" | "url">("time");
   const [value, setValue] = useState("");
   const [message, setMessage] = useState("");
@@ -29,39 +33,40 @@ export function CampaignsUI({ botId, color = "#f97316" }: Props) {
     { value: "url", label: "URL Match (Path/Regexp)" },
   ];
 
-  // Hydrate rules from localStorage once botId is known - a one-time
-  // default-hydration effect reading from a browser-only API, not
-  // something computable at render time.
   useEffect(() => {
     if (!botId) return;
-    try {
-      const saved = localStorage.getItem(`chatty_campaigns_${botId}`);
-      if (saved) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setRules(JSON.parse(saved));
-      } else {
-        // Default onboarding rule
-        setRules([
-          {
-            id: "default-1",
-            type: "time",
-            value: "5",
-            message: "👋 Hi there! Need help choosing a plan?"
-          }
-        ]);
-      }
-    } catch {}
-  }, [botId]);
-
-  const onSave = (newRules: TriggerRule[]) => {
-    if (!botId) return;
-    setRules(newRules);
-    try {
-      localStorage.setItem(`chatty_campaigns_${botId}`, JSON.stringify(newRules));
-      // Trigger update to database rules so it maps to the widget.js triggers
-      localStorage.setItem(`chatty_session_trigger_rules_${botId}`, JSON.stringify(newRules));
-    } catch {}
-  };
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchBackend(`/api/bots/${botId}/campaigns`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Campaigns could not be loaded (${response.status})`);
+        const rows = await response.json() as Array<Record<string, unknown>>;
+        if (!cancelled) {
+          setRules(rows.map((row) => ({
+            id: String(row.id),
+            type: String(row.trigger_type ?? "time_on_page") === "scroll_percentage" ? "scroll"
+              : String(row.trigger_type ?? "time_on_page") === "exit_intent" ? "exit"
+              : String(row.trigger_type ?? "time_on_page") === "url_match" ? "url" : "time",
+            value: String(row.trigger_type ?? "") === "url_match"
+              ? String((row.url_patterns as string[] | undefined)?.[0] ?? "")
+              : String(row.trigger_value ?? ""),
+            message: String(row.message ?? ""),
+          })));
+        }
+      })
+      .catch(() => {
+        // Keep old browser rules readable during rollout, but all new writes go
+        // to the authenticated API so campaigns work across devices.
+        try {
+          const saved = botId ? localStorage.getItem(`chatty_campaigns_${botId}`) : null;
+          if (!cancelled && saved) setRules(JSON.parse(saved));
+        } catch { /* ignore corrupt legacy state */ }
+        if (!cancelled) setError("Campaign service is unavailable; showing local rules.");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [botId, fetchBackend]);
 
   const addRule = () => {
     if (!message.trim()) return;
@@ -71,15 +76,43 @@ export function CampaignsUI({ botId, color = "#f97316" }: Props) {
       value: type === "exit" ? "" : value.trim() || "10",
       message: message.trim(),
     };
-    const updated = [...rules, newRule];
-    onSave(updated);
-    setValue("");
-    setMessage("");
+    if (!botId) return;
+    setSaving(true);
+    setError(null);
+    const triggerType = type === "time" ? "time_on_page" : type === "scroll" ? "scroll_percentage" : "exit_intent";
+    fetchBackend(`/api/bots/${botId}/campaigns`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `${type} campaign`,
+        campaign_type: "chat_bubble",
+        message_content: newRule.message,
+        url_patterns: type === "url" ? [newRule.value] : ["*"],
+        trigger_type: type === "url" ? "url_match" : triggerType,
+        trigger_value: type === "url" ? 0 : Number(newRule.value) || 0,
+        target_devices: ["desktop", "mobile"],
+        is_active: true,
+      }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(`Campaign could not be saved (${response.status})`);
+      const row = await response.json() as Record<string, unknown>;
+      setRules((current) => [{ ...newRule, id: String(row.id) }, ...current]);
+      setValue("");
+      setMessage("");
+    }).catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : "Campaign could not be saved."))
+      .finally(() => setSaving(false));
   };
 
   const deleteRule = (id: string) => {
-    const updated = rules.filter((r) => r.id !== id);
-    onSave(updated);
+    if (!botId) return;
+    setSaving(true);
+    fetchBackend(`/api/bots/${botId}/campaigns/${id}`, { method: "DELETE" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Campaign could not be deleted (${response.status})`);
+        setRules((current) => current.filter((r) => r.id !== id));
+      })
+      .catch((deleteError: unknown) => setError(deleteError instanceof Error ? deleteError.message : "Campaign could not be deleted."))
+      .finally(() => setSaving(false));
   };
 
   return (
@@ -94,6 +127,7 @@ export function CampaignsUI({ botId, color = "#f97316" }: Props) {
           </p>
         </div>
       </div>
+      {error && <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">{error}</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Creator form */}
@@ -137,19 +171,20 @@ export function CampaignsUI({ botId, color = "#f97316" }: Props) {
             </div>
           </div>
 
-          <button
+            <button
             onClick={addRule}
-            disabled={!message.trim()}
+            disabled={!message.trim() || saving || loading}
             className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white rounded-xl cursor-pointer disabled:opacity-40"
             style={{ background: color }}
           >
-            <Plus className="size-4" /> Add Campaign Rule
+            <Plus className="size-4" /> {saving ? "Saving…" : "Add Campaign Rule"}
           </button>
         </div>
 
         {/* Existing campaigns list */}
         <div className="md:col-span-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4">
           <h5 className="text-xs font-bold text-neutral-850">Active Campaigns ({rules.length})</h5>
+          {loading && <p className="text-[11px] text-neutral-400">Loading persisted campaigns…</p>}
           
           <div className="space-y-3 divide-y divide-neutral-100 dark:divide-neutral-850">
             {rules.length === 0 ? (
