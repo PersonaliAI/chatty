@@ -1,3 +1,15 @@
 [submodule "integrations/wordpress/chatty-wordpress-plugin"]
 	path = integrations/wordpress/chatty-wordpress-plugin
 	url = https://github.com/PersonaliAI/chatty-wordpress-plugin.git
+[submodule "sdks/ios"]
+	path = sdks/ios
+	url = https://github.com/PersonaliAI/chatty-ios-sdk.git
+[submodule "sdks/android"]
+	path = sdks/android
+	url = https://github.com/PersonaliAI/chatty-android-sdk.git
+[submodule "sdks/react-native"]
+	path = sdks/react-native
+	url = https://github.com/PersonaliAI/chatty-react-native-sdk.git
+[submodule "sdks/flutter"]
+	path = sdks/flutter
+	url = https://github.com/PersonaliAI/chatty-flutter-sdk.git
