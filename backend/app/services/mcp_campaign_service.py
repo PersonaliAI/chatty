@@ -89,18 +89,29 @@ async def delete_campaign(principal: dict[str, Any], bot_id: str, campaign_id: s
 async def get_campaign_analytics(principal: dict[str, Any], bot_id: str, campaign_id: str) -> dict[str, Any]:
     await _oauth.require_bot_access(principal, bot_id)
     res = await run_db(lambda: supabase.table("chatty_campaigns").select(
-        "id, impressions, clicks, conversions").eq("id", campaign_id).eq("bot_id", bot_id).execute())
+        "id, name, impressions, clicks, conversions").eq("id", campaign_id).eq("bot_id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    row = res.data[0]
-    impressions, clicks, conversions = row.get("impressions", 0), row.get("clicks", 0), row.get("conversions", 0)
+    events = await run_db(lambda: supabase.table("chatty_campaign_events").select(
+        "event_type").eq("campaign_id", campaign_id).eq("bot_id", bot_id).limit(10000).execute())
+    counts = {kind: 0 for kind in ("impression", "click", "conversion")}
+    for event in events.data or []:
+        if event.get("event_type") in counts:
+            counts[event["event_type"]] += 1
+    # Preserve compatibility with installations that have not started emitting
+    # the ledger yet; legacy snapshots remain a safe read-only fallback.
+    if not any(counts.values()):
+        row = res.data[0]
+        counts = {"impression": int(row.get("impressions") or 0), "click": int(row.get("clicks") or 0), "conversion": int(row.get("conversions") or 0)}
+    impressions, clicks, conversions = counts["impression"], counts["click"], counts["conversion"]
     return {
         "campaign_id": campaign_id,
         "bot_id": bot_id,
+        "name": res.data[0].get("name"),
         "impressions": impressions,
         "clicks": clicks,
         "conversions": conversions,
         "ctr_percent": round(clicks / impressions * 100, 2) if impressions else None,
         "conversion_rate_percent": round(conversions / clicks * 100, 2) if clicks else None,
-        "note": "Tracking pipeline not wired up yet - these are real, persisted counters, currently 0 until widget-side impression/click/conversion reporting is built.",
+        "sample_size": len(events.data or []),
     }
