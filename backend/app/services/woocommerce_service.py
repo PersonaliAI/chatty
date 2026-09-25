@@ -455,6 +455,7 @@ async def _update_sync_progress(
     synced: int,
     total: int,
     error: Optional[str] = None,
+    next_page: Optional[int] = None,
 ):
     """Update progress tracking columns in chatty_woocommerce_integrations."""
     fields: dict[str, Any] = {
@@ -466,9 +467,13 @@ async def _update_sync_progress(
     }
     if error is not None:
         fields["last_error"] = error
+    if next_page is not None:
+        fields["sync_page"] = max(1, int(next_page))
+        fields["sync_checkpoint_at"] = datetime.now(timezone.utc).isoformat()
     if status == "synced":
         fields["last_synced_at"] = datetime.now(timezone.utc).isoformat()
         fields["last_error"] = None
+        fields["sync_page"] = 1
 
     try:
         await run_db(
@@ -495,11 +500,21 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
     api_url = f"{_normalize_store_url(store_url)}/wp-json/wc/v3/products"
     timeout = httpx.Timeout(30.0, connect=15.0)
 
-    await _update_sync_progress(bot_id, status="syncing", progress=5, synced=0, total=0)
+    prior_status = str(integration.get("sync_status") or "idle")
+    stored_page = int(integration.get("sync_page") or 1)
+    can_resume = prior_status in {"syncing", "failed"} and stored_page >= 1
+    page = stored_page if can_resume else 1
+    synced_count = int(integration.get("synced_products") or 0) if can_resume else 0
+    total_count = int(integration.get("total_products") or 0) if can_resume else 0
+    await _update_sync_progress(
+        bot_id,
+        status="syncing",
+        progress=max(5, int((synced_count / max(total_count, 1)) * 95)) if can_resume else 5,
+        synced=synced_count,
+        total=total_count,
+        next_page=page,
+    )
 
-    synced_count = 0
-    total_count = 0
-    page = 1
     per_page = 100
 
     try:
@@ -527,6 +542,7 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                         synced=synced_count,
                         total=total_count,
                         error=err,
+                        next_page=page,
                     )
                     return {"success": False, "error": err}
 
@@ -622,6 +638,20 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                             total=total_count or synced_count,
                         )
 
+                # Advance the durable checkpoint only after every product on
+                # this page has been upserted. A crash before this write makes
+                # the retry replay one page, which is safe because imports are
+                # keyed by the WooCommerce product id.
+                next_page = page + 1
+                await _update_sync_progress(
+                    bot_id,
+                    status="syncing",
+                    progress=int((synced_count / max(total_count or 1, synced_count)) * 95),
+                    synced=synced_count,
+                    total=total_count or synced_count,
+                    next_page=next_page,
+                )
+
                 # Check if last page
                 total_pages_hdr = resp.headers.get("x-wp-totalpages")
                 if total_pages_hdr:
@@ -660,6 +690,7 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
             synced=synced_count,
             total=total_count,
             error=str(exc),
+            next_page=page,
         )
         return {"success": False, "error": str(exc)}
 

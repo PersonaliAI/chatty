@@ -4,6 +4,35 @@ from types import SimpleNamespace
 import asyncio
 
 
+def test_sync_progress_persists_next_page_checkpoint(monkeypatch):
+    captured = []
+
+    class Table:
+        def update(self, fields):
+            captured.append(fields)
+            return self
+
+        def eq(self, *args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    async def fake_run_db(callback):
+        return callback()
+
+    monkeypatch.setattr(woocommerce_service, "run_db", fake_run_db)
+    monkeypatch.setattr(woocommerce_service, "supabase", SimpleNamespace(table=lambda _: Table()))
+
+    asyncio.run(woocommerce_service._update_sync_progress(
+        "bot-1", status="syncing", progress=47, synced=100, total=250, next_page=3
+    ))
+
+    assert captured[0]["sync_page"] == 3
+    assert captured[0]["synced_products"] == 100
+    assert captured[0]["sync_checkpoint_at"]
+
+
 def test_variable_product_normalizes_sellable_variant_facts():
     mapped = woocommerce_service._map_wc_product({
         "id": 42,
