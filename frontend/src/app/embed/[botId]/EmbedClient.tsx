@@ -97,7 +97,6 @@ function parseProductCards(content: string): { cleanContent: string; products: P
       }
 
       if (end < 0 || source[end + 1] !== "]") {
-        // Keep malformed markers visible instead of dropping user/model text.
         text += source.slice(cursor, jsonStart + 1);
         cursor = jsonStart + 1;
         continue;
@@ -109,8 +108,7 @@ function parseProductCards(content: string): { cleanContent: string; products: P
           items.push(parsed as T);
           parsedOk = true;
         }
-      } catch {
-      }
+      } catch {}
       text += source.slice(cursor, markerStart);
       if (!parsedOk) text += source.slice(markerStart, end + 2);
       cursor = end + 2;
@@ -181,7 +179,6 @@ export interface VisitorConversationItem {
   sessionId: string;
   lastSnippet: string;
   lastSender: "user" | "assistant";
-  /** Channel of the most recent turn, shown in the history list. */
   lastChannel?: "voice" | "text";
   updatedAt: string;
   messageCount: number;
@@ -538,8 +535,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [chatView, setChatView] = useState<"chat" | "list">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // Avoid rendering the temporary greeting on top of the same greeting that
-  // was restored from this visitor's persisted conversation.
+  // The thread renderer owns persisted welcome messages.  Keep the inline
+  // welcome placeholder only while the session is still empty; otherwise a
+  // restored session would show the same greeting twice (once from the
+  // placeholder and once from local history).
   const showInlineWelcome = useMemo(
     () => shouldRenderInlineWelcome(messages, welcomeMsg),
     [messages, welcomeMsg],
@@ -1350,6 +1349,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       sessionId: freshId,
       lastSnippet: welcomeMsg.slice(0, 100),
       lastSender: "assistant",
+      lastChannel: "text",
       updatedAt: new Date().toISOString(),
       messageCount: 1,
     };
@@ -2439,9 +2439,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                 } else if (activeArticle) {
                   setActiveArticle(null);
                 } else if (tab === "messages" && chatView === "chat") {
-                  // A thread's back button is a history affordance.  Returning
-                  // to Home loses the visitor's conversation context and made
-                  // the arrow appear to do nothing when the list was hidden.
+                  // A thread's back affordance returns to the conversation
+                  // history instead of silently leaving the messages surface.
                   setChatView("list");
                 } else if (tab === "messages" && chatView === "list") {
                   setTab("home");
@@ -2574,9 +2573,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
             visitorTimezone={visitorTimezone}
             primaryColor={primaryColor}
             onClose={() => {
-              // Keep the existing thread mounted when leaving voice mode. The
-              // voice turn is persisted by the worker and merged below, so the
-              // visitor returns to the same history instead of a blank view.
               setVoiceCallOpen(false);
               setChatView("chat");
               setTab("messages");
@@ -3126,7 +3122,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                         )}
                         <div className={`space-y-1 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col ${hasBooking ? "w-full min-w-0" : ""}`}>
                           {msg.role === "assistant" && showSenderTag && (
-                          <span className="text-[10px] text-neutral-400 font-medium px-1 flex items-center gap-1">
+                            <span className="text-[10px] text-neutral-400 font-medium px-1 flex items-center gap-1">
                               {(msg.sender === "human" || (liveAgent && !msg.sender)) ? (
                                 <>
                                   <User className="size-2.5 text-blue-500" />
@@ -3570,9 +3566,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           <form onSubmit={async (e) => {
               e.preventDefault();
               if (pendingFiles.length > 0) {
-                // Snapshot and clear the composer before the first network
-                // request. Keeping the preview in state while the assistant
-                // responds makes it look like the attachment is still queued.
                 const filesToSend = pendingFiles;
                 const caption = inputValue.trim();
                 setPendingFiles([]);
@@ -3673,7 +3666,10 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
               <div className="flex items-center gap-0.5">
                 <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
                 <motion.button ref={attachButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4" /></motion.button>
-                <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio">
+                {voiceEnabled && (
+                  <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => setVoiceCallOpen(true)} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Start voice call" title="Talk to the assistant"><AudioWaveform className="size-4" /></motion.button>
+                )}
+                <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
               </div>

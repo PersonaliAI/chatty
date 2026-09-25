@@ -37,6 +37,78 @@ Add a single `<script>` tag before `</body>` on any website:
 
 The script mounts directly into an isolated **Shadow DOM** container, rendering native vector DOM elements - zero iframes, 100% sharp text at all zoom levels.
 
+## Architecture
+
+The frontend and API are portable containers. Supabase remains the managed
+system of record, while LiveKit can run in the cloud or on infrastructure you
+operate yourself.
+
+```mermaid
+flowchart TB
+    classDef actor fill:#f8fafc,stroke:#64748b,color:#0f172a
+    classDef edge fill:#eff6ff,stroke:#2563eb,color:#1e3a8a
+    classDef app fill:#ecfdf5,stroke:#059669,color:#064e3b
+    classDef data fill:#f0fdfa,stroke:#0f766e,color:#134e4a
+    classDef integration fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+    classDef deploy fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
+
+    subgraph clients["Clients and channels"]
+        direction LR
+        visitor(("Website visitor")):::actor
+        operator(("Workspace operator")):::actor
+        channels["WhatsApp · Slack · MCP"]:::actor
+    end
+    subgraph edge["Public edge"]
+        direction LR
+        tls["TLS · domains · rate limits"]:::edge
+        web["Next.js frontend"]:::app
+    end
+    subgraph runtime["Chatty runtime"]
+        direction LR
+        api["FastAPI API · chat · RAG · webhooks"]:::app
+        voice["Voice worker · LiveKit Agents"]:::app
+    end
+    subgraph data["Managed Supabase — default profile"]
+        direction LR
+        auth["Supabase Auth"]:::data
+        postgres["Postgres + pgvector · RLS"]:::data
+        storage["Supabase Storage"]:::data
+        realtime["Supabase Realtime"]:::data
+    end
+    subgraph integrations["Optional integrations"]
+        direction TB
+        llm["LLM providers"]:::integration
+        calendar["Calendar providers"]:::integration
+        channelsApi["WhatsApp / Slack"]:::integration
+        livekit["LiveKit Cloud or self-hosted"]:::integration
+        billing["Billing + webhooks"]:::integration
+    end
+    subgraph deploy["Deployment targets"]
+        direction LR
+        docker["Docker Compose / VPS"]:::deploy
+        railway["Railway"]:::deploy
+        render["Render Blueprint"]:::deploy
+        heroku["Heroku-style host"]:::deploy
+    end
+
+    visitor --> tls
+    operator --> web
+    channels --> api
+    tls --> web
+    web -->|HTTPS| api
+    api --> voice
+    api --> auth
+    api --> postgres
+    api --> storage
+    api --> realtime
+    api --> llm
+    api --> calendar
+    api --> channelsApi
+    voice --> livekit
+    api --> billing
+    deploy -. runs .-> runtime
+```
+
 ### Next.js / React
 
 ```tsx
@@ -55,6 +127,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 ```
+
+## Embed the standalone voice agent
+
+Chatty also provides a dedicated voice-call surface for websites that want a
+“Talk to voice agent” experience instead of opening the chat drawer. It has an
+animated speaking orb, real microphone activity, live visitor/agent
+transcription, mute and hang-up controls, and booking support.
+
+```html
+<iframe
+  src="https://chatty.personaliai.com/voice/YOUR_BOT_UUID"
+  title="Talk to our voice agent"
+  width="100%"
+  height="760"
+  style="border:0;border-radius:24px;overflow:hidden"
+  allow="microphone"
+></iframe>
+```
+
+Add the parent site to the bot allow list before publishing. Keep
+`allow="microphone"` on the iframe; the visitor will be asked for permission
+when the call starts. You can also link a custom button directly to
+`/voice/YOUR_BOT_UUID` or open that URL in a modal.
 
 ## Local Development
 

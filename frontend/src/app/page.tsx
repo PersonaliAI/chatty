@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Script from "next/script";
 import { Caprasimo, Figtree } from "next/font/google";
 import {
   ArrowRight,
-  AudioWaveform,
   Zap,
   UserCheck,
   CalendarCheck,
@@ -15,9 +14,12 @@ import {
   X,
   BookOpen,
   ChevronDown,
+  AudioWaveform,
   type LucideIcon,
 } from "lucide-react";
 import { captureAffiliateReferral } from "@/lib/affiliate-referral";
+import VoiceCallWidget from "@/components/voice-call-widget";
+import { BACKEND_URL } from "@/lib/backend-client";
 
 const caprasimo = Caprasimo({ weight: "400", subsets: ["latin"], variable: "--font-heading", display: "swap" });
 const figtree = Figtree({ weight: ["400", "600", "700"], subsets: ["latin"], variable: "--font-body", display: "swap" });
@@ -295,6 +297,19 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMcpInstallTab, setActiveMcpInstallTab] = useState<McpInstallTab>("plugin");
   const [activeAnnouncement, setActiveAnnouncement] = useState(0);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceCallKey, setVoiceCallKey] = useState(0);
+  const voiceBotId = "ad32f373-7694-43f4-9465-f8d65ce291e3";
+  const voiceSessionId = useMemo(() => {
+    const suffix = typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+    return `voice-home-${voiceCallKey}-${suffix}`;
+  }, [voiceCallKey]);
+  const openVoiceAgent = () => {
+    setVoiceCallKey((value) => value + 1);
+    setVoiceOpen(true);
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -472,10 +487,10 @@ export default function Home() {
               Start free 14-day trial
               <ArrowRight className="size-[15px]" />
             </Link>
-            <Link href="/voice-demo" className="inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent)" }}>
-              <AudioWaveform className="size-4" />
+            <button type="button" onClick={openVoiceAgent} aria-haspopup="dialog" className="inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-[15px] font-medium cursor-pointer" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent)" }}>
               Talk to voice agent
-            </Link>
+              <AudioWaveform className="size-4" />
+            </button>
           </div>
           <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
         </section>
@@ -782,14 +797,51 @@ export default function Home() {
               <Link href="/signup" className="rounded-full px-7 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", background: "var(--color-bg)", color: "var(--color-accent-700)" }}>
                 Start free 14-day trial
               </Link>
-              <Link href="/voice-demo" className="inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-[15px] font-medium border" style={{ fontFamily: "var(--font-heading)", borderColor: "color-mix(in srgb, var(--color-bg) 60%, transparent)", color: "var(--color-bg)" }}>
-                <AudioWaveform className="size-4" />
+              <button type="button" onClick={openVoiceAgent} aria-haspopup="dialog" className="inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-[15px] font-medium border cursor-pointer" style={{ fontFamily: "var(--font-heading)", borderColor: "color-mix(in srgb, var(--color-bg) 60%, transparent)", color: "var(--color-bg)" }}>
                 Talk to voice agent
-              </Link>
+                <AudioWaveform className="size-4" />
+              </button>
             </div>
           </div>
         </section>
       </div>
+
+      {voiceOpen && (
+        <>
+          <div
+            aria-hidden="true"
+            onClick={() => setVoiceOpen(false)}
+            className="fixed inset-0 z-[2147483646] bg-slate-950/40 backdrop-blur-md"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Chatty voice assistant"
+            onClick={(event) => event.stopPropagation()}
+            className="fixed left-1/2 top-1/2 z-[2147483647] flex h-[min(760px,calc(100vh-48px))] max-h-[calc(100vh-48px)] w-[min(860px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[30px] border border-white/30 bg-white shadow-[0_30px_120px_rgba(0,0,0,.42)]"
+          >
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-black/10 bg-white px-5 text-neutral-900">
+              <div className="flex items-center gap-2.5">
+                <span className="grid size-8 place-items-center rounded-full bg-[#c67139]/10 text-[#c67139]"><AudioWaveform className="size-4" /></span>
+                <div><p className="text-sm font-semibold">Chatty voice agent</p><p className="text-[10px] text-neutral-500">Live conversation, transcription, and booking</p></div>
+              </div>
+              <button type="button" onClick={() => setVoiceOpen(false)} aria-label="Close voice agent" className="grid size-9 place-items-center rounded-xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"><X className="size-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <VoiceCallWidget
+                key={voiceCallKey}
+                botId={voiceBotId}
+                sessionId={voiceSessionId}
+                backendUrl={BACKEND_URL}
+                originToken={null}
+                visitorTimezone={typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"}
+                primaryColor="#c67139"
+                onClose={() => setVoiceOpen(false)}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Footer */}
       <footer className="max-w-[1200px] mx-auto px-5 sm:px-9 pb-10 sm:pb-12">

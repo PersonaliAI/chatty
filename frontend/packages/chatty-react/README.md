@@ -76,6 +76,22 @@ events using `window.Chatty.openVoice()` or the `openVoice()` hook above. It
 does not replace or interrupt the normal chat drawer, so you can place your
 own branded voice button wherever it fits your site.
 
+For a dedicated, full-page voice experience, embed the standalone voice route
+instead of the chat widget:
+
+```tsx
+<iframe
+  src="https://chatty.personaliai.com/voice/YOUR_BOT_UUID"
+  title="Talk to our voice agent"
+  allow="microphone"
+  style={{ width: "100%", height: 760, border: 0, borderRadius: 24 }}
+/>
+```
+
+That surface has its own animated call layout, live transcription, real-time
+microphone waveform, mute/hang-up controls, and booking support. The bot's
+allow list still protects the route; add the parent website before publishing.
+
 ---
 
 ## Props

@@ -446,7 +446,7 @@ export function KnowledgeTab({
 
               {/* Add Source Card */}
               <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <div className="p-1.5 border-b border-neutral-100 dark:border-neutral-800 flex gap-1 overflow-x-auto rounded-t-2xl">
+                <div className="p-1.5 border-b border-neutral-100 dark:border-neutral-800 flex gap-1 overflow-x-auto scrollbar-thin rounded-t-2xl">
                   {[
                     { id: "text", label: "Text / FAQ", icon: Type },
                     { id: "url", label: "Website URL", icon: Globe },
@@ -460,7 +460,7 @@ export function KnowledgeTab({
                       <button
                         key={tab.id}
                         onClick={() => setKbSourceTab(tab.id as "text" | "url" | "file" | "drive" | "onedrive" | "products")}
-                        className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                          className={`flex-none min-w-max flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
                           kbSourceTab === tab.id
                             ? "bg-[#f97316]/10 text-[#f97316]"
                             : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
@@ -857,12 +857,12 @@ export function KnowledgeTab({
 
               {/* Sources List */}
               <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-3 flex-wrap rounded-t-2xl">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
+                <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center gap-3 overflow-x-auto scrollbar-thin rounded-t-2xl">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-2 shrink-0">
                     {t("training_data")}
                     <span className="text-neutral-300 dark:text-neutral-600 normal-case">({sources.length})</span>
                   </h4>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0 min-w-max ml-auto">
                     {/* Type filter */}
                     <div className="flex items-center gap-0.5 bg-neutral-50 dark:bg-neutral-950 rounded-lg p-0.5 border border-neutral-200 dark:border-neutral-800">
                       {(["all", "text", "url", "file"] as const).map((f) => (

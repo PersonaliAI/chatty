@@ -240,6 +240,9 @@ export function ProductsMediaCatalog({
       if (res.ok) {
         setCatalogWebhook(await res.json());
         setCatalogWebhookError(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setCatalogWebhookError(data.detail || "Could not load catalog webhook status.");
       }
     } catch (err) {
       console.error("Failed to load catalog webhook status", err);
@@ -570,15 +573,11 @@ export function ProductsMediaCatalog({
   return (
     <div className="space-y-6">
       {/* Top Banner / Mode Switcher */}
-      <div
-        className="p-1.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl border border-neutral-200/80 dark:border-neutral-800 overflow-x-auto"
-        aria-label="Catalog source"
-      >
-        <div className="flex min-w-[36rem] items-center gap-1">
+      <div className="p-1.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl flex items-center gap-1 border border-neutral-200/80 dark:border-neutral-800 overflow-x-auto scrollbar-thin">
         <button
           type="button"
           onClick={() => setActiveSubTab("woocommerce")}
-          className={`flex-1 shrink-0 whitespace-nowrap flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+          className={`flex-none min-w-max flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
             activeSubTab === "woocommerce"
               ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -596,7 +595,7 @@ export function ProductsMediaCatalog({
         <button
           type="button"
           onClick={() => setActiveSubTab("manual_product")}
-          className={`flex-1 shrink-0 whitespace-nowrap flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+          className={`flex-none min-w-max flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
             activeSubTab === "manual_product"
               ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -609,7 +608,7 @@ export function ProductsMediaCatalog({
         <button
           type="button"
           onClick={() => setActiveSubTab("video")}
-          className={`flex-1 shrink-0 whitespace-nowrap flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+          className={`flex-none min-w-max flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
             activeSubTab === "video"
               ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
               : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -618,7 +617,6 @@ export function ProductsMediaCatalog({
           <Video className="size-4 text-[#0ea5e9]" />
           <span>Add Video Clip</span>
         </button>
-        </div>
       </div>
 
       <div className="flex items-start justify-between gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
@@ -646,7 +644,7 @@ export function ProductsMediaCatalog({
               <div>
                 <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Automatic updates for manual items</h4>
                 <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-1 max-w-2xl">
-                  Send signed product or media events from your ERP, store, or spreadsheet automation. Chatty matches the exact <code className="font-mono">external_id</code> within this bot; keep it stable and unique for every item.
+                  Send signed product or media events from your ERP, store, or spreadsheet automation. Items are matched by the External ID and re-embedded when searchable details change.
                 </p>
               </div>
             </div>
@@ -1658,7 +1656,10 @@ export function ProductsMediaCatalog({
                       )}
 
                       {item.metadata?.external_id && (
-                        <p className="text-[10px] font-mono text-[#c2410c] dark:text-[#fb923c] truncate" title={String(item.metadata.external_id)}>
+                        <p
+                          className="truncate text-[10px] font-mono text-[#c2410c] dark:text-[#fb923c]"
+                          title={String(item.metadata.external_id)}
+                        >
                           External ID: {String(item.metadata.external_id)}
                         </p>
                       )}

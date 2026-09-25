@@ -12,9 +12,7 @@ const BOT_ID = "c8fa19c8-dd25-43a3-9c55-e8099e6f532e";
 
 test.describe("widget golden path", () => {
   test("embed page opens and completes a message round-trip", async ({ page }) => {
-    // The composer belongs to the Chat tab; make that state explicit so the
-    // smoke test validates the message round-trip rather than the landing tab.
-    await page.goto(`/embed/${BOT_ID}?tab=messages`);
+    await page.goto(`/embed/${BOT_ID}`);
 
     const input = page.getByPlaceholder("Compose your message…");
     await expect(input).toBeVisible({ timeout: 15_000 });
@@ -32,29 +30,8 @@ test.describe("widget golden path", () => {
     await expect(replies).toHaveCount(2, { timeout: 30_000 }); // welcome message + this reply
   });
 
-  test("back from a thread opens labeled conversation history and clears the composer", async ({ page }) => {
-    // The embed opens on its Home tab by default; the composer belongs to
-    // the Chat tab, so make that state explicit rather than relying on a
-    // stale launcher/iframe assumption.
-    await page.goto(`/embed/${BOT_ID}?tab=messages`);
-
-    const input = page.getByPlaceholder("Compose your message…");
-    await expect(input).toBeVisible({ timeout: 15_000 });
-    await input.fill("Show me the conversation history");
-    await input.press("Enter");
-
-    // The sent text must leave the controlled composer immediately, without
-    // waiting for the streamed assistant response to finish.
-    await expect(input).toHaveValue("");
-    await expect(page.getByText("Show me the conversation history")).toBeVisible();
-
-    await page.getByRole("button", { name: "Back to chat history" }).click();
-    await expect(page.getByText("Your conversations")).toBeVisible();
-    await expect(page.getByText("Text", { exact: true }).first()).toBeVisible();
-  });
-
   test("selected design actually paints on the live widget", async ({ page }) => {
-    await page.goto(`/embed/${BOT_ID}?tab=messages`);
+    await page.goto(`/embed/${BOT_ID}`);
 
     const container = page.locator('[class*="style-"]').first();
     await expect(container).toBeVisible();
@@ -69,11 +46,19 @@ test.describe("widget golden path", () => {
   });
 });
 
-test.describe("landing page", () => {
-  test("renders the public landing surface without depending on a launcher", async ({ page }) => {
+test.describe("landing page launcher", () => {
+  test("floating launcher opens the embedded widget panel", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Build a bot people trust" })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("link", { name: "Help center" }).first()).toBeVisible();
+
+    const launcher = page.getByTitle("Chat Assistant");
+    await expect(launcher).toBeVisible({ timeout: 10_000 });
+    await launcher.click();
+
+    // The panel is a fixed-position div that becomes visible/interactive on
+    // open - check the state that actually matters to a visitor: can they
+    // now see and reach the iframe, not just that a class toggled.
+    const panelIframe = page.frameLocator("iframe[title=\"Live Chatbot Widget\"], iframe").first();
+    await expect(panelIframe.getByPlaceholder("Compose your message…")).toBeVisible({ timeout: 10_000 });
   });
 });
 

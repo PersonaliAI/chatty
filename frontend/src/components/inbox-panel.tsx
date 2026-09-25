@@ -156,6 +156,14 @@ interface Session {
   visitor_email?: string;
 }
 
+// A conversation is only a routing ticket after it explicitly needs a human
+// (handoff request, escalation, offline ticket, or manual AI pause). Normal
+// AI-only chats intentionally remain unassigned and must not consume agent
+// capacity or be auto-paused by the queue dispatcher.
+const isHumanQueueTicket = (session: Session): boolean => (
+  Boolean(session.needs_attention || session.ai_paused || session.escalation_reason)
+);
+
 interface Note {
   id: string;
   note: string;
@@ -836,7 +844,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           loadSessions();
           loadPresence();
         } else {
-          showToast(data.unassigned_found > 0 ? "All online agents are at capacity" : "Queue is empty", "error");
+          const reason = data.routing_reason;
+          const message = reason === "no_online_agents"
+            ? "No online agents are available"
+            : reason === "routing_disabled"
+            ? "Automatic routing is disabled"
+            : reason === "all_agents_at_capacity"
+            ? "All online agents are at capacity"
+            : data.unassigned_found > 0
+            ? "No eligible human-takeover tickets are available"
+            : "Queue is empty";
+          showToast(message, data.unassigned_found > 0 ? "error" : "success");
         }
       }
     } catch {
@@ -1340,7 +1358,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   // ── Ticket Counters & Filtering ──
   const ticketCounts = {
     all: sessions.length,
-    unassigned: sessions.filter((s) => !s.assigned_agent_email && (s.status || "open") !== "resolved" && (s.status || "open") !== "closed").length,
+    unassigned: sessions.filter((s) => !s.assigned_agent_email && isHumanQueueTicket(s) && (s.status || "open") !== "resolved" && (s.status || "open") !== "closed").length,
     open: sessions.filter((s) => (s.status || "open") === "open").length,
     pending: sessions.filter((s) => s.status === "pending").length,
     resolved: sessions.filter((s) => s.status === "resolved").length,
@@ -1359,7 +1377,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const filteredSessions = sessions.filter((s) => {
     const sStatus = s.status || "open";
     if (selectedStatusTab === "unassigned") {
-      if (s.assigned_agent_email || sStatus === "resolved" || sStatus === "closed") {
+      if (s.assigned_agent_email || !isHumanQueueTicket(s) || sStatus === "resolved" || sStatus === "closed") {
         return false;
       }
     } else if (selectedStatusTab !== "all" && sStatus !== selectedStatusTab) {
@@ -1381,7 +1399,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         return false;
       }
     } else if (selectedAssigneeFilter === "unassigned") {
-      if (s.assigned_agent_email) return false;
+      if (s.assigned_agent_email || !isHumanQueueTicket(s)) return false;
     } else if (selectedAssigneeFilter !== "all") {
       if (s.assigned_agent_email?.toLowerCase() !== selectedAssigneeFilter.toLowerCase()) {
         return false;

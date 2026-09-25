@@ -688,28 +688,30 @@ export function ChattyStandaloneApp({
           the default widget uncluttered while preserving a fully embeddable
           voice-agent surface for sites that want their own button. */}
       {voiceEnabled && voiceOpen && (
-        <div
-          role="dialog"
-          aria-label="Voice assistant"
-          style={{
-            position: "fixed",
-            left: "50%",
-            bottom: "16px",
-            transform: "translateX(-50%)",
-            width: "min(760px, calc(100vw - 24px))",
-            height: "min(620px, calc(100vh - 32px))",
-            maxHeight: "calc(100vh - 32px)",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            borderRadius: isMobile ? "22px" : "26px",
-            border: `1px solid ${iconColor}25`,
-            background: "rgba(255,255,255,.98)",
-            boxShadow: "0 24px 80px rgba(0,0,0,.3)",
-            zIndex: 2147483647,
-            animation: "chatty-voice-dock-in .35s cubic-bezier(.16,1,.3,1)",
-          }}
-        >
+        <>
+          <div aria-hidden="true" onClick={() => setVoiceOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.42)", backdropFilter: "blur(8px)", zIndex: 2147483646, animation: "chatty-voice-backdrop-in .25s ease-out" }} />
+          <div
+            role="dialog"
+            aria-label="Voice assistant"
+            style={{
+              position: "fixed",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "min(860px, calc(100vw - 32px))",
+              height: "min(760px, calc(100vh - 48px))",
+              maxHeight: "calc(100vh - 48px)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              borderRadius: isMobile ? "22px" : "30px",
+              border: `1px solid ${iconColor}35`,
+              background: "rgba(255,255,255,.98)",
+              boxShadow: "0 30px 120px rgba(0,0,0,.42), 0 0 0 1px rgba(255,255,255,.24)",
+              zIndex: 2147483647,
+              animation: "chatty-voice-dock-in .35s cubic-bezier(.16,1,.3,1)",
+            }}
+          >
           <div style={{ height: 52, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: "1px solid rgba(15,23,42,.08)", fontFamily: "system-ui, -apple-system, sans-serif" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", color: iconColor, background: `${launcherBg.startsWith("#") ? launcherBg : "#f97316"}18` }}><AudioWaveform style={{ width: 16, height: 16 }} /></span>
@@ -730,7 +732,8 @@ export function ChattyStandaloneApp({
               onClose={() => setVoiceOpen(false)}
             />
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

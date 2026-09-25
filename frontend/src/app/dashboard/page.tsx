@@ -3302,9 +3302,10 @@ export default function Dashboard() {
     }
   };
 
-  // Re-crawls every URL source at once (up to the API's 100-per-call cap)
-  // via the same /api/crawl/pages endpoint handleRecrawlNow uses for a
-  // single source - one request, results mapped back per-source by URL.
+  // Re-crawl URL sources in bounded batches. A single 100-page request can
+  // hold the dashboard request open long enough to look frozen on mobile;
+  // bounded batches keep each request within the API timeout and let the UI
+  // report real progress between batches.
   const handleCrawlAll = async () => {
     if (!botId || crawlingAll) return;
     const urlSources = sources.filter((s) => s.type === "url");
@@ -3321,20 +3322,37 @@ export default function Dashboard() {
       ]
     );
     try {
-      const res = await fetchWithFallback("/api/crawl/pages", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, urls: urlSources.slice(0, 100).map((s) => s.name) }),
-      });
-      const body = await res.json().catch(() => ({}));
-      const results: { url: string; ok: boolean; chars?: number }[] = body.results || [];
-      if (res.ok && results.length) {
+      const urls = urlSources.slice(0, 100).map((s) => s.name);
+      const batchSize = 20;
+      const batches = Array.from({ length: Math.ceil(urls.length / batchSize) }, (_, index) =>
+        urls.slice(index * batchSize, (index + 1) * batchSize)
+      );
+      const results: { url: string; ok: boolean; chars?: number; error?: string }[] = [];
+      for (let index = 0; index < batches.length; index += 1) {
+        const res = await fetchWithFallback("/api/crawl/pages", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bot_id: botId, urls: batches[index] }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(body.detail || `Batch ${index + 1} failed`);
+        }
+        results.push(...(body.results || []));
+        setKnowledgeProgress((prev) => prev ? {
+          ...prev,
+          percent: Math.min(94, 10 + Math.round(((index + 1) / batches.length) * 84)),
+          detail: `Crawled ${Math.min((index + 1) * batchSize, urls.length)} of ${urls.length} URLs...`,
+        } : prev);
+      }
+      if (results.length) {
         const byUrl = new Map(results.map((r) => [r.url, r]));
         setSources((prev) => prev.map((s) => {
           const r = s.type === "url" ? byUrl.get(s.name) : undefined;
           return r?.ok ? { ...s, charCount: r.chars ?? s.charCount, status: "trained" } : s;
         }));
-        const failed = results.length - (body.indexed ?? 0);
-        const msg = failed > 0 ? `Re-crawled ${body.indexed}/${results.length} sources (${failed} failed).` : `Re-crawled all ${body.indexed} sources.`;
+        const indexed = results.filter((result) => result.ok).length;
+        const failed = results.length - indexed;
+        const msg = failed > 0 ? `Re-crawled ${indexed}/${results.length} sources (${failed} failed).` : `Re-crawled all ${indexed} sources.`;
         showToast(
           msg,
           failed > 0 ? "error" : "success",

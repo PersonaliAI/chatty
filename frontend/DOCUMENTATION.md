@@ -373,6 +373,30 @@ export default function App() {
 }
 ```
 
+### Standalone voice-agent embed
+
+Use the dedicated voice route when the page should show a full call experience
+instead of the chat drawer. The surface includes the animated speaker stage,
+real microphone waveform, live visitor/agent transcription, mute and hang-up
+controls, and the same booking tools as the chat widget.
+
+```html
+<iframe
+  src="https://chatty.personaliai.com/voice/YOUR_BOT_ID"
+  title="Talk to our voice agent"
+  width="100%"
+  height="760"
+  style="border:0;border-radius:24px;overflow:hidden"
+  allow="microphone"
+></iframe>
+```
+
+Before publishing, add the parent website to the bot's allowed domains. The
+route verifies the embedding origin and the browser still asks the visitor for
+microphone permission. For a custom trigger, open the same URL in a modal or
+new tab; the normal chat widget and `window.Chatty.openVoice()` API remain
+available independently.
+
 ---
 
 ## 5. Conversational AI Brain & RAG Engine
@@ -496,6 +520,12 @@ Chatty features real-time bidirectional voice calling (`voice-agent/voice_worker
 4. **LLM Generation**: Gemini 2.5 Flash produces conversational replies with tool execution support.
 5. **Ultra-Low Latency TTS**: Cartesia Sonic streams voice chunks back over WebRTC (<100ms response time).
 6. **Barge-In Support**: If the user speaks while the bot is talking, playback immediately halts and the agent listens.
+
+### Voice widget endpoints
+
+- `POST /api/widget/verify-origin`: Exchange the embedding page origin for a short-lived widget token.
+- `POST /api/widget/voice/token`: Mint a short-lived LiveKit room token for the bot/session.
+- `GET /voice/{bot_id}`: Render the standalone embeddable voice-agent UI.
 
 ---
 

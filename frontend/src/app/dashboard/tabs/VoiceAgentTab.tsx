@@ -2,7 +2,6 @@
 
 import { AudioWaveform, Mic, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
 import { ModernSelect } from "@/components/ui/modern-select";
 
 const TTS_VOICE_OPTIONS: Record<string, { value: string; label: string; hint?: string }[]> = {
@@ -125,14 +124,6 @@ export function VoiceAgentTab({
             Let visitors talk to your bot instead of typing - configure speech recognition, voice
             synthesis, the agent&apos;s call persona, and call safety limits.
           </p>
-          <Link
-            href="https://docs.chatty.personaliai.com/guides/voice-agent"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center text-[11px] font-semibold text-[#f97316] hover:underline"
-          >
-            Open the Voice Agent guide →
-          </Link>
         </div>
 
         <div className="flex items-center gap-3 p-3.5 bg-[#f97316]/5 border border-[#f97316]/20 rounded-2xl text-xs">
@@ -282,7 +273,7 @@ export function VoiceAgentTab({
                         onChange={(v) => {
                           const provider = v as "google" | "openai";
                           const defaultModel =
-                            provider === "google" ? "gemini-3.8-live" : "gpt-realtime";
+                            provider === "google" ? "gemini-3.1-flash-live-preview" : "gpt-realtime";
                           setVoiceRealtimeProvider(provider);
                           setVoiceRealtimeModel(defaultModel);
                           handleAutoSaveVoiceField({
@@ -291,7 +282,7 @@ export function VoiceAgentTab({
                           });
                         }}
                         options={[
-                          { value: "google", label: "Google Gemini Live", hint: "gemini-3.8-live" },
+                          { value: "google", label: "Google Gemini Live", hint: "gemini-3.1-flash-live-preview" },
                           { value: "openai", label: "OpenAI Realtime", hint: "gpt-realtime" },
                         ]}
                       />
@@ -310,7 +301,7 @@ export function VoiceAgentTab({
                         }
                         placeholder={
                           voiceRealtimeProvider === "google"
-                            ? "gemini-3.8-live"
+                            ? "gemini-3.1-flash-live-preview"
                             : "gpt-realtime"
                         }
                         className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"

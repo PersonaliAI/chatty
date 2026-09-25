@@ -131,38 +131,6 @@ Supported events are `product.created`, `product.updated`, and
 automatically refresh the item's embedding. Re-sending the same update is
 safe, and `product.deleted` removes the matching catalog item.
 
-### How Chatty identifies a product
-
-The webhook URL contains the bot scope (`/webhook/{bot_id}`), and
-`external_id` identifies the catalog item inside that bot. Use the same stable
-value from your ERP, PIM, or store for every event:
-
-| Field | Meaning | Use it for matching? |
-| --- | --- | --- |
-| `bot_id` in the URL | The Chatty bot that owns the catalog | Yes — scopes the lookup |
-| `external_id` | Your stable product key (for example `ERP-10042` or `shopify:gid://...`) | **Yes — exact, case-sensitive match** |
-| `item_id` in a response | Chatty's internal UUID | No — returned for diagnostics only |
-| `sku` | A searchable/display product SKU | No — it is not the webhook key |
-
-`external_id` is required for updates and deletes, must be at most 256
-characters, and must be unique within the bot across manual catalog items.
-Do not use a title, URL, price, or array position because those values can
-change. The dashboard's **External ID (for automatic updates)** field is the
-value that must be copied into the webhook payload. If an ID is accidentally
-reused, Chatty rejects the ambiguous update instead of changing an arbitrary
-item.
-
-For a create, include the ID in the first event and persist it in your source
-system. For later updates or deletes, send the identical ID:
-
-```json
-{
-  "event": "product.updated",
-  "external_id": "ERP-10042",
-  "item": {"price": 79.99, "metadata": {"in_stock": true}}
-}
-```
-
 ## Reliability
 
 - Webhooks are **fire-and-forget** — Chatty sends one POST with a 10-second timeout and does not retry on failure.

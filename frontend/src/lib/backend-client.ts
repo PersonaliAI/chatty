@@ -32,6 +32,7 @@ export async function fetchBackend(
   }
 
   if (!supabase) throw new Error("Supabase client is required in managed_supabase mode");
+
   const { data } = await supabase.auth.getSession();
   let accessToken = data.session?.access_token;
 
