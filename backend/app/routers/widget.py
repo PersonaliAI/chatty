@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import pytz
+import httpx
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -793,6 +794,7 @@ async def widget_live(bot_id: str, session_id: str, after: str = ""):
         cursor = after
         last_paused: Optional[bool] = None
         deadline = time.time() + 240
+        transient_failures = 0
         yield ": connected\n\n"
         while time.time() < deadline:
             try:
@@ -824,7 +826,25 @@ async def widget_live(bot_id: str, session_id: str, after: str = ""):
                         "assigned_agent_name": s_row.get("assigned_agent_name"),
                         "assigned_agent_avatar": s_row.get("assigned_agent_avatar"),
                     })
+                transient_failures = 0
+            except (httpx.ConnectError, httpx.ReadError, httpx.ReadTimeout, httpx.RemoteProtocolError) as exc:
+                # Supabase REST can reset an idle HTTP/2 connection while this
+                # SSE stream is open. Keep the stream alive and reconnect on a
+                # short bounded backoff instead of emitting an ERROR traceback
+                # for a recoverable transport event.
+                transient_failures += 1
+                retry_after = min(8, 2 ** min(transient_failures - 1, 3))
+                logger.warning(
+                    "widget live check transient database transport failure; retrying",
+                    extra={
+                        "error_type": type(exc).__name__,
+                        "retry_after_seconds": retry_after,
+                    },
+                )
+                await asyncio.sleep(retry_after)
+                continue
             except Exception:
+                transient_failures = 0
                 logger.exception("widget live check failed")
             await asyncio.sleep(2)
         yield _sse({"type": "reconnect"})
