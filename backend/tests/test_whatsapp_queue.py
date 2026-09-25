@@ -46,7 +46,8 @@ def test_whatsapp_worker_handler_delegates_to_job_processor():
 
 def test_whatsapp_webhook_publishes_before_claiming(monkeypatch):
     class Query:
-        def __init__(self, name): self.name = name
+        def __init__(self, name):
+            self.name = name
         def select(self, *_args): return self
         def eq(self, *_args): return self
         def limit(self, *_args): return self
@@ -57,12 +58,19 @@ def test_whatsapp_webhook_publishes_before_claiming(monkeypatch):
 
     class FakeSupabase:
         def table(self, name): return Query(name)
+
     class FakeQueue:
         def __init__(self): self.calls = []
-        async def enqueue(self, **kwargs): self.calls.append(kwargs); return "1-0"
+        async def enqueue(self, **kwargs):
+            self.calls.append(kwargs)
+            return "1-0"
 
-    body = {"entry": [{"changes": [{"value": {"metadata": {"phone_number_id": "phone-1"}, "messages": [{"id": "wamid-1", "from": "15551234567", "type": "text", "text": {"body": "Hi"}}]}}]}]}
+    body = {"entry": [{"changes": [{"value": {
+        "metadata": {"phone_number_id": "phone-1"},
+        "messages": [{"id": "wamid-1", "from": "15551234567", "type": "text", "text": {"body": "Hi"}}],
+    }}]}]}
     raw = json.dumps(body).encode()
+
     class Request:
         headers = {"x-hub-signature-256": "sha256=" + hmac.new(b"secret", raw, hashlib.sha256).hexdigest()}
         async def body(self): return raw

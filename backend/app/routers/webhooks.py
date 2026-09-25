@@ -705,14 +705,19 @@ async def _dispatch_whatsapp_message(
     frm = str(msg.get("from") or "")
     msg_type = msg.get("type")
     if msg_type == "text":
-        await _handle_whatsapp_message(phone_number_id, frm, bot, owner_user, access_token, text=str((msg.get("text") or {}).get("body") or ""))
+        await _handle_whatsapp_message(
+            phone_number_id, frm, bot, owner_user, access_token,
+            text=str((msg.get("text") or {}).get("body") or ""),
+        )
     elif msg_type == "interactive":
         interactive = msg.get("interactive") or {}
         btn_reply = interactive.get("button_reply") or {}
         list_reply = interactive.get("list_reply") or {}
         button_text = btn_reply.get("title") or list_reply.get("title") or ""
         if button_text:
-            await _handle_whatsapp_message(phone_number_id, frm, bot, owner_user, access_token, text=str(button_text))
+            await _handle_whatsapp_message(
+                phone_number_id, frm, bot, owner_user, access_token, text=str(button_text)
+            )
     elif msg_type in ("audio", "voice", "image", "document"):
         media_obj = msg.get("audio") or msg.get("voice") or msg.get("image") or msg.get("document") or {}
         media_id = media_obj.get("id")
@@ -723,7 +728,21 @@ async def _dispatch_whatsapp_message(
         if not media_bytes:
             return
         clean_mime = (media_mime or ("audio/ogg" if media_kind == "audio" else "application/pdf")).split(";")[0]
-        await _handle_whatsapp_message(phone_number_id, str(msg.get("from") or ""), bot, owner_user, access_token, text=str(media_obj.get("caption") or ""), media_bytes=media_bytes, media_mime=clean_mime, media_filename=("voice_note.ogg" if media_kind == "audio" else "photo.jpg" if media_kind == "image" else str(media_obj.get("filename") or "document.pdf")))
+        await _handle_whatsapp_message(
+            phone_number_id,
+            frm,
+            bot,
+            owner_user,
+            access_token,
+            text=str(media_obj.get("caption") or ""),
+            media_bytes=media_bytes,
+            media_mime=clean_mime,
+            media_filename=(
+                "voice_note.ogg" if media_kind == "audio"
+                else "photo.jpg" if media_kind == "image"
+                else str(media_obj.get("filename") or "document.pdf")
+            ),
+        )
 
 
 async def process_whatsapp_job(payload: dict[str, object]) -> None:
@@ -817,7 +836,16 @@ async def whatsapp_receive(request: Request):
                 if _whatsapp_job_queue:
                     if not message_id:
                         message_id = hashlib.sha256(json.dumps(msg, sort_keys=True).encode("utf-8")).hexdigest()
-                    await _whatsapp_job_queue.enqueue(name="whatsapp.message", payload={"bot_id": bot["id"], "phone_number_id": pnid, "message": msg, "concurrency_key": f"whatsapp:{bot['id']}:{msg.get('from') or 'unknown'}"}, idempotency_key=f"whatsapp.message:{bot['id']}:{message_id}")
+                    await _whatsapp_job_queue.enqueue(
+                        name="whatsapp.message",
+                        payload={
+                            "bot_id": bot["id"],
+                            "phone_number_id": pnid,
+                            "message": msg,
+                            "concurrency_key": f"whatsapp:{bot['id']}:{msg.get('from') or 'unknown'}",
+                        },
+                        idempotency_key=f"whatsapp.message:{bot['id']}:{message_id}",
+                    )
                     if not await _claim_whatsapp_message(bot["id"], msg.get("id")):
                         continue
                 else:
