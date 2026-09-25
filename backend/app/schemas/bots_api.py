@@ -164,6 +164,20 @@ class CampaignCreateRequest(BaseModel):
             clean.append({**step, "channel": channel, "after_minutes": delay_num})
         return clean
 
+    @field_validator("safety_config")
+    @classmethod
+    def validate_safety_config(cls, value: dict[str, Any]) -> dict[str, Any]:
+        config = dict(value or {})
+        try:
+            cap = int(config.get("frequency_cap_hours", 24))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("frequency_cap_hours must be an integer") from exc
+        if cap < 1 or cap > 8_760:
+            raise ValueError("frequency_cap_hours must be between 1 and 8760")
+        config["frequency_cap_hours"] = cap
+        config["require_consent"] = bool(config.get("require_consent", True))
+        return config
+
 
 class CampaignUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -194,6 +208,13 @@ class CampaignUpdateRequest(BaseModel):
         if value is None:
             return value
         return CampaignCreateRequest.validate_sequence_steps(value)
+
+    @field_validator("safety_config")
+    @classmethod
+    def validate_update_safety(cls, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        if value is None:
+            return value
+        return CampaignCreateRequest.validate_safety_config(value)
 
 
 class CampaignSuggestRequest(BaseModel):
