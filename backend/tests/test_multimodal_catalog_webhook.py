@@ -66,6 +66,7 @@ def test_manual_catalog_webhook_rejects_bad_signature_and_updates_by_external_id
              patch("app.routers.multimodal.multimodal_service.embed_catalog_item", new_callable=AsyncMock, return_value=[0.1] * 768) as embed:
             db.side_effect = [
                 MagicMock(data=[{"signing_secret": SECRET, "enabled": True}]),
+                MagicMock(data=[{"id": "event-1"}]),
                 MagicMock(data=[{
                     "id": "item-1",
                     "bot_id": BOT_ID,
@@ -114,6 +115,7 @@ def test_manual_catalog_webhook_rejects_ambiguous_external_id():
              patch("app.routers.multimodal.decrypt_secret", return_value=SECRET):
             db.side_effect = [
                 MagicMock(data=[{"signing_secret": SECRET, "enabled": True}]),
+                MagicMock(data=[{"id": "event-ambiguous"}]),
                 MagicMock(data=[
                     {"id": "item-1", "metadata": {"external_id": "ERP-duplicate"}},
                     {"id": "item-2", "metadata": {"external_id": "ERP-duplicate"}},
@@ -128,3 +130,28 @@ def test_manual_catalog_webhook_rejects_ambiguous_external_id():
         assert "not unique" in response.json()["detail"]
     finally:
         app.dependency_overrides.pop(require_user, None)
+
+
+def test_manual_catalog_webhook_rejects_replayed_event():
+    payload = {"event": "product.updated", "event_id": "evt-1", "external_id": "ERP-1", "item": {"price": 10}}
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    with patch("app.routers.multimodal.run_db", new_callable=AsyncMock) as db, \
+         patch("app.routers.multimodal.decrypt_secret", return_value=SECRET):
+        db.side_effect = [
+            MagicMock(data=[{"signing_secret": SECRET, "enabled": True}]),
+            MagicMock(data=[{"id": "event-1"}]),
+            MagicMock(data=[]),
+            MagicMock(data=[{"signing_secret": SECRET, "enabled": True}]),
+            MagicMock(data=[]),
+        ]
+        first = client.post(
+            f"/api/integrations/catalog/webhook/{BOT_ID}", content=raw,
+            headers={"x-chatty-signature": _signature(raw)},
+        )
+        second = client.post(
+            f"/api/integrations/catalog/webhook/{BOT_ID}", content=raw,
+            headers={"x-chatty-signature": _signature(raw)},
+        )
+    assert first.status_code == 404
+    assert second.status_code == 200
+    assert second.json()["status"] == "duplicate"

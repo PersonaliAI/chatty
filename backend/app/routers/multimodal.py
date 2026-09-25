@@ -395,6 +395,7 @@ async def receive_catalog_webhook(
     bot_id: str,
     request: Request,
     x_chatty_signature: Optional[str] = Header(None),
+    x_chatty_event_id: Optional[str] = Header(None),
 ):
     """Receive signed product/stock updates from any store or ERP.
 
@@ -424,6 +425,24 @@ async def receive_catalog_webhook(
     event = str(body.get("event") or "product.updated").lower()
     if not external_id:
         raise HTTPException(status_code=400, detail="external_id is required")
+    event_id = str(body.get("event_id") or x_chatty_event_id or hashlib.sha256(raw).hexdigest()).strip()
+    if not event_id or len(event_id) > 240:
+        raise HTTPException(status_code=400, detail="event_id must be between 1 and 240 characters")
+    durable_event_id = f"catalog:{bot_id}:{event_id}"
+    try:
+        claimed = await run_db(lambda: supabase.table("chatty_channel_events").insert({
+            "channel": "catalog",
+            "external_event_id": durable_event_id,
+            "bot_id": bot_id,
+        }).execute())
+        if not getattr(claimed, "data", None):
+            return {"status": "duplicate", "event_id": event_id}
+    except Exception as exc:
+        text = str(exc).lower()
+        if "duplicate" in text or "unique" in text or "23505" in text:
+            return {"status": "duplicate", "event_id": event_id}
+        logger.exception("Catalog webhook idempotency store unavailable for %s", bot_id)
+        raise HTTPException(status_code=503, detail="Catalog webhook idempotency store unavailable") from exc
     # The webhook key is scoped by bot_id and must identify exactly one item.
     # Fetch at most two rows so duplicate IDs are detected without allowing an
     # unbounded response from the catalog table.
