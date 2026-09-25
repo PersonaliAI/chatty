@@ -14,9 +14,11 @@ def test_document_folder_job_resolves_user_and_indexes(monkeypatch):
     monkeypatch.setattr(document_jobs, "run_db", lambda callback: asyncio.sleep(0, result=type("R", (), {"data": [user]})()))
     index = AsyncMock()
     monkeypatch.setattr(document_jobs.doc_rag, "index_folder", index)
+
     asyncio.run(document_jobs.process_document_job({
         "user_id": "user-1", "folder_id": "folder-1", "max_files": 25, "source": "gdrive"
     }))
+
     index.assert_awaited_once_with(
         document_jobs.supabase, document_jobs.genai_client,
         user=user, folder_id="folder-1", max_files=25, source="gdrive"
