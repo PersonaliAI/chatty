@@ -273,7 +273,7 @@ export function VoiceAgentTab({
                         onChange={(v) => {
                           const provider = v as "google" | "openai";
                           const defaultModel =
-                            provider === "google" ? "gemini-3.1-flash-live-preview" : "gpt-realtime";
+                            provider === "google" ? "gemini-3.8-live" : "gpt-realtime";
                           setVoiceRealtimeProvider(provider);
                           setVoiceRealtimeModel(defaultModel);
                           handleAutoSaveVoiceField({
@@ -282,7 +282,7 @@ export function VoiceAgentTab({
                           });
                         }}
                         options={[
-                          { value: "google", label: "Google Gemini Live", hint: "gemini-3.1-flash-live-preview" },
+                          { value: "google", label: "Google Gemini Live", hint: "gemini-3.8-live" },
                           { value: "openai", label: "OpenAI Realtime", hint: "gpt-realtime" },
                         ]}
                       />
@@ -301,7 +301,7 @@ export function VoiceAgentTab({
                         }
                         placeholder={
                           voiceRealtimeProvider === "google"
-                            ? "gemini-3.1-flash-live-preview"
+                            ? "gemini-3.8-live"
                             : "gpt-realtime"
                         }
                         className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"

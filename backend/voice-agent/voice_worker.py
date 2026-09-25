@@ -411,12 +411,10 @@ def _google_pipeline_credentials_available() -> bool:
     return bool(credentials_file and Path(credentials_file).is_file())
 
 
-# Model ids confirmed against the installed livekit-plugins-google/openai
-# versions and litellm's model_cost map (both need to recognize these exact
-# strings - google.realtime.RealtimeModel/openai.realtime.RealtimeModel for
-# the actual call, litellm.cost_per_token for _cost_of_realtime_usage below)
-# - check both before assuming a newer model id works, these move fast.
-REALTIME_DEFAULT_MODEL = {"google": "gemini-2.5-flash-native-audio-preview-12-2025", "openai": "gpt-realtime"}
+# Live API model ids are passed through to the provider plugin. Keep the
+# default aligned with the dashboard and the provider's current recommended
+# low-latency model; explicitly configured bot values remain supported.
+REALTIME_DEFAULT_MODEL = {"google": "gemini-3.8-live", "openai": "gpt-realtime"}
 REALTIME_DEFAULT_VOICE = {"google": "Puck", "openai": "marin"}
 # The dashboard stores the selected Google TTS voice in `voice_tts_voice`.
 # Cloud TTS/Chirp ids are not valid Gemini Live voices, so normalize those

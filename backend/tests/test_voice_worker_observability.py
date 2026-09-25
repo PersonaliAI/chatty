@@ -54,6 +54,12 @@ def test_google_realtime_uses_a_supported_default_voice(monkeypatch):
     assert calls["voice"] == worker.REALTIME_DEFAULT_VOICE["google"]
 
 
+def test_google_realtime_default_tracks_current_live_model():
+    worker = _load_worker()
+
+    assert worker.REALTIME_DEFAULT_MODEL["google"] == "gemini-3.8-live"
+
+
 def test_realtime_usage_uses_cumulative_session_totals():
     worker = _load_worker()
     totals = worker._RealtimeUsageTotals()
