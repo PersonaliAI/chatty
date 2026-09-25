@@ -104,6 +104,10 @@ class FlowUpdateRequest(BaseModel):
     is_active: bool = True
 
 
+class FlowSimulationRequest(BaseModel):
+    inputs: list[str] = Field(default_factory=lambda: ["Hello"])
+
+
 class CampaignCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     campaign_type: str = Field("chat_bubble", description="chat_bubble, popup_modal, top_banner, slide_in")

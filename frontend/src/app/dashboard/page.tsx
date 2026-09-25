@@ -4925,7 +4925,7 @@ export default function Dashboard() {
                   <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">Design visual logic branches and custom chatbot flows.</p>
                 </div>
               </div>
-              <ChatbotFlowBuilder botId={botId} color={primaryColor} />
+              <ChatbotFlowBuilder botId={botId} color={primaryColor} fetchBackend={fetchWithFallback} />
             </div>
           )}
 

@@ -53,6 +53,7 @@ import { SELF_HOST_MODE } from "@/lib/deployment";
 interface Props {
   botId: string | null;
   color?: string;
+  fetchBackend?: (path: string, options?: RequestInit) => Promise<Response>;
 }
 
 interface FlowNodeData {
@@ -441,7 +442,7 @@ function extractFlowFromJs(customJs: string): (FlowSchema & { status: "active" |
   return null;
 }
 
-export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
+export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fetchDashboardBackend }: Props) {
   const [mobileTab, setMobileTab] = useState<"canvas" | "toolbox">("canvas");
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -464,6 +465,8 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [validationOpen, setValidationOpen] = useState(false);
+  const [testRunning, setTestRunning] = useState(false);
+  const [testTrace, setTestTrace] = useState<Array<{ node_id: string; label: string }> | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -712,6 +715,31 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
       }
     };
     reader.readAsText(file);
+  };
+
+  const runTest = async () => {
+    if (!botId || !fetchDashboardBackend) return;
+    if (validation.errors.length) {
+      setValidationOpen(true);
+      showToast("Fix validation errors before running a test.", "error");
+      return;
+    }
+    setTestRunning(true);
+    try {
+      const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/simulate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inputs: ["Hello", "I need help", "Continue"] }),
+      });
+      if (!response.ok) throw new Error(`Test run failed (${response.status})`);
+      const result = await response.json() as { execution_path?: Array<{ node_id: string; label: string }> };
+      setTestTrace(result.execution_path ?? []);
+      showToast("Flow test completed without side effects.", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Flow test failed.", "error");
+    } finally {
+      setTestRunning(false);
+    }
   };
 
   const generateFlowWithAI = async () => {
@@ -1306,6 +1334,15 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
           >
             <Save className="size-4" /> Save Flow Configuration
           </button>
+          <button type="button" onClick={runTest} disabled={!fetchDashboardBackend || testRunning || validation.errors.length > 0} className="w-full mt-2 flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 px-4 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-40 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-950/30">
+            {testRunning ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />} {testRunning ? "Running test…" : "Run dry test"}
+          </button>
+          {testTrace && <div className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Last dry run · {testTrace.length} steps</p>
+            <ol className="mt-1 max-h-24 space-y-1 overflow-y-auto text-[10px] text-indigo-900 dark:text-indigo-100">
+              {testTrace.map((step, index) => <li key={`${step.node_id}-${index}`}>{index + 1}. {step.label || step.node_id}</li>)}
+            </ol>
+          </div>}
           <div className="grid grid-cols-2 gap-2 mt-2">
             <button type="button" onClick={exportFlow} className="flex items-center justify-center gap-1 rounded-lg border border-neutral-200 px-2 py-2 text-[10px] font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-850">
               <Download className="size-3.5" /> Export JSON

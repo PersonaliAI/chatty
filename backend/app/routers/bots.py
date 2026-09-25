@@ -5,6 +5,7 @@ discovery (/api/bots/*, /api/bot/*, /api/generate-business, /api/capabilities)."
 from __future__ import annotations
 
 import logging
+import re
 import secrets
 from typing import Any
 
@@ -22,7 +23,7 @@ from app.schemas.bots import (
     GenerateBusinessRequest,
     VoiceSettingsUpdate,
 )
-from app.schemas.bots_api import CampaignCreateRequest, CampaignSuggestRequest, CampaignUpdateRequest
+from app.schemas.bots_api import CampaignCreateRequest, CampaignSuggestRequest, CampaignUpdateRequest, FlowSimulationRequest
 from plugins import ai_client
 from plugins import llm_providers
 from plugins import notifications as notify
@@ -49,6 +50,34 @@ def _campaign_row(body: CampaignCreateRequest) -> dict[str, Any]:
         "end_date": body.end_date,
         "is_active": body.is_active,
     }
+
+
+@router.post("/api/bots/{bot_id}/flow/simulate")
+async def simulate_dashboard_flow(
+    bot_id: str,
+    body: FlowSimulationRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Run a side-effect-free dry run of the saved flow for the editor."""
+    await verify_bot_permission(bot_id, user, "settings")
+    result = await run_db(lambda: supabase.table("chatty_bots").select("custom_js").eq("id", bot_id).maybe_single().execute())
+    custom_js = (result.data or {}).get("custom_js") or ""
+    match = re.search(r"/\* CHATTY_FLOW_DATA([\s\S]*?)CHATTY_FLOW_DATA \*/", custom_js)
+    try:
+        flow = json.loads(match.group(1).strip()) if match else {"nodes": [], "edges": []}
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail="Saved flow configuration is invalid JSON") from exc
+    nodes, edges = flow.get("nodes") or [], flow.get("edges") or []
+    by_id = {str(node.get("id")): node for node in nodes}
+    current = by_id.get("start") or next(iter(by_id.values()), None)
+    trace = []
+    for step, user_input in enumerate(body.inputs[:50] or ["Hello"], start=1):
+        if not current:
+            break
+        trace.append({"step": step, "node_id": current.get("id"), "node_type": current.get("type"), "label": (current.get("data") or {}).get("label", ""), "input": user_input})
+        edge = next((item for item in edges if item.get("source") == current.get("id")), None)
+        current = by_id.get(str(edge.get("target"))) if edge else None
+    return {"bot_id": bot_id, "completed": current is None, "total_steps": len(trace), "execution_path": trace}
 
 
 @router.get("/api/bots/{bot_id}/campaigns")
