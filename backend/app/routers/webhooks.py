@@ -11,12 +11,14 @@ import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 
 from app.core.clients import supabase
+from app.core import ssrf
 from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, RESEND_INBOUND_WEBHOOK_SECRET
 from app.core.db import run_db
 from app.core.crypto import decrypt_secret
@@ -368,29 +370,99 @@ def _verify_meta_signature(raw_payload: bytes, signature_header: str, app_secret
     return hmac.compare_digest(expected, signature_header)
 
 
-async def _download_whatsapp_media(media_id: str, access_token: str) -> tuple[bytes | None, str | None]:
-    """Fetch media metadata from Meta Graph API, then stream the binary content."""
+_WHATSAPP_MEDIA_LIMITS = {"image": 5 * 1024 * 1024, "audio": 16 * 1024 * 1024, "document": 25 * 1024 * 1024}
+_WHATSAPP_ALLOWED_MIME_PREFIXES = {
+    "image": ("image/",),
+    "audio": ("audio/",),
+    "document": ("application/pdf", "application/msword", "application/vnd.", "text/"),
+}
+
+
+def _is_allowed_whatsapp_media_url(url: str) -> bool:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower().rstrip(".")
+    return parsed.scheme == "https" and (
+        host == "graph.facebook.com" or host.endswith(".facebook.com")
+        or host.endswith(".fbcdn.net") or host.endswith(".fbsbx.com")
+    )
+
+
+def _media_signature_matches(data: bytes, mime_type: str) -> bool:
+    if mime_type == "image/jpeg":
+        return data.startswith(b"\xff\xd8\xff")
+    if mime_type == "image/png":
+        return data.startswith(b"\x89PNG\r\n\x1a\n")
+    if mime_type == "image/webp":
+        return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+    if mime_type == "application/pdf":
+        return data.startswith(b"%PDF-")
+    if mime_type in {"audio/ogg", "audio/opus"}:
+        return data.startswith(b"OggS")
+    if mime_type in {"audio/mpeg", "audio/mp3"}:
+        return data.startswith(b"ID3") or data[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2")
+    if mime_type == "audio/amr":
+        return data.startswith(b"#!AMR")
+    return True
+
+
+async def _download_whatsapp_media(media_id: str, access_token: str, media_kind: str) -> tuple[bytes | None, str | None]:
+    """Fetch Meta media with host, type, and streaming byte-limit enforcement."""
     if not (media_id and access_token):
+        return None, None
+    max_bytes = _WHATSAPP_MEDIA_LIMITS.get(media_kind)
+    allowed_prefixes = _WHATSAPP_ALLOWED_MIME_PREFIXES.get(media_kind)
+    if not max_bytes or not allowed_prefixes:
         return None, None
     meta_url = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}/{media_id}"
     headers = {"Authorization": f"Bearer {access_token}"}
     try:
         async with httpx.AsyncClient(timeout=25) as client:
-            res = await client.get(meta_url, headers=headers)
+            res = await ssrf.request_async(client, "GET", meta_url, headers=headers)
             if res.status_code != 200:
                 logger.error("Failed to query WhatsApp media %s: %s", media_id, res.text)
                 return None, None
             media_data = res.json()
             download_url = media_data.get("url")
-            mime_type = (media_data.get("mime_type") or "").split(";")[0]
-            if not download_url:
+            mime_type = (media_data.get("mime_type") or "").split(";")[0].lower().strip()
+            if not download_url or not any(mime_type.startswith(prefix) for prefix in allowed_prefixes):
+                logger.warning("Rejected WhatsApp media %s with unsupported type %s", media_id, mime_type)
                 return None, None
-
-            dl_res = await client.get(download_url, headers=headers)
-            if dl_res.status_code != 200:
-                logger.error("Failed to download WhatsApp media binary %s: %s", media_id, dl_res.status_code)
+            try:
+                if media_data.get("file_size") is not None and int(media_data["file_size"]) > max_bytes:
+                    logger.warning("Rejected oversized WhatsApp media %s", media_id)
+                    return None, None
+            except (TypeError, ValueError):
+                pass
+            if not _is_allowed_whatsapp_media_url(download_url):
+                logger.warning("Rejected WhatsApp media %s from untrusted host", media_id)
                 return None, None
-            return dl_res.content, mime_type
+            async with ssrf.stream_async(client, "GET", download_url, headers=headers) as dl_res:
+                if dl_res.status_code != 200:
+                    logger.error("Failed to download WhatsApp media binary %s: %s", media_id, dl_res.status_code)
+                    return None, None
+                try:
+                    if dl_res.headers.get("content-length") is not None and int(dl_res.headers["content-length"]) > max_bytes:
+                        logger.warning("Rejected oversized WhatsApp media response %s", media_id)
+                        return None, None
+                except (TypeError, ValueError):
+                    pass
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in dl_res.aiter_bytes():
+                    total += len(chunk)
+                    if total > max_bytes:
+                        logger.warning("Rejected WhatsApp media exceeding byte cap %s", media_id)
+                        return None, None
+                    chunks.append(chunk)
+                data = b"".join(chunks)
+                response_mime = (dl_res.headers.get("content-type") or "").split(";")[0].lower().strip()
+                if response_mime and response_mime != "application/octet-stream" and response_mime != mime_type:
+                    logger.warning("Rejected WhatsApp media %s due to MIME mismatch", media_id)
+                    return None, None
+                if not _media_signature_matches(data, mime_type):
+                    logger.warning("Rejected WhatsApp media %s due to content signature mismatch", media_id)
+                    return None, None
+                return data, mime_type
     except Exception:
         logger.exception("Exception downloading WhatsApp media %s", media_id)
         return None, None
@@ -661,7 +733,7 @@ async def whatsapp_receive(request: Request):
                     media_obj = msg.get("audio") or msg.get("voice") or {}
                     media_id = media_obj.get("id")
                     if media_id:
-                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token)
+                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token, "audio")
                         if media_bytes:
                             clean_mime = (media_mime or "audio/ogg").split(";")[0]
                             await _handle_whatsapp_message(
@@ -678,7 +750,7 @@ async def whatsapp_receive(request: Request):
                     media_id = img_obj.get("id")
                     caption = img_obj.get("caption") or ""
                     if media_id:
-                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token)
+                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token, "image")
                         if media_bytes:
                             clean_mime = (media_mime or "image/jpeg").split(";")[0]
                             await _handle_whatsapp_message(
@@ -696,7 +768,7 @@ async def whatsapp_receive(request: Request):
                     filename = doc_obj.get("filename") or "document.pdf"
                     caption = doc_obj.get("caption") or ""
                     if media_id:
-                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token)
+                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token, "document")
                         if media_bytes:
                             clean_mime = (media_mime or "application/pdf").split(";")[0]
                             await _handle_whatsapp_message(

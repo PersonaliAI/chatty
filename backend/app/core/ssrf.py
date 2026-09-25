@@ -24,6 +24,7 @@ making the request yourself.
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 import ipaddress
 import socket
 from urllib.parse import urlparse, urlunparse
@@ -182,3 +183,17 @@ async def request_async(
     merged_extensions = dict(kwargs.pop("extensions", None) or {})
     merged_extensions.update(extensions)
     return await client.request(method, pinned_url, headers=headers, extensions=merged_extensions, **kwargs)
+
+
+@asynccontextmanager
+async def stream_async(
+    client: httpx.AsyncClient, method: str, url: str, **kwargs: object
+):
+    """Open a streaming request while preserving DNS-pinned SSRF protection."""
+    pinned_url, host_header, extensions = await asyncio.to_thread(_build_pinned_request, url)
+    headers = httpx.Headers(kwargs.pop("headers", None))
+    headers.update(host_header)
+    merged_extensions = dict(kwargs.pop("extensions", None) or {})
+    merged_extensions.update(extensions)
+    async with client.stream(method, pinned_url, headers=headers, extensions=merged_extensions, **kwargs) as response:
+        yield response

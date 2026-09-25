@@ -213,6 +213,18 @@ def test_verify_meta_signature_rejects_wrong_secret():
     assert webhooks._verify_meta_signature(payload, expected_sig, "secret_b") is False
 
 
+def test_whatsapp_media_boundary_checks():
+    assert webhooks._is_allowed_whatsapp_media_url("https://lookaside.fbsbx.com/media") is True
+    assert webhooks._is_allowed_whatsapp_media_url("https://attacker.example/media") is False
+    assert webhooks._is_allowed_whatsapp_media_url("http://lookaside.fbsbx.com/media") is False
+    assert webhooks._WHATSAPP_MEDIA_LIMITS["image"] == 5 * 1024 * 1024
+    assert webhooks._WHATSAPP_MEDIA_LIMITS["audio"] == 16 * 1024 * 1024
+    assert webhooks._WHATSAPP_MEDIA_LIMITS["document"] == 25 * 1024 * 1024
+    assert webhooks._media_signature_matches(b"\xff\xd8\xffimage", "image/jpeg") is True
+    assert webhooks._media_signature_matches(b"not-an-image", "image/jpeg") is False
+    assert webhooks._media_signature_matches(b"%PDF-1.7", "application/pdf") is True
+
+
 def test_whatsapp_verify_handshake_server_token(monkeypatch):
     monkeypatch.setattr(webhooks, "WHATSAPP_VERIFY_TOKEN", "global_token_123")
     req = SimpleNamespace(
