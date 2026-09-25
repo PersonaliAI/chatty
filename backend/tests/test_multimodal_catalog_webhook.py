@@ -105,6 +105,24 @@ def test_manual_catalog_webhook_rejects_non_object_item():
             headers={"x-chatty-signature": _signature(raw)},
         )
     assert response.status_code == 400
+    # Validation happens before idempotency claiming, so a corrected retry is
+    # not poisoned by the malformed delivery.
+    assert db.await_count == 1
+
+
+def test_manual_catalog_webhook_rejects_incomplete_create_before_claiming():
+    payload = {"event": "product.created", "external_id": "ERP-new", "item": {"title": "Missing image"}}
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    with patch("app.routers.multimodal.run_db", new_callable=AsyncMock) as db, \
+         patch("app.routers.multimodal.decrypt_secret", return_value=SECRET):
+        db.return_value = MagicMock(data=[{"signing_secret": SECRET, "enabled": True}])
+        response = client.post(
+            f"/api/integrations/catalog/webhook/{BOT_ID}",
+            content=raw,
+            headers={"x-chatty-signature": _signature(raw)},
+        )
+    assert response.status_code == 400
+    assert db.await_count == 1
 
 
 def test_manual_catalog_webhook_rejects_ambiguous_external_id():

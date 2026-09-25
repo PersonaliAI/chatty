@@ -447,6 +447,14 @@ async def receive_catalog_webhook(
     event_id = str(body.get("event_id") or x_chatty_event_id or hashlib.sha256(raw).hexdigest()).strip()
     if not event_id or len(event_id) > 240:
         raise HTTPException(status_code=400, detail="event_id must be between 1 and 240 characters")
+    # Validate the payload before claiming the idempotency key. A malformed
+    # delivery must remain retryable after the producer fixes it; claiming it
+    # first would permanently turn a 400 into a misleading duplicate response.
+    item = body.get("item") or {}
+    if "deleted" not in event and not isinstance(item, dict):
+        raise HTTPException(status_code=400, detail="item must be an object")
+    if "created" in event and (not isinstance(item, dict) or not {"title", "media_url"}.issubset(item)):
+        raise HTTPException(status_code=400, detail="Created items require title and media_url")
     durable_event_id = f"catalog:{bot_id}:{event_id}"
     try:
         claimed = await run_db(lambda: supabase.table("chatty_channel_events").insert({
@@ -475,9 +483,6 @@ async def receive_catalog_webhook(
         if found.data:
             await run_db(lambda: supabase.table("chatty_media_items").delete().eq("id", found.data[0]["id"]).eq("bot_id", bot_id).execute())
         return {"status": "ok", "event": "deleted", "external_id": external_id, "item_id": found.data[0]["id"] if found.data else None}
-    item = body.get("item") or {}
-    if not isinstance(item, dict):
-        raise HTTPException(status_code=400, detail="item must be an object")
     existing_item = found.data[0] if found.data else {}
     metadata = dict(existing_item.get("metadata") or {})
     metadata.update(item.get("metadata") or {})
@@ -501,8 +506,5 @@ async def receive_catalog_webhook(
         return {"status": "ok", "event": "updated", "external_id": external_id, "item_id": found.data[0]["id"]}
     if "created" not in event:
         raise HTTPException(status_code=404, detail="Catalog item not found")
-    required = {"title", "media_url"}
-    if not required.issubset(item):
-        raise HTTPException(status_code=400, detail="Created items require title and media_url")
     created = await multimodal_service.ingest_media_item(bot_id=bot_id, title=item["title"], media_url=item["media_url"], description=item.get("description") or "", sku=item.get("sku"), price=item.get("price"), currency=item.get("currency") or "USD", url=item.get("url"), thumbnail_url=item.get("thumbnail_url"), visual_attributes=item.get("visual_attributes"), metadata=metadata)
     return {"status": "ok", "event": "created", "external_id": external_id, "item_id": created.get("id")}
