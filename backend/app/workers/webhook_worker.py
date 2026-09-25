@@ -46,6 +46,8 @@ async def run() -> None:
     max_attempts = int(os.environ.get("CHATTY_WORKER_MAX_ATTEMPTS", "5"))
     pending_idle_ms = int(os.environ.get("CHATTY_WORKER_PENDING_IDLE_MS", "60000"))
     recover_count = int(os.environ.get("CHATTY_WORKER_RECOVER_COUNT", "10"))
+    retry_backoff_base_seconds = float(os.environ.get("CHATTY_WORKER_RETRY_BACKOFF_BASE_SECONDS", "1"))
+    retry_backoff_cap_seconds = float(os.environ.get("CHATTY_WORKER_RETRY_BACKOFF_CAP_SECONDS", "30"))
     client = redis_asyncio.from_url(queue_url, decode_responses=True)
     worker = RedisStreamWorker(
         client,
@@ -55,6 +57,8 @@ async def run() -> None:
         max_attempts=max_attempts,
         pending_idle_ms=pending_idle_ms,
         recover_count=recover_count,
+        retry_backoff_base_seconds=retry_backoff_base_seconds,
+        retry_backoff_cap_seconds=retry_backoff_cap_seconds,
         handlers={"webhook.deliver": _deliver},
     )
     await worker.ensure_group()

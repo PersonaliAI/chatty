@@ -1,6 +1,7 @@
 import asyncio
 import json
 
+from app.workers import job_worker
 from app.workers.job_worker import RedisStreamWorker
 
 
@@ -107,3 +108,27 @@ def test_worker_dead_letters_malformed_delivery_instead_of_leaving_it_pending():
     assert client.published[0][0] == "chatty:jobs:dead-letter"
     assert json.loads(client.published[0][1]["payload"])["raw_payload"] == "not-json"
     assert client.acked == [("chatty:jobs", "chatty-workers", "1-0")]
+
+
+def test_worker_applies_bounded_exponential_retry_backoff(monkeypatch):
+    client = FakeRedis([("1-0", {
+        "name": "broken", "payload": "{}", "idempotency_key": "event-1"
+    })])
+    delays = []
+
+    async def no_sleep(seconds):
+        delays.append(seconds)
+
+    monkeypatch.setattr(job_worker.asyncio, "sleep", no_sleep)
+    worker = RedisStreamWorker(
+        client,
+        max_attempts=3,
+        retry_backoff_base_seconds=2,
+        retry_backoff_cap_seconds=3,
+        handlers={"broken": lambda _: (_ for _ in ()).throw(RuntimeError("nope"))},
+    )
+
+    stats = asyncio.run(worker.run_once())
+
+    assert stats["retried"] == 1
+    assert delays == [2]

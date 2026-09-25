@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import logging
@@ -41,6 +42,8 @@ class RedisStreamWorker:
         max_attempts: int = 5,
         pending_idle_ms: int = 60_000,
         recover_count: int = 10,
+        retry_backoff_base_seconds: float = 0.0,
+        retry_backoff_cap_seconds: float = 30.0,
         handlers: Mapping[str, JobHandler] | None = None,
     ) -> None:
         if max_attempts < 1:
@@ -49,6 +52,10 @@ class RedisStreamWorker:
             raise ValueError("pending_idle_ms must be non-negative")
         if recover_count < 1:
             raise ValueError("recover_count must be positive")
+        if retry_backoff_base_seconds < 0 or retry_backoff_cap_seconds < 0:
+            raise ValueError("retry backoff values must be non-negative")
+        if retry_backoff_cap_seconds < retry_backoff_base_seconds:
+            raise ValueError("retry_backoff_cap_seconds must not be below the base")
         self.client = client
         self.stream = stream
         self.group = group
@@ -57,6 +64,8 @@ class RedisStreamWorker:
         self.max_attempts = max_attempts
         self.pending_idle_ms = pending_idle_ms
         self.recover_count = recover_count
+        self.retry_backoff_base_seconds = retry_backoff_base_seconds
+        self.retry_backoff_cap_seconds = retry_backoff_cap_seconds
         self.handlers = dict(handlers or {})
 
     async def ensure_group(self) -> None:
@@ -169,6 +178,13 @@ class RedisStreamWorker:
                         stats["dead_lettered"] += 1
                         continue
                     try:
+                        if job.attempts + 1 < self.max_attempts:
+                            retry_delay = min(
+                                self.retry_backoff_cap_seconds,
+                                self.retry_backoff_base_seconds * (2 ** job.attempts),
+                            )
+                            if retry_delay > 0:
+                                await asyncio.sleep(retry_delay)
                         await self._retry_or_dead_letter(job, exc)
                         await self.client.xack(self.stream, self.group, stream_id)
                         if job.attempts + 1 >= self.max_attempts:
