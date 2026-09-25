@@ -186,6 +186,7 @@ async def get_woocommerce_status(
         "synced_products": integration.get("synced_products", product_count),
         "last_synced_at": integration.get("last_synced_at"),
         "last_error": integration.get("last_error"),
+        **woocommerce_service.catalog_freshness(integration),
         "webhook_url": webhook_url,
         "webhook_secret": integration.get("webhook_secret"),
         "product_count": product_count,

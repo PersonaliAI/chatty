@@ -17,6 +17,7 @@ import hmac
 import html
 import json
 import logging
+import os
 import re
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -30,6 +31,7 @@ from app.core import ssrf
 from app.services import multimodal_service
 
 logger = logging.getLogger("chatty.woocommerce")
+COMMERCE_FRESHNESS_SLO_SECONDS = int(os.environ.get("CHATTY_COMMERCE_FRESHNESS_SLO_SECONDS", "900"))
 
 
 def _protect(value: str) -> str:
@@ -145,6 +147,37 @@ async def get_integration(bot_id: str) -> Optional[dict[str, Any]]:
         if row.get(field):
             row[field] = decrypt_secret(row[field])
     return row
+
+
+def catalog_freshness(integration: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """Return an operator-facing freshness SLO snapshot for one store."""
+    integration = integration or {}
+    timestamp = integration.get("catalog_freshness_at")
+    age_seconds: Optional[int] = None
+    if timestamp:
+        try:
+            parsed = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+            age_seconds = max(0, int((datetime.now(timezone.utc) - parsed).total_seconds()))
+        except (TypeError, ValueError):
+            age_seconds = None
+    sync_status = str(integration.get("sync_status") or "idle")
+    if sync_status == "failed":
+        status = "failed"
+    elif sync_status == "syncing":
+        status = "syncing"
+    elif age_seconds is None:
+        status = "unknown"
+    else:
+        status = "fresh" if age_seconds <= COMMERCE_FRESHNESS_SLO_SECONDS else "stale"
+    return {
+        "catalog_freshness_at": timestamp,
+        "freshness_age_seconds": age_seconds,
+        "freshness_slo_seconds": COMMERCE_FRESHNESS_SLO_SECONDS,
+        "freshness_status": status,
+        "last_webhook_at": integration.get("last_webhook_at"),
+        "last_sync_started_at": integration.get("last_sync_started_at"),
+        "last_sync_completed_at": integration.get("last_sync_completed_at"),
+    }
 
 
 async def refresh_live_product_facts(
@@ -481,6 +514,7 @@ async def _update_sync_progress(
     total: int,
     error: Optional[str] = None,
     next_page: Optional[int] = None,
+    mark_started: bool = False,
 ):
     """Update progress tracking columns in chatty_woocommerce_integrations."""
     fields: dict[str, Any] = {
@@ -495,8 +529,13 @@ async def _update_sync_progress(
     if next_page is not None:
         fields["sync_page"] = max(1, int(next_page))
         fields["sync_checkpoint_at"] = datetime.now(timezone.utc).isoformat()
+    if mark_started:
+        fields["last_sync_started_at"] = datetime.now(timezone.utc).isoformat()
     if status == "synced":
-        fields["last_synced_at"] = datetime.now(timezone.utc).isoformat()
+        completed_at = datetime.now(timezone.utc).isoformat()
+        fields["last_synced_at"] = completed_at
+        fields["last_sync_completed_at"] = completed_at
+        fields["catalog_freshness_at"] = completed_at
         fields["last_error"] = None
         fields["sync_page"] = 1
 
@@ -538,6 +577,7 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
         synced=synced_count,
         total=total_count,
         next_page=page,
+        mark_started=True,
     )
 
     per_page = 100
@@ -734,6 +774,22 @@ async def process_webhook_payload(
 
     topic_lower = topic.lower()
 
+    async def record_freshness() -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            await run_db(
+                lambda: supabase.table("chatty_woocommerce_integrations")
+                .update({
+                    "catalog_freshness_at": now,
+                    "last_webhook_at": now,
+                    "updated_at": now,
+                })
+                .eq("bot_id", bot_id)
+                .execute()
+            )
+        except Exception as exc:
+            logger.warning("Failed to record WooCommerce freshness for bot %s: %s", bot_id, exc)
+
     if "deleted" in topic_lower:
         # Delete from chatty_media_items
         res = await run_db(
@@ -744,6 +800,7 @@ async def process_webhook_payload(
             .execute()
         )
         logger.info("WooCommerce webhook deleted product %s (count: %d)", wc_id, len(res.data or []))
+        await record_freshness()
         return {"event": "deleted", "id": wc_id}
 
     if "created" in topic_lower or "updated" in topic_lower:
@@ -794,6 +851,7 @@ async def process_webhook_payload(
                 .execute()
             )
             logger.info("WooCommerce webhook updated product %s (%s)", wc_id, mapped["title"])
+            await record_freshness()
             return {"event": "updated", "id": wc_id}
         else:
             await multimodal_service.ingest_media_item(
@@ -812,6 +870,7 @@ async def process_webhook_payload(
                 catalog_version=mapped.get("catalog_version"),
             )
             logger.info("WooCommerce webhook created product %s (%s)", wc_id, mapped["title"])
+            await record_freshness()
             return {"event": "created", "id": wc_id}
 
     return {"ignored": True, "topic": topic}
