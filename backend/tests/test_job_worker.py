@@ -91,3 +91,19 @@ def test_worker_reclaims_stale_pending_deliveries_before_new_messages():
     assert client.claims[0][1]["min_idle_time"] == 30_000
     assert client.claims[0][1]["count"] == 3
     assert client.acked == [("chatty:jobs", "chatty-workers", "0-1")]
+
+
+def test_worker_dead_letters_malformed_delivery_instead_of_leaving_it_pending():
+    client = FakeRedis([("1-0", {
+        "name": "broken",
+        "payload": "not-json",
+        "idempotency_key": "event-bad",
+    })])
+    worker = RedisStreamWorker(client)
+
+    stats = asyncio.run(worker.run_once(block_ms=0))
+
+    assert stats["dead_lettered"] == 1
+    assert client.published[0][0] == "chatty:jobs:dead-letter"
+    assert json.loads(client.published[0][1]["payload"])["raw_payload"] == "not-json"
+    assert client.acked == [("chatty:jobs", "chatty-workers", "1-0")]

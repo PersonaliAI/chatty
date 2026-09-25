@@ -145,6 +145,30 @@ class RedisStreamWorker:
                 except Exception as exc:  # noqa: BLE001 - worker isolation boundary
                     try:
                         job = self._decode(stream_id, fields)
+                    except Exception as decode_error:
+                        # A malformed delivery cannot be decoded into a normal
+                        # retry envelope. Dead-letter it directly so one bad
+                        # producer payload cannot remain pending forever.
+                        malformed_payload = {
+                            "raw_payload": str(fields.get("payload", ""))[:1_000],
+                            "decode_error": str(decode_error)[:500],
+                        }
+                        await self.client.xadd(
+                            self.dead_letter_stream,
+                            {
+                                "name": str(fields.get("name") or "__malformed__")[:200],
+                                "payload": json.dumps(malformed_payload, separators=(",", ":")),
+                                "idempotency_key": str(fields.get("idempotency_key") or f"malformed:{stream_id}")[:200],
+                                "attempts": str(self.max_attempts),
+                                "last_error": str(exc)[:500],
+                            },
+                            maxlen=100_000,
+                            approximate=True,
+                        )
+                        await self.client.xack(self.stream, self.group, stream_id)
+                        stats["dead_lettered"] += 1
+                        continue
+                    try:
                         await self._retry_or_dead_letter(job, exc)
                         await self.client.xack(self.stream, self.group, stream_id)
                         if job.attempts + 1 >= self.max_attempts:
