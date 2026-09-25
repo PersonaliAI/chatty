@@ -117,8 +117,9 @@ answers are split below Meta's message limit and retried on transient 408/425/
 429/5xx responses.
 
 For high-volume deployments, run the Redis Streams worker described in
-[`OPERATIONS.md`](OPERATIONS.md) and move long-running ingestion/replies behind
-the queue. Keep webhook handlers fast and return 2xx once an event is claimed.
+[`OPERATIONS.md`](OPERATIONS.md). WhatsApp messages are published as durable
+`whatsapp.message` jobs and return 2xx after queue publication and idempotency
+claiming; media downloads and model work stay out of the webhook request.
 
 ## Production checklist
 

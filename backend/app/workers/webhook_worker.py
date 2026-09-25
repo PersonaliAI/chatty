@@ -55,6 +55,12 @@ async def _send_ticket_reply_email(payload: dict) -> None:
         raise RuntimeError(result.get("error") or result.get("reason") or "ticket reply email failed")
 
 
+async def _process_whatsapp_message(payload: dict) -> None:
+    from app.routers.webhooks import process_whatsapp_job
+
+    await process_whatsapp_job(payload)
+
+
 async def run() -> None:
     queue_url = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
     if not queue_url:
@@ -97,6 +103,7 @@ async def run() -> None:
             "webhook.deliver": _deliver,
             "woocommerce.sync": _sync_woocommerce,
             "email.ticket_reply": _send_ticket_reply_email,
+            "whatsapp.message": _process_whatsapp_message,
         },
     )
     await worker.ensure_group()

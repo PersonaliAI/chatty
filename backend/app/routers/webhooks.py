@@ -22,6 +22,7 @@ from app.core import ssrf
 from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, RESEND_INBOUND_WEBHOOK_SECRET
 from app.core.db import run_db
 from app.core.crypto import decrypt_secret
+from app.adapters.redis_jobs import RedisJobQueue
 from app.services.chatty_quota_service import chatty_quota_exceeded
 from app.services.widget_session_service import upsert_session as _upsert_session
 from app.services.whatsapp_service import (
@@ -325,6 +326,17 @@ WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
 WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
 WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET", "")
 WHATSAPP_API_VERSION = os.environ.get("WHATSAPP_API_VERSION", "v21.0")
+_WHATSAPP_JOB_QUEUE_URL = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
+_whatsapp_job_queue = (
+    RedisJobQueue(_WHATSAPP_JOB_QUEUE_URL, stream="chatty:webhooks")
+    if _WHATSAPP_JOB_QUEUE_URL else None
+)
+
+
+def _allow_ephemeral_jobs() -> bool:
+    return os.environ.get("CHATTY_ALLOW_EPHEMERAL_JOBS", "false").strip().lower() in {
+        "1", "true", "yes"
+    }
 
 
 async def _claim_whatsapp_message(bot_id: str, message_id: str | None) -> bool:
@@ -682,6 +694,58 @@ async def _handle_whatsapp_message(
     await _send_whatsapp(phone_number_id, frm, reply, access_token, quick_replies=btn_list)
 
 
+async def _dispatch_whatsapp_message(
+    phone_number_id: str,
+    msg: dict[str, object],
+    bot: dict[str, object],
+    owner_user: dict[str, object],
+    access_token: str,
+) -> None:
+    """Decode one Meta message and run the existing multimodal handler."""
+    frm = str(msg.get("from") or "")
+    msg_type = msg.get("type")
+    if msg_type == "text":
+        await _handle_whatsapp_message(phone_number_id, frm, bot, owner_user, access_token, text=str((msg.get("text") or {}).get("body") or ""))
+    elif msg_type == "interactive":
+        interactive = msg.get("interactive") or {}
+        btn_reply = interactive.get("button_reply") or {}
+        list_reply = interactive.get("list_reply") or {}
+        button_text = btn_reply.get("title") or list_reply.get("title") or ""
+        if button_text:
+            await _handle_whatsapp_message(phone_number_id, frm, bot, owner_user, access_token, text=str(button_text))
+    elif msg_type in ("audio", "voice", "image", "document"):
+        media_obj = msg.get("audio") or msg.get("voice") or msg.get("image") or msg.get("document") or {}
+        media_id = media_obj.get("id")
+        if not media_id:
+            return
+        media_kind = "audio" if msg_type in ("audio", "voice") else str(msg_type)
+        media_bytes, media_mime = await _download_whatsapp_media(str(media_id), access_token, media_kind)
+        if not media_bytes:
+            return
+        clean_mime = (media_mime or ("audio/ogg" if media_kind == "audio" else "application/pdf")).split(";")[0]
+        await _handle_whatsapp_message(phone_number_id, str(msg.get("from") or ""), bot, owner_user, access_token, text=str(media_obj.get("caption") or ""), media_bytes=media_bytes, media_mime=clean_mime, media_filename=("voice_note.ogg" if media_kind == "audio" else "photo.jpg" if media_kind == "image" else str(media_obj.get("filename") or "document.pdf")))
+
+
+async def process_whatsapp_job(payload: dict[str, object]) -> None:
+    """Resolve credentials and process one queue-backed WhatsApp message."""
+    bot_id = str(payload.get("bot_id") or "").strip()
+    phone_number_id = str(payload.get("phone_number_id") or "").strip()
+    message = payload.get("message")
+    if not bot_id or not phone_number_id or not isinstance(message, dict):
+        raise ValueError("WhatsApp job is missing bot, phone number, or message")
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).limit(1).execute())
+    if not bot_res.data:
+        raise ValueError("WhatsApp bot no longer exists")
+    bot = bot_res.data[0]
+    access_token = decrypt_secret(bot.get("whatsapp_access_token") or "") or WHATSAPP_ACCESS_TOKEN
+    if not access_token:
+        raise RuntimeError("WhatsApp access token is not configured")
+    owner_res = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot["user_id"]).limit(1).execute())
+    if not owner_res.data:
+        raise ValueError("WhatsApp bot owner no longer exists")
+    await _dispatch_whatsapp_message(phone_number_id, message, bot, owner_res.data[0], access_token)
+
+
 @router.post("/webhook/whatsapp")
 async def whatsapp_receive(request: Request):
     """Inbound WhatsApp webhook handler (Meta Cloud API).
@@ -746,80 +810,22 @@ async def whatsapp_receive(request: Request):
                 continue
             owner_user = owner_res.data[0]
 
-            # Process each message
+            # Process each message. Queue publication precedes claiming so a
+            # transient Redis failure remains retryable by Meta.
             for msg in val.get("messages", []):
-                frm = msg.get("from")
-                msg_type = msg.get("type")
-                if not await _claim_whatsapp_message(bot["id"], msg.get("id")):
-                    continue
-
-                if msg_type == "text":
-                    user_text = (msg.get("text") or {}).get("body", "")
-                    await _handle_whatsapp_message(
-                        pnid, frm, bot, owner_user, access_token, text=user_text
-                    )
-
-                elif msg_type == "interactive":
-                    # Button or list item reply
-                    interactive = msg.get("interactive", {})
-                    btn_reply = interactive.get("button_reply", {})
-                    list_reply = interactive.get("list_reply", {})
-                    button_text = btn_reply.get("title") or list_reply.get("title") or ""
-                    if button_text:
-                        await _handle_whatsapp_message(
-                            pnid, frm, bot, owner_user, access_token, text=button_text
-                        )
-
-                elif msg_type in ("audio", "voice"):
-                    # Voice note / audio message
-                    media_obj = msg.get("audio") or msg.get("voice") or {}
-                    media_id = media_obj.get("id")
-                    if media_id:
-                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token, "audio")
-                        if media_bytes:
-                            clean_mime = (media_mime or "audio/ogg").split(";")[0]
-                            await _handle_whatsapp_message(
-                                pnid, frm, bot, owner_user, access_token,
-                                text="",
-                                media_bytes=media_bytes,
-                                media_mime=clean_mime,
-                                media_filename="voice_note.ogg"
-                            )
-
-                elif msg_type == "image":
-                    # Photo / screenshot
-                    img_obj = msg.get("image") or {}
-                    media_id = img_obj.get("id")
-                    caption = img_obj.get("caption") or ""
-                    if media_id:
-                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token, "image")
-                        if media_bytes:
-                            clean_mime = (media_mime or "image/jpeg").split(";")[0]
-                            await _handle_whatsapp_message(
-                                pnid, frm, bot, owner_user, access_token,
-                                text=caption,
-                                media_bytes=media_bytes,
-                                media_mime=clean_mime,
-                                media_filename="photo.jpg"
-                            )
-
-                elif msg_type == "document":
-                    # PDF, CSV, etc.
-                    doc_obj = msg.get("document") or {}
-                    media_id = doc_obj.get("id")
-                    filename = doc_obj.get("filename") or "document.pdf"
-                    caption = doc_obj.get("caption") or ""
-                    if media_id:
-                        media_bytes, media_mime = await _download_whatsapp_media(media_id, access_token, "document")
-                        if media_bytes:
-                            clean_mime = (media_mime or "application/pdf").split(";")[0]
-                            await _handle_whatsapp_message(
-                                pnid, frm, bot, owner_user, access_token,
-                                text=caption,
-                                media_bytes=media_bytes,
-                                media_mime=clean_mime,
-                                media_filename=filename
-                            )
+                message_id = str(msg.get("id") or "")
+                if _whatsapp_job_queue:
+                    if not message_id:
+                        message_id = hashlib.sha256(json.dumps(msg, sort_keys=True).encode("utf-8")).hexdigest()
+                    await _whatsapp_job_queue.enqueue(name="whatsapp.message", payload={"bot_id": bot["id"], "phone_number_id": pnid, "message": msg, "concurrency_key": f"whatsapp:{bot['id']}:{msg.get('from') or 'unknown'}"}, idempotency_key=f"whatsapp.message:{bot['id']}:{message_id}")
+                    if not await _claim_whatsapp_message(bot["id"], msg.get("id")):
+                        continue
+                else:
+                    if not _allow_ephemeral_jobs():
+                        raise HTTPException(status_code=503, detail="Durable job queue is required for WhatsApp webhooks")
+                    if not await _claim_whatsapp_message(bot["id"], msg.get("id")):
+                        continue
+                    await _dispatch_whatsapp_message(pnid, msg, bot, owner_user, access_token)
 
     return {"ok": True}
 
