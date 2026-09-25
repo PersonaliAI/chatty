@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import socket
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from plugins import notifications as notify
@@ -49,6 +50,55 @@ def test_webhook_backoff_schedule_is_ascending():
 
 def test_webhook_max_attempts_is_backoff_schedule_length_plus_initial_send():
     assert notify.WEBHOOK_MAX_ATTEMPTS == len(notify.WEBHOOK_BACKOFF_SCHEDULE) + 1
+
+
+def test_due_webhook_retry_claims_delivery_before_sending(monkeypatch):
+    row = {
+        "id": "delivery-1", "webhook_id": "webhook-1", "event": "lead.created",
+        "payload": {"event": "lead.created"}, "status": "pending",
+        "attempt_count": 0, "next_attempt_at": "2026-01-01T00:00:00+00:00",
+    }
+    webhook = {"id": "webhook-1", "url": "https://hooks.example", "secret": "secret", "active": True}
+
+    class Query:
+        def __init__(self, table):
+            self.table = table
+            self.filters = []
+            self.payload = None
+            self.operation = "select"
+
+        def select(self, *_fields): return self
+        def eq(self, key, value): self.filters.append((key, value)); return self
+        def lte(self, *_args): return self
+        def lt(self, *_args): return self
+        def order(self, *_args, **_kwargs): return self
+        def limit(self, *_args): return self
+        def update(self, payload): self.operation, self.payload = "update", payload; return self
+
+        def execute(self):
+            target = row if self.table == "chatty_webhook_deliveries" else webhook
+            if self.operation == "select":
+                if self.table == "chatty_webhook_deliveries":
+                    status = next((value for key, value in self.filters if key == "status"), None)
+                    return SimpleNamespace(data=[dict(row)] if status == row["status"] else [])
+                return SimpleNamespace(data=[dict(webhook)])
+            for key, value in self.filters:
+                if target.get(key) != value:
+                    return SimpleNamespace(data=[])
+            target.update(self.payload)
+            return SimpleNamespace(data=[dict(target)])
+
+    class Supabase:
+        def table(self, name): return Query(name)
+
+    async def inline_db(fn): return fn()
+    async def delivered(*_args, **_kwargs): return True, None
+    monkeypatch.setattr(notify, "run_db", inline_db)
+    monkeypatch.setattr(notify, "_post_signed_webhook", delivered)
+    result = asyncio.run(notify.process_due_webhook_retries(Supabase(), limit=1))
+    assert result == {"processed": 1, "delivered": 1, "dropped": 0}
+    assert row["status"] == "delivered"
+    assert row["processing_token"] is None
 
 
 def test_webhook_events_are_all_dot_namespaced():

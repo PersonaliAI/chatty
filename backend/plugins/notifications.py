@@ -23,6 +23,7 @@ import html as _html
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -471,6 +472,7 @@ WEBHOOK_EVENTS = (
 WEBHOOK_BACKOFF_SCHEDULE = [1, 5, 30, 300, 1800, 7200, 28800]
 WEBHOOK_MAX_ATTEMPTS = len(WEBHOOK_BACKOFF_SCHEDULE) + 1
 WEBHOOK_TIMEOUT_SECONDS = 10
+WEBHOOK_PROCESSING_LEASE_SECONDS = 10 * 60
 
 
 def sign_webhook_body(secret: str, body: bytes) -> str:
@@ -601,7 +603,17 @@ async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
             .limit(limit)
             .execute()
         ))
-        due = res.data or []
+        stale_cutoff = (datetime.now(timezone.utc) - timedelta(seconds=WEBHOOK_PROCESSING_LEASE_SECONDS)).isoformat()
+        stale_res = await run_db(lambda: (
+            supabase.table("chatty_webhook_deliveries")
+            .select("*")
+            .eq("status", "processing")
+            .lt("processing_started_at", stale_cutoff)
+            .order("processing_started_at")
+            .limit(limit)
+            .execute()
+        ))
+        due = (res.data or []) + (stale_res.data or [])
     except Exception:
         logger.exception("webhook retry lookup failed")
         return {"processed": 0, "delivered": 0, "dropped": 0}
@@ -609,6 +621,25 @@ async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
     delivered = 0
     dropped = 0
     for delivery in due:
+        expected_status = delivery.get("status") or "pending"
+        processing_token = uuid.uuid4().hex
+        claim_query = supabase.table("chatty_webhook_deliveries").update({
+            "status": "processing",
+            "processing_started_at": datetime.now(timezone.utc).isoformat(),
+            "processing_token": processing_token,
+        }).eq("id", delivery["id"]).eq("status", expected_status)
+        if expected_status == "processing":
+            claim_query = claim_query.eq("processing_started_at", delivery.get("processing_started_at"))
+        try:
+            claim_res = await run_db(lambda: claim_query.select("id").execute())
+        except Exception:
+            logger.exception("webhook delivery claim failed for %s", delivery.get("id"))
+            continue
+        if not claim_res or not claim_res.data:
+            # Another cron instance owns this row, or it was completed between
+            # the scan and claim. Never deliver without an exclusive claim.
+            continue
+
         try:
             wh_res = await run_db(lambda: (
                 supabase.table("chatty_webhooks")
@@ -623,8 +654,9 @@ async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
 
         if not wh or not wh.get("active"):
             await run_db(lambda: supabase.table("chatty_webhook_deliveries").update(
-                {"status": "failed", "last_error": "webhook removed or deactivated"}
-            ).eq("id", delivery["id"]).execute())
+                {"status": "failed", "last_error": "webhook removed or deactivated",
+                 "processing_started_at": None, "processing_token": None}
+            ).eq("id", delivery["id"]).eq("status", "processing").eq("processing_token", processing_token).execute())
             dropped += 1
             continue
 
@@ -636,14 +668,16 @@ async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
                 "status": "delivered",
                 "attempt_count": attempt,
                 "delivered_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", delivery["id"]).execute())
+                "processing_started_at": None, "processing_token": None,
+            }).eq("id", delivery["id"]).eq("status", "processing").eq("processing_token", processing_token).execute())
             delivered += 1
             continue
 
         if attempt >= WEBHOOK_MAX_ATTEMPTS:
             await run_db(lambda: supabase.table("chatty_webhook_deliveries").update({
                 "status": "failed", "attempt_count": attempt, "last_error": err,
-            }).eq("id", delivery["id"]).execute())
+                "processing_started_at": None, "processing_token": None,
+            }).eq("id", delivery["id"]).eq("status", "processing").eq("processing_token", processing_token).execute())
             dropped += 1
         else:
             backoff = WEBHOOK_BACKOFF_SCHEDULE[min(attempt - 1, len(WEBHOOK_BACKOFF_SCHEDULE) - 1)]
@@ -651,7 +685,8 @@ async def process_due_webhook_retries(supabase, *, limit: int = 100) -> dict:
                 "attempt_count": attempt,
                 "last_error": err,
                 "next_attempt_at": (datetime.now(timezone.utc) + timedelta(seconds=backoff)).isoformat(),
-            }).eq("id", delivery["id"]).execute())
+                "status": "pending", "processing_started_at": None, "processing_token": None,
+            }).eq("id", delivery["id"]).eq("status", "processing").eq("processing_token", processing_token).execute())
 
     return {"processed": len(due), "delivered": delivered, "dropped": dropped}
 
