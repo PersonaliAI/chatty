@@ -1,0 +1,3 @@
+[submodule "integrations/wordpress/chatty-wordpress-plugin"]
+	path = integrations/wordpress/chatty-wordpress-plugin
+	url = https://github.com/PersonaliAI/chatty-wordpress-plugin.git
