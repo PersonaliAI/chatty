@@ -34,14 +34,74 @@ are pending or secrets are detected by the repository scanner.
 
 ## Cloud Run release checklist
 
-1. Build the immutable image from the commit being released.
-2. Run tests and the secret scanner in CI.
-3. Apply versioned database migrations before routing traffic.
-4. Publish the image to the regional registry.
-5. Deploy a new Cloud Run revision with secrets injected from Secret Manager.
-6. Verify health, widget configuration, authentication, booking, and webhook
-   flows against the revision URL.
-7. Shift traffic gradually; keep the previous revision available for rollback.
+The production services are `chatty-api` and `chatty-voice-worker` in project
+`personaliai`, region `us-central1`. Capture the current revisions before every
+release; those names are the rollback handles, not a mutable image tag.
+
+```powershell
+$project = "personaliai"
+$region = "us-central1"
+$apiPrevious = gcloud run services describe chatty-api --project $project --region $region --format="value(status.latestReadyRevisionName)"
+$voicePrevious = gcloud run services describe chatty-voice-worker --project $project --region $region --format="value(status.latestReadyRevisionName)"
+git rev-parse HEAD
+python -m compileall -q .
+pytest -q
+git diff --check
+```
+
+1. Apply versioned database migrations and verify the migration history before
+   routing traffic. Never run a destructive migration as an unreviewed hotfix.
+2. Deploy the API from the exact checked-out commit. `--clear-base-image` is
+   required by this service:
+
+   ```powershell
+   gcloud run deploy chatty-api --source . --region $region --project $project --clear-base-image --quiet
+   ```
+
+3. Deploy the voice worker from an immutable Artifact Registry digest. Keep
+   `LIVEKIT_NUM_IDLE_PROCESSES=2` for the production 4-vCPU/4-GiB worker:
+
+   ```powershell
+   gcloud run deploy chatty-voice-worker `
+     --image us-central1-docker.pkg.dev/personaliai/cloud-run-source-deploy/chatty-voice-worker@sha256:<digest> `
+     --project $project --region $region --update-env-vars LIVEKIT_NUM_IDLE_PROCESSES=2 `
+     --min-instances=1 --max-instances=3 --memory=4Gi --cpu=4 `
+     --no-cpu-throttling --timeout=300 --no-allow-unauthenticated --quiet
+   ```
+
+4. Verify readiness and traffic before considering the release successful:
+
+   ```powershell
+   Invoke-WebRequest "https://api.chatty.personaliai.com/readyz" -UseBasicParsing
+   gcloud run services describe chatty-api --project $project --region $region --format="value(status.latestReadyRevisionName,status.traffic)"
+   gcloud run services describe chatty-voice-worker --project $project --region $region --format="value(status.latestReadyRevisionName,status.traffic)"
+   ```
+
+   The API smoke should return HTTP 200 with `status=ready`; protected catalog
+   routes should return 401 without a session rather than 500. For an
+   authenticated staging smoke, verify widget theme, text streaming, booking,
+   catalog creation/update, signed catalog webhook, and voice connect/greeting.
+5. Keep the previous revision serving until the smoke checks and startup logs
+   are clean. Record both new revision names, image digests, migration version,
+   test output, and the captured rollback names.
+
+### Rollback
+
+Rollback is a traffic change and does not delete the failed revision or data.
+Use the revision names captured before deployment:
+
+```powershell
+gcloud run services update-traffic chatty-api `
+  --to-revisions ${apiPrevious}=100 --project $project --region $region --quiet
+gcloud run services update-traffic chatty-voice-worker `
+  --to-revisions ${voicePrevious}=100 --project $project --region $region --quiet
+```
+
+Re-run `/readyz`, the voice connect smoke, and the relevant authenticated flow
+after rollback. Preserve the failed revision's logs and request IDs before
+redeploying a fix. A database migration is not rolled back by changing Cloud
+Run traffic; use an additive forward migration or a verified backup restore
+plan after reviewing the migration's data impact.
 
 Cloud Run services must use a bounded request timeout, a minimum instance count
 appropriate for latency requirements, and separate worker capacity for long
