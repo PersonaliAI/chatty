@@ -15,6 +15,7 @@ import base64
 import hashlib
 import hmac
 import html
+import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -275,6 +276,8 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
         "attributes": product.get("attributes") or [],
         "shipping_required": product.get("virtual") is not True,
     }
+    source_updated_at = product.get("date_modified_gmt") or product.get("date_modified") or None
+    catalog_version = f"woocommerce:{wc_id}:{hashlib.sha256(json.dumps(product, sort_keys=True, default=str).encode('utf-8')).hexdigest()}"
 
     return {
         "title": title,
@@ -286,6 +289,8 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
         "media_url": media_url,
         "thumbnail_url": thumbnail_url,
         "metadata": metadata,
+        "source_updated_at": source_updated_at,
+        "catalog_version": catalog_version,
     }
 
 
@@ -471,6 +476,11 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                             "thumbnail_url": mapped["thumbnail_url"] or existing.data[0].get("thumbnail_url", ""),
                             "metadata": updated_metadata,
                             "updated_at": datetime.now(timezone.utc).isoformat(),
+                            "source_updated_at": mapped.get("source_updated_at"),
+                            "synced_at": datetime.now(timezone.utc).isoformat(),
+                            "catalog_version": mapped.get("catalog_version"),
+                            "ingestion_status": updated_metadata.get("_embedding_status", "stale"),
+                            "last_ingestion_error": None if updated_metadata.get("_embedding_status") == "ready" else "Embedding generation failed",
                         }
                         if embedding is not None:
                             upd["embedding"] = embedding
@@ -495,6 +505,8 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                                 url=mapped["url"],
                                 thumbnail_url=mapped["thumbnail_url"],
                                 metadata=mapped["metadata"],
+                                source_updated_at=mapped.get("source_updated_at"),
+                                catalog_version=mapped.get("catalog_version"),
                             )
                         except Exception as exc:
                             logger.warning("Failed to ingest WC product '%s': %s", mapped["title"], exc)
@@ -604,6 +616,11 @@ async def process_webhook_payload(
                 "url": mapped["url"],
                 "metadata": updated_metadata,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
+                "source_updated_at": mapped.get("source_updated_at"),
+                "synced_at": datetime.now(timezone.utc).isoformat(),
+                "catalog_version": mapped.get("catalog_version"),
+                "ingestion_status": updated_metadata.get("_embedding_status", "stale"),
+                "last_ingestion_error": None if updated_metadata.get("_embedding_status") == "ready" else "Embedding generation failed",
             }
             if mapped["media_url"]:
                 upd["media_url"] = mapped["media_url"]
@@ -632,6 +649,8 @@ async def process_webhook_payload(
                 url=mapped["url"],
                 thumbnail_url=mapped["thumbnail_url"],
                 metadata=mapped["metadata"],
+                source_updated_at=mapped.get("source_updated_at"),
+                catalog_version=mapped.get("catalog_version"),
             )
             logger.info("WooCommerce webhook created product %s (%s)", wc_id, mapped["title"])
             return {"event": "created", "id": wc_id}

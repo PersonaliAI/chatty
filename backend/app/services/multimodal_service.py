@@ -13,6 +13,7 @@ import base64
 import hashlib
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from app.core.clients import supabase
@@ -403,6 +404,8 @@ async def ingest_media_item(
     video_timestamp_end: Optional[float] = None,
     visual_attributes: Optional[dict[str, Any]] = None,
     metadata: Optional[dict[str, Any]] = None,
+    source_updated_at: Optional[str] = None,
+    catalog_version: Optional[str] = None,
 ) -> dict[str, Any]:
     """Ingest and embed a product, image, or video keyframe into chatty_media_items."""
     embedding_kwargs = {
@@ -435,6 +438,11 @@ async def ingest_media_item(
         "visual_attributes": visual_attributes or {},
         "metadata": metadata_with_embedding,
         "embedding": vector if vector else None,
+        "source_updated_at": source_updated_at,
+        "synced_at": datetime.now(timezone.utc).isoformat(),
+        "catalog_version": catalog_version,
+        "ingestion_status": "ready" if vector else "stale",
+        "last_ingestion_error": None if vector else "Embedding generation failed",
     }
 
     res = await run_db(lambda: supabase.table("chatty_media_items").insert(row).execute())

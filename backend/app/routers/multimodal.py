@@ -178,6 +178,9 @@ async def update_media_item(
         updates["metadata"] = _embedding_metadata_for_item(
             merged_item, status="ready" if vector else "stale"
         )
+        updates["synced_at"] = datetime.now(timezone.utc).isoformat()
+        updates["ingestion_status"] = "ready" if vector else "stale"
+        updates["last_ingestion_error"] = None if vector else "Embedding generation failed"
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     res = await run_db(lambda: supabase.table("chatty_media_items").update(updates).eq("id", item_id).eq("bot_id", bot_id).execute())
     if not res.data:
@@ -452,6 +455,9 @@ async def receive_catalog_webhook(
             updates["metadata"] = _embedding_metadata_for_item(
                 merged_item, status="ready" if vector else "stale"
             )
+            updates["synced_at"] = datetime.now(timezone.utc).isoformat()
+            updates["ingestion_status"] = "ready" if vector else "stale"
+            updates["last_ingestion_error"] = None if vector else "Embedding generation failed"
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await run_db(lambda: supabase.table("chatty_media_items").update(updates).eq("id", found.data[0]["id"]).eq("bot_id", bot_id).execute())
         return {"status": "ok", "event": "updated", "external_id": external_id, "item_id": found.data[0]["id"]}

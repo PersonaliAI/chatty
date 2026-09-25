@@ -9,6 +9,7 @@ def test_variable_product_normalizes_sellable_variant_facts():
         "permalink": "https://shop.example/products/trail-shoe",
         "regular_price": "120.00",
         "stock_status": "instock",
+        "date_modified_gmt": "2026-09-25T10:00:00",
         "variations": [{
             "id": 4201,
             "sku": "TRAIL-42-BLK",
@@ -28,6 +29,8 @@ def test_variable_product_normalizes_sellable_variant_facts():
     assert variant["in_stock"] is True
     assert variant["stock_quantity"] == 3
     assert variant["url"].endswith("variation_id=4201")
+    assert mapped["source_updated_at"] == "2026-09-25T10:00:00"
+    assert mapped["catalog_version"].startswith("woocommerce:42:")
 
 
 def test_product_context_requires_concrete_variant_card():
