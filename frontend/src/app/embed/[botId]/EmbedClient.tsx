@@ -19,7 +19,10 @@ import { normalizeWidgetStyle, getPresetSignature } from "@/lib/widget-style";
 import { AudioBubble, RECORD_BAR_COUNT, VOICE_MESSAGE_PLACEHOLDER, audioBlobToWav } from "./widget-media";
 import { AVATAR_ICONS, SEND_BUTTON_STYLES } from "./widget-style-options";
 import { detectCountryCode, detectTimezone } from "@/lib/locale-data";
-import { shouldRenderInlineWelcome } from "@/lib/widget-history";
+import {
+  dedupeAdjacentWelcomeMessages,
+  shouldRenderInlineWelcome,
+} from "@/lib/widget-history";
 import {
   Send, Loader2, Sparkles, MessageSquare, MessageCircle, FileText, Search,
   Paperclip, Smile, AudioWaveform, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
@@ -1288,7 +1291,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       if (raw) {
         const saved = JSON.parse(raw);
         if (Array.isArray(saved) && saved.length) {
-          setMessages(saved);
+          setMessages(dedupeAdjacentWelcomeMessages(saved, welcomeMsg));
           // If no registry yet, bootstrap with this conversation
           if (!rawConvs) {
             const lastM = saved[saved.length - 1];
@@ -1325,7 +1328,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         targetMsgs = JSON.parse(raw);
       }
     } catch {}
-    setMessages(targetMsgs.length > 0 ? targetMsgs : [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+    setMessages(targetMsgs.length > 0 ? dedupeAdjacentWelcomeMessages(targetMsgs, welcomeMsg) : [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
     setChatView("chat");
     setTab("messages");
   };
@@ -1667,7 +1670,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
           setTeamProfiles(Array.isArray(bot.team_profiles) ? bot.team_profiles : []);
-          setMessages((prev) => prev.length ? prev : [{
+          setMessages((prev) => prev.length ? dedupeAdjacentWelcomeMessages(prev, wMsg) : [{
             role: "assistant",
             content: wMsg,
             sender: "ai",

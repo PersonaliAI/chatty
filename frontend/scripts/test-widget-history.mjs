@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shouldRenderInlineWelcome } from "../src/lib/widget-history.ts";
+import {
+  dedupeAdjacentWelcomeMessages,
+  shouldRenderInlineWelcome,
+} from "../src/lib/widget-history.ts";
 
 test("renders the temporary welcome while the thread is empty", () => {
   assert.equal(shouldRenderInlineWelcome([], "Hello!"), true);
@@ -18,4 +21,18 @@ test("keeps the placeholder when history starts with a real turn", () => {
     shouldRenderInlineWelcome([{ role: "user", content: "Hi" }], "Hello!"),
     true,
   );
+});
+
+test("removes adjacent persisted welcome duplicates", () => {
+  const messages = [
+    { role: "assistant", content: "Hello!" },
+    { role: "assistant", content: " Hello! " },
+    { role: "user", content: "I need help" },
+    { role: "assistant", content: "Hello!" },
+  ];
+  assert.deepEqual(dedupeAdjacentWelcomeMessages(messages, "Hello!"), [
+    { role: "assistant", content: "Hello!" },
+    { role: "user", content: "I need help" },
+    { role: "assistant", content: "Hello!" },
+  ]);
 });
