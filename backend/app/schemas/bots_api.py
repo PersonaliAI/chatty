@@ -126,6 +126,10 @@ class CampaignCreateRequest(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     is_active: bool = True
+    audience_rules: dict[str, Any] = Field(default_factory=dict)
+    channels: list[str] = Field(default_factory=lambda: ["web"])
+    sequence_steps: list[dict[str, Any]] = Field(default_factory=list)
+    safety_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class CampaignUpdateRequest(BaseModel):
@@ -139,6 +143,10 @@ class CampaignUpdateRequest(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     is_active: Optional[bool] = None
+    audience_rules: Optional[dict[str, Any]] = None
+    channels: Optional[list[str]] = None
+    sequence_steps: Optional[list[dict[str, Any]]] = None
+    safety_config: Optional[dict[str, Any]] = None
 
 
 class CampaignSuggestRequest(BaseModel):

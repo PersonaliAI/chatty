@@ -51,6 +51,10 @@ def _campaign_row(body: CampaignCreateRequest) -> dict[str, Any]:
         "start_date": body.start_date,
         "end_date": body.end_date,
         "is_active": body.is_active,
+        "audience_rules": body.audience_rules,
+        "channels": body.channels,
+        "sequence_steps": body.sequence_steps,
+        "safety_config": body.safety_config,
     }
 
 

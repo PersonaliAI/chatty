@@ -12,6 +12,8 @@ interface TriggerRule {
   impressions?: number;
   clicks?: number;
   conversions?: number;
+  audience?: string;
+  channels?: string[];
 }
 
 interface Props {
@@ -28,6 +30,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [type, setType] = useState<"time" | "scroll" | "exit" | "url">("time");
   const [value, setValue] = useState("");
   const [message, setMessage] = useState("");
+  const [audience, setAudience] = useState("all");
+  const [channel, setChannel] = useState("web");
   const [goal, setGoal] = useState("");
   const [suggesting, setSuggesting] = useState(false);
 
@@ -60,6 +64,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             impressions: Number(row.impressions ?? 0),
             clicks: Number(row.clicks ?? 0),
             conversions: Number(row.conversions ?? 0),
+            audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
+            channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
           })));
         }
       })
@@ -100,6 +106,10 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         trigger_value: type === "url" ? 0 : Number(newRule.value) || 0,
         target_devices: ["desktop", "mobile"],
         is_active: true,
+        audience_rules: { segment: audience },
+        channels: [channel],
+        sequence_steps: [],
+        safety_config: { frequency_cap_hours: 24, require_consent: true },
       }),
     }).then(async (response) => {
       if (!response.ok) throw new Error(`Campaign could not be saved (${response.status})`);
@@ -107,6 +117,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setRules((current) => [{ ...newRule, id: String(row.id) }, ...current]);
       setValue("");
       setMessage("");
+      setAudience("all");
+      setChannel("web");
     }).catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : "Campaign could not be saved."))
       .finally(() => setSaving(false));
   };
@@ -205,6 +217,17 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Audience</label>
+                <ModernSelect value={audience} options={[{ value: "all", label: "All visitors" }, { value: "returning", label: "Returning visitors" }, { value: "high_intent", label: "High intent" }]} onChange={setAudience} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Channel</label>
+                <ModernSelect value={channel} options={[{ value: "web", label: "Website" }, { value: "email", label: "Email" }, { value: "whatsapp", label: "WhatsApp" }]} onChange={setChannel} />
+              </div>
+            </div>
           </div>
 
             <button
@@ -246,6 +269,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                     <div className="flex flex-wrap gap-2 text-[10px] text-neutral-400" aria-label="Campaign analytics">
                       <span>{r.impressions ?? 0} impressions</span><span>{r.clicks ?? 0} clicks</span><span>{r.conversions ?? 0} conversions</span>
                     </div>
+                    <div className="text-[10px] text-neutral-400">Audience: {r.audience ?? "all"} · Channels: {(r.channels ?? ["web"]).join(", ")}</div>
                   </div>
                   <button
                     onClick={() => deleteRule(r.id)}
