@@ -95,4 +95,18 @@ test.describe("owner golden path", () => {
     const savedClass = await page.locator('[class*="style-"]').first().getAttribute("class");
     expect(savedClass?.toLowerCase()).toContain(target.toLowerCase());
   });
+
+  test("Flow Builder and Campaigns remain reachable as production dashboard surfaces", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByPlaceholder(/email/i).fill(ownerEmail!);
+    await page.getByPlaceholder(/password/i).fill(ownerPassword!);
+    await page.getByRole("button", { name: /log in|sign in/i }).click();
+    await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
+
+    await page.getByText("Flow Builder", { exact: true }).click();
+    await expect(page.getByText("Visual Flow Builder", { exact: true })).toBeVisible();
+    await page.getByText("Campaigns", { exact: true }).click();
+    await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
+    await expect(page.getByText("AI campaign copilot", { exact: true })).toBeVisible();
+  });
 });
