@@ -1,6 +1,7 @@
 """Regression tests for the catalog/MM-RAG embedding contract."""
 
 import asyncio
+from types import SimpleNamespace
 
 from app.services import multimodal_service
 
@@ -29,3 +30,46 @@ def test_catalog_embedding_fits_native_provider_vector_to_schema_width(monkeypat
     assert len(vector) == 768
     assert abs(sum(value * value for value in vector) - 1.0) < 1e-6
     assert calls and calls[0]["output_dimensionality"] == 768
+
+
+def test_catalog_ingest_never_sends_native_width_vector_to_database(monkeypatch):
+    """The product-ingest boundary must preserve the pgvector contract."""
+
+    captured = {}
+
+    class FakeQuery:
+        def insert(self, row):
+            captured.update(row)
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[captured])
+
+    class FakeSupabase:
+        def table(self, name):
+            assert name == "chatty_media_items"
+            return FakeQuery()
+
+    class EmbeddingResponse:
+        data = [{"embedding": [1.0] * 3072}]
+
+    async def fake_embed(**kwargs):
+        return EmbeddingResponse()
+
+    async def run_inline(callback):
+        return callback()
+
+    monkeypatch.setattr(multimodal_service, "supabase", FakeSupabase())
+    monkeypatch.setattr(multimodal_service, "run_db", run_inline)
+    monkeypatch.setattr(multimodal_service.ai_client, "embed", fake_embed)
+
+    row = asyncio.run(
+        multimodal_service.ingest_media_item(
+            bot_id="bot-1",
+            title="Planet Earth",
+            media_url="https://example.test/planet.jpg",
+        )
+    )
+
+    assert len(row["embedding"]) == 768
+    assert len(captured["embedding"]) == 768
