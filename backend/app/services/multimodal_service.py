@@ -13,6 +13,7 @@ import base64
 import hashlib
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -27,6 +28,7 @@ logger = logging.getLogger("chatty.multimodal")
 EMBEDDING_SCHEMA_VERSION = "catalog-text-v1"
 MAX_CATALOG_RESULTS = 20
 FALLBACK_MIN_SCORE = 0.3
+_PRODUCT_CARD_RE = re.compile(r"\[PRODUCT_CARD:(\{.*?\})\]", re.DOTALL)
 
 VISION_ANALYSIS_PROMPT = """Analyze this image in detail for an e-commerce / product catalog search system.
 The user is asking a question or looking for this item (e.g. clothing, footwear, accessory, electronics, or product).
@@ -353,6 +355,10 @@ def format_multimodal_context_for_prompt(
             lines.append(f"[{idx}] {title}")
             lines.append(f"    • Type: {m_type}")
             lines.append(f"    • SKU: {sku}")
+            if item.get("id"):
+                lines.append(f"    • Catalog ID (use in PRODUCT_CARD): {item.get('id')}")
+            if meta.get("woocommerce_id") is not None:
+                lines.append(f"    • WooCommerce Product ID: {meta.get('woocommerce_id')}")
             if price is not None:
                 lines.append(f"    • Price: {currency} {price}")
             lines.append(f"    • Availability: {'In Stock' if in_stock else 'Out of Stock'}")
@@ -398,6 +404,83 @@ def format_multimodal_context_for_prompt(
 
     lines.append("--- END OF MULTIMODAL SEARCH RESULTS ---\n")
     return "\n".join(lines)
+
+
+def sanitize_product_cards(reply: str, items: list[dict[str, Any]]) -> str:
+    """Replace model-authored product cards with canonical retrieved facts.
+
+    A model may choose a candidate, but it may not invent the ID, price,
+    stock, image, or checkout URL. Unknown or malformed cards are removed.
+    """
+    if not reply or not items:
+        return _PRODUCT_CARD_RE.sub("", reply or "").strip()
+
+    def replace(match: re.Match[str]) -> str:
+        try:
+            requested = json.loads(match.group(1))
+        except (TypeError, json.JSONDecodeError):
+            return ""
+        if not isinstance(requested, dict):
+            return ""
+        requested_id = str(requested.get("id") or requested.get("product_id") or "").strip()
+        requested_variant_id = str(requested.get("variant_id") or "").strip()
+        requested_variant_sku = str(requested.get("variant_sku") or "").strip().lower()
+        candidate = None
+        candidate_variant = None
+        for item in items:
+            metadata = item.get("metadata") or {}
+            ids = {str(value) for value in (item.get("id"), metadata.get("woocommerce_id")) if value is not None}
+            variants = metadata.get("variations") or []
+            if requested_id and requested_id not in ids:
+                matching_parent_variant = next((
+                    variant for variant in variants if isinstance(variant, dict) and (
+                        requested_id == str(variant.get("id")) or
+                        requested_id.lower() == str(variant.get("sku") or "").lower()
+                    )
+                ), None)
+                if matching_parent_variant is None:
+                    continue
+                candidate_variant = matching_parent_variant
+            elif not requested_id and len(items) != 1:
+                continue
+            if requested_variant_id or requested_variant_sku:
+                matching = [
+                    variant for variant in variants
+                    if isinstance(variant, dict) and (
+                        (requested_variant_id and requested_variant_id == str(variant.get("id"))) or
+                        (requested_variant_sku and requested_variant_sku == str(variant.get("sku") or "").lower())
+                    )
+                ]
+                if not matching:
+                    continue
+                candidate_variant = matching[0]
+            candidate = item
+            break
+        if candidate is None:
+            return ""
+
+        metadata = candidate.get("metadata") or {}
+        variant = candidate_variant or {}
+        price = variant.get("sale_price") or variant.get("price")
+        if price is None:
+            price = candidate.get("price")
+        url = variant.get("url") or candidate.get("url") or ""
+        if not isinstance(url, str) or not url.lower().startswith("https://"):
+            url = ""
+        canonical = {
+            "id": str(candidate.get("id") or metadata.get("woocommerce_id") or ""),
+            "variant_id": str(variant.get("id") or "") if variant else "",
+            "variant_sku": str(variant.get("sku") or "") if variant else "",
+            "title": str(candidate.get("title") or "Unnamed Item")[:240],
+            "price": price,
+            "currency": str(candidate.get("currency") or "USD")[:12],
+            "url": url,
+            "image_url": str(candidate.get("thumbnail_url") or candidate.get("media_url") or ""),
+            "in_stock": bool(variant.get("in_stock", metadata.get("in_stock", True))) if variant else bool(metadata.get("in_stock", True)),
+        }
+        return f"[PRODUCT_CARD:{json.dumps(canonical, separators=(',', ':'))}]"
+
+    return _PRODUCT_CARD_RE.sub(replace, reply).strip()
 
 
 async def ingest_media_item(

@@ -62,6 +62,25 @@ def test_product_context_requires_concrete_variant_card():
     assert "concrete in-stock variant" in context
 
 
+def test_product_card_is_canonicalized_from_retrieved_variant_facts():
+    reply = ('Here it is [PRODUCT_CARD:{"id":"42","variant_id":"4201",'
+             '"title":"Wrong","price":"1","url":"https://evil.example/buy",'
+             '"in_stock":true}]')
+    sanitized = multimodal_service.sanitize_product_cards(reply, [{
+        "id": "media-42", "title": "Trail shoe", "price": 120.0, "currency": "USD",
+        "url": "https://shop.example/products/trail-shoe",
+        "thumbnail_url": "https://shop.example/images/trail.jpg",
+        "metadata": {"woocommerce_id": 42, "in_stock": True, "variations": [{
+            "id": 4201, "sku": "TRAIL-42-BLK", "price": 99.0, "in_stock": True,
+            "url": "https://shop.example/products/trail-shoe?variation_id=4201",
+        }]},
+    }])
+    assert '"title":"Trail shoe"' in sanitized
+    assert '"price":99.0' in sanitized
+    assert "evil.example" not in sanitized
+    assert "TRAIL-42-BLK" in sanitized
+
+
 def test_live_woocommerce_refresh_updates_facts_and_preserves_snapshot_on_failure(monkeypatch):
     item = {
         "title": "Trail shoe",

@@ -425,6 +425,8 @@ async def run_widget_assistant(
     else:
         messages.append({"role": "user", "content": text or "(the visitor sent an attachment)"})
 
+    catalog_items: list[dict[str, Any]] = []
+
     # 2. RAG Context
     knowledge_context, source_refs = await search_knowledge(bot_id, owner_user, bot, text)
 
@@ -444,6 +446,7 @@ async def run_widget_assistant(
                 query_text=text or "",
                 top_k=5,
             )
+            catalog_items = mm_items
             if mm_items or visual_attrs:
                 mm_block = multimodal_service.format_multimodal_context_for_prompt(mm_items, visual_attrs)
                 knowledge_context = (knowledge_context + "\n\n" + mm_block).strip()
@@ -1026,6 +1029,8 @@ async def run_widget_assistant(
             )
             if byok_reply:
                 clean_reply, flow_action = _extract_flow_actions(byok_reply)
+                from app.services import multimodal_service as _multimodal_service
+                clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items)
                 return {"reply": clean_reply, "thinking": "", "sources": _refs_grounded_in_reply(source_refs, clean_reply), "transcript": transcribed_voice or "", "flow_action": flow_action}
             logger.warning("BYOK provider %s returned an empty reply for bot %s - falling back to Gemini", byok_provider, bot_id)
         except Exception as exc:
@@ -1112,7 +1117,9 @@ async def run_widget_assistant(
     # not after. For scheduling bots we buffer each round's text internally and
     # only forward it to the real on_token once it's cleared the booking-claim
     # check below.
-    stream_live = on_token if not scheduling_enabled else None
+    # Catalog cards are canonicalized after generation; buffer these answers so
+    # untrusted model-authored card JSON never reaches the visitor mid-stream.
+    stream_live = on_token if not scheduling_enabled and not catalog_items else None
     for round_idx in range(MAX_TOOL_ROUNDS):
         gen = await ai_client.chat_stream(
             model=primary_model,
@@ -1175,6 +1182,8 @@ async def run_widget_assistant(
                 reply = reply.replace("[BOOKING_WIDGET]", "").strip()
 
             clean_reply, flow_action = _extract_flow_actions(reply)
+            from app.services import multimodal_service as _multimodal_service
+            clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items)
             if on_token and not stream_live:
                 # Held back for validation above - release it now as one chunk.
                 await on_token(clean_reply)
@@ -1269,6 +1278,8 @@ async def run_widget_assistant(
         reply = reply.replace("[BOOKING_WIDGET]", "").strip()
 
     clean_reply, flow_action = _extract_flow_actions(reply)
+    from app.services import multimodal_service as _multimodal_service
+    clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items)
     if on_token and not stream_live:
         await on_token(clean_reply)
     return {"reply": clean_reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, clean_reply), "transcript": transcribed_voice or "", "flow_action": flow_action}
