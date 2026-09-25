@@ -26,7 +26,7 @@ litellm==1.98.0
 # app/routers/mcp.py.
 mcp==1.28.1
 
-sentry-sdk[fastapi]==2.59.0
+sentry-sdk[fastapi]==2.70.0
 
 # LiveKit voice worker (Phase B) — pinned to versions verified installed
 # and importable together in this environment.
