@@ -1,30 +1,28 @@
 # Agent instructions - chatty-backend
 
-## This repo lives in two places. Every real change goes to both.
+## Single canonical repository
 
-This backend is pushed to **two separate GitHub repositories**, and neither
-is a fork of the other - they have unrelated git histories:
+The backend is maintained directly in `PersonaliAI/chatty` under `backend/`.
+There is no private source repository or second checkout to mirror.
 
 | Remote | Repo | Branch | Layout | Purpose |
 |---|---|---|---|---|
-| `origin` | `Damayantha/chatty` | `backend-service` | root-level (`main.py`, `app/`, `plugins/` at repo root) | Private. Has secrets in `.env` (gitignored). This is what's actually deployed to production (Cloud Run `chatty-api`, via `gcloud run deploy --source .`). |
-| `personaliai` | `PersonaliAI/chatty` | `main` | monorepo (`backend/main.py`, `backend/app/`, `backend/plugins/`, sibling `frontend/`) | Public, open-source. No secrets committed. |
+The repository contains the frontend, backend, voice worker, deployment
+configuration, tests, and docs in one checkout.
 
-**Both remotes are already configured** in this local checkout - check with
-`git remote -v`. Do not assume only one exists; a fix that only reaches one
-of the two repos is an incomplete fix.
+Push changes directly to the `main` branch after validation.
 
 ## Workflow for any backend code change
 
-1. Make the change and commit it on `backend-service` (the branch this repo
-   is normally checked out to - root-level layout, matches this file's
-   directory structure directly).
-2. `git push origin backend-service`
+1. Make the change and commit it on `main`.
+2. Push to `PersonaliAI/chatty` `main`.
 3. Deploy to production if the change should go live now:
    `gcloud run deploy chatty-api --source . --region=us-central1 --project=personaliai --clear-base-image --quiet`
    (`--clear-base-image` is required - omitting it fails with a base-image
    error on this service.)
-4. Mirror the same change to `personaliai-main`:
+4. Verify CI and the deployed health/readiness checks.
+<!-- The old private-repository mirroring procedure was retired. -->
+<!--
    ```
    git diff <prev-commit> <new-commit> -- <changed files> > /tmp/fix.patch
    sed -i 's|a/app/|a/backend/app/|; s|b/app/|b/backend/app/|; s|a/main.py|a/backend/main.py|; s|b/main.py|b/backend/main.py|' /tmp/fix.patch
@@ -40,8 +38,9 @@ of the two repos is an incomplete fix.
    have genuinely different directory layouts for the same files - a plain
    cherry-pick won't apply cleanly.
 5. Before believing the mirror step is done, verify both branches' HEADs
-   actually contain the fix (`git log`, or diff the specific file against
-   each remote) - don't just assume the sed/patch applied correctly.
+actually contain the fix (`git log`, or diff the specific file against
+each remote) - don't just assume the sed/patch applied correctly.
+-->
 
 **A `.github/dependabot.yml`, CI workflow, LICENSE, etc. change is also a
 real change** - mirror those too, not just application code.

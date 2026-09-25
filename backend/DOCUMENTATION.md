@@ -628,18 +628,15 @@ Chatty offers enterprise encryption for BYOK credentials. When customers provide
 
 ## 15. Deployment, DevOps & Mirroring Guide
 
-### Repository Architecture & Dual-Repo Protocol
+### Repository Architecture
 
-Chatty maintains a synchronized dual-repository structure:
-1. `Damayantha/chatty`: Private development repository with split branches (`main` for frontend, `backend-service` for backend).
-2. `PersonaliAI/chatty`: Public production monorepo containing `frontend/` and `backend/` in a single repository.
+`PersonaliAI/chatty` is the single canonical repository. It contains the
+frontend, backend, voice worker, deployment configuration, tests, and docs.
+Changes are committed and pushed directly to its `main` branch. There is no
+private source repository or mirroring step.
 
-#### Mirroring Workflow
-Whenever changes are made to local files:
-1. Commit and push to `Damayantha/chatty` (`origin`).
-2. Sync the updated files into the monorepo checkout (`PersonaliAI/chatty`).
-3. Commit and push to `PersonaliAI/chatty` (`main`).
-4. GitHub Actions CI (`.github/workflows/ci.yml`) executes automated tests and builds.
+GitHub Actions CI (`.github/workflows/ci.yml`) and the configured deployment
+providers validate and release the canonical repository.
 
 ### Local Development Setup
 

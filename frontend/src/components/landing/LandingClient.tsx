@@ -146,7 +146,7 @@ const MEGA_MENU_RESOURCES = [
   {
     title: "GitHub Repository",
     desc: "Open source codebase, Docker deployment, and issues.",
-    href: "https://github.com/Damayantha/chatty",
+    href: "https://github.com/PersonaliAI/chatty",
     external: true,
   },
 ];
@@ -1310,7 +1310,7 @@ export default function LandingClient() {
           <div className="hidden sm:flex items-center gap-3">
             {/* Pure GitHub Icon Button (Flat minimal, no elevation) */}
             <Link
-              href="https://github.com/Damayantha/chatty"
+              href="https://github.com/PersonaliAI/chatty"
               target="_blank"
               rel="noreferrer"
               className="flex size-9 items-center justify-center rounded-lg hover:bg-zinc-100 text-zinc-700 hover:text-zinc-950 transition-colors"
@@ -1387,7 +1387,7 @@ export default function LandingClient() {
               Help & Support
             </Link>
             <Link
-              href="https://github.com/Damayantha/chatty"
+              href="https://github.com/PersonaliAI/chatty"
               target="_blank"
               className="flex items-center gap-2 text-sm font-medium text-zinc-700 py-1"
             >
@@ -1520,7 +1520,7 @@ export default function LandingClient() {
                 <span>Setup for agents (MCP)</span>
               </Link>
               <Link
-                href="https://github.com/Damayantha/chatty"
+                href="https://github.com/PersonaliAI/chatty"
                 target="_blank"
                 onMouseMove={handleMagneticMove}
                 onMouseLeave={handleMagneticLeave}
@@ -2374,7 +2374,7 @@ export default function LandingClient() {
                   <ArrowRight className="size-4" />
                 </Link>
                 <Link
-                  href="https://github.com/Damayantha/chatty"
+                  href="https://github.com/PersonaliAI/chatty"
                   target="_blank"
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 hover:bg-white/20 px-6 py-3.5 text-sm font-semibold text-white transition-all"
                 >
@@ -2480,7 +2480,7 @@ export default function LandingClient() {
                 Support Center
               </Link>
               <Link
-                href="https://github.com/Damayantha/chatty"
+                href="https://github.com/PersonaliAI/chatty"
                 target="_blank"
                 rel="noreferrer"
                 className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
