@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.core.clients import supabase
+from app.core import ssrf
 from app.core.config import CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL, FUNCTION_SECRET
 from app.core.db import run_db
 from app.core.deps import require_user
@@ -337,8 +338,12 @@ async def get_woocommerce_authorize_url(
 
     base_url = woocommerce_service._normalize_store_url(req.store_url)
     parsed = urllib.parse.urlparse(base_url)
-    if not parsed.netloc or parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail="Invalid store URL. Please provide a valid domain (e.g. https://mystore.com).")
+    if not parsed.netloc or parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="Store URL must be a valid public HTTPS domain (e.g. https://mystore.com).")
+    try:
+        await ssrf.assert_safe_url_async(base_url)
+    except ssrf.UnsafeURLError as exc:
+        raise HTTPException(status_code=400, detail="Store URL must resolve to a public address") from exc
 
     state = _generate_auth_state(bot_id, base_url)
     backend_base = (CHATTY_BACKEND_URL or "").rstrip("/")
@@ -394,6 +399,13 @@ async def receive_woocommerce_auth_callback(
     if not bot_id or not store_url:
         logger.warning("WooCommerce auth callback invalid or expired state token: %s", user_id[:25] if user_id else "")
         raise HTTPException(status_code=400, detail="Invalid or expired authorization state")
+    parsed_store_url = urllib.parse.urlparse(store_url)
+    if parsed_store_url.scheme != "https" or not parsed_store_url.netloc:
+        raise HTTPException(status_code=400, detail="Store URL must be a valid public HTTPS domain")
+    try:
+        await ssrf.assert_safe_url_async(store_url)
+    except ssrf.UnsafeURLError as exc:
+        raise HTTPException(status_code=400, detail="Store URL must resolve to a public address") from exc
 
     bot_res = await run_db(
         lambda: supabase.table("chatty_bots")

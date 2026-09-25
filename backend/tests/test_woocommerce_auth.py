@@ -129,7 +129,8 @@ from app.core.deps import require_user
 def test_get_woocommerce_authorize_url():
     app.dependency_overrides[require_user] = lambda: {"id": "user-123"}
     try:
-        with patch("app.routers.woocommerce.verify_bot_permission", new_callable=AsyncMock):
+        with patch("app.routers.woocommerce.verify_bot_permission", new_callable=AsyncMock), \
+             patch("app.routers.woocommerce.ssrf.assert_safe_url_async", new_callable=AsyncMock):
             resp = client.post(
                 f"/api/bots/{BOT_ID}/integrations/woocommerce/authorize-url",
                 json={"store_url": "https://mystore.com", "return_url": "/dashboard?tab=catalog"},
@@ -163,12 +164,27 @@ def test_get_woocommerce_status_uses_sources_permission():
         app.dependency_overrides.pop(require_user, None)
 
 
+def test_get_woocommerce_authorize_url_rejects_non_https():
+    app.dependency_overrides[require_user] = lambda: {"id": "user-123"}
+    try:
+        with patch("app.routers.woocommerce.verify_bot_permission", new_callable=AsyncMock):
+            resp = client.post(
+                f"/api/bots/{BOT_ID}/integrations/woocommerce/authorize-url",
+                json={"store_url": "http://mystore.com"},
+            )
+        assert resp.status_code == 400
+        assert "HTTPS" in resp.text
+    finally:
+        app.dependency_overrides.pop(require_user, None)
+
+
 def test_woocommerce_auth_callback_success():
     state = _generate_auth_state(BOT_ID, STORE_URL)
 
     with patch("app.routers.woocommerce.run_db", new_callable=AsyncMock) as mock_db, \
          patch("app.routers.woocommerce.woocommerce_service.save_integration", new_callable=AsyncMock) as mock_save, \
-         patch("app.routers.woocommerce.woocommerce_service.run_woocommerce_sync_task", new_callable=AsyncMock) as mock_sync:
+         patch("app.routers.woocommerce.woocommerce_service.run_woocommerce_sync_task", new_callable=AsyncMock) as mock_sync, \
+         patch("app.routers.woocommerce.ssrf.assert_safe_url_async", new_callable=AsyncMock):
 
         class MockRes:
             data = [{"id": BOT_ID}]
@@ -225,3 +241,17 @@ def test_woocommerce_auth_callback_rejects_write_credentials():
     )
     assert resp.status_code == 400
     assert "read-only" in resp.text
+
+
+def test_woocommerce_auth_callback_rejects_non_https_state_url():
+    state = _generate_auth_state(BOT_ID, "http://example-shop.com")
+    resp = client.post(
+        "/api/integrations/woocommerce/auth-callback",
+        json={
+            "user_id": state,
+            "consumer_key": "ck_test1234567890",
+            "consumer_secret": "cs_test1234567890",
+        },
+    )
+    assert resp.status_code == 400
+    assert "HTTPS" in resp.text
