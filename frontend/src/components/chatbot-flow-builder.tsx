@@ -41,6 +41,8 @@ import {
   Plus,
   X,
   GitBranch,
+  Download,
+  Upload,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -395,6 +397,38 @@ interface FlowSchema {
   edges: Edge[];
 }
 
+interface FlowValidation {
+  errors: string[];
+  warnings: string[];
+}
+
+function validateFlow(nodes: Node[], edges: Edge[]): FlowValidation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const ids = new Set<string>();
+  nodes.forEach((node) => {
+    if (!node.id.trim()) errors.push("Every step needs an ID.");
+    if (ids.has(node.id)) errors.push(`Duplicate step ID: ${node.id}`);
+    ids.add(node.id);
+    if (!String((node.data as FlowNodeData)?.label ?? "").trim()) warnings.push(`${node.id} has no label.`);
+  });
+  const starts = nodes.filter((node) => node.type === "start");
+  if (starts.length !== 1) errors.push(`Flow must contain exactly one Start step (found ${starts.length}).`);
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  edges.forEach((edge) => {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) errors.push(`Connection ${edge.id} points to a missing step.`);
+  });
+  nodes.filter((node) => node.type === "choice").forEach((node) => {
+    const options = ((node.data as FlowNodeData)?.options ?? []).map(String).filter(Boolean);
+    const labels = edges.filter((edge) => edge.source === node.id).map((edge) => String(edge.label ?? ""));
+    options.filter((option) => !labels.includes(option)).forEach((option) => {
+      errors.push(`Choice ${node.id} is missing a connection for “${option}”.`);
+    });
+  });
+  if (nodes.length > 1 && edges.length === 0) errors.push("Connect the Start step before publishing.");
+  return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] };
+}
+
 function extractFlowFromJs(customJs: string): (FlowSchema & { status: "active" | "paused" }) | null {
   if (!customJs) return null;
   try {
@@ -429,8 +463,11 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [validationOpen, setValidationOpen] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const validation = useMemo(() => validateFlow(nodes, edges), [nodes, edges]);
 
   const safeFitView = useCallback((padding = 0.25, duration = 0) => {
     const instance = reactFlowInstanceRef.current;
@@ -560,6 +597,11 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
   const saveFlowToBackend = useCallback(
     async (showNotification = false) => {
       if (!botId) return;
+      if (validation.errors.length) {
+        setSaveStatus("unsaved");
+        if (showNotification) showToast("Fix flow validation errors before saving.", "error");
+        return;
+      }
       setSaveStatus("saving");
       try {
         const flowConfig = { status: flowStatus, nodes, edges };
@@ -610,7 +652,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
         }
       }
     },
-    [botId, nodes, edges, flowStatus]
+    [botId, nodes, edges, flowStatus, validation.errors.length]
   );
 
   // Debounced Auto-Save Trigger
@@ -633,7 +675,43 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
   }, [nodes, edges, flowStatus, autoSave, botId, saveFlowToBackend, loading]);
 
   const onSaveManual = () => {
+    if (validation.errors.length) {
+      setValidationOpen(true);
+      showToast("Fix flow validation errors before saving.", "error");
+      return;
+    }
     saveFlowToBackend(true);
+  };
+
+  const exportFlow = () => {
+    const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), status: flowStatus, nodes, edges }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `chatty-flow-${botId ?? "draft"}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importFlow = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result)) as FlowSchema & { status?: "active" | "paused" };
+        if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) throw new Error("Expected nodes and edges arrays.");
+        const importedNodes = parsed.nodes as Node[];
+        const importedEdges = parsed.edges as Edge[];
+        const importedValidation = validateFlow(importedNodes, importedEdges);
+        if (importedValidation.errors.length) throw new Error(importedValidation.errors[0]);
+        setNodes(importedNodes);
+        setEdges(importedEdges);
+        setFlowStatus(parsed.status === "active" ? "active" : "paused");
+        showToast("Flow imported. Save to publish it.", "success");
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : "Invalid flow file.", "error");
+      }
+    };
+    reader.readAsText(file);
   };
 
   const generateFlowWithAI = async () => {
@@ -1228,6 +1306,23 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
           >
             <Save className="size-4" /> Save Flow Configuration
           </button>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <button type="button" onClick={exportFlow} className="flex items-center justify-center gap-1 rounded-lg border border-neutral-200 px-2 py-2 text-[10px] font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-850">
+              <Download className="size-3.5" /> Export JSON
+            </button>
+            <button type="button" onClick={() => importInputRef.current?.click()} className="flex items-center justify-center gap-1 rounded-lg border border-neutral-200 px-2 py-2 text-[10px] font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-850">
+              <Upload className="size-3.5" /> Import JSON
+            </button>
+          </div>
+          <input ref={importInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importFlow(file); event.currentTarget.value = ""; }} />
+          <button type="button" onClick={() => setValidationOpen((open) => !open)} className={`w-full mt-2 rounded-lg border px-3 py-2 text-left text-[10px] font-semibold ${validation.errors.length ? "border-rose-200 text-rose-600 dark:border-rose-900 dark:text-rose-300" : "border-emerald-200 text-emerald-600 dark:border-emerald-900 dark:text-emerald-300"}`}>
+            {validation.errors.length ? `${validation.errors.length} validation error${validation.errors.length === 1 ? "" : "s"}` : "Flow validation passed"}{validation.warnings.length ? ` · ${validation.warnings.length} warning${validation.warnings.length === 1 ? "" : "s"}` : ""}
+          </button>
+          {validationOpen && <div className="mt-2 max-h-32 overflow-y-auto rounded-lg bg-neutral-50 p-2 text-[10px] dark:bg-neutral-950">
+            {validation.errors.map((error) => <p key={error} className="text-rose-600">• {error}</p>)}
+            {validation.warnings.map((warning) => <p key={warning} className="text-amber-600">• {warning}</p>)}
+            {!validation.errors.length && !validation.warnings.length && <p className="text-emerald-600">Ready to save and publish.</p>}
+          </div>}
         </div>
 
         {/* Industrial Visual Editor Canvas */}
@@ -1301,6 +1396,10 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316" }: Props) {
                   ● {flowStatus === "active" ? "Active" : "Paused"}
                 </button>
               </div>
+
+              <button type="button" onClick={() => setValidationOpen((open) => !open)} className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold cursor-pointer ${validation.errors.length ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"}`}>
+                {validation.errors.length ? `Invalid · ${validation.errors.length}` : "Valid"}
+              </button>
 
               {/* Auto Save Status & Toggle */}
               <div className="flex items-center gap-1.5 sm:gap-2 border-r border-neutral-200 dark:border-neutral-800 pr-2 sm:pr-3">
