@@ -293,6 +293,53 @@ async def suggest_dashboard_campaign(
         raise HTTPException(status_code=502, detail="Could not generate campaign suggestion") from exc
 
 
+@router.post("/api/bots/{bot_id}/campaigns/audience-suggest")
+async def suggest_campaign_audience(
+    bot_id: str,
+    body: CampaignSuggestRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Generate a conservative, explainable audience rule draft."""
+    await verify_bot_permission(bot_id, user, "settings")
+    prompt = (
+        "Design one safe audience segment for a website campaign. Return ONLY JSON "
+        "with keys segment, min_intent_score, returning_only, rationale. segment must "
+        "be all, returning, or high_intent; min_intent_score must be 0-100; rationale "
+        "must be under 240 characters.\n"
+        f"Goal: {body.goal}\nCurrent audience context: {body.audience or 'all visitors'}"
+    )
+    try:
+        response = await ai_client.chat(
+            model=ai_client.resolve_gemini_model(MODEL_NAME),
+            messages=[{"role": "user", "content": prompt}],
+            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+            temperature=0.2,
+            max_tokens=256,
+            bot_id=bot_id,
+            call_type="campaign_audience_suggest",
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[1].strip()
+            raw = raw[4:].strip() if raw.lower().startswith("json") else raw
+        data = json.loads(raw)
+        segment = str(data.get("segment") or "all").lower()
+        if segment not in {"all", "returning", "high_intent"}:
+            segment = "all"
+        score = max(0, min(int(data.get("min_intent_score") or 0), 100))
+        return {
+            "audience_rules": {
+                "segment": segment,
+                "min_intent_score": score,
+                "returning_only": bool(data.get("returning_only", segment == "returning")),
+            },
+            "rationale": str(data.get("rationale") or "Targets visitors most likely to engage.")[:240],
+        }
+    except Exception as exc:
+        logger.exception("campaign audience suggestion failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not generate audience suggestion") from exc
+
+
 @router.get("/api/bots/{bot_id}/campaigns/{campaign_id}/analytics")
 async def campaign_analytics(bot_id: str, campaign_id: str, user: dict[str, Any] = Depends(require_user)):
     """Return recomputable campaign telemetry and conversion rates."""
