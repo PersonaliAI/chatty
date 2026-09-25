@@ -71,7 +71,11 @@ CHATTY_JOB_QUEUE_URL=redis://redis:6379/0 python -m app.workers.webhook_worker
 
 Run one consumer process per worker identity. The entrypoint derives a unique
 consumer name from the host and process ID, and supports `CHATTY_WORKER_GROUP`,
-`CHATTY_WORKER_MAX_ATTEMPTS`, and `CHATTY_WEBHOOK_STREAM` deployment settings.
+`CHATTY_WORKER_MAX_ATTEMPTS`, `CHATTY_WORKER_PENDING_IDLE_MS`,
+`CHATTY_WORKER_RECOVER_COUNT`, and `CHATTY_WEBHOOK_STREAM` deployment settings.
+`CHATTY_WORKER_PENDING_IDLE_MS` controls how long a delivery must be idle before
+another consumer reclaims it; `CHATTY_WORKER_RECOVER_COUNT` bounds each recovery
+batch so reclaim work cannot starve new deliveries.
 
 ## Incident response
 
