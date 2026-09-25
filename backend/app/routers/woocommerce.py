@@ -51,6 +51,27 @@ async def _start_woocommerce_sync(bot_id: str) -> str:
     return "background"
 
 
+async def _claim_woocommerce_webhook(bot_id: str, delivery_id: str) -> bool:
+    """Claim a signed provider delivery exactly once in durable storage."""
+    try:
+        res = await run_db(lambda: supabase.table("chatty_channel_events").insert({
+            "channel": "woocommerce",
+            "external_event_id": delivery_id,
+            "bot_id": bot_id,
+        }).execute())
+        if getattr(res, "data", None):
+            return True
+        logger.info("Skipping duplicate WooCommerce webhook %s", delivery_id)
+        return False
+    except Exception as exc:
+        text = str(exc).lower()
+        if "duplicate" in text or "unique" in text or "23505" in text:
+            logger.info("Skipping duplicate WooCommerce webhook %s", delivery_id)
+            return False
+        logger.exception("WooCommerce webhook idempotency store unavailable")
+        raise HTTPException(status_code=503, detail="Webhook idempotency store unavailable") from exc
+
+
 def _generate_auth_state(bot_id: str, store_url: str) -> str:
     """Generate an HMAC-signed state token containing bot_id, store_url, and timestamp."""
     payload = {
@@ -290,6 +311,12 @@ async def receive_woocommerce_webhook(
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     topic = x_wc_webhook_topic or "product.updated"
+    delivery_id = request.headers.get("x-wc-webhook-delivery-id", "").strip()
+    if not delivery_id:
+        delivery_id = hashlib.sha256(topic.encode("utf-8") + b"\0" + raw_body).hexdigest()
+    if not await _claim_woocommerce_webhook(bot_id, delivery_id):
+        return {"status": "ok", "duplicate": True}
+
     try:
         payload = await request.json()
     except Exception:

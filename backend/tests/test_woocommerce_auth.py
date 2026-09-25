@@ -107,6 +107,22 @@ def test_woocommerce_webhook_rejects_missing_signature():
     process.assert_not_awaited()
 
 
+def test_woocommerce_webhook_claims_and_deduplicates_delivery():
+    class Response:
+        def __init__(self, data):
+            self.data = data
+
+    with patch.object(woocommerce_router, "run_db", new_callable=AsyncMock) as db:
+        db.side_effect = [Response([{"id": "event-1"}]), Response([])]
+        assert asyncio.run(
+            woocommerce_router._claim_woocommerce_webhook(BOT_ID, "wc-delivery-1")
+        ) is True
+        assert asyncio.run(
+            woocommerce_router._claim_woocommerce_webhook(BOT_ID, "wc-delivery-1")
+        ) is False
+        assert db.await_count == 2
+
+
 from app.core.deps import require_user
 
 
