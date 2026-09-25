@@ -12,6 +12,21 @@ services:
       dockerfile: voice-agent/Dockerfile
     restart: unless-stopped
     init: true
+    # LiveKit Agents exposes a small HTTP health endpoint on PORT (8081 by
+    # default). Keeping this check in Compose lets the VPS restart a worker
+    # that is alive as a process but no longer registered with LiveKit.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8081/', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     env_file:
       - .env
     environment:

@@ -70,6 +70,9 @@ jobs:
           # must remain loopback-only; the worker and LiveKit use the private
           # media-plane network instead of exposing Redis publicly.
           docker compose --profile self-hosted config | grep -q "127.0.0.1:6379"
+          # The worker's local health endpoint must remain present so an
+          # unregistered-but-running worker can be restarted automatically.
+          docker compose --profile self-hosted config | grep -q "127.0.0.1:8081"
 
       - name: Set up Python
         uses: actions/setup-python@v5
