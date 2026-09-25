@@ -1126,15 +1126,13 @@ async def entrypoint(ctx: JobContext) -> None:
     await session.start(
         agent=agent,
         room=ctx.room,
-        # sync_transcription=True (the default) paces the transcription
-        # stream to match TTS audio playback - real-time-feeling speech, but
-        # "chunky" as chat text (whole sentences appear only once spoken).
-        # False publishes each text chunk to the room as soon as the LLM
-        # actually produces it, decoupled from how fast TTS is speaking it -
-        # what the widget's transcript view actually wants: fast, ChatGPT-
-        # style token streaming, not audio-paced reveal.
+        # Keep assistant transcript delivery aligned with the audio actually
+        # being played. Publishing generated text ahead of TTS makes the UI
+        # appear to answer before the voice has spoken, which is confusing in
+        # a production voice experience. User interim transcription remains
+        # live; only assistant output is paced to its spoken audio.
         room_options=room_io.RoomOptions(
-            text_output=room_io.TextOutputOptions(sync_transcription=False),
+            text_output=room_io.TextOutputOptions(sync_transcription=True),
         ),
     )
 

@@ -100,6 +100,15 @@ def test_worker_default_idle_pool_matches_realtime_sizing():
     assert worker.DEFAULT_IDLE_PROCESSES == 2
 
 
+def test_assistant_transcript_is_synchronized_with_tts_audio():
+    """Prevent assistant text from being rendered ahead of its spoken audio."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "TextOutputOptions(sync_transcription=True)" in source
+    assert "TextOutputOptions(sync_transcription=False)" not in source
+
+
 def test_idle_nudge_closure_declares_metric_counter_nonlocal():
     """Prevent the old UnboundLocalError from returning in a worker image."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
