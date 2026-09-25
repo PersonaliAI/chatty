@@ -87,6 +87,11 @@ record `impression`, `click`, and `conversion` events through
 recomputed metrics from `GET /api/bots/{bot_id}/campaigns/{campaign_id}/analytics`.
 The `20260925220000_chatty_campaign_events.sql` migration creates the durable
 ledger and indexes; apply it before enabling campaign optimization in production.
+
+Campaign drafts also support a validated `schedule_config` (`once`, `hourly`,
+`daily`, or `weekly`, with an IANA timezone) and the authenticated dashboard
+endpoint `POST /api/bots/{bot_id}/campaigns/audience-suggest` can generate a
+bounded segment, intent threshold, and rationale before a campaign is saved.
 - 🐳 **One-command managed self-host** - `docker compose up`, point it at a Supabase project, done
 
 ## Architecture
