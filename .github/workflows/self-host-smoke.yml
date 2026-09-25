@@ -68,8 +68,11 @@ jobs:
           test "$services" = 'caddy livekit redis voice-worker '
           # Redis is the only published self-hosted coordination endpoint and
           # must remain loopback-only; the worker and LiveKit use the private
-          # media-plane network instead of exposing Redis publicly.
-          docker compose --profile self-hosted config | grep -q "127.0.0.1:6379"
+          # media-plane network instead of exposing Redis publicly. Compose
+          # renders short port syntax as structured JSON, so assert the
+          # effective host binding rather than relying on YAML formatting.
+          docker compose --profile self-hosted config --format json \
+            | jq -e '.services.redis.ports[] | select(.host_ip == "127.0.0.1" and (.published == 6379 or .published == "6379"))' >/dev/null
 
       - name: Set up Python
         uses: actions/setup-python@v5
