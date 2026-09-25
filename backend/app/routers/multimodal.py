@@ -103,17 +103,36 @@ async def provision_catalog_webhook(
 ):
     """Create/rotate a signing secret for a manual catalog or ERP webhook."""
     await verify_bot_permission(bot_id, user, "sources")
-    existing = await run_db(lambda: supabase.table("chatty_catalog_webhooks").select("bot_id").eq("bot_id", bot_id).limit(1).execute())
+    try:
+        existing = await run_db(lambda: supabase.table("chatty_catalog_webhooks").select("bot_id").eq("bot_id", bot_id).limit(1).execute())
+    except Exception as exc:
+        logger.exception("Catalog webhook table is unavailable for bot %s", bot_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Catalog webhook storage is unavailable. Apply the manual catalog webhook migration, then try again.",
+        ) from exc
     if existing.data and not rotate:
         raise HTTPException(status_code=409, detail="Catalog webhook already exists; pass rotate=true to rotate it")
     secret = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc).isoformat()
-    payload = {"bot_id": bot_id, "signing_secret": encrypt_secret(secret), "enabled": True, "updated_at": now}
-    if existing.data:
-        res = await run_db(lambda: supabase.table("chatty_catalog_webhooks").update(payload).eq("bot_id", bot_id).execute())
-    else:
-        payload["created_at"] = now
-        res = await run_db(lambda: supabase.table("chatty_catalog_webhooks").insert(payload).execute())
+    try:
+        encrypted_secret = encrypt_secret(secret)
+    except RuntimeError as exc:
+        logger.error("Catalog webhook encryption is not configured: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Catalog webhook encryption is not configured. Set BYOK_ENCRYPTION_KEY and try again.",
+        ) from exc
+    payload = {"bot_id": bot_id, "signing_secret": encrypted_secret, "enabled": True, "updated_at": now}
+    try:
+        if existing.data:
+            res = await run_db(lambda: supabase.table("chatty_catalog_webhooks").update(payload).eq("bot_id", bot_id).execute())
+        else:
+            payload["created_at"] = now
+            res = await run_db(lambda: supabase.table("chatty_catalog_webhooks").insert(payload).execute())
+    except Exception as exc:
+        logger.exception("Failed to persist catalog webhook for bot %s", bot_id)
+        raise HTTPException(status_code=503, detail="Could not save catalog webhook configuration. Try again shortly.") from exc
     if not getattr(res, "data", None):
         raise HTTPException(status_code=500, detail="Could not provision catalog webhook")
     return {
