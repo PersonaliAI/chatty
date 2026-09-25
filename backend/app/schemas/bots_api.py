@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class BotCreateRequest(BaseModel):
@@ -131,6 +131,39 @@ class CampaignCreateRequest(BaseModel):
     sequence_steps: list[dict[str, Any]] = Field(default_factory=list)
     safety_config: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("channels")
+    @classmethod
+    def validate_channels(cls, value: list[str]) -> list[str]:
+        allowed = {"web", "email", "whatsapp", "sms"}
+        normalized = list(dict.fromkeys(str(item).strip().lower() for item in value if str(item).strip()))
+        if not normalized or any(item not in allowed for item in normalized):
+            raise ValueError("channels must contain only web, email, whatsapp, or sms")
+        if len(normalized) > 4:
+            raise ValueError("a campaign may use at most four channels")
+        return normalized
+
+    @field_validator("sequence_steps")
+    @classmethod
+    def validate_sequence_steps(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if len(value) > 20:
+            raise ValueError("a campaign sequence may contain at most 20 steps")
+        clean: list[dict[str, Any]] = []
+        for step in value:
+            if not isinstance(step, dict):
+                raise ValueError("sequence steps must be objects")
+            channel = str(step.get("channel") or "web").strip().lower()
+            if channel not in {"web", "email", "whatsapp", "sms"}:
+                raise ValueError("sequence step channel is invalid")
+            delay = step.get("after_minutes", 0)
+            try:
+                delay_num = int(delay)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("sequence step after_minutes must be an integer") from exc
+            if delay_num < 0 or delay_num > 43_200:
+                raise ValueError("sequence step delay must be between 0 and 43200 minutes")
+            clean.append({**step, "channel": channel, "after_minutes": delay_num})
+        return clean
+
 
 class CampaignUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -147,6 +180,20 @@ class CampaignUpdateRequest(BaseModel):
     channels: Optional[list[str]] = None
     sequence_steps: Optional[list[dict[str, Any]]] = None
     safety_config: Optional[dict[str, Any]] = None
+
+    @field_validator("channels")
+    @classmethod
+    def validate_update_channels(cls, value: Optional[list[str]]) -> Optional[list[str]]:
+        if value is None:
+            return value
+        return CampaignCreateRequest.validate_channels(value)
+
+    @field_validator("sequence_steps")
+    @classmethod
+    def validate_update_sequence(cls, value: Optional[list[dict[str, Any]]]) -> Optional[list[dict[str, Any]]]:
+        if value is None:
+            return value
+        return CampaignCreateRequest.validate_sequence_steps(value)
 
 
 class CampaignSuggestRequest(BaseModel):
