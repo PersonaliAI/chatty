@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 import main  # noqa: F401
 from app.routers import widget
-from app.workers.widget_jobs import process_ticket_escalation
+from app.workers.widget_jobs import process_ticket_escalation, process_unanswered
 
 
 def test_widget_ticket_escalation_uses_durable_queue(monkeypatch):
@@ -51,3 +51,42 @@ def test_widget_ticket_escalation_worker_dispatches_and_alerts():
         asyncio.run(process_ticket_escalation(payload))
     dispatch.assert_awaited_once_with("bot-1", "session-1")
     alert.assert_awaited_once_with("bot-1", "session-1", "human", "high", "please help")
+
+
+def test_widget_unanswered_uses_durable_queue(monkeypatch):
+    class FakeQueue:
+        def __init__(self):
+            self.calls = []
+
+        async def enqueue(self, **kwargs):
+            self.calls.append(kwargs)
+            return "1-0"
+
+    queue = FakeQueue()
+    monkeypatch.setattr(widget, "_widget_job_queue", queue)
+    mode = asyncio.run(widget._enqueue_widget_unanswered(
+        bot_id="bot-1", session_id="session-1", question="Where is it?",
+        reply="I don't know that information.",
+    ))
+    assert mode == "queued"
+    assert queue.calls[0]["name"] == "widget.unanswered"
+    assert queue.calls[0]["payload"]["concurrency_key"] == "widget-unanswered:bot-1:session-1"
+
+
+def test_widget_unanswered_skips_confident_replies(monkeypatch):
+    monkeypatch.setattr(widget, "_widget_job_queue", None)
+    mode = asyncio.run(widget._enqueue_widget_unanswered(
+        bot_id="bot-1", session_id="session-1", question="Where is it?",
+        reply="It ships tomorrow.",
+    ))
+    assert mode == "skipped"
+
+
+def test_widget_unanswered_worker_runs_sync_logger_off_loop():
+    payload = {
+        "bot_id": "bot-1", "session_id": "session-1",
+        "question": "Where is it?", "reply": "I don't know that information.",
+    }
+    with patch("app.services.widget_session_service.log_unanswered_if_needed") as logger_fn:
+        asyncio.run(process_unanswered(payload))
+    logger_fn.assert_called_once_with("bot-1", "session-1", "Where is it?", "I don't know that information.")

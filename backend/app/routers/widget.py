@@ -28,6 +28,7 @@ from app.services.chatty_quota_service import WHITELABEL_PLANS, chatty_quota_exc
 from app.services.widget_session_service import (
     _detect_sentiment_escalation,
     _log_unanswered_if_needed,
+    looks_unanswered,
     _needs_human,
     _notify_new_conversation,
     _upsert_session,
@@ -105,6 +106,33 @@ async def _enqueue_widget_ticket_escalation(
         return "queued"
     if not _allow_ephemeral_jobs():
         raise HTTPException(status_code=503, detail="Durable job queue is required for widget ticket escalation")
+    return "background"
+
+
+async def _enqueue_widget_unanswered(
+    *, bot_id: str, session_id: str, question: str, reply: str,
+) -> str:
+    if not question or not looks_unanswered(reply):
+        return "skipped"
+    payload = {
+        "bot_id": bot_id,
+        "session_id": session_id,
+        "question": question[:2000],
+        "reply": reply[:4000],
+        "concurrency_key": f"widget-unanswered:{bot_id}:{session_id}",
+    }
+    digest = hashlib.sha256(
+        f"{bot_id}:{session_id}:{question[:2000]}:{reply[:4000]}".encode("utf-8")
+    ).hexdigest()[:32]
+    if _widget_job_queue:
+        await _widget_job_queue.enqueue(
+            name="widget.unanswered",
+            payload=payload,
+            idempotency_key=f"widget.unanswered:{digest}",
+        )
+        return "queued"
+    if not _allow_ephemeral_jobs():
+        raise HTTPException(status_code=503, detail="Durable job queue is required for unanswered-question logging")
     return "background"
 
 _ALLOWED_MEDIA_PREFIXES = ("image/", "audio/", "application/pdf", "text/")
@@ -310,7 +338,11 @@ async def widget_chat(
         session_id=session_id, data={"content": reply},
     )
 
-    background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
+    unanswered_mode = await _enqueue_widget_unanswered(
+        bot_id=bot_id, session_id=session_id, question=text, reply=reply,
+    )
+    if unanswered_mode == "background":
+        background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
 
     return WidgetChatResponse(reply=reply, session_id=session_id, sources=result.get("sources") or None, flow_action=result.get("flow_action"))
 
@@ -491,7 +523,11 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 supabase, bot_id=bot_id, event="message.assistant",
                 session_id=session_id, data={"content": reply},
             )
-            background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
+            unanswered_mode = await _enqueue_widget_unanswered(
+                bot_id=bot_id, session_id=session_id, question=text, reply=reply,
+            )
+            if unanswered_mode == "background":
+                background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
             await queue.put(_sse({"type": "done", "reply": reply, "sources": result.get("sources") or [], "flow_action": result.get("flow_action")}))
         except Exception:  # noqa: BLE001
             request_id = getattr(request.state, "request_id", "")
@@ -748,7 +784,12 @@ async def widget_chat_media(
         session_id=session_id, data={"content": reply},
     )
 
-    background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, transcript or text, reply)
+    unanswered_mode = await _enqueue_widget_unanswered(
+        bot_id=bot_id, session_id=session_id,
+        question=transcript or text, reply=reply,
+    )
+    if unanswered_mode == "background":
+        background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, transcript or text, reply)
 
     return WidgetMediaResponse(reply=reply, session_id=session_id, file_url=file_url, file_type=mime, transcript=transcript or None)
 

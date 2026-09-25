@@ -85,6 +85,12 @@ async def _process_widget_ticket_escalation(payload: dict) -> None:
     await process_ticket_escalation(payload)
 
 
+async def _process_widget_unanswered(payload: dict) -> None:
+    from app.workers.widget_jobs import process_unanswered
+
+    await process_unanswered(payload)
+
+
 async def run() -> None:
     queue_url = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
     if not queue_url:
@@ -129,6 +135,7 @@ async def run() -> None:
             "email.ticket_reply": _send_ticket_reply_email,
             "email.ticket_escalation": _process_email_ticket_escalation,
             "widget.ticket_escalation": _process_widget_ticket_escalation,
+            "widget.unanswered": _process_widget_unanswered,
             "whatsapp.message": _process_whatsapp_message,
             "documents.index_folder": _process_document_job,
             "documents.index_file": _process_document_job,
