@@ -1,0 +1,14 @@
+# Keep Cloud Build uploads small and deterministic. The worker image installs
+# dependencies inside Docker; local environments and test artifacts must never
+# be sent to the build service.
+.venv*/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.git/
+.claude/
+*.py[cod]
+.env
+.env.*
+!.env.example
