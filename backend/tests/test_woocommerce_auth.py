@@ -86,6 +86,13 @@ def test_woocommerce_bulk_sync_keeps_tls_certificate_verification_enabled():
     assert "verify=False" not in source
 
 
+def test_woocommerce_outbound_requests_use_pinned_ssrf_guard():
+    service = woocommerce_router.woocommerce_service
+    assert "ssrf.request_async" in inspect.getsource(service.verify_credentials)
+    assert "ssrf.request_async" in inspect.getsource(service._fetch_product_variations)
+    assert "ssrf.request_async" in inspect.getsource(service.run_woocommerce_sync_task)
+
+
 def test_woocommerce_webhook_rejects_missing_signature():
     with patch.object(woocommerce_router.woocommerce_service, "get_integration", new_callable=AsyncMock) as get_integration, \
          patch.object(woocommerce_router.woocommerce_service, "process_webhook_payload", new_callable=AsyncMock) as process:

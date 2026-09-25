@@ -25,6 +25,7 @@ import httpx
 from app.core.clients import supabase
 from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.db import run_db
+from app.core import ssrf
 from app.services import multimodal_service
 
 logger = logging.getLogger("chatty.woocommerce")
@@ -86,7 +87,7 @@ async def verify_credentials(
     async with httpx.AsyncClient(timeout=timeout) as client:
         # First attempt: system_status
         try:
-            resp = await client.get(api_url, auth=auth)
+            resp = await ssrf.request_async(client, "GET", api_url, auth=auth)
             if resp.status_code == 200:
                 data = resp.json()
                 env = data.get("environment", {})
@@ -102,7 +103,7 @@ async def verify_credentials(
 
         # Fallback attempt: GET products?per_page=1
         try:
-            resp = await client.get(fallback_url, auth=auth, params={"per_page": 1})
+            resp = await ssrf.request_async(client, "GET", fallback_url, auth=auth, params={"per_page": 1})
             if resp.status_code == 200:
                 total_str = resp.headers.get("x-wp-total", "0")
                 try:
@@ -298,7 +299,9 @@ async def _fetch_product_variations(
     if product.get("type") != "variable" or not product.get("id"):
         return
     try:
-        response = await client.get(
+        response = await ssrf.request_async(
+            client,
+            "GET",
             f"{api_root}/{product['id']}/variations",
             auth=auth,
             params={"per_page": 100, "status": "publish"},
@@ -367,7 +370,9 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             while True:
-                resp = await client.get(
+                resp = await ssrf.request_async(
+                    client,
+                    "GET",
                     api_url,
                     auth=auth,
                     params={
