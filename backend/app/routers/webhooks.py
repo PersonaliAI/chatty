@@ -722,10 +722,12 @@ async def whatsapp_receive(request: Request):
 
             # HMAC-SHA256 signature verification
             app_secret = bot.get("whatsapp_app_secret") or WHATSAPP_APP_SECRET
-            if app_secret:
-                if not _verify_meta_signature(raw_body, sig_header, app_secret):
-                    logger.warning("WhatsApp webhook invalid HMAC signature for bot %s", bot["id"])
-                    raise HTTPException(status_code=401, detail="Invalid signature")
+            if not app_secret:
+                logger.error("WhatsApp webhook signature verification is not configured for bot %s", bot["id"])
+                raise HTTPException(status_code=503, detail="WhatsApp webhook signature verification is not configured")
+            if not _verify_meta_signature(raw_body, sig_header, app_secret):
+                logger.warning("WhatsApp webhook invalid HMAC signature for bot %s", bot["id"])
+                raise HTTPException(status_code=401, detail="Invalid signature")
 
             # Resolve Access Token
             access_token = decrypt_secret(bot.get("whatsapp_access_token") or "") or WHATSAPP_ACCESS_TOKEN

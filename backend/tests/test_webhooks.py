@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -211,6 +211,22 @@ def test_verify_meta_signature_rejects_wrong_secret():
     payload = b'{"object":"whatsapp_business_account","entry":[]}'
     expected_sig = "sha256=" + hmac.new(b"secret_a", payload, hashlib.sha256).hexdigest()
     assert webhooks._verify_meta_signature(payload, expected_sig, "secret_b") is False
+
+
+def test_whatsapp_receive_fails_closed_without_app_secret():
+    request = _FakeRequest(
+        json.dumps({"entry": [{"changes": [{"value": {"metadata": {"phone_number_id": "pnid"}}}]}]}).encode(),
+        {},
+    )
+    with patch.object(webhooks, "run_db", new_callable=AsyncMock) as db:
+        db.return_value = SimpleNamespace(data=[{
+            "id": "bot-1",
+            "user_id": "user-1",
+            "whatsapp_phone_number_id": "pnid",
+        }])
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(webhooks.whatsapp_receive(request))
+    assert exc.value.status_code == 503
 
 
 def test_whatsapp_product_card_is_rendered_as_text():
