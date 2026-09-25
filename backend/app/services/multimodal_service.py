@@ -199,6 +199,13 @@ def catalog_item_is_recommendable(item: dict[str, Any], *, in_stock_only: bool =
     return bool(True if in_stock is None else in_stock)
 
 
+def catalog_similarity_meets_threshold(item: dict[str, Any], threshold: float) -> bool:
+    try:
+        return float(item.get("similarity") or 0.0) >= threshold
+    except (TypeError, ValueError):
+        return False
+
+
 async def search_multimodal_catalog(
     *,
     bot_id: str,
@@ -251,7 +258,7 @@ async def search_multimodal_catalog(
                 results = [
                     item for item in res.data
                     if catalog_item_is_recommendable(item, in_stock_only=in_stock_only)
-                    and float(item.get("similarity") or 0.0) >= match_threshold
+                    and catalog_similarity_meets_threshold(item, match_threshold)
                 ]
         except Exception as exc:
             logger.warning("match_media_items RPC failed, falling back to keyword filter: %s", exc)
