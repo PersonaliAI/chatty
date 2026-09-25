@@ -39,6 +39,10 @@ MAX_CATALOG_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_CATALOG_IMAGES = 8
 MAX_CATALOG_RESULTS = 20
 FALLBACK_MIN_SCORE = 0.3
+_FALLBACK_STOPWORDS = {
+    "the", "and", "for", "are", "you", "your", "what", "how", "where",
+    "with", "this", "that", "show", "find", "need", "want", "please",
+}
 _PRODUCT_CARD_RE = re.compile(r"\[PRODUCT_CARD:(\{.*?\})\]", re.DOTALL)
 
 VISION_ANALYSIS_PROMPT = """Analyze this image in detail for an e-commerce / product catalog search system.
@@ -282,6 +286,21 @@ def catalog_similarity_meets_threshold(item: dict[str, Any], threshold: float) -
         return False
 
 
+def fallback_catalog_score(item: dict[str, Any], tokens: list[str]) -> float:
+    """Return a normalized lexical score for the bounded retrieval fallback."""
+    if not tokens:
+        return 0.0
+    fields = {
+        "title": set(re.findall(r"[a-z0-9]+", str(item.get("title") or "").lower())),
+        "description": set(re.findall(r"[a-z0-9]+", str(item.get("description") or "").lower())),
+        "sku": set(re.findall(r"[a-z0-9]+", str(item.get("sku") or "").lower())),
+    }
+    title_hits = sum(token in fields["title"] for token in tokens)
+    description_hits = sum(token in fields["description"] for token in tokens)
+    sku_hits = sum(token in fields["sku"] for token in tokens)
+    return min(1.0, (title_hits * 0.7 + description_hits * 0.2 + sku_hits * 0.9) / len(tokens))
+
+
 async def search_multimodal_catalog(
     *,
     bot_id: str,
@@ -347,35 +366,28 @@ async def search_multimodal_catalog(
     # 3. Fallback / Hybrid text search if vector returned few results
     if len(results) < top_k:
         try:
-            tokens = [t.lower() for t in search_keywords.split() if len(t) > 2][:4]
+            tokens = [token for token in re.findall(r"[a-z0-9]+", search_keywords.lower()) if len(token) > 2 and token not in _FALLBACK_STOPWORDS][:8]
             q = supabase.table("chatty_media_items").select("*").eq("bot_id", bot_id)
             if media_type:
                 q = q.eq("media_type", media_type)
-            
-            # Simple keyword match
+            if tokens and callable(getattr(q, "or_", None)):
+                filters = ",".join(f"{field}.ilike.%{token}%" for token in tokens for field in ("title", "description", "sku"))
+                q = q.or_(filters)
+
             existing_ids = {r["id"] for r in results if "id" in r}
-            res_all = await run_db(lambda: q.limit(20).execute())
+            res_all = await run_db(lambda: q.limit(100).execute())
+            fallback_candidates = []
             for item in (res_all.data or []):
                 if item["id"] in existing_ids:
                     continue
                 if not catalog_item_is_recommendable(item, in_stock_only=in_stock_only):
                     continue
-                score = 0
-                title = (item.get("title") or "").lower()
-                desc = (item.get("description") or "").lower()
-                sku = (item.get("sku") or "").lower()
-                for token in tokens:
-                    if token in title:
-                        score += 0.3
-                    if token in desc:
-                        score += 0.15
-                    if token in sku:
-                        score += 0.4
+                score = fallback_catalog_score(item, tokens)
                 if score >= FALLBACK_MIN_SCORE:
                     item["similarity"] = score
-                    results.append(item)
-                    if len(results) >= top_k:
-                        break
+                    fallback_candidates.append((score, item))
+            fallback_candidates.sort(key=lambda pair: (-pair[0], str(pair[1].get("id") or "")))
+            results.extend(item for _, item in fallback_candidates[: max(0, top_k - len(results))])
         except Exception as exc:
             logger.exception("Fallback media search failed: %s", exc)
 

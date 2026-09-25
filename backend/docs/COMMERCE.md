@@ -10,6 +10,11 @@ parent product's price or stock. If the shopper query uniquely identifies an
 in-stock variant, that variant is selected; otherwise the card is suppressed
 until the choice is unambiguous.
 
+If vector retrieval is unavailable, the bounded lexical fallback filters within
+the bot scope, scores title/SKU/description token overlap deterministically,
+and applies the same confidence and stock gates rather than returning rows in
+database order.
+
 ## Request path
 
 ```text
