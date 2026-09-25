@@ -42,6 +42,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 import litellm
+from google.genai import types as genai_types
 from litellm.types.utils import Usage as LitellmUsage
 
 from livekit import api
@@ -449,7 +450,15 @@ def build_realtime(provider: str, model: Optional[str], voice: Optional[str], ap
             )
         voice = REALTIME_DEFAULT_VOICE["google"]
     if provider == "google":
-        kwargs: dict[str, Any] = {"model": model}
+        # Do not rely on provider defaults for captions. Gemini Live requires
+        # explicit input/output audio-transcription configuration for a
+        # dependable transcript stream, and the browser consumes both sides
+        # through LiveKit's TranscriptionReceived event.
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "input_audio_transcription": genai_types.AudioTranscriptionConfig(),
+            "output_audio_transcription": genai_types.AudioTranscriptionConfig(),
+        }
         if api_key:
             kwargs["api_key"] = api_key
         if voice:
