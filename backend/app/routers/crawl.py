@@ -140,9 +140,14 @@ async def crawl_pages(
     urls = [_normalize_url(u) for u in req.urls if u.strip()][:100]
     if not urls:
         raise HTTPException(status_code=400, detail="No URLs provided")
+
     if _crawl_job_queue:
         digest = hashlib.sha256(json.dumps(urls, sort_keys=True).encode()).hexdigest()[:32]
-        await _crawl_job_queue.enqueue(name="crawl.pages", payload={"bot_id": req.bot_id, "urls": urls, "concurrency_key": f"crawl:{req.bot_id}"}, idempotency_key=f"crawl.pages:{req.bot_id}:{digest}")
+        await _crawl_job_queue.enqueue(
+            name="crawl.pages",
+            payload={"bot_id": req.bot_id, "urls": urls, "concurrency_key": f"crawl:{req.bot_id}"},
+            idempotency_key=f"crawl.pages:{req.bot_id}:{digest}",
+        )
         return {"status": "queued", "count": len(urls)}
     if not _allow_ephemeral_jobs():
         raise HTTPException(status_code=503, detail="Durable job queue is required for website crawling")
@@ -217,12 +222,23 @@ async def execute_scheduled_crawls(x_function_secret: Optional[str] = Header(def
     res = await run_db(lambda: supabase.table("chatty_sources").select("id, bot_id, name, crawl_schedule, next_crawl_at")
         .eq("type", "url").neq("crawl_schedule", "off").lte("next_crawl_at", now.isoformat()).execute())
     due = res.data or []
+
     if _crawl_job_queue:
         for src in due:
-            await _crawl_job_queue.enqueue(name="crawl.scheduled", payload={"source_id": src["id"], "bot_id": src["bot_id"], "url": src["name"], "schedule": src["crawl_schedule"], "concurrency_key": f"crawl:{src['bot_id']}"}, idempotency_key=f"crawl.scheduled:{src['id']}:{src.get('next_crawl_at')}")
+            await _crawl_job_queue.enqueue(
+                name="crawl.scheduled",
+                payload={
+                    "source_id": src["id"], "bot_id": src["bot_id"],
+                    "url": src["name"], "schedule": src["crawl_schedule"],
+                    "concurrency_key": f"crawl:{src['bot_id']}",
+                },
+                idempotency_key=f"crawl.scheduled:{src['id']}:{src.get('next_crawl_at')}",
+            )
         return {"checked": len(due), "queued": len(due), "recrawled": 0, "results": []}
     if not _allow_ephemeral_jobs():
-        return {"checked": len(due), "queued": 0, "recrawled": 0, "results": [{"id": src["id"], "ok": False, "error": "durable job queue is required"} for src in due]}
+        return {"checked": len(due), "queued": 0, "recrawled": 0, "results": [
+            {"id": src["id"], "ok": False, "error": "durable job queue is required"} for src in due
+        ]}
 
     sem = asyncio.Semaphore(5)
 

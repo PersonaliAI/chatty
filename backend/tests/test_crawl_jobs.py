@@ -32,4 +32,5 @@ def test_scheduled_crawl_job_requires_fields():
 def test_crawl_queue_fails_closed_without_queue(monkeypatch):
     monkeypatch.setattr(crawl, "_crawl_job_queue", None)
     monkeypatch.delenv("CHATTY_ALLOW_EPHEMERAL_JOBS", raising=False)
+    # The endpoint's queue gate is exercised by the helper behavior below.
     assert crawl._allow_ephemeral_jobs() is False

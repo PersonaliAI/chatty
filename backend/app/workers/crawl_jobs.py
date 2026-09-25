@@ -17,6 +17,7 @@ def _next_crawl_at(schedule: str) -> str | None:
 
 async def _crawl_one(bot_id: str, url: str) -> dict[str, Any]:
     from main import _fetch_url_content
+
     content = await _fetch_url_content(url)
     if not content.strip():
         return {"url": url, "ok": False, "error": "no content or rate limited"}
@@ -46,4 +47,7 @@ async def process_crawl_job(payload: dict[str, Any]) -> None:
     result = await _crawl_one(bot_id, url)
     if not result.get("ok"):
         raise RuntimeError(result.get("error") or "scheduled crawl failed")
-    await run_db(lambda: supabase.table("chatty_sources").update({"last_crawled_at": datetime.now(timezone.utc).isoformat(), "next_crawl_at": _next_crawl_at(str(payload.get("schedule") or ""))}).eq("id", source_id).execute())
+    await run_db(lambda: supabase.table("chatty_sources").update({
+        "last_crawled_at": datetime.now(timezone.utc).isoformat(),
+        "next_crawl_at": _next_crawl_at(str(payload.get("schedule") or "")),
+    }).eq("id", source_id).execute())
