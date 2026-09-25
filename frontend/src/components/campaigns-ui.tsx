@@ -35,6 +35,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState("all");
   const [channel, setChannel] = useState("web");
+  const [cadence, setCadence] = useState("once");
   const [sequenceText, setSequenceText] = useState("[]");
   const [goal, setGoal] = useState("");
   const [suggesting, setSuggesting] = useState(false);
@@ -140,6 +141,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         channels: [channel],
         sequence_steps: sequenceSteps,
         safety_config: { frequency_cap_hours: 24, require_consent: true },
+        schedule_config: { cadence, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" },
       }),
     }).then(async (response) => {
       if (!response.ok) throw new Error(`Campaign could not be saved (${response.status})`);
@@ -149,6 +151,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setMessage("");
       setAudience("all");
       setChannel("web");
+      setCadence("once");
       setSequenceText("[]");
     }).catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : "Campaign could not be saved."))
       .finally(() => setSaving(false));
@@ -259,6 +262,11 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Channel</label>
                 <ModernSelect value={channel} options={[{ value: "web", label: "Website" }, { value: "email", label: "Email" }, { value: "whatsapp", label: "WhatsApp" }]} onChange={setChannel} />
               </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Sequence cadence</label>
+              <ModernSelect value={cadence} options={[{ value: "once", label: "Run once" }, { value: "hourly", label: "Hourly" }, { value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }]} onChange={setCadence} />
+              <p className="text-[9px] text-neutral-400">The schedule is persisted with the campaign and interpreted in the visitor’s configured timezone.</p>
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Sequence steps (JSON)</label>

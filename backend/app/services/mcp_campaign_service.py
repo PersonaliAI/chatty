@@ -2,12 +2,9 @@
 
 chatty_campaigns (supabase/migrations/20260902164515_chatty_campaigns.sql)
 is a real, newly-created table - see that migration's own comment for why
-it's separate from the dashboard's existing client-side-only campaigns
-feature. impressions/clicks/conversions are real, persisted counters that
-currently only ever read 0: there is no event-recording pipeline yet (the
-widget doesn't call any endpoint to report an impression/click/conversion),
-so get_campaign_analytics reports that honestly rather than returning
-plausible-looking fabricated numbers.
+it's separate from the dashboard's campaign configuration. Telemetry is
+recorded in chatty_campaign_events and analytics are recomputed from that
+ledger, with legacy counter fallback for older installations.
 """
 
 from __future__ import annotations
@@ -39,7 +36,8 @@ async def create_campaign(principal: dict[str, Any], bot_id: str, body: Campaign
         "audience_rules": body.audience_rules,
         "channels": body.channels,
         "sequence_steps": body.sequence_steps,
-        "safety_config": body.safety_config,
+        "safety_config": body.safety_config or {"frequency_cap_hours": 24, "require_consent": True},
+        "schedule_config": body.schedule_config or {"cadence": "once", "timezone": "UTC"},
     }
     res = await run_db(lambda: supabase.table("chatty_campaigns").insert(row).execute())
     if not res.data:

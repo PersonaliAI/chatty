@@ -130,6 +130,7 @@ class CampaignCreateRequest(BaseModel):
     channels: list[str] = Field(default_factory=lambda: ["web"])
     sequence_steps: list[dict[str, Any]] = Field(default_factory=list)
     safety_config: dict[str, Any] = Field(default_factory=dict)
+    schedule_config: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("channels")
     @classmethod
@@ -178,6 +179,17 @@ class CampaignCreateRequest(BaseModel):
         config["require_consent"] = bool(config.get("require_consent", True))
         return config
 
+    @field_validator("schedule_config")
+    @classmethod
+    def validate_schedule_config(cls, value: dict[str, Any]) -> dict[str, Any]:
+        config = dict(value or {})
+        cadence = str(config.get("cadence", "once")).strip().lower()
+        if cadence not in {"once", "hourly", "daily", "weekly"}:
+            raise ValueError("cadence must be once, hourly, daily, or weekly")
+        timezone = str(config.get("timezone", "UTC")).strip()[:64] or "UTC"
+        config.update({"cadence": cadence, "timezone": timezone})
+        return config
+
 
 class CampaignUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -194,6 +206,7 @@ class CampaignUpdateRequest(BaseModel):
     channels: Optional[list[str]] = None
     sequence_steps: Optional[list[dict[str, Any]]] = None
     safety_config: Optional[dict[str, Any]] = None
+    schedule_config: Optional[dict[str, Any]] = None
 
     @field_validator("channels")
     @classmethod
@@ -215,6 +228,13 @@ class CampaignUpdateRequest(BaseModel):
         if value is None:
             return value
         return CampaignCreateRequest.validate_safety_config(value)
+
+    @field_validator("schedule_config")
+    @classmethod
+    def validate_update_schedule(cls, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        if value is None:
+            return value
+        return CampaignCreateRequest.validate_schedule_config(value)
 
 
 class CampaignSuggestRequest(BaseModel):

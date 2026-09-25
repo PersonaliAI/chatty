@@ -55,6 +55,7 @@ def _campaign_row(body: CampaignCreateRequest) -> dict[str, Any]:
         "channels": body.channels,
         "sequence_steps": body.sequence_steps,
         "safety_config": body.safety_config or {"frequency_cap_hours": 24, "require_consent": True},
+        "schedule_config": body.schedule_config or {"cadence": "once", "timezone": "UTC"},
     }
 
 
