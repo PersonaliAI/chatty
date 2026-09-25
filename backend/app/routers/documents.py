@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -15,6 +16,7 @@ from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.security import verify_function_secret
 from app.core.uploads import read_upload_capped
+from app.adapters.redis_jobs import RedisJobQueue
 from app.schemas.documents import DriveScheduleUpdate, IndexFilesBody, IndexFolderBody
 from plugins import doc_rag
 from plugins import google_integrations as g
@@ -27,6 +29,24 @@ logger = logging.getLogger("chatty")
 router = APIRouter()
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB hard cap per file
+_DOCUMENT_JOB_QUEUE_URL = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
+_document_job_queue = (
+    RedisJobQueue(_DOCUMENT_JOB_QUEUE_URL, stream="chatty:webhooks")
+    if _DOCUMENT_JOB_QUEUE_URL else None
+)
+
+
+def _allow_ephemeral_jobs() -> bool:
+    return os.environ.get("CHATTY_ALLOW_EPHEMERAL_JOBS", "false").strip().lower() in {"1", "true", "yes"}
+
+
+async def _enqueue_document_job(*, name: str, payload: dict[str, Any], idempotency_key: str) -> str:
+    if _document_job_queue:
+        await _document_job_queue.enqueue(name=name, payload=payload, idempotency_key=idempotency_key)
+        return "queued"
+    if not _allow_ephemeral_jobs():
+        raise HTTPException(status_code=503, detail="Durable job queue is required for document indexing")
+    return "background"
 
 
 def _drive_folder_id_from(s: str) -> str:
@@ -87,13 +107,14 @@ async def documents_index_folder(
             bot_upd["google_drive_folder_id"] = folder_id
         await run_db(lambda: supabase.table("chatty_bots").update(bot_upd).eq("id", body.bot_id).eq("user_id", user["auth_user_id"]).execute())
 
-    background_tasks.add_task(
-        _index_folder_task,
-        user,
-        folder_id,
-        max_files,
-        source,
+    payload = {"user_id": user["id"], "folder_id": folder_id, "max_files": max_files, "source": source}
+    mode = await _enqueue_document_job(
+        name="documents.index_folder",
+        payload={**payload, "concurrency_key": f"documents:{user['id']}:{source}:{folder_id}"},
+        idempotency_key=f"documents.index_folder:{user['id']}:{source}:{folder_id}",
     )
+    if mode == "background":
+        background_tasks.add_task(_index_folder_task, user, folder_id, max_files, source)
     return {"status": "started", "folder_id": folder_id, "source": source}
 
 
@@ -150,6 +171,24 @@ async def execute_scheduled_drive_syncs(x_function_secret: Optional[str] = Heade
             folder_id = u.get(f"{prefix}_folder_id")
             if not folder_id:
                 continue
+            if _document_job_queue:
+                schedule = u.get(f"{prefix}_sync_schedule") or ""
+                await _enqueue_document_job(
+                    name="documents.index_folder",
+                    payload={
+                        "user_id": u["id"], "folder_id": folder_id,
+                        "max_files": u.get(f"{prefix}_max_files") or 50,
+                        "source": source, "schedule": schedule,
+                        "schedule_field": f"{prefix}_next_sync_at",
+                        "concurrency_key": f"documents:{u['id']}:{source}:{folder_id}",
+                    },
+                    idempotency_key=f"documents.scheduled:{u['id']}:{source}:{folder_id}:{u.get(f'{prefix}_next_sync_at')}",
+                )
+                results.append({"user_id": u["id"], "source": source, "ok": True, "queued": True})
+                continue
+            if not _allow_ephemeral_jobs():
+                results.append({"user_id": u["id"], "source": source, "ok": False, "error": "durable job queue is required"})
+                continue
             try:
                 await doc_rag.index_folder(
                     supabase, genai_client, user=u, folder_id=folder_id,
@@ -177,9 +216,19 @@ async def documents_index_files(
         raise HTTPException(status_code=400, detail="Google not connected")
     if not body.file_ids:
         raise HTTPException(status_code=400, detail="file_ids required")
-    for fid in body.file_ids[:50]:
-        background_tasks.add_task(_index_file_task, user, fid)
-    return {"status": "started", "count": min(len(body.file_ids), 50)}
+    file_ids = body.file_ids[:50]
+    for fid in file_ids:
+        current_mode = await _enqueue_document_job(
+            name="documents.index_file",
+            payload={
+                "user_id": user["id"], "file_id": fid, "source": "gdrive",
+                "concurrency_key": f"documents:{user['id']}:gdrive:{fid}",
+            },
+            idempotency_key=f"documents.index_file:{user['id']}:gdrive:{fid}",
+        )
+        if current_mode == "background":
+            background_tasks.add_task(_index_file_task, user, fid)
+    return {"status": "started", "count": len(file_ids)}
 
 
 @router.post("/api/documents/upload")
