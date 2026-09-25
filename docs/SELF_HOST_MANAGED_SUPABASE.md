@@ -307,6 +307,23 @@ Run this checklist after every first deploy and after a domain or secret change:
 8. Logs contain no access tokens, database passwords, or raw BYOK secrets.
 9. Enable backups, alerts, and log retention in the platform and Supabase.
 
+### Firebase App Hosting trigger hygiene
+
+If the frontend is deployed with Firebase App Hosting, configure **App
+Hosting → Settings → Rollouts → Required paths** to `frontend/**`. This keeps
+backend-only, docs-only, and test-only commits from starting an unnecessary
+frontend rollout while the repository's GitHub CI still runs its complete
+validation suite. Keep `frontend/apphosting.yaml`, `frontend/package.json`,
+and `frontend/package-lock.json` in the required-path set if the console uses
+an explicit allow-list instead of a recursive path rule.
+
+The App Hosting GitHub connection must point to the canonical
+`PersonaliAI/chatty` repository and `main` branch. Store server-only values in
+App Hosting Environment/Secret Manager, never in `apphosting.yaml` or the
+public repository. A skipped rollout is expected for changes outside the
+required paths; use the GitHub Actions result as the release gate for those
+changes.
+
 ## 9. Updates, rollback, and incident response
 
 Deploy an immutable Git commit, not an uncommitted working tree. Apply new

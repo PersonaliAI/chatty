@@ -107,6 +107,28 @@ Cloud Run services must use a bounded request timeout, a minimum instance count
 appropriate for latency requirements, and separate worker capacity for long
 running crawling, embedding, email, and webhook jobs.
 
+## Firebase App Hosting rollout trigger
+
+Firebase App Hosting is only the frontend deployment surface. Configure its
+rollout trigger in the Firebase console so backend-only, documentation-only,
+and test-only commits do not rebuild the frontend:
+
+1. Open **App Hosting → `chatty` backend → Settings → Rollouts**.
+2. Under **Rollout triggers**, choose **Required paths** and add
+   `frontend/**`.
+3. Add `frontend/apphosting.yaml`, `frontend/package.json`, and
+   `frontend/package-lock.json` only if those files are outside the required
+   path rule in your console version. Save the setting and verify it with a
+   documentation-only commit before relying on it.
+
+This filter affects App Hosting rollouts only; GitHub CI remains responsible for
+testing backend, frontend, Compose, security, and documentation changes. Keep
+the Firebase backend connected to the single canonical `PersonaliAI/chatty`
+repository and the `main` branch. Do not connect duplicate repositories or
+place secrets in the public repository; App Hosting environment values belong
+in its Environment/Secret Manager settings and take effect on the next
+rollout.
+
 ## Data and reliability rules
 
 - PostgreSQL migrations are additive first and destructive only after a release
