@@ -10,6 +10,7 @@ Provides:
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import logging
 from typing import Any, Optional
@@ -21,6 +22,8 @@ from plugins import ai_client
 from plugins import memory as mem
 
 logger = logging.getLogger("chatty.multimodal")
+
+EMBEDDING_SCHEMA_VERSION = "catalog-text-v1"
 
 VISION_ANALYSIS_PROMPT = """Analyze this image in detail for an e-commerce / product catalog search system.
 The user is asking a question or looking for this item (e.g. clothing, footwear, accessory, electronics, or product).
@@ -107,6 +110,75 @@ async def embed_multimodal_text(text: str) -> list[float]:
         return vectors[0] if vectors else []
     except Exception as exc:
         logger.error("Failed to embed text: %s", exc)
+        return []
+
+
+def _catalog_source_metadata(metadata: Optional[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        str(key): value
+        for key, value in (metadata or {}).items()
+        if not str(key).startswith("_embedding_")
+    }
+
+
+def build_catalog_embedding_text(
+    *,
+    title: str,
+    description: str = "",
+    sku: Optional[str] = None,
+    visual_attributes: Optional[dict[str, Any]] = None,
+    metadata: Optional[dict[str, Any]] = None,
+) -> str:
+    """Build the stable source text used for catalog document embeddings."""
+    parts = [title]
+    if description:
+        parts.append(description)
+    if sku:
+        parts.append(f"SKU: {sku}")
+    if visual_attributes:
+        attrs = ", ".join(f"{key}: {value}" for key, value in visual_attributes.items() if value)
+        if attrs:
+            parts.append(attrs)
+    source_metadata = _catalog_source_metadata(metadata)
+    if source_metadata:
+        parts.append(json.dumps(source_metadata, sort_keys=True, default=str, separators=(",", ":")))
+    return " | ".join(str(part) for part in parts if part).strip()
+
+
+def catalog_embedding_fingerprint(**kwargs: Any) -> str:
+    source = build_catalog_embedding_text(**kwargs)
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
+def catalog_metadata_with_embedding(
+    metadata: Optional[dict[str, Any]],
+    fingerprint: str,
+    *,
+    status: str,
+) -> dict[str, Any]:
+    enriched = dict(metadata or {})
+    enriched.update({
+        "_embedding_schema": EMBEDDING_SCHEMA_VERSION,
+        "_embedding_model": mem.EMBED_MODEL,
+        "_embedding_dimensions": mem.EMBED_DIMENSIONS,
+        "_embedding_fingerprint": fingerprint,
+        "_embedding_status": status,
+    })
+    return enriched
+
+
+async def embed_catalog_item(**kwargs: Any) -> list[float]:
+    """Embed catalog source fields using the same document pipeline as ingest."""
+    text = build_catalog_embedding_text(**kwargs)
+    if not text:
+        return []
+    try:
+        vectors = await mem._embed_with_retry(
+            [text], is_query=False, titles=[kwargs.get("title")]
+        )
+        return vectors[0] if vectors else []
+    except Exception as exc:
+        logger.error("Failed to embed catalog item: %s", exc)
         return []
 
 
@@ -281,18 +353,18 @@ async def ingest_media_item(
     metadata: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Ingest and embed a product, image, or video keyframe into chatty_media_items."""
-    embed_text_parts = [title]
-    if description:
-        embed_text_parts.append(description)
-    if sku:
-        embed_text_parts.append(f"SKU: {sku}")
-    if visual_attributes:
-        attrs_str = ", ".join(f"{k}: {v}" for k, v in visual_attributes.items() if v)
-        if attrs_str:
-            embed_text_parts.append(attrs_str)
-
-    full_text = " | ".join(embed_text_parts)
-    vector = await embed_multimodal_text(full_text)
+    embedding_kwargs = {
+        "title": title,
+        "description": description,
+        "sku": sku,
+        "visual_attributes": visual_attributes,
+        "metadata": metadata,
+    }
+    fingerprint = catalog_embedding_fingerprint(**embedding_kwargs)
+    vector = await embed_catalog_item(**embedding_kwargs)
+    metadata_with_embedding = catalog_metadata_with_embedding(
+        metadata, fingerprint, status="ready" if vector else "stale"
+    )
 
     row = {
         "bot_id": bot_id,
@@ -309,7 +381,7 @@ async def ingest_media_item(
         "video_timestamp_start": video_timestamp_start,
         "video_timestamp_end": video_timestamp_end,
         "visual_attributes": visual_attributes or {},
-        "metadata": metadata or {},
+        "metadata": metadata_with_embedding,
         "embedding": vector if vector else None,
     }
 

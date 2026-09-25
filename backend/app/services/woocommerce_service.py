@@ -284,6 +284,32 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
     }
 
 
+async def _prepare_product_embedding(
+    mapped: dict[str, Any], existing_metadata: Optional[dict[str, Any]] = None
+) -> tuple[dict[str, Any], list[float] | None]:
+    """Refresh a product embedding only when its searchable source changed."""
+    embedding_kwargs = {
+        "title": mapped["title"],
+        "description": mapped["description"],
+        "sku": mapped.get("sku"),
+        "metadata": mapped.get("metadata") or {},
+    }
+    fingerprint = multimodal_service.catalog_embedding_fingerprint(**embedding_kwargs)
+    stored = existing_metadata or {}
+    needs_reembed = (
+        stored.get("_embedding_fingerprint") != fingerprint
+        or stored.get("_embedding_schema") != multimodal_service.EMBEDDING_SCHEMA_VERSION
+    )
+    vector = await multimodal_service.embed_catalog_item(**embedding_kwargs) if needs_reembed else None
+    status = "ready" if vector or not needs_reembed else "stale"
+    return (
+        multimodal_service.catalog_metadata_with_embedding(
+            mapped.get("metadata"), fingerprint, status=status
+        ),
+        vector if vector else None,
+    )
+
+
 async def _fetch_product_variations(
     client: httpx.AsyncClient,
     api_root: str,
@@ -416,7 +442,7 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                     # Check if already exists by woocommerce_id
                     existing = await run_db(
                         lambda: supabase.table("chatty_media_items")
-                        .select("id")
+                        .select("id,metadata")
                         .eq("bot_id", bot_id)
                         .contains("metadata", {"woocommerce_id": wc_id})
                         .limit(1)
@@ -426,6 +452,9 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                     if existing and existing.data:
                         # Update price, stock, description, url
                         item_id = existing.data[0]["id"]
+                        updated_metadata, embedding = await _prepare_product_embedding(
+                            mapped, existing.data[0].get("metadata")
+                        )
                         upd = {
                             "title": mapped["title"],
                             "description": mapped["description"],
@@ -435,9 +464,11 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                             "url": mapped["url"],
                             "media_url": mapped["media_url"] or existing.data[0].get("media_url", ""),
                             "thumbnail_url": mapped["thumbnail_url"] or existing.data[0].get("thumbnail_url", ""),
-                            "metadata": mapped["metadata"],
+                            "metadata": updated_metadata,
                             "updated_at": datetime.now(timezone.utc).isoformat(),
                         }
+                        if embedding is not None:
+                            upd["embedding"] = embedding
                         await run_db(
                             lambda: supabase.table("chatty_media_items")
                             .update(upd)
@@ -547,7 +578,7 @@ async def process_webhook_payload(
         # Check if exists
         existing = await run_db(
             lambda: supabase.table("chatty_media_items")
-            .select("id")
+            .select("id,metadata")
             .eq("bot_id", bot_id)
             .contains("metadata", {"woocommerce_id": wc_id})
             .limit(1)
@@ -556,6 +587,9 @@ async def process_webhook_payload(
 
         if existing and existing.data:
             item_id = existing.data[0]["id"]
+            updated_metadata, embedding = await _prepare_product_embedding(
+                mapped, existing.data[0].get("metadata")
+            )
             upd = {
                 "title": mapped["title"],
                 "description": mapped["description"],
@@ -563,12 +597,14 @@ async def process_webhook_payload(
                 "price": mapped["price"],
                 "currency": mapped["currency"],
                 "url": mapped["url"],
-                "metadata": mapped["metadata"],
+                "metadata": updated_metadata,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
             if mapped["media_url"]:
                 upd["media_url"] = mapped["media_url"]
                 upd["thumbnail_url"] = mapped["thumbnail_url"]
+            if embedding is not None:
+                upd["embedding"] = embedding
 
             await run_db(
                 lambda: supabase.table("chatty_media_items")
