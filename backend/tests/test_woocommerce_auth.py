@@ -13,6 +13,7 @@ client = TestClient(app)
 
 BOT_ID = "ad32f373-7694-43f4-9465-f8d65ce291e3"
 STORE_URL = "https://example-shop.com"
+SECRET = "woocommerce-secret-for-tests"
 
 
 def test_auth_state_generation_and_verification():
@@ -83,6 +84,20 @@ def test_woocommerce_sync_uses_durable_queue_when_configured():
 def test_woocommerce_bulk_sync_keeps_tls_certificate_verification_enabled():
     source = inspect.getsource(woocommerce_router.woocommerce_service.run_woocommerce_sync_task)
     assert "verify=False" not in source
+
+
+def test_woocommerce_webhook_rejects_missing_signature():
+    with patch.object(woocommerce_router.woocommerce_service, "get_integration", new_callable=AsyncMock) as get_integration, \
+         patch.object(woocommerce_router.woocommerce_service, "process_webhook_payload", new_callable=AsyncMock) as process:
+        get_integration.return_value = {"webhook_secret": SECRET}
+        response = client.post(
+            f"/api/integrations/woocommerce/webhook/{BOT_ID}",
+            json={"id": 42, "name": "Untrusted"},
+        )
+
+    assert response.status_code == 401
+    assert "Missing webhook signature" in response.text
+    process.assert_not_awaited()
 
 
 from app.core.deps import require_user

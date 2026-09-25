@@ -275,16 +275,19 @@ async def receive_woocommerce_webhook(
         raise HTTPException(status_code=404, detail="Integration not found")
 
     secret = integration.get("webhook_secret") or ""
-    # Verify HMAC-SHA256 signature if signature header is provided
-    if x_wc_webhook_signature:
-        is_valid = woocommerce_service.verify_webhook_signature(
-            secret=secret,
-            raw_body=raw_body,
-            header_signature=x_wc_webhook_signature,
-        )
-        if not is_valid:
-            logger.warning("Invalid webhook signature for bot %s", bot_id)
-            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    # WooCommerce must sign every event. Accepting unsigned requests would let
+    # anyone create, mutate, or delete a tenant's catalog records.
+    if not x_wc_webhook_signature:
+        logger.warning("Missing WooCommerce webhook signature for bot %s", bot_id)
+        raise HTTPException(status_code=401, detail="Missing webhook signature")
+    is_valid = woocommerce_service.verify_webhook_signature(
+        secret=secret,
+        raw_body=raw_body,
+        header_signature=x_wc_webhook_signature,
+    )
+    if not is_valid:
+        logger.warning("Invalid webhook signature for bot %s", bot_id)
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     topic = x_wc_webhook_topic or "product.updated"
     try:
