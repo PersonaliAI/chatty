@@ -76,6 +76,8 @@ import {
   RefreshCw,
   Globe,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   X,
   FileText,
   Calendar,
@@ -167,6 +169,19 @@ const IconLibraryPicker = dynamic(
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setSidebarCollapsed(window.localStorage.getItem("chatty_dashboard_sidebar_collapsed") === "1");
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("chatty_dashboard_sidebar_collapsed", sidebarCollapsed ? "1" : "0");
+    } catch {}
+  }, [sidebarCollapsed]);
   const [botDropdownOpen, setBotDropdownOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
@@ -3953,26 +3968,35 @@ export default function Dashboard() {
 
       {/* Sidebar (Responsive collapsible) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col justify-between shrink-0 transform transition-transform duration-200 md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 ${sidebarCollapsed ? "md:w-16" : "md:w-64"} w-64 border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col justify-between shrink-0 transform transition-[width,transform] duration-200 md:relative md:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex flex-col flex-1 min-h-0">
           {/* Brand Logo */}
-          <div className="h-16 px-6 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+          <div className={`h-16 border-b border-neutral-200 dark:border-neutral-800 flex items-center ${sidebarCollapsed ? "md:justify-center md:px-2" : "justify-between px-6"}`}>
             <Link href="/" className="flex items-center gap-2">
               <span className="font-semibold text-base tracking-tight flex items-center gap-1.5">
                 <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-7 object-contain" />
-                Chatty
+                <span className={sidebarCollapsed ? "md:hidden" : ""}>Chatty</span>
               </span>
             </Link>
+            <button
+              type="button"
+              className="hidden md:inline-flex rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white"
+              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            </button>
             <button className="md:hidden p-1 text-neutral-400 hover:text-neutral-900" onClick={() => setSidebarOpen(false)}>
               <X className="size-4" />
             </button>
           </div>
 
           {/* Chatbot Selector Dropdown */}
-          {userBots.length > 0 && (
+          {userBots.length > 0 && !sidebarCollapsed && (
             <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 relative">
               <label className="block text-[9px] font-semibold uppercase tracking-wider text-neutral-400 mb-1">Active Chatbot</label>
               
@@ -4111,14 +4135,14 @@ export default function Dashboard() {
                     setActiveTab(link.id);
                     setSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer relative ${
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer relative ${sidebarCollapsed ? "md:justify-center md:px-2" : ""} ${
                     activeTab === link.id
                       ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-white"
                       : "text-neutral-500 hover:text-neutral-950 dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800/30"
                   }`}
                 >
                   <Icon className="size-4 shrink-0" />
-                  <span className="truncate">{link.label}</span>
+                  <span className={sidebarCollapsed ? "md:hidden truncate" : "truncate"}>{link.label}</span>
                   {link.badge && <span className="absolute right-2 size-2 rounded-full bg-[#f97316]"></span>}
                 </button>
               );
@@ -4127,7 +4151,7 @@ export default function Dashboard() {
         </div>
 
         {/* Account footer: compact trigger with an upward-opening action menu. */}
-        <div className="relative p-3 border-t border-neutral-200 dark:border-neutral-800">
+        <div className={`relative border-t border-neutral-200 dark:border-neutral-800 ${sidebarCollapsed ? "md:p-2" : "p-3"}`}>
           {accountMenuOpen && (
             <div
               className="fixed inset-0 z-40 bg-transparent"
@@ -4141,16 +4165,16 @@ export default function Dashboard() {
               aria-haspopup="menu"
               aria-expanded={accountMenuOpen}
               onClick={() => setAccountMenuOpen((open) => !open)}
-              className="w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]/50 cursor-pointer"
+              className={`w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]/50 cursor-pointer ${sidebarCollapsed ? "md:justify-center" : ""}`}
             >
               <div className="size-8 rounded-full bg-[#f97316]/10 flex items-center justify-center text-[#f97316] font-bold text-xs shrink-0">
                 {(user?.email?.[0] || "P").toUpperCase()}
               </div>
-              <span className="min-w-0 flex-1 overflow-hidden">
+              <span className={`min-w-0 flex-1 overflow-hidden ${sidebarCollapsed ? "md:hidden" : ""}`}>
                 <span className="block text-[11px] font-semibold truncate">{user?.email ? user.email.split("@")[0] : "Guest"}</span>
                 <span className="block text-[9px] text-neutral-400 dark:text-neutral-500 truncate">{user?.email || "Sign in to sync"}</span>
               </span>
-              <ChevronUp className={`size-4 shrink-0 text-neutral-400 transition-transform ${accountMenuOpen ? "rotate-180" : ""}`} />
+              <ChevronUp className={`size-4 shrink-0 text-neutral-400 transition-transform ${sidebarCollapsed ? "md:hidden" : ""} ${accountMenuOpen ? "rotate-180" : ""}`} />
             </button>
 
             {accountMenuOpen && (
