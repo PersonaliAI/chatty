@@ -147,6 +147,88 @@ async def get_integration(bot_id: str) -> Optional[dict[str, Any]]:
     return row
 
 
+async def refresh_live_product_facts(
+    bot_id: str,
+    items: list[dict[str, Any]],
+    *,
+    max_items: int = 3,
+) -> list[dict[str, Any]]:
+    """Refresh bounded WooCommerce facts for matched catalog items.
+
+    The durable catalog remains the fallback source: a failed or timed-out
+    store request never removes or overwrites its snapshot facts.  Only
+    products already matched from the bot's own indexed catalog are queried.
+    """
+    woo_items = []
+    for item in items:
+        metadata = item.get("metadata") or {}
+        wc_id = metadata.get("woocommerce_id")
+        if metadata.get("source") == "woocommerce" and wc_id is not None:
+            woo_items.append((item, str(wc_id)))
+        if len(woo_items) >= max(1, min(int(max_items), 6)):
+            break
+    if not woo_items:
+        return items
+
+    integration = await get_integration(bot_id)
+    if not integration:
+        return items
+    store_url = _normalize_store_url(str(integration.get("store_url") or ""))
+    consumer_key = str(integration.get("consumer_key") or "").strip()
+    consumer_secret = str(integration.get("consumer_secret") or "").strip()
+    parsed_store = httpx.URL(store_url)
+    if parsed_store.scheme != "https" or not parsed_store.host or not consumer_key or not consumer_secret:
+        logger.warning("Skipping live WooCommerce refresh for bot %s: incomplete secure integration", bot_id)
+        return items
+
+    auth = (consumer_key, consumer_secret)
+    timeout = httpx.Timeout(4.0, connect=2.0)
+
+    async def fetch(
+        client: httpx.AsyncClient, item: dict[str, Any], wc_id: str
+    ) -> tuple[dict[str, Any], Optional[dict[str, Any]]]:
+        url = f"{store_url}/wp-json/wc/v3/products/{wc_id}"
+        try:
+            response = await asyncio.wait_for(
+                ssrf.request_async(client, "GET", url, auth=auth),
+                timeout=5.0,
+            )
+            if response.status_code != 200:
+                return item, None
+            payload = response.json()
+            if not isinstance(payload, dict):
+                return item, None
+            return item, _map_wc_product(payload, currency=item.get("currency") or "USD")
+        except Exception as exc:
+            logger.info("Live WooCommerce facts unavailable for product %s: %s", wc_id, exc)
+            return item, None
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        results = await asyncio.gather(*(fetch(client, item, wc_id) for item, wc_id in woo_items))
+    checked_at = datetime.now(timezone.utc).isoformat()
+    for original, mapped in results:
+        if mapped is None:
+            original["metadata"] = {**(original.get("metadata") or {}), "live_check_status": "unavailable"}
+            continue
+        metadata = dict(original.get("metadata") or {})
+        live_metadata = mapped.get("metadata") or {}
+        for key in ("stock_status", "in_stock", "regular_price", "sale_price", "on_sale"):
+            if key in live_metadata:
+                metadata[key] = live_metadata[key]
+        if live_metadata.get("variations"):
+            metadata["variations"] = live_metadata["variations"]
+        metadata.update({
+            "live_check_status": "fresh",
+            "live_checked_at": checked_at,
+            "live_source_updated_at": mapped.get("source_updated_at"),
+        })
+        original["metadata"] = metadata
+        for key in ("price", "currency", "url"):
+            if mapped.get(key) not in (None, ""):
+                original[key] = mapped[key]
+    return items
+
+
 async def save_integration(
     bot_id: str,
     store_url: str,

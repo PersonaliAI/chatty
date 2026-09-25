@@ -1,4 +1,7 @@
 from app.services import multimodal_service, woocommerce_service
+from types import SimpleNamespace
+
+import asyncio
 
 
 def test_variable_product_normalizes_sellable_variant_facts():
@@ -57,3 +60,64 @@ def test_product_context_requires_concrete_variant_card():
     assert "TRAIL-42-BLK" in context
     assert '"variant_id"' in context
     assert "concrete in-stock variant" in context
+
+
+def test_live_woocommerce_refresh_updates_facts_and_preserves_snapshot_on_failure(monkeypatch):
+    item = {
+        "title": "Trail shoe",
+        "price": 120.0,
+        "metadata": {"source": "woocommerce", "woocommerce_id": 42, "in_stock": True},
+    }
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example",
+        "consumer_key": "ck_read",
+        "consumer_secret": "cs_read",
+    }))
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {
+                "id": 42,
+                "name": "Trail shoe",
+                "price": "99.00",
+                "stock_status": "outofstock",
+                "status": "publish",
+            }
+
+    async def fake_request(client, method, url, **kwargs):
+        assert url.endswith("/products/42")
+        return FakeResponse()
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+    refreshed = asyncio.run(woocommerce_service.refresh_live_product_facts("bot-1", [item]))
+    assert refreshed[0]["price"] == 99.0
+    assert refreshed[0]["metadata"]["in_stock"] is False
+    assert refreshed[0]["metadata"]["live_check_status"] == "fresh"
+
+
+def test_search_reapplies_stock_filter_after_live_refresh(monkeypatch):
+    item = {
+        "id": "item-1",
+        "title": "Trail shoe",
+        "similarity": 0.9,
+        "metadata": {"source": "woocommerce", "woocommerce_id": 42, "in_stock": True},
+    }
+
+    async def fake_embed(_text):
+        return [0.1]
+
+    async def fake_refresh(bot_id, items):
+        items[0]["metadata"]["in_stock"] = False
+        return items
+
+    monkeypatch.setattr(multimodal_service, "embed_multimodal_text", fake_embed)
+    monkeypatch.setattr(multimodal_service, "run_db", lambda callback: asyncio.sleep(0, result=SimpleNamespace(data=[item])))
+    monkeypatch.setattr(multimodal_service, "supabase", SimpleNamespace(
+        rpc=lambda *args: SimpleNamespace(execute=lambda: SimpleNamespace(data=[])),
+        table=lambda *args: SimpleNamespace(select=lambda *a: SimpleNamespace(eq=lambda *b: SimpleNamespace(limit=lambda *c: SimpleNamespace(execute=lambda: SimpleNamespace(data=[])))))
+    ))
+    monkeypatch.setattr(woocommerce_service, "refresh_live_product_facts", fake_refresh)
+    results, _ = asyncio.run(multimodal_service.search_multimodal_catalog(bot_id="bot-1", query_text="shoe"))
+    assert results == []

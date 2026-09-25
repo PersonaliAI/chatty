@@ -299,6 +299,19 @@ async def search_multimodal_catalog(
         except Exception as exc:
             logger.exception("Fallback media search failed: %s", exc)
 
+    # WooCommerce is authoritative for fast-changing price/stock facts, but
+    # the durable indexed snapshot remains the safe fallback on any failure.
+    if results:
+        try:
+            from app.services import woocommerce_service
+            results = await woocommerce_service.refresh_live_product_facts(bot_id, results)
+            results = [
+                item for item in results
+                if catalog_item_is_recommendable(item, in_stock_only=in_stock_only)
+            ]
+        except Exception:
+            logger.exception("Live WooCommerce fact refresh failed; using catalog snapshot")
+
     return results[:top_k], visual_attrs
 
 
