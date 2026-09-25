@@ -9,6 +9,9 @@ interface TriggerRule {
   type: "time" | "scroll" | "exit" | "url";
   value: string;
   message: string;
+  impressions?: number;
+  clicks?: number;
+  conversions?: number;
 }
 
 interface Props {
@@ -54,6 +57,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
               ? String((row.url_patterns as string[] | undefined)?.[0] ?? "")
               : String(row.trigger_value ?? ""),
             message: String(row.message ?? ""),
+            impressions: Number(row.impressions ?? 0),
+            clicks: Number(row.clicks ?? 0),
+            conversions: Number(row.conversions ?? 0),
           })));
         }
       })
@@ -237,6 +243,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       )}
                     </div>
                     <p className="text-xs text-neutral-700 dark:text-neutral-300 font-medium whitespace-pre-wrap leading-relaxed">{r.message}</p>
+                    <div className="flex flex-wrap gap-2 text-[10px] text-neutral-400" aria-label="Campaign analytics">
+                      <span>{r.impressions ?? 0} impressions</span><span>{r.clicks ?? 0} clicks</span><span>{r.conversions ?? 0} conversions</span>
+                    </div>
                   </div>
                   <button
                     onClick={() => deleteRule(r.id)}
