@@ -66,7 +66,10 @@ jobs:
           docker compose --profile self-hosted config --quiet
           services=$(docker compose --profile self-hosted config --services | sort | tr '\n' ' ')
           test "$services" = 'caddy livekit redis voice-worker '
-          docker compose --profile self-hosted config | grep -q "127.0.0.1:8081"
+          # Redis is the only published self-hosted coordination endpoint and
+          # must remain loopback-only; the worker and LiveKit use the private
+          # media-plane network instead of exposing Redis publicly.
+          docker compose --profile self-hosted config | grep -q "127.0.0.1:6379"
 
       - name: Set up Python
         uses: actions/setup-python@v5
