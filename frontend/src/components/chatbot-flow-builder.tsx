@@ -473,6 +473,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   const [newOptionText, setNewOptionText] = useState("");
   const [nodeField, setNodeField] = useState("email");
   const [nodeAiPrompt, setNodeAiPrompt] = useState("");
+  const [nodeConfigText, setNodeConfigText] = useState("{}");
   const [aiPrompt, setAiPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(() => !!botId);
@@ -1063,6 +1064,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     setNodeOptions((node.data.options as string[]) || ["Option 1", "Option 2"]);
     setNodeField((node.data.field as string) || "email");
     setNodeAiPrompt((node.data.prompt as string) || "");
+    setNodeConfigText(JSON.stringify((node.data.config as Record<string, unknown>) || {}, null, 2));
   };
 
   const addChoiceOption = () => {
@@ -1077,6 +1079,17 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
 
   const updateSelectedNode = () => {
     if (!selectedNode) return;
+    let config: Record<string, unknown> | undefined;
+    if (selectedNode.type === "delay" || selectedNode.type === "condition" || selectedNode.type === "loop" || selectedNode.type === "webhook" || selectedNode.type === "retry") {
+      try {
+        const parsed = JSON.parse(nodeConfigText);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Configuration must be a JSON object");
+        config = parsed as Record<string, unknown>;
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : "Invalid configuration JSON", "error");
+        return;
+      }
+    }
     setNodes((nds) =>
       nds.map((n) =>
         n.id === selectedNode.id
@@ -1088,6 +1101,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                 options: selectedNode.type === "choice" ? nodeOptions : n.data.options,
                 field: selectedNode.type === "leadCapture" ? nodeField : n.data.field,
                 prompt: selectedNode.type === "aiQualify" ? nodeAiPrompt : n.data.prompt,
+                config: config ?? n.data.config,
               },
             }
           : n
@@ -1343,6 +1357,13 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                       placeholder="e.g. Understand user's core use case..."
                       className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-[10px] focus:outline-none"
                     />
+                  </div>
+                )}
+
+                {(selectedNode.type === "delay" || selectedNode.type === "condition" || selectedNode.type === "loop" || selectedNode.type === "webhook" || selectedNode.type === "retry") && (
+                  <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-950/30">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Typed automation config (JSON)</span>
+                    <textarea rows={4} value={nodeConfigText} onChange={(e) => setNodeConfigText(e.target.value)} className="w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 font-mono text-[10px] focus:outline-none dark:border-neutral-800 dark:bg-neutral-900" spellCheck={false} />
                   </div>
                 )}
 
@@ -1728,6 +1749,13 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                     placeholder="e.g. Understand user's core use case..."
                     className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-[10px] focus:outline-none"
                   />
+                </div>
+              )}
+
+              {(selectedNode.type === "delay" || selectedNode.type === "condition" || selectedNode.type === "loop" || selectedNode.type === "webhook" || selectedNode.type === "retry") && (
+                <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-950/30">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Typed automation config (JSON)</span>
+                  <textarea rows={4} value={nodeConfigText} onChange={(e) => setNodeConfigText(e.target.value)} className="w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 font-mono text-[10px] focus:outline-none dark:border-neutral-800 dark:bg-neutral-900" spellCheck={false} />
                 </div>
               )}
 
