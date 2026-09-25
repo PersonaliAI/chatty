@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -137,13 +138,47 @@ async def simulate_dashboard_flow(
     by_id = {str(node.get("id")): node for node in nodes}
     current = by_id.get("start") or next(iter(by_id.values()), None)
     trace = []
+    started = time.perf_counter()
     for step, user_input in enumerate(body.inputs[:50] or ["Hello"], start=1):
         if not current:
             break
         trace.append({"step": step, "node_id": current.get("id"), "node_type": current.get("type"), "label": (current.get("data") or {}).get("label", ""), "input": user_input})
         edge = next((item for item in edges if item.get("source") == current.get("id")), None)
         current = by_id.get(str(edge.get("target"))) if edge else None
-    return {"bot_id": bot_id, "completed": current is None, "total_steps": len(trace), "execution_path": trace}
+    run = await run_db(lambda: supabase.table("chatty_flow_runs").insert({
+        "bot_id": bot_id,
+        "status": "completed",
+        "inputs": body.inputs[:50] or ["Hello"],
+        "trace": trace,
+        "duration_ms": round((time.perf_counter() - started) * 1000),
+        "created_by": user["auth_user_id"],
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+    }).execute())
+    run_id = (run.data or [{}])[0].get("id")
+    return {"run_id": run_id, "bot_id": bot_id, "completed": current is None, "total_steps": len(trace), "execution_path": trace}
+
+
+@router.get("/api/bots/{bot_id}/flow/runs")
+async def list_dashboard_flow_runs(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    await verify_bot_permission(bot_id, user, "settings")
+    result = await run_db(lambda: supabase.table("chatty_flow_runs").select(
+        "id, status, inputs, trace, error, duration_ms, created_at, completed_at"
+    ).eq("bot_id", bot_id).order("created_at", desc=True).limit(50).execute())
+    return result.data or []
+
+
+@router.post("/api/bots/{bot_id}/flow/runs/{run_id}/replay")
+async def replay_dashboard_flow_run(
+    bot_id: str,
+    run_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    await verify_bot_permission(bot_id, user, "settings")
+    result = await run_db(lambda: supabase.table("chatty_flow_runs").select("inputs").eq(
+        "id", run_id).eq("bot_id", bot_id).maybe_single().execute())
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Flow run not found")
+    return await simulate_dashboard_flow(bot_id, FlowSimulationRequest(inputs=result.data.get("inputs") or ["Hello"]), user)
 
 
 @router.get("/api/bots/{bot_id}/campaigns")

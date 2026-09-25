@@ -469,6 +469,8 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   const [testTrace, setTestTrace] = useState<Array<{ node_id: string; label: string }> | null>(null);
   const [versions, setVersions] = useState<Array<{ id: string; version: number; status: string; note?: string | null; created_at: string }>>([]);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [runHistory, setRunHistory] = useState<Array<{ id: string; status: string; duration_ms?: number | null; created_at: string; trace?: Array<{ label: string }> }>>([]);
+  const [runsOpen, setRunsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -760,6 +762,26 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     } finally {
       setTestRunning(false);
     }
+  };
+
+  const loadRuns = async () => {
+    if (!botId || !fetchDashboardBackend) return;
+    const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/runs`);
+    if (response.ok) setRunHistory(await response.json());
+    setRunsOpen(true);
+  };
+
+  const replayRun = async (runId: string) => {
+    if (!botId || !fetchDashboardBackend) return;
+    const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/runs/${runId}/replay`, { method: "POST" });
+    if (!response.ok) {
+      showToast("Replay failed.", "error");
+      return;
+    }
+    const result = await response.json() as { execution_path?: Array<{ node_id: string; label: string }> };
+    setTestTrace(result.execution_path ?? []);
+    await loadRuns();
+    showToast("Run replayed.", "success");
   };
 
   const loadVersions = async () => {
@@ -1382,6 +1404,16 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
               {testTrace.map((step, index) => <li key={`${step.node_id}-${index}`}>{index + 1}. {step.label || step.node_id}</li>)}
             </ol>
           </div>}
+          {fetchDashboardBackend && <>
+            <button type="button" onClick={loadRuns} className="w-full mt-2 rounded-lg border border-neutral-200 px-3 py-2 text-left text-[10px] font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-850">{runsOpen ? "Execution history" : "View execution history"}</button>
+            {runsOpen && <div className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-lg bg-neutral-50 p-2 dark:bg-neutral-950">
+              {!runHistory.length && <p className="text-[10px] text-neutral-400">No test runs recorded yet.</p>}
+              {runHistory.map((run) => <div key={run.id} className="flex items-center justify-between gap-2 text-[10px]">
+                <span className="truncate text-neutral-600 dark:text-neutral-300">{new Date(run.created_at).toLocaleString()} · {run.status} · {run.duration_ms ?? 0}ms</span>
+                <button type="button" onClick={() => replayRun(run.id)} className="shrink-0 font-semibold text-indigo-600 hover:underline dark:text-indigo-300">Replay</button>
+              </div>)}
+            </div>}
+          </>}
           <div className="grid grid-cols-2 gap-2 mt-2">
             <button type="button" onClick={exportFlow} className="flex items-center justify-center gap-1 rounded-lg border border-neutral-200 px-2 py-2 text-[10px] font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-850">
               <Download className="size-3.5" /> Export JSON
