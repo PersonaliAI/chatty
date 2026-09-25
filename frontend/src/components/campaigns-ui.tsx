@@ -14,6 +14,7 @@ interface TriggerRule {
   conversions?: number;
   audience?: string;
   channels?: string[];
+  sequenceSteps?: Array<Record<string, unknown>>;
 }
 
 interface Props {
@@ -32,6 +33,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState("all");
   const [channel, setChannel] = useState("web");
+  const [sequenceText, setSequenceText] = useState("[]");
   const [goal, setGoal] = useState("");
   const [suggesting, setSuggesting] = useState(false);
 
@@ -66,6 +68,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             conversions: Number(row.conversions ?? 0),
             audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
             channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
+            sequenceSteps: Array.isArray(row.sequence_steps) ? row.sequence_steps as Array<Record<string, unknown>> : [],
           })));
         }
       })
@@ -84,6 +87,15 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
   const addRule = () => {
     if (!message.trim()) return;
+    let sequenceSteps: Array<Record<string, unknown>> = [];
+    try {
+      const parsed = JSON.parse(sequenceText);
+      if (!Array.isArray(parsed)) throw new Error("Sequence must be a JSON array");
+      sequenceSteps = parsed.filter((step): step is Record<string, unknown> => Boolean(step) && typeof step === "object");
+    } catch (sequenceError) {
+      setError(sequenceError instanceof Error ? sequenceError.message : "Invalid sequence JSON");
+      return;
+    }
     const newRule: TriggerRule = {
       id: crypto.randomUUID(),
       type,
@@ -108,7 +120,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         is_active: true,
         audience_rules: { segment: audience },
         channels: [channel],
-        sequence_steps: [],
+        sequence_steps: sequenceSteps,
         safety_config: { frequency_cap_hours: 24, require_consent: true },
       }),
     }).then(async (response) => {
@@ -119,6 +131,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setMessage("");
       setAudience("all");
       setChannel("web");
+      setSequenceText("[]");
     }).catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : "Campaign could not be saved."))
       .finally(() => setSaving(false));
   };
@@ -134,7 +147,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     }).then(async (response) => {
       if (!response.ok) throw new Error("AI campaign suggestion failed");
       const suggestion = await response.json() as {
-        message_content?: string; trigger_type?: string; trigger_value?: number;
+        message_content?: string; trigger_type?: string; trigger_value?: number; sequence_steps?: Array<Record<string, unknown>>;
       };
       const suggestedType = suggestion.trigger_type === "scroll_percentage" ? "scroll"
         : suggestion.trigger_type === "exit_intent" ? "exit"
@@ -142,6 +155,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setType(suggestedType);
       setValue(suggestedType === "exit" ? "" : String(suggestion.trigger_value ?? 5));
       setMessage(String(suggestion.message_content ?? ""));
+      setSequenceText(JSON.stringify(suggestion.sequence_steps ?? [], null, 2));
     }).catch((suggestionError: unknown) => setError(suggestionError instanceof Error ? suggestionError.message : "AI suggestion failed."))
       .finally(() => setSuggesting(false));
   };
@@ -228,6 +242,11 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 <ModernSelect value={channel} options={[{ value: "web", label: "Website" }, { value: "email", label: "Email" }, { value: "whatsapp", label: "WhatsApp" }]} onChange={setChannel} />
               </div>
             </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Sequence steps (JSON)</label>
+              <textarea rows={3} value={sequenceText} onChange={(event) => setSequenceText(event.target.value)} spellCheck={false} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 font-mono text-[10px] focus:outline-none dark:border-neutral-800 dark:bg-neutral-950" placeholder='[{"after_minutes": 0, "channel": "web", "message": "..."}]' />
+              <p className="text-[9px] text-neutral-400">Use AI suggestion or define follow-up steps with channel and delay metadata.</p>
+            </div>
           </div>
 
             <button
@@ -270,6 +289,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       <span>{r.impressions ?? 0} impressions</span><span>{r.clicks ?? 0} clicks</span><span>{r.conversions ?? 0} conversions</span>
                     </div>
                     <div className="text-[10px] text-neutral-400">Audience: {r.audience ?? "all"} · Channels: {(r.channels ?? ["web"]).join(", ")}</div>
+                    {!!r.sequenceSteps?.length && <div className="text-[10px] text-neutral-400">{r.sequenceSteps.length} sequenced follow-up{r.sequenceSteps.length === 1 ? "" : "s"}</div>}
                   </div>
                   <button
                     onClick={() => deleteRule(r.id)}

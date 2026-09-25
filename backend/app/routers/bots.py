@@ -252,7 +252,7 @@ async def suggest_dashboard_campaign(
     prompt = (
         "Design one high-converting website campaign for an AI support widget. "
         "Return ONLY JSON with keys name, campaign_type, message_content, trigger_type, "
-        "trigger_value, url_patterns. campaign_type must be chat_bubble, popup_modal, "
+        "trigger_value, url_patterns, sequence_steps. campaign_type must be chat_bubble, popup_modal, "
         "top_banner, or slide_in. trigger_type must be time_on_page, scroll_percentage, "
         "exit_intent, or url_match. Keep the message under 180 characters.\n"
         f"Business goal: {body.goal}\nAudience: {body.audience or 'website visitors'}"
@@ -285,6 +285,7 @@ async def suggest_dashboard_campaign(
             "trigger_type": trigger_type,
             "trigger_value": max(0, min(int(data.get("trigger_value") or 5), 3600)),
             "url_patterns": data.get("url_patterns") if isinstance(data.get("url_patterns"), list) else ["*"],
+            "sequence_steps": data.get("sequence_steps") if isinstance(data.get("sequence_steps"), list) else [],
         }
     except Exception as exc:
         logger.exception("campaign suggestion failed: %s", exc)
