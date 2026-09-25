@@ -20,6 +20,10 @@ import { AudioBubble, RECORD_BAR_COUNT, VOICE_MESSAGE_PLACEHOLDER, audioBlobToWa
 import { AVATAR_ICONS, SEND_BUTTON_STYLES } from "./widget-style-options";
 import { detectCountryCode, detectTimezone } from "@/lib/locale-data";
 import {
+  dedupeAdjacentWelcomeMessages,
+  shouldRenderInlineWelcome,
+} from "@/lib/widget-history";
+import {
   Send, Loader2, Sparkles, MessageSquare, MessageCircle, FileText, Search,
   Paperclip, Smile, AudioWaveform, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
@@ -533,6 +537,13 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   const [conversationsList, setConversationsList] = useState<VisitorConversationItem[]>([]);
   const [chatView, setChatView] = useState<"chat" | "list">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
+
+  // Avoid rendering the temporary greeting on top of the same greeting that
+  // was restored from this visitor's persisted conversation.
+  const showInlineWelcome = useMemo(
+    () => shouldRenderInlineWelcome(messages, welcomeMsg),
+    [messages, welcomeMsg],
+  );
 
   // Relative message labels must be a live view of the clock.  Without a
   // periodic render, a message that was rendered as "Just now" stayed that
@@ -1280,7 +1291,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       if (raw) {
         const saved = JSON.parse(raw);
         if (Array.isArray(saved) && saved.length) {
-          setMessages(saved);
+          setMessages(dedupeAdjacentWelcomeMessages(saved, welcomeMsg));
           // If no registry yet, bootstrap with this conversation
           if (!rawConvs) {
             const lastM = saved[saved.length - 1];
@@ -1317,7 +1328,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         targetMsgs = JSON.parse(raw);
       }
     } catch {}
-    setMessages(targetMsgs.length > 0 ? targetMsgs : [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+    setMessages(targetMsgs.length > 0 ? dedupeAdjacentWelcomeMessages(targetMsgs, welcomeMsg) : [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
     setChatView("chat");
     setTab("messages");
   };
@@ -1659,7 +1670,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
           setTeamProfiles(Array.isArray(bot.team_profiles) ? bot.team_profiles : []);
-          setMessages((prev) => prev.length ? prev : [{
+          setMessages((prev) => prev.length ? dedupeAdjacentWelcomeMessages(prev, wMsg) : [{
             role: "assistant",
             content: wMsg,
             sender: "ai",
@@ -3052,8 +3063,8 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                     )}
                   </div>
                 )}
-                {/* Welcome Message Bot Bubble */}
-                <div className="flex gap-2 max-w-[85%]">
+                {/* Welcome Message Bot Bubble (only before history has loaded) */}
+                {showInlineWelcome && <div className="flex gap-2 max-w-[85%]">
                   <div
                     className="agent-avatar-badge size-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden shadow-2xs"
                     style={{
@@ -3072,7 +3083,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                       {welcomeMsg}
                     </ReactMarkdown>
                   </div>
-                </div>
+                </div>}
 
                 {/* Conversation History */}
                 <AnimatePresence initial={false}>
@@ -3127,16 +3138,6 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
                                   <span>{botName}</span>
                                 </>
                               )}
-                              <span className="inline-flex items-center gap-0.5 rounded-full border border-neutral-200/70 dark:border-neutral-700/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-400">
-                                {msg.channel === "voice" ? <AudioWaveform className="size-2.5" /> : <MessageSquare className="size-2.5" />}
-                                {msg.channel === "voice" ? "Voice" : "Text"}
-                              </span>
-                            </span>
-                          )}
-                          {!(msg.role === "assistant" && showSenderTag) && (
-                            <span className="inline-flex items-center gap-0.5 px-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-400">
-                              {msg.channel === "voice" ? <AudioWaveform className="size-2.5" /> : <MessageSquare className="size-2.5" />}
-                              {msg.channel === "voice" ? "Voice" : "Text"}
                             </span>
                           )}
                           <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>

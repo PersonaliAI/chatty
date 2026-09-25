@@ -20,8 +20,10 @@ import rehypeKatex from "rehype-katex";
 import { SafeMarkdownLink } from "./safe-markdown-link";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
+import { parseRichContent } from "./rich-content";
 
 const WAVE_BAR_COUNT = 14;
+const MICROPHONE_PERMISSION_TIMEOUT_MS = 15000;
 
 type CallStatus = "connecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
 
@@ -31,7 +33,6 @@ interface TranscriptEntry {
   text: string;
   final: boolean;
 }
-
 interface VoiceCallWidgetProps {
   botId: string;
   sessionId: string;
@@ -63,6 +64,7 @@ export default function VoiceCallWidget({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [connectAttempt, setConnectAttempt] = useState(0);
 
   const roomRef = useRef<Room | null>(null);
   const audioElRef = useRef<HTMLMediaElement | null>(null);
@@ -76,6 +78,7 @@ export default function VoiceCallWidget({
   // capturing audio from the mic at all, independent of whether the voice
   // pipeline downstream (VAD/STT) picks it up.
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const analyserCtxRef = useRef<AudioContext | null>(null);
   const autoOriginTokenRef = useRef<string | null>(null);
 
   // Smoothed orb scale/glow driven by the agent's remote audio level. Same
@@ -247,22 +250,42 @@ export default function VoiceCallWidget({
         // miss inside an embedded iframe) - show an explicit state for this
         // rather than a generic "Connecting…" that looks stuck.
         if (!cancelled && mountedRef.current) setStatus("requesting-mic");
+        let microphoneTimeout: number | undefined;
         try {
-          await room.localParticipant.setMicrophoneEnabled(true);
-          // LiveKit already exposes local speaking state through
-          // ActiveSpeakersChanged below. Avoid creating an AudioContext here:
-          // this callback runs after an async permission request and browsers
-          // correctly reject a non-gesture audio context with a console warning.
+          await Promise.race([
+            room.localParticipant.setMicrophoneEnabled(true),
+            new Promise<never>((_, reject) => {
+              microphoneTimeout = window.setTimeout(
+                () => reject(new Error("MICROPHONE_PERMISSION_TIMEOUT")),
+                MICROPHONE_PERMISSION_TIMEOUT_MS,
+              );
+            }),
+          ]);
+          const pub = Array.from(room.localParticipant.audioTrackPublications.values())[0];
+          const mediaTrack = pub?.track?.mediaStreamTrack;
+          if (mediaTrack) {
+            const ctx = new AudioContext();
+            const source = ctx.createMediaStreamSource(new MediaStream([mediaTrack]));
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.6;
+            source.connect(analyser);
+            analyserCtxRef.current = ctx;
+            analyserRef.current = analyser;
+          }
         } catch (micErr) {
           console.error("Microphone permission failed:", micErr);
           if (!cancelled && mountedRef.current) {
-            setErrorMessage(
-              "Microphone access is required for voice calls. Please allow microphone access in your browser and try again."
-            );
+            const micMessage = micErr instanceof Error && micErr.message === "MICROPHONE_PERMISSION_TIMEOUT"
+              ? "Microphone permission is still waiting. Allow microphone access for this site, then try again."
+              : "Microphone access is required for voice calls. Please allow microphone access in your browser and try again.";
+            setErrorMessage(micMessage);
             setStatus("error");
           }
           room.disconnect();
           return;
+        } finally {
+          if (microphoneTimeout !== undefined) window.clearTimeout(microphoneTimeout);
         }
         if (!cancelled && mountedRef.current) setStatus("connected");
       } catch (err) {
@@ -291,9 +314,19 @@ export default function VoiceCallWidget({
         audioElRef.current = null;
       }
       analyserRef.current = null;
+      if (analyserCtxRef.current) {
+        analyserCtxRef.current.close().catch(() => {});
+        analyserCtxRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    }, [connectAttempt]);
+
+  const retryMicrophone = () => {
+    setErrorMessage(null);
+    setStatus("connecting");
+    setConnectAttempt((attempt) => attempt + 1);
+  };
 
   // Auto-scroll the transcript to the newest line as it streams in.
   useEffect(() => {
@@ -351,8 +384,7 @@ export default function VoiceCallWidget({
         const levels = Array.from({ length: WAVE_BAR_COUNT }, () => Math.min(1, boosted * (0.7 + Math.random() * 0.3)));
         setLocalLevels(levels);
       } else {
-        const phase = Date.now() / 140;
-        setLocalLevels(Array.from({ length: WAVE_BAR_COUNT }, (_, i) => 0.28 + 0.24 * ((Math.sin(phase + i * 0.7) + 1) / 2)));
+        setLocalLevels(Array(WAVE_BAR_COUNT).fill(0));
       }
       localLevelFrameRef.current = requestAnimationFrame(tick);
     };
@@ -476,12 +508,6 @@ export default function VoiceCallWidget({
     }
   })();
 
-  const enableAudio = () => {
-    const audio = audioElRef.current;
-    if (!audio) return;
-    void audio.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));
-  };
-
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card p-3 sm:p-4">
       {status === "error" ? (
@@ -490,6 +516,17 @@ export default function VoiceCallWidget({
             <AlertCircle className="size-6 text-red-500" />
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-[220px] leading-relaxed">{errorMessage}</p>
+          {(errorMessage || "").toLowerCase().includes("microphone") && (
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.95 }}
+              onClick={retryMicrophone}
+              className="px-4 py-2 rounded-full text-xs font-semibold text-white"
+              style={{ background: primaryColor }}
+            >
+              Try microphone again
+            </motion.button>
+          )}
           <motion.button
             type="button"
             whileTap={{ scale: 0.85 }}
@@ -516,6 +553,7 @@ export default function VoiceCallWidget({
           >
             <X className="size-5" style={{ color: primaryColor }} />
           </div>
+
           <div>
             <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Call ended</p>
             <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">{fmtDuration(duration)}</p>
@@ -549,18 +587,19 @@ export default function VoiceCallWidget({
                 ))}
               </div>
               <span className="text-center text-[10px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
-              {audioBlocked && (
-                <button
-                  type="button"
-                  onClick={enableAudio}
-                  className="rounded-full px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm"
-                  style={{ background: primaryColor }}
-                >
-                  Tap to enable agent audio
-                </button>
-              )}
             </div>
           </div>
+
+          {audioBlocked && (
+            <button
+              type="button"
+              onClick={() => audioElRef.current?.play().then(() => setAudioBlocked(false)).catch(() => {})}
+              className="mx-auto mb-1 rounded-full px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm"
+              style={{ background: primaryColor }}
+            >
+              Tap to enable agent audio
+            </button>
+          )}
 
           {/* Live transcript - auto-scrolls to the newest line; interim
               (not-yet-final) segments render with a bouncy typing indicator
@@ -577,7 +616,7 @@ export default function VoiceCallWidget({
             ) : (
               <AnimatePresence initial={false}>
                 {transcript.map((entry) => {
-                  const rich = entry.speaker === "agent" ? parseVoiceRichContent(entry.text) : { cleanContent: entry.text, products: [], videoClips: [] };
+                  const rich = entry.speaker === "agent" ? parseRichContent<ProductCardData, VideoClipData>(entry.text) : { cleanContent: entry.text, products: [], videoClips: [] };
                   const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
                   return (
                   <motion.div
@@ -754,18 +793,4 @@ function Orb({
       />
     </motion.div>
   );
-}
-
-function parseVoiceRichContent(content: string) {
-  const products: ProductCardData[] = [];
-  const videoClips: VideoClipData[] = [];
-  let clean = content.replace(/\[PRODUCT_CARD:(\{.*?\})\]/g, (_, json: string) => {
-    try { products.push(JSON.parse(json)); } catch { /* ignore malformed card */ }
-    return "";
-  });
-  clean = clean.replace(/\[VIDEO_CLIP:(\{.*?\})\]/g, (_, json: string) => {
-    try { videoClips.push(JSON.parse(json)); } catch { /* ignore malformed clip */ }
-    return "";
-  });
-  return { cleanContent: clean.replace(/\[BOOKING_WIDGET\]/g, "").trim(), products, videoClips };
 }

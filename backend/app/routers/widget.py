@@ -865,20 +865,13 @@ async def widget_csat(body: WidgetCsatRequest, request: Request):
 
 
 @router.get("/api/widget/poll")
-async def widget_poll(bot_id: str, session_id: str, after: str = "", include_voice: bool = False):
+async def widget_poll(bot_id: str, session_id: str, after: str = ""):
     """Visitor's widget polls for human-agent replies + AI-pause state.
     Retained as a fallback for clients that can't use the SSE /live stream."""
     try:
-        # Normal polling only returns human-agent replies. After a voice call
-        # the widget explicitly asks for the complete turn so both the spoken
-        # visitor input and the assistant transcript can be restored in the
-        # same thread. This keeps the long-lived SSE/poll path duplicate-free.
-        q = supabase.table("chatty_conversations").select(
-            "content,created_at,role,sender,sender_name,sender_avatar"
-        ).eq("bot_id", bot_id).eq("session_id", session_id)
-        if not include_voice:
-            q = q.eq("sender", "human")
-        q = q.order("created_at", desc=False)
+        q = supabase.table("chatty_conversations").select("content,created_at,sender,sender_name,sender_avatar") \
+            .eq("bot_id", bot_id).eq("session_id", session_id).eq("sender", "human") \
+            .order("created_at", desc=False)
         if after:
             q = q.gt("created_at", after)
         res = await run_db(q.execute)
