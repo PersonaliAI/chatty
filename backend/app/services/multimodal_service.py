@@ -24,6 +24,8 @@ from plugins import memory as mem
 logger = logging.getLogger("chatty.multimodal")
 
 EMBEDDING_SCHEMA_VERSION = "catalog-text-v1"
+MAX_CATALOG_RESULTS = 20
+FALLBACK_MIN_SCORE = 0.3
 
 VISION_ANALYSIS_PROMPT = """Analyze this image in detail for an e-commerce / product catalog search system.
 The user is asking a question or looking for this item (e.g. clothing, footwear, accessory, electronics, or product).
@@ -182,6 +184,21 @@ async def embed_catalog_item(**kwargs: Any) -> list[float]:
         return []
 
 
+def catalog_item_is_recommendable(item: dict[str, Any], *, in_stock_only: bool = True) -> bool:
+    """Apply the safety policy shared by vector and lexical catalog retrieval."""
+    metadata = item.get("metadata") or {}
+    status = str(metadata.get("status") or "publish").strip().lower()
+    if status not in {"publish", "published", "active"}:
+        return False
+    if not in_stock_only:
+        return True
+    stock_status = str(metadata.get("stock_status") or "").strip().lower()
+    in_stock = metadata.get("in_stock")
+    if in_stock is None and stock_status:
+        in_stock = stock_status == "instock"
+    return bool(True if in_stock is None else in_stock)
+
+
 async def search_multimodal_catalog(
     *,
     bot_id: str,
@@ -191,12 +208,15 @@ async def search_multimodal_catalog(
     media_type: Optional[str] = None,
     top_k: int = 6,
     match_threshold: float = 0.35,
+    in_stock_only: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Search the bot's indexed product catalog, images, and video frames.
 
     Returns:
       (matched_items, visual_analysis_result)
     """
+    top_k = max(1, min(int(top_k), MAX_CATALOG_RESULTS))
+    match_threshold = max(0.0, min(float(match_threshold), 1.0))
     visual_attrs: dict[str, Any] = {}
     search_keywords = (query_text or "").strip()
 
@@ -228,7 +248,11 @@ async def search_multimodal_catalog(
 
             res = await run_db(lambda: supabase.rpc("match_media_items", rpc_params).execute())
             if res and res.data:
-                results = res.data
+                results = [
+                    item for item in res.data
+                    if catalog_item_is_recommendable(item, in_stock_only=in_stock_only)
+                    and float(item.get("similarity") or 0.0) >= match_threshold
+                ]
         except Exception as exc:
             logger.warning("match_media_items RPC failed, falling back to keyword filter: %s", exc)
 
@@ -246,6 +270,8 @@ async def search_multimodal_catalog(
             for item in (res_all.data or []):
                 if item["id"] in existing_ids:
                     continue
+                if not catalog_item_is_recommendable(item, in_stock_only=in_stock_only):
+                    continue
                 score = 0
                 title = (item.get("title") or "").lower()
                 desc = (item.get("description") or "").lower()
@@ -257,7 +283,7 @@ async def search_multimodal_catalog(
                         score += 0.15
                     if token in sku:
                         score += 0.4
-                if score > 0.2:
+                if score >= FALLBACK_MIN_SCORE:
                     item["similarity"] = score
                     results.append(item)
                     if len(results) >= top_k:
