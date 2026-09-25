@@ -79,6 +79,12 @@ async def _process_email_ticket_escalation(payload: dict) -> None:
     await process_ticket_escalation(payload)
 
 
+async def _process_widget_ticket_escalation(payload: dict) -> None:
+    from app.workers.widget_jobs import process_ticket_escalation
+
+    await process_ticket_escalation(payload)
+
+
 async def run() -> None:
     queue_url = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
     if not queue_url:
@@ -122,6 +128,7 @@ async def run() -> None:
             "woocommerce.sync": _sync_woocommerce,
             "email.ticket_reply": _send_ticket_reply_email,
             "email.ticket_escalation": _process_email_ticket_escalation,
+            "widget.ticket_escalation": _process_widget_ticket_escalation,
             "whatsapp.message": _process_whatsapp_message,
             "documents.index_folder": _process_document_job,
             "documents.index_file": _process_document_job,

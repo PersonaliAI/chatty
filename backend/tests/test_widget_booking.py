@@ -217,7 +217,8 @@ async def test_widget_assistant_respects_conversational_only_mode():
 
 
 @pytest.mark.anyio
-async def test_offline_ticket_stores_contact_fields_and_skips_ai():
+async def test_offline_ticket_stores_contact_fields_and_skips_ai(monkeypatch):
+    monkeypatch.setenv("CHATTY_ALLOW_EPHEMERAL_JOBS", "true")
     req = WidgetChatRequest(
         bot_id="bot-1",
         session_id="offline-1",

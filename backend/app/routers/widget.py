@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
+import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import pytz
+import httpx
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -20,6 +23,7 @@ from app.core.clients import supabase
 from app.core.config import GEMINI_FALLBACK_MODELS, MODEL_NAME
 from app.core.db import run_db
 from app.core.uploads import read_upload_capped
+from app.adapters.redis_jobs import RedisJobQueue
 from app.services.chatty_quota_service import WHITELABEL_PLANS, chatty_quota_exceeded, plan_for
 from app.services.widget_session_service import (
     _detect_sentiment_escalation,
@@ -66,6 +70,43 @@ logger = logging.getLogger("chatty")
 
 router = APIRouter()
 
+_WIDGET_JOB_QUEUE_URL = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
+_widget_job_queue = (
+    RedisJobQueue(_WIDGET_JOB_QUEUE_URL, stream="chatty:webhooks")
+    if _WIDGET_JOB_QUEUE_URL else None
+)
+
+
+def _allow_ephemeral_jobs() -> bool:
+    return os.environ.get("CHATTY_ALLOW_EPHEMERAL_JOBS", "false").strip().lower() in {"1", "true", "yes"}
+
+
+async def _enqueue_widget_ticket_escalation(
+    *, bot_id: str, session_id: str, reason: str, priority: str,
+    custom_message: str | None,
+) -> str:
+    payload = {
+        "bot_id": bot_id,
+        "session_id": session_id,
+        "reason": reason,
+        "priority": priority,
+        "custom_message": custom_message,
+        "concurrency_key": f"widget-ticket:{bot_id}:{session_id}",
+    }
+    digest = hashlib.sha256(
+        f"{bot_id}:{session_id}:{reason}:{priority}:{custom_message or ''}".encode("utf-8")
+    ).hexdigest()[:32]
+    if _widget_job_queue:
+        await _widget_job_queue.enqueue(
+            name="widget.ticket_escalation",
+            payload=payload,
+            idempotency_key=f"widget.ticket_escalation:{digest}",
+        )
+        return "queued"
+    if not _allow_ephemeral_jobs():
+        raise HTTPException(status_code=503, detail="Durable job queue is required for widget ticket escalation")
+    return "background"
+
 _ALLOWED_MEDIA_PREFIXES = ("image/", "audio/", "application/pdf", "text/")
 _MEDIA_MAX_BYTES = 20 * 1024 * 1024  # 20MB
 _TRANSCRIBE_MAX_BYTES = 10 * 1024 * 1024  # 10MB - voice notes, not full files
@@ -74,6 +115,10 @@ _TRANSCRIBE_PROMPT = (
     "can even if it's unclear or partial. Output ONLY the transcription - "
     "no commentary, no markdown, no quotes, no translation. Only output "
     "nothing if the audio is truly silent with no speech at all."
+)
+_AI_UNAVAILABLE_REPLY = (
+    "I'm sorry, the assistant is temporarily unavailable. "
+    "Please try again in a moment, or leave your contact details and our team will follow up."
 )
 
 
@@ -158,13 +203,16 @@ async def widget_chat(
             if visitor_email:
                 offline_update["visitor_email"] = visitor_email
             await run_db(lambda: supabase.table("chatty_sessions").update(offline_update).eq("bot_id", bot_id).eq("session_id", session_id).execute())
-            try:
-                from app.routers.admin import _dispatch_ticket_to_agent
-                background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
-            except Exception:
-                pass
         except Exception:
             logger.exception("Failed to mark offline ticket session")
+        mode = await _enqueue_widget_ticket_escalation(
+            bot_id=bot_id, session_id=session_id,
+            reason="Offline support ticket submitted", priority="high",
+            custom_message=None,
+        )
+        if mode == "background":
+            from app.routers.admin import _dispatch_ticket_to_agent
+            background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
 
     # Flag conversations where the visitor asks for a human or shows frustration.
     esc = _detect_sentiment_escalation(text)
@@ -181,17 +229,16 @@ async def widget_chat(
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
-        try:
+        priority_val = "urgent" if "Negative" in esc else "high"
+        mode = await _enqueue_widget_ticket_escalation(
+            bot_id=bot_id, session_id=session_id, reason=esc,
+            priority=priority_val, custom_message=text,
+        )
+        if mode == "background":
             from app.routers.admin import _dispatch_ticket_to_agent
-            background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
-        except Exception:
-            pass
-        try:
             from app.services.slack_escalation import send_slack_escalation_alert
-            priority_val = "urgent" if "Negative" in esc else "high"
+            background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
             background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, esc, priority_val, text)
-        except Exception:
-            pass
 
     # 3. Save user message
     try:
@@ -329,6 +376,14 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             await run_db(lambda: supabase.table("chatty_sessions").update(offline_update).eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             logger.exception("Failed to mark offline ticket session")
+        mode = await _enqueue_widget_ticket_escalation(
+            bot_id=bot_id, session_id=session_id,
+            reason="Offline support ticket submitted", priority="high",
+            custom_message=None,
+        )
+        if mode == "background":
+            from app.routers.admin import _dispatch_ticket_to_agent
+            background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
 
     esc = _detect_sentiment_escalation(text)
     if esc:
@@ -342,17 +397,16 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
             pass
-        try:
+        priority_val = "urgent" if "Negative" in esc else "high"
+        mode = await _enqueue_widget_ticket_escalation(
+            bot_id=bot_id, session_id=session_id, reason=esc,
+            priority=priority_val, custom_message=text,
+        )
+        if mode == "background":
             from app.routers.admin import _dispatch_ticket_to_agent
-            background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
-        except Exception:
-            pass
-        try:
             from app.services.slack_escalation import send_slack_escalation_alert
-            priority_val = "urgent" if "Negative" in esc else "high"
+            background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
             background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, esc, priority_val, text)
-        except Exception:
-            pass
 
     try:
         await run_db(lambda: supabase.table("chatty_conversations").insert({
@@ -405,9 +459,12 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
 
     visitor_geo = await geoip_lookup(ip)
     queue: asyncio.Queue = asyncio.Queue()
+    streamed_any = False
     _DONE = object()
 
     async def _on_token(delta: str):
+        nonlocal streamed_any
+        streamed_any = True
         await queue.put(_sse({"type": "token", "text": delta}))
 
     async def _runner():
@@ -437,8 +494,33 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
             await queue.put(_sse({"type": "done", "reply": reply, "sources": result.get("sources") or [], "flow_action": result.get("flow_action")}))
         except Exception:  # noqa: BLE001
-            logger.exception("Widget stream assistant failed")
-            await queue.put(_sse({"type": "error", "detail": "An internal error occurred while generating a response."}))
+            request_id = getattr(request.state, "request_id", "")
+            logger.exception("Widget stream assistant failed (request_id=%s)", request_id or "unknown")
+            # If the provider failed before emitting any tokens, complete the
+            # SSE contract with a persisted, visitor-safe response instead of
+            # leaving the composer spinning forever with no assistant turn.
+            # Mid-stream failures keep the explicit error event so we never
+            # append a second reply after partial model output.
+            if not streamed_any:
+                try:
+                    await run_db(lambda: supabase.table("chatty_conversations").insert({
+                        "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                        "content": _AI_UNAVAILABLE_REPLY, "sender": "ai",
+                    }).execute())
+                    background_tasks.add_task(
+                        notify.enqueue_webhook_event, supabase, bot_id=bot_id,
+                        event="message.assistant", session_id=session_id,
+                        data={"content": _AI_UNAVAILABLE_REPLY, "degraded": True},
+                    )
+                except Exception:
+                    logger.exception("Failed to persist degraded widget reply (request_id=%s)", request_id or "unknown")
+                await queue.put(_sse({"type": "token", "text": _AI_UNAVAILABLE_REPLY}))
+                await queue.put(_sse({"type": "done", "reply": _AI_UNAVAILABLE_REPLY, "degraded": True}))
+            else:
+                await queue.put(_sse({
+                    "type": "error",
+                    "detail": "The assistant connection was interrupted. Please try again.",
+                }))
         finally:
             await queue.put(_DONE)
 
@@ -768,6 +850,7 @@ async def widget_live(bot_id: str, session_id: str, after: str = ""):
         cursor = after
         last_paused: Optional[bool] = None
         deadline = time.time() + 240
+        transient_failures = 0
         yield ": connected\n\n"
         while time.time() < deadline:
             try:
@@ -799,7 +882,25 @@ async def widget_live(bot_id: str, session_id: str, after: str = ""):
                         "assigned_agent_name": s_row.get("assigned_agent_name"),
                         "assigned_agent_avatar": s_row.get("assigned_agent_avatar"),
                     })
+                transient_failures = 0
+            except (httpx.ConnectError, httpx.ReadError, httpx.ReadTimeout, httpx.RemoteProtocolError) as exc:
+                # Supabase REST can reset an idle HTTP/2 connection while this
+                # SSE stream is open. Keep the stream alive and reconnect on a
+                # short bounded backoff instead of emitting an ERROR traceback
+                # for a recoverable transport event.
+                transient_failures += 1
+                retry_after = min(8, 2 ** min(transient_failures - 1, 3))
+                logger.warning(
+                    "widget live check transient database transport failure; retrying",
+                    extra={
+                        "error_type": type(exc).__name__,
+                        "retry_after_seconds": retry_after,
+                    },
+                )
+                await asyncio.sleep(retry_after)
+                continue
             except Exception:
+                transient_failures = 0
                 logger.exception("widget live check failed")
             await asyncio.sleep(2)
         yield _sse({"type": "reconnect"})
