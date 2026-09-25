@@ -365,7 +365,7 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
     per_page = 100
 
     try:
-        async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             while True:
                 resp = await client.get(
                     api_url,

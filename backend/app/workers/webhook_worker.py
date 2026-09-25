@@ -27,6 +27,17 @@ async def _deliver(payload: dict) -> None:
         raise RuntimeError(error or "webhook delivery failed")
 
 
+async def _sync_woocommerce(payload: dict) -> None:
+    bot_id = str(payload.get("bot_id") or "").strip()
+    if not bot_id:
+        raise ValueError("woocommerce sync job is missing bot_id")
+    from app.services import woocommerce_service
+
+    result = await woocommerce_service.run_woocommerce_sync_task(bot_id)
+    if not result.get("success"):
+        raise RuntimeError(result.get("error") or "WooCommerce sync failed")
+
+
 async def run() -> None:
     queue_url = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
     if not queue_url:
@@ -59,7 +70,10 @@ async def run() -> None:
         recover_count=recover_count,
         retry_backoff_base_seconds=retry_backoff_base_seconds,
         retry_backoff_cap_seconds=retry_backoff_cap_seconds,
-        handlers={"webhook.deliver": _deliver},
+        handlers={
+            "webhook.deliver": _deliver,
+            "woocommerce.sync": _sync_woocommerce,
+        },
     )
     await worker.ensure_group()
     logger.info("webhook worker started stream=%s group=%s consumer=%s", stream, group, consumer)

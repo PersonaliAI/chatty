@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import time
 import urllib.parse
 from typing import Any, Optional
@@ -20,11 +21,34 @@ from app.core.config import CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL, FUNCTION_SE
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
+from app.adapters.redis_jobs import RedisJobQueue
 from app.services import woocommerce_service
 
 logger = logging.getLogger("chatty.routers.woocommerce")
 
 router = APIRouter()
+
+_COMMERCE_JOB_QUEUE_URL = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
+_commerce_job_queue = (
+    RedisJobQueue(_COMMERCE_JOB_QUEUE_URL, stream="chatty:webhooks")
+    if _COMMERCE_JOB_QUEUE_URL else None
+)
+
+
+async def _start_woocommerce_sync(bot_id: str) -> str:
+    """Start a sync durably when the production job queue is configured."""
+    if _commerce_job_queue:
+        try:
+            await _commerce_job_queue.enqueue(
+                name="woocommerce.sync",
+                payload={"bot_id": bot_id},
+                idempotency_key=f"woocommerce.sync:{bot_id}",
+            )
+            return "queued"
+        except Exception:
+            logger.exception("WooCommerce sync queue publish failed for bot %s", bot_id)
+    asyncio.create_task(woocommerce_service.run_woocommerce_sync_task(bot_id))
+    return "background"
 
 
 def _generate_auth_state(bot_id: str, store_url: str) -> str:
@@ -200,12 +224,11 @@ async def trigger_woocommerce_sync(
             "progress": integration.get("sync_progress", 0),
         }
 
-    # Run in background asyncio task
-    asyncio.create_task(woocommerce_service.run_woocommerce_sync_task(bot_id))
+    start_mode = await _start_woocommerce_sync(bot_id)
 
     return {
         "status": "started",
-        "message": "Product import started in background.",
+        "message": "Product import queued for durable processing." if start_mode == "queued" else "Product import started in background.",
     }
 
 
@@ -356,8 +379,9 @@ async def receive_woocommerce_auth_callback(
         consumer_secret=consumer_secret,
     )
 
-    # Automatically trigger initial background product sync
-    asyncio.create_task(woocommerce_service.run_woocommerce_sync_task(bot_id))
+    # Automatically trigger initial product sync. Production deployments route
+    # this through Redis so a Cloud Run restart cannot abandon the import.
+    await _start_woocommerce_sync(bot_id)
     logger.info("WooCommerce 1-click authorization completed successfully for bot %s on store %s", bot_id, store_url)
 
     return {

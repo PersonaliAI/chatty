@@ -1,3 +1,5 @@
+import asyncio
+import inspect
 import time
 from unittest.mock import AsyncMock, patch
 import pytest
@@ -5,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from app.routers.woocommerce import _generate_auth_state, _verify_auth_state
+from app.routers import woocommerce as woocommerce_router
 
 client = TestClient(app)
 
@@ -52,6 +55,34 @@ def test_auth_state_malformed():
     assert _verify_auth_state("") == (None, None)
     assert _verify_auth_state("invalid") == (None, None)
     assert _verify_auth_state("a.b.c") == (None, None)
+
+
+def test_woocommerce_sync_uses_durable_queue_when_configured():
+    class FakeQueue:
+        def __init__(self):
+            self.calls = []
+
+        async def enqueue(self, **kwargs):
+            self.calls.append(kwargs)
+            return "1-0"
+
+    queue = FakeQueue()
+    with patch.object(woocommerce_router, "_commerce_job_queue", queue), \
+         patch.object(woocommerce_router.asyncio, "create_task") as create_task:
+        mode = asyncio.run(woocommerce_router._start_woocommerce_sync(BOT_ID))
+
+    assert mode == "queued"
+    assert queue.calls[0] == {
+        "name": "woocommerce.sync",
+        "payload": {"bot_id": BOT_ID},
+        "idempotency_key": f"woocommerce.sync:{BOT_ID}",
+    }
+    create_task.assert_not_called()
+
+
+def test_woocommerce_bulk_sync_keeps_tls_certificate_verification_enabled():
+    source = inspect.getsource(woocommerce_router.woocommerce_service.run_woocommerce_sync_task)
+    assert "verify=False" not in source
 
 
 from app.core.deps import require_user
