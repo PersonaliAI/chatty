@@ -117,6 +117,22 @@ the queue. Keep webhook handlers fast and return 2xx once an event is claimed.
 
 ## Production checklist
 
+### Retrieval evaluation
+
+Keep merchant-specific image queries and labels outside the repository as JSONL
+records with `expected_ids`, ranked `predicted_ids`, and optional
+`expected_no_match`. Evaluate a release candidate with:
+
+```bash
+python scripts/evaluate_catalog_retrieval.py merchant-eval.jsonl \
+  --k 6 --min-precision 0.70 --min-recall 0.80 --min-no-match-accuracy 0.90
+```
+
+The command emits precision@k, recall@k, and no-match accuracy as JSON and
+exits non-zero when a configured threshold is missed. Do not label visual
+matching production-ready until a representative merchant dataset passes the
+chosen thresholds.
+
 - Apply all migrations, including `20260916120000_multimodal_rag.sql`,
   `20260916130000_woocommerce_integration.sql`, and
   `20260921100000_channel_event_idempotency.sql`, and
