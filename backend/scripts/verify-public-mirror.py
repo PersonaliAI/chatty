@@ -27,6 +27,11 @@ def is_mirrored(path: str) -> bool:
     return any(path == prefix or path.startswith(prefix) for prefix in MIRRORED_PREFIXES)
 
 
+def normalized_bytes(path: Path) -> bytes:
+    """Compare source files independent of the checkout's newline mode."""
+    return path.read_bytes().replace(b"\r\n", b"\n")
+
+
 def main() -> int:
     mirror_root = os.environ.get("PUBLIC_MIRROR_DIR")
     if not mirror_root:
@@ -48,7 +53,7 @@ def main() -> int:
         if not public_file.exists():
             failures.append(f"{rel}: missing from public mirror")
             continue
-        if private_file.read_bytes() != public_file.read_bytes():
+        if normalized_bytes(private_file) != normalized_bytes(public_file):
             failures.append(f"{rel}: contents differ from public mirror")
 
     if failures:
