@@ -6,6 +6,7 @@ automatically creating or updating Helpdesk tickets with email threading.
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import re
@@ -22,10 +23,49 @@ from app.core.deps import require_user
 from app.routers.admin import _dispatch_ticket_to_agent, _verify_bot_access
 from app.services.email_service import extract_email, extract_name
 from app.services.slack_escalation import send_slack_escalation_alert
+from app.adapters.redis_jobs import RedisJobQueue
 
 logger = logging.getLogger("chatty.email_inbound")
 
 router = APIRouter()
+
+_EMAIL_JOB_QUEUE_URL = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
+_email_job_queue = (
+    RedisJobQueue(_EMAIL_JOB_QUEUE_URL, stream="chatty:webhooks")
+    if _EMAIL_JOB_QUEUE_URL else None
+)
+
+
+def _allow_ephemeral_jobs() -> bool:
+    return os.environ.get("CHATTY_ALLOW_EPHEMERAL_JOBS", "false").strip().lower() in {"1", "true", "yes"}
+
+
+async def _enqueue_ticket_escalation(
+    *, bot_id: str, session_id: str, reason: str, priority: str, custom_message: str | None,
+    dispatch: bool,
+) -> str:
+    payload = {
+        "bot_id": bot_id,
+        "session_id": session_id,
+        "reason": reason,
+        "priority": priority,
+        "custom_message": custom_message,
+        "dispatch": dispatch,
+        "concurrency_key": f"email-ticket:{bot_id}:{session_id}",
+    }
+    digest = hashlib.sha256(
+        f"{bot_id}:{session_id}:{reason}:{priority}:{custom_message or ''}:{dispatch}".encode("utf-8")
+    ).hexdigest()[:32]
+    if _email_job_queue:
+        await _email_job_queue.enqueue(
+            name="email.ticket_escalation",
+            payload=payload,
+            idempotency_key=f"email.ticket_escalation:{digest}",
+        )
+        return "queued"
+    if not _allow_ephemeral_jobs():
+        raise HTTPException(status_code=503, detail="Durable job queue is required for inbound email side effects")
+    return "background"
 
 TICKET_SUBJECT_RE = re.compile(r"\[Ticket\s*#?([a-zA-Z0-9_-]{6,36})\]", re.IGNORECASE)
 BOT_ALIAS_RE = re.compile(r"support\+([0-9a-fA-F-]{36})@", re.IGNORECASE)
@@ -242,7 +282,13 @@ async def receive_inbound_email(request: Request, background_tasks: BackgroundTa
         if is_urgent:
             upd["priority"] = "urgent"
             upd["needs_attention"] = True
-            background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, "Inbound Email Frustration Detected", "urgent", text_body)
+            mode = await _enqueue_ticket_escalation(
+                bot_id=bot_id, session_id=session_id,
+                reason="Inbound Email Frustration Detected", priority="urgent",
+                custom_message=text_body, dispatch=False,
+            )
+            if mode == "background":
+                background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, "Inbound Email Frustration Detected", "urgent", text_body)
 
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("session_id", session_id).eq("bot_id", bot_id).execute())
@@ -313,11 +359,16 @@ async def receive_inbound_email(request: Request, background_tasks: BackgroundTa
         except Exception as e:
             logger.exception("Failed to insert initial conversation message: %s", e)
 
-        # Auto-dispatch to online agent with capacity
-        background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
-
-        # If urgent, trigger Slack alert immediately
-        if is_urgent:
-            background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, "Inbound Email Marked Urgent", "urgent", f"{subject}: {text_body}")
+        # Auto-dispatch and urgent Slack escalation run durably after persistence.
+        escalation_mode = await _enqueue_ticket_escalation(
+            bot_id=bot_id, session_id=session_id,
+            reason="Inbound Email Marked Urgent", priority=priority_val,
+            custom_message=f"{subject}: {text_body}" if is_urgent else None,
+            dispatch=True,
+        )
+        if escalation_mode == "background":
+            background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
+            if is_urgent:
+                background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, "Inbound Email Marked Urgent", "urgent", f"{subject}: {text_body}")
 
         return {"ok": True, "action": "created_ticket", "session_id": session_id, "channel": "email"}
