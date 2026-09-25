@@ -359,6 +359,8 @@ def format_multimodal_context_for_prompt(
                 lines.append(f"    • Catalog ID (use in PRODUCT_CARD): {item.get('id')}")
             if meta.get("woocommerce_id") is not None:
                 lines.append(f"    • WooCommerce Product ID: {meta.get('woocommerce_id')}")
+            if meta.get("live_check_status") == "unavailable":
+                lines.append("    • Live store check: unavailable; do not claim current price or stock")
             if price is not None:
                 lines.append(f"    • Price: {currency} {price}")
             lines.append(f"    • Availability: {'In Stock' if in_stock else 'Out of Stock'}")
@@ -460,7 +462,13 @@ def sanitize_product_cards(reply: str, items: list[dict[str, Any]]) -> str:
             return ""
 
         metadata = candidate.get("metadata") or {}
+        if metadata.get("source") == "woocommerce" and metadata.get("live_check_status") != "fresh":
+            return ""
         variant = candidate_variant or {}
+        if variant and metadata.get("source") == "woocommerce":
+            live_variant_ids = {str(value) for value in (metadata.get("live_variant_ids") or [])}
+            if str(variant.get("id") or "") not in live_variant_ids:
+                return ""
         price = variant.get("sale_price") or variant.get("price")
         if price is None:
             price = candidate.get("price")

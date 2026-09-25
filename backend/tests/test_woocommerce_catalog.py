@@ -116,6 +116,32 @@ def test_live_woocommerce_refresh_updates_facts_and_preserves_snapshot_on_failur
     assert refreshed[0]["metadata"]["live_check_status"] == "fresh"
 
 
+def test_live_woocommerce_refresh_expands_variable_product_facts(monkeypatch):
+    item = {
+        "price": 120.0,
+        "currency": "USD",
+        "metadata": {"source": "woocommerce", "woocommerce_id": 42, "variations": [{"id": 4201, "price": 120.0}]},
+    }
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example", "consumer_key": "ck", "consumer_secret": "cs",
+    }))
+
+    class Response:
+        def __init__(self, payload): self.status_code, self.payload = 200, payload
+        def json(self): return self.payload
+
+    async def fake_request(client, method, url, **kwargs):
+        if url.endswith("/products/42"):
+            return Response({"id": 42, "type": "variable", "name": "Trail shoe", "price": "120", "stock_status": "instock", "variations": [4201]})
+        assert url.endswith("/products/42/variations")
+        return Response([{"id": 4201, "sku": "TRAIL-42", "price": "99", "stock_status": "instock", "attributes": [{"name": "Size", "option": "42"}]}])
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+    refreshed = asyncio.run(woocommerce_service.refresh_live_product_facts("bot-1", [item]))
+    assert refreshed[0]["metadata"]["live_variant_ids"] == ["4201"]
+    assert refreshed[0]["metadata"]["variations"][0]["price"] == 99.0
+
+
 def test_search_reapplies_stock_filter_after_live_refresh(monkeypatch):
     item = {
         "id": "item-1",

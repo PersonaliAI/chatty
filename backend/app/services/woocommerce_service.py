@@ -172,6 +172,8 @@ async def refresh_live_product_facts(
 
     integration = await get_integration(bot_id)
     if not integration:
+        for item, _ in woo_items:
+            item["metadata"] = {**(item.get("metadata") or {}), "live_check_status": "unavailable"}
         return items
     store_url = _normalize_store_url(str(integration.get("store_url") or ""))
     consumer_key = str(integration.get("consumer_key") or "").strip()
@@ -179,6 +181,8 @@ async def refresh_live_product_facts(
     parsed_store = httpx.URL(store_url)
     if parsed_store.scheme != "https" or not parsed_store.host or not consumer_key or not consumer_secret:
         logger.warning("Skipping live WooCommerce refresh for bot %s: incomplete secure integration", bot_id)
+        for item, _ in woo_items:
+            item["metadata"] = {**(item.get("metadata") or {}), "live_check_status": "unavailable"}
         return items
 
     auth = (consumer_key, consumer_secret)
@@ -198,6 +202,13 @@ async def refresh_live_product_facts(
             payload = response.json()
             if not isinstance(payload, dict):
                 return item, None
+            if payload.get("type") == "variable":
+                await _fetch_product_variations(
+                    client,
+                    f"{store_url}/wp-json/wc/v3/products",
+                    payload,
+                    auth,
+                )
             return item, _map_wc_product(payload, currency=item.get("currency") or "USD")
         except Exception as exc:
             logger.info("Live WooCommerce facts unavailable for product %s: %s", wc_id, exc)
@@ -217,6 +228,12 @@ async def refresh_live_product_facts(
                 metadata[key] = live_metadata[key]
         if live_metadata.get("variations"):
             metadata["variations"] = live_metadata["variations"]
+            metadata["live_variant_ids"] = [
+                str(variant.get("id")) for variant in live_metadata["variations"]
+                if isinstance(variant, dict) and variant.get("id") is not None
+            ]
+        else:
+            metadata["live_variant_ids"] = []
         metadata.update({
             "live_check_status": "fresh",
             "live_checked_at": checked_at,
