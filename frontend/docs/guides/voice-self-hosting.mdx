@@ -57,7 +57,7 @@ including `20260829040000_chatty_voice_calls.sql`,
 
    ```bash
    sudo mkdir -p /opt/chatty && sudo chown "$USER" /opt/chatty
-   git clone https://github.com/PersonaliAI/chatty.git /opt/chatty
+   git clone --recurse-submodules https://github.com/PersonaliAI/chatty.git /opt/chatty
    cd /opt/chatty/backend/voice-agent
    cp .env.example .env
    chmod 600 .env

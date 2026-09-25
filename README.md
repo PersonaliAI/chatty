@@ -213,8 +213,11 @@ Everything else (LiveKit for voice, WhatsApp/Slack tokens, Google/Microsoft OAut
 The fastest path from clone to a running instance. See [Self-Hosting, Step by Step](#-self-hosting-step-by-step) below if you want the full walkthrough with screenshots-in-words and troubleshooting.
 
 ```bash
-git clone https://github.com/PersonaliAI/chatty.git
+git clone --recurse-submodules https://github.com/PersonaliAI/chatty.git
 cd chatty
+
+# Optional plugin and SDK source checkouts are independent submodules.
+# For an existing clone, use: git submodule update --init --recursive
 
 # 1. Apply the database schema to a Supabase project you've already created
 cd backend && pip install psycopg2-binary
