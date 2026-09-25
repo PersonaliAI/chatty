@@ -77,6 +77,16 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 - 🔑 **BYOK** - default is Gemini (generous free tier); swap in your own OpenAI/Anthropic/OpenRouter key per bot
 - 🤖 **MCP server** - connect Claude, ChatGPT, or any MCP client and run the entire dashboard from a conversation: create bots, edit flows, run campaigns, manage leads, configure voice, and more, all as 55 callable tools secured by OAuth 2.0 + PKCE (see [MCP Server & Agent Control](#mcp-server--agent-control))
 - 📊 **Dashboard** - manage bots, inbox/conversations, knowledge sources, booking rules, campaigns, and channel connections
+
+### Campaign telemetry
+
+Campaign configuration is persisted in `chatty_campaigns`. Widget deployments can
+record `impression`, `click`, and `conversion` events through
+`POST /api/widget/campaign-events` with `bot_id`, `campaign_id`, and an optional
+`idempotency_key` (retries with the same key are safe). Dashboard users can read
+recomputed metrics from `GET /api/bots/{bot_id}/campaigns/{campaign_id}/analytics`.
+The `20260925220000_chatty_campaign_events.sql` migration creates the durable
+ledger and indexes; apply it before enabling campaign optimization in production.
 - 🐳 **One-command managed self-host** - `docker compose up`, point it at a Supabase project, done
 
 ## Architecture
