@@ -11,8 +11,10 @@ widget-only implementation.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
 from typing import Any
 from uuid import uuid4
 
@@ -22,6 +24,17 @@ from livekit import api
 from app.core.config import LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
 
 logger = logging.getLogger("chatty")
+
+
+def _voice_dispatch_timeout_seconds() -> float:
+    try:
+        configured = float(os.environ.get("CHATTY_VOICE_DISPATCH_TIMEOUT_SECONDS", "10"))
+    except (TypeError, ValueError):
+        configured = 10.0
+    return max(1.0, min(30.0, configured))
+
+
+VOICE_DISPATCH_TIMEOUT_SECONDS = _voice_dispatch_timeout_seconds()
 
 
 async def mint_voice_session(
@@ -59,10 +72,13 @@ async def mint_voice_session(
     # what actually makes the agent join.
     lkapi = api.LiveKitAPI(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
     try:
-        await lkapi.agent_dispatch.create_dispatch(
-            api.CreateAgentDispatchRequest(
-                agent_name="chatty-voice", room=room_name, metadata=job_metadata,
-            )
+        await asyncio.wait_for(
+            lkapi.agent_dispatch.create_dispatch(
+                api.CreateAgentDispatchRequest(
+                    agent_name="chatty-voice", room=room_name, metadata=job_metadata,
+                )
+            ),
+            timeout=VOICE_DISPATCH_TIMEOUT_SECONDS,
         )
     except Exception:
         logger.exception("voice token: explicit agent dispatch failed for room %s", room_name)
