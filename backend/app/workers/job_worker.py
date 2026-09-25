@@ -39,16 +39,24 @@ class RedisStreamWorker:
         consumer: str = "worker-1",
         dead_letter_stream: str | None = None,
         max_attempts: int = 5,
+        pending_idle_ms: int = 60_000,
+        recover_count: int = 10,
         handlers: Mapping[str, JobHandler] | None = None,
     ) -> None:
         if max_attempts < 1:
             raise ValueError("max_attempts must be positive")
+        if pending_idle_ms < 0:
+            raise ValueError("pending_idle_ms must be non-negative")
+        if recover_count < 1:
+            raise ValueError("recover_count must be positive")
         self.client = client
         self.stream = stream
         self.group = group
         self.consumer = consumer
         self.dead_letter_stream = dead_letter_stream or f"{stream}:dead-letter"
         self.max_attempts = max_attempts
+        self.pending_idle_ms = pending_idle_ms
+        self.recover_count = recover_count
         self.handlers = dict(handlers or {})
 
     async def ensure_group(self) -> None:
@@ -91,14 +99,35 @@ class RedisStreamWorker:
         destination = self.dead_letter_stream if attempts >= self.max_attempts else self.stream
         await self.client.xadd(destination, fields, maxlen=100_000, approximate=True)
 
+    async def _read_pending(self) -> list[tuple[str, list[tuple[str, Mapping[str, Any]]]]]:
+        """Claim a bounded batch of stale deliveries after a worker restart.
+
+        Older Redis clients and the in-memory test doubles may not expose
+        XAUTOCLAIM; in that case normal new-delivery processing still works.
+        """
+        autoclaim = getattr(self.client, "xautoclaim", None)
+        if not callable(autoclaim):
+            return []
+        result = await autoclaim(
+            self.stream,
+            self.group,
+            self.consumer,
+            min_idle_time=self.pending_idle_ms,
+            start_id="0-0",
+            count=self.recover_count,
+        )
+        messages = result[1] if isinstance(result, (tuple, list)) and len(result) > 1 else []
+        return [(self.stream, messages)] if messages else []
+
     async def run_once(self, *, count: int = 10, block_ms: int = 1_000) -> dict[str, int]:
-        rows = await self.client.xreadgroup(
+        rows = await self._read_pending()
+        rows.extend(await self.client.xreadgroup(
             groupname=self.group,
             consumername=self.consumer,
             streams={self.stream: ">"},
             count=count,
             block=block_ms,
-        )
+        ) or [])
         stats = {"received": 0, "succeeded": 0, "retried": 0, "dead_lettered": 0}
         for _stream, messages in rows or []:
             for stream_id, fields in messages:

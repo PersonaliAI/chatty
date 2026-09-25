@@ -26,6 +26,20 @@ class FakeRedis:
         return "2-0"
 
 
+class RecoveringFakeRedis(FakeRedis):
+    def __init__(self, messages):
+        super().__init__(messages)
+        self.claims = []
+
+    async def xautoclaim(self, *args, **kwargs):
+        self.claims.append((args, kwargs))
+        return ("0-0", [("0-1", {
+            "name": "ok",
+            "payload": json.dumps({"id": "recovered"}),
+            "idempotency_key": "event-recovered",
+        })], [])
+
+
 def test_worker_acknowledges_only_successful_handlers():
     client = FakeRedis([("1-0", {
         "name": "ok",
@@ -57,3 +71,23 @@ def test_worker_creates_consumer_group():
     client = FakeRedis([])
     asyncio.run(RedisStreamWorker(client).ensure_group())
     assert client.groups[0]["groupname"] == "chatty-workers"
+
+
+def test_worker_reclaims_stale_pending_deliveries_before_new_messages():
+    client = RecoveringFakeRedis([])
+    seen = []
+    worker = RedisStreamWorker(
+        client,
+        pending_idle_ms=30_000,
+        recover_count=3,
+        handlers={"ok": lambda payload: seen.append(payload)},
+    )
+
+    stats = asyncio.run(worker.run_once(block_ms=0))
+
+    assert stats["received"] == 1
+    assert stats["succeeded"] == 1
+    assert seen == [{"id": "recovered"}]
+    assert client.claims[0][1]["min_idle_time"] == 30_000
+    assert client.claims[0][1]["count"] == 3
+    assert client.acked == [("chatty:jobs", "chatty-workers", "0-1")]
