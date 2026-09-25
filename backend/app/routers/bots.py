@@ -54,7 +54,7 @@ def _campaign_row(body: CampaignCreateRequest) -> dict[str, Any]:
         "audience_rules": body.audience_rules,
         "channels": body.channels,
         "sequence_steps": body.sequence_steps,
-        "safety_config": body.safety_config,
+        "safety_config": body.safety_config or {"frequency_cap_hours": 24, "require_consent": True},
     }
 
 
