@@ -311,6 +311,10 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
         .select("first_responded_at, channel, visitor_email, visitor_name, subject, last_inbound_message_id")
         .eq("bot_id", req.bot_id).eq("session_id", req.session_id)
         .limit(1).execute())
+
+    # Resolve the email delivery before mutating the conversation when the
+    # durable queue is unavailable, so production cannot report success for a
+    # reply that has no delivery path.
     email_delivery = None
     if sess_res.data:
         s_row = sess_res.data[0]
@@ -351,6 +355,8 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
     await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("bot_id", req.bot_id).eq("session_id", req.session_id).execute())
     await _write_admin_audit_log(req.bot_id, "inbox_reply_sent", f"Human reply sent in session {req.session_id}", user)
 
+    # Local development may opt into request-process delivery. Production
+    # email replies were already published above to the durable queue.
     if email_delivery and not _admin_job_queue:
         await _enqueue_ticket_reply_email(**email_delivery)
 
@@ -1421,6 +1427,25 @@ async def _dispatch_ticket_to_agent(bot_id: str, session_id: str) -> dict[str, A
         return {"dispatched": False, "reason": str(e)}
 
 
+def _is_human_queue_ticket(session: dict[str, Any]) -> bool:
+    """Return whether a session explicitly needs a human takeover.
+
+    AI-only conversations are intentionally not part of the routing queue.  A
+    normal widget session has no assignee by design; routing it would pause
+    the assistant and consume an agent slot.  The legacy fallback keeps rows
+    returned by older schemas (without any of the routing columns) dispatchable
+    until their next write migrates them to the explicit state.
+    """
+    routing_fields = ("needs_attention", "ai_paused", "escalation_reason")
+    if not any(field in session for field in routing_fields):
+        return True
+    return bool(
+        session.get("needs_attention")
+        or session.get("ai_paused")
+        or (session.get("escalation_reason") or "").strip()
+    )
+
+
 @router.get("/api/admin/routing/presence")
 async def admin_get_routing_presence(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Fetch live presence, active workloads, and capacity for all team agents."""
@@ -1623,7 +1648,7 @@ async def admin_dispatch_routing_queue(bot_id: str, user: dict[str, Any] = Depen
     try:
         # Find unassigned sessions
         res_sessions = await run_db(lambda: supabase.table("chatty_sessions")
-            .select("session_id, assigned_agent_email, status, last_message_at")
+            .select("session_id, assigned_agent_email, status, last_message_at, needs_attention, ai_paused, escalation_reason")
             .eq("bot_id", bot_id)
             .order("last_message_at", desc=False)
             .limit(100)
@@ -1634,9 +1659,11 @@ async def admin_dispatch_routing_queue(bot_id: str, user: dict[str, Any] = Depen
             s for s in all_sess
             if (not (s.get("assigned_agent_email") or "").strip())
             and (s.get("status") or "open") not in ("resolved", "closed")
+            and _is_human_queue_ticket(s)
         ][:20]
         dispatched_count = 0
         results = []
+        reason_counts: dict[str, int] = {}
 
         for s in sessions:
             sid = s["session_id"]
@@ -1644,11 +1671,20 @@ async def admin_dispatch_routing_queue(bot_id: str, user: dict[str, Any] = Depen
             if res.get("dispatched"):
                 dispatched_count += 1
                 results.append({"session_id": sid, "assigned_to": res.get("assigned_agent_email")})
+            else:
+                reason = res.get("reason") or "unknown"
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
+        routing_reason = next(iter(reason_counts), None)
+        if len(reason_counts) > 1:
+            routing_reason = "mixed"
 
         return {
             "unassigned_found": len(sessions),
             "dispatched_count": dispatched_count,
             "results": results,
+            "blocked_reasons": reason_counts,
+            "routing_reason": routing_reason,
         }
     except Exception as e:
         logger.warning("Failed to dispatch routing queue: %s", e)
@@ -1656,6 +1692,8 @@ async def admin_dispatch_routing_queue(bot_id: str, user: dict[str, Any] = Depen
             "unassigned_found": 0,
             "dispatched_count": 0,
             "results": [],
+            "blocked_reasons": {},
+            "routing_reason": "error",
             "error": str(e)
         }
 
