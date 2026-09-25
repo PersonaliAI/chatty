@@ -149,6 +149,18 @@ def test_variable_product_card_is_suppressed_when_variant_is_ambiguous():
     assert "PRODUCT_CARD" not in sanitized
 
 
+def test_single_available_variant_does_not_override_conflicting_query():
+    reply = '[PRODUCT_CARD:{"id":"42","title":"Trail shoe"}]'
+    item = {"id": "media-42", "title": "Trail shoe", "metadata": {
+        "source": "woocommerce", "woocommerce_id": 42, "live_check_status": "fresh",
+        "live_variant_ids": ["4201"],
+        "variations": [{"id": 4201, "price": 99.0, "in_stock": True,
+                        "attributes": [{"name": "Color", "option": "Blue"}]}],
+    }}
+    sanitized = multimodal_service.sanitize_product_cards(reply, [item], query_text="I need red")
+    assert "PRODUCT_CARD" not in sanitized
+
+
 def test_live_woocommerce_refresh_updates_facts_and_preserves_snapshot_on_failure(monkeypatch):
     item = {
         "title": "Trail shoe",

@@ -491,9 +491,9 @@ def _resolve_variant_from_query(
 ) -> dict[str, Any] | None:
     """Choose a concrete variant only when the shopper query is unambiguous."""
     available = [variant for variant in variants if variant.get("in_stock", variant.get("stock_status") == "instock")]
-    if len(available) == 1:
-        return available[0]
     query_tokens = set(re.findall(r"[a-z0-9]+", (query_text or "").lower()))
+    if len(available) == 1 and not query_tokens:
+        return available[0]
     if not query_tokens:
         return None
     scored: list[tuple[int, dict[str, Any]]] = []
@@ -510,6 +510,8 @@ def _resolve_variant_from_query(
             scored.append((score, variant))
     if not scored:
         return None
+    if len(available) == 1:
+        return available[0]
     scored.sort(key=lambda pair: pair[0], reverse=True)
     if len(scored) > 1 and scored[0][0] == scored[1][0]:
         return None
