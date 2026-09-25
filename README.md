@@ -160,7 +160,7 @@ chatty/
 ├── backend/          FastAPI - chat/RAG/bookings/channels/OAuth/MCP API
 │   ├── app/          Routers, core (auth/security/db helpers), schemas
 │   ├── plugins/       Google/Microsoft integrations, RAG, widget orchestration
-│   ├── supabase/      Database schema and migrations (67 files, applied in order)
+│   ├── supabase/      Database schema and migrations (applied in order)
 │   ├── scripts/       apply_migrations.py and other one-off ops scripts
 │   ├── voice-agent/   LiveKit voice worker agent + self-hosted VPS Docker stack
 │   └── tests/          pytest smoke + unit tests
@@ -248,7 +248,7 @@ A fuller walkthrough than the Quick Start above - read this if it's your first t
 
 ### Step 2 - Apply the database schema
 
-Chatty ships 67 SQL migration files under `backend/supabase/migrations/`. Apply them all in order with the included script - it's idempotent (tracks what's already applied in a `_migrations_log` table), so it's always safe to re-run after pulling updates:
+Chatty ships ordered SQL migration files under `backend/supabase/migrations/`. Apply them all in order with the included script - it's idempotent (tracks what's already applied in a `_migrations_log` table), so it's always safe to re-run after pulling updates:
 
 ```bash
 cd backend
@@ -259,7 +259,7 @@ python scripts/apply_migrations.py "postgresql://postgres:YOUR_PASSWORD@YOUR_HOS
 You should see output like:
 
 ```
-67 migration files found
+<current migration count> migration files found
   applied 20260510084430_initial_schema.sql
   applied 20260511120000_slice2_billing_and_integrations.sql
   ...
