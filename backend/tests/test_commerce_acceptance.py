@@ -56,3 +56,43 @@ def test_shopper_image_uses_cross_modal_rpc_and_grounded_catalog_result(monkeypa
     assert results[0]["title"] == "Trail shoe"
     assert results[0]["price"] == 99.0
     assert visual["search_query"] == "trail shoe"
+
+
+def test_low_confidence_catalog_match_returns_no_recommendation(monkeypatch):
+    class Query:
+        def eq(self, *args):
+            return self
+
+        def limit(self, *args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    class FakeSupabase:
+        def rpc(self, name, params):
+            return SimpleNamespace(execute=lambda: SimpleNamespace(data=[{
+                "id": "weak-match",
+                "title": "Unrelated item",
+                "metadata": {"in_stock": True},
+                "similarity": 0.12,
+            }]))
+
+        def table(self, name):
+            return Query()
+
+    async def fake_run_db(callback):
+        return callback()
+
+    async def fake_embed(text):
+        return [0.1] * 768
+
+    monkeypatch.setattr(multimodal_service, "supabase", FakeSupabase())
+    monkeypatch.setattr(multimodal_service, "run_db", fake_run_db)
+    monkeypatch.setattr(multimodal_service, "embed_multimodal_text", fake_embed)
+
+    results, _ = asyncio.run(multimodal_service.search_multimodal_catalog(
+        bot_id="bot-1", query_text="rare blue item"
+    ))
+
+    assert results == []
