@@ -110,6 +110,45 @@ def test_product_card_is_canonicalized_from_retrieved_variant_facts():
     assert "TRAIL-42-BLK" in sanitized
 
 
+def test_variable_product_card_resolves_unambiguous_query_variant():
+    reply = '[PRODUCT_CARD:{"id":"42","title":"Trail shoe"}]'
+    item = {
+        "id": "media-42", "title": "Trail shoe", "price": 120.0,
+        "currency": "USD", "url": "https://shop.example/products/trail-shoe",
+        "metadata": {
+            "source": "woocommerce", "woocommerce_id": 42,
+            "live_check_status": "fresh", "live_variant_ids": ["4201", "4202"],
+            "variations": [
+                {"id": 4201, "sku": "TRAIL-42-BLK", "price": 99.0, "in_stock": True,
+                 "attributes": [{"name": "Size", "option": "42"}, {"name": "Color", "option": "Black"}],
+                 "url": "https://shop.example/products/trail-shoe?variation_id=4201"},
+                {"id": 4202, "sku": "TRAIL-41-WHT", "price": 95.0, "in_stock": True,
+                 "attributes": [{"name": "Size", "option": "41"}, {"name": "Color", "option": "White"}],
+                 "url": "https://shop.example/products/trail-shoe?variation_id=4202"},
+            ],
+        },
+    }
+    sanitized = multimodal_service.sanitize_product_cards(reply, [item], query_text="I need size 42 in black")
+    assert '"variant_id":"4201"' in sanitized
+    assert '"price":99.0' in sanitized
+
+
+def test_variable_product_card_is_suppressed_when_variant_is_ambiguous():
+    reply = '[PRODUCT_CARD:{"id":"42","title":"Trail shoe"}]'
+    item = {
+        "id": "media-42", "title": "Trail shoe", "metadata": {
+            "source": "woocommerce", "woocommerce_id": 42, "live_check_status": "fresh",
+            "live_variant_ids": ["4201", "4202"],
+            "variations": [
+                {"id": 4201, "price": 99.0, "in_stock": True},
+                {"id": 4202, "price": 95.0, "in_stock": True},
+            ],
+        },
+    }
+    sanitized = multimodal_service.sanitize_product_cards(reply, [item], query_text="show me this shoe")
+    assert "PRODUCT_CARD" not in sanitized
+
+
 def test_live_woocommerce_refresh_updates_facts_and_preserves_snapshot_on_failure(monkeypatch):
     item = {
         "title": "Trail shoe",

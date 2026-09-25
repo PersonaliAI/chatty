@@ -1030,7 +1030,7 @@ async def run_widget_assistant(
             if byok_reply:
                 clean_reply, flow_action = _extract_flow_actions(byok_reply)
                 from app.services import multimodal_service as _multimodal_service
-                clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items)
+                clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items, query_text=text)
                 return {"reply": clean_reply, "thinking": "", "sources": _refs_grounded_in_reply(source_refs, clean_reply), "transcript": transcribed_voice or "", "flow_action": flow_action}
             logger.warning("BYOK provider %s returned an empty reply for bot %s - falling back to Gemini", byok_provider, bot_id)
         except Exception as exc:
@@ -1183,7 +1183,7 @@ async def run_widget_assistant(
 
             clean_reply, flow_action = _extract_flow_actions(reply)
             from app.services import multimodal_service as _multimodal_service
-            clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items)
+            clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items, query_text=text)
             if on_token and not stream_live:
                 # Held back for validation above - release it now as one chunk.
                 await on_token(clean_reply)
@@ -1279,7 +1279,7 @@ async def run_widget_assistant(
 
     clean_reply, flow_action = _extract_flow_actions(reply)
     from app.services import multimodal_service as _multimodal_service
-    clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items)
+    clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items, query_text=text)
     if on_token and not stream_live:
         await on_token(clean_reply)
     return {"reply": clean_reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, clean_reply), "transcript": transcribed_voice or "", "flow_action": flow_action}

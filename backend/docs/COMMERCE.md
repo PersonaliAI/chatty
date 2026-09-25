@@ -5,6 +5,11 @@ storefront. A bot can index a normalized product catalog, retrieve products by
 text or an uploaded image, and return grounded product cards containing the
 current price, currency, stock state, variants, image, and checkout URL.
 
+Variable-product cards are resolved safely: the server never falls back to a
+parent product's price or stock. If the shopper query uniquely identifies an
+in-stock variant, that variant is selected; otherwise the card is suppressed
+until the choice is unambiguous.
+
 ## Request path
 
 ```text

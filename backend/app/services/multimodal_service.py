@@ -486,7 +486,39 @@ def format_multimodal_context_for_prompt(
     return "\n".join(lines)
 
 
-def sanitize_product_cards(reply: str, items: list[dict[str, Any]]) -> str:
+def _resolve_variant_from_query(
+    variants: list[dict[str, Any]], query_text: str,
+) -> dict[str, Any] | None:
+    """Choose a concrete variant only when the shopper query is unambiguous."""
+    available = [variant for variant in variants if variant.get("in_stock", variant.get("stock_status") == "instock")]
+    if len(available) == 1:
+        return available[0]
+    query_tokens = set(re.findall(r"[a-z0-9]+", (query_text or "").lower()))
+    if not query_tokens:
+        return None
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for variant in available:
+        searchable = [str(variant.get("sku") or "")]
+        searchable.extend(
+            f"{attribute.get('name', '')} {attribute.get('option', '')}"
+            for attribute in (variant.get("attributes") or [])
+            if isinstance(attribute, dict)
+        )
+        variant_tokens = set(re.findall(r"[a-z0-9]+", " ".join(searchable).lower()))
+        score = len(query_tokens & variant_tokens)
+        if score:
+            scored.append((score, variant))
+    if not scored:
+        return None
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    if len(scored) > 1 and scored[0][0] == scored[1][0]:
+        return None
+    return scored[0][1]
+
+
+def sanitize_product_cards(
+    reply: str, items: list[dict[str, Any]], query_text: str = "",
+) -> str:
     """Replace model-authored product cards with canonical retrieved facts.
 
     A model may choose a candidate, but it may not invent the ID, price,
@@ -542,6 +574,14 @@ def sanitize_product_cards(reply: str, items: list[dict[str, Any]]) -> str:
         metadata = candidate.get("metadata") or {}
         if metadata.get("source") == "woocommerce" and metadata.get("live_check_status") != "fresh":
             return ""
+        variants = [variant for variant in (metadata.get("variations") or []) if isinstance(variant, dict)]
+        if metadata.get("source") == "woocommerce" and variants and candidate_variant is None:
+            candidate_variant = _resolve_variant_from_query(variants, query_text)
+            if candidate_variant is None:
+                # Never turn a variable product into a parent-price card. The
+                # caller gets no card rather than an ungrounded price/stock
+                # claim when the requested variant is ambiguous.
+                return ""
         variant = candidate_variant or {}
         if variant and metadata.get("source") == "woocommerce":
             live_variant_ids = {str(value) for value in (metadata.get("live_variant_ids") or [])}
