@@ -3,6 +3,7 @@ import inspect
 import time
 from unittest.mock import AsyncMock, patch
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from main import app
@@ -78,6 +79,20 @@ def test_woocommerce_sync_uses_durable_queue_when_configured():
         "payload": {"bot_id": BOT_ID},
         "idempotency_key": f"woocommerce.sync:{BOT_ID}",
     }
+    create_task.assert_not_called()
+
+
+def test_woocommerce_sync_does_not_fall_back_to_ephemeral_task_when_queue_fails():
+    class BrokenQueue:
+        async def enqueue(self, **kwargs):
+            raise RuntimeError("redis unavailable")
+
+    with patch.object(woocommerce_router, "_commerce_job_queue", BrokenQueue()), \
+         patch.object(woocommerce_router.asyncio, "create_task") as create_task:
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(woocommerce_router._start_woocommerce_sync(BOT_ID))
+
+    assert exc_info.value.status_code == 503
     create_task.assert_not_called()
 
 

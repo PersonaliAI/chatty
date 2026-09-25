@@ -48,6 +48,10 @@ async def _start_woocommerce_sync(bot_id: str) -> str:
             return "queued"
         except Exception:
             logger.exception("WooCommerce sync queue publish failed for bot %s", bot_id)
+            raise HTTPException(
+                status_code=503,
+                detail="WooCommerce sync queue is temporarily unavailable; please retry",
+            )
     asyncio.create_task(woocommerce_service.run_woocommerce_sync_task(bot_id))
     return "background"
 
