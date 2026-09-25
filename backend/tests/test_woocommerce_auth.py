@@ -139,7 +139,7 @@ def test_get_woocommerce_authorize_url():
             assert "authorize_url" in data
             assert "state" in data
             assert "mystore.com/wc-auth/v1/authorize" in data["authorize_url"]
-            assert "scope=read_write" in data["authorize_url"]
+            assert "scope=read" in data["authorize_url"]
             assert "callback_url=" in data["authorize_url"]
             assert "return_url=" in data["authorize_url"]
     finally:
@@ -183,7 +183,7 @@ def test_woocommerce_auth_callback_success():
                 "user_id": state,
                 "consumer_key": "ck_test1234567890",
                 "consumer_secret": "cs_test1234567890",
-                "key_permissions": "read_write",
+                "key_permissions": "read",
             },
         )
         assert resp.status_code == 200
@@ -209,3 +209,19 @@ def test_woocommerce_auth_callback_invalid_state():
     )
     assert resp.status_code == 400
     assert "Invalid or expired authorization state" in resp.text
+
+
+def test_woocommerce_auth_callback_rejects_write_credentials():
+    state = _generate_auth_state(BOT_ID, STORE_URL)
+    resp = client.post(
+        "/api/integrations/woocommerce/auth-callback",
+        json={
+            "key_id": 42,
+            "user_id": state,
+            "consumer_key": "ck_test1234567890",
+            "consumer_secret": "cs_test1234567890",
+            "key_permissions": "read_write",
+        },
+    )
+    assert resp.status_code == 400
+    assert "read-only" in resp.text

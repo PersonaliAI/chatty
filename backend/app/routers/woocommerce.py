@@ -353,7 +353,7 @@ async def get_woocommerce_authorize_url(
 
     params = {
         "app_name": "Chatty AI",
-        "scope": "read_write",
+        "scope": "read",
         "user_id": state,
         "return_url": return_url,
         "callback_url": callback_url,
@@ -381,10 +381,14 @@ async def receive_woocommerce_auth_callback(
     user_id = str(payload.get("user_id") or "").strip()
     consumer_key = str(payload.get("consumer_key") or "").strip()
     consumer_secret = str(payload.get("consumer_secret") or "").strip()
+    key_permissions = str(payload.get("key_permissions") or "").strip().lower()
 
     if not user_id or not consumer_key or not consumer_secret:
         logger.warning("WooCommerce auth callback missing required fields")
         raise HTTPException(status_code=400, detail="Missing required parameters: user_id, consumer_key, consumer_secret")
+    if key_permissions and key_permissions != "read":
+        logger.warning("WooCommerce auth callback returned non-read-only credentials")
+        raise HTTPException(status_code=400, detail="WooCommerce credentials must be read-only")
 
     bot_id, store_url = _verify_auth_state(user_id)
     if not bot_id or not store_url:
