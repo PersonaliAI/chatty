@@ -49,6 +49,7 @@ from app.schemas.widget import (
     WidgetChatResponse,
     WidgetCsatRequest,
     WidgetFeedbackRequest,
+    WidgetCampaignEventRequest,
     WidgetMediaResponse,
     WidgetVerifyOriginRequest,
 )
@@ -188,6 +189,53 @@ async def widget_verify_origin(body: WidgetVerifyOriginRequest):
     )
     token = _mint_widget_token(body.bot_id, verified)
     return {"token": token, "verified": verified}
+
+
+@router.post("/api/widget/campaign-events")
+async def widget_campaign_event(body: WidgetCampaignEventRequest, request: Request):
+    """Record campaign telemetry without trusting client-side counters.
+
+    The endpoint is deliberately small and safe for public widget traffic:
+    campaign ownership is checked against the bot, event types are allow-listed,
+    metadata is bounded, and an idempotency key prevents retry double-counts.
+    """
+    event_type = body.event_type.strip().lower()
+    if event_type not in {"impression", "click", "conversion"}:
+        raise HTTPException(status_code=422, detail="event_type must be impression, click, or conversion")
+    if len(body.bot_id) > 80 or len(body.campaign_id) > 80:
+        raise HTTPException(status_code=422, detail="invalid campaign identifiers")
+    campaign = await run_db(lambda: supabase.table("chatty_campaigns").select(
+        "id, bot_id, is_active, start_date, end_date"
+    ).eq("id", body.campaign_id).eq("bot_id", body.bot_id).maybe_single().execute())
+    if not campaign.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", body.bot_id).maybe_single().execute())
+    if not bot.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    await _widget_rate_limit_or_429(bot.data, body.bot_id, _client_ip(request), request.headers.get("x-widget-token"))
+    idem = (body.idempotency_key or "").strip()[:128] or None
+    metadata = body.metadata if isinstance(body.metadata, dict) else {}
+    metadata = {str(k)[:64]: str(v)[:500] for k, v in list(metadata.items())[:20]}
+    row = {
+        "bot_id": body.bot_id,
+        "campaign_id": body.campaign_id,
+        "event_type": event_type,
+        "session_id": (body.session_id or "")[:160] or None,
+        "idempotency_key": idem,
+        "metadata": metadata,
+    }
+    try:
+        inserted = await run_db(lambda: supabase.table("chatty_campaign_events").insert(row).execute())
+        return {"accepted": True, "duplicate": False, "event_id": (inserted.data or [{}])[0].get("id")}
+    except Exception as exc:
+        # A unique idempotency conflict is a successful replay; do not leak DB details.
+        if idem:
+            prior = await run_db(lambda: supabase.table("chatty_campaign_events").select("id").eq(
+                "bot_id", body.bot_id).eq("idempotency_key", idem).maybe_single().execute())
+            if prior.data:
+                return {"accepted": True, "duplicate": True, "event_id": prior.data.get("id")}
+        logger.warning("campaign event ingest failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Campaign telemetry temporarily unavailable") from exc
 
 
 @router.post("/api/widget/chat", response_model=WidgetChatResponse)

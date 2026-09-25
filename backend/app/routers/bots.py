@@ -292,6 +292,33 @@ async def suggest_dashboard_campaign(
         raise HTTPException(status_code=502, detail="Could not generate campaign suggestion") from exc
 
 
+@router.get("/api/bots/{bot_id}/campaigns/{campaign_id}/analytics")
+async def campaign_analytics(bot_id: str, campaign_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return recomputable campaign telemetry and conversion rates."""
+    await verify_bot_permission(bot_id, user, "settings")
+    campaign = await run_db(lambda: supabase.table("chatty_campaigns").select("id, name").eq(
+        "id", campaign_id).eq("bot_id", bot_id).maybe_single().execute())
+    if not campaign.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    events = await run_db(lambda: supabase.table("chatty_campaign_events").select(
+        "event_type, created_at"
+    ).eq("campaign_id", campaign_id).order("created_at", desc=True).limit(10000).execute())
+    counts = {kind: 0 for kind in ("impression", "click", "conversion")}
+    for event in events.data or []:
+        kind = event.get("event_type")
+        if kind in counts:
+            counts[kind] += 1
+    impressions = counts["impression"]
+    return {
+        "campaign_id": campaign_id,
+        "name": campaign.data.get("name"),
+        **counts,
+        "click_rate": round(counts["click"] / impressions, 4) if impressions else 0,
+        "conversion_rate": round(counts["conversion"] / impressions, 4) if impressions else 0,
+        "sample_size": len(events.data or []),
+    }
+
+
 @router.patch("/api/bots/{bot_id}/campaigns/{campaign_id}")
 async def update_dashboard_campaign(
     bot_id: str,

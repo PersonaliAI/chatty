@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class WidgetChatRequest(BaseModel):
@@ -44,6 +44,16 @@ class WidgetFeedbackRequest(BaseModel):
     bot_id: str
     session_id: str
     rating: str  # "up" | "down"
+
+
+class WidgetCampaignEventRequest(BaseModel):
+    """A bounded, idempotent campaign telemetry event from the widget."""
+    bot_id: str
+    campaign_id: str
+    event_type: str  # impression | click | conversion
+    session_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
+    metadata: dict = Field(default_factory=dict)
 
 
 class WidgetCsatRequest(BaseModel):
