@@ -56,3 +56,9 @@ def test_realtime_usage_uses_cumulative_session_totals():
 
     assert (totals.input_tokens, totals.output_tokens) == (11, 7)
     assert (totals.input_audio_tokens, totals.output_audio_tokens) == (3, 2)
+
+
+def test_worker_default_idle_pool_matches_realtime_sizing():
+    worker = _load_worker()
+
+    assert worker.DEFAULT_IDLE_PROCESSES == 2

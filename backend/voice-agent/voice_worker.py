@@ -848,11 +848,13 @@ class ChattyRealtimeAgent(Agent):
 # AgentServer's built-in HTTP port (health/monitoring endpoint, distinct from
 # the outbound WebSocket connection it makes to LIVEKIT_URL for job dispatch).
 # On Docker Compose / VPS, defaults to 8081.
-# num_idle_processes defaults to 3 on VPS (4 vCPU / 8GB RAM has plenty of headroom
-# for 3 warm worker processes).
+# Keep the warm-process pool aligned with the deployment sizing (4 vCPU / 4 GiB
+# on Cloud Run and the recommended 4-vCPU VPS). Three idle LiveKit processes
+# caused avoidable cold-start timeouts and left too little CPU per realtime job.
+DEFAULT_IDLE_PROCESSES = 2
 server = AgentServer(
     port=int(os.environ.get("PORT", 8081)),
-    num_idle_processes=int(os.environ.get("LIVEKIT_NUM_IDLE_PROCESSES", "3")),
+    num_idle_processes=int(os.environ.get("LIVEKIT_NUM_IDLE_PROCESSES", str(DEFAULT_IDLE_PROCESSES))),
     log_level=os.environ.get("LIVEKIT_LOG_LEVEL", "INFO"),
 )
 
