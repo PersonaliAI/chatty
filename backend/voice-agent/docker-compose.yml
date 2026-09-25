@@ -13,16 +13,18 @@ services:
     restart: unless-stopped
     init: true
     # LiveKit Agents exposes a small HTTP health endpoint on PORT (8081 by
-    # default). Keeping this check in Compose lets the VPS restart a worker
-    # that is alive as a process but no longer registered with LiveKit.
+    # default). Follow the configured PORT so a platform-injected port cannot
+    # make a healthy worker look dead and trigger restart loops.
     healthcheck:
       test:
         - CMD
         - python
         - -c
         - >-
-          import urllib.request;
-          urllib.request.urlopen('http://127.0.0.1:8081/', timeout=3)
+          import os, urllib.request;
+          urllib.request.urlopen(
+          f"http://127.0.0.1:{os.environ.get('PORT', '8081')}/", timeout=3
+          )
       interval: 15s
       timeout: 5s
       retries: 5
