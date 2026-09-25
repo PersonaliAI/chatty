@@ -62,6 +62,8 @@ interface FlowNodeData {
   field?: string;
   validation?: string;
   prompt?: string;
+  automationKind?: string;
+  config?: Record<string, unknown>;
 }
 
 interface FlowNodeProps {
@@ -398,6 +400,25 @@ interface FlowSchema {
   edges: Edge[];
 }
 
+function AutomationNode({ data, selected }: FlowNodeProps) {
+  const kind = data.automationKind || "Automation";
+  const palette = kind === "Webhook"
+    ? { box: "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100", border: "border-blue-200 dark:border-blue-800/60", active: "border-blue-500 ring-blue-500/20", handle: "!bg-blue-500" }
+    : kind === "Condition"
+      ? { box: "bg-violet-50 dark:bg-violet-950/30 text-violet-900 dark:text-violet-100", border: "border-violet-200 dark:border-violet-800/60", active: "border-violet-500 ring-violet-500/20", handle: "!bg-violet-500" }
+      : kind === "Loop"
+        ? { box: "bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100", border: "border-amber-200 dark:border-amber-800/60", active: "border-amber-500 ring-amber-500/20", handle: "!bg-amber-500" }
+        : { box: "bg-slate-50 dark:bg-slate-950/30 text-slate-900 dark:text-slate-100", border: "border-slate-200 dark:border-slate-800/60", active: "border-slate-500 ring-slate-500/20", handle: "!bg-slate-500" };
+  return (
+    <div className={`min-w-[220px] max-w-[280px] rounded-xl border-2 shadow-sm transition-all ${palette.box} ${selected ? `${palette.active} ring-4 scale-105` : palette.border}`}>
+      <Handle type="target" position={Position.Top} className={`${palette.handle} !w-3 !h-3 !border-2 !border-white`} />
+      <div className="p-2.5 border-b border-black/10 dark:border-white/10 flex items-center gap-2 font-bold text-[11px]"><Zap className="size-3.5" /> {kind}</div>
+      <div className="p-3 text-[11px] leading-relaxed break-words font-medium"><p>{data.label || "Configure this automation step"}</p><div className="mt-2 rounded-lg bg-white/60 dark:bg-neutral-950/40 p-1.5 text-[9px] opacity-80">Configurable automation step</div></div>
+      <Handle type="source" position={Position.Bottom} className={`${palette.handle} !w-3 !h-3 !border-2 !border-white`} />
+    </div>
+  );
+}
+
 interface FlowValidation {
   errors: string[];
   warnings: string[];
@@ -529,6 +550,11 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
       bookMeeting: BookMeetingNode,
       setTag: TagNode,
       escalate: EscalateNode,
+      delay: AutomationNode,
+      condition: AutomationNode,
+      loop: AutomationNode,
+      webhook: AutomationNode,
+      retry: AutomationNode,
     }),
     []
   );
@@ -996,6 +1022,18 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     showToast("Escalation step added to canvas", "success");
   };
 
+  const addAutomationNode = (type: "delay" | "condition" | "loop" | "webhook" | "retry", kind: string, label: string) => {
+    const id = `${type}-${Date.now()}`;
+    setNodes((nds) => [...nds, {
+      id,
+      type,
+      data: { automationKind: kind, label, config: type === "retry" ? { max_attempts: 3, backoff_ms: 1000, timeout_ms: 30000 } : {} },
+      position: { x: 120 + Math.random() * 80, y: 160 + Math.random() * 80 },
+    }]);
+    switchCanvasOnMobile();
+    showToast(`${kind} step added to canvas`, "success");
+  };
+
   const loadTemplate = async (templateName: "fin_demo" | "support_triage") => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/flow/templates`);
@@ -1203,6 +1241,11 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
               >
                 <PhoneCall className="size-3.5 text-rose-500" /> Escalate
               </button>
+              <button onClick={() => addAutomationNode("delay", "Delay / Schedule", "Wait before continuing (configure duration)")} className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200"><Clock className="size-3.5 text-slate-500" /> Delay</button>
+              <button onClick={() => addAutomationNode("condition", "Condition / Branch", "Evaluate a typed condition and branch the workflow")} className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-violet-50 dark:hover:bg-violet-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200"><GitBranch className="size-3.5 text-violet-500" /> Condition</button>
+              <button onClick={() => addAutomationNode("loop", "Loop / Batch", "Repeat for each item with a safety limit")} className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200"><Zap className="size-3.5 text-amber-500" /> Loop</button>
+              <button onClick={() => addAutomationNode("webhook", "Webhook / Integration", "Call an external webhook with mapped data")} className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200"><Zap className="size-3.5 text-blue-500" /> Webhook</button>
+              <button onClick={() => addAutomationNode("retry", "Retry / Timeout", "Retry transient failures with exponential backoff")} className="flex items-center gap-1.5 p-2.5 border border-neutral-200 dark:border-neutral-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-950/20 text-[10px] font-bold text-neutral-700 dark:text-neutral-200"><AlertCircle className="size-3.5 text-slate-500" /> Retry</button>
             </div>
 
             {selectedNode && (
