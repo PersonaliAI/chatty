@@ -94,6 +94,16 @@ wait before a busy job is requeued without consuming a retry attempt.
 Production sync requests fail closed when `CHATTY_JOB_QUEUE_URL` is missing.
 Set `CHATTY_ALLOW_EPHEMERAL_JOBS=true` only for local development.
 
+After inspecting a dead-letter entry, replay exactly one job with:
+
+```bash
+CHATTY_JOB_QUEUE_URL=redis://redis:6379/0 \
+  python scripts/replay_dead_letter.py 1712345678901-0
+```
+
+The tool validates the job envelope, resets its retry count, appends to the
+target stream, and deletes the dead-letter entry only after the append succeeds.
+
 ## Incident response
 
 For a secret leak, revoke/rotate the credential first, then remove it from
