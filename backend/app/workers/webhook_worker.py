@@ -38,6 +38,23 @@ async def _sync_woocommerce(payload: dict) -> None:
         raise RuntimeError(result.get("error") or "WooCommerce sync failed")
 
 
+async def _send_ticket_reply_email(payload: dict) -> None:
+    """Deliver a human email reply outside the HTTP request lifecycle."""
+    from app.services.email_service import send_ticket_reply_email
+
+    result = await send_ticket_reply_email(
+        to_email=str(payload.get("to_email") or ""),
+        subject=str(payload.get("subject") or "Support Request"),
+        body_text=str(payload.get("body_text") or ""),
+        session_id=str(payload.get("session_id") or ""),
+        bot_name=str(payload.get("bot_name") or "Chatty Support"),
+        agent_name=str(payload.get("agent_name") or "Support Team"),
+        in_reply_to_message_id=payload.get("in_reply_to_message_id"),
+    )
+    if not result.get("sent"):
+        raise RuntimeError(result.get("error") or result.get("reason") or "ticket reply email failed")
+
+
 async def run() -> None:
     queue_url = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
     if not queue_url:
@@ -79,6 +96,7 @@ async def run() -> None:
         handlers={
             "webhook.deliver": _deliver,
             "woocommerce.sync": _sync_woocommerce,
+            "email.ticket_reply": _send_ticket_reply_email,
         },
     )
     await worker.ensure_group()

@@ -3,6 +3,14 @@
 **Review date:** 2026-09-21  
 **Scope:** existing backend/frontend implementation only. No code was changed.
 
+**Implementation update (2026-09-25):** The formerly identified commerce
+durability gap has since been addressed: WooCommerce authorization and manual
+syncs publish to the Redis worker with idempotency, retries, per-store
+concurrency, dead-letter handling, and resumable checkpoints. Production
+requests fail closed when the durable queue is absent; an ephemeral fallback
+is available only when explicitly enabled for local development. Outbound
+human email replies now use the same durable worker path.
+
 ## Executive verdict
 
 Chatty has a credible ecommerce-assistant foundation and **can connect to WooCommerce today**. The end-to-end routing is present for web and WhatsApp: an incoming image reaches the common assistant, a vision model turns it into textual attributes, catalog retrieval is scoped to the bot, and the model is asked to return product-card data with a purchase URL.
@@ -55,7 +63,7 @@ The authorization request asks for `read_write`, while this connector only reads
 
 ## High-priority reliability and correctness work
 
-1. **Make jobs durable.** Initial syncs and auth-callback syncs use in-process `asyncio.create_task`. A Cloud Run restart, request termination, or horizontal scale event can abandon work. Use the existing Redis/job-worker pattern with an idempotency key, retries, per-store concurrency limits, dead-letter handling, and resumable cursor/checkpoint state.
+1. **Maintain durable jobs.** Commerce syncs and outbound human email replies now use the Redis/job-worker pattern with idempotency keys, retries, per-store concurrency limits where applicable, dead-letter handling, and resumable sync checkpoints. Keep queue configuration and worker capacity as release-gated production dependencies.
 2. **Re-embed after a product changes.** Update and webhook paths modify title/description but do not refresh the stored embedding. Over time semantic retrieval drifts away from the product facts. Put embedding regeneration in the durable ingestion job and version the embedding model.
 3. **Fix variable-product selection.** Variations are loaded into parent metadata, but retrieval/indexing and the response contract do not select a concrete in-stock variation. For a size/colour request, rank variants directly and return the exact variation price, availability and a variant-safe buy link/cart action.
 4. **Treat data quality as a state machine.** Missing primary images become a placeholder, unpublished/hidden catalog facts need explicit policy, and a later update without image data can overwrite an existing image incorrectly. Track `source_updated_at`, `synced_at`, `catalog_version`, ingestion status and per-product errors.
