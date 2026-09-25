@@ -71,9 +71,10 @@ CHATTY_JOB_QUEUE_URL=redis://redis:6379/0 python -m app.workers.webhook_worker
 
 The built-in worker handles `webhook.deliver`, `woocommerce.sync`,
 `email.ticket_reply`, `whatsapp.message`, `documents.index_folder`, and
-`documents.index_file`. Human replies, WhatsApp messages, and Drive/OneDrive
-indexing therefore remain recoverable across API restarts when the durable
-queue is configured; channel and document jobs use bounded concurrency keys.
+`documents.index_file`, `crawl.pages`, and `crawl.scheduled`. Human replies,
+WhatsApp messages, document indexing, and website crawling therefore remain
+recoverable across API restarts when the durable queue is configured; channel,
+document, and crawl jobs use bounded concurrency keys.
 
 Run one consumer process per worker identity. The entrypoint derives a unique
 consumer name from the host and process ID, and supports `CHATTY_WORKER_GROUP`,

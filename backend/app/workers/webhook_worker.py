@@ -67,6 +67,12 @@ async def _process_document_job(payload: dict) -> None:
     await process_document_job(payload)
 
 
+async def _process_crawl_job(payload: dict) -> None:
+    from app.workers.crawl_jobs import process_crawl_job
+
+    await process_crawl_job(payload)
+
+
 async def run() -> None:
     queue_url = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
     if not queue_url:
@@ -112,6 +118,8 @@ async def run() -> None:
             "whatsapp.message": _process_whatsapp_message,
             "documents.index_folder": _process_document_job,
             "documents.index_file": _process_document_job,
+            "crawl.pages": _process_crawl_job,
+            "crawl.scheduled": _process_crawl_job,
         },
     )
     await worker.ensure_group()
