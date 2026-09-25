@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import math
+import os
 from typing import Optional
 
 from plugins import ai_client
@@ -34,11 +34,10 @@ IS_EMBED_V2 = "gemini-embedding-2" in EMBED_MODEL
 def _fit_embedding_dimensions(vector: list[float]) -> list[float]:
     """Keep vectors compatible with the Supabase pgvector column.
 
-    Some LiteLLM/Vertex combinations ignore the requested output dimension and
-    return Gemini's native 3072-dimensional vector. The schema and RPCs use a
-    768-dimensional column, so reduce that response deterministically and
-    normalize it before writing or querying. Vectors already at the target
-    dimension are returned unchanged.
+    Some LiteLLM/Vertex combinations ignore the requested output dimension
+    and return Gemini's native 3072-dimensional vector.  The schema and RPCs
+    use a 768-dimensional column, so reduce that response deterministically
+    and normalize it before writing or querying.
     """
     if len(vector) == EMBED_DIMENSIONS:
         return vector

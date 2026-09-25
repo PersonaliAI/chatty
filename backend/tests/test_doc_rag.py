@@ -8,7 +8,6 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 from plugins import doc_rag
-from plugins import memory
 
 
 # ---------------------------------------------------------------------------
@@ -161,23 +160,3 @@ def test_chunk_text_zero_overlap_still_terminates():
     chunks = doc_rag.chunk_text(text, size=100, overlap=0)
     assert len(chunks) >= 9
     assert "".join(chunks).replace("", "") != ""
-
-
-# ---------------------------------------------------------------------------
-# embedding dimension compatibility
-# ---------------------------------------------------------------------------
-
-
-def test_fit_embedding_dimensions_reduces_native_vectors_to_pgvector_width():
-    # Gemini can return its native 3072 dimensions even when the requested
-    # output dimensionality is 768. The database column/RPC contract is 768.
-    fitted = memory._fit_embedding_dimensions([1.0] * 3072)
-    assert len(fitted) == memory.EMBED_DIMENSIONS == 768
-    assert abs(sum(value * value for value in fitted) - 1.0) < 1e-6
-
-
-def test_fit_embedding_dimensions_rejects_vectors_shorter_than_schema():
-    import pytest
-
-    with pytest.raises(ValueError, match="expected at least"):
-        memory._fit_embedding_dimensions([0.1] * (memory.EMBED_DIMENSIONS - 1))

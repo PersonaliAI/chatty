@@ -419,10 +419,8 @@ def _google_pipeline_credentials_available() -> bool:
 REALTIME_DEFAULT_MODEL = {"google": "gemini-2.5-flash-native-audio-preview-12-2025", "openai": "gpt-realtime"}
 REALTIME_DEFAULT_VOICE = {"google": "Puck", "openai": "marin"}
 # The dashboard stores the selected Google TTS voice in `voice_tts_voice`.
-# Google Chirp voice ids (for example `en-US-Chirp3-HD-Aoede`) are valid for
-# Cloud TTS but are rejected by Gemini Live's native-audio model. Keep the
-# shared setting backward-compatible while allowing only Gemini Live voices in
-# realtime mode.
+# Cloud TTS/Chirp ids are not valid Gemini Live voices, so normalize those
+# selections before constructing the realtime model.
 GOOGLE_REALTIME_VOICES = frozenset({
     "Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr",
     "Achird", "Gacrux", "Schedar", "Sulafat", "Vindemiatrix", "Sadachbia",
@@ -500,10 +498,9 @@ def _cost_of_realtime_usage(provider: str, model: str, agg: "_RealtimeUsageTotal
 class _RealtimeUsageTotals:
     """Accumulates realtime usage across a call.
 
-    LiveKit now emits ``session_usage_updated`` with cumulative usage. Keep
-    the older per-response ``add`` helper for compatibility with older worker
-    images, but prefer replacing totals from the cumulative event so a retry
-    or duplicate metric can never double-count billing.
+    LiveKit emits cumulative ``session_usage_updated`` events. Keep the
+    per-response helper for older worker images, but prefer replacing totals
+    from cumulative usage so retries cannot double-count billing.
     """
     def __init__(self) -> None:
         self.input_tokens = 0
@@ -848,11 +845,13 @@ class ChattyRealtimeAgent(Agent):
 # AgentServer's built-in HTTP port (health/monitoring endpoint, distinct from
 # the outbound WebSocket connection it makes to LIVEKIT_URL for job dispatch).
 # On Docker Compose / VPS, defaults to 8081.
-# num_idle_processes defaults to 3 on VPS (4 vCPU / 8GB RAM has plenty of headroom
-# for 3 warm worker processes).
+# Keep the warm-process pool aligned with the deployment sizing (4 vCPU / 4 GiB
+# on Cloud Run and the recommended 4-vCPU VPS). Three idle LiveKit processes
+# caused avoidable cold-start timeouts and left too little CPU per realtime job.
+DEFAULT_IDLE_PROCESSES = 2
 server = AgentServer(
     port=int(os.environ.get("PORT", 8081)),
-    num_idle_processes=int(os.environ.get("LIVEKIT_NUM_IDLE_PROCESSES", "3")),
+    num_idle_processes=int(os.environ.get("LIVEKIT_NUM_IDLE_PROCESSES", str(DEFAULT_IDLE_PROCESSES))),
     log_level=os.environ.get("LIVEKIT_LOG_LEVEL", "INFO"),
 )
 
@@ -1008,18 +1007,18 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     if voice_mode == "realtime":
-        # Realtime models do not pass through ChattyVoiceAgent.llm_node, so
-        # there is no single interception point for persistence. LiveKit
-        # commits both visitor and agent turns to the session history and
-        # emits this event for each committed ChatMessage. Persist those turns
-        # with an explicit voice sender so closing the voice surface can merge
-        # them back into the normal widget thread.
+        # Realtime sessions do not pass through ChattyVoiceAgent.llm_node, so
+        # persist both committed turns explicitly for widget history.
         def _persist_realtime_item(ev) -> None:
             item = getattr(ev, "item", None)
             role = str(getattr(item, "role", "") or "").lower()
             if role not in {"user", "assistant"}:
                 return
-            content = (getattr(item, "text_content", None) or getattr(item, "raw_text_content", None) or "").strip()
+            content = (
+                getattr(item, "text_content", None)
+                or getattr(item, "raw_text_content", None)
+                or ""
+            ).strip()
             if not content:
                 return
             try:
@@ -1211,12 +1210,6 @@ async def entrypoint(ctx: JobContext) -> None:
                     await asyncio.sleep(min(10, max(1, threshold - idle_for)))
         except asyncio.CancelledError:
             pass
-        except RuntimeError as exc:
-            # A visitor can hang up while a reminder is being generated. The
-            # session is already shutting down in that case; don't report a
-            # normal disconnect as a worker failure.
-            if "AgentSession isn't running" not in str(exc):
-                logger.exception("voice worker: idle follow-up failed")
         except Exception:
             logger.exception("voice worker: idle follow-up failed")
 

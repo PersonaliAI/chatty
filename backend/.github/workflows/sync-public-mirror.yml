@@ -1,0 +1,82 @@
+name: Sync backend to public mirror
+
+on:
+  push:
+    branches: [backend-service]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-backend-mirror
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out private backend
+        uses: actions/checkout@v6
+        with:
+          ref: backend-service
+
+      - name: Check out public mirror
+        env:
+          MIRROR_REPO_TOKEN: ${{ secrets.MIRROR_REPO_TOKEN }}
+        run: |
+          test -n "$MIRROR_REPO_TOKEN" || { echo "Missing MIRROR_REPO_TOKEN"; exit 1; }
+          git clone --depth=1 --branch main \
+            "https://x-access-token:${MIRROR_REPO_TOKEN}@github.com/PersonaliAI/chatty.git" \
+            "$RUNNER_TEMP/public"
+
+      - name: Mirror tracked backend files
+        run: |
+          export SOURCE="$RUNNER_TEMP/source"
+          mkdir -p "$SOURCE"
+          git archive HEAD | tar -x -C "$SOURCE"
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='__pycache__' \
+            --exclude='.pytest_cache' \
+            --exclude='node_modules' \
+            --exclude='*.pyc' \
+            "$SOURCE/" "$RUNNER_TEMP/public/backend/"
+
+      - name: Verify mirrored backend before publishing
+        run: python scripts/verify-public-mirror.py
+        env:
+          PUBLIC_MIRROR_DIR: ${{ runner.temp }}/public
+
+      - name: Block credential-shaped values
+        run: |
+          if rg -n --hidden --glob '!node_modules' --glob '!.git' \
+            "SUPABASE_SERVICE_ROLE_KEY\\s*=\\s*[\"']eyJ|SUPABASE_SECRET_KEY\\s*=\\s*[\"']sb_secret_[A-Za-z0-9_-]{20,}|-----BEGIN .* PRIVATE KEY-----" \
+            "$RUNNER_TEMP/public/backend"; then
+            echo 'Credential-shaped value detected in public backend mirror.'
+            exit 1
+          fi
+
+      - name: Open public mirror pull request
+        env:
+          GH_TOKEN: ${{ secrets.MIRROR_REPO_TOKEN }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          cd "$RUNNER_TEMP/public"
+          git config user.name 'chatty-mirror-bot'
+          git config user.email 'chatty-mirror-bot@users.noreply.github.com'
+          git checkout -B "mirror/backend-${SOURCE_SHA:0:12}"
+          git add backend
+          if git diff --cached --quiet; then
+            echo 'Public backend is already synchronized.'
+            exit 0
+          fi
+          git commit -m "sync(backend): mirror private Chatty backend ${SOURCE_SHA:0:12}"
+          git push --force-with-lease origin HEAD
+          gh pr create --repo PersonaliAI/chatty --base main \
+            --head "mirror/backend-${SOURCE_SHA:0:12}" \
+            --title "sync(backend): mirror private Chatty backend" \
+            --body "Automated mirror from Damayantha/chatty@${SOURCE_SHA}. Review CI and merge before release."

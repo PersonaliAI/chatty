@@ -1,6 +1,9 @@
 """Pure unit tests for plugins/ai_client.py's model-name resolution and
 plugins/memory.py's embedding model default - no network calls (see
 tests/test_integration_live.py for the real-API smoke tests)."""
+from types import SimpleNamespace
+import asyncio
+
 from plugins import ai_client, memory
 
 
@@ -36,3 +39,41 @@ def test_embed_model_default_is_not_the_retired_text_embedding_004():
     # embedContent) - regression guard against reintroducing it as the
     # default and silently breaking RAG/knowledge-base search again.
     assert memory.EMBED_MODEL != "text-embedding-004"
+
+
+def test_chat_stream_deduplicates_fallbacks_and_limits_final_non_stream_retry(monkeypatch):
+    calls = []
+
+    async def fake_acompletion(*, model, stream=False, **kwargs):
+        calls.append((model, stream))
+        if stream:
+            raise RuntimeError(f"stream unavailable: {model}")
+        message = SimpleNamespace(
+            content="degraded success",
+            tool_calls=None,
+            model_dump=lambda: {"role": "assistant", "content": "degraded success"},
+        )
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message)],
+            usage=None,
+        )
+
+    monkeypatch.setattr(ai_client.litellm, "acompletion", fake_acompletion)
+    monkeypatch.setattr(ai_client, "_log_usage", lambda **kwargs: _async_noop())
+
+    result = asyncio.run(ai_client.chat_stream(
+        model="gemini/primary",
+        messages=[{"role": "user", "content": "hello"}],
+        fallback_models=["gemini/fallback", "gemini/primary", "gemini/fallback"],
+    ))
+
+    assert result["text"] == "degraded success"
+    assert calls == [
+        ("gemini/primary", True),
+        ("gemini/fallback", True),
+        ("gemini/primary", False),
+    ]
+
+
+async def _async_noop():
+    return None

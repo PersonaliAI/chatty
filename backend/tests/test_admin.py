@@ -397,3 +397,30 @@ def test_admin_dispatch_routing_queue_assigns_to_online_agent(monkeypatch):
     assert len(res["results"]) == 1
     assert res["results"][0]["session_id"] == "s1"
     assert res["results"][0]["assigned_to"] == "agent@example.com"
+
+
+def test_admin_dispatch_routing_queue_only_dispatches_human_takeovers(monkeypatch):
+    fake = _RecordingSupabase({
+        "chatty_sessions": [
+            {"session_id": "ai-only", "bot_id": "bot-1", "status": "open", "assigned_agent_email": None,
+             "needs_attention": False, "ai_paused": False, "escalation_reason": None,
+             "last_message_at": "2026-09-12T09:00:00Z"},
+            {"session_id": "handoff", "bot_id": "bot-1", "status": "open", "assigned_agent_email": None,
+             "needs_attention": True, "ai_paused": False, "escalation_reason": "Customer requested human agent",
+             "last_message_at": "2026-09-12T10:00:00Z"},
+        ],
+        "chatty_routing_settings": [
+            {"bot_id": "bot-1", "routing_enabled": True, "algorithm": "spare_capacity", "default_capacity": 5},
+        ],
+        "chatty_agent_presence": [
+            {"id": "ag-1", "bot_id": "bot-1", "agent_email": "agent@example.com", "agent_name": "Agent", "status": "online", "max_capacity": 5},
+        ],
+    })
+    monkeypatch.setattr(admin, "supabase", fake)
+    monkeypatch.setattr(admin, "_verify_bot_access", AsyncMock(return_value=("owner", ["all"])))
+
+    res = asyncio.run(admin.admin_dispatch_routing_queue("bot-1", OWNER))
+
+    assert res["unassigned_found"] == 1
+    assert res["dispatched_count"] == 1
+    assert res["results"][0]["session_id"] == "handoff"

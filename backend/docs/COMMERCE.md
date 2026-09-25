@@ -80,13 +80,8 @@ update:
 
 Metadata is merged, so stock-only events do not erase product facts. Searchable
 fields are re-embedded automatically; deletes remove the item by
-`external_id`. The webhook URL's `bot_id` scopes the lookup, while
-`external_id` is the exact, case-sensitive source-system key. It must be
-stable and unique within that bot across manual catalog items; `sku`, title,
-URL, and Chatty's internal `item_id` are not webhook identifiers. If duplicate
-IDs are found, the API rejects the event rather than updating an arbitrary
-row. Apply `20260921110000_manual_catalog_webhooks.sql` first and rotate a
-secret with `?rotate=true` if it is exposed.
+`external_id`. Apply `20260921110000_manual_catalog_webhooks.sql` first and
+rotate a secret with `?rotate=true` if it is exposed.
 
 ## WhatsApp Business
 

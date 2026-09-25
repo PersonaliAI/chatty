@@ -10,26 +10,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 2
 
-      - name: Check out public mirror
-        uses: actions/checkout@v4
-        with:
-          repository: PersonaliAI/chatty
-          ref: main
-          path: chatty-public
-
-      - name: Verify changed backend files are mirrored publicly
-        run: python scripts/verify-public-mirror.py
-        env:
-          PUBLIC_MIRROR_DIR: chatty-public
-
-      - name: Clean up public mirror checkout
-        run: rm -rf chatty-public
-
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: 'pip'
