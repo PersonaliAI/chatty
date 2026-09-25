@@ -28,9 +28,9 @@ uvicorn main:app --reload --port 8000
 ```
 
 The minimum release gate is the full backend test suite, Python compilation,
-`git diff --check`, and a smoke request to `/health` (or the deployment's
-configured health endpoint). A release must not be promoted when migrations
-are pending or secrets are detected by the repository scanner.
+`git diff --check`, and smoke requests to `/` and `/readyz`. A release must
+not be promoted when migrations are pending or secrets are detected by the
+repository scanner.
 
 ## Cloud Run release checklist
 
