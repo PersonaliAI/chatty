@@ -65,6 +65,13 @@ def _inject_flow_version(custom_js: str | None, flow: dict[str, Any]) -> str:
     return f'{base}\n/* CHATTY_FLOW_DATA\n{json.dumps(flow, indent=2)}\nCHATTY_FLOW_DATA */'.strip()
 
 
+def _bounded_int(value: Any, default: int, minimum: int, maximum: int) -> int:
+    try:
+        return max(minimum, min(int(value), maximum))
+    except (TypeError, ValueError):
+        return default
+
+
 @router.get("/api/bots/{bot_id}/flow/versions")
 async def list_dashboard_flow_versions(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     await verify_bot_permission(bot_id, user, "settings")
@@ -143,11 +150,36 @@ async def simulate_dashboard_flow(
     current = by_id.get("start") or next(iter(by_id.values()), None)
     trace = []
     started = time.perf_counter()
-    for step, user_input in enumerate(body.inputs[:50] or ["Hello"], start=1):
+    inputs = body.inputs[:50] or ["Hello"]
+    loop_counts: dict[str, int] = {}
+    for step, user_input in enumerate(inputs, start=1):
         if not current:
             break
-        trace.append({"step": step, "node_id": current.get("id"), "node_type": current.get("type"), "label": (current.get("data") or {}).get("label", ""), "input": user_input})
-        edge = next((item for item in edges if item.get("source") == current.get("id")), None)
+        node_type = str(current.get("type") or "message")
+        data = current.get("data") or {}
+        config = data.get("config") if isinstance(data.get("config"), dict) else {}
+        runtime: dict[str, Any] = {}
+        if node_type == "delay":
+            runtime = {"simulated": True, "delay_ms": _bounded_int(config.get("duration_ms"), 0, 0, 300000)}
+        elif node_type == "webhook":
+            runtime = {"simulated": True, "side_effect": "webhook_not_sent", "mapped_fields": list((config.get("mapping") or {}).keys()) if isinstance(config.get("mapping"), dict) else []}
+        elif node_type == "retry":
+            runtime = {"simulated": True, "max_attempts": _bounded_int(config.get("max_attempts"), 3, 1, 10), "timeout_ms": _bounded_int(config.get("timeout_ms"), 30000, 100, 300000)}
+        elif node_type == "loop":
+            loop_counts[current.get("id", "loop")] = loop_counts.get(current.get("id", "loop"), 0) + 1
+            runtime = {"iteration": loop_counts[current.get("id", "loop")], "max_iterations": _bounded_int(config.get("max_iterations"), 10, 1, 100)}
+        elif node_type == "condition":
+            runtime = {"evaluated_input": user_input, "expression": config.get("expression")}
+        trace.append({"step": step, "node_id": current.get("id"), "node_type": node_type, "label": data.get("label", ""), "input": user_input, "runtime": runtime})
+        outgoing = [item for item in edges if item.get("source") == current.get("id")]
+        edge = None
+        if node_type == "condition" and outgoing:
+            normalized = str(user_input).strip().lower()
+            edge = next((item for item in outgoing if str(item.get("label") or "").strip().lower() in {normalized, "true" if normalized in {"yes", "true", "1"} else "false"}), None)
+        elif node_type == "loop" and outgoing and loop_counts.get(current.get("id", "loop"), 0) >= _bounded_int(config.get("max_iterations"), 10, 1, 100):
+            edge = next((item for item in outgoing if str(item.get("label") or "").lower() in {"done", "complete", "exit"}), outgoing[-1])
+        if edge is None and outgoing:
+            edge = outgoing[0]
         current = by_id.get(str(edge.get("target"))) if edge else None
     run = await run_db(lambda: supabase.table("chatty_flow_runs").insert({
         "bot_id": bot_id,
