@@ -320,6 +320,11 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
     images = product.get("images") or []
     media_url = images[0].get("src") if images and isinstance(images, list) else ""
     thumbnail_url = media_url
+    gallery_urls = [
+        str(image.get("src")).strip()
+        for image in images[:8]
+        if isinstance(image, dict) and image.get("src")
+    ]
 
     stock_status = product.get("stock_status", "instock")
     in_stock = stock_status == "instock"
@@ -374,6 +379,7 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
         "has_variants": bool(variations),
         "attributes": product.get("attributes") or [],
         "shipping_required": product.get("virtual") is not True,
+        "gallery_urls": gallery_urls,
     }
     source_updated_at = product.get("date_modified_gmt") or product.get("date_modified") or None
     catalog_version = f"woocommerce:{wc_id}:{hashlib.sha256(json.dumps(product, sort_keys=True, default=str).encode('utf-8')).hexdigest()}"
@@ -395,8 +401,8 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
 
 async def _prepare_product_embedding(
     mapped: dict[str, Any], existing_metadata: Optional[dict[str, Any]] = None
-) -> tuple[dict[str, Any], list[float] | None]:
-    """Refresh a product embedding only when its searchable source changed."""
+) -> tuple[dict[str, Any], list[float] | None, list[float] | None]:
+    """Refresh text and gallery-image embeddings when product facts change."""
     embedding_kwargs = {
         "title": mapped["title"],
         "description": mapped["description"],
@@ -410,13 +416,32 @@ async def _prepare_product_embedding(
         or stored.get("_embedding_schema") != multimodal_service.EMBEDDING_SCHEMA_VERSION
     )
     vector = await multimodal_service.embed_catalog_item(**embedding_kwargs) if needs_reembed else None
-    status = "ready" if vector or not needs_reembed else "stale"
-    return (
-        multimodal_service.catalog_metadata_with_embedding(
-            mapped.get("metadata"), fingerprint, status=status
-        ),
-        vector if vector else None,
+    image_urls = [
+        str(url) for url in ((mapped.get("metadata") or {}).get("gallery_urls") or [mapped.get("media_url")])
+        if url and str(url).startswith(("https://", "http://"))
+    ][:multimodal_service.MAX_CATALOG_IMAGES]
+    image_fingerprint = multimodal_service.image_embedding_fingerprint(
+        image_urls, mapped.get("source_updated_at")
     )
+    needs_image_reembed = (
+        stored.get("_image_embedding_fingerprint") != image_fingerprint
+        or stored.get("_image_embedding_schema") != multimodal_service.IMAGE_EMBEDDING_SCHEMA_VERSION
+    )
+    image_vector = await multimodal_service.embed_catalog_images(image_urls) if needs_image_reembed else None
+    status = "ready" if vector or not needs_reembed else "stale"
+    updated_metadata = multimodal_service.catalog_metadata_with_embedding(
+        mapped.get("metadata"), fingerprint, status=status
+    )
+    updated_metadata.update({
+        "_image_embedding_schema": multimodal_service.IMAGE_EMBEDDING_SCHEMA_VERSION,
+        "_image_embedding_model": multimodal_service.IMAGE_EMBEDDING_MODEL,
+        "_image_embedding_fingerprint": image_fingerprint,
+        "_image_embedding_status": "ready" if image_vector else (
+            "stale" if needs_image_reembed else stored.get("_image_embedding_status", "stale")
+        ),
+        "_image_embedding_count": len(image_urls),
+    })
+    return updated_metadata, vector if vector else None, image_vector if image_vector else None
 
 
 async def _fetch_product_variations(
@@ -577,7 +602,7 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                     if existing and existing.data:
                         # Update price, stock, description, url
                         item_id = existing.data[0]["id"]
-                        updated_metadata, embedding = await _prepare_product_embedding(
+                        updated_metadata, embedding, image_embedding = await _prepare_product_embedding(
                             mapped, existing.data[0].get("metadata")
                         )
                         upd = {
@@ -599,6 +624,8 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                         }
                         if embedding is not None:
                             upd["embedding"] = embedding
+                        if image_embedding is not None:
+                            upd["image_embedding"] = image_embedding
                         await run_db(
                             lambda: supabase.table("chatty_media_items")
                             .update(upd)
@@ -734,7 +761,7 @@ async def process_webhook_payload(
 
         if existing and existing.data:
             item_id = existing.data[0]["id"]
-            updated_metadata, embedding = await _prepare_product_embedding(
+            updated_metadata, embedding, image_embedding = await _prepare_product_embedding(
                 mapped, existing.data[0].get("metadata")
             )
             upd = {
@@ -757,6 +784,8 @@ async def process_webhook_payload(
                 upd["thumbnail_url"] = mapped["thumbnail_url"]
             if embedding is not None:
                 upd["embedding"] = embedding
+            if image_embedding is not None:
+                upd["image_embedding"] = image_embedding
 
             await run_db(
                 lambda: supabase.table("chatty_media_items")

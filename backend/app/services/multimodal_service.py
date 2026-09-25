@@ -10,22 +10,33 @@ Provides:
 from __future__ import annotations
 
 import base64
+import asyncio
 import hashlib
 import json
 import logging
+import math
+import os
 import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from app.core.clients import supabase
+import httpx
+from google.genai import types
+
+from app.core.clients import genai_client, supabase
 from app.core.db import run_db
 from app.core.config import GEMINI_FALLBACK_MODELS, MODEL_NAME
+from app.core import ssrf
 from plugins import ai_client
 from plugins import memory as mem
 
 logger = logging.getLogger("chatty.multimodal")
 
 EMBEDDING_SCHEMA_VERSION = "catalog-text-v1"
+IMAGE_EMBEDDING_SCHEMA_VERSION = "catalog-image-v1"
+IMAGE_EMBEDDING_MODEL = os.environ.get("KIN_IMAGE_EMBED_MODEL", "gemini-embedding-2")
+MAX_CATALOG_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_CATALOG_IMAGES = 8
 MAX_CATALOG_RESULTS = 20
 FALLBACK_MIN_SCORE = 0.3
 _PRODUCT_CARD_RE = re.compile(r"\[PRODUCT_CARD:(\{.*?\})\]", re.DOTALL)
@@ -118,11 +129,73 @@ async def embed_multimodal_text(text: str) -> list[float]:
         return []
 
 
+async def embed_image_bytes(image_bytes: bytes, mime_type: str = "image/jpeg") -> list[float]:
+    """Embed an image in Gemini's shared text/image embedding space."""
+    if not image_bytes or not mime_type.lower().startswith("image/"):
+        return []
+    if len(image_bytes) > MAX_CATALOG_IMAGE_BYTES:
+        logger.warning("Skipping image embedding over %d bytes", MAX_CATALOG_IMAGE_BYTES)
+        return []
+
+    def _embed() -> list[float]:
+        result = genai_client.models.embed_content(
+            model=IMAGE_EMBEDDING_MODEL,
+            contents=[types.Part.from_bytes(data=image_bytes, mime_type=mime_type)],
+            config=types.EmbedContentConfig(output_dimensionality=mem.EMBED_DIMENSIONS),
+        )
+        embeddings = getattr(result, "embeddings", None) or []
+        values = getattr(embeddings[0], "values", None) if embeddings else None
+        if not values and embeddings and isinstance(embeddings[0], dict):
+            values = embeddings[0].get("values")
+        if not values:
+            return []
+        return mem._fit_embedding_dimensions(list(values))
+
+    try:
+        return await asyncio.to_thread(_embed)
+    except Exception as exc:
+        logger.warning("Failed to embed catalog image with %s: %s", IMAGE_EMBEDDING_MODEL, exc)
+        return []
+
+
+async def embed_catalog_images(image_urls: list[str]) -> list[float]:
+    """Fetch and aggregate bounded gallery-image embeddings for one catalog item."""
+    urls = [str(url).strip() for url in image_urls if str(url).strip()][:MAX_CATALOG_IMAGES]
+    if not urls:
+        return []
+    vectors: list[list[float]] = []
+    timeout = httpx.Timeout(8.0, connect=3.0)
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+        for url in urls:
+            try:
+                response = await ssrf.request_async(client, "GET", url)
+                if response.status_code != 200 or len(response.content) > MAX_CATALOG_IMAGE_BYTES:
+                    continue
+                mime_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                if not mime_type.startswith("image/"):
+                    continue
+                vector = await embed_image_bytes(response.content, mime_type)
+                if vector:
+                    vectors.append(vector)
+            except Exception as exc:
+                logger.info("Catalog image embedding unavailable for %s: %s", url, exc)
+    if not vectors:
+        return []
+    mean = [sum(vector[index] for vector in vectors) / len(vectors) for index in range(len(vectors[0]))]
+    norm = math.sqrt(sum(value * value for value in mean))
+    return [value / norm for value in mean] if norm else mean
+
+
+def image_embedding_fingerprint(image_urls: list[str], source_updated_at: Optional[str] = None) -> str:
+    payload = json.dumps({"urls": image_urls[:MAX_CATALOG_IMAGES], "updated": source_updated_at}, sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def _catalog_source_metadata(metadata: Optional[dict[str, Any]]) -> dict[str, Any]:
     return {
         str(key): value
         for key, value in (metadata or {}).items()
-        if not str(key).startswith("_embedding_")
+        if not str(key).startswith(("_embedding_", "_image_embedding_"))
     }
 
 
@@ -230,7 +303,9 @@ async def search_multimodal_catalog(
     visual_attrs: dict[str, Any] = {}
     search_keywords = (query_text or "").strip()
 
+    image_vector: list[float] = []
     if image_bytes and mime_type and mime_type.startswith("image/"):
+        image_vector = await embed_image_bytes(image_bytes, mime_type)
         visual_attrs = await analyze_visual_query(image_bytes, mime_type, query_text)
         extracted_query = visual_attrs.get("search_query") or ""
         if extracted_query:
@@ -245,18 +320,21 @@ async def search_multimodal_catalog(
     results: list[dict[str, Any]] = []
 
     # 2. Try Vector Search via RPC match_media_items
-    if query_vector:
+    if query_vector or image_vector:
         try:
+            rpc_name = "match_media_items_multimodal" if image_vector else "match_media_items"
             rpc_params: dict[str, Any] = {
-                "query_embedding": query_vector,
+                "query_embedding": query_vector or None,
                 "match_bot_id": bot_id,
                 "match_threshold": match_threshold,
                 "match_count": top_k,
             }
+            if image_vector:
+                rpc_params["query_image_embedding"] = image_vector
             if media_type:
                 rpc_params["filter_media_type"] = media_type
 
-            res = await run_db(lambda: supabase.rpc("match_media_items", rpc_params).execute())
+            res = await run_db(lambda: supabase.rpc(rpc_name, rpc_params).execute())
             if res and res.data:
                 results = [
                     item for item in res.data
@@ -521,9 +599,22 @@ async def ingest_media_item(
     }
     fingerprint = catalog_embedding_fingerprint(**embedding_kwargs)
     vector = await embed_catalog_item(**embedding_kwargs)
+    image_urls = [
+        str(url) for url in ((metadata or {}).get("gallery_urls") or [media_url, thumbnail_url])
+        if url and str(url).startswith(("https://", "http://"))
+    ][:MAX_CATALOG_IMAGES]
+    image_vector = await embed_catalog_images(image_urls)
+    image_fingerprint = image_embedding_fingerprint(image_urls, source_updated_at)
     metadata_with_embedding = catalog_metadata_with_embedding(
         metadata, fingerprint, status="ready" if vector else "stale"
     )
+    metadata_with_embedding.update({
+        "_image_embedding_schema": IMAGE_EMBEDDING_SCHEMA_VERSION,
+        "_image_embedding_model": IMAGE_EMBEDDING_MODEL,
+        "_image_embedding_fingerprint": image_fingerprint,
+        "_image_embedding_status": "ready" if image_vector else "stale",
+        "_image_embedding_count": len(image_urls),
+    })
 
     row = {
         "bot_id": bot_id,
@@ -542,6 +633,7 @@ async def ingest_media_item(
         "visual_attributes": visual_attributes or {},
         "metadata": metadata_with_embedding,
         "embedding": vector if vector else None,
+        "image_embedding": image_vector if image_vector else None,
         "source_updated_at": source_updated_at,
         "synced_at": datetime.now(timezone.utc).isoformat(),
         "catalog_version": catalog_version,
