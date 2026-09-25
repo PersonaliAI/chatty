@@ -19,11 +19,13 @@ async def test_widget_live_reconnects_after_transient_supabase_disconnect(monkey
     async def no_sleep(_seconds):
         return None
 
-    # One clock read for the deadline, one for the first loop, and one after
-    # the retry to terminate the bounded stream deterministically.
+    # The generator may read the clock an implementation-dependent number of
+    # times while unwinding an async retry. Once the deadline is reached, keep
+    # returning a terminal value instead of making the test depend on an exact
+    # number of ``time.time`` calls (which differs across Python versions).
     clock = iter((0.0, 0.0, 241.0))
     monkeypatch.setattr(widget_router, "run_db", fail_db)
-    monkeypatch.setattr(widget_router.time, "time", lambda: next(clock))
+    monkeypatch.setattr(widget_router.time, "time", lambda: next(clock, 241.0))
     monkeypatch.setattr(widget_router.asyncio, "sleep", no_sleep)
 
     response = await widget_router.widget_live(bot_id="bot-1", session_id="session-1")
