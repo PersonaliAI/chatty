@@ -130,6 +130,11 @@ class CampaignUpdateRequest(BaseModel):
     is_active: Optional[bool] = None
 
 
+class CampaignSuggestRequest(BaseModel):
+    goal: str = Field(..., min_length=3, max_length=500)
+    audience: Optional[str] = Field(None, max_length=500)
+
+
 class VoiceAgentConfigRequest(BaseModel):
     # Matches app/routers/bots.py's real voice-settings columns exactly -
     # the earlier version of this schema (tts_provider/voice_id/

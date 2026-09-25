@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Megaphone } from "lucide-react";
+import { Plus, Trash2, Megaphone, Sparkles } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 
 interface TriggerRule {
@@ -25,6 +25,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [type, setType] = useState<"time" | "scroll" | "exit" | "url">("time");
   const [value, setValue] = useState("");
   const [message, setMessage] = useState("");
+  const [goal, setGoal] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
 
   const typeOptions: ModernSelectOption[] = [
     { value: "time", label: "Time on page (Seconds)" },
@@ -103,6 +105,29 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       .finally(() => setSaving(false));
   };
 
+  const suggestCampaign = () => {
+    if (!botId || !goal.trim()) return;
+    setSuggesting(true);
+    setError(null);
+    fetchBackend(`/api/bots/${botId}/campaigns/suggest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: goal.trim() }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("AI campaign suggestion failed");
+      const suggestion = await response.json() as {
+        message_content?: string; trigger_type?: string; trigger_value?: number;
+      };
+      const suggestedType = suggestion.trigger_type === "scroll_percentage" ? "scroll"
+        : suggestion.trigger_type === "exit_intent" ? "exit"
+        : suggestion.trigger_type === "url_match" ? "url" : "time";
+      setType(suggestedType);
+      setValue(suggestedType === "exit" ? "" : String(suggestion.trigger_value ?? 5));
+      setMessage(String(suggestion.message_content ?? ""));
+    }).catch((suggestionError: unknown) => setError(suggestionError instanceof Error ? suggestionError.message : "AI suggestion failed."))
+      .finally(() => setSuggesting(false));
+  };
+
   const deleteRule = (id: string) => {
     if (!botId) return;
     setSaving(true);
@@ -133,6 +158,11 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         {/* Creator form */}
         <div className="md:col-span-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4 h-fit">
           <h5 className="text-xs font-bold text-neutral-850">Create Campaign Rule</h5>
+          <div className="rounded-xl border border-orange-100 bg-orange-50/70 p-3 space-y-2 dark:border-orange-900/40 dark:bg-orange-950/20">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-orange-800 dark:text-orange-200"><Sparkles className="size-3.5" /> AI campaign copilot</div>
+            <input value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="Goal, e.g. convert pricing visitors" className="w-full rounded-lg border border-orange-200 bg-white px-2.5 py-1.5 text-xs focus:outline-none dark:border-orange-900 dark:bg-neutral-950" />
+            <button type="button" onClick={suggestCampaign} disabled={!goal.trim() || suggesting} className="w-full rounded-lg border border-orange-200 px-3 py-1.5 text-[11px] font-semibold text-orange-700 disabled:opacity-50 dark:border-orange-900 dark:text-orange-200">{suggesting ? "Thinking…" : "Suggest campaign"}</button>
+          </div>
           
           <div className="space-y-3">
             <div className="space-y-1">

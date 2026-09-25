@@ -22,7 +22,7 @@ from app.schemas.bots import (
     GenerateBusinessRequest,
     VoiceSettingsUpdate,
 )
-from app.schemas.bots_api import CampaignCreateRequest, CampaignUpdateRequest
+from app.schemas.bots_api import CampaignCreateRequest, CampaignSuggestRequest, CampaignUpdateRequest
 from plugins import ai_client
 from plugins import llm_providers
 from plugins import notifications as notify
@@ -73,6 +73,56 @@ async def create_dashboard_campaign(
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create campaign")
     return result.data[0]
+
+
+@router.post("/api/bots/{bot_id}/campaigns/suggest")
+async def suggest_dashboard_campaign(
+    bot_id: str,
+    body: CampaignSuggestRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Generate a validated campaign draft; saving remains an explicit action."""
+    await verify_bot_permission(bot_id, user, "settings")
+    prompt = (
+        "Design one high-converting website campaign for an AI support widget. "
+        "Return ONLY JSON with keys name, campaign_type, message_content, trigger_type, "
+        "trigger_value, url_patterns. campaign_type must be chat_bubble, popup_modal, "
+        "top_banner, or slide_in. trigger_type must be time_on_page, scroll_percentage, "
+        "exit_intent, or url_match. Keep the message under 180 characters.\n"
+        f"Business goal: {body.goal}\nAudience: {body.audience or 'website visitors'}"
+    )
+    try:
+        response = await ai_client.chat(
+            model=ai_client.resolve_gemini_model(MODEL_NAME),
+            messages=[{"role": "user", "content": prompt}],
+            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+            temperature=0.4,
+            max_tokens=512,
+            bot_id=bot_id,
+            call_type="campaign_suggest",
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[1].strip()
+            raw = raw[4:].strip() if raw.lower().startswith("json") else raw
+        data = json.loads(raw)
+        trigger_type = str(data.get("trigger_type") or "time_on_page")
+        if trigger_type not in {"time_on_page", "scroll_percentage", "exit_intent", "url_match"}:
+            trigger_type = "time_on_page"
+        campaign_type = str(data.get("campaign_type") or "chat_bubble")
+        if campaign_type not in {"chat_bubble", "popup_modal", "top_banner", "slide_in"}:
+            campaign_type = "chat_bubble"
+        return {
+            "name": str(data.get("name") or "AI campaign")[:255],
+            "campaign_type": campaign_type,
+            "message_content": str(data.get("message_content") or "How can we help?")[:180],
+            "trigger_type": trigger_type,
+            "trigger_value": max(0, min(int(data.get("trigger_value") or 5), 3600)),
+            "url_patterns": data.get("url_patterns") if isinstance(data.get("url_patterns"), list) else ["*"],
+        }
+    except Exception as exc:
+        logger.exception("campaign suggestion failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not generate campaign suggestion") from exc
 
 
 @router.patch("/api/bots/{bot_id}/campaigns/{campaign_id}")
