@@ -516,6 +516,44 @@ async def _send_whatsapp(
     )
 
 
+_PRODUCT_CARD_RE = re.compile(r"\[PRODUCT_CARD:(\{.*?\})\]", re.DOTALL)
+
+
+def _render_whatsapp_product_cards(reply: str) -> str:
+    """Turn structured product cards into useful WhatsApp text messages."""
+    def replace(match: re.Match[str]) -> str:
+        try:
+            card = json.loads(match.group(1))
+        except (TypeError, json.JSONDecodeError):
+            return ""
+        if not isinstance(card, dict) or not str(card.get("title") or "").strip():
+            return ""
+
+        def clean(value: object, limit: int = 240) -> str:
+            return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
+
+        title = clean(card.get("title"))
+        currency = clean(card.get("currency") or "USD", 12)
+        price = clean(card.get("price"), 40)
+        variant = clean(card.get("variant_sku") or card.get("variant_id"), 80)
+        in_stock = card.get("in_stock")
+        if in_stock is None:
+            in_stock = str(card.get("stock_status") or "instock").lower() == "instock"
+        lines = [f"🛍️ *{title}*"]
+        if variant:
+            lines.append(f"Variant: {variant}")
+        if price:
+            lines.append(f"Price: {currency} {price}")
+        lines.append("✅ In stock" if bool(in_stock) else "❌ Out of stock")
+        url = clean(card.get("url"), 500)
+        if re.match(r"^https://", url, re.IGNORECASE):
+            lines.append(f"🔗 {url}")
+        return "\n".join(lines)
+
+    rendered = _PRODUCT_CARD_RE.sub(replace, reply or "")
+    return rendered.strip()
+
+
 async def _handle_whatsapp_message(
     phone_number_id: str,
     frm: str,
@@ -622,6 +660,8 @@ async def _handle_whatsapp_message(
     else:
         # Strip booking marker if leftover
         reply = reply.replace(booking_marker, "").strip()
+
+    reply = _render_whatsapp_product_cards(reply)
 
     # Save AI reply
     try:

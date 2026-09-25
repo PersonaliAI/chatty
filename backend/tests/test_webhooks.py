@@ -213,6 +213,29 @@ def test_verify_meta_signature_rejects_wrong_secret():
     assert webhooks._verify_meta_signature(payload, expected_sig, "secret_b") is False
 
 
+def test_whatsapp_product_card_is_rendered_as_text():
+    reply = (
+        'Found it! [PRODUCT_CARD:{"title":"Trail shoe","variant_id":"4201",'
+        '"variant_sku":"TRAIL-42-BLK","price":"99.00","currency":"USD",'
+        '"url":"https://shop.example/trail?variation_id=4201","in_stock":true}]'
+    )
+    rendered = webhooks._render_whatsapp_product_cards(reply)
+    assert "PRODUCT_CARD" not in rendered
+    assert "Trail shoe" in rendered
+    assert "TRAIL-42-BLK" in rendered
+    assert "USD 99.00" in rendered
+    assert "https://shop.example/trail?variation_id=4201" in rendered
+
+
+def test_whatsapp_product_card_does_not_emit_untrusted_link():
+    rendered = webhooks._render_whatsapp_product_cards(
+        '[PRODUCT_CARD:{"title":"Item","url":"javascript:alert(1)","in_stock":false}]'
+    )
+    assert "Item" in rendered
+    assert "javascript:" not in rendered
+    assert "Out of stock" in rendered
+
+
 def test_whatsapp_media_boundary_checks():
     assert webhooks._is_allowed_whatsapp_media_url("https://lookaside.fbsbx.com/media") is True
     assert webhooks._is_allowed_whatsapp_media_url("https://attacker.example/media") is False
