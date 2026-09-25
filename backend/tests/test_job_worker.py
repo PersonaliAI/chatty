@@ -206,3 +206,29 @@ def test_worker_backs_off_before_requeueing_busy_concurrency_job(monkeypatch):
     assert stats["retried"] == 1
     assert delays == [2]
     assert client.published[0][1]["attempts"] == "0"
+
+
+def test_worker_requeues_when_idempotency_key_is_already_processing(monkeypatch):
+    client = FakeRedis([("1-0", {
+        "name": "ok", "payload": "{}", "idempotency_key": "event-processing",
+    })])
+    delays = []
+
+    async def no_sleep(seconds):
+        delays.append(seconds)
+
+    monkeypatch.setattr(job_worker.asyncio, "sleep", no_sleep)
+
+    class BusyWorker(RedisStreamWorker):
+        async def _acquire_idempotency_lock(self, job):
+            raise job_worker.JobIdempotencyBusy("event-processing")
+
+    worker = BusyWorker(
+        client, concurrency_busy_retry_delay_seconds=2,
+        retry_backoff_cap_seconds=3, handlers={"ok": lambda _: None},
+    )
+    stats = asyncio.run(worker.run_once())
+
+    assert stats["retried"] == 1
+    assert delays == [2]
+    assert client.acked == [("chatty:jobs", "chatty-workers", "1-0")]

@@ -18,6 +18,10 @@ logger = logging.getLogger("chatty.job_worker")
 class JobConcurrencyBusy(RuntimeError):
     """Raised when a distributed job lock is held by another worker."""
 
+
+class JobIdempotencyBusy(RuntimeError):
+    """Raised when another worker is already executing the same job key."""
+
 JobHandler = Callable[[Mapping[str, Any]], Any | Awaitable[Any]]
 
 
@@ -52,6 +56,7 @@ class RedisStreamWorker:
         retry_backoff_base_seconds: float = 0.0,
         retry_backoff_cap_seconds: float = 30.0,
         dedupe_ttl_seconds: int = 7 * 24 * 60 * 60,
+        idempotency_lock_ttl_seconds: int = 60 * 60,
         concurrency_lock_ttl_seconds: int = 60 * 60,
         concurrency_lock_wait_seconds: float = 5.0,
         concurrency_busy_retry_delay_seconds: float = 1.0,
@@ -69,6 +74,8 @@ class RedisStreamWorker:
             raise ValueError("retry_backoff_cap_seconds must not be below the base")
         if dedupe_ttl_seconds < 1:
             raise ValueError("dedupe_ttl_seconds must be positive")
+        if idempotency_lock_ttl_seconds < 1:
+            raise ValueError("idempotency_lock_ttl_seconds must be positive")
         if concurrency_lock_ttl_seconds < 1 or concurrency_lock_wait_seconds < 0 or concurrency_busy_retry_delay_seconds < 0:
             raise ValueError("invalid concurrency lock settings")
         self.client = client
@@ -82,6 +89,7 @@ class RedisStreamWorker:
         self.retry_backoff_base_seconds = retry_backoff_base_seconds
         self.retry_backoff_cap_seconds = retry_backoff_cap_seconds
         self.dedupe_ttl_seconds = dedupe_ttl_seconds
+        self.idempotency_lock_ttl_seconds = idempotency_lock_ttl_seconds
         self.concurrency_lock_ttl_seconds = concurrency_lock_ttl_seconds
         self.concurrency_lock_wait_seconds = concurrency_lock_wait_seconds
         self.concurrency_busy_retry_delay_seconds = concurrency_busy_retry_delay_seconds
@@ -104,6 +112,25 @@ class RedisStreamWorker:
         if not callable(setter):
             return
         await setter(self._dedupe_key(job), "1", ex=self.dedupe_ttl_seconds)
+
+    def _processing_lock_key(self, job: JobEnvelope) -> str:
+        digest = hashlib.sha256(
+            f"{job.name}:{job.idempotency_key}".encode("utf-8")
+        ).hexdigest()
+        return f"chatty:jobs:processing:{digest}"
+
+    async def _acquire_idempotency_lock(self, job: JobEnvelope) -> tuple[str, str] | None:
+        setter = getattr(self.client, "set", None)
+        if not callable(setter):
+            return None
+        lock_key = self._processing_lock_key(job)
+        token = uuid.uuid4().hex
+        acquired = await setter(
+            lock_key, token, nx=True, ex=self.idempotency_lock_ttl_seconds
+        )
+        if not acquired:
+            raise JobIdempotencyBusy(job.idempotency_key)
+        return lock_key, token
 
     @staticmethod
     def _concurrency_lock_key(concurrency_key: str) -> str:
@@ -132,6 +159,9 @@ class RedisStreamWorker:
             await asyncio.sleep(0.25)
 
     async def _release_concurrency_lock(self, lock: tuple[str, str] | None) -> None:
+        await self._release_token_lock(lock)
+
+    async def _release_token_lock(self, lock: tuple[str, str] | None) -> None:
         if not lock:
             return
         lock_key, token = lock
@@ -231,16 +261,20 @@ class RedisStreamWorker:
                         await self.client.xack(self.stream, self.group, stream_id)
                         stats["succeeded"] += 1
                         continue
-                    lock = await self._acquire_concurrency_lock(job)
+                    processing_lock = await self._acquire_idempotency_lock(job)
                     try:
-                        result = handler(job.payload)
-                        if inspect.isawaitable(result):
-                            await result
-                        await self._mark_succeeded(job)
-                        await self.client.xack(self.stream, self.group, stream_id)
-                        stats["succeeded"] += 1
+                        lock = await self._acquire_concurrency_lock(job)
+                        try:
+                            result = handler(job.payload)
+                            if inspect.isawaitable(result):
+                                await result
+                            await self._mark_succeeded(job)
+                            await self.client.xack(self.stream, self.group, stream_id)
+                            stats["succeeded"] += 1
+                        finally:
+                            await self._release_concurrency_lock(lock)
                     finally:
-                        await self._release_concurrency_lock(lock)
+                        await self._release_token_lock(processing_lock)
                 except Exception as exc:  # noqa: BLE001 - worker isolation boundary
                     try:
                         job = self._decode(stream_id, fields)
@@ -268,7 +302,7 @@ class RedisStreamWorker:
                         stats["dead_lettered"] += 1
                         continue
                     try:
-                        if isinstance(exc, JobConcurrencyBusy):
+                        if isinstance(exc, (JobConcurrencyBusy, JobIdempotencyBusy)):
                             busy_delay = min(
                                 self.retry_backoff_cap_seconds,
                                 self.concurrency_busy_retry_delay_seconds * (2 ** job.attempts),
