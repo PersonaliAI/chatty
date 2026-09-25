@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -135,6 +136,25 @@ async def _enqueue_widget_unanswered(
         raise HTTPException(status_code=503, detail="Durable job queue is required for unanswered-question logging")
     return "background"
 
+
+async def _schedule_widget_webhook(
+    background_tasks: BackgroundTasks,
+    *, bot_id: str, event: str, session_id: str, data: dict[str, Any],
+) -> str:
+    """Publish webhook fan-out durably before returning the chat response."""
+    if not _widget_job_queue:
+        background_tasks.add_task(
+            notify.enqueue_webhook_event, supabase, bot_id=bot_id, event=event,
+            session_id=session_id, data=data,
+        )
+        return "background"
+    await _widget_job_queue.enqueue(
+        name="webhook.fanout",
+        payload={"bot_id": bot_id, "event": event, "session_id": session_id, "data": data},
+        idempotency_key=f"webhook.fanout:{uuid.uuid4().hex}",
+    )
+    return "queued"
+
 _ALLOWED_MEDIA_PREFIXES = ("image/", "audio/", "application/pdf", "text/")
 _MEDIA_MAX_BYTES = 20 * 1024 * 1024  # 20MB
 _TRANSCRIBE_MAX_BYTES = 10 * 1024 * 1024  # 10MB - voice notes, not full files
@@ -213,8 +233,8 @@ async def widget_chat(
     session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
     if is_new:
         await _notify_new_conversation(bot, owner_user, text, session_id)
-        background_tasks.add_task(
-            notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="session.started",
+        await _schedule_widget_webhook(
+            background_tasks, bot_id=bot_id, event="session.started",
             session_id=session_id, data={"first_message": text[:500]},
         )
 
@@ -276,9 +296,9 @@ async def widget_chat(
         }).execute())
     except Exception:
         logger.exception("Failed to save user conversation message")
-    background_tasks.add_task(
-        notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="message.user",
-        session_id=session_id, data={"content": text, "visitor_name": visitor_name, "visitor_email": visitor_email, "offline_ticket": body.offline_ticket},
+    await _schedule_widget_webhook(
+        background_tasks, bot_id=bot_id, event="message.user", session_id=session_id,
+        data={"content": text, "visitor_name": visitor_name, "visitor_email": visitor_email, "offline_ticket": body.offline_ticket},
     )
 
     if body.offline_ticket:
@@ -333,8 +353,8 @@ async def widget_chat(
         }).execute())
     except Exception:
         logger.exception("Failed to save assistant conversation message")
-    background_tasks.add_task(
-        notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="message.assistant",
+    await _schedule_widget_webhook(
+        background_tasks, bot_id=bot_id, event="message.assistant",
         session_id=session_id, data={"content": reply},
     )
 
@@ -388,8 +408,8 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
     if is_new:
         await _notify_new_conversation(bot, owner_user, text, session_id)
-        background_tasks.add_task(
-            notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="session.started",
+        await _schedule_widget_webhook(
+            background_tasks, bot_id=bot_id, event="session.started",
             session_id=session_id, data={"first_message": text[:500]},
         )
 
@@ -447,9 +467,9 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         }).execute())
     except Exception:
         logger.exception("Failed to save user conversation message")
-    background_tasks.add_task(
-        notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="message.user",
-        session_id=session_id, data={"content": text, "visitor_name": visitor_name, "visitor_email": visitor_email, "offline_ticket": body.offline_ticket},
+    await _schedule_widget_webhook(
+        background_tasks, bot_id=bot_id, event="message.user", session_id=session_id,
+        data={"content": text, "visitor_name": visitor_name, "visitor_email": visitor_email, "offline_ticket": body.offline_ticket},
     )
 
     def _sse(obj: dict) -> str:
@@ -519,8 +539,8 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 }).execute())
             except Exception:
                 logger.exception("Failed to save assistant conversation message")
-            await notify.enqueue_webhook_event(
-                supabase, bot_id=bot_id, event="message.assistant",
+            await _schedule_widget_webhook(
+                background_tasks, bot_id=bot_id, event="message.assistant",
                 session_id=session_id, data={"content": reply},
             )
             unanswered_mode = await _enqueue_widget_unanswered(
@@ -543,9 +563,9 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                         "bot_id": bot_id, "session_id": session_id, "role": "assistant",
                         "content": _AI_UNAVAILABLE_REPLY, "sender": "ai",
                     }).execute())
-                    background_tasks.add_task(
-                        notify.enqueue_webhook_event, supabase, bot_id=bot_id,
-                        event="message.assistant", session_id=session_id,
+                    await _schedule_widget_webhook(
+                        background_tasks, bot_id=bot_id, event="message.assistant",
+                        session_id=session_id,
                         data={"content": _AI_UNAVAILABLE_REPLY, "degraded": True},
                     )
                 except Exception:
@@ -744,8 +764,8 @@ async def widget_chat_media(
             user_msg_id = ins_user.data[0].get("id")
     except Exception:
         logger.exception("Failed to save media message")
-    background_tasks.add_task(
-        notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="message.user",
+    await _schedule_widget_webhook(
+        background_tasks, bot_id=bot_id, event="message.user",
         session_id=session_id, data={"content": display},
     )
 
@@ -779,8 +799,8 @@ async def widget_chat_media(
         }).execute())
     except Exception:
         logger.exception("Failed to save assistant reply")
-    background_tasks.add_task(
-        notify.enqueue_webhook_event, supabase, bot_id=bot_id, event="message.assistant",
+    await _schedule_widget_webhook(
+        background_tasks, bot_id=bot_id, event="message.assistant",
         session_id=session_id, data={"content": reply},
     )
 

@@ -90,3 +90,36 @@ def test_widget_unanswered_worker_runs_sync_logger_off_loop():
     with patch("app.services.widget_session_service.log_unanswered_if_needed") as logger_fn:
         asyncio.run(process_unanswered(payload))
     logger_fn.assert_called_once_with("bot-1", "session-1", "Where is it?", "I don't know that information.")
+
+
+def test_widget_webhook_is_published_to_durable_queue(monkeypatch):
+    class FakeQueue:
+        def __init__(self):
+            self.calls = []
+
+        async def enqueue(self, **kwargs):
+            self.calls.append(kwargs)
+            return "1-0"
+
+    queue = FakeQueue()
+    monkeypatch.setattr(widget, "_widget_job_queue", queue)
+    mode = asyncio.run(widget._schedule_widget_webhook(
+        widget.BackgroundTasks(), bot_id="bot-1", event="message.user",
+        session_id="session-1", data={"content": "hello"},
+    ))
+    assert mode == "queued"
+    assert queue.calls[0]["name"] == "webhook.fanout"
+    assert queue.calls[0]["payload"]["event"] == "message.user"
+
+
+def test_widget_webhook_worker_fans_out_event():
+    payload = {
+        "bot_id": "bot-1", "event": "message.user", "session_id": "session-1",
+        "data": {"content": "hello"},
+    }
+    with patch("plugins.notifications.enqueue_webhook_event", new_callable=AsyncMock) as fanout:
+        from app.workers.webhook_worker import _fanout_webhook
+        asyncio.run(_fanout_webhook(payload))
+    fanout.assert_awaited_once()
+    assert fanout.await_args.kwargs["bot_id"] == "bot-1"
+    assert fanout.await_args.kwargs["event"] == "message.user"

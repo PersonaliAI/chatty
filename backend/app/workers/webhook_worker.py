@@ -27,6 +27,24 @@ async def _deliver(payload: dict) -> None:
         raise RuntimeError(error or "webhook delivery failed")
 
 
+async def _fanout_webhook(payload: dict) -> None:
+    """Expand one widget event into durable per-subscription deliveries."""
+    from plugins.notifications import enqueue_webhook_event
+    from app.core.clients import supabase
+
+    bot_id = str(payload.get("bot_id") or "").strip()
+    event = str(payload.get("event") or "").strip()
+    if not bot_id or not event:
+        raise ValueError("webhook fan-out job is missing bot_id or event")
+    await enqueue_webhook_event(
+        supabase,
+        bot_id=bot_id,
+        event=event,
+        session_id=str(payload.get("session_id") or ""),
+        data=payload.get("data") if isinstance(payload.get("data"), dict) else {},
+    )
+
+
 async def _sync_woocommerce(payload: dict) -> None:
     bot_id = str(payload.get("bot_id") or "").strip()
     if not bot_id:
@@ -131,6 +149,7 @@ async def run() -> None:
         concurrency_lock_wait_seconds=concurrency_lock_wait_seconds,
         handlers={
             "webhook.deliver": _deliver,
+            "webhook.fanout": _fanout_webhook,
             "woocommerce.sync": _sync_woocommerce,
             "email.ticket_reply": _send_ticket_reply_email,
             "email.ticket_escalation": _process_email_ticket_escalation,

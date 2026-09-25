@@ -70,7 +70,7 @@ CHATTY_JOB_QUEUE_URL=redis://redis:6379/0 python -m app.workers.webhook_worker
 ```
 
 The built-in worker handles `webhook.deliver`, `woocommerce.sync`,
-`email.ticket_reply`, `email.ticket_escalation`, `widget.ticket_escalation`, `widget.unanswered`, `whatsapp.message`, `documents.index_folder`, and
+`webhook.fanout`, `email.ticket_reply`, `email.ticket_escalation`, `widget.ticket_escalation`, `widget.unanswered`, `whatsapp.message`, `documents.index_folder`, and
 `documents.index_file`, `crawl.pages`, and `crawl.scheduled`. Human replies,
 WhatsApp messages, document indexing, and website crawling therefore remain
 recoverable across API restarts when the durable queue is configured; channel,
