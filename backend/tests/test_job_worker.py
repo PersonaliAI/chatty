@@ -11,6 +11,7 @@ class FakeRedis:
         self.published = []
         self.acked = []
         self.groups = []
+        self.done = {}
 
     async def xgroup_create(self, **kwargs):
         self.groups.append(kwargs)
@@ -25,6 +26,12 @@ class FakeRedis:
     async def xadd(self, stream, fields, **kwargs):
         self.published.append((stream, fields, kwargs))
         return "2-0"
+
+    async def get(self, key):
+        return self.done.get(key)
+
+    async def set(self, key, value, **kwargs):
+        self.done[key] = value
 
 
 class RecoveringFakeRedis(FakeRedis):
@@ -54,6 +61,26 @@ def test_worker_acknowledges_only_successful_handlers():
     assert seen == [{"id": "1"}]
     assert client.acked == [("chatty:jobs", "chatty-workers", "1-0")]
     assert client.published == []
+
+
+def test_worker_skips_a_successful_redelivery_using_idempotency_marker():
+    client = FakeRedis([("1-0", {
+        "name": "ok",
+        "payload": json.dumps({"id": "1"}),
+        "idempotency_key": "event-1",
+    })])
+    seen = []
+    worker = RedisStreamWorker(client, handlers={"ok": lambda payload: seen.append(payload)})
+    first = asyncio.run(worker.run_once())
+    client.messages = [("2-0", {
+        "name": "ok",
+        "payload": json.dumps({"id": "1"}),
+        "idempotency_key": "event-1",
+    })]
+    second = asyncio.run(worker.run_once())
+    assert first["succeeded"] == 1
+    assert second["succeeded"] == 1
+    assert seen == [{"id": "1"}]
 
 
 def test_worker_retries_then_dead_letters_poison_job():

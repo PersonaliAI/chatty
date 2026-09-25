@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import json
 import logging
@@ -44,6 +45,7 @@ class RedisStreamWorker:
         recover_count: int = 10,
         retry_backoff_base_seconds: float = 0.0,
         retry_backoff_cap_seconds: float = 30.0,
+        dedupe_ttl_seconds: int = 7 * 24 * 60 * 60,
         handlers: Mapping[str, JobHandler] | None = None,
     ) -> None:
         if max_attempts < 1:
@@ -56,6 +58,8 @@ class RedisStreamWorker:
             raise ValueError("retry backoff values must be non-negative")
         if retry_backoff_cap_seconds < retry_backoff_base_seconds:
             raise ValueError("retry_backoff_cap_seconds must not be below the base")
+        if dedupe_ttl_seconds < 1:
+            raise ValueError("dedupe_ttl_seconds must be positive")
         self.client = client
         self.stream = stream
         self.group = group
@@ -66,7 +70,26 @@ class RedisStreamWorker:
         self.recover_count = recover_count
         self.retry_backoff_base_seconds = retry_backoff_base_seconds
         self.retry_backoff_cap_seconds = retry_backoff_cap_seconds
+        self.dedupe_ttl_seconds = dedupe_ttl_seconds
         self.handlers = dict(handlers or {})
+
+    def _dedupe_key(self, job: JobEnvelope) -> str:
+        digest = hashlib.sha256(
+            f"{job.name}:{job.idempotency_key}".encode("utf-8")
+        ).hexdigest()
+        return f"chatty:jobs:done:{digest}"
+
+    async def _already_succeeded(self, job: JobEnvelope) -> bool:
+        getter = getattr(self.client, "get", None)
+        if not callable(getter):
+            return False
+        return bool(await getter(self._dedupe_key(job)))
+
+    async def _mark_succeeded(self, job: JobEnvelope) -> None:
+        setter = getattr(self.client, "set", None)
+        if not callable(setter):
+            return
+        await setter(self._dedupe_key(job), "1", ex=self.dedupe_ttl_seconds)
 
     async def ensure_group(self) -> None:
         try:
@@ -146,9 +169,14 @@ class RedisStreamWorker:
                     handler = self.handlers.get(job.name)
                     if handler is None:
                         raise ValueError(f"no handler registered for {job.name}")
+                    if await self._already_succeeded(job):
+                        await self.client.xack(self.stream, self.group, stream_id)
+                        stats["succeeded"] += 1
+                        continue
                     result = handler(job.payload)
                     if inspect.isawaitable(result):
                         await result
+                    await self._mark_succeeded(job)
                     await self.client.xack(self.stream, self.group, stream_id)
                     stats["succeeded"] += 1
                 except Exception as exc:  # noqa: BLE001 - worker isolation boundary
