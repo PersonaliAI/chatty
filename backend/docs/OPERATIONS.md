@@ -81,6 +81,9 @@ consumer name from the host and process ID, and supports `CHATTY_WORKER_GROUP`,
 `CHATTY_WORKER_MAX_ATTEMPTS`, `CHATTY_WORKER_PENDING_IDLE_MS`,
 `CHATTY_WORKER_RECOVER_COUNT`, `CHATTY_WORKER_RETRY_BACKOFF_BASE_SECONDS`,
 `CHATTY_WORKER_RETRY_BACKOFF_CAP_SECONDS`, and `CHATTY_WEBHOOK_STREAM` deployment settings.
+`CHATTY_WORKER_CONCURRENCY_BUSY_RETRY_DELAY_SECONDS` adds bounded backoff when
+a worker cannot acquire a per-store or per-session lock, preventing hot
+requeue loops during contention.
 `CHATTY_WORKER_PENDING_IDLE_MS` controls how long a delivery must be idle before
 another consumer reclaims it; `CHATTY_WORKER_RECOVER_COUNT` bounds each recovery
 batch so reclaim work cannot starve new deliveries.

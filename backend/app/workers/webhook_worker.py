@@ -133,6 +133,7 @@ async def run() -> None:
     dedupe_ttl_seconds = int(os.environ.get("CHATTY_WORKER_DEDUPE_TTL_SECONDS", str(7 * 24 * 60 * 60)))
     concurrency_lock_ttl_seconds = int(os.environ.get("CHATTY_WORKER_CONCURRENCY_LOCK_TTL_SECONDS", str(60 * 60)))
     concurrency_lock_wait_seconds = float(os.environ.get("CHATTY_WORKER_CONCURRENCY_LOCK_WAIT_SECONDS", "5"))
+    concurrency_busy_retry_delay_seconds = float(os.environ.get("CHATTY_WORKER_CONCURRENCY_BUSY_RETRY_DELAY_SECONDS", "1"))
     client = redis_asyncio.from_url(queue_url, decode_responses=True)
     worker = RedisStreamWorker(
         client,
@@ -147,6 +148,7 @@ async def run() -> None:
         dedupe_ttl_seconds=dedupe_ttl_seconds,
         concurrency_lock_ttl_seconds=concurrency_lock_ttl_seconds,
         concurrency_lock_wait_seconds=concurrency_lock_wait_seconds,
+        concurrency_busy_retry_delay_seconds=concurrency_busy_retry_delay_seconds,
         handlers={
             "webhook.deliver": _deliver,
             "webhook.fanout": _fanout_webhook,

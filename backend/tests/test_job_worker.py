@@ -179,3 +179,30 @@ def test_worker_applies_bounded_exponential_retry_backoff(monkeypatch):
 
     assert stats["retried"] == 1
     assert delays == [2]
+
+
+def test_worker_backs_off_before_requeueing_busy_concurrency_job(monkeypatch):
+    client = FakeRedis([("1-0", {
+        "name": "ok", "payload": json.dumps({"concurrency_key": "store-1"}),
+        "idempotency_key": "event-busy",
+    })])
+    delays = []
+
+    async def no_sleep(seconds):
+        delays.append(seconds)
+
+    monkeypatch.setattr(job_worker.asyncio, "sleep", no_sleep)
+
+    class BusyWorker(RedisStreamWorker):
+        async def _acquire_concurrency_lock(self, job):
+            raise job_worker.JobConcurrencyBusy("store-1")
+
+    worker = BusyWorker(
+        client, concurrency_busy_retry_delay_seconds=2,
+        retry_backoff_cap_seconds=3, handlers={"ok": lambda _: None},
+    )
+    stats = asyncio.run(worker.run_once())
+
+    assert stats["retried"] == 1
+    assert delays == [2]
+    assert client.published[0][1]["attempts"] == "0"

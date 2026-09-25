@@ -54,6 +54,7 @@ class RedisStreamWorker:
         dedupe_ttl_seconds: int = 7 * 24 * 60 * 60,
         concurrency_lock_ttl_seconds: int = 60 * 60,
         concurrency_lock_wait_seconds: float = 5.0,
+        concurrency_busy_retry_delay_seconds: float = 1.0,
         handlers: Mapping[str, JobHandler] | None = None,
     ) -> None:
         if max_attempts < 1:
@@ -68,7 +69,7 @@ class RedisStreamWorker:
             raise ValueError("retry_backoff_cap_seconds must not be below the base")
         if dedupe_ttl_seconds < 1:
             raise ValueError("dedupe_ttl_seconds must be positive")
-        if concurrency_lock_ttl_seconds < 1 or concurrency_lock_wait_seconds < 0:
+        if concurrency_lock_ttl_seconds < 1 or concurrency_lock_wait_seconds < 0 or concurrency_busy_retry_delay_seconds < 0:
             raise ValueError("invalid concurrency lock settings")
         self.client = client
         self.stream = stream
@@ -83,6 +84,7 @@ class RedisStreamWorker:
         self.dedupe_ttl_seconds = dedupe_ttl_seconds
         self.concurrency_lock_ttl_seconds = concurrency_lock_ttl_seconds
         self.concurrency_lock_wait_seconds = concurrency_lock_wait_seconds
+        self.concurrency_busy_retry_delay_seconds = concurrency_busy_retry_delay_seconds
         self.handlers = dict(handlers or {})
 
     def _dedupe_key(self, job: JobEnvelope) -> str:
@@ -267,6 +269,12 @@ class RedisStreamWorker:
                         continue
                     try:
                         if isinstance(exc, JobConcurrencyBusy):
+                            busy_delay = min(
+                                self.retry_backoff_cap_seconds,
+                                self.concurrency_busy_retry_delay_seconds * (2 ** job.attempts),
+                            )
+                            if busy_delay > 0:
+                                await asyncio.sleep(busy_delay)
                             await self.client.xadd(
                                 self.stream,
                                 {
