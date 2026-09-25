@@ -122,3 +122,16 @@ def test_catalog_embedding_uses_document_task_and_changes_with_product_facts(mon
     assert calls[0]["is_query"] is False
     assert calls[0]["titles"] == ["Blue shirt"]
     assert first_fingerprint != second_fingerprint
+
+
+def test_catalog_service_normalizes_native_width_from_adapter(monkeypatch):
+    """The catalog service must enforce pgvector width at its own boundary."""
+
+    async def fake_embed(*args, **kwargs):
+        return [[1.0] * 3072]
+
+    monkeypatch.setattr(multimodal_service.mem, "_embed_with_retry", fake_embed)
+    vector = asyncio.run(multimodal_service.embed_catalog_item(title="Planet Earth"))
+
+    assert len(vector) == 768
+    assert abs(sum(value * value for value in vector) - 1.0) < 1e-6

@@ -127,7 +127,11 @@ async def embed_multimodal_text(text: str) -> list[float]:
         return []
     try:
         vectors = await mem._embed_with_retry([text], is_query=True)
-        return vectors[0] if vectors else []
+        # Keep the contract at the service boundary as well as in the shared
+        # memory client.  This protects catalog/RAG writes if a provider
+        # adapter, test double, or future client bypasses that normalizer and
+        # returns Gemini's native 3072-dimensional vector.
+        return mem._fit_embedding_dimensions(list(vectors[0])) if vectors else []
     except Exception as exc:
         logger.error("Failed to embed text: %s", exc)
         return []
@@ -258,7 +262,7 @@ async def embed_catalog_item(**kwargs: Any) -> list[float]:
         vectors = await mem._embed_with_retry(
             [text], is_query=False, titles=[kwargs.get("title")]
         )
-        return vectors[0] if vectors else []
+        return mem._fit_embedding_dimensions(list(vectors[0])) if vectors else []
     except Exception as exc:
         logger.error("Failed to embed catalog item: %s", exc)
         return []
