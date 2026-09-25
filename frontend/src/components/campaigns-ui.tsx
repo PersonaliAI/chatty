@@ -12,6 +12,8 @@ interface TriggerRule {
   impressions?: number;
   clicks?: number;
   conversions?: number;
+  clickRate?: number;
+  conversionRate?: number;
   audience?: string;
   channels?: string[];
   sequenceSteps?: Array<Record<string, unknown>>;
@@ -54,7 +56,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         if (!response.ok) throw new Error(`Campaigns could not be loaded (${response.status})`);
         const rows = await response.json() as Array<Record<string, unknown>>;
         if (!cancelled) {
-          setRules(rows.map((row) => ({
+          const mapped: TriggerRule[] = rows.map((row) => ({
             id: String(row.id),
             type: String(row.trigger_type ?? "time_on_page") === "scroll_percentage" ? "scroll"
               : String(row.trigger_type ?? "time_on_page") === "exit_intent" ? "exit"
@@ -69,7 +71,23 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
             channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
             sequenceSteps: Array.isArray(row.sequence_steps) ? row.sequence_steps as Array<Record<string, unknown>> : [],
-          })));
+          }));
+          setRules(mapped);
+          // Counters on the campaign row are legacy snapshots. Read the
+          // recomputable event-ledger metrics when available, without making
+          // campaign loading fail if telemetry has not been migrated yet.
+          const analytics = await Promise.all(mapped.map(async (rule) => {
+            try {
+              const metricResponse = await fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/analytics`);
+              if (!metricResponse.ok) return null;
+              const metric = await metricResponse.json() as { impressions?: number; clicks?: number; conversions?: number; click_rate?: number; conversion_rate?: number };
+              return { id: rule.id, impressions: Number(metric.impressions ?? rule.impressions ?? 0), clicks: Number(metric.clicks ?? rule.clicks ?? 0), conversions: Number(metric.conversions ?? rule.conversions ?? 0), clickRate: Number(metric.click_rate ?? 0), conversionRate: Number(metric.conversion_rate ?? 0) };
+            } catch { return null; }
+          }));
+          if (!cancelled) setRules((current) => current.map((rule) => {
+            const metric = analytics.find((item) => item?.id === rule.id);
+            return metric ? { ...rule, ...metric } : rule;
+          }));
         }
       })
       .catch(() => {
@@ -287,6 +305,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                     <p className="text-xs text-neutral-700 dark:text-neutral-300 font-medium whitespace-pre-wrap leading-relaxed">{r.message}</p>
                     <div className="flex flex-wrap gap-2 text-[10px] text-neutral-400" aria-label="Campaign analytics">
                       <span>{r.impressions ?? 0} impressions</span><span>{r.clicks ?? 0} clicks</span><span>{r.conversions ?? 0} conversions</span>
+                      {r.clickRate !== undefined && <span>{(r.clickRate * 100).toFixed(1)}% CTR</span>}
+                      {r.conversionRate !== undefined && <span>{(r.conversionRate * 100).toFixed(1)}% CVR</span>}
                     </div>
                     <div className="text-[10px] text-neutral-400">Audience: {r.audience ?? "all"} · Channels: {(r.channels ?? ["web"]).join(", ")}</div>
                     {!!r.sequenceSteps?.length && <div className="text-[10px] text-neutral-400">{r.sequenceSteps.length} sequenced follow-up{r.sequenceSteps.length === 1 ? "" : "s"}</div>}
