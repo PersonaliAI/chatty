@@ -32,6 +32,17 @@ def test_get_flow_templates(client):
     assert "bookMeeting" in node_types
     assert "setTag" in node_types
 
+    # Ensure every choice node in every template has an outgoing edge for each option
+    for template in data["templates"]:
+        nodes = template["nodes"]
+        edges = template["edges"]
+        for node in nodes:
+            if node.get("type") == "choice":
+                options = node.get("data", {}).get("options", [])
+                outgoing_edge_labels = {e.get("label") for e in edges if e.get("source") == node.get("id")}
+                for opt in options:
+                    assert opt in outgoing_edge_labels, f"Template '{template['name']}' Choice node '{node['id']}' missing edge for option '{opt}'"
+
 
 def test_generate_flow_with_ai(client):
     mock_ai_output = {

@@ -176,8 +176,8 @@ SUPPORT_TRIAGE_TEMPLATE = {
     "name": "Support Triage & Deflection",
     "description": "Categorizes visitor issues, checks documentation, and smoothly escalates urgent problems to live agents.",
     "nodes": [
-        {"id": "start", "type": "start", "data": {"label": "🚀 Start Conversation"}, "position": {"x": 300, "y": 20}},
-        {"id": "msg-welcome", "type": "message", "data": {"label": "💬 Hello! I am your Support Assistant. What can we help you solve today?"}, "position": {"x": 300, "y": 140}},
+        {"id": "start", "type": "start", "data": {"label": "🚀 Start Conversation"}, "position": {"x": 460, "y": 20}},
+        {"id": "msg-welcome", "type": "message", "data": {"label": "💬 Hello! I am your Support Assistant. What can we help you solve today?"}, "position": {"x": 460, "y": 140}},
         {
             "id": "choice-category",
             "type": "choice",
@@ -185,26 +185,40 @@ SUPPORT_TRIAGE_TEMPLATE = {
                 "label": "🔘 Please select the topic that best matches your issue:",
                 "options": ["Billing & Invoices", "Technical Problem", "Feature Question", "Speak to Human"],
             },
-            "position": {"x": 300, "y": 270},
+            "position": {"x": 460, "y": 270},
         },
+        # Branch 1: Billing & Invoices
         {"id": "tag-billing", "type": "setTag", "data": {"label": "🏷️ Tag session: Billing"}, "position": {"x": 40, "y": 420}},
         {"id": "q-billing", "type": "question", "data": {"label": "❓ Please share your invoice number or account email so we can pull up your records:"}, "position": {"x": 40, "y": 550}},
         {"id": "esc-billing", "type": "escalate", "data": {"label": "🔔 Transfer to Billing Specialist"}, "position": {"x": 40, "y": 680}},
+        # Branch 2: Technical Problem
         {"id": "tag-tech", "type": "setTag", "data": {"label": "🏷️ Tag session: Tech Support"}, "position": {"x": 320, "y": 420}},
         {"id": "q-tech", "type": "question", "data": {"label": "❓ Could you describe the error message and the browser or app version you are using?"}, "position": {"x": 320, "y": 550}},
         {"id": "ai-tech-diag", "type": "aiQualify", "data": {"label": "🤖 Diagnose technical issue and offer knowledge base resolution steps."}, "position": {"x": 320, "y": 680}},
-        {"id": "tag-escalation", "type": "setTag", "data": {"label": "🏷️ Tag session: Urgent Escalation"}, "position": {"x": 600, "y": 420}},
-        {"id": "esc-human", "type": "escalate", "data": {"label": "🔔 Escalate to Live Agent"}, "position": {"x": 600, "y": 550}},
+        # Branch 3: Feature Question
+        {"id": "tag-feature", "type": "setTag", "data": {"label": "🏷️ Tag session: Feature Question"}, "position": {"x": 600, "y": 420}},
+        {"id": "q-feature", "type": "question", "data": {"label": "❓ Which feature or workflow are you looking to learn more about?"}, "position": {"x": 600, "y": 550}},
+        {"id": "ai-feature-kb", "type": "aiQualify", "data": {"label": "🤖 Search knowledge base and guide user through feature capabilities."}, "position": {"x": 600, "y": 680}},
+        # Branch 4: Speak to Human
+        {"id": "tag-escalation", "type": "setTag", "data": {"label": "🏷️ Tag session: Urgent Escalation"}, "position": {"x": 880, "y": 420}},
+        {"id": "esc-human", "type": "escalate", "data": {"label": "🔔 Escalate to Live Agent"}, "position": {"x": 880, "y": 550}},
     ],
     "edges": [
         {"id": "e-start", "source": "start", "target": "msg-welcome", "animated": True},
         {"id": "e-wel-cat", "source": "msg-welcome", "target": "choice-category", "animated": True},
+        # Branch 1
         {"id": "e-cat-bill", "source": "choice-category", "target": "tag-billing", "label": "Billing & Invoices", "animated": True},
         {"id": "e-bill-q", "source": "tag-billing", "target": "q-billing", "animated": True},
         {"id": "e-bill-esc", "source": "q-billing", "target": "esc-billing", "animated": True},
+        # Branch 2
         {"id": "e-cat-tech", "source": "choice-category", "target": "tag-tech", "label": "Technical Problem", "animated": True},
         {"id": "e-tech-q", "source": "tag-tech", "target": "q-tech", "animated": True},
         {"id": "e-tech-ai", "source": "q-tech", "target": "ai-tech-diag", "animated": True},
+        # Branch 3: Feature Question
+        {"id": "e-cat-feat", "source": "choice-category", "target": "tag-feature", "label": "Feature Question", "animated": True},
+        {"id": "e-feat-q", "source": "tag-feature", "target": "q-feature", "animated": True},
+        {"id": "e-feat-ai", "source": "q-feature", "target": "ai-feature-kb", "animated": True},
+        # Branch 4: Speak to Human
         {"id": "e-cat-human", "source": "choice-category", "target": "tag-escalation", "label": "Speak to Human", "animated": True},
         {"id": "e-tag-human", "source": "tag-escalation", "target": "esc-human", "animated": True},
     ],

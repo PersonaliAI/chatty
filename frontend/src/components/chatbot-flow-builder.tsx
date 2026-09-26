@@ -1035,25 +1035,134 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     showToast(`${kind} step added to canvas`, "success");
   };
 
+
+const FALLBACK_FIN_DEMO = {
+  name: "B2B Demo Qualification (Fin Style)",
+  nodes: [
+    { id: "start", type: "start", data: { label: "🚀 Start Conversation" }, position: { x: 420, y: 20 } },
+    { id: "msg-welcome", type: "message", data: { label: "👋 Hey there! Welcome to Chatty. How can we help accelerate your team today?" }, position: { x: 420, y: 130 } },
+    { id: "lead-email", type: "leadCapture", data: { label: "📧 Capture business work email", field: "email" }, position: { x: 420, y: 240 } },
+    {
+      id: "choice-objective",
+      type: "choice",
+      data: {
+        label: "🎯 What primary goal are you evaluating Chatty for?",
+        options: ["Inbound sales", "Customer support", "Ecommerce", "Other"],
+      },
+      position: { x: 420, y: 370 },
+    },
+    { id: "msg-sales-intro", type: "message", data: { label: "📈 Excellent! Chatty automates 24/7 SDR qualification, routing, and booking for revenue teams." }, position: { x: 60, y: 530 } },
+    { id: "q-sales-tools", type: "question", data: { label: "❓ What CRM and chat stack do you currently operate on? (e.g. HubSpot, Salesforce, Zendesk)" }, position: { x: 60, y: 640 } },
+    { id: "q-sales-volume", type: "question", data: { label: "❓ Roughly how many inbound website visitors or leads do you generate monthly?" }, position: { x: 60, y: 750 } },
+    { id: "tag-sales-qualified", type: "setTag", data: { label: "🏷️ Tag session: Inbound Sales Lead" }, position: { x: 60, y: 860 } },
+    { id: "meet-sales-demo", type: "bookMeeting", data: { label: "📅 Select a time that works best for you from our available slots to schedule your custom enterprise demo:" }, position: { x: 60, y: 970 } },
+    { id: "msg-support-intro", type: "message", data: { label: "🎧 Great! Chatty deflects up to 78% of tier-1 support inquiries autonomously using your knowledge base." }, position: { x: 380, y: 530 } },
+    { id: "q-support-volume", type: "question", data: { label: "❓ Approximately how many support tickets or chats does your team handle each month?" }, position: { x: 380, y: 640 } },
+    { id: "tag-support-qualified", type: "setTag", data: { label: "🏷️ Tag session: Support Deflection Prospect" }, position: { x: 380, y: 750 } },
+    { id: "meet-support-demo", type: "bookMeeting", data: { label: "📅 Select a time that works best for you from our available slots to schedule your AI support workflow walkthrough:" }, position: { x: 380, y: 860 } },
+    { id: "msg-ecom-intro", type: "message", data: { label: "🛍️ Awesome! Chatty tracks orders, recommends catalog items, and drives checkout conversions." }, position: { x: 700, y: 530 } },
+    { id: "tag-ecom-qualified", type: "setTag", data: { label: "🏷️ Tag session: Ecommerce Store" }, position: { x: 700, y: 670 } },
+    { id: "meet-ecom-demo", type: "bookMeeting", data: { label: "📅 Select a time that works best for you from our available slots to schedule your ecommerce growth demo:" }, position: { x: 700, y: 800 } },
+    {
+      id: "ai-qualify-custom",
+      type: "aiQualify",
+      data: {
+        label: "🤖 Understand custom use case, team scope, and specific integration requirements.",
+        prompt: "Consultatively identify what the user needs. If they say 'idk' or are unsure, explain our core solutions (Inbound Sales vs Support automation) and guide them to choose.",
+      },
+      position: { x: 1020, y: 550 },
+    },
+    { id: "meet-custom-demo", type: "bookMeeting", data: { label: "📅 Select a time that works best for you from our available slots to schedule your discovery call:" }, position: { x: 1020, y: 700 } },
+  ],
+  edges: [
+    { id: "e-start-welcome", source: "start", target: "msg-welcome", animated: true },
+    { id: "e-welcome-email", source: "msg-welcome", target: "lead-email", animated: true },
+    { id: "e-email-objective", source: "lead-email", target: "choice-objective", animated: true },
+    { id: "e-obj-sales", source: "choice-objective", target: "msg-sales-intro", label: "Inbound sales", animated: true },
+    { id: "e-sales-tools", source: "msg-sales-intro", target: "q-sales-tools", animated: true },
+    { id: "e-sales-vol", source: "q-sales-tools", target: "q-sales-volume", animated: true },
+    { id: "e-sales-tag", source: "q-sales-volume", target: "tag-sales-qualified", animated: true },
+    { id: "e-sales-meet", source: "tag-sales-qualified", target: "meet-sales-demo", animated: true },
+    { id: "e-obj-support", source: "choice-objective", target: "msg-support-intro", label: "Customer support", animated: true },
+    { id: "e-support-vol", source: "msg-support-intro", target: "q-support-volume", animated: true },
+    { id: "e-support-tag", source: "q-support-volume", target: "tag-support-qualified", animated: true },
+    { id: "e-support-meet", source: "tag-support-qualified", target: "meet-support-demo", animated: true },
+    { id: "e-obj-ecom", source: "choice-objective", target: "msg-ecom-intro", label: "Ecommerce", animated: true },
+    { id: "e-ecom-tag", source: "msg-ecom-intro", target: "tag-ecom-qualified", animated: true },
+    { id: "e-ecom-meet", source: "tag-ecom-qualified", target: "meet-ecom-demo", animated: true },
+    { id: "e-obj-other", source: "choice-objective", target: "ai-qualify-custom", label: "Other", animated: true },
+    { id: "e-other-meet", source: "ai-qualify-custom", target: "meet-custom-demo", animated: true },
+  ],
+};
+
+const FALLBACK_SUPPORT_TRIAGE = {
+  name: "Support Triage & Deflection",
+  nodes: [
+    { id: "start", type: "start", data: { label: "🚀 Start Conversation" }, position: { x: 460, y: 20 } },
+    { id: "msg-welcome", type: "message", data: { label: "💬 Hello! I am your Support Assistant. What can we help you solve today?" }, position: { x: 460, y: 140 } },
+    {
+      id: "choice-category",
+      type: "choice",
+      data: {
+        label: "🔘 Please select the topic that best matches your issue:",
+        options: ["Billing & Invoices", "Technical Problem", "Feature Question", "Speak to Human"],
+      },
+      position: { x: 460, y: 270 },
+    },
+    { id: "tag-billing", type: "setTag", data: { label: "🏷️ Tag session: Billing" }, position: { x: 40, y: 420 } },
+    { id: "q-billing", type: "question", data: { label: "❓ Please share your invoice number or account email so we can pull up your records:" }, position: { x: 40, y: 550 } },
+    { id: "esc-billing", type: "escalate", data: { label: "🔔 Transfer to Billing Specialist" }, position: { x: 40, y: 680 } },
+    { id: "tag-tech", type: "setTag", data: { label: "🏷️ Tag session: Tech Support" }, position: { x: 320, y: 420 } },
+    { id: "q-tech", type: "question", data: { label: "❓ Could you describe the error message and the browser or app version you are using?" }, position: { x: 320, y: 550 } },
+    { id: "ai-tech-diag", type: "aiQualify", data: { label: "🤖 Diagnose technical issue and offer knowledge base resolution steps." }, position: { x: 320, y: 680 } },
+    { id: "tag-feature", type: "setTag", data: { label: "🏷️ Tag session: Feature Question" }, position: { x: 600, y: 420 } },
+    { id: "q-feature", type: "question", data: { label: "❓ Which feature or workflow are you looking to learn more about?" }, position: { x: 600, y: 550 } },
+    { id: "ai-feature-kb", type: "aiQualify", data: { label: "🤖 Search knowledge base and guide user through feature capabilities." }, position: { x: 600, y: 680 } },
+    { id: "tag-escalation", type: "setTag", data: { label: "🏷️ Tag session: Urgent Escalation" }, position: { x: 880, y: 420 } },
+    { id: "esc-human", type: "escalate", data: { label: "🔔 Escalate to Live Agent" }, position: { x: 880, y: 550 } },
+  ],
+  edges: [
+    { id: "e-start", source: "start", target: "msg-welcome", animated: true },
+    { id: "e-wel-cat", source: "msg-welcome", target: "choice-category", animated: true },
+    { id: "e-cat-bill", source: "choice-category", target: "tag-billing", label: "Billing & Invoices", animated: true },
+    { id: "e-bill-q", source: "tag-billing", target: "q-billing", animated: true },
+    { id: "e-bill-esc", source: "q-billing", target: "esc-billing", animated: true },
+    { id: "e-cat-tech", source: "choice-category", target: "tag-tech", label: "Technical Problem", animated: true },
+    { id: "e-tech-q", source: "tag-tech", target: "q-tech", animated: true },
+    { id: "e-tech-ai", source: "q-tech", target: "ai-tech-diag", animated: true },
+    { id: "e-cat-feat", source: "choice-category", target: "tag-feature", label: "Feature Question", animated: true },
+    { id: "e-feat-q", source: "tag-feature", target: "q-feature", animated: true },
+    { id: "e-feat-ai", source: "q-feature", target: "ai-feature-kb", animated: true },
+    { id: "e-cat-human", source: "choice-category", target: "tag-escalation", label: "Speak to Human", animated: true },
+    { id: "e-tag-human", source: "tag-escalation", target: "esc-human", animated: true },
+  ],
+};
+
   const loadTemplate = async (templateName: "fin_demo" | "support_triage") => {
+    let t: { name: string; nodes: any[]; edges: any[] } | undefined;
     try {
       const res = await fetch(`${BACKEND_URL}/api/flow/templates`);
       if (res.ok) {
         const data = await res.json();
-        const t = data.templates?.find((tpl: any) =>
+        t = data.templates?.find((tpl: any) =>
           templateName === "fin_demo" ? tpl.name.includes("Demo") : tpl.name.includes("Support")
         );
-        if (t && t.nodes && t.edges) {
-          setNodes(t.nodes);
-          setEdges(t.edges);
-          showToast(`Loaded ${t.name} template!`, "success");
-          setTimeout(() => {
-            safeFitView(0.25, 400);
-            switchCanvasOnMobile();
-          }, 150);
-        }
       }
-    } catch {
+    } catch {}
+
+    if (!t || !t.nodes || !t.edges) {
+      t = templateName === "fin_demo" ? FALLBACK_FIN_DEMO : FALLBACK_SUPPORT_TRIAGE;
+    }
+
+    if (t && t.nodes && t.edges) {
+      setNodes(t.nodes);
+      setEdges(t.edges);
+      showToast(`Loaded ${t.name} template!`, "success");
+      setTimeout(() => {
+        safeFitView(0.25, 400);
+        switchCanvasOnMobile();
+      }, 150);
+    } else {
       showToast("Failed to load template", "error");
     }
   };
