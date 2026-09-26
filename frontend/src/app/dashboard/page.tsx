@@ -4181,7 +4181,11 @@ export default function Dashboard() {
               <div
                 role="menu"
                 aria-label="Account menu"
-                className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-neutral-200 bg-white p-1.5 shadow-[0_12px_32px_rgba(15,23,42,0.16)] dark:border-neutral-700 dark:bg-neutral-950 dark:shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+                className={`absolute z-50 rounded-xl border border-neutral-200 bg-white p-1.5 shadow-[0_12px_32px_rgba(15,23,42,0.16)] dark:border-neutral-700 dark:bg-neutral-950 dark:shadow-[0_12px_32px_rgba(0,0,0,0.45)] ${
+                  sidebarCollapsed
+                    ? "bottom-0 left-full ml-3 w-56"
+                    : "bottom-full left-0 right-0 mb-2 w-full"
+                }`}
               >
                 {user && (
                   <button
@@ -4195,10 +4199,10 @@ export default function Dashboard() {
                         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
                       }, 100);
                     }}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[10px] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer whitespace-nowrap"
                   >
-                    <User className="size-3.5" />
-                    Your Profile & Photo
+                    <User className="size-3.5 shrink-0" />
+                    <span>Your Profile & Photo</span>
                   </button>
                 )}
                 {user ? (
@@ -4206,20 +4210,20 @@ export default function Dashboard() {
                     type="button"
                     role="menuitem"
                     onClick={handleSignOut}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[10px] text-neutral-500 hover:bg-red-50 hover:text-red-600 dark:text-neutral-400 dark:hover:bg-red-950/30 dark:hover:text-red-300 transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-neutral-500 hover:bg-red-50 hover:text-red-600 dark:text-neutral-400 dark:hover:bg-red-950/30 dark:hover:text-red-300 transition-colors cursor-pointer whitespace-nowrap"
                   >
-                    <LogOut className="size-3.5" />
-                    Sign Out Account
+                    <LogOut className="size-3.5 shrink-0" />
+                    <span>Sign Out Account</span>
                   </button>
                 ) : (
                   <Link
                     href="/login"
                     role="menuitem"
                     onClick={() => setAccountMenuOpen(false)}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[10px] text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors"
+                    className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors whitespace-nowrap"
                   >
-                    <LogOut className="size-3.5" />
-                    Log In to Save Progress
+                    <LogOut className="size-3.5 shrink-0" />
+                    <span>Log In to Save Progress</span>
                   </Link>
                 )}
               </div>

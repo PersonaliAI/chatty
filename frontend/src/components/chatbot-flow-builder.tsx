@@ -1637,9 +1637,13 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
 
             <Panel
               position="top-right"
-              className="hidden md:flex bg-white/90 dark:bg-neutral-900/90 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl shadow-sm text-[10px] font-medium text-neutral-500 dark:text-neutral-400"
+              className="hidden md:flex items-center gap-1.5 bg-white/95 dark:bg-neutral-900/95 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl shadow-sm text-[11px] font-medium text-neutral-500 dark:text-neutral-400 select-none pointer-events-none"
             >
-              ⌨️ Press <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 border rounded font-mono text-[9px]">Del</kbd> or <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 border rounded font-mono text-[9px]">Backspace</kbd> to delete selected node/connection.
+              <span>⌨️ Press</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded font-mono text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 shadow-xs leading-none">Del</kbd>
+              <span>or</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded font-mono text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 shadow-xs leading-none">Backspace</kbd>
+              <span>to delete selected node/connection.</span>
             </Panel>
           </ReactFlow>
 
