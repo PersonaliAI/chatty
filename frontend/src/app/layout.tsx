@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
       {
-        url: '/og-image.png',
+        url: 'https://chatty.personaliai.com/og-image.png',
         width: 1200,
         height: 630,
         alt: 'PersonaliAI Chatty - Autonomous AI Agents for Customer Support & Sales',
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
     title: "PersonaliAI | Chatty - Custom AI Agents that Convert",
     description: "Plug in your content. Create custom AI agents that not only chat, but take action, book meetings, and convert. Zero coding, on your website in minutes.",
     creator: '@personaliai',
-    images: ['/og-image.png'],
+    images: ['https://chatty.personaliai.com/og-image.png'],
   },
   icons: {
     icon: '/favicon.png',
