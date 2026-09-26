@@ -6,7 +6,7 @@ python-dotenv==1.2.2
 httpx==0.28.1
 pydantic==2.12.5
 email-validator==2.2.0
-psycopg2-binary==2.9.12
+psycopg2-binary==2.9.13
 pytz==2025.2
 tzdata==2025.2
 PyJWT[crypto]==2.13.0
