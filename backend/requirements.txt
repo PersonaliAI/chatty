@@ -24,7 +24,7 @@ litellm==1.98.0
 
 # MCP (Model Context Protocol) server — Developer API's /mcp endpoint,
 # app/routers/mcp.py.
-mcp==1.28.1
+mcp==2.2.0
 
 sentry-sdk[fastapi]==2.59.0
 
