@@ -238,7 +238,7 @@ def scheduling_tool_names(bot: dict[str, Any], owner_user: dict[str, Any]) -> li
     if bot.get("calendar_scheduling_enabled"):
         if use_ms_calendar:
             names.extend(["get_available_slots", "list_outlook_events", "create_outlook_event", "reschedule_meeting", "cancel_meeting"])
-        elif owner_user.get("google_access_token"):
+        elif owner_user.get("google_access_token") or bot.get("google_connected_account_id"):
             names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting", "cancel_meeting"])
     names.append("create_lead")
     return names
@@ -1055,7 +1055,7 @@ async def run_widget_assistant(
     # calling the booking tool when a user simply picks a time (e.g. "yes 9.30 am ok")
     # before contact details have been collected.
     has_visitor_email = False
-    email_regex = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
+    email_regex = re.compile(r"[a-zA-Z0-9_.+-]+(?:\s*@\s*|\s+at\s+)[a-zA-Z0-9-]+\s*(?:\.|\s+dot\s+)[a-zA-Z0-9-.]+", re.IGNORECASE)
     if text and email_regex.search(text):
         has_visitor_email = True
     elif any(isinstance(h.get("content"), str) and email_regex.search(h["content"]) for h in history):

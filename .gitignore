@@ -24,5 +24,6 @@ backend/supabase/.temp/
 
 # IDEs and OS
 .vscode/
+.claude/
 .DS_Store
 Thumbs.db

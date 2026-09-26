@@ -326,3 +326,16 @@ def test_translate_falls_back_to_original_text_on_exception(monkeypatch):
     monkeypatch.setattr(wb.ai_client, "chat", chat_mock)
     result = asyncio.run(wb._translate_to_english_for_rag("bonjour le monde"))
     assert result == "bonjour le monde"
+
+
+def test_scheduling_tool_names_enables_google_via_connected_account():
+    bot = {
+        "calendar_scheduling_enabled": True,
+        "meeting_provider": "google_meet",
+        "google_connected_account_id": "conn-123",
+    }
+    owner_user = {}  # owner has no direct google_access_token
+    names = wb.scheduling_tool_names(bot, owner_user)
+    assert "create_calendar_event" in names
+    assert "get_available_slots" in names
+

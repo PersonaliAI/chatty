@@ -232,6 +232,7 @@ DECLARATIONS: list[dict] = [
             "description": {"type": "string", "description": "Optional event description."},
             "location": {"type": "string", "description": "Optional physical/virtual location."},
             "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee email addresses. Must contain the visitor's verified email address provided in chat."},
+            "visitor_name": {"type": "string", "description": "Full name of the visitor attending the meeting."},
             "verification_code": {"type": "string", "description": "6-digit email OTP verification code provided by the visitor (required if email verification is enabled on the chatbot)."},
             "color_id": {"type": "string", "description": "Optional Google Calendar event colorId ('1' to '11'). Omit to automatically select multiple colors matching the topic or rotating palette."},
             "all_day": {"type": "boolean", "description": "True for all-day events; start/end then become dates."},
@@ -288,6 +289,7 @@ DECLARATIONS: list[dict] = [
             "body": {"type": "string", "description": "Optional description."},
             "location": {"type": "string", "description": "Optional location."},
             "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee emails. Must contain the visitor's verified email address provided in chat."},
+            "visitor_name": {"type": "string", "description": "Full name of the visitor attending the meeting."},
             "verification_code": {"type": "string", "description": "6-digit email OTP verification code provided by the visitor (required if email verification is enabled on the chatbot)."},
             "is_all_day": {"type": "boolean", "description": "All-day event."},
             "calendar_id": {"type": "string", "description": "Optional non-default calendar."},
@@ -1416,6 +1418,10 @@ async def execute(
                 for att in attendees:
                     if isinstance(att, str):
                         cand = _dedupe_doubled(att.strip()).lower()
+                        # Normalize spoken email dictations (e.g. "alex at domain dot com" -> "alex@domain.com")
+                        cand = re.sub(r"\s+at\s+", "@", cand)
+                        cand = re.sub(r"\s+dot\s+", ".", cand)
+                        cand = re.sub(r"\s+", "", cand)
                         if (
                             re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", cand)
                             and not any(dummy in cand for dummy in ("guest@example.com", "@example.com", "test@test.com", "user@example.com", "none@", "null@"))
@@ -1441,10 +1447,20 @@ async def execute(
                 bot_cfg = (context or {}).get("bot") or {}
 
                 # Require visitor full name before booking
+                raw_vname = str(args.get("visitor_name") or args.get("name") or "").strip()
                 summary = args.get("summary") or args.get("subject") or ""
-                clean_name = summary.replace("Demo Meeting with ", "").replace("Demo Meeting with", "").replace("Demo Meeting", "").strip()
+                clean_name = raw_vname or summary.replace("Demo Meeting with ", "").replace("Demo Meeting with", "").replace("Demo Meeting", "").strip()
                 invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes"}
-                if not clean_name or clean_name.lower() in invalid_names or "@" in clean_name:
+
+                if clean_name and clean_name.lower() not in invalid_names and "@" not in clean_name:
+                    args["visitor_name"] = clean_name
+                    if not summary or summary.strip().lower() in ("demo meeting", "meeting", "consultation", "demo meeting with"):
+                        target_summary = f"Demo Meeting with {clean_name}"
+                        if "subject" in args:
+                            args["subject"] = target_summary
+                        else:
+                            args["summary"] = target_summary
+                else:
                     session_id = context.get("session_id")
                     bot_id = context.get("bot_id")
                     has_db_name = False
@@ -1452,8 +1468,17 @@ async def execute(
                         try:
                             lead_res = await run_db(lambda: supabase.table("chatty_leads").select("name").eq("bot_id", bot_id).eq("session_id", session_id).order("created_at", desc=True).limit(1).execute())
                             if lead_res.data and lead_res.data[0].get("name"):
-                                if lead_res.data[0]["name"].strip().lower() not in invalid_names:
+                                db_n = lead_res.data[0]["name"].strip()
+                                if db_n and db_n.lower() not in invalid_names:
                                     has_db_name = True
+                                    clean_name = db_n
+                                    args["visitor_name"] = clean_name
+                                    if not summary or summary.strip().lower() in ("demo meeting", "meeting", "consultation", "demo meeting with"):
+                                        target_summary = f"Demo Meeting with {clean_name}"
+                                        if "subject" in args:
+                                            args["subject"] = target_summary
+                                        else:
+                                            args["summary"] = target_summary
                         except Exception:
                             pass
                     if not has_db_name:

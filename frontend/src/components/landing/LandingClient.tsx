@@ -1830,7 +1830,7 @@ export default function LandingClient() {
                 Engineered for conversion, accuracy, and scale.
               </h2>
               <p className="mt-3 text-sm sm:text-base text-zinc-600">
-                Traditional chatbots ask visitors to wait for an email. Chatty answers instantly, captures intent, and
+                Traditional chatbots ask visitors to wait for an email. Chatty AI agents answer instantly, capture intent, and
                 completes calendar bookings in the live conversation.
               </p>
             </div>
@@ -2156,7 +2156,7 @@ export default function LandingClient() {
 
                   <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> 1 Live Chatbot
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 1 Live AI Agent
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> Bring OpenAI, Anthropic, Gemini
@@ -2193,7 +2193,7 @@ export default function LandingClient() {
 
                   <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> 3 Live Chatbots
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 3 Live AI Agents
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> Included AI message credits
@@ -2236,7 +2236,7 @@ export default function LandingClient() {
 
                   <ul className="mt-6 space-y-2.5 text-xs text-zinc-800">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-[#f95721] shrink-0" /> 6 Live Chatbots
+                      <Check className="size-4 text-[#f95721] shrink-0" /> 6 Live AI Agents
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-[#f95721] shrink-0" /> 10,000 Included AI credits
@@ -2276,7 +2276,7 @@ export default function LandingClient() {
 
                   <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Unlimited Chatbots
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Unlimited AI Agents
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> 40,000 Included AI credits

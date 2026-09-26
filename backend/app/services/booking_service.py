@@ -67,7 +67,7 @@ async def process_widget_booking(
         visitor_email = dedupe_doubled(attendees[0] if attendees else "guest@example.com")
 
         summary = args.get("summary") or args.get("subject") or "Demo Meeting"
-        raw_name = summary.replace("Demo Meeting with ", "").replace("Demo Meeting with", "").replace("Demo Meeting", "").strip()
+        raw_name = args.get("visitor_name") or args.get("name") or summary.replace("Demo Meeting with ", "").replace("Demo Meeting with", "").replace("Demo Meeting", "").strip()
         visitor_name = dedupe_doubled(raw_name) or "Guest"
 
         invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes"}

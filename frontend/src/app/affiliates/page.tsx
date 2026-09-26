@@ -17,7 +17,7 @@ const fit = [
 
 export const metadata = {
   title: "Chatty Affiliate Program | Earn 30% Recurring Commission",
-  description: "Earn recurring commission by sharing Chatty, the open-source AI customer support chatbot for websites.",
+  description: "Earn recurring commission by sharing Chatty, the open-source AI customer support agent for websites.",
 };
 
 export default function AffiliatesPage() {

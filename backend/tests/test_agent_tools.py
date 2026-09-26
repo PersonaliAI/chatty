@@ -1063,6 +1063,52 @@ def test_execute_create_calendar_event_rejects_missing_name_when_required():
     assert "Visitor's name is REQUIRED before booking" in result["error"]
 
 
+def test_execute_create_calendar_event_accepts_visitor_name_param(monkeypatch):
+    create_mock = AsyncMock(return_value={"id": "evt-voice-1", "hangout_link": "https://meet.google.com/xyz"})
+    monkeypatch.setattr(at, "_create_calendar_event", create_mock)
+    monkeypatch.setattr(at, "_process_widget_booking", AsyncMock())
+    result = asyncio.run(at.execute(
+        "create_calendar_event",
+        {
+            "summary": "Demo Meeting",
+            "visitor_name": "Sarah Connor",
+            "start": "2026-09-30T10:00:00Z",
+            "end": "2026-09-30T10:30:00Z",
+            "attendees": ["sarah@sky.net"],
+        },
+        user={"google_access_token": "tok"},
+        supabase=MagicMock(),
+        context={"source": "widget", "bot_id": "b1"},
+    ))
+    assert "error" not in result
+    assert result["id"] == "evt-voice-1"
+    passed_args = create_mock.call_args[0][0]
+    assert passed_args.get("visitor_name") == "Sarah Connor"
+    assert "Sarah Connor" in passed_args.get("summary", "")
+
+
+def test_execute_create_calendar_event_normalizes_spoken_email(monkeypatch):
+    create_mock = AsyncMock(return_value={"id": "evt-spoken-1", "hangout_link": "https://meet.google.com/xyz"})
+    monkeypatch.setattr(at, "_create_calendar_event", create_mock)
+    monkeypatch.setattr(at, "_process_widget_booking", AsyncMock())
+    result = asyncio.run(at.execute(
+        "create_calendar_event",
+        {
+            "summary": "Demo Meeting with Alex Doe",
+            "start": "2026-09-30T10:00:00Z",
+            "end": "2026-09-30T10:30:00Z",
+            "attendees": ["alex at acme dot org"],
+        },
+        user={"google_access_token": "tok"},
+        supabase=MagicMock(),
+        context={"source": "widget", "bot_id": "b1"},
+    ))
+    assert "error" not in result
+    assert result["id"] == "evt-spoken-1"
+    passed_args = create_mock.call_args[0][0]
+    assert passed_args["attendees"] == ["alex@acme.org"]
+
+
 def test_execute_unknown_tool_returns_error_dict():
     result = asyncio.run(at.execute("not_a_real_tool", {}, user={}, supabase=MagicMock()))
     assert result == {"error": "unknown tool: not_a_real_tool"}

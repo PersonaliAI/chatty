@@ -765,7 +765,7 @@ def _build_realtime_tools(
                     "summary": summary,
                     "start_time": start_value,
                     "end_time": raw_arguments.get("end") or result.get("end") or "",
-                    "attendee_name": summary.replace("Demo Meeting with ", "").strip(),
+                    "attendee_name": (raw_arguments.get("visitor_name") or raw_arguments.get("name") or summary.replace("Demo Meeting with ", "").strip() or "Guest"),
                     "attendee_email": attendee_email,
                     "assigned_to_email": result.get("assigned_to_email"),
                     "status": "scheduled",
@@ -819,8 +819,8 @@ class ChattyRealtimeAgent(Agent):
             "not call get_available_slots again just because they supplied their details.\n"
             "3. Once the visitor has supplied both a real name and a real email, call "
             "create_calendar_event (or create_outlook_event for Teams) immediately using "
-            "the remembered start/end and the real email in attendees. Also call create_lead "
-            "with the same bot and session context.\n"
+            "the remembered start/end, the real email in attendees, and their full name in visitor_name. "
+            "Also call create_lead with the same bot and session context.\n"
             "4. Only say the meeting is scheduled after the calendar tool returns success. "
             "Read the returned meeting link and time back to the visitor. Do not append a "
             "booking widget marker or request another slot after successful booking.\n"

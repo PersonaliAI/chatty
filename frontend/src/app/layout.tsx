@@ -33,13 +33,13 @@ const lora = Lora({ variable: "--font-lora", subsets: ["latin"], display: "swap"
 const playfair = Playfair_Display({ variable: "--font-playfair", subsets: ["latin"], display: "swap", preload: false });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://personaliai.com'),
+  metadataBase: new URL('https://chatty.personaliai.com'),
   title: {
-    default: "PersonaliAI | Chatty - Custom AI Chatbots that Convert",
+    default: "PersonaliAI | Chatty - Custom AI Agents that Convert",
     template: "%s | PersonaliAI"
   },
-  description: "Create a custom AI chatbot trained on your files, websites, and data sources. Integrate with your apps, capture leads, and convert visitors in minutes. Zero coding required.",
-  keywords: ["AI Chatbot", "Custom Chatbot", "Chatty AI", "Lead Conversion", "Customer Support AI", "Train Chatbot", "SaaS Chatbot"],
+  description: "Create custom AI agents trained on your files, websites, and data sources. Integrate with your apps, book meetings, capture leads, and convert visitors in minutes. Zero coding required.",
+  keywords: ["AI Agent", "Autonomous AI Agents", "Voice AI Agent", "Custom AI Agent", "Chatty AI", "Lead Conversion", "Customer Support AI", "Train AI Agent", "SaaS AI Agent"],
   authors: [{ name: "PersonaliAI Team" }],
   creator: "PersonaliAI",
   publisher: "PersonaliAI",
@@ -49,18 +49,27 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: "PersonaliAI | Chatty - Custom AI Chatbots that Convert",
-    description: "Plug in your content. Create a custom AI chatbot that not only chats but converts. Zero coding, on your website in minutes.",
-    url: 'https://personaliai.com/chatty',
+    title: "PersonaliAI | Chatty - Custom AI Agents that Convert",
+    description: "Plug in your content. Create custom AI agents that not only chat, but take action, book meetings, and convert. Zero coding, on your website in minutes.",
+    url: 'https://chatty.personaliai.com',
     siteName: 'PersonaliAI',
     locale: 'en_US',
     type: 'website',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'PersonaliAI Chatty - Autonomous AI Agents for Customer Support & Sales',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: "PersonaliAI | Chatty - Custom AI Chatbots that Convert",
-    description: "Plug in your content. Create a custom AI chatbot that not only chats but converts. Zero coding, on your website in minutes.",
+    title: "PersonaliAI | Chatty - Custom AI Agents that Convert",
+    description: "Plug in your content. Create custom AI agents that not only chat, but take action, book meetings, and convert. Zero coding, on your website in minutes.",
     creator: '@personaliai',
+    images: ['/og-image.png'],
   },
   icons: {
     icon: '/favicon.png',

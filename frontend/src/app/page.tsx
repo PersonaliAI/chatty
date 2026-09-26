@@ -61,32 +61,32 @@ interface Feature {
 }
 
 const featuresList: Feature[] = [
-  { title: "Knowledge", desc: "Train the chatbot to answer questions about your website, files, and more." },
-  { title: "Actions", desc: "Go beyond just Q&A and let the chatbot use any of your apps." },
-  { title: "Refine answers", desc: "Review conversations and correct the chatbot to give better answers." },
-  { title: "Analytics", desc: "Learn how your customers are interacting with your chatbot." },
-  { title: "Multiple chatbots", desc: "Create multiple chatbots for different use cases or different websites." },
-  { title: "White-label", desc: "Features that help you resell chatbots as part of your business." },
-  { title: "Inbox", desc: "Access conversations between your chatbot and page visitors." },
+  { title: "Knowledge", desc: "Train the AI agent to answer questions about your website, files, and more." },
+  { title: "Actions", desc: "Go beyond just Q&A and let the AI agent use any of your apps." },
+  { title: "Refine answers", desc: "Review conversations and correct the AI agent to give better answers." },
+  { title: "Analytics", desc: "Learn how your customers are interacting with your AI agent." },
+  { title: "Multiple AI agents", desc: "Create multiple AI agents for different use cases or different websites." },
+  { title: "White-label", desc: "Features that help you resell AI agents as part of your business." },
+  { title: "Inbox", desc: "Access conversations between your AI agent and page visitors." },
   { title: "AI Models", desc: "GPT-5.3, Claude Opus, Mistral, Gemini... Switch between AI models at any time." },
-  { title: "Chatbot API", desc: "Use our powerful API and access your chatbot from other apps." },
+  { title: "AI Agent API", desc: "Use our powerful API and access your AI agent from other apps." },
   { title: "BYOK (Free Forever)", desc: "Provide your own OpenAI, Anthropic, Gemini, or OpenRouter API key. 100% free option - no paid plan required." },
-  { title: "Multilingual", desc: "Our chatbots can use over 95 languages out of the box." },
+  { title: "Multilingual", desc: "Our AI agents can use over 95 languages out of the box." },
   { title: "Customizable", desc: "Change name, icon, theme, position, color, CSS, JS... make it yours." },
-  { title: "Guardrails", desc: "Prevent abuse. Get a reliable and assertive chatbot, not 'ChatGPT for free'." },
-  { title: "Auto train", desc: "Automatically keep your chatbot up to date: daily, weekly and monthly." },
-  { title: "Allow list", desc: "Secure your chatbot to work only on domains under your control." },
+  { title: "Guardrails", desc: "Prevent abuse. Get a reliable and assertive AI agent, not 'ChatGPT for free'." },
+  { title: "Auto train", desc: "Automatically keep your AI agent up to date: daily, weekly and monthly." },
+  { title: "Allow list", desc: "Secure your AI agent to work only on domains under your control." },
   { title: "Leads", desc: "Collect name, email, phone number of the chat visitor." },
   { title: "Bulk", desc: "Bulk operations to handle any amount of training." },
   { title: "Notifications", desc: "Receive email & webhook updates with recent conversations." },
 ];
 
 const faqs = [
-  { question: "How do I train my chatbot?", answer: "Point Chatty at your website, upload files (PDF, DOCX, CSV), or paste in text - it crawls and indexes everything automatically. Auto Train keeps it in sync on a daily, weekly, or monthly schedule so answers never go stale." },
+  { question: "How do I train my AI agent?", answer: "Point Chatty at your website, upload files (PDF, DOCX, CSV), or paste in text - it crawls and indexes everything automatically. Auto Train keeps it in sync on a daily, weekly, or monthly schedule so answers never go stale." },
   { question: "Can I use my own API keys?", answer: "Yes! BYOK (Bring Your Own Key) is 100% free forever - there is no need to buy a plan for BYOK. Simply plug in your own OpenAI, Anthropic, Gemini, or OpenRouter key and pay only your model provider directly with zero platform markup." },
-  { question: "What counts as a 'message credit'?", answer: "Each reply your chatbot sends to a visitor uses one message credit. Credits reset every billing cycle, and unused credits don't roll over." },
+  { question: "What counts as a 'message credit'?", answer: "Each reply your AI agent sends to a visitor uses one message credit. Credits reset every billing cycle, and unused credits don't roll over." },
   { question: "How does lead collection work?", answer: "Chatty can ask for a visitor's name, email, and phone number mid-conversation, save it automatically to your dashboard, and push it to your CRM or inbox via webhook or API." },
-  { question: "Can I embed the chatbot on multiple sites?", answer: "Yes - each chatbot can be embedded anywhere, and the Allow List lets you restrict it to run only on domains you control." },
+  { question: "Can I embed the AI agent on multiple sites?", answer: "Yes - each AI agent can be embedded anywhere, and the Allow List lets you restrict it to run only on domains you control." },
 ];
 
 const helpArticles = [
@@ -172,7 +172,7 @@ const plans = [
       "100% Free - No paid plan needed",
       "BYOK (Bring-Your-Own-Key)",
       "OpenAI, Anthropic, Gemini, OpenRouter",
-      "1 chatbot",
+      "1 AI agent",
       "Unlimited chats (pay LLM directly)",
       "Knowledge base training (5M chars)",
       "100 MB Media Storage (50 products)",
@@ -187,7 +187,7 @@ const plans = [
       "1,000 message credits/mo",
       "10M training characters",
       "500 MB Media Storage (250 products)",
-      "3 chatbots",
+      "3 AI agents",
       "Fast & Advanced AI models",
       "AI Actions & Analytics",
       "Guardrails & Notifications",
@@ -202,7 +202,7 @@ const plans = [
       "10,000 message credits/mo",
       "20M training characters",
       "2 GB Media Storage (1,500 products)",
-      "6 chatbots",
+      "6 AI agents",
       "Daily Auto Train sync",
       "Remove branding completely",
       "Unlimited team members",
@@ -215,7 +215,7 @@ const plans = [
       "40,000 message credits/mo",
       "50M training characters",
       "10 GB Media Storage (Unlimited products)",
-      "Unlimited chatbots",
+      "Unlimited AI agents",
       "White-label configuration",
       "Management Admin API",
     ],
@@ -464,7 +464,7 @@ export default function Home() {
             Trained on your content. <span style={{ color: "var(--color-accent-600)" }}>Optimized for conversion.</span>
           </h1>
           <p className="text-base sm:text-[17px] leading-relaxed max-w-[56ch] mx-auto mt-6" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
-            An AI chatbot that captures leads and triggers actions. Zero coding, live on your site in five minutes.
+            An autonomous AI agent that captures leads, books meetings, and triggers actions. Zero coding, live on your site in five minutes.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 text-left max-w-[900px] mx-auto">
@@ -852,7 +852,7 @@ export default function Home() {
               Chatty
             </span>
             <p className="text-[13.5px] leading-relaxed mt-3.5 max-w-[26ch]" style={{ color: "color-mix(in srgb, var(--color-text) 70%, transparent)" }}>
-              Custom AI chatbots that train on your content and convert your visitors.
+              Custom AI agents that train on your content and convert your visitors.
             </p>
             <span className="inline-block mt-3.5 text-[11px] tracking-wide uppercase" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>By PersonaliAI</span>
           </div>
