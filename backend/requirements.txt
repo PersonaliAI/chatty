@@ -9,7 +9,7 @@ email-validator==2.2.0
 psycopg2-binary==2.9.12
 pytz==2025.2
 tzdata==2025.2
-PyJWT[crypto]==2.13.0
+PyJWT[crypto]==2.14.0
 python-multipart==0.0.31
 pypdf==6.19.0
 python-docx==1.2.0
