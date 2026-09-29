@@ -18,6 +18,8 @@ interface TriggerRule {
   channels?: string[];
   sequenceSteps?: Array<Record<string, unknown>>;
   isActive?: boolean;
+  nextRunAt?: string | null;
+  scheduleCadence?: string;
 }
 
 interface Props {
@@ -85,10 +87,27 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
           // campaign loading fail if telemetry has not been migrated yet.
           const analytics = await Promise.all(mapped.map(async (rule) => {
             try {
-              const metricResponse = await fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/analytics`);
-              if (!metricResponse.ok) return null;
-              const metric = await metricResponse.json() as { impressions?: number; clicks?: number; conversions?: number; click_rate?: number; conversion_rate?: number };
-              return { id: rule.id, impressions: Number(metric.impressions ?? rule.impressions ?? 0), clicks: Number(metric.clicks ?? rule.clicks ?? 0), conversions: Number(metric.conversions ?? rule.conversions ?? 0), clickRate: Number(metric.click_rate ?? 0), conversionRate: Number(metric.conversion_rate ?? 0) };
+              const [metricResponse, scheduleResponse] = await Promise.all([
+                fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/analytics`),
+                fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/schedule-preview`),
+              ]);
+              const metric = metricResponse.ok
+                ? await metricResponse.json() as { impressions?: number; clicks?: number; conversions?: number; click_rate?: number; conversion_rate?: number }
+                : {};
+              const schedule = scheduleResponse.ok
+                ? await scheduleResponse.json() as { next_run_at?: string | null; schedule_config?: { cadence?: string } }
+                : {};
+              if (!metricResponse.ok && !scheduleResponse.ok) return null;
+              return {
+                id: rule.id,
+                impressions: Number(metric.impressions ?? rule.impressions ?? 0),
+                clicks: Number(metric.clicks ?? rule.clicks ?? 0),
+                conversions: Number(metric.conversions ?? rule.conversions ?? 0),
+                clickRate: Number(metric.click_rate ?? 0),
+                conversionRate: Number(metric.conversion_rate ?? 0),
+                nextRunAt: schedule.next_run_at ?? null,
+                scheduleCadence: String(schedule.schedule_config?.cadence ?? "once"),
+              };
             } catch { return null; }
           }));
           if (!cancelled) setRules((current) => current.map((rule) => {
@@ -385,6 +404,10 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       {r.conversionRate !== undefined && <span>{(r.conversionRate * 100).toFixed(1)}% CVR</span>}
                     </div>
                     <div className="text-[10px] text-neutral-400">Audience: {r.audience ?? "all"} · Channels: {(r.channels ?? ["web"]).join(", ")}</div>
+                    <div className="text-[10px] text-neutral-400">
+                      Schedule: {r.scheduleCadence ?? "once"}
+                      {r.nextRunAt ? ` · next run ${new Date(r.nextRunAt).toLocaleString()}` : " · no future run"}
+                    </div>
                     {!!r.sequenceSteps?.length && <div className="text-[10px] text-neutral-400">{r.sequenceSteps.length} sequenced follow-up{r.sequenceSteps.length === 1 ? "" : "s"}</div>}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
