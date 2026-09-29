@@ -130,7 +130,8 @@ async def _process_campaign_dispatch(payload: dict) -> None:
             "schedule_config": {"timezone": payload.get("timezone") or "UTC"},
             "safety_config": {"quiet_hours": payload.get("quiet_hours")},
         }):
-            raise ValueError("campaign dispatch is blocked by quiet hours")
+            logger.info("campaign dispatch suppressed by quiet hours bot=%s campaign=%s", bot_id, payload.get("campaign_id"))
+            return
     if channel == "web":
         logger.info("campaign web step delegated to widget bot=%s campaign=%s", bot_id, payload.get("campaign_id"))
         return

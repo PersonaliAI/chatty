@@ -44,13 +44,13 @@ def test_unconfigured_channels_fail_closed():
 
 
 def test_campaign_worker_rechecks_quiet_hours():
-    with pytest.raises(ValueError, match="quiet hours"):
-        asyncio.run(_process_campaign_dispatch({
-            "bot_id": "bot-1",
-            "channel": "email",
-            "message": "Hello",
-            "requires_consent": False,
-            "recipient": {"email": "a@example.com"},
-            "quiet_hours": {"start": "00:00", "end": "23:59"},
-            "timezone": "UTC",
-        }))
+    # Suppression is an intentional no-op, not a retryable delivery failure.
+    asyncio.run(_process_campaign_dispatch({
+        "bot_id": "bot-1",
+        "channel": "email",
+        "message": "Hello",
+        "requires_consent": False,
+        "recipient": {"email": "a@example.com"},
+        "quiet_hours": {"start": "00:00", "end": "23:59"},
+        "timezone": "UTC",
+    }))
