@@ -123,6 +123,14 @@ async def _process_campaign_dispatch(payload: dict) -> None:
     message = str(payload.get("message") or "").strip()
     if not bot_id or not channel or not message:
         raise ValueError("campaign dispatch is missing bot_id, channel, or message")
+    if payload.get("quiet_hours") is not None:
+        from app.services.campaign_runtime import campaign_is_active_now
+        if not campaign_is_active_now({
+            "is_active": True,
+            "schedule_config": {"timezone": payload.get("timezone") or "UTC"},
+            "safety_config": {"quiet_hours": payload.get("quiet_hours")},
+        }):
+            raise ValueError("campaign dispatch is blocked by quiet hours")
     if channel == "web":
         logger.info("campaign web step delegated to widget bot=%s campaign=%s", bot_id, payload.get("campaign_id"))
         return

@@ -76,6 +76,7 @@ def build_campaign_dispatch_plan(
     if len(steps) > 20:
         raise ValueError("campaign sequence exceeds the 20-step limit")
     safety = campaign.get("safety_config") or {}
+    schedule_config = campaign.get("schedule_config") or {}
     try:
         frequency_cap_hours = max(1, min(8_760, int(safety.get("frequency_cap_hours", 24))))
     except (TypeError, ValueError) as exc:
@@ -113,6 +114,8 @@ def build_campaign_dispatch_plan(
                 "recipient": recipient or {},
                 "requires_consent": requires_consent,
                 "frequency_cap_hours": frequency_cap_hours,
+                "quiet_hours": safety.get("quiet_hours"),
+                "timezone": str(schedule_config.get("timezone", "UTC")),
             },
         })
     return jobs
