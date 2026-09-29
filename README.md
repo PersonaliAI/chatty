@@ -104,6 +104,10 @@ requests require an authenticated user with `settings` permission on the target
 bot. Prompts are bounded to 4,000 characters, and generated graphs are validated
 for unique node IDs and resolvable edge references before publishing or dry-run
 execution. Dry-runs also enforce a step budget to prevent runaway loops.
+The dashboard’s **Optimize Current Draft** action uses
+`POST /api/flow/optimize` to return an improved, validated draft; it never
+publishes automatically, so an operator can inspect, test, and explicitly save
+or publish the resulting graph.
 - 🐳 **One-command managed self-host** - `docker compose up`, point it at a Supabase project, done
 
 ## Architecture
