@@ -210,6 +210,12 @@ container health checks at `/health` and gate traffic on `/ready`.
 Campaigns can enforce local-time quiet hours through `safety_config.quiet_hours`
 (`start`/`end` in `HH:MM`). Overnight windows such as `22:00` to `08:00` are
 supported; malformed settings fail closed and suppress delivery.
+For provider-backed email and WhatsApp steps, the worker also claims the
+configured `frequency_cap_hours` with an atomic Redis `SET NX EX` key before
+sending. The key hashes the campaign and recipient identity, so retries and
+duplicate scheduler occurrences are suppressed without storing contact details
+in Redis. A cap hit is an intentional no-op, not a retried or dead-lettered
+delivery failure.
 
 For the managed-Supabase Docker deployment, the repository includes an opt-in
 `automation` profile that provisions Redis plus both processes without changing

@@ -109,7 +109,7 @@ async def _process_widget_unanswered(payload: dict) -> None:
     await process_unanswered(payload)
 
 
-async def _process_campaign_dispatch(payload: dict) -> None:
+async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> None:
     """Execute one planned campaign step with fail-closed delivery semantics.
 
     Web campaigns are intentionally delivered by the browser widget (which
@@ -138,6 +138,13 @@ async def _process_campaign_dispatch(payload: dict) -> None:
     recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
     if bool(payload.get("requires_consent", True)) and not bool(recipient.get("consent")):
         raise ValueError("campaign recipient consent is required")
+    if redis_client is not None:
+        from app.services.campaign_delivery_guard import claim_campaign_frequency_cap
+
+        allowed, cap_key = await claim_campaign_frequency_cap(redis_client, payload)
+        if not allowed:
+            logger.info("campaign dispatch suppressed by frequency cap bot=%s campaign=%s key=%s", bot_id, payload.get("campaign_id"), cap_key)
+            return
     if channel == "whatsapp":
         phone = str(recipient.get("phone") or recipient.get("whatsapp") or "").strip()
         if not phone:
@@ -206,6 +213,9 @@ async def run() -> None:
     concurrency_busy_retry_delay_seconds = float(os.environ.get("CHATTY_WORKER_CONCURRENCY_BUSY_RETRY_DELAY_SECONDS", "1"))
     idempotency_lock_ttl_seconds = int(os.environ.get("CHATTY_WORKER_IDEMPOTENCY_LOCK_TTL_SECONDS", str(60 * 60)))
     client = redis_asyncio.from_url(queue_url, decode_responses=True)
+    async def campaign_dispatch_handler(payload: dict) -> None:
+        await _process_campaign_dispatch(payload, redis_client=client)
+
     worker = RedisStreamWorker(
         client,
         stream=stream,
@@ -229,7 +239,7 @@ async def run() -> None:
             "email.ticket_escalation": _process_email_ticket_escalation,
             "widget.ticket_escalation": _process_widget_ticket_escalation,
             "widget.unanswered": _process_widget_unanswered,
-            "campaign.dispatch": _process_campaign_dispatch,
+            "campaign.dispatch": campaign_dispatch_handler,
             "whatsapp.message": _process_whatsapp_message,
             "documents.index_folder": _process_document_job,
             "documents.index_file": _process_document_job,

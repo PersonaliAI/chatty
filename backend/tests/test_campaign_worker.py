@@ -61,6 +61,27 @@ def test_configured_email_campaign_delivery_uses_provider_boundary(monkeypatch):
     }))
 
 
+def test_frequency_capped_provider_step_is_suppressed_before_send(monkeypatch):
+    from app.services import email_service
+
+    class ExistingClaim:
+        async def set(self, *args, **kwargs):
+            return False
+
+    async def should_not_send(**kwargs):
+        raise AssertionError("frequency-capped campaign must not send")
+
+    monkeypatch.setattr(email_service, "send_campaign_email", should_not_send)
+    asyncio.run(_process_campaign_dispatch({
+        "bot_id": "bot-1",
+        "campaign_id": "campaign-1",
+        "channel": "email",
+        "message": "Hello",
+        "requires_consent": False,
+        "recipient": {"email": "a@example.com"},
+    }, redis_client=ExistingClaim()))
+
+
 def test_campaign_worker_rechecks_quiet_hours():
     # Suppression is an intentional no-op, not a retryable delivery failure.
     asyncio.run(_process_campaign_dispatch({
