@@ -109,6 +109,54 @@ async def _process_widget_unanswered(payload: dict) -> None:
     await process_unanswered(payload)
 
 
+async def _process_campaign_dispatch(payload: dict) -> None:
+    """Execute one planned campaign step with fail-closed delivery semantics.
+
+    Web campaigns are intentionally delivered by the browser widget (which
+    has the visitor session and targeting context), so a queued web step is a
+    successful no-op. Provider channels must include a recipient and a real
+    provider adapter; silently treating a missing destination as delivered is
+    unacceptable for production automation.
+    """
+    bot_id = str(payload.get("bot_id") or "").strip()
+    channel = str(payload.get("channel") or "").strip().lower()
+    message = str(payload.get("message") or "").strip()
+    if not bot_id or not channel or not message:
+        raise ValueError("campaign dispatch is missing bot_id, channel, or message")
+    if channel == "web":
+        logger.info("campaign web step delegated to widget bot=%s campaign=%s", bot_id, payload.get("campaign_id"))
+        return
+    recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
+    if bool(payload.get("requires_consent", True)) and not bool(recipient.get("consent")):
+        raise ValueError("campaign recipient consent is required")
+    if channel == "whatsapp":
+        phone = str(recipient.get("phone") or recipient.get("whatsapp") or "").strip()
+        if not phone:
+            raise ValueError("whatsapp campaign requires recipient.phone")
+        from app.core.clients import supabase
+        from app.services.whatsapp_service import send_whatsapp_message
+        from app.core.crypto import decrypt_secret
+
+        result = await asyncio.to_thread(
+            lambda: supabase.table("chatty_bots").select(
+                "whatsapp_phone_number_id, whatsapp_access_token"
+            ).eq("id", bot_id).maybe_single().execute()
+        )
+        bot = result.data or {}
+        phone_number_id = str(bot.get("whatsapp_phone_number_id") or "").strip()
+        access_token = decrypt_secret(str(bot.get("whatsapp_access_token") or "").strip())
+        if not phone_number_id or not access_token:
+            raise RuntimeError("whatsapp campaign provider is not configured")
+        if not await send_whatsapp_message(phone_number_id, phone, message, access_token):
+            raise RuntimeError("whatsapp campaign delivery failed")
+        return
+    if channel == "email":
+        raise RuntimeError("email campaign delivery adapter is not configured")
+    if channel == "sms":
+        raise RuntimeError("sms campaign delivery adapter is not configured")
+    raise ValueError(f"unsupported campaign channel: {channel}")
+
+
 async def run() -> None:
     queue_url = os.environ.get("CHATTY_JOB_QUEUE_URL", "").strip()
     if not queue_url:
@@ -159,6 +207,7 @@ async def run() -> None:
             "email.ticket_escalation": _process_email_ticket_escalation,
             "widget.ticket_escalation": _process_widget_ticket_escalation,
             "widget.unanswered": _process_widget_unanswered,
+            "campaign.dispatch": _process_campaign_dispatch,
             "whatsapp.message": _process_whatsapp_message,
             "documents.index_folder": _process_document_job,
             "documents.index_file": _process_document_job,

@@ -153,7 +153,12 @@ CHATTY_JOB_QUEUE_URL=redis://redis:6379/0 python -m app.workers.webhook_worker
 
 The built-in worker handles `webhook.deliver`, `woocommerce.sync`,
 `webhook.fanout`, `email.ticket_reply`, `email.ticket_escalation`, `widget.ticket_escalation`, `widget.unanswered`, `whatsapp.message`, `documents.index_folder`, and
-`documents.index_file`, `crawl.pages`, and `crawl.scheduled`. Human replies,
+`documents.index_file`, `crawl.pages`, `crawl.scheduled`, and `campaign.dispatch`.
+Campaign web steps are deliberately delegated to the browser widget; provider
+steps are fail-closed: WhatsApp requires a consented recipient and bot
+credentials, while email/SMS remain dead-lettered until their provider adapter
+is explicitly configured. The worker never reports an unsupported channel as
+delivered. Human replies,
 WhatsApp messages, document indexing, and website crawling therefore remain
 recoverable across API restarts when the durable queue is configured; channel,
 document, and crawl jobs use bounded concurrency keys.
@@ -180,6 +185,18 @@ sync duration and `CHATTY_WORKER_CONCURRENCY_LOCK_WAIT_SECONDS` for the bounded
 wait before a busy job is requeued without consuming a retry attempt.
 Production sync requests fail closed when `CHATTY_JOB_QUEUE_URL` is missing.
 Set `CHATTY_ALLOW_EPHEMERAL_JOBS=true` only for local development.
+
+The campaign scheduler is a separate periodic process using the same durable
+Redis stream. Run it alongside the worker (never in the HTTP request process):
+
+```bash
+CHATTY_JOB_QUEUE_URL=redis://redis:6379/0 \
+  python -m app.workers.campaign_scheduler
+```
+
+It claims each campaign occurrence with a 24-hour Redis lease before enqueueing
+bounded `campaign.dispatch` jobs. Keep the scheduler at one active replica (or
+use the shared claim lease) and scale webhook workers independently.
 
 After inspecting a dead-letter entry, replay exactly one job with:
 
