@@ -203,6 +203,7 @@ async def simulate_dashboard_flow(
     budget_exceeded = current is not None
     run = await run_db(lambda: supabase.table("chatty_flow_runs").insert({
         "bot_id": bot_id,
+        "flow_data": {"status": flow.get("status", "paused"), "nodes": nodes, "edges": edges},
         "status": "failed" if budget_exceeded else "completed",
         "inputs": body.inputs[:50] or ["Hello"],
         "trace": trace,
@@ -231,11 +232,17 @@ async def replay_dashboard_flow_run(
     user: dict[str, Any] = Depends(require_user),
 ):
     await verify_bot_permission(bot_id, user, "settings")
-    result = await run_db(lambda: supabase.table("chatty_flow_runs").select("inputs").eq(
+    result = await run_db(lambda: supabase.table("chatty_flow_runs").select("inputs, flow_data").eq(
         "id", run_id).eq("bot_id", bot_id).maybe_single().execute())
     if not result.data:
         raise HTTPException(status_code=404, detail="Flow run not found")
-    return await simulate_dashboard_flow(bot_id, FlowSimulationRequest(inputs=result.data.get("inputs") or ["Hello"]), user)
+    # Retain an explicit audit signal that the replay originated from a
+    # captured graph snapshot, even while the simulator remains side-effect
+    # free and permission-checked through the current endpoint.
+    snapshot = result.data.get("flow_data") or {}
+    replay = await simulate_dashboard_flow(bot_id, FlowSimulationRequest(inputs=result.data.get("inputs") or ["Hello"]), user)
+    replay["replayed_from_snapshot"] = bool(snapshot.get("nodes"))
+    return replay
 
 
 @router.get("/api/bots/{bot_id}/campaigns")
