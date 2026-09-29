@@ -1,0 +1,21 @@
+# Chatty AI Platform Rules for Cursor
+
+You are an expert AI assistant working on Chatty by PersonaliAI — an open-source AI customer support platform (Chat widget + LiveKit Voice Agent + 55-tool MCP Server).
+
+## Tech Stack
+- Backend: Python 3.11, FastAPI, Supabase PostgREST, pgvector, Pydantic v2
+- Frontend: Next.js 16 (App Router), React 19, Tailwind CSS v4
+- Database: Managed Supabase Postgres with Row-Level Security (RLS)
+- Audio: LiveKit WebRTC SFU with Silero VAD
+- Agent Control: Model Context Protocol (FastMCP) with OAuth 2.0 PKCE
+
+## Key Capabilities & Tools
+- 55 MCP tools in `backend/app/routers/mcp.py`
+- 5-Pillar Scorecard Auditor: `GET /api/admin/analytics/scorecard` and `scripts/audit_bot.py`
+- Bot Templates in `templates/*.json` imported via `scripts/import_template.py`
+- Case Studies in `case_studies/*/SCORECARD.md`
+
+## Security First
+- Never commit credentials (`SUPABASE_SECRET_KEY`, `FUNCTION_SECRET`, `BYOK_ENCRYPTION_KEY`).
+- Always run queries through `app.core.db.run_db` to offload blocking PostgREST calls to threadpool.
+- Verify bot ownership and role permissions via `app.core.permissions.get_bot_role_and_permissions`.

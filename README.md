@@ -28,7 +28,7 @@ Supabase project.
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Performance Scorecard](docs/SCORECARD.md) · [Templates](templates/README.md) · [Case Studies](case_studies/README.md) · [Widget Embed](docs/WIDGET_INTEGRATION.md) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [MCP Server](#mcp-server--agent-control) · [Community Traction](docs/traction.md)
+[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Performance Scorecard](docs/SCORECARD.md) · [Templates](templates/README.md) · [Case Studies](case_studies/README.md) · [Widget Embed](docs/WIDGET_INTEGRATION.md) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [MCP Server](#mcp-server--agent-control) · [AI Plugins](docs/AI_CODING_PLUGINS.md) · [Community Traction](docs/traction.md)
 
 </div>
 
@@ -58,7 +58,7 @@ Supabase project.
   - [Troubleshooting](#troubleshooting)
 - [Local Development (without Docker)](#-local-development-without-docker)
 - [Managed-Supabase platform runbook](docs/SELF_HOST_MANAGED_SUPABASE.md)
-- [MCP Server & Agent Control](#mcp-server--agent-control)
+- [MCP Server & AI Coding Plugins (Claude, Cursor, Codex)](docs/AI_CODING_PLUGINS.md)
 - [Environment Variable Reference](#environment-variable-reference)
 - [Testing & CI](#-testing--ci)
 - [Security](#-security)
@@ -453,6 +453,8 @@ Connect by pointing an MCP client at:
 ```
 
 The client opens a normal OAuth consent screen on first connect. **If you're self-hosting under your own domain**, set `CHATTY_BACKEND_URL` (and `CHATTY_FRONTEND_URL`, for the consent screen redirect) in `backend/.env` to your real URLs first - see [Step 4](#step-4--configure-environment-variables).
+
+For setup instructions and plugin manifests for **Claude Code** (`/plugin marketplace add PersonaliAI/chatty`), **Cursor IDE** (`.cursor/rules/`), **Claude Desktop**, and **Windsurf**, see the full [AI Coding Tools & Plugin Marketplace Guide](docs/AI_CODING_PLUGINS.md).
 
 ## Environment Variable Reference
 
