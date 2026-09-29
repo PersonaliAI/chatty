@@ -42,6 +42,11 @@ logger = logging.getLogger("chatty")
 router = APIRouter()
 
 
+def _internal_flow_override() -> None:
+    """Keep replay-only graph injection out of the public request surface."""
+    return None
+
+
 def _campaign_row(body: CampaignCreateRequest) -> dict[str, Any]:
     """Map the dashboard/API model to the canonical campaign table columns."""
     return {
@@ -140,7 +145,7 @@ async def simulate_dashboard_flow(
     bot_id: str,
     body: FlowSimulationRequest,
     user: dict[str, Any] = Depends(require_user),
-    flow_override: dict[str, Any] | None = None,
+    flow_override: dict[str, Any] | None = Depends(_internal_flow_override),
 ):
     """Run a side-effect-free dry run of the saved flow for the editor."""
     await verify_bot_permission(bot_id, user, "settings")
