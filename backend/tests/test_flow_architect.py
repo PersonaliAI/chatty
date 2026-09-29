@@ -69,3 +69,10 @@ def test_generate_flow_with_ai(client):
         assert "nodes" in data
         assert "edges" in data
         assert len(data["nodes"]) > 0
+
+
+def test_generate_flow_request_bounds_prompt_size(client):
+    too_long = client.post("/api/flow/generate", json={"bot_id": "bot_123", "description": "x" * 4001})
+    assert too_long.status_code == 422
+    too_short = client.post("/api/flow/generate", json={"bot_id": "bot_123", "description": "x"})
+    assert too_short.status_code == 422
