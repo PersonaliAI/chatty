@@ -140,16 +140,20 @@ async def simulate_dashboard_flow(
     bot_id: str,
     body: FlowSimulationRequest,
     user: dict[str, Any] = Depends(require_user),
+    flow_override: dict[str, Any] | None = None,
 ):
     """Run a side-effect-free dry run of the saved flow for the editor."""
     await verify_bot_permission(bot_id, user, "settings")
-    result = await run_db(lambda: supabase.table("chatty_bots").select("custom_js").eq("id", bot_id).maybe_single().execute())
-    custom_js = (result.data or {}).get("custom_js") or ""
-    match = re.search(r"/\* CHATTY_FLOW_DATA([\s\S]*?)CHATTY_FLOW_DATA \*/", custom_js)
-    try:
-        flow = json.loads(match.group(1).strip()) if match else {"nodes": [], "edges": []}
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=422, detail="Saved flow configuration is invalid JSON") from exc
+    if flow_override is not None:
+        flow = flow_override
+    else:
+        result = await run_db(lambda: supabase.table("chatty_bots").select("custom_js").eq("id", bot_id).maybe_single().execute())
+        custom_js = (result.data or {}).get("custom_js") or ""
+        match = re.search(r"/\* CHATTY_FLOW_DATA([\s\S]*?)CHATTY_FLOW_DATA \*/", custom_js)
+        try:
+            flow = json.loads(match.group(1).strip()) if match else {"nodes": [], "edges": []}
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=422, detail="Saved flow configuration is invalid JSON") from exc
     nodes, edges = flow.get("nodes") or [], flow.get("edges") or []
     try:
         validated_flow = FlowVersionCreateRequest(nodes=nodes, edges=edges, status="draft")
@@ -236,11 +240,13 @@ async def replay_dashboard_flow_run(
         "id", run_id).eq("bot_id", bot_id).maybe_single().execute())
     if not result.data:
         raise HTTPException(status_code=404, detail="Flow run not found")
-    # Retain an explicit audit signal that the replay originated from a
-    # captured graph snapshot, even while the simulator remains side-effect
-    # free and permission-checked through the current endpoint.
     snapshot = result.data.get("flow_data") or {}
-    replay = await simulate_dashboard_flow(bot_id, FlowSimulationRequest(inputs=result.data.get("inputs") or ["Hello"]), user)
+    replay = await simulate_dashboard_flow(
+        bot_id,
+        FlowSimulationRequest(inputs=result.data.get("inputs") or ["Hello"]),
+        user,
+        flow_override=snapshot if snapshot.get("nodes") else None,
+    )
     replay["replayed_from_snapshot"] = bool(snapshot.get("nodes"))
     return replay
 
