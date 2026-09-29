@@ -34,11 +34,6 @@ Supabase project.
 
 ---
 
-<p align="center">
-  <img src="docs/assets/chatty-dashboard-overview.png" alt="Chatty Dashboard Overview" width="100%" />
-</p>
-
-
 ## Table of contents
 
 - [Why Chatty](#why-chatty)
