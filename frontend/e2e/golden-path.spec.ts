@@ -106,8 +106,18 @@ test.describe("owner golden path", () => {
     await page.getByRole("button", { name: /log in|sign in/i }).click();
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
 
+    // The industrial workspace must expose an accessible collapse control so
+    // operators can reclaim canvas space without losing navigation.
+    const collapse = page.getByRole("button", { name: /collapse sidebar/i });
+    await expect(collapse).toBeVisible();
+    await collapse.click();
+    await expect(page.getByRole("button", { name: /expand sidebar/i })).toBeVisible();
+    await page.getByRole("button", { name: /expand sidebar/i }).click();
+
     await page.getByText("Flow Builder", { exact: true }).click();
     await expect(page.getByText("Visual Flow Builder", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /run dry test/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /view execution history/i })).toBeVisible();
     await page.getByText("Campaigns", { exact: true }).click();
     await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
     await expect(page.getByText("AI campaign copilot", { exact: true })).toBeVisible();
