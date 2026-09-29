@@ -20,6 +20,7 @@ from app.core.permissions import get_bot_role_and_permissions, verify_bot_permis
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.services.campaign_schedule import next_campaign_run_at
 from app.services.campaign_dispatch import build_campaign_dispatch_plan
+from app.services.flow_runtime import evaluate_retry
 from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
     BYOKUpdate,
@@ -173,7 +174,7 @@ async def simulate_dashboard_flow(
         elif node_type == "webhook":
             runtime = {"simulated": True, "side_effect": "webhook_not_sent", "mapped_fields": list((config.get("mapping") or {}).keys()) if isinstance(config.get("mapping"), dict) else []}
         elif node_type == "retry":
-            runtime = {"simulated": True, "max_attempts": _bounded_int(config.get("max_attempts"), 3, 1, 10), "timeout_ms": _bounded_int(config.get("timeout_ms"), 30000, 100, 300000)}
+            runtime = {"simulated": True, **evaluate_retry(config)}
         elif node_type == "loop":
             loop_counts[current.get("id", "loop")] = loop_counts.get(current.get("id", "loop"), 0) + 1
             runtime = {"iteration": loop_counts[current.get("id", "loop")], "max_iterations": _bounded_int(config.get("max_iterations"), 10, 1, 100)}
@@ -193,6 +194,8 @@ async def simulate_dashboard_flow(
                 current = None
                 trace[-1]["runtime"]["halted"] = "loop_limit_reached"
                 continue
+        if node_type == "retry" and outgoing and not runtime.get("succeeded", True):
+            edge = next((item for item in outgoing if str(item.get("label") or "").strip().lower() in {"error", "failed", "failure", "timeout"}), None)
         if edge is None and outgoing:
             edge = outgoing[0]
         current = by_id.get(str(edge.get("target"))) if edge else None

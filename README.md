@@ -119,6 +119,9 @@ The dashboard’s **Optimize Current Draft** action uses
 `POST /api/flow/optimize` to return an improved, validated draft; it never
 publishes automatically, so an operator can inspect, test, and explicitly save
 or publish the resulting graph.
+Retry nodes in dry-runs now expose bounded attempts, timeout outcomes, and
+explicit retry exhaustion; failure/timeout edges are selected deterministically
+without sleeping or executing external side effects.
 - 🐳 **One-command managed self-host** - `docker compose up`, point it at a Supabase project, done
 
 ## Architecture
