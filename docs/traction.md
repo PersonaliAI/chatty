@@ -1,32 +1,31 @@
 # 🚀 Chatty Community Traction & Growth
 
-Tracking the open-source adoption, community milestones, and deployment velocity of Chatty by PersonaliAI.
+Tracking the open-source adoption, community milestones, and growth velocity of Chatty by PersonaliAI.
 
 ---
 
-## 📊 Live Traction Metrics
+## 📊 Live Community Metrics
 
-| Metric | Current Status | Milestone Target |
+| Metric | Live Status | Next Milestone |
 |---|:---:|:---:|
-| ⭐ **GitHub Stars** | **1,250+** | 5,000 |
-| 🍴 **Forks** | **118** | 500 |
-| 🐳 **Docker Compose Clones** | **3,400+** | 10,000 |
-| 📦 **Active Deployments** | **650+** | 2,500 |
-| 💬 **Conversations Deflected** | **1.2M+** | 5.0M |
-| 🛠️ **MCP Agent Invocations** | **45,000+** | 250,000 |
+| ⭐ **GitHub Stars** | [![GitHub Repo stars](https://img.shields.io/github/stars/PersonaliAI/chatty?style=flat&color=yellow)](https://github.com/PersonaliAI/chatty/stargazers) | 50 |
+| 🍴 **Forks** | [![GitHub forks](https://img.shields.io/github/forks/PersonaliAI/chatty?style=flat&color=blue)](https://github.com/PersonaliAI/chatty/network/members) | 25 |
+| 👀 **Watchers** | [![GitHub watchers](https://img.shields.io/github/watchers/PersonaliAI/chatty?style=flat&color=purple)](https://github.com/PersonaliAI/chatty/watchers) | 20 |
+| 🐛 **Open Issues** | [![GitHub issues](https://img.shields.io/github/issues/PersonaliAI/chatty?style=flat&color=green)](https://github.com/PersonaliAI/chatty/issues) | &mdash; |
+| 🏷️ **Latest Release** | [![GitHub release](https://img.shields.io/github/v/release/PersonaliAI/chatty?color=brightgreen)](https://github.com/PersonaliAI/chatty/releases/latest) | `v2.0.0` |
 
 ---
 
-## 📈 Growth Velocity
+## 📈 Traction Tracking Methodology
 
-Traction metrics are tracked via [`.github/workflows/traction.yaml`](../.github/workflows/traction.yaml) and logged to [`docs/assets/traction_history.json`](assets/traction_history.json).
+Historical metrics are captured automatically every 24 hours at 00:00 UTC via [`.github/workflows/traction.yml`](../.github/workflows/traction.yml) using [`scripts/track_metrics.py`](../scripts/track_metrics.py) and appended to [`docs/assets/traction_history.json`](assets/traction_history.json).
 
-```mermaid
-xychart-beta
-    title "Chatty GitHub Stars Trajectory (2026)"
-    x-axis ["Sept 1", "Sept 15", "Sept 29"]
-    y-axis "Stars" 0 --> 1500
-    line [120, 480, 1250]
+As daily snapshots accumulate, this document visualizes the project's adoption trajectory:
+
+```
+Baseline Established: September 29, 2026 (v2.0.0 Launch)
+Tracking Frequency: Daily UTC Cron
+Data Source: Official GitHub REST API
 ```
 
 ---
@@ -37,14 +36,15 @@ xychart-beta
 - [x] **v1.2 (June 2026)**: Direct Shadow DOM widget loader with zero iframe zoom distortion.
 - [x] **v1.5 (July 2026)**: LiveKit WebRTC Voice Agent with Silero VAD and sub-150ms turnaround.
 - [x] **v1.8 (August 2026)**: Full Model Context Protocol (MCP) server with 55 callable tools and OAuth 2.0 PKCE.
-- [x] **v2.0 (September 2026)**: 5-Pillar Operational Scorecard, production industry templates, and multi-language READMEs.
-- [ ] **v2.2 (Q4 2026)**: Native Claude Code and Cursor IDE extensions marketplace integration.
-- [ ] **v2.5 (Q1 2027)**: Voice streaming agent mesh with multi-party live conference handoff.
+- [x] **v2.0 (September 2026)**: 5-Pillar Operational Scorecard, production industry templates, multi-language READMEs, and AI Coding plugins (Claude Code, Cursor).
+- [ ] **Next Goal (50 Stars)**: Publish official Docker Hub pre-built images.
+- [ ] **Community Goal (100 Stars)**: Launch community Discord & developer office hours.
+- [ ] **Scale Goal (500 Stars)**: Native multi-agent team orchestration mesh.
 
 ---
 
-## 🤝 Community Contributors
+## 🤝 Help Chatty Grow
 
-A heartfelt thank you to all engineers, designers, and open-source advocates contributing to Chatty!
+If you find Chatty useful for your customer support or AI workflows, **[give the repository a star ⭐](https://github.com/PersonaliAI/chatty)** — it directly increases discoverability for other developers and businesses!
 
-Want to get involved? Check out our [good first issues](https://github.com/PersonaliAI/chatty/issues?q=is%3Aopen+label%3A%22good+first+issue%22) and read [CONTRIBUTING.md](../CONTRIBUTING.md).
+Want to get involved? Check out our [open issues](https://github.com/PersonaliAI/chatty/issues) and read [CONTRIBUTING.md](../CONTRIBUTING.md).
