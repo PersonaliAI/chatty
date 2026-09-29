@@ -80,73 +80,30 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 
 ## ✨ Features
 
-- 💬 **Embeddable chat widget** - one `<script>` tag, streaming replies, works on any website
-- 🎙️ **Real-time voice agent** - phone-call-style conversations via LiveKit, same brain as the chat widget
-- 📚 **RAG over your own knowledge base** - upload PDF/DOCX/PPTX/XLSX, crawl URLs, auto-chunked and embedded
-- 🛠️ **Tool-calling** - books real meetings (Google Meet/Microsoft Teams/Zoom links), captures leads, checks a calendar
-- 🔌 **Omnichannel** - WhatsApp and Slack, in addition to the web widget
-- 🔑 **BYOK** - default is Gemini (generous free tier); swap in your own OpenAI/Anthropic/OpenRouter key per bot
-- 🤖 **MCP server** - connect Claude, ChatGPT, or any MCP client and run the entire dashboard from a conversation: create bots, edit flows, run campaigns, manage leads, configure voice, and more, all as 55 callable tools secured by OAuth 2.0 + PKCE (see [MCP Server & Agent Control](#mcp-server--agent-control))
-- 📊 **Dashboard** - manage bots, inbox/conversations, knowledge sources, booking rules, campaigns, and channel connections
+- 💬 **Embeddable Chat Widget** — One `<script>` tag, streaming SSE replies, crisp vector Shadow DOM rendering on any site.
+- 🎙️ **Real-Time Voice Agent** — Sub-150ms telephone-grade WebRTC voice calls via LiveKit, sharing the same knowledge brain.
+- 📚 **RAG Knowledge Hub** — Ingest PDF, DOCX, TXT, CSV, or crawl website sitemaps with `pgvector` semantic retrieval.
+- 🛠️ **Autonomous Tool-Calling** — Schedules real meetings (Google Meet, Teams, Zoom), qualifies leads, and checks calendars.
+- 🔌 **Omnichannel Ingress** — Web widget, WhatsApp Cloud API, Slack events, and inbound email ticketing.
+- 🔑 **Bring Your Own Key (BYOK)** — Free-tier Gemini by default, or per-bot OpenAI/Anthropic/Groq with AES-128 encryption.
+- 🤖 **55-Tool MCP Server** — Control the entire dashboard programmatically from Claude Desktop, Cursor, or Codex via OAuth 2.0.
+- 📊 **5-Pillar Scorecard** — Independent A–F performance auditing across Conversion, Deflection, Accuracy, Reliability, and CSAT.
+- 🎯 **Proactive Campaigns** — Behavioral triggers (exit-intent, time-on-page, scroll-depth) with timezone-aware cadence planning.
+- 🗺️ **Visual Flow Architect** — Interactive `@xyflow/react` canvas with AI flow generation and deterministic dry-run simulations.
+- 🐳 **One-Command Self-Host** — `docker compose up`, point to Supabase, and launch in 60 seconds.
 
-### Campaign telemetry
+<details>
+<summary><b>🔧 Deep Dive: Campaign Telemetry & Flow Builder Safety Architecture</b></summary>
+<br/>
 
-Campaign configuration is persisted in `chatty_campaigns`. Widget deployments can
-record `impression`, `click`, and `conversion` events through
-`POST /api/widget/campaign-events` with `bot_id`, `campaign_id`, and an optional
-`idempotency_key` (retries with the same key are safe). Dashboard users can read
-recomputed metrics from `GET /api/bots/{bot_id}/campaigns/{campaign_id}/analytics`.
-The `20260925220000_chatty_campaign_events.sql` migration creates the durable
-ledger and indexes; apply it before enabling campaign optimization in production.
+### Campaign Telemetry Ledger
+Campaign configuration is persisted in `chatty_campaigns`. Widget deployments record `impression`, `click`, and `conversion` events through `POST /api/widget/campaign-events` with `bot_id`, `campaign_id`, and an optional `idempotency_key` (safe for retries). Recomputed analytics are accessible via `GET /api/bots/{bot_id}/campaigns/{campaign_id}/analytics`.
 
-Campaign drafts also support a validated `schedule_config` (`once`, `hourly`,
-`daily`, or `weekly`, with an IANA timezone) and the authenticated dashboard
-endpoint `POST /api/bots/{bot_id}/campaigns/audience-suggest` can generate a
-bounded segment, intent threshold, and rationale before a campaign is saved.
-Campaigns can be paused or resumed from the dashboard without deleting their
-configuration, and the creator supports multiple delivery channels (web,
-email, WhatsApp, and SMS). Sequence steps automatically enable any channel
-they use; disabled or out-of-window campaigns do not contribute telemetry.
-The public widget consumes the bounded `GET /api/widget/campaigns` projection,
-which applies active date windows, device targeting, and URL-pattern matching
-server-side before arming time-on-page, scroll-depth, or exit-intent triggers.
-It records idempotent impression and click events as visitors engage.
-Workers and operators can inspect the next UTC occurrence through the
-authenticated `GET /api/bots/{bot_id}/campaigns/{campaign_id}/schedule-preview`
-endpoint, which uses the same timezone-aware cadence planner as runtime code.
-The authenticated `GET /api/bots/{bot_id}/campaigns/{campaign_id}/dispatch-plan`
-endpoint compiles the current occurrence into bounded, idempotent channel jobs
-with consent and frequency-cap policy attached. It is a planning contract for
-the durable worker; it never sends a message by itself.
-Campaign safety policies may also include `quiet_hours: {"start": "22:00",
-"end": "08:00"}`. Bounds are interpreted in the campaign schedule timezone;
-overnight windows are supported and invalid values fail closed.
-The periodic scheduler entry point is `python -m app.workers.campaign_scheduler`.
-It claims each idempotency key in Redis for 24 hours, enqueues only due jobs,
-and can run as an independently scaled process with
-`CHATTY_CAMPAIGN_SCHEDULER_INTERVAL` (default 30 seconds).
+Campaign drafts support a validated `schedule_config` (`once`, `hourly`, `daily`, or `weekly` with IANA timezone). `POST /api/bots/{bot_id}/campaigns/audience-suggest` generates bounded segments, intent thresholds, and rationales before saving. Delivery channels include web, email, WhatsApp, and SMS. Safety policies support overnight quiet hours (`quiet_hours: {"start": "22:00", "end": "08:00"}`). The background worker `python -m app.workers.campaign_scheduler` claims Redis idempotency keys for 24 hours to prevent duplicate dispatches.
 
-The main CI workflow is path-filtered, so documentation-only changes do not
-run the backend/frontend build matrix. Use **Actions → CI → Run workflow** when
-a docs-only change intentionally needs full validation.
-
-### Flow Builder safety
-
-The AI Flow Architect endpoint (`POST /api/flow/generate`) is dashboard-only:
-requests require an authenticated user with `settings` permission on the target
-bot. Prompts are bounded to 4,000 characters, and generated graphs are validated
-for unique node IDs and resolvable edge references before publishing or dry-run
-execution. Dry-runs also enforce a step budget to prevent runaway loops.
-Each dry-run stores the exact graph snapshot used for execution, so replay runs
-remain deterministic after a newer draft is published.
-The dashboard’s **Optimize Current Draft** action uses
-`POST /api/flow/optimize` to return an improved, validated draft; it never
-publishes automatically, so an operator can inspect, test, and explicitly save
-or publish the resulting graph.
-Retry nodes in dry-runs now expose bounded attempts, timeout outcomes, and
-explicit retry exhaustion; failure/timeout edges are selected deterministically
-without sleeping or executing external side effects.
-- 🐳 **One-command managed self-host** - `docker compose up`, point it at a Supabase project, done
+### Flow Builder Safety & Deterministic Dry-Runs
+The AI Flow Architect endpoint (`POST /api/flow/generate`) requires authenticated users with `settings` permission. Prompts are bounded to 4,000 characters, and generated graphs are validated for unique node IDs and resolvable edge references. Dry-runs enforce execution step budgets to prevent runaway loops and store immutable graph snapshots for deterministic replay.
+</details>
 
 ## Architecture
 
