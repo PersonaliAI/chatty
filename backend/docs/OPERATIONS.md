@@ -200,6 +200,11 @@ use the shared claim lease) and scale webhook workers independently. Provider
 steps without a concrete recipient are reported as deferred rather than
 enqueued for guaranteed failure; contact-aware dispatch must provide the
 recipient explicitly.
+
+The API exposes `GET /health` as a lightweight liveness probe and `GET /ready`
+as a readiness probe. `/ready` reports `not_ready` when required Supabase
+configuration is absent without returning connection secrets. Point the managed
+container health checks at `/health` and gate traffic on `/ready`.
 Campaigns can enforce local-time quiet hours through `safety_config.quiet_hours`
 (`start`/`end` in `HH:MM`). Overnight windows such as `22:00` to `08:00` are
 supported; malformed settings fail closed and suppress delivery.
