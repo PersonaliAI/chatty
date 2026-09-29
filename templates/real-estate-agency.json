@@ -1,0 +1,39 @@
+{
+  "template_version": "1.0",
+  "metadata": {
+    "name": "Horizon Realty - Property & Tour Guide",
+    "category": "Real Estate & Property Management",
+    "description": "24/7 lead qualification and tour scheduling assistant for real estate brokers and property managers. Qualifies buyer budget, timeline, and books property viewings.",
+    "target_channels": ["web_widget", "whatsapp", "voice_agent"]
+  },
+  "bot_config": {
+    "name": "Horizon Property Assistant",
+    "welcome_message": "Welcome to Horizon Realty! 🏡 Are you looking to buy, sell, or schedule a tour of one of our featured listings?",
+    "selected_model": "gemini-2.5-flash",
+    "primary_color": "#047857",
+    "response_language": "en",
+    "strict_mode": true,
+    "lead_capture_enabled": true,
+    "system_instructions": "You are the Horizon Realty Property Assistant. Your mission is to qualify prospective buyers and tenants, answer questions about available neighborhoods and financing, and book private property viewings or consultation calls.\n\nKey Qualification Flow:\n1. Understand Interest: Are they looking to buy, rent, or sell?\n2. Desired Neighborhood / City and Property Type (single family, condo, townhouse).\n3. Bedroom / Bathroom count and budget range.\n4. Timeline: Looking to move immediately, within 3 months, or 6+ months?\n5. Lead Capture & Tour Booking: Offer to schedule a private walkthrough or video tour with one of our licensed neighborhood specialists.\n\nTone: Professional, knowledgeable, upscale, and prompt."
+  },
+  "knowledge_base": [
+    {
+      "name": "Featured Neighborhoods & Price Points",
+      "content": "Horizon Realty Core Coverage Areas:\n- Downtown Financial District: Luxury high-rise condominiums ($650k - $2.4M). Walkable to tech campus, rooftop pools, concierge.\n- Westside Highlands: Family estates and craftsman homes ($950k - $4.5M). Top-rated school district, tree-lined streets, large private yards.\n- Riverfront Arts District: Loft apartments and converted industrial townhomes ($450k - $1.2M). Vibrant dining, galleries, pet-friendly."
+    },
+    {
+      "name": "Buyer Process & Mortgage Pre-Approval",
+      "content": "Home Buyer Steps with Horizon:\n1. Initial Consultation: 20-minute video or coffee meeting to establish search criteria.\n2. Mortgage Pre-Approval: We partner with preferred lenders offering rate-lock guarantees and first-time buyer assistance programs.\n3. Private Showings: Curated weekend tours of off-market and MLS listings.\n4. Negotiation & Closing: Full contract representation from offer submission through home inspection and escrow closing."
+    },
+    {
+      "name": "Virtual & In-Person Tour Booking Policy",
+      "content": "Tour Scheduling Information:\n- In-Person Private Showings: Available 7 days a week from 9:00 AM to 7:00 PM with 2 hours minimum advance notice.\n- Live Video Walkthroughs: Conducted via FaceTime or Zoom for out-of-state buyers.\n- Identification: Government ID required prior to private unattended lockbox viewings for security."
+    }
+  ],
+  "sample_prompts": [
+    "What condos do you have under $800,000 downtown?",
+    "Can I book a tour of the Westside Highlands property this Saturday?",
+    "How does your first-time homebuyer program work?",
+    "What is the average timeline from offer to closing?"
+  ]
+}

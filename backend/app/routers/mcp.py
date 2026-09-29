@@ -942,6 +942,16 @@ async def get_account_billing() -> dict:
 
 
 # ===========================================================================
+@mcp.tool()
+async def get_bot_performance_scorecard(bot_id: str, days: int = 30) -> dict:
+    """Audit chatbot performance with an A-F letter grade across 5 core operational pillars: Conversion, Engagement & Deflection, Accuracy, Reliability, and Customer Satisfaction."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    from app.routers.analytics import analytics_scorecard
+    return await analytics_scorecard(bot_id=bot_id, days=days, user=principal)
+
+
+# ===========================================================================
 # 11. MCP RESOURCES (Live Context Providers)
 # ===========================================================================
 
@@ -984,6 +994,17 @@ async def resource_help_center_articles(bot_id: str) -> str:
     principal = await _current_principal()
     articles = await mcp_kb_service.list_kb_articles(principal, bot_id)
     return json.dumps(articles, indent=2)
+
+
+# ===========================================================================
+@mcp.resource("chatty://bots/{bot_id}/scorecard")
+async def resource_bot_scorecard(bot_id: str) -> str:
+    """Live 5-pillar performance scorecard and A-F letter grade for a chatbot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    from app.routers.analytics import analytics_scorecard
+    card = await analytics_scorecard(bot_id=bot_id, days=30, user=principal)
+    return json.dumps(card, indent=2)
 
 
 # ===========================================================================
