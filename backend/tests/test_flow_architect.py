@@ -82,6 +82,27 @@ def test_generate_flow_request_bounds_prompt_size(client):
     assert too_short.status_code == 422
 
 
+def test_optimize_flow_returns_validated_draft(client):
+    mock_response = AsyncMock()
+    mock_choice = AsyncMock()
+    import json
+    mock_choice.message.content = json.dumps({
+        "nodes": [
+            {"id": "start", "type": "start", "data": {}},
+            {"id": "msg", "type": "message", "data": {"label": "Hello"}},
+        ],
+        "edges": [{"id": "edge", "source": "start", "target": "msg"}],
+    })
+    mock_response.choices = [mock_choice]
+    with patch("plugins.ai_client.chat", new_callable=AsyncMock, return_value=mock_response):
+        response = client.post("/api/flow/optimize", json={
+            "bot_id": "bot_123",
+            "nodes": [{"id": "start", "type": "start", "data": {}}],
+        })
+    assert response.status_code == 200
+    assert len(response.json()["nodes"]) == 2
+
+
 def test_generate_flow_requires_authentication():
     app.dependency_overrides.pop(require_user, None)
     try:

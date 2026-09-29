@@ -888,6 +888,28 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     }
   };
 
+  const optimizeFlowWithAI = async () => {
+    if (!botId || !fetchDashboardBackend || !nodes.length) return;
+    setGenerating(true);
+    try {
+      const response = await fetchDashboardBackend("/api/flow/optimize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, nodes, edges }),
+      });
+      if (!response.ok) throw new Error("Flow optimization failed");
+      const optimized = await response.json() as FlowSchema;
+      setNodes(optimized.nodes ?? []);
+      setEdges(optimized.edges ?? []);
+      showToast("AI optimized the workflow draft. Review before publishing.", "success");
+      setTimeout(() => safeFitView(0.25, 400), 150);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Flow optimization failed.", "error");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const switchCanvasOnMobile = useCallback(() => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
       setMobileTab("canvas");
@@ -1576,6 +1598,15 @@ const FALLBACK_SUPPORT_TRIAGE = {
                 >
                   {generating && <Loader2 className="size-3.5 animate-spin" />}
                   Generate & Layout Workflow
+                </button>
+                <button
+                  type="button"
+                  onClick={optimizeFlowWithAI}
+                  disabled={!botId || !fetchDashboardBackend || !nodes.length || generating}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border border-orange-200 text-orange-700 hover:bg-orange-50 disabled:opacity-40 dark:border-orange-900 dark:text-orange-200 dark:hover:bg-orange-950/30"
+                >
+                  {generating && <Loader2 className="size-3.5 animate-spin" />}
+                  Optimize Current Draft
                 </button>
               </div>
             </div>

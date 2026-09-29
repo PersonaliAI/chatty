@@ -17,7 +17,8 @@ from app.core.config import MODEL_NAME
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
-from app.schemas.flow import FlowGenerateRequest
+from app.schemas.flow import FlowGenerateRequest, FlowOptimizeRequest
+from app.schemas.bots_api import FlowVersionCreateRequest
 from plugins import ai_client
 from plugins.widget_brain import GEMINI_FALLBACK_MODELS
 
@@ -298,3 +299,38 @@ async def generate_flow_with_ai(body: FlowGenerateRequest, user: dict[str, Any] 
     except Exception as e:
         logger.exception("Failed to generate flow with AI")
         raise HTTPException(status_code=500, detail="Failed to generate flow") from e
+
+
+@router.post("/api/flow/optimize")
+async def optimize_flow_with_ai(body: FlowOptimizeRequest, user: dict[str, Any] = Depends(require_user)):
+    """Return a validated AI-improved draft without publishing it."""
+    await verify_bot_permission(body.bot_id, user, "settings")
+    try:
+        current = FlowVersionCreateRequest(nodes=body.nodes, edges=body.edges, status="draft")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Current flow is invalid: {exc}") from exc
+    prompt = (
+        "You are an enterprise workflow optimizer. Improve this React Flow graph for clarity, "
+        "qualification quality, resilience, and conversion. Preserve business intent and return "
+        "ONLY JSON with nodes and edges. Keep node IDs stable where possible, include a Start node, "
+        "and ensure every edge references an existing node. Do not add secrets or real webhook URLs.\n"
+        f"Optimization goal: {body.goal}\nCurrent graph: {json.dumps({'nodes': current.nodes, 'edges': current.edges})}"
+    )
+    try:
+        resp = await ai_client.chat(
+            model=ai_client.resolve_gemini_model(MODEL_NAME),
+            messages=[{"role": "user", "content": prompt}],
+            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+            temperature=0.2,
+            response_format={"type": "json_object"},
+            bot_id=body.bot_id,
+            call_type="flow_optimize",
+        )
+        optimized = json.loads((resp.choices[0].message.content or "").strip())
+        validated = FlowVersionCreateRequest(nodes=optimized.get("nodes") or [], edges=optimized.get("edges") or [], status="draft")
+        return {"nodes": validated.nodes, "edges": validated.edges}
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="AI returned an invalid workflow draft") from exc
+    except Exception as exc:
+        logger.exception("Failed to optimize flow with AI")
+        raise HTTPException(status_code=502, detail="Failed to optimize flow") from exc
