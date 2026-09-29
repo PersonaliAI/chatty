@@ -96,6 +96,10 @@ Campaigns can be paused or resumed from the dashboard without deleting their
 configuration, and the creator supports multiple delivery channels (web,
 email, WhatsApp, and SMS). Sequence steps automatically enable any channel
 they use; disabled or out-of-window campaigns do not contribute telemetry.
+The public widget consumes the bounded `GET /api/widget/campaigns` projection,
+which applies active date windows, device targeting, and URL-pattern matching
+server-side before arming time-on-page, scroll-depth, or exit-intent triggers.
+It records idempotent impression and click events as visitors engage.
 Workers and operators can inspect the next UTC occurrence through the
 authenticated `GET /api/bots/{bot_id}/campaigns/{campaign_id}/schedule-preview`
 endpoint, which uses the same timezone-aware cadence planner as runtime code.

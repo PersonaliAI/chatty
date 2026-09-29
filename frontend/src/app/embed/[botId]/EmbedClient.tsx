@@ -57,6 +57,14 @@ interface Message {
   confirmedMeeting?: ConfirmedMeeting;
 }
 interface Source { id: string; name: string; content: string; }
+interface WidgetCampaign {
+  id: string;
+  name: string;
+  type: "chat_bubble" | "popup_modal" | "top_banner" | "slide_in";
+  message: string;
+  trigger_type: "time_on_page" | "scroll_percentage" | "exit_intent" | "url_match";
+  trigger_value: number;
+}
 
 function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[] } {
   const extract = <T extends object>(source: string, marker: string): { text: string; items: T[] } => {
@@ -1271,6 +1279,82 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     if (!s) { s = `v-${crypto.randomUUID()}`; localStorage.setItem(k, s); }
     return s;
   });
+
+  // Server-managed proactive campaigns. The API performs the security and
+  // date/device/URL filtering; the widget only schedules the selected web
+  // trigger and records an idempotent impression/click event.
+  const [campaignPrompt, setCampaignPrompt] = useState<WidgetCampaign | null>(null);
+  const campaignShownRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!botId || isPreview) return;
+    const controller = new AbortController();
+    let cleanups: Array<() => void> = [];
+    const device = window.matchMedia?.("(max-width: 640px)").matches ? "mobile" : "desktop";
+    const path = `${window.location.pathname}${window.location.search}`.slice(0, 512);
+    let cancelled = false;
+    const trigger = (campaign: WidgetCampaign) => {
+      if (cancelled || campaignShownRef.current.has(campaign.id)) return;
+      campaignShownRef.current.add(campaign.id);
+      setCampaignPrompt(campaign);
+      void fetch(`${BACKEND_URL}/api/widget/campaign-events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(originToken ? { "X-Widget-Token": originToken } : {}) },
+        body: JSON.stringify({
+          bot_id: botId,
+          campaign_id: campaign.id,
+          event_type: "impression",
+          session_id: sessionId,
+          idempotency_key: `impression:${campaign.id}:${sessionId}`,
+          metadata: { path, device },
+        }),
+      }).catch(() => {});
+    };
+    const arm = (campaign: WidgetCampaign) => {
+      if (campaign.trigger_type === "time_on_page") {
+        const timer = window.setTimeout(() => trigger(campaign), Math.max(0, campaign.trigger_value) * 1000);
+        return () => window.clearTimeout(timer);
+      }
+      if (campaign.trigger_type === "scroll_percentage") {
+        const onScroll = () => {
+          const total = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+          const percent = (window.scrollY / total) * 100;
+          if (percent >= campaign.trigger_value) {
+            trigger(campaign);
+            window.removeEventListener("scroll", onScroll);
+          }
+        };
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => window.removeEventListener("scroll", onScroll);
+      }
+      if (campaign.trigger_type === "exit_intent") {
+        const onLeave = (event: MouseEvent) => {
+          if (event.clientY <= 0) {
+            trigger(campaign);
+            document.removeEventListener("mouseout", onLeave);
+          }
+        };
+        document.addEventListener("mouseout", onLeave);
+        return () => document.removeEventListener("mouseout", onLeave);
+      }
+      return () => {};
+    };
+    fetch(`${BACKEND_URL}/api/widget/campaigns?bot_id=${encodeURIComponent(botId)}&url_path=${encodeURIComponent(path)}&device=${device}`, { signal: controller.signal })
+      .then(async (response) => response.ok ? await response.json() as { campaigns?: WidgetCampaign[] } : { campaigns: [] })
+      .then((data) => {
+        if (cancelled) return;
+        const campaigns = Array.isArray(data.campaigns) ? data.campaigns : [];
+        const clean = campaigns.filter((item) => item && item.id && item.message && item.trigger_type);
+        cleanups = clean.map(arm);
+        // Store one cleanup function on the effect closure; all campaigns are
+        // bounded by the API and listeners are removed on unmount.
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      controller.abort();
+      cleanups.forEach((cleanup) => cleanup());
+    };
+  }, [botId, isPreview, originToken, sessionId]);
 
   // Restore prior messages from localStorage
   useEffect(() => {
@@ -3845,6 +3929,38 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           >
             Chatty
           </a>
+        </div>
+      )}
+
+      {campaignPrompt && (
+        <div className="absolute left-3 right-3 top-3 z-[990] rounded-2xl border border-neutral-200 bg-white p-3 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900" role="dialog" aria-label={campaignPrompt.name}>
+          <div className="flex items-start gap-2.5">
+            <Megaphone className="mt-0.5 size-4 shrink-0" style={{ color: primaryColor }} />
+            <p className="min-w-0 flex-1 whitespace-pre-wrap text-xs leading-relaxed text-neutral-800 dark:text-neutral-100">{campaignPrompt.message}</p>
+            <button type="button" aria-label="Dismiss campaign" onClick={() => setCampaignPrompt(null)} className="shrink-0 rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200">
+              <X className="size-3.5" />
+            </button>
+          </div>
+          <button
+            type="button"
+            className="mt-2 w-full rounded-lg px-3 py-1.5 text-[11px] font-semibold text-white"
+            style={{ backgroundColor: primaryColor, color: onPrimary }}
+            onClick={() => {
+              void fetch(`${BACKEND_URL}/api/widget/campaign-events`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(originToken ? { "X-Widget-Token": originToken } : {}) },
+                body: JSON.stringify({
+                  bot_id: botId,
+                  campaign_id: campaignPrompt.id,
+                  event_type: "click",
+                  session_id: sessionId,
+                  idempotency_key: `click:${campaignPrompt.id}:${sessionId}`,
+                }),
+              }).catch(() => {});
+              setCampaignPrompt(null);
+              setTab("messages");
+            }}
+          >Open chat</button>
         </div>
       )}
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import fnmatch
 import hashlib
 import json
 import logging
@@ -170,6 +171,56 @@ _AI_UNAVAILABLE_REPLY = (
     "I'm sorry, the assistant is temporarily unavailable. "
     "Please try again in a moment, or leave your contact details and our team will follow up."
 )
+
+
+@router.get("/api/widget/campaigns")
+async def widget_campaigns(
+    bot_id: str,
+    url_path: str = "/",
+    device: str = "desktop",
+):
+    """Return active web campaigns for the public widget runtime.
+
+    Campaigns are owner-managed but intentionally read-only here: the widget
+    needs a small, bounded projection and must never receive dashboard-only
+    counters or mutable configuration. Date windows, device targeting, and
+    URL patterns are enforced server-side before the response is returned.
+    """
+    if not bot_id or len(bot_id) > 80:
+        raise HTTPException(status_code=422, detail="invalid bot id")
+    normalized_device = str(device or "desktop").strip().lower()
+    if normalized_device not in {"desktop", "mobile"}:
+        normalized_device = "desktop"
+    clean_path = str(url_path or "/")[:512]
+    result = await run_db(lambda: supabase.table("chatty_campaigns").select(
+        "id,name,type,message,url_patterns,trigger_type,trigger_value,target_devices,"
+        "channels,audience_rules,safety_config,is_active,start_date,end_date"
+    ).eq("bot_id", bot_id).eq("is_active", True).limit(100).execute())
+    campaigns: list[dict[str, Any]] = []
+    for row in result.data or []:
+        if not campaign_is_active_now(row):
+            continue
+        devices = {str(value).strip().lower() for value in (row.get("target_devices") or [])}
+        if devices and normalized_device not in devices:
+            continue
+        patterns = [str(value) for value in (row.get("url_patterns") or []) if str(value).strip()]
+        if patterns and not any(fnmatch.fnmatch(clean_path, pattern) for pattern in patterns):
+            continue
+        try:
+            trigger_value = max(0, min(86_400, int(row.get("trigger_value") or 0)))
+        except (TypeError, ValueError):
+            trigger_value = 0
+        campaigns.append({
+            "id": row.get("id"),
+            "name": str(row.get("name") or "Campaign")[:160],
+            "type": str(row.get("type") or "chat_bubble"),
+            "message": str(row.get("message") or "")[:2000],
+            "trigger_type": str(row.get("trigger_type") or "time_on_page"),
+            "trigger_value": trigger_value,
+            "channels": [str(value) for value in (row.get("channels") or ["web"]) if str(value) == "web"],
+            "audience_rules": row.get("audience_rules") or {},
+        })
+    return {"campaigns": campaigns[:20]}
 
 
 
