@@ -107,6 +107,9 @@ The authenticated `GET /api/bots/{bot_id}/campaigns/{campaign_id}/dispatch-plan`
 endpoint compiles the current occurrence into bounded, idempotent channel jobs
 with consent and frequency-cap policy attached. It is a planning contract for
 the durable worker; it never sends a message by itself.
+Campaign safety policies may also include `quiet_hours: {"start": "22:00",
+"end": "08:00"}`. Bounds are interpreted in the campaign schedule timezone;
+overnight windows are supported and invalid values fail closed.
 The periodic scheduler entry point is `python -m app.workers.campaign_scheduler`.
 It claims each idempotency key in Redis for 24 hours, enqueues only due jobs,
 and can run as an independently scaled process with
@@ -123,6 +126,8 @@ requests require an authenticated user with `settings` permission on the target
 bot. Prompts are bounded to 4,000 characters, and generated graphs are validated
 for unique node IDs and resolvable edge references before publishing or dry-run
 execution. Dry-runs also enforce a step budget to prevent runaway loops.
+Each dry-run stores the exact graph snapshot used for execution, so replay runs
+remain deterministic after a newer draft is published.
 The dashboard’s **Optimize Current Draft** action uses
 `POST /api/flow/optimize` to return an improved, validated draft; it never
 publishes automatically, so an operator can inspect, test, and explicitly save

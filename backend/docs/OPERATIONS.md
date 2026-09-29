@@ -200,6 +200,9 @@ use the shared claim lease) and scale webhook workers independently. Provider
 steps without a concrete recipient are reported as deferred rather than
 enqueued for guaranteed failure; contact-aware dispatch must provide the
 recipient explicitly.
+Campaigns can enforce local-time quiet hours through `safety_config.quiet_hours`
+(`start`/`end` in `HH:MM`). Overnight windows such as `22:00` to `08:00` are
+supported; malformed settings fail closed and suppress delivery.
 
 For the managed-Supabase Docker deployment, the repository includes an opt-in
 `automation` profile that provisions Redis plus both processes without changing
