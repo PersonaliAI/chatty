@@ -48,3 +48,15 @@ def test_simulation_inputs_are_bounded_and_defaulted():
     assert FlowSimulationRequest(max_steps=500).max_steps == 500
     with pytest.raises(ValidationError):
         FlowSimulationRequest(max_steps=501)
+
+
+def test_flow_mapping_contract_is_typed_and_bounded():
+    flow = _valid_flow()
+    flow["nodes"][1]["data"] = {"config": {"mapping": {"contact.email": "{{lead.email}}"}, "expression": "intent_score > 50"}}
+    request = FlowVersionCreateRequest(**flow)
+    assert request.nodes[1]["data"]["config"]["mapping"]["contact.email"] == "{{lead.email}}"
+
+    invalid = _valid_flow()
+    invalid["nodes"][1]["data"] = {"config": {"mapping": {"": "value"}}}
+    with pytest.raises(ValidationError, match="mapping keys"):
+        FlowVersionCreateRequest(**invalid)

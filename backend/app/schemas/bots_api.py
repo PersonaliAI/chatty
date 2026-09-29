@@ -141,6 +141,24 @@ class FlowVersionCreateRequest(BaseModel):
             if node_id in node_ids:
                 raise ValueError(f"duplicate flow node id: {node_id}")
             node_ids.append(node_id)
+            data = node.get("data")
+            if data is not None and not isinstance(data, dict):
+                raise ValueError("flow node data must be an object")
+            config = data.get("config") if isinstance(data, dict) else None
+            if config is not None and not isinstance(config, dict):
+                raise ValueError("flow node config must be an object")
+            if isinstance(config, dict):
+                mapping = config.get("mapping")
+                if mapping is not None:
+                    if not isinstance(mapping, dict) or len(mapping) > 100:
+                        raise ValueError("flow mapping must be an object with at most 100 fields")
+                    if any(not isinstance(key, str) or not key.strip() or len(key) > 128 for key in mapping):
+                        raise ValueError("flow mapping keys must be non-empty strings of at most 128 characters")
+                    if any(not isinstance(value, (str, int, float, bool, list, dict)) and value is not None for value in mapping.values()):
+                        raise ValueError("flow mapping values must be JSON-compatible")
+                expression = config.get("expression")
+                if expression is not None and (not isinstance(expression, str) or len(expression) > 2000):
+                    raise ValueError("flow condition expressions must be strings of at most 2000 characters")
         if self.nodes and "start" not in node_ids:
             raise ValueError("a flow must contain a Start node")
         known = set(node_ids)
