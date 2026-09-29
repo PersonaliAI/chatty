@@ -1291,6 +1291,18 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     let cleanups: Array<() => void> = [];
     const device = window.matchMedia?.("(max-width: 640px)").matches ? "mobile" : "desktop";
     const path = `${window.location.pathname}${window.location.search}`.slice(0, 512);
+    const priorConversation = Boolean(
+      localStorage.getItem(`chatty_convs_${botId}_${hostKey}`)
+      || localStorage.getItem(`chatty_msgs_${botId}_${hostKey}`),
+    );
+    let intentScore = 0;
+    try {
+      const history = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`);
+      const parsedHistory: unknown = history ? JSON.parse(history) : null;
+      intentScore = Math.min(100, Array.isArray(parsedHistory) ? parsedHistory.length * 20 : 0);
+    } catch {
+      intentScore = priorConversation ? 20 : 0;
+    }
     let cancelled = false;
     const trigger = (campaign: WidgetCampaign) => {
       if (cancelled || campaignShownRef.current.has(campaign.id)) return;
@@ -1338,7 +1350,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       }
       return () => {};
     };
-    fetch(`${BACKEND_URL}/api/widget/campaigns?bot_id=${encodeURIComponent(botId)}&url_path=${encodeURIComponent(path)}&device=${device}`, { signal: controller.signal })
+    fetch(`${BACKEND_URL}/api/widget/campaigns?bot_id=${encodeURIComponent(botId)}&url_path=${encodeURIComponent(path)}&device=${device}&returning=${priorConversation ? "true" : "false"}&intent_score=${intentScore}`, { signal: controller.signal })
       .then(async (response) => response.ok ? await response.json() as { campaigns?: WidgetCampaign[] } : { campaigns: [] })
       .then((data) => {
         if (cancelled) return;

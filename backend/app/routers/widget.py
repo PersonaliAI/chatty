@@ -57,6 +57,7 @@ from app.schemas.widget import (
 from app.schemas.kb import ArticleFeedbackRequest
 from plugins import notifications as notify
 from app.services.campaign_runtime import campaign_is_active_now
+from app.services.campaign_audience import campaign_audience_matches
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
@@ -178,6 +179,8 @@ async def widget_campaigns(
     bot_id: str,
     url_path: str = "/",
     device: str = "desktop",
+    returning: bool = False,
+    intent_score: int = 0,
 ):
     """Return active web campaigns for the public widget runtime.
 
@@ -192,6 +195,10 @@ async def widget_campaigns(
     if normalized_device not in {"desktop", "mobile"}:
         normalized_device = "desktop"
     clean_path = str(url_path or "/")[:512]
+    try:
+        bounded_intent_score = max(0, min(100, int(intent_score)))
+    except (TypeError, ValueError):
+        bounded_intent_score = 0
     result = await run_db(lambda: supabase.table("chatty_campaigns").select(
         "id,name,type,message,url_patterns,trigger_type,trigger_value,target_devices,"
         "channels,audience_rules,safety_config,is_active,start_date,end_date"
@@ -199,6 +206,12 @@ async def widget_campaigns(
     campaigns: list[dict[str, Any]] = []
     for row in result.data or []:
         if not campaign_is_active_now(row):
+            continue
+        if not campaign_audience_matches(
+            row.get("audience_rules"),
+            returning=bool(returning),
+            intent_score=bounded_intent_score,
+        ):
             continue
         devices = {str(value).strip().lower() for value in (row.get("target_devices") or [])}
         if devices and normalized_device not in devices:
