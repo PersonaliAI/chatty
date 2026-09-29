@@ -160,7 +160,20 @@ async def _process_campaign_dispatch(payload: dict) -> None:
             raise RuntimeError("whatsapp campaign delivery failed")
         return
     if channel == "email":
-        raise RuntimeError("email campaign delivery adapter is not configured")
+        email = str(recipient.get("email") or "").strip()
+        if not email:
+            raise ValueError("email campaign requires recipient.email")
+        from app.services.email_service import send_campaign_email
+
+        result = await send_campaign_email(
+            to_email=email,
+            subject=str(payload.get("subject") or "Update from Chatty"),
+            body_text=message,
+            bot_name=str(payload.get("bot_name") or "Chatty"),
+        )
+        if not result.get("sent"):
+            raise RuntimeError(result.get("error") or result.get("reason") or "email campaign delivery failed")
+        return
     if channel == "sms":
         raise RuntimeError("sms campaign delivery adapter is not configured")
     raise ValueError(f"unsupported campaign channel: {channel}")

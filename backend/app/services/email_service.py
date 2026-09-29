@@ -138,6 +138,72 @@ def render_ticket_email_html(
 </html>"""
 
 
+def render_campaign_email_html(bot_name: str, body_text: str) -> str:
+    """Render a small, safe transactional campaign email.
+
+    Campaigns must not reuse ticket wording or ticket identifiers.  Keep the
+    output intentionally plain: content comes from an operator-authored,
+    consent-gated campaign and is HTML-escaped before provider delivery.
+    """
+    escaped_body = _html.escape(body_text).replace("\n", "<br/>")
+    escaped_bot = _html.escape(bot_name or "Chatty")
+    return f"""<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>
+<body style=\"margin:0;padding:24px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1e293b\">
+  <main style=\"max-width:600px;margin:auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:28px;line-height:1.6\">
+    <p style=\"margin:0 0 18px;font-weight:700\">{escaped_bot}</p>
+    <div>{escaped_body}</div>
+  </main>
+</body></html>"""
+
+
+async def send_campaign_email(*, to_email: str, subject: str, body_text: str, bot_name: str = "Chatty") -> dict[str, Any]:
+    """Deliver a consent-checked campaign through configured email providers.
+
+    The worker owns consent/frequency checks. This provider boundary only
+    validates the destination and returns a structured result so missing or
+    failing providers cannot be mistaken for a delivered message.
+    """
+    clean_to = extract_email(to_email)
+    clean_subject = str(subject or "Update from Chatty").strip()[:200]
+    if not clean_to or "@" not in clean_to:
+        return {"sent": False, "error": "invalid campaign recipient email"}
+    html_content = render_campaign_email_html(bot_name, body_text)
+
+    if RESEND_API_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.post(_RESEND_URL, json={
+                    "from": RESEND_EMAIL_FROM,
+                    "to": [clean_to],
+                    "subject": clean_subject,
+                    "html": html_content,
+                }, headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"})
+            if response.status_code < 300:
+                return {"sent": True, "provider": "resend", "id": response.json().get("id")}
+            logger.warning("Resend campaign delivery failed (%d): %s", response.status_code, response.text[:300])
+        except Exception:
+            logger.exception("Resend campaign delivery failed")
+
+    if ONESIGNAL_APP_ID and ONESIGNAL_REST_API_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.post(_ONESIGNAL_URL, json={
+                    "app_id": ONESIGNAL_APP_ID,
+                    "email_subject": clean_subject,
+                    "email_body": html_content,
+                    "email_from_address": ONESIGNAL_EMAIL_FROM,
+                    "email_from_name": bot_name or ONESIGNAL_EMAIL_FROM_NAME,
+                    "include_email_tokens": [clean_to],
+                }, headers={"Authorization": f"Key {ONESIGNAL_REST_API_KEY}", "Content-Type": "application/json"})
+            if response.status_code < 300:
+                return {"sent": True, "provider": "onesignal"}
+            logger.warning("OneSignal campaign delivery failed (%d): %s", response.status_code, response.text[:300])
+        except Exception:
+            logger.exception("OneSignal campaign delivery failed")
+
+    return {"sent": False, "reason": "no_email_provider_configured"}
+
+
 async def send_ticket_reply_email(
     *,
     to_email: str,

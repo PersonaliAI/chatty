@@ -32,8 +32,8 @@ def test_campaign_provider_step_requires_consent_and_recipient():
         }))
 
 
-def test_unconfigured_channels_fail_closed():
-    with pytest.raises(RuntimeError, match="email campaign delivery adapter"):
+def test_unconfigured_email_channel_fails_closed():
+    with pytest.raises(RuntimeError, match="no_email_provider_configured"):
         asyncio.run(_process_campaign_dispatch({
             "bot_id": "bot-1",
             "channel": "email",
@@ -41,6 +41,24 @@ def test_unconfigured_channels_fail_closed():
             "requires_consent": False,
             "recipient": {"email": "a@example.com"},
         }))
+
+
+def test_configured_email_campaign_delivery_uses_provider_boundary(monkeypatch):
+    from app.services import email_service
+
+    async def sent(**kwargs):
+        assert kwargs["to_email"] == "a@example.com"
+        assert kwargs["body_text"] == "Hello"
+        return {"sent": True, "provider": "resend"}
+
+    monkeypatch.setattr(email_service, "send_campaign_email", sent)
+    asyncio.run(_process_campaign_dispatch({
+        "bot_id": "bot-1",
+        "channel": "email",
+        "message": "Hello",
+        "requires_consent": False,
+        "recipient": {"email": "a@example.com"},
+    }))
 
 
 def test_campaign_worker_rechecks_quiet_hours():
