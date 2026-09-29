@@ -2,6 +2,10 @@
   "name": "chatty",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "ip-address": "10.7.2",
+    "undici": "7.30.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
