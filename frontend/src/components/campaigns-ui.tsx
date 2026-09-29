@@ -22,6 +22,7 @@ interface TriggerRule {
   isActive?: boolean;
   nextRunAt?: string | null;
   scheduleCadence?: string;
+  quietHours?: { start: string; end: string } | null;
 }
 
 interface Props {
@@ -87,6 +88,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
             sequenceSteps: Array.isArray(row.sequence_steps) ? row.sequence_steps as Array<Record<string, unknown>> : [],
             isActive: row.is_active !== false,
+            quietHours: ((row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.start && (row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.end)
+              ? { start: String((row.safety_config as { quiet_hours: { start: string } }).quiet_hours.start), end: String((row.safety_config as { quiet_hours: { end: string } }).quiet_hours.end) }
+              : null,
           }));
           setRules(mapped);
           // Counters on the campaign row are legacy snapshots. Read the
@@ -192,7 +196,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     }).then(async (response) => {
       if (!response.ok) throw new Error(`Campaign could not be saved (${response.status})`);
       const row = await response.json() as Record<string, unknown>;
-      setRules((current) => [{ ...newRule, id: String(row.id) }, ...current]);
+      setRules((current) => [{ ...newRule, id: String(row.id), quietHours: quietHoursEnabled ? { start: quietHoursStart, end: quietHoursEnd } : null }, ...current]);
       setValue("");
       setMessage("");
       setAudience("all");
@@ -469,6 +473,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                     <div className="text-[10px] text-neutral-400">
                       Schedule: {r.scheduleCadence ?? "once"}
                       {r.nextRunAt ? ` · next run ${new Date(r.nextRunAt).toLocaleString()}` : " · no future run"}
+                      {r.quietHours ? ` · quiet ${r.quietHours.start}–${r.quietHours.end}` : ""}
                     </div>
                     {!!r.sequenceSteps?.length && <div className="text-[10px] text-neutral-400">{r.sequenceSteps.length} sequenced follow-up{r.sequenceSteps.length === 1 ? "" : "s"}</div>}
                   </div>
