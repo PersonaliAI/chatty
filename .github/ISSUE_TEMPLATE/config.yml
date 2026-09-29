@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://docs.chatty.personaliai.com
+    about: Read our official guides, API documentation, and deployment tutorials.
+  - name: Chatty Cloud
+    url: https://chatty.personaliai.com
+    about: Managed cloud accounts, enterprise support, and hosted infrastructure.

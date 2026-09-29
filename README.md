@@ -4,6 +4,13 @@
 
 # Chatty by PersonaliAI
 
+<p>
+  <a href="README.md">English</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.es.md">Español</a>
+</p>
+
 **Open-source AI customer support: chat widget + real-time voice agent + a full MCP server, grounded in your own knowledge base.**
 
 Run the application containers on your own host while keeping Supabase Auth,

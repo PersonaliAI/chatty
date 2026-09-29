@@ -1,0 +1,25 @@
+# Global owners
+* @PersonaliAI/core
+
+# Backend
+/backend/ @PersonaliAI/backend
+/backend/plugins/ @PersonaliAI/backend
+/backend/voice-agent/ @PersonaliAI/voice
+
+# Frontend
+/frontend/ @PersonaliAI/frontend
+/frontend/packages/ @PersonaliAI/frontend
+
+# Infrastructure
+/docker-compose.yml @PersonaliAI/infra
+/.github/ @PersonaliAI/core
+
+# SDKs
+/sdks/ @PersonaliAI/sdks
+
+# Integrations
+/integrations/ @PersonaliAI/integrations
+
+# Documentation
+/docs/ @PersonaliAI/docs
+*.md @PersonaliAI/docs
