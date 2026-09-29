@@ -166,6 +166,24 @@ def _parse_campaign_datetime(value: Optional[str], field_name: str) -> Optional[
     return parsed
 
 
+def _normalize_audience_rules(value: dict[str, Any]) -> dict[str, Any]:
+    rules = dict(value or {})
+    segment = str(rules.get("segment", "all")).strip().lower()
+    if segment not in {"all", "returning", "high_intent"}:
+        raise ValueError("audience segment must be all, returning, or high_intent")
+    try:
+        score = int(rules.get("min_intent_score", 0))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("audience min_intent_score must be an integer") from exc
+    if score < 0 or score > 100:
+        raise ValueError("audience min_intent_score must be between 0 and 100")
+    return {
+        "segment": segment,
+        "min_intent_score": score,
+        "returning_only": bool(rules.get("returning_only", segment == "returning")),
+    }
+
+
 class CampaignCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     campaign_type: str = Field("chat_bubble", description="chat_bubble, popup_modal, top_banner, slide_in")
@@ -216,6 +234,11 @@ class CampaignCreateRequest(BaseModel):
         if len(normalized) > 4:
             raise ValueError("a campaign may use at most four channels")
         return normalized
+
+    @field_validator("audience_rules")
+    @classmethod
+    def validate_audience_rules(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return _normalize_audience_rules(value)
 
     @field_validator("sequence_steps")
     @classmethod
@@ -274,6 +297,9 @@ class CampaignCreateRequest(BaseModel):
         end = _parse_campaign_datetime(self.end_date, "end_date")
         if start and end and start >= end:
             raise ValueError("start_date must be earlier than end_date")
+        # A sequence is authoritative for delivery: automatically include any
+        # channel used by a step so AI-generated sequences remain runnable.
+        self.channels = list(dict.fromkeys([*self.channels, *(step["channel"] for step in self.sequence_steps)]))
         return self
 
 
@@ -293,6 +319,11 @@ class CampaignUpdateRequest(BaseModel):
     sequence_steps: Optional[list[dict[str, Any]]] = None
     safety_config: Optional[dict[str, Any]] = None
     schedule_config: Optional[dict[str, Any]] = None
+
+    @field_validator("audience_rules")
+    @classmethod
+    def validate_update_audience_rules(cls, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        return _normalize_audience_rules(value) if value is not None else value
 
     @field_validator("campaign_type")
     @classmethod
@@ -343,6 +374,8 @@ class CampaignUpdateRequest(BaseModel):
         end = _parse_campaign_datetime(self.end_date, "end_date")
         if start and end and start >= end:
             raise ValueError("start_date must be earlier than end_date")
+        if self.channels is not None and self.sequence_steps is not None:
+            self.channels = list(dict.fromkeys([*self.channels, *(step["channel"] for step in self.sequence_steps)]))
         return self
 
 

@@ -12,8 +12,8 @@ def test_campaign_contract_normalizes_channels_and_delays():
         sequence_steps=[{"channel": "SMS", "after_minutes": "15"}],
         safety_config={"frequency_cap_hours": "48", "require_consent": False},
     )
-    assert request.channels == ["web", "email"]
     assert request.sequence_steps == [{"channel": "sms", "after_minutes": 15}]
+    assert request.channels == ["web", "email", "sms"]
     assert request.safety_config == {"frequency_cap_hours": 48, "require_consent": False}
 
 
@@ -42,3 +42,23 @@ def test_campaign_contract_rejects_invalid_runtime_metadata():
         CampaignCreateRequest(name="x", message_content="y", start_date="2026-10-02T00:00:00Z", end_date="2026-10-01T00:00:00Z")
     with pytest.raises(ValidationError):
         CampaignCreateRequest(name="x", message_content="y", trigger_type="unknown")
+
+
+def test_campaign_contract_normalizes_ai_audience_rules_and_matches_channels():
+    request = CampaignCreateRequest(
+        name="Intent",
+        message_content="Hello",
+        channels=["web", "email"],
+        audience_rules={"segment": "HIGH_INTENT", "min_intent_score": "70"},
+        sequence_steps=[{"channel": "EMAIL", "after_minutes": 10}],
+    )
+    assert request.audience_rules == {"segment": "high_intent", "min_intent_score": 70, "returning_only": False}
+    auto_enabled = CampaignCreateRequest(
+        name="Sequence channel",
+        message_content="Hello",
+        channels=["web"],
+        sequence_steps=[{"channel": "email", "after_minutes": 10}],
+    )
+    assert auto_enabled.channels == ["web", "email"]
+    with pytest.raises(ValidationError):
+        CampaignCreateRequest(name="Bad audience", message_content="Hello", audience_rules={"min_intent_score": 101})
