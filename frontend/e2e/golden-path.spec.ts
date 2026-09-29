@@ -14,6 +14,9 @@ test.describe("widget golden path", () => {
   test("embed page opens and completes a message round-trip", async ({ page }) => {
     await page.goto(`/embed/${BOT_ID}`);
 
+    // Embed opens on the Home tab by design; enter the Chat surface before
+    // asserting the composer is available.
+    await page.getByText("Chat", { exact: true }).last().click();
     const input = page.getByPlaceholder("Compose your message…");
     await expect(input).toBeVisible({ timeout: 15_000 });
 
