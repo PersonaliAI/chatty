@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Megaphone, Sparkles } from "lucide-react";
+import { Plus, Trash2, Megaphone, Sparkles, Pause, Play } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 
 interface TriggerRule {
@@ -17,6 +17,7 @@ interface TriggerRule {
   audience?: string;
   channels?: string[];
   sequenceSteps?: Array<Record<string, unknown>>;
+  isActive?: boolean;
 }
 
 interface Props {
@@ -74,6 +75,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
             channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
             sequenceSteps: Array.isArray(row.sequence_steps) ? row.sequence_steps as Array<Record<string, unknown>> : [],
+            isActive: row.is_active !== false,
           }));
           setRules(mapped);
           // Counters on the campaign row are legacy snapshots. Read the
@@ -213,6 +215,20 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       .finally(() => setSaving(false));
   };
 
+  const toggleRule = (rule: TriggerRule) => {
+    if (!botId) return;
+    setSaving(true);
+    fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: rule.isActive === false }),
+    }).then((response) => {
+      if (!response.ok) throw new Error(`Campaign could not be updated (${response.status})`);
+      setRules((current) => current.map((item) => item.id === rule.id ? { ...item, isActive: rule.isActive === false } : item));
+    }).catch((toggleError: unknown) => setError(toggleError instanceof Error ? toggleError.message : "Campaign could not be updated."))
+      .finally(() => setSaving(false));
+  };
+
   return (
     <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-6">
       <div className="flex items-center justify-between">
@@ -309,7 +325,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
         {/* Existing campaigns list */}
         <div className="md:col-span-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4">
-          <h5 className="text-xs font-bold text-neutral-850">Active Campaigns ({rules.length})</h5>
+          <h5 className="text-xs font-bold text-neutral-850">Campaigns ({rules.length})</h5>
           {loading && <p className="text-[11px] text-neutral-400">Loading persisted campaigns…</p>}
           
           <div className="space-y-3 divide-y divide-neutral-100 dark:divide-neutral-850">
@@ -320,7 +336,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
               </div>
             ) : (
               rules.map((r, idx) => (
-                <div key={r.id} className={`flex items-start justify-between gap-4 pt-3 ${idx === 0 ? "pt-0 border-0" : ""}`}>
+                <div key={r.id} className={`flex items-start justify-between gap-4 pt-3 ${idx === 0 ? "pt-0 border-0" : ""} ${r.isActive === false ? "opacity-60" : ""}`}>
                   <div className="space-y-1.5 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
@@ -331,6 +347,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                           ({r.value}{r.type === "time" ? "s" : r.type === "scroll" ? "%" : ""})
                         </span>
                       )}
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${r.isActive === false ? "bg-neutral-100 text-neutral-500" : "bg-emerald-50 text-emerald-700"}`}>
+                        {r.isActive === false ? "paused" : "active"}
+                      </span>
                     </div>
                     <p className="text-xs text-neutral-700 dark:text-neutral-300 font-medium whitespace-pre-wrap leading-relaxed">{r.message}</p>
                     <div className="flex flex-wrap gap-2 text-[10px] text-neutral-400" aria-label="Campaign analytics">
@@ -341,12 +360,14 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                     <div className="text-[10px] text-neutral-400">Audience: {r.audience ?? "all"} · Channels: {(r.channels ?? ["web"]).join(", ")}</div>
                     {!!r.sequenceSteps?.length && <div className="text-[10px] text-neutral-400">{r.sequenceSteps.length} sequenced follow-up{r.sequenceSteps.length === 1 ? "" : "s"}</div>}
                   </div>
-                  <button
-                    onClick={() => deleteRule(r.id)}
-                    className="p-1.5 text-neutral-450 hover:text-red-500 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer shrink-0 transition-colors"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button type="button" onClick={() => toggleRule(r)} disabled={saving} aria-label={r.isActive === false ? "Resume campaign" : "Pause campaign"} title={r.isActive === false ? "Resume campaign" : "Pause campaign"} className="p-1.5 text-neutral-450 hover:text-orange-500 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer transition-colors disabled:opacity-40">
+                      {r.isActive === false ? <Play className="size-4" /> : <Pause className="size-4" />}
+                    </button>
+                    <button type="button" onClick={() => deleteRule(r.id)} disabled={saving} aria-label="Delete campaign" title="Delete campaign" className="p-1.5 text-neutral-450 hover:text-red-500 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer transition-colors disabled:opacity-40">
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
                 </div>
               ))
             )}
