@@ -4,11 +4,15 @@ from fastapi.testclient import TestClient
 
 from main import app
 from app.routers.flow import INTERCOM_FIN_DEMO_TEMPLATE, SUPPORT_TRIAGE_TEMPLATE
+from app.core.deps import require_user
 
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    app.dependency_overrides[require_user] = lambda: {"auth_user_id": "user-123"}
+    with patch("app.routers.flow.verify_bot_permission", new_callable=AsyncMock):
+        yield TestClient(app)
+    app.dependency_overrides.pop(require_user, None)
 
 
 def test_get_flow_templates(client):
@@ -76,3 +80,12 @@ def test_generate_flow_request_bounds_prompt_size(client):
     assert too_long.status_code == 422
     too_short = client.post("/api/flow/generate", json={"bot_id": "bot_123", "description": "x"})
     assert too_short.status_code == 422
+
+
+def test_generate_flow_requires_authentication():
+    app.dependency_overrides.pop(require_user, None)
+    try:
+        response = TestClient(app).post("/api/flow/generate", json={"bot_id": "bot_123", "description": "Build a support flow"})
+        assert response.status_code in {401, 403}
+    finally:
+        app.dependency_overrides[require_user] = lambda: {"auth_user_id": "user-123"}

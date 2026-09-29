@@ -10,11 +10,13 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.clients import supabase
 from app.core.config import MODEL_NAME
 from app.core.db import run_db
+from app.core.deps import require_user
+from app.core.permissions import verify_bot_permission
 from app.schemas.flow import FlowGenerateRequest
 from plugins import ai_client
 from plugins.widget_brain import GEMINI_FALLBACK_MODELS
@@ -237,7 +239,8 @@ async def get_flow_templates():
 
 
 @router.post("/api/flow/generate")
-async def generate_flow_with_ai(body: FlowGenerateRequest):
+async def generate_flow_with_ai(body: FlowGenerateRequest, user: dict[str, Any] = Depends(require_user)):
+    await verify_bot_permission(body.bot_id, user, "settings")
     bot_name = "Chatty Assistant"
     welcome_message = "Hi! How can I help you today?"
     try:
