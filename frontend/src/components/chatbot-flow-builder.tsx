@@ -57,6 +57,7 @@ interface Props {
 }
 
 interface FlowNodeData {
+  [key: string]: unknown;
   label?: string;
   options?: string[];
   field?: string;
@@ -70,6 +71,12 @@ interface FlowNodeProps {
   data: FlowNodeData;
   selected?: boolean;
 }
+
+type FlowTemplate = {
+  name: string;
+  nodes: Node<FlowNodeData>[];
+  edges: Edge[];
+};
 
 // ── Custom Industrial Node Components ──
 
@@ -1139,14 +1146,27 @@ const FALLBACK_SUPPORT_TRIAGE = {
 };
 
   const loadTemplate = async (templateName: "fin_demo" | "support_triage") => {
-    let t: { name: string; nodes: any[]; edges: any[] } | undefined;
+    let t: FlowTemplate | undefined;
     try {
       const res = await fetch(`${BACKEND_URL}/api/flow/templates`);
       if (res.ok) {
-        const data = await res.json();
-        t = data.templates?.find((tpl: any) =>
-          templateName === "fin_demo" ? tpl.name.includes("Demo") : tpl.name.includes("Support")
-        );
+        const data: unknown = await res.json();
+        const templates = data && typeof data === "object" && "templates" in data
+          ? (data as { templates?: unknown }).templates
+          : undefined;
+        const candidate = Array.isArray(templates)
+          ? templates.find((value: unknown) => {
+            if (!value || typeof value !== "object") return false;
+            const name = (value as { name?: unknown }).name;
+            return typeof name === "string" && (templateName === "fin_demo" ? name.includes("Demo") : name.includes("Support"));
+          })
+          : undefined;
+        if (candidate && typeof candidate === "object") {
+          const value = candidate as { name?: unknown; nodes?: unknown; edges?: unknown };
+          if (typeof value.name === "string" && Array.isArray(value.nodes) && Array.isArray(value.edges)) {
+            t = { name: value.name, nodes: value.nodes as Node<FlowNodeData>[], edges: value.edges as Edge[] };
+          }
+        }
       }
     } catch {}
 
