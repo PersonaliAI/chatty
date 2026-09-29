@@ -34,7 +34,7 @@ async def schedule_campaigns_once(
     result = await asyncio.to_thread(
         lambda: supabase_client.table("chatty_campaigns").select("*").eq("is_active", True).limit(limit).execute()
     )
-    stats = {"campaigns": 0, "planned": 0, "enqueued": 0, "skipped": 0, "invalid": 0}
+    stats = {"campaigns": 0, "planned": 0, "enqueued": 0, "skipped": 0, "deferred": 0, "invalid": 0}
     for campaign in result.data or []:
         stats["campaigns"] += 1
         try:
@@ -45,6 +45,16 @@ async def schedule_campaigns_once(
             continue
         for job in jobs:
             stats["planned"] += 1
+            # The periodic scheduler has no visitor/contact recipient. Web
+            # steps are evaluated by the widget, while provider steps must be
+            # dispatched by an audience/contact-aware trigger. Do not enqueue
+            # an undeliverable job that would only churn retries and DLQ.
+            payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+            channel = str(payload.get("channel") or "web").strip().lower()
+            recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
+            if channel != "web" and not any(str(recipient.get(key) or "").strip() for key in ("email", "phone", "whatsapp")):
+                stats["deferred"] += 1
+                continue
             scheduled_at = datetime.fromisoformat(str(job["scheduled_at"]).replace("Z", "+00:00"))
             if scheduled_at > current:
                 stats["skipped"] += 1

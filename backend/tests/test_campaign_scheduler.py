@@ -76,3 +76,14 @@ def test_scheduler_bounds_campaign_batch():
         assert "between 1 and 500" in str(exc)
     else:
         raise AssertionError("expected limit validation")
+
+
+def test_scheduler_defers_provider_steps_without_a_recipient():
+    queue = _Queue()
+    campaign = _campaign()
+    campaign["sequence_steps"] = [{"channel": "email", "after_minutes": 0, "message": "hello"}]
+    now = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
+    stats = asyncio.run(schedule_campaigns_once(_Db([campaign]), queue, now=now))
+    assert stats["deferred"] == 1
+    assert stats["enqueued"] == 0
+    assert queue.jobs == []

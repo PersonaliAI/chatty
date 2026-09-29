@@ -196,7 +196,10 @@ CHATTY_JOB_QUEUE_URL=redis://redis:6379/0 \
 
 It claims each campaign occurrence with a 24-hour Redis lease before enqueueing
 bounded `campaign.dispatch` jobs. Keep the scheduler at one active replica (or
-use the shared claim lease) and scale webhook workers independently.
+use the shared claim lease) and scale webhook workers independently. Provider
+steps without a concrete recipient are reported as deferred rather than
+enqueued for guaranteed failure; contact-aware dispatch must provide the
+recipient explicitly.
 
 For the managed-Supabase Docker deployment, the repository includes an opt-in
 `automation` profile that provisions Redis plus both processes without changing
