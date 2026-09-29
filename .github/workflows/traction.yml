@@ -6,9 +6,6 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   track-metrics:
     runs-on: ubuntu-latest
@@ -26,9 +23,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/track_metrics.py
 
-      - name: Commit & push updated metrics
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add docs/assets/traction_history.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore(metrics): update community traction history [skip ci]" && git push)
+      - name: Upload Traction Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: traction-metrics
+          path: docs/assets/traction_history.json
