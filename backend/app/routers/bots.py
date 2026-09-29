@@ -21,7 +21,7 @@ from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.services.campaign_schedule import next_campaign_run_at
 from app.services.campaign_dispatch import build_campaign_dispatch_plan
 from app.services.campaign_analytics import aggregate_campaign_events
-from app.services.flow_runtime import evaluate_retry
+from app.services.flow_runtime import evaluate_condition, evaluate_retry, select_condition_branch
 from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
     BYOKUpdate,
@@ -194,13 +194,14 @@ async def simulate_dashboard_flow(
             loop_counts[current.get("id", "loop")] = loop_counts.get(current.get("id", "loop"), 0) + 1
             runtime = {"iteration": loop_counts[current.get("id", "loop")], "max_iterations": _bounded_int(config.get("max_iterations"), 10, 1, 100)}
         elif node_type == "condition":
-            runtime = {"evaluated_input": user_input, "expression": config.get("expression")}
+            runtime = {"evaluated_input": user_input, **evaluate_condition(config, user_input)}
         trace.append({"step": step, "node_id": current.get("id"), "node_type": node_type, "label": data.get("label", ""), "input": user_input, "runtime": runtime})
         outgoing = [item for item in edges if item.get("source") == current.get("id")]
         edge = None
         if node_type == "condition" and outgoing:
-            normalized = str(user_input).strip().lower()
-            edge = next((item for item in outgoing if str(item.get("label") or "").strip().lower() in {normalized, "true" if normalized in {"yes", "true", "1"} else "false"}), None)
+            edge, branch_reason = select_condition_branch(outgoing, user_input, bool(runtime.get("result")))
+            runtime["branch_reason"] = branch_reason
+            runtime["selected_edge_id"] = edge.get("id") if edge else None
         elif node_type == "loop" and outgoing and loop_counts.get(current.get("id", "loop"), 0) >= _bounded_int(config.get("max_iterations"), 10, 1, 100):
             edge = next((item for item in outgoing if str(item.get("label") or "").lower() in {"done", "complete", "exit"}), None)
             if edge is None:
