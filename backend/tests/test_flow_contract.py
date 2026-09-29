@@ -60,3 +60,15 @@ def test_flow_mapping_contract_is_typed_and_bounded():
     invalid["nodes"][1]["data"] = {"config": {"mapping": {"": "value"}}}
     with pytest.raises(ValidationError, match="mapping keys"):
         FlowVersionCreateRequest(**invalid)
+
+
+def test_flow_requires_one_start_and_unique_edge_ids():
+    multiple = _valid_flow()
+    multiple["nodes"].append({"id": "start-2", "type": "start", "data": {}})
+    with pytest.raises(ValidationError, match="exactly one Start"):
+        FlowVersionCreateRequest(**multiple)
+
+    duplicate_edges = _valid_flow()
+    duplicate_edges["edges"].append({"id": "e1", "source": "start", "target": "message"})
+    with pytest.raises(ValidationError, match="duplicate flow edge"):
+        FlowVersionCreateRequest(**duplicate_edges)

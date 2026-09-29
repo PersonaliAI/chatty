@@ -133,6 +133,7 @@ class FlowVersionCreateRequest(BaseModel):
         from silently disappearing at dangling edges.
         """
         node_ids: list[str] = []
+        start_nodes = 0
         for node in self.nodes:
             raw_id = node.get("id")
             if not isinstance(raw_id, str) or not raw_id.strip() or len(raw_id) > 128:
@@ -141,6 +142,8 @@ class FlowVersionCreateRequest(BaseModel):
             if node_id in node_ids:
                 raise ValueError(f"duplicate flow node id: {node_id}")
             node_ids.append(node_id)
+            if str(node.get("type") or "").strip().lower() in {"start", "input"} or node_id == "start":
+                start_nodes += 1
             data = node.get("data")
             if data is not None and not isinstance(data, dict):
                 raise ValueError("flow node data must be an object")
@@ -159,10 +162,18 @@ class FlowVersionCreateRequest(BaseModel):
                 expression = config.get("expression")
                 if expression is not None and (not isinstance(expression, str) or len(expression) > 2000):
                     raise ValueError("flow condition expressions must be strings of at most 2000 characters")
-        if self.nodes and "start" not in node_ids:
-            raise ValueError("a flow must contain a Start node")
+        if self.nodes and start_nodes != 1:
+            raise ValueError(f"a flow must contain exactly one Start node (found {start_nodes})")
         known = set(node_ids)
+        edge_ids: set[str] = set()
         for edge in self.edges:
+            edge_id = edge.get("id")
+            if edge_id is not None:
+                if not isinstance(edge_id, str) or not edge_id.strip() or len(edge_id) > 128:
+                    raise ValueError("flow edge ids must be non-empty strings of at most 128 characters")
+                if edge_id in edge_ids:
+                    raise ValueError(f"duplicate flow edge id: {edge_id}")
+                edge_ids.add(edge_id)
             source = edge.get("source")
             target = edge.get("target")
             if not isinstance(source, str) or source not in known:
