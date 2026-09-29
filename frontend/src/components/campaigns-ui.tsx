@@ -22,6 +22,8 @@ interface TriggerRule {
   isActive?: boolean;
   nextRunAt?: string | null;
   scheduleCadence?: string;
+  startDate?: string | null;
+  endDate?: string | null;
   quietHours?: { start: string; end: string } | null;
 }
 
@@ -51,6 +53,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [returningOnly, setReturningOnly] = useState(false);
   const [channels, setChannels] = useState<string[]>(["web"]);
   const [cadence, setCadence] = useState("once");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
   const [quietHoursStart, setQuietHoursStart] = useState("22:00");
   const [quietHoursEnd, setQuietHoursEnd] = useState("08:00");
@@ -94,6 +98,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
             sequenceSteps: Array.isArray(row.sequence_steps) ? row.sequence_steps as Array<Record<string, unknown>> : [],
             isActive: row.is_active !== false,
+            startDate: row.start_date ? String(row.start_date) : null,
+            endDate: row.end_date ? String(row.end_date) : null,
             quietHours: ((row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.start && (row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.end)
               ? { start: String((row.safety_config as { quiet_hours: { start: string } }).quiet_hours.start), end: String((row.safety_config as { quiet_hours: { end: string } }).quiet_hours.end) }
               : null,
@@ -198,6 +204,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
           ...(quietHoursEnabled ? { quiet_hours: { start: quietHoursStart, end: quietHoursEnd } } : {}),
         },
         schedule_config: { cadence, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" },
+        start_date: startDate ? new Date(startDate).toISOString() : null,
+        end_date: endDate ? new Date(endDate).toISOString() : null,
       }),
     }).then(async (response) => {
       if (!response.ok) throw new Error(`Campaign could not be saved (${response.status})`);
@@ -210,6 +218,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setReturningOnly(false);
       setChannels(["web"]);
       setCadence("once");
+      setStartDate("");
+      setEndDate("");
       setQuietHoursEnabled(false);
       setQuietHoursStart("22:00");
       setQuietHoursEnd("08:00");
@@ -418,6 +428,15 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
               <ModernSelect value={cadence} options={[{ value: "once", label: "Run once" }, { value: "hourly", label: "Hourly" }, { value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }]} onChange={setCadence} />
               <p className="text-[9px] text-neutral-400">The schedule is persisted with the campaign and interpreted in the visitor’s configured timezone.</p>
             </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400">Start window
+                <input type="datetime-local" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-[10px] font-normal dark:border-neutral-800 dark:bg-neutral-950" />
+              </label>
+              <label className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400">End window
+                <input type="datetime-local" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-[10px] font-normal dark:border-neutral-800 dark:bg-neutral-950" />
+              </label>
+              <p className="sm:col-span-2 text-[9px] text-neutral-400">Optional. Set a bounded campaign window; leaving either blank keeps the schedule open-ended.</p>
+            </div>
             <div className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-2.5 dark:border-neutral-800 dark:bg-neutral-950/40">
               <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
                 <input type="checkbox" checked={quietHoursEnabled} onChange={(event) => setQuietHoursEnabled(event.target.checked)} />
@@ -503,6 +522,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                     <div className="text-[10px] text-neutral-400">
                       Schedule: {r.scheduleCadence ?? "once"}
                       {r.nextRunAt ? ` · next run ${new Date(r.nextRunAt).toLocaleString()}` : " · no future run"}
+                      {r.startDate ? ` · starts ${new Date(r.startDate).toLocaleString()}` : ""}
+                      {r.endDate ? ` · ends ${new Date(r.endDate).toLocaleString()}` : ""}
                       {r.quietHours ? ` · quiet ${r.quietHours.start}–${r.quietHours.end}` : ""}
                     </div>
                     {!!r.sequenceSteps?.length && <div className="text-[10px] text-neutral-400">{r.sequenceSteps.length} sequenced follow-up{r.sequenceSteps.length === 1 ? "" : "s"}</div>}
