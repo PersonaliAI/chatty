@@ -206,6 +206,9 @@ async def widget_campaigns(
         patterns = [str(value) for value in (row.get("url_patterns") or []) if str(value).strip()]
         if patterns and not any(fnmatch.fnmatch(clean_path, pattern) for pattern in patterns):
             continue
+        channels = [str(value).strip().lower() for value in (row.get("channels") or ["web"])]
+        if "web" not in channels:
+            continue
         try:
             trigger_value = max(0, min(86_400, int(row.get("trigger_value") or 0)))
         except (TypeError, ValueError):
@@ -217,7 +220,7 @@ async def widget_campaigns(
             "message": str(row.get("message") or "")[:2000],
             "trigger_type": str(row.get("trigger_type") or "time_on_page"),
             "trigger_value": trigger_value,
-            "channels": [str(value) for value in (row.get("channels") or ["web"]) if str(value) == "web"],
+            "channels": ["web"],
             "audience_rules": row.get("audience_rules") or {},
         })
     return {"campaigns": campaigns[:20]}
