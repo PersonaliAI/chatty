@@ -18,6 +18,7 @@ from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
+from app.services.campaign_schedule import next_campaign_run_at
 from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
     BYOKUpdate,
@@ -378,6 +379,25 @@ async def campaign_analytics(bot_id: str, campaign_id: str, user: dict[str, Any]
         "click_rate": round(counts["click"] / impressions, 4) if impressions else 0,
         "conversion_rate": round(counts["conversion"] / impressions, 4) if impressions else 0,
         "sample_size": len(events.data or []),
+    }
+
+
+@router.get("/api/bots/{bot_id}/campaigns/{campaign_id}/schedule-preview")
+async def campaign_schedule_preview(bot_id: str, campaign_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return the next deterministic cadence occurrence for operators/workers."""
+    await verify_bot_permission(bot_id, user, "settings")
+    campaign = await run_db(lambda: supabase.table("chatty_campaigns").select(
+        "id, name, is_active, start_date, end_date, created_at, schedule_config"
+    ).eq("id", campaign_id).eq("bot_id", bot_id).maybe_single().execute())
+    if not campaign.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    next_run = next_campaign_run_at(campaign.data) if campaign.data.get("is_active") is not False else None
+    return {
+        "campaign_id": campaign_id,
+        "name": campaign.data.get("name"),
+        "is_active": campaign.data.get("is_active") is not False,
+        "schedule_config": campaign.data.get("schedule_config") or {},
+        "next_run_at": next_run.isoformat() if next_run else None,
     }
 
 
