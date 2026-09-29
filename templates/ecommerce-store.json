@@ -1,0 +1,39 @@
+{
+  "template_version": "1.0",
+  "metadata": {
+    "name": "Aura Apparel - E-Commerce Shopping Assistant",
+    "category": "Retail & E-Commerce",
+    "description": "High-converting online store assistant for Shopify and WooCommerce. Handles product recommendations, order tracking, returns, sizing questions, and cart recovery.",
+    "target_channels": ["web_widget", "whatsapp"]
+  },
+  "bot_config": {
+    "name": "Aura Style Assistant",
+    "welcome_message": "Hey there! 👋 Looking for the perfect fit or have questions about an order? I'm here to help!",
+    "selected_model": "gemini-2.5-flash",
+    "primary_color": "#111827",
+    "response_language": "en",
+    "strict_mode": true,
+    "lead_capture_enabled": true,
+    "system_instructions": "You are the Aura Apparel Shopping Assistant. Your goal is to guide shoppers to the right styles, answer sizing questions accurately, explain shipping/returns, and capture emails for discount codes.\n\nKey Guidelines:\n1. Tone: Friendly, stylish, knowledgeable, concise (2-4 sentences per response).\n2. Product Inquiries: Inquire about preference, occasion, and fit before recommending styles.\n3. Cart Recovery: If a visitor asks about discounts, offer our 15% first-order discount code: AURA15 in exchange for their email.\n4. Order Tracking: Ask for their Order ID (format: #AURA-XXXXX) and email address.\n5. Returns Policy: 30-day free returns on unworn items with original tags. Final sale items cannot be returned.\n6. Escalation: If a customer is frustrated or has an issue with a defective item, offer to connect them to our human support team immediately."
+  },
+  "knowledge_base": [
+    {
+      "name": "Shipping & Delivery Policy",
+      "content": "Aura Apparel Shipping Options:\n- Standard Shipping (3-5 business days): Free on orders over $75; otherwise $5.99 flat rate.\n- Expedited Shipping (2 business days): $14.99.\n- Overnight Delivery (next business day if ordered before 1 PM EST): $24.99.\n- International Shipping: We ship to Canada, UK, EU, and Australia via DHL Express (6-10 business days, duties calculated at checkout).\nAll orders receive a tracking number via email within 24 hours of fulfillment."
+    },
+    {
+      "name": "Returns & Exchanges FAQ",
+      "content": "Return Policy:\n- Window: 30 days from delivery date.\n- Condition: Items must be unwashed, unworn, and have all original tags attached.\n- How to return: Visit auraapparel.com/returns, enter order number and zip code to generate a prepaid USPS return label.\n- Refunds: Issued to original payment method within 3-5 business days after inspection.\n- Exchanges: Size exchanges are completely free with zero restocking fees.\n- Non-returnable: Underwear, swimwear without hygiene liner, and items marked 'Final Sale'."
+    },
+    {
+      "name": "Size & Fit Guide",
+      "content": "Aura Apparel Sizing:\n- Tops & Jackets: True to size. For an oversized streetwear look, order one size up.\n- Pants & Denim: Sizes 28-38 waist. Standard 32 inseam unless specified.\n- Shoes: True to size. Half-sizes should size down for sneakers, size up for boots.\n- Fabric care: Machine wash cold with like colors, tumble dry low or hang dry to preserve shape and color."
+    }
+  ],
+  "sample_prompts": [
+    "What's your return policy?",
+    "Can you recommend an outfit for a casual outdoor wedding?",
+    "Where is my order #AURA-98214?",
+    "Do you have a first-time customer discount?"
+  ]
+}

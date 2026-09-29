@@ -4,6 +4,13 @@
 
 # Chatty by PersonaliAI
 
+<p>
+  <a href="README.md">English</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.es.md">Español</a>
+</p>
+
 **Open-source AI customer support: chat widget + real-time voice agent + a full MCP server, grounded in your own knowledge base.**
 
 Run the application containers on your own host while keeping Supabase Auth,
@@ -21,7 +28,7 @@ Supabase project.
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Quick Start](#-quick-start-docker-compose) · [Managed deployment guide](#-self-hosting-step-by-step) · [Voice worker guide](backend/voice-agent/README.md) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [Features](#-features) · [MCP Server](#mcp-server--agent-control) · [Architecture](#architecture) · [Contributing](#-contributing)
+[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Performance Scorecard](docs/SCORECARD.md) · [Templates](templates/README.md) · [Case Studies](case_studies/README.md) · [Widget Embed](docs/WIDGET_INTEGRATION.md) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [MCP Server](#mcp-server--agent-control) · [Community Traction](docs/traction.md)
 
 </div>
 
@@ -30,6 +37,10 @@ Supabase project.
 ## Table of contents
 
 - [Why Chatty](#why-chatty)
+- [Performance Scorecard (A-F Auditing)](docs/SCORECARD.md)
+- [Bot Templates & Starters](templates/README.md)
+- [Case Studies & Benchmarks](case_studies/README.md)
+- [Widget Integration (3-Line Embed)](docs/WIDGET_INTEGRATION.md)
 - [Features](#-features)
 - [Architecture](#architecture)
 - [Requirements](#-requirements)
