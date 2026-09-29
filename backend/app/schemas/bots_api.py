@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -152,6 +154,18 @@ class FlowVersionCreateRequest(BaseModel):
         return self
 
 
+def _parse_campaign_datetime(value: Optional[str], field_name: str) -> Optional[datetime]:
+    if value is None or not str(value).strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be a valid ISO-8601 datetime") from exc
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 class CampaignCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     campaign_type: str = Field("chat_bubble", description="chat_bubble, popup_modal, top_banner, slide_in")
@@ -168,6 +182,29 @@ class CampaignCreateRequest(BaseModel):
     sequence_steps: list[dict[str, Any]] = Field(default_factory=list)
     safety_config: dict[str, Any] = Field(default_factory=dict)
     schedule_config: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("campaign_type")
+    @classmethod
+    def validate_campaign_type(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value not in {"chat_bubble", "popup_modal", "top_banner", "slide_in"}:
+            raise ValueError("campaign_type is invalid")
+        return value
+
+    @field_validator("trigger_type")
+    @classmethod
+    def validate_trigger_type(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value not in {"time_on_page", "scroll_percentage", "exit_intent", "url_match"}:
+            raise ValueError("trigger_type is invalid")
+        return value
+
+    @field_validator("trigger_value")
+    @classmethod
+    def validate_trigger_value(cls, value: int) -> int:
+        if value < 0 or value > 86_400:
+            raise ValueError("trigger_value must be between 0 and 86400")
+        return value
 
     @field_validator("channels")
     @classmethod
@@ -224,8 +261,20 @@ class CampaignCreateRequest(BaseModel):
         if cadence not in {"once", "hourly", "daily", "weekly"}:
             raise ValueError("cadence must be once, hourly, daily, or weekly")
         timezone = str(config.get("timezone", "UTC")).strip()[:64] or "UTC"
+        try:
+            ZoneInfo(timezone)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("schedule timezone must be a valid IANA timezone") from exc
         config.update({"cadence": cadence, "timezone": timezone})
         return config
+
+    @model_validator(mode="after")
+    def validate_date_window(self) -> "CampaignCreateRequest":
+        start = _parse_campaign_datetime(self.start_date, "start_date")
+        end = _parse_campaign_datetime(self.end_date, "end_date")
+        if start and end and start >= end:
+            raise ValueError("start_date must be earlier than end_date")
+        return self
 
 
 class CampaignUpdateRequest(BaseModel):
@@ -244,6 +293,21 @@ class CampaignUpdateRequest(BaseModel):
     sequence_steps: Optional[list[dict[str, Any]]] = None
     safety_config: Optional[dict[str, Any]] = None
     schedule_config: Optional[dict[str, Any]] = None
+
+    @field_validator("campaign_type")
+    @classmethod
+    def validate_update_campaign_type(cls, value: Optional[str]) -> Optional[str]:
+        return CampaignCreateRequest.validate_campaign_type(value) if value is not None else value
+
+    @field_validator("trigger_type")
+    @classmethod
+    def validate_update_trigger_type(cls, value: Optional[str]) -> Optional[str]:
+        return CampaignCreateRequest.validate_trigger_type(value) if value is not None else value
+
+    @field_validator("trigger_value")
+    @classmethod
+    def validate_update_trigger_value(cls, value: Optional[int]) -> Optional[int]:
+        return CampaignCreateRequest.validate_trigger_value(value) if value is not None else value
 
     @field_validator("channels")
     @classmethod
@@ -272,6 +336,14 @@ class CampaignUpdateRequest(BaseModel):
         if value is None:
             return value
         return CampaignCreateRequest.validate_schedule_config(value)
+
+    @model_validator(mode="after")
+    def validate_update_date_window(self) -> "CampaignUpdateRequest":
+        start = _parse_campaign_datetime(self.start_date, "start_date")
+        end = _parse_campaign_datetime(self.end_date, "end_date")
+        if start and end and start >= end:
+            raise ValueError("start_date must be earlier than end_date")
+        return self
 
 
 class CampaignSuggestRequest(BaseModel):

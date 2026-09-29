@@ -33,3 +33,12 @@ def test_campaign_update_uses_the_same_safety_contract():
         CampaignUpdateRequest(safety_config={"frequency_cap_hours": 0})
     with pytest.raises(ValidationError):
         CampaignUpdateRequest(sequence_steps=[{"channel": "email", "after_minutes": 999999}])
+
+
+def test_campaign_contract_rejects_invalid_runtime_metadata():
+    with pytest.raises(ValidationError):
+        CampaignCreateRequest(name="x", message_content="y", schedule_config={"timezone": "Mars/Olympus"})
+    with pytest.raises(ValidationError):
+        CampaignCreateRequest(name="x", message_content="y", start_date="2026-10-02T00:00:00Z", end_date="2026-10-01T00:00:00Z")
+    with pytest.raises(ValidationError):
+        CampaignCreateRequest(name="x", message_content="y", trigger_type="unknown")
