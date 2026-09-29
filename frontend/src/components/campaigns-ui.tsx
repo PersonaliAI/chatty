@@ -35,7 +35,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [value, setValue] = useState("");
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState("all");
-  const [channel, setChannel] = useState("web");
+  const [channels, setChannels] = useState<string[]>(["web"]);
   const [cadence, setCadence] = useState("once");
   const [sequenceText, setSequenceText] = useState("[]");
   const [goal, setGoal] = useState("");
@@ -126,6 +126,10 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       message: message.trim(),
     };
     if (!botId) return;
+    if (!channels.length) {
+      setError("Select at least one campaign channel.");
+      return;
+    }
     setSaving(true);
     setError(null);
     const triggerType = type === "time" ? "time_on_page" : type === "scroll" ? "scroll_percentage" : "exit_intent";
@@ -142,7 +146,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         target_devices: ["desktop", "mobile"],
         is_active: true,
         audience_rules: { segment: audience },
-        channels: [channel],
+        channels,
         sequence_steps: sequenceSteps,
         safety_config: { frequency_cap_hours: 24, require_consent: true },
         schedule_config: { cadence, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" },
@@ -154,11 +158,15 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setValue("");
       setMessage("");
       setAudience("all");
-      setChannel("web");
+      setChannels(["web"]);
       setCadence("once");
       setSequenceText("[]");
     }).catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : "Campaign could not be saved."))
       .finally(() => setSaving(false));
+  };
+
+  const toggleChannel = (value: string) => {
+    setChannels((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
   };
 
   const suggestCampaign = () => {
@@ -297,8 +305,14 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 <ModernSelect value={audience} options={[{ value: "all", label: "All visitors" }, { value: "returning", label: "Returning visitors" }, { value: "high_intent", label: "High intent" }]} onChange={setAudience} />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Channel</label>
-                <ModernSelect value={channel} options={[{ value: "web", label: "Website" }, { value: "email", label: "Email" }, { value: "whatsapp", label: "WhatsApp" }]} onChange={setChannel} />
+                <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Channels</label>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Campaign channels">
+                  {[{ value: "web", label: "Website" }, { value: "email", label: "Email" }, { value: "whatsapp", label: "WhatsApp" }, { value: "sms", label: "SMS" }].map((option) => (
+                    <button type="button" key={option.value} onClick={() => toggleChannel(option.value)} aria-pressed={channels.includes(option.value)} className={`rounded-lg border px-2 py-1 text-[10px] font-semibold transition-colors ${channels.includes(option.value) ? "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-200" : "border-neutral-200 text-neutral-500 dark:border-neutral-800"}`}>
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="space-y-1">
