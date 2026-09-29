@@ -1,4 +1,4 @@
-from app.services.flow_runtime import evaluate_condition, evaluate_retry, select_condition_branch
+from app.services.flow_runtime import evaluate_condition, evaluate_retry, resolve_mapping, select_condition_branch
 
 
 def test_retry_succeeds_after_bounded_failures():
@@ -50,3 +50,20 @@ def test_condition_branches_are_deterministic_and_traceable():
     selected, reason = select_condition_branch(edges, "other", True)
     assert selected and selected["id"] == "yes"
     assert reason == "condition_result"
+
+
+def test_mapping_resolution_preserves_types_and_surfaces_missing_values():
+    result = resolve_mapping({
+        "message": "Hello {{context.contact.name}} — {{input}}",
+        "email": "{{context.contact.email}}",
+        "score": "{{context.score}}",
+        "missing": "{{context.unknown}}",
+        "literal": 4,
+    }, "need a demo", {"contact": {"name": "Ari", "email": "ari@example.com"}, "score": 92})
+    assert result["mapped_payload"] == {
+        "message": "Hello Ari — need a demo",
+        "email": "ari@example.com",
+        "score": 92,
+        "literal": 4,
+    }
+    assert result["unresolved_fields"] == ["missing"]

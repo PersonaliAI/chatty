@@ -21,7 +21,7 @@ from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.services.campaign_schedule import next_campaign_run_at
 from app.services.campaign_dispatch import build_campaign_dispatch_plan
 from app.services.campaign_analytics import aggregate_campaign_events
-from app.services.flow_runtime import evaluate_condition, evaluate_retry, select_condition_branch
+from app.services.flow_runtime import evaluate_condition, evaluate_retry, resolve_mapping, select_condition_branch
 from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
     BYOKUpdate,
@@ -187,7 +187,11 @@ async def simulate_dashboard_flow(
         if node_type == "delay":
             runtime = {"simulated": True, "delay_ms": _bounded_int(config.get("duration_ms"), 0, 0, 300000)}
         elif node_type == "webhook":
-            runtime = {"simulated": True, "side_effect": "webhook_not_sent", "mapped_fields": list((config.get("mapping") or {}).keys()) if isinstance(config.get("mapping"), dict) else []}
+            runtime = {
+                "simulated": True,
+                "side_effect": "webhook_not_sent",
+                **resolve_mapping(config.get("mapping"), user_input, body.context),
+            }
         elif node_type == "retry":
             runtime = {"simulated": True, **evaluate_retry(config)}
         elif node_type == "loop":
@@ -218,7 +222,12 @@ async def simulate_dashboard_flow(
     budget_exceeded = current is not None
     run = await run_db(lambda: supabase.table("chatty_flow_runs").insert({
         "bot_id": bot_id,
-        "flow_data": {"status": flow.get("status", "paused"), "nodes": nodes, "edges": edges},
+        "flow_data": {
+            "status": flow.get("status", "paused"),
+            "nodes": nodes,
+            "edges": edges,
+            "simulation_context": body.context,
+        },
         "status": "failed" if budget_exceeded else "completed",
         "inputs": body.inputs[:50] or ["Hello"],
         "trace": trace,
@@ -254,7 +263,10 @@ async def replay_dashboard_flow_run(
     snapshot = result.data.get("flow_data") or {}
     replay = await simulate_dashboard_flow(
         bot_id,
-        FlowSimulationRequest(inputs=result.data.get("inputs") or ["Hello"]),
+        FlowSimulationRequest(
+            inputs=result.data.get("inputs") or ["Hello"],
+            context=snapshot.get("simulation_context") if isinstance(snapshot.get("simulation_context"), dict) else {},
+        ),
         user,
         flow_override=snapshot if snapshot.get("nodes") else None,
     )

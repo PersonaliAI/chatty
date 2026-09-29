@@ -106,3 +106,61 @@ def select_condition_branch(
     if default is not None:
         return default, "default"
     return (outgoing[0], "first_outgoing") if outgoing else (None, "no_outgoing")
+
+
+_MAPPING_TOKEN = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}")
+
+
+def _resolve_mapping_path(path: str, user_input: str, context: dict[str, Any]) -> tuple[bool, Any]:
+    if path == "input":
+        return True, user_input
+    if not path.startswith("context."):
+        return False, None
+    current: Any = context
+    for segment in path.removeprefix("context.").split("."):
+        if not isinstance(current, dict) or segment not in current:
+            return False, None
+        current = current[segment]
+    return True, current
+
+
+def resolve_mapping(
+    mapping: dict[str, Any] | None, user_input: str, context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve the safe ``{{input}}``/``{{context.path}}`` mapping language.
+
+    Full-token values preserve their JSON type. Interpolated strings use their
+    textual representation. Unknown paths stay visible in ``unresolved`` so a
+    dry run cannot hide an incomplete action payload.
+    """
+    source = mapping if isinstance(mapping, dict) else {}
+    safe_context = context if isinstance(context, dict) else {}
+    resolved: dict[str, Any] = {}
+    unresolved: list[str] = []
+    for key, raw_value in source.items():
+        if not isinstance(raw_value, str):
+            resolved[str(key)] = raw_value
+            continue
+        tokens = list(_MAPPING_TOKEN.finditer(raw_value))
+        if not tokens:
+            resolved[str(key)] = raw_value
+            continue
+        if len(tokens) == 1 and tokens[0].span() == (0, len(raw_value)):
+            found, value = _resolve_mapping_path(tokens[0].group(1), user_input, safe_context)
+            if found:
+                resolved[str(key)] = value
+            else:
+                unresolved.append(str(key))
+            continue
+        failed = False
+        def replace(match: re.Match[str]) -> str:
+            nonlocal failed
+            found, value = _resolve_mapping_path(match.group(1), user_input, safe_context)
+            if not found:
+                failed = True
+                return match.group(0)
+            return str(value)
+        resolved[str(key)] = _MAPPING_TOKEN.sub(replace, raw_value)
+        if failed:
+            unresolved.append(str(key))
+    return {"mapped_payload": resolved, "unresolved_fields": unresolved}

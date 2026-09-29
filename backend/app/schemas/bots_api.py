@@ -109,6 +109,7 @@ class FlowUpdateRequest(BaseModel):
 class FlowSimulationRequest(BaseModel):
     inputs: list[str] = Field(default_factory=lambda: ["Hello"], max_length=50)
     max_steps: int = Field(100, ge=1, le=500)
+    context: dict[str, Any] = Field(default_factory=dict, max_length=100)
     # A dashboard dry-run may test an unsaved canvas.  These are deliberately
     # optional so replay can continue to use the immutable run snapshot, but
     # when one is present the other must be supplied as well.
@@ -120,6 +121,15 @@ class FlowSimulationRequest(BaseModel):
     def validate_inputs(cls, value: list[str]) -> list[str]:
         cleaned = [str(item)[:4000] for item in value]
         return cleaned or ["Hello"]
+
+    @field_validator("context")
+    @classmethod
+    def validate_context(cls, value: dict[str, Any]) -> dict[str, Any]:
+        # The dry-run context is intentionally bounded. It is operator-supplied
+        # test data, never a source of executable expressions.
+        if len(value) > 100:
+            raise ValueError("flow simulation context may contain at most 100 fields")
+        return value
 
     @model_validator(mode="after")
     def validate_draft_graph_shape(self) -> "FlowSimulationRequest":
