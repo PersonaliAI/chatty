@@ -442,6 +442,7 @@ async def campaign_dispatch_plan(bot_id: str, campaign_id: str, user: dict[str, 
     scheduler can enqueue the returned jobs on the durable Redis stream after
     applying its own recipient and consent lookup.
     """
+    await verify_bot_permission(bot_id, user, "settings")
     campaign = await run_db(lambda: supabase.table("chatty_campaigns").select("*").eq(
         "id", campaign_id).eq("bot_id", bot_id).maybe_single().execute())
     if not campaign.data:
