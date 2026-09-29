@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Megaphone, Sparkles, Pause, Play } from "lucide-react";
+import { Plus, Trash2, Megaphone, Sparkles, Pause, Play, ListChecks, Loader2 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 
 interface TriggerRule {
@@ -32,6 +32,11 @@ interface Props {
 }
 
 type CampaignSequenceStep = { channel: string; after_minutes: number; message: string };
+type DispatchJob = {
+  idempotency_key: string;
+  scheduled_at: string;
+  payload: { channel?: string; requires_consent?: boolean; frequency_cap_hours?: number; message?: string };
+};
 
 export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [rules, setRules] = useState<TriggerRule[]>([]);
@@ -54,6 +59,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [suggesting, setSuggesting] = useState(false);
   const [suggestingAudience, setSuggestingAudience] = useState(false);
   const [audienceRationale, setAudienceRationale] = useState("");
+  const [dispatchPlans, setDispatchPlans] = useState<Record<string, { loading?: boolean; jobs?: DispatchJob[]; error?: string }>>({});
 
   const typeOptions: ModernSelectOption[] = [
     { value: "time", label: "Time on page (Seconds)" },
@@ -298,6 +304,30 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       .finally(() => setSaving(false));
   };
 
+  const toggleDispatchPlan = (campaignId: string) => {
+    if (!botId) return;
+    const current = dispatchPlans[campaignId];
+    if (current?.jobs || current?.error) {
+      setDispatchPlans((plans) => {
+        const next = { ...plans };
+        delete next[campaignId];
+        return next;
+      });
+      return;
+    }
+    setDispatchPlans((plans) => ({ ...plans, [campaignId]: { loading: true } }));
+    fetchBackend(`/api/bots/${botId}/campaigns/${campaignId}/dispatch-plan`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Preview unavailable (${response.status})`);
+        const result = await response.json() as { jobs?: DispatchJob[] };
+        setDispatchPlans((plans) => ({ ...plans, [campaignId]: { jobs: Array.isArray(result.jobs) ? result.jobs : [] } }));
+      })
+      .catch((previewError: unknown) => setDispatchPlans((plans) => ({
+        ...plans,
+        [campaignId]: { error: previewError instanceof Error ? previewError.message : "Preview unavailable." },
+      })));
+  };
+
   return (
     <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-6">
       <div className="flex items-center justify-between">
@@ -476,6 +506,18 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       {r.quietHours ? ` · quiet ${r.quietHours.start}–${r.quietHours.end}` : ""}
                     </div>
                     {!!r.sequenceSteps?.length && <div className="text-[10px] text-neutral-400">{r.sequenceSteps.length} sequenced follow-up{r.sequenceSteps.length === 1 ? "" : "s"}</div>}
+                    <button type="button" onClick={() => toggleDispatchPlan(r.id)} className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:underline dark:text-indigo-300">
+                      {dispatchPlans[r.id]?.loading ? <Loader2 className="size-3 animate-spin" /> : <ListChecks className="size-3" />}
+                      {dispatchPlans[r.id] ? "Hide delivery plan" : "Preview delivery plan"}
+                    </button>
+                    {dispatchPlans[r.id]?.error && <p className="mt-1 text-[10px] text-rose-600 dark:text-rose-300">{dispatchPlans[r.id]?.error}</p>}
+                    {dispatchPlans[r.id]?.jobs && <div className="mt-2 space-y-1 rounded-lg border border-indigo-100 bg-indigo-50/50 p-2 text-[10px] text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-100">
+                      {!dispatchPlans[r.id]?.jobs?.length && <p>No dispatch is due now. Check the campaign schedule, date window, or quiet-hours safeguard.</p>}
+                      {dispatchPlans[r.id]?.jobs?.map((job, jobIndex) => <div key={job.idempotency_key} className="rounded-md border border-indigo-100 bg-white/70 px-2 py-1 dark:border-indigo-900/50 dark:bg-neutral-950/30">
+                        <span className="font-bold">{jobIndex + 1}. {job.payload.channel ?? "web"}</span> · {new Date(job.scheduled_at).toLocaleString()}
+                        <span className="block text-[9px] text-indigo-700/80 dark:text-indigo-200/80">Consent {job.payload.requires_consent ? "required" : "not required"} · frequency cap {job.payload.frequency_cap_hours ?? 24}h · idempotent</span>
+                      </div>)}
+                    </div>}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button type="button" onClick={() => toggleRule(r)} disabled={saving} aria-label={r.isActive === false ? "Resume campaign" : "Pause campaign"} title={r.isActive === false ? "Resume campaign" : "Pause campaign"} className="p-1.5 text-neutral-450 hover:text-orange-500 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer transition-colors disabled:opacity-40">
