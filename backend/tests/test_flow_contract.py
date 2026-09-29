@@ -50,6 +50,21 @@ def test_simulation_inputs_are_bounded_and_defaulted():
         FlowSimulationRequest(max_steps=501)
 
 
+def test_simulation_draft_uses_the_publish_graph_contract():
+    flow = _valid_flow()
+    request = FlowSimulationRequest(inputs=["test"], nodes=flow["nodes"], edges=flow["edges"])
+    assert request.nodes == flow["nodes"]
+    assert request.edges == flow["edges"]
+
+    with pytest.raises(ValidationError, match="both nodes and edges"):
+        FlowSimulationRequest(nodes=flow["nodes"])
+
+    invalid = _valid_flow()
+    invalid["edges"][0]["target"] = "missing"
+    with pytest.raises(ValidationError, match="target"):
+        FlowSimulationRequest(nodes=invalid["nodes"], edges=invalid["edges"])
+
+
 def test_flow_mapping_contract_is_typed_and_bounded():
     flow = _valid_flow()
     flow["nodes"][1]["data"] = {"config": {"mapping": {"contact.email": "{{lead.email}}"}, "expression": "intent_score > 50"}}

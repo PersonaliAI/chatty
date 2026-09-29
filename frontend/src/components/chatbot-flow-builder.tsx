@@ -834,7 +834,10 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
       const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/simulate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inputs: ["Hello", "I need help", "Continue"] }),
+        // Test the exact draft the operator is looking at.  The API validates
+        // this with the same contract as publishing and stores it with the
+        // run, making later replay deterministic even if the flow changes.
+        body: JSON.stringify({ inputs: ["Hello", "I need help", "Continue"], nodes, edges }),
       });
       if (!response.ok) throw new Error(`Test run failed (${response.status})`);
       const result = await response.json() as { execution_path?: Array<{ node_id: string; label: string }> };

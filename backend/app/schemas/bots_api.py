@@ -109,12 +109,27 @@ class FlowUpdateRequest(BaseModel):
 class FlowSimulationRequest(BaseModel):
     inputs: list[str] = Field(default_factory=lambda: ["Hello"], max_length=50)
     max_steps: int = Field(100, ge=1, le=500)
+    # A dashboard dry-run may test an unsaved canvas.  These are deliberately
+    # optional so replay can continue to use the immutable run snapshot, but
+    # when one is present the other must be supplied as well.
+    nodes: Optional[list[dict[str, Any]]] = Field(None, max_length=200)
+    edges: Optional[list[dict[str, Any]]] = Field(None, max_length=500)
 
     @field_validator("inputs")
     @classmethod
     def validate_inputs(cls, value: list[str]) -> list[str]:
         cleaned = [str(item)[:4000] for item in value]
         return cleaned or ["Hello"]
+
+    @model_validator(mode="after")
+    def validate_draft_graph_shape(self) -> "FlowSimulationRequest":
+        if (self.nodes is None) != (self.edges is None):
+            raise ValueError("flow simulation requires both nodes and edges when testing a draft")
+        if self.nodes is not None:
+            # Reuse the publish contract: a dry-run must never silently accept
+            # a graph that would later be rejected at publish time.
+            FlowVersionCreateRequest(nodes=self.nodes, edges=self.edges or [], status="draft")
+        return self
 
 
 class FlowVersionCreateRequest(BaseModel):

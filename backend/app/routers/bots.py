@@ -149,7 +149,12 @@ async def simulate_dashboard_flow(
 ):
     """Run a side-effect-free dry run of the saved flow for the editor."""
     await verify_bot_permission(bot_id, user, "settings")
-    if flow_override is not None:
+    if body.nodes is not None:
+        # The editor must test the draft on screen, not a stale persisted
+        # version.  FlowSimulationRequest has already run the same structural
+        # validation used by publish/version creation.
+        flow = {"status": "draft", "nodes": body.nodes, "edges": body.edges or []}
+    elif flow_override is not None:
         flow = flow_override
     else:
         result = await run_db(lambda: supabase.table("chatty_bots").select("custom_js").eq("id", bot_id).maybe_single().execute())
