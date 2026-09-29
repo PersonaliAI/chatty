@@ -1,0 +1,21 @@
+{
+  "name": "chatty-marketplace",
+  "description": "Chatty AI Customer Support platform plugin for Claude Code. Audit chatbot performance, manage knowledge bases, visual flows, proactive campaigns, and leads directly from Claude.",
+  "owner": {
+    "name": "PersonaliAI",
+    "url": "https://github.com/PersonaliAI/chatty"
+  },
+  "plugins": [
+    {
+      "name": "chatty",
+      "source": "./plugins/chatty-integration",
+      "description": "55-tool MCP server and 5-pillar operational auditor for Chatty chatbots.",
+      "version": "2.0.0",
+      "author": {
+        "name": "PersonaliAI",
+        "url": "https://chatty.personaliai.com"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
