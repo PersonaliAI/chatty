@@ -82,6 +82,23 @@ logger = logging.getLogger("chatty")
 app = create_app()
 
 
+@app.get("/health", tags=["Operations"])
+async def healthcheck() -> dict[str, str]:
+    """Liveness probe: confirms the HTTP process is accepting requests."""
+    return {"status": "ok", "service": "chatty-api"}
+
+
+@app.get("/ready", tags=["Operations"])
+async def readinesscheck() -> dict[str, Any]:
+    """Deployment readiness contract without leaking connection details."""
+    configured = bool(str(SUPABASE_URL or "").strip())
+    return {
+        "status": "ready" if configured else "not_ready",
+        "service": "chatty-api",
+        "dependencies": {"supabase_configured": configured},
+    }
+
+
 # ---------------------------------------------------------------------------
 # Plans / quotas - monthly message count enforced on /api/chat + telegram.
 # Free covers evaluation; paid tiers cover real use.
