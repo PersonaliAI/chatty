@@ -35,6 +35,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [value, setValue] = useState("");
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState("all");
+  const [minIntentScore, setMinIntentScore] = useState(0);
+  const [returningOnly, setReturningOnly] = useState(false);
   const [channels, setChannels] = useState<string[]>(["web"]);
   const [cadence, setCadence] = useState("once");
   const [sequenceText, setSequenceText] = useState("[]");
@@ -145,7 +147,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         trigger_value: type === "url" ? 0 : Number(newRule.value) || 0,
         target_devices: ["desktop", "mobile"],
         is_active: true,
-        audience_rules: { segment: audience },
+        audience_rules: { segment: audience, min_intent_score: minIntentScore, returning_only: returningOnly },
         channels,
         sequence_steps: sequenceSteps,
         safety_config: { frequency_cap_hours: 24, require_consent: true },
@@ -158,6 +160,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setValue("");
       setMessage("");
       setAudience("all");
+      setMinIntentScore(0);
+      setReturningOnly(false);
       setChannels(["web"]);
       setCadence("once");
       setSequenceText("[]");
@@ -203,9 +207,11 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       body: JSON.stringify({ goal: goal.trim(), audience }),
     }).then(async (response) => {
       if (!response.ok) throw new Error("AI audience suggestion failed");
-      const result = await response.json() as { audience_rules?: { segment?: string }; rationale?: string };
+      const result = await response.json() as { audience_rules?: { segment?: string; min_intent_score?: number; returning_only?: boolean }; rationale?: string };
       const segment = result.audience_rules?.segment;
       if (segment === "all" || segment === "returning" || segment === "high_intent") setAudience(segment);
+      setMinIntentScore(Math.max(0, Math.min(100, Number(result.audience_rules?.min_intent_score ?? 0))));
+      setReturningOnly(Boolean(result.audience_rules?.returning_only));
       setAudienceRationale(String(result.rationale ?? "").slice(0, 240));
     }).catch((suggestionError: unknown) => setError(suggestionError instanceof Error ? suggestionError.message : "AI audience suggestion failed."))
       .finally(() => setSuggestingAudience(false));
@@ -302,7 +308,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Audience</label>
-                <ModernSelect value={audience} options={[{ value: "all", label: "All visitors" }, { value: "returning", label: "Returning visitors" }, { value: "high_intent", label: "High intent" }]} onChange={setAudience} />
+                <ModernSelect value={audience} options={[{ value: "all", label: "All visitors" }, { value: "returning", label: "Returning visitors" }, { value: "high_intent", label: "High intent" }]} onChange={(value) => { setAudience(value); if (value === "returning") setReturningOnly(true); }} />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Channels</label>
@@ -312,6 +318,13 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       {option.label}
                     </button>
                   ))}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-[9px] text-neutral-400" htmlFor="campaign-intent-score">Min intent</label>
+                  <input id="campaign-intent-score" type="number" min={0} max={100} value={minIntentScore} onChange={(event) => setMinIntentScore(Math.max(0, Math.min(100, Number(event.target.value) || 0)))} className="w-16 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-950" />
+                  <label className="flex items-center gap-1 text-[9px] text-neutral-400">
+                    <input type="checkbox" checked={returningOnly} onChange={(event) => setReturningOnly(event.target.checked)} /> Returning only
+                  </label>
                 </div>
               </div>
             </div>
