@@ -28,6 +28,8 @@ interface Props {
   fetchBackend: (path: string, options?: RequestInit) => Promise<Response>;
 }
 
+type CampaignSequenceStep = { channel: string; after_minutes: number; message: string };
+
 export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [rules, setRules] = useState<TriggerRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,7 +43,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [returningOnly, setReturningOnly] = useState(false);
   const [channels, setChannels] = useState<string[]>(["web"]);
   const [cadence, setCadence] = useState("once");
-  const [sequenceText, setSequenceText] = useState("[]");
+  const [sequenceSteps, setSequenceSteps] = useState<CampaignSequenceStep[]>([]);
   const [goal, setGoal] = useState("");
   const [suggesting, setSuggesting] = useState(false);
   const [suggestingAudience, setSuggestingAudience] = useState(false);
@@ -131,15 +133,11 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
   const addRule = () => {
     if (!message.trim()) return;
-    let sequenceSteps: Array<Record<string, unknown>> = [];
-    try {
-      const parsed = JSON.parse(sequenceText);
-      if (!Array.isArray(parsed)) throw new Error("Sequence must be a JSON array");
-      sequenceSteps = parsed.filter((step): step is Record<string, unknown> => Boolean(step) && typeof step === "object");
-    } catch (sequenceError) {
-      setError(sequenceError instanceof Error ? sequenceError.message : "Invalid sequence JSON");
-      return;
-    }
+    const cleanSequenceSteps = sequenceSteps.map((step) => ({
+      channel: step.channel,
+      after_minutes: Math.max(0, Math.min(43_200, Number(step.after_minutes) || 0)),
+      message: step.message.trim(),
+    })).filter((step) => Boolean(step.message));
     const newRule: TriggerRule = {
       id: crypto.randomUUID(),
       type,
@@ -168,7 +166,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         is_active: true,
         audience_rules: { segment: audience, min_intent_score: minIntentScore, returning_only: returningOnly },
         channels,
-        sequence_steps: sequenceSteps,
+        sequence_steps: cleanSequenceSteps,
         safety_config: { frequency_cap_hours: 24, require_consent: true },
         schedule_config: { cadence, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" },
       }),
@@ -183,13 +181,21 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setReturningOnly(false);
       setChannels(["web"]);
       setCadence("once");
-      setSequenceText("[]");
+      setSequenceSteps([]);
     }).catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : "Campaign could not be saved."))
       .finally(() => setSaving(false));
   };
 
   const toggleChannel = (value: string) => {
     setChannels((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+  };
+
+  const addSequenceStep = () => {
+    setSequenceSteps((current) => [...current, { channel: channels[0] || "web", after_minutes: 0, message: "" }]);
+  };
+
+  const updateSequenceStep = (index: number, patch: Partial<CampaignSequenceStep>) => {
+    setSequenceSteps((current) => current.map((step, stepIndex) => stepIndex === index ? { ...step, ...patch } : step));
   };
 
   const suggestCampaign = () => {
@@ -211,7 +217,11 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setType(suggestedType);
       setValue(suggestedType === "exit" ? "" : String(suggestion.trigger_value ?? 5));
       setMessage(String(suggestion.message_content ?? ""));
-      setSequenceText(JSON.stringify(suggestion.sequence_steps ?? [], null, 2));
+      setSequenceSteps((Array.isArray(suggestion.sequence_steps) ? suggestion.sequence_steps : []).map((step) => ({
+        channel: String(step.channel ?? "web").toLowerCase(),
+        after_minutes: Math.max(0, Number(step.after_minutes ?? 0) || 0),
+        message: String(step.message ?? ""),
+      })));
     }).catch((suggestionError: unknown) => setError(suggestionError instanceof Error ? suggestionError.message : "AI suggestion failed."))
       .finally(() => setSuggesting(false));
   };
@@ -352,10 +362,27 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
               <ModernSelect value={cadence} options={[{ value: "once", label: "Run once" }, { value: "hourly", label: "Hourly" }, { value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }]} onChange={setCadence} />
               <p className="text-[9px] text-neutral-400">The schedule is persisted with the campaign and interpreted in the visitor’s configured timezone.</p>
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Sequence steps (JSON)</label>
-              <textarea rows={3} value={sequenceText} onChange={(event) => setSequenceText(event.target.value)} spellCheck={false} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 font-mono text-[10px] focus:outline-none dark:border-neutral-800 dark:bg-neutral-950" placeholder='[{"after_minutes": 0, "channel": "web", "message": "..."}]' />
-              <p className="text-[9px] text-neutral-400">Use AI suggestion or define follow-up steps with channel and delay metadata.</p>
+            <div className="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/60 p-2.5 dark:border-neutral-800 dark:bg-neutral-950/40">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Intelligent sequence</label>
+                <button type="button" onClick={addSequenceStep} disabled={sequenceSteps.length >= 20} className="rounded-md border border-orange-200 px-2 py-1 text-[10px] font-semibold text-orange-700 disabled:opacity-40 dark:border-orange-900 dark:text-orange-200">+ Add step</button>
+              </div>
+              {!sequenceSteps.length && <p className="text-[9px] text-neutral-400">Add follow-ups or use the AI copilot to generate a multi-channel sequence.</p>}
+              {sequenceSteps.map((step, index) => (
+                <div key={`sequence-${index}`} className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5 rounded-lg border border-neutral-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-900">
+                  <span className="text-[9px] font-bold text-neutral-400">{index + 1}</span>
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex gap-1.5">
+                      <select value={step.channel} onChange={(event) => updateSequenceStep(index, { channel: event.target.value })} className="w-24 rounded-md border border-neutral-200 px-1.5 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-950">
+                        {["web", "email", "whatsapp", "sms"].map((channel) => <option key={channel} value={channel}>{channel}</option>)}
+                      </select>
+                      <input type="number" min={0} max={43_200} value={step.after_minutes} onChange={(event) => updateSequenceStep(index, { after_minutes: Number(event.target.value) || 0 })} aria-label={`Step ${index + 1} delay in minutes`} className="w-20 rounded-md border border-neutral-200 px-1.5 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-950" placeholder="Minutes" />
+                    </div>
+                    <input value={step.message} onChange={(event) => updateSequenceStep(index, { message: event.target.value })} aria-label={`Step ${index + 1} message`} className="w-full rounded-md border border-neutral-200 px-2 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-950" placeholder="Follow-up message" />
+                  </div>
+                  <button type="button" onClick={() => setSequenceSteps((current) => current.filter((_, stepIndex) => stepIndex !== index))} aria-label={`Remove step ${index + 1}`} className="rounded-md p-1 text-neutral-400 hover:text-red-500"><Trash2 className="size-3.5" /></button>
+                </div>
+              ))}
             </div>
           </div>
 
