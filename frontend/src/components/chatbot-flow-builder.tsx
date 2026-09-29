@@ -530,7 +530,19 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [validationOpen, setValidationOpen] = useState(false);
   const [testRunning, setTestRunning] = useState(false);
-  const [testTrace, setTestTrace] = useState<Array<{ node_id: string; label: string }> | null>(null);
+  type DryRunStep = {
+    node_id: string;
+    label: string;
+    node_type?: string;
+    runtime?: {
+      branch_reason?: string;
+      mapped_payload?: Record<string, unknown>;
+      unresolved_fields?: string[];
+      outcome?: string;
+      side_effect?: string;
+    };
+  };
+  const [testTrace, setTestTrace] = useState<DryRunStep[] | null>(null);
   const [versions, setVersions] = useState<Array<{ id: string; version: number; status: string; note?: string | null; created_at: string }>>([]);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [runHistory, setRunHistory] = useState<Array<{ id: string; status: string; duration_ms?: number | null; created_at: string; trace?: Array<{ label: string }> }>>([]);
@@ -840,7 +852,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
         body: JSON.stringify({ inputs: ["Hello", "I need help", "Continue"], nodes, edges }),
       });
       if (!response.ok) throw new Error(`Test run failed (${response.status})`);
-      const result = await response.json() as { execution_path?: Array<{ node_id: string; label: string }> };
+      const result = await response.json() as { execution_path?: DryRunStep[] };
       setTestTrace(result.execution_path ?? []);
       showToast("Flow test completed without side effects.", "success");
     } catch (error) {
@@ -864,7 +876,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
       showToast("Replay failed.", "error");
       return;
     }
-    const result = await response.json() as { execution_path?: Array<{ node_id: string; label: string }> };
+    const result = await response.json() as { execution_path?: DryRunStep[] };
     setTestTrace(result.execution_path ?? []);
     await loadRuns();
     showToast("Run replayed.", "success");
@@ -1686,8 +1698,14 @@ const FALLBACK_SUPPORT_TRIAGE = {
           </button>
           {testTrace && <div className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
             <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Last dry run · {testTrace.length} steps</p>
-            <ol className="mt-1 max-h-24 space-y-1 overflow-y-auto text-[10px] text-indigo-900 dark:text-indigo-100">
-              {testTrace.map((step, index) => <li key={`${step.node_id}-${index}`}>{index + 1}. {step.label || step.node_id}</li>)}
+            <ol className="mt-1 max-h-36 space-y-1.5 overflow-y-auto text-[10px] text-indigo-900 dark:text-indigo-100">
+              {testTrace.map((step, index) => <li key={`${step.node_id}-${index}`} className="rounded-lg border border-indigo-100/70 bg-white/60 px-2 py-1 dark:border-indigo-900/60 dark:bg-neutral-950/30">
+                <div>{index + 1}. {step.label || step.node_id}</div>
+                {step.runtime?.branch_reason && <p className="mt-0.5 text-[9px] text-indigo-600 dark:text-indigo-300">Branch: {step.runtime.branch_reason.replace(/_/g, " ")}</p>}
+                {(step.runtime?.outcome || step.runtime?.side_effect) && <p className="mt-0.5 text-[9px] text-indigo-600 dark:text-indigo-300">{step.runtime.outcome || step.runtime.side_effect}</p>}
+                {step.runtime?.mapped_payload && <details className="mt-1 text-[9px]"><summary className="cursor-pointer font-semibold text-indigo-700 dark:text-indigo-200">Mapped payload · {Object.keys(step.runtime.mapped_payload).length} fields</summary><pre className="mt-1 max-h-20 overflow-auto rounded bg-indigo-950/5 p-1 text-[8px] leading-relaxed dark:bg-black/20">{JSON.stringify(step.runtime.mapped_payload, null, 2)}</pre></details>}
+                {!!step.runtime?.unresolved_fields?.length && <p className="mt-0.5 text-[9px] text-amber-700 dark:text-amber-300">Unresolved: {step.runtime.unresolved_fields.join(", ")}</p>}
+              </li>)}
             </ol>
           </div>}
           {fetchDashboardBackend && <>

@@ -109,6 +109,7 @@ def select_condition_branch(
 
 
 _MAPPING_TOKEN = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}")
+_SENSITIVE_MAPPING_KEY = re.compile(r"(?:password|secret|token|api[_-]?key|authorization)", re.IGNORECASE)
 
 
 def _resolve_mapping_path(path: str, user_input: str, context: dict[str, Any]) -> tuple[bool, Any]:
@@ -163,4 +164,10 @@ def resolve_mapping(
         resolved[str(key)] = _MAPPING_TOKEN.sub(replace, raw_value)
         if failed:
             unresolved.append(str(key))
-    return {"mapped_payload": resolved, "unresolved_fields": unresolved}
+    # Runs are persisted for later replay and troubleshooting. Never put an
+    # obvious credential-shaped mapping value into that durable trace.
+    trace_payload = {
+        key: "[redacted]" if _SENSITIVE_MAPPING_KEY.search(key) else value
+        for key, value in resolved.items()
+    }
+    return {"mapped_payload": trace_payload, "unresolved_fields": unresolved}

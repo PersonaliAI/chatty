@@ -57,13 +57,15 @@ def test_mapping_resolution_preserves_types_and_surfaces_missing_values():
         "message": "Hello {{context.contact.name}} — {{input}}",
         "email": "{{context.contact.email}}",
         "score": "{{context.score}}",
+        "api_key": "{{context.integration.api_key}}",
         "missing": "{{context.unknown}}",
         "literal": 4,
-    }, "need a demo", {"contact": {"name": "Ari", "email": "ari@example.com"}, "score": 92})
+    }, "need a demo", {"contact": {"name": "Ari", "email": "ari@example.com"}, "score": 92, "integration": {"api_key": "should-not-appear"}})
     assert result["mapped_payload"] == {
         "message": "Hello Ari — need a demo",
         "email": "ari@example.com",
         "score": 92,
+        "api_key": "[redacted]",
         "literal": 4,
     }
     assert result["unresolved_fields"] == ["missing"]
