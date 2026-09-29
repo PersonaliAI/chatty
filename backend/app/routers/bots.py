@@ -20,6 +20,7 @@ from app.core.permissions import get_bot_role_and_permissions, verify_bot_permis
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.services.campaign_schedule import next_campaign_run_at
 from app.services.campaign_dispatch import build_campaign_dispatch_plan
+from app.services.campaign_analytics import aggregate_campaign_events
 from app.services.flow_runtime import evaluate_retry
 from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
@@ -368,21 +369,13 @@ async def campaign_analytics(bot_id: str, campaign_id: str, user: dict[str, Any]
     if not campaign.data:
         raise HTTPException(status_code=404, detail="Campaign not found")
     events = await run_db(lambda: supabase.table("chatty_campaign_events").select(
-        "event_type, created_at"
+        "event_type, metadata, created_at"
     ).eq("campaign_id", campaign_id).order("created_at", desc=True).limit(10000).execute())
-    counts = {kind: 0 for kind in ("impression", "click", "conversion")}
-    for event in events.data or []:
-        kind = event.get("event_type")
-        if kind in counts:
-            counts[kind] += 1
-    impressions = counts["impression"]
+    counts = aggregate_campaign_events(events.data or [])
     return {
         "campaign_id": campaign_id,
         "name": campaign.data.get("name"),
         **counts,
-        "click_rate": round(counts["click"] / impressions, 4) if impressions else 0,
-        "conversion_rate": round(counts["conversion"] / impressions, 4) if impressions else 0,
-        "sample_size": len(events.data or []),
     }
 
 

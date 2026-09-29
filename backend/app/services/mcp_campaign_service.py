@@ -17,6 +17,7 @@ from app.core import oauth as _oauth
 from app.core.clients import supabase
 from app.core.db import run_db
 from app.schemas.bots_api import CampaignCreateRequest, CampaignUpdateRequest
+from app.services.campaign_analytics import aggregate_campaign_events
 
 
 async def create_campaign(principal: dict[str, Any], bot_id: str, body: CampaignCreateRequest) -> dict[str, Any]:
@@ -91,16 +92,25 @@ async def get_campaign_analytics(principal: dict[str, Any], bot_id: str, campaig
     if not res.data:
         raise HTTPException(status_code=404, detail="Campaign not found")
     events = await run_db(lambda: supabase.table("chatty_campaign_events").select(
-        "event_type").eq("campaign_id", campaign_id).eq("bot_id", bot_id).limit(10000).execute())
-    counts = {kind: 0 for kind in ("impression", "click", "conversion")}
-    for event in events.data or []:
-        if event.get("event_type") in counts:
-            counts[event["event_type"]] += 1
+        "event_type, metadata").eq("campaign_id", campaign_id).eq("bot_id", bot_id).limit(10000).execute())
+    counts = aggregate_campaign_events(events.data or [])
     # Preserve compatibility with installations that have not started emitting
     # the ledger yet; legacy snapshots remain a safe read-only fallback.
-    if not any(counts.values()):
+    if not any(counts[key] for key in ("impression", "click", "conversion")):
         row = res.data[0]
-        counts = {"impression": int(row.get("impressions") or 0), "click": int(row.get("clicks") or 0), "conversion": int(row.get("conversions") or 0)}
+        impressions = int(row.get("impressions") or 0)
+        clicks = int(row.get("clicks") or 0)
+        conversions = int(row.get("conversions") or 0)
+        counts = {
+            "impression": impressions,
+            "click": clicks,
+            "conversion": conversions,
+            "click_rate": round(clicks / impressions, 4) if impressions else 0,
+            "conversion_rate": round(conversions / impressions, 4) if impressions else 0,
+            "sample_size": 0,
+            "by_device": {},
+            "by_channel": {},
+        }
     impressions, clicks, conversions = counts["impression"], counts["click"], counts["conversion"]
     return {
         "campaign_id": campaign_id,
@@ -112,4 +122,6 @@ async def get_campaign_analytics(principal: dict[str, Any], bot_id: str, campaig
         "ctr_percent": round(clicks / impressions * 100, 2) if impressions else None,
         "conversion_rate_percent": round(conversions / clicks * 100, 2) if clicks else None,
         "sample_size": len(events.data or []),
+        "by_device": counts.get("by_device", {}),
+        "by_channel": counts.get("by_channel", {}),
     }
