@@ -45,6 +45,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [returningOnly, setReturningOnly] = useState(false);
   const [channels, setChannels] = useState<string[]>(["web"]);
   const [cadence, setCadence] = useState("once");
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
+  const [quietHoursStart, setQuietHoursStart] = useState("22:00");
+  const [quietHoursEnd, setQuietHoursEnd] = useState("08:00");
   const [sequenceSteps, setSequenceSteps] = useState<CampaignSequenceStep[]>([]);
   const [goal, setGoal] = useState("");
   const [suggesting, setSuggesting] = useState(false);
@@ -179,7 +182,11 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         audience_rules: { segment: audience, min_intent_score: minIntentScore, returning_only: returningOnly },
         channels,
         sequence_steps: cleanSequenceSteps,
-        safety_config: { frequency_cap_hours: 24, require_consent: true },
+        safety_config: {
+          frequency_cap_hours: 24,
+          require_consent: true,
+          ...(quietHoursEnabled ? { quiet_hours: { start: quietHoursStart, end: quietHoursEnd } } : {}),
+        },
         schedule_config: { cadence, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" },
       }),
     }).then(async (response) => {
@@ -193,6 +200,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setReturningOnly(false);
       setChannels(["web"]);
       setCadence("once");
+      setQuietHoursEnabled(false);
+      setQuietHoursStart("22:00");
+      setQuietHoursEnd("08:00");
       setSequenceSteps([]);
     }).catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : "Campaign could not be saved."))
       .finally(() => setSaving(false));
@@ -373,6 +383,17 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
               <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Sequence cadence</label>
               <ModernSelect value={cadence} options={[{ value: "once", label: "Run once" }, { value: "hourly", label: "Hourly" }, { value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }]} onChange={setCadence} />
               <p className="text-[9px] text-neutral-400">The schedule is persisted with the campaign and interpreted in the visitor’s configured timezone.</p>
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-2.5 dark:border-neutral-800 dark:bg-neutral-950/40">
+              <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                <input type="checkbox" checked={quietHoursEnabled} onChange={(event) => setQuietHoursEnabled(event.target.checked)} />
+                Quiet hours safeguard
+              </label>
+              {quietHoursEnabled && <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="text-[9px] text-neutral-400">Suppress from<input type="time" value={quietHoursStart} onChange={(event) => setQuietHoursStart(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-900" /></label>
+                <label className="text-[9px] text-neutral-400">Suppress until<input type="time" value={quietHoursEnd} onChange={(event) => setQuietHoursEnd(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-900" /></label>
+              </div>}
+              <p className="mt-1 text-[9px] text-neutral-400">Uses the campaign timezone and applies to every channel.</p>
             </div>
             <div className="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/60 p-2.5 dark:border-neutral-800 dark:bg-neutral-950/40">
               <div className="flex items-center justify-between gap-2">
