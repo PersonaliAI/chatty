@@ -14,6 +14,8 @@ interface TriggerRule {
   conversions?: number;
   clickRate?: number;
   conversionRate?: number;
+  byDevice?: Record<string, number>;
+  byChannel?: Record<string, number>;
   audience?: string;
   channels?: string[];
   sequenceSteps?: Array<Record<string, unknown>>;
@@ -94,7 +96,15 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/schedule-preview`),
               ]);
               const metric = metricResponse.ok
-                ? await metricResponse.json() as { impressions?: number; clicks?: number; conversions?: number; click_rate?: number; conversion_rate?: number }
+                ? await metricResponse.json() as {
+                    impressions?: number;
+                    clicks?: number;
+                    conversions?: number;
+                    click_rate?: number;
+                    conversion_rate?: number;
+                    by_device?: Record<string, number>;
+                    by_channel?: Record<string, number>;
+                  }
                 : {};
               const schedule = scheduleResponse.ok
                 ? await scheduleResponse.json() as { next_run_at?: string | null; schedule_config?: { cadence?: string } }
@@ -107,6 +117,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 conversions: Number(metric.conversions ?? rule.conversions ?? 0),
                 clickRate: Number(metric.click_rate ?? 0),
                 conversionRate: Number(metric.conversion_rate ?? 0),
+                byDevice: metric.by_device ?? {},
+                byChannel: metric.by_channel ?? {},
                 nextRunAt: schedule.next_run_at ?? null,
                 scheduleCadence: String(schedule.schedule_config?.cadence ?? "once"),
               };
@@ -429,6 +441,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       <span>{r.impressions ?? 0} impressions</span><span>{r.clicks ?? 0} clicks</span><span>{r.conversions ?? 0} conversions</span>
                       {r.clickRate !== undefined && <span>{(r.clickRate * 100).toFixed(1)}% CTR</span>}
                       {r.conversionRate !== undefined && <span>{(r.conversionRate * 100).toFixed(1)}% CVR</span>}
+                      {Object.keys(r.byDevice ?? {}).length > 0 && <span>Devices: {Object.entries(r.byDevice ?? {}).map(([key, value]) => `${key} ${value}`).join(" · ")}</span>}
+                      {Object.keys(r.byChannel ?? {}).length > 0 && <span>Channels: {Object.entries(r.byChannel ?? {}).map(([key, value]) => `${key} ${value}`).join(" · ")}</span>}
                     </div>
                     <div className="text-[10px] text-neutral-400">Audience: {r.audience ?? "all"} · Channels: {(r.channels ?? ["web"]).join(", ")}</div>
                     <div className="text-[10px] text-neutral-400">
