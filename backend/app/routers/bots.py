@@ -25,7 +25,7 @@ from app.schemas.bots import (
     GenerateBusinessRequest,
     VoiceSettingsUpdate,
 )
-from app.schemas.bots_api import CampaignCreateRequest, CampaignSuggestRequest, CampaignUpdateRequest, FlowSimulationRequest, FlowVersionCreateRequest
+from app.schemas.bots_api import CampaignCreateRequest, CampaignSuggestRequest, CampaignUpdateRequest, FlowSimulationRequest, FlowVersionCreateRequest, _parse_campaign_datetime
 from plugins import ai_client
 from plugins import llm_providers
 from plugins import notifications as notify
@@ -389,6 +389,10 @@ async def update_dashboard_campaign(
     user: dict[str, Any] = Depends(require_user),
 ):
     await verify_bot_permission(bot_id, user, "settings")
+    existing = await run_db(lambda: supabase.table("chatty_campaigns").select("start_date, end_date").eq(
+        "id", campaign_id).eq("bot_id", bot_id).maybe_single().execute())
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
     column_map = {"campaign_type": "type", "message_content": "message"}
     updates = {
         column_map.get(key, key): value
@@ -397,6 +401,12 @@ async def update_dashboard_campaign(
     }
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+    merged_start = updates.get("start_date", existing.data.get("start_date"))
+    merged_end = updates.get("end_date", existing.data.get("end_date"))
+    start = _parse_campaign_datetime(merged_start, "start_date")
+    end = _parse_campaign_datetime(merged_end, "end_date")
+    if start and end and start >= end:
+        raise HTTPException(status_code=422, detail="start_date must be earlier than end_date")
     result = await run_db(lambda: supabase.table("chatty_campaigns").update(updates).eq(
         "id", campaign_id).eq("bot_id", bot_id).execute())
     if not result.data:
