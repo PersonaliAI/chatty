@@ -107,6 +107,10 @@ The authenticated `GET /api/bots/{bot_id}/campaigns/{campaign_id}/dispatch-plan`
 endpoint compiles the current occurrence into bounded, idempotent channel jobs
 with consent and frequency-cap policy attached. It is a planning contract for
 the durable worker; it never sends a message by itself.
+The periodic scheduler entry point is `python -m app.workers.campaign_scheduler`.
+It claims each idempotency key in Redis for 24 hours, enqueues only due jobs,
+and can run as an independently scaled process with
+`CHATTY_CAMPAIGN_SCHEDULER_INTERVAL` (default 30 seconds).
 
 ### Flow Builder safety
 
