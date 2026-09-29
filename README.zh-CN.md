@@ -28,6 +28,11 @@
 
 ---
 
+<p align="center">
+  <img src="docs/assets/chatty-dashboard-overview.png" alt="Chatty Dashboard Overview" width="100%" />
+</p>
+
+
 ## 目录
 
 - [为什么选择 Chatty](#为什么选择-chatty)

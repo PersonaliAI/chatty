@@ -26,6 +26,11 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 
 ---
 
+<p align="center">
+  <img src="docs/assets/chatty-dashboard-overview.png" alt="Chatty Dashboard Overview" width="100%" />
+</p>
+
+
 ## 目次
 
 - [Chattyを選ぶ理由](#chattyを選ぶ理由)
