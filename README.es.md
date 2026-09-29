@@ -26,6 +26,11 @@ Ejecuta los contenedores de la aplicación en tu propia infraestructura mientras
 
 ---
 
+<p align="center">
+  <img src="docs/assets/chatty-dashboard-overview.png" alt="Chatty Dashboard Overview" width="100%" />
+</p>
+
+
 ## Tabla de contenidos
 
 - [¿Por qué Chatty?](#por-qué-chatty)
