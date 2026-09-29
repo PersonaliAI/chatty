@@ -29,6 +29,10 @@ Ejecuta los contenedores de la aplicación en tu propia infraestructura mientras
 ## Tabla de contenidos
 
 - [¿Por qué Chatty?](#por-qué-chatty)
+- [Tarjeta de Rendimiento (Auditoría A-F)](docs/SCORECARD.md)
+- [Plantillas por Industria](templates/README.md)
+- [Casos de Estudio y Benchmarks](case_studies/README.md)
+- [Integración del Widget (3 Líneas)](docs/WIDGET_INTEGRATION.md)
 - [Características](#-características)
 - [Arquitectura](#arquitectura)
 - [Requisitos](#-requisitos)

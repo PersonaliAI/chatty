@@ -20,7 +20,7 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 
 [English](README.md) · [简体中文](README.zh-CN.md) · **日本語** · [Español](README.es.md)
 
-[Chatty Cloud (ホスト型)](https://chatty.personaliai.com) · [ドキュメント](https://docs.chatty.personaliai.com) · [クイックスタート](#-クイックスタート-docker-compose) · [セルフホスト運用ガイド](docs/SELF_HOST_MANAGED_SUPABASE.md) · [音声エージェントガイド](backend/voice-agent/README.md) · [機能一覧](#-機能) · [MCPサーバー](#mcp-サーバーとエージェント制御) · [アーキテクチャ](#アーキテクチャ) · [コントリビューション](#-コントリビューション)
+[Chatty Cloud (ホスト型)](https://chatty.personaliai.com) · [ドキュメント](https://docs.chatty.personaliai.com) · [スコアカード (A-F)](docs/SCORECARD.md) · [テンプレート](templates/README.md) · [導入事例](case_studies/README.md) · [埋め込みガイド](docs/WIDGET_INTEGRATION.md) · [クイックスタート](#-クイックスタート-docker-compose) · [MCPサーバー](#mcp-サーバーとエージェント制御) · [コミュニティ動向](docs/traction.md)
 
 </div>
 
@@ -29,6 +29,10 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 ## 目次
 
 - [Chattyを選ぶ理由](#chattyを選ぶ理由)
+- [パフォーマンス・スコアカード (A-F 評価)](docs/SCORECARD.md)
+- [業界別スターターテンプレート](templates/README.md)
+- [導入事例と実証ベンチマーク](case_studies/README.md)
+- [ウィジェット埋め込みガイド (3行コード)](docs/WIDGET_INTEGRATION.md)
 - [✨ 機能](#-機能)
 - [アーキテクチャ](#アーキテクチャ)
 - [📋 動作要件](#-動作要件)

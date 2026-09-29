@@ -22,7 +22,7 @@
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Chatty Cloud (官方托管版)](https://chatty.personaliai.com) · [官方文档](https://docs.chatty.personaliai.com) · [快速开始](#-快速开始-docker-compose) · [功能特性](#-功能特性) · [系统架构](#架构) · [MCP 服务器](#mcp-服务器与智能体控制) · [参与贡献](#-参与贡献)
+[Chatty Cloud (官方托管版)](https://chatty.personaliai.com) · [官方文档](https://docs.chatty.personaliai.com) · [性能评分卡](docs/SCORECARD.md) · [行业模版库](templates/README.md) · [案例研究](case_studies/README.md) · [组件嵌入](docs/WIDGET_INTEGRATION.md) · [快速开始](#-快速开始-docker-compose) · [MCP 服务器](#mcp-服务器与智能体控制) · [社区动态](docs/traction.md)
 
 </div>
 
@@ -31,6 +31,10 @@
 ## 目录
 
 - [为什么选择 Chatty](#为什么选择-chatty)
+- [性能评分卡 (A-F 审计)](docs/SCORECARD.md)
+- [行业模版库与起步套件](templates/README.md)
+- [企业案例研究与基准测试](case_studies/README.md)
+- [三行代码组件嵌入指南](docs/WIDGET_INTEGRATION.md)
 - [功能特性](#-功能特性)
 - [架构](#架构)
 - [环境依赖](#-环境依赖)
