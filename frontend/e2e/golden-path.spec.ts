@@ -116,6 +116,11 @@ test.describe("owner golden path", () => {
 
     await page.getByText("Flow Builder", { exact: true }).click();
     await expect(page.getByText("Visual Flow Builder", { exact: true })).toBeVisible();
+    const toolboxCollapse = page.getByRole("button", { name: /collapse flow toolbox/i });
+    await expect(toolboxCollapse).toBeVisible();
+    await toolboxCollapse.click();
+    await expect(page.getByRole("button", { name: /expand flow toolbox/i })).toBeVisible();
+    await page.getByRole("button", { name: /expand flow toolbox/i }).click();
     await expect(page.getByRole("button", { name: /run dry test/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /view execution history/i })).toBeVisible();
     await page.getByText("Campaigns", { exact: true }).click();
