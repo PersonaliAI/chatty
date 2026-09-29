@@ -103,6 +103,10 @@ It records idempotent impression and click events as visitors engage.
 Workers and operators can inspect the next UTC occurrence through the
 authenticated `GET /api/bots/{bot_id}/campaigns/{campaign_id}/schedule-preview`
 endpoint, which uses the same timezone-aware cadence planner as runtime code.
+The authenticated `GET /api/bots/{bot_id}/campaigns/{campaign_id}/dispatch-plan`
+endpoint compiles the current occurrence into bounded, idempotent channel jobs
+with consent and frequency-cap policy attached. It is a planning contract for
+the durable worker; it never sends a message by itself.
 
 ### Flow Builder safety
 

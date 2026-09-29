@@ -19,6 +19,7 @@ from app.core.deps import require_user
 from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.services.campaign_schedule import next_campaign_run_at
+from app.services.campaign_dispatch import build_campaign_dispatch_plan
 from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
     BYOKUpdate,
@@ -399,6 +400,25 @@ async def campaign_schedule_preview(bot_id: str, campaign_id: str, user: dict[st
         "schedule_config": campaign.data.get("schedule_config") or {},
         "next_run_at": next_run.isoformat() if next_run else None,
     }
+
+
+@router.get("/api/bots/{bot_id}/campaigns/{campaign_id}/dispatch-plan")
+async def campaign_dispatch_plan(bot_id: str, campaign_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return the bounded, idempotent channel jobs for the current occurrence.
+
+    This is an operator/worker contract: it does not send messages. A
+    scheduler can enqueue the returned jobs on the durable Redis stream after
+    applying its own recipient and consent lookup.
+    """
+    campaign = await run_db(lambda: supabase.table("chatty_campaigns").select("*").eq(
+        "id", campaign_id).eq("bot_id", bot_id).maybe_single().execute())
+    if not campaign.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    try:
+        jobs = build_campaign_dispatch_plan(campaign.data)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"campaign_id": campaign_id, "jobs": jobs}
 
 
 @router.patch("/api/bots/{bot_id}/campaigns/{campaign_id}")
