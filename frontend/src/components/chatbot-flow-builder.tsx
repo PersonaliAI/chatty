@@ -43,6 +43,8 @@ import {
   GitBranch,
   Download,
   Upload,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -472,6 +474,7 @@ function extractFlowFromJs(customJs: string): (FlowSchema & { status: "active" |
 
 export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fetchDashboardBackend }: Props) {
   const [mobileTab, setMobileTab] = useState<"canvas" | "toolbox">("canvas");
+  const [toolboxCollapsed, setToolboxCollapsed] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -501,6 +504,20 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   const [runHistory, setRunHistory] = useState<Array<{ id: string; status: string; duration_ms?: number | null; created_at: string; trace?: Array<{ label: string }> }>>([]);
   const [runsOpen, setRunsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    try {
+      setToolboxCollapsed(window.localStorage.getItem("chatty_flow_toolbox_collapsed") === "1");
+    } catch { /* private browsing or restricted storage */ }
+  }, []);
+
+  const toggleToolbox = () => {
+    setToolboxCollapsed((collapsed) => {
+      const next = !collapsed;
+      try { window.localStorage.setItem("chatty_flow_toolbox_collapsed", next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
   const validation = useMemo(() => validateFlow(nodes, edges), [nodes, edges]);
@@ -1346,11 +1363,21 @@ const FALLBACK_SUPPORT_TRIAGE = {
       <div className="flex flex-col lg:flex-row gap-4 lg:h-[700px] w-full">
         {/* Node Toolbox Sidebar */}
         <div
-          className={`w-full lg:w-80 lg:h-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 flex flex-col justify-between shrink-0 overflow-y-auto gap-4 shadow-sm ${
+          className={`w-full ${toolboxCollapsed ? "lg:w-14 lg:p-2" : "lg:w-80 lg:p-4"} lg:h-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex flex-col justify-between shrink-0 overflow-y-auto gap-4 shadow-sm ${
             mobileTab === "toolbox" ? "flex" : "hidden lg:flex"
           }`}
         >
-          <div className="space-y-4">
+          <button
+            type="button"
+            onClick={toggleToolbox}
+            className="hidden lg:flex items-center justify-center gap-2 rounded-lg border border-neutral-200 dark:border-neutral-800 p-2 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-850 transition-colors"
+            aria-label={toolboxCollapsed ? "Expand flow toolbox" : "Collapse flow toolbox"}
+            title={toolboxCollapsed ? "Expand toolbox" : "Collapse toolbox for more canvas space"}
+          >
+            {toolboxCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            {!toolboxCollapsed && <span className="text-[10px] font-semibold">Collapse toolbox</span>}
+          </button>
+          <div className={toolboxCollapsed ? "hidden" : "space-y-4"}>
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Node Toolbox</h4>
               <p className="text-[10px] text-neutral-500 mt-1">
