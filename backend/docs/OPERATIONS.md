@@ -198,6 +198,18 @@ It claims each campaign occurrence with a 24-hour Redis lease before enqueueing
 bounded `campaign.dispatch` jobs. Keep the scheduler at one active replica (or
 use the shared claim lease) and scale webhook workers independently.
 
+For the managed-Supabase Docker deployment, the repository includes an opt-in
+`automation` profile that provisions Redis plus both processes without changing
+the default two-service stack:
+
+```bash
+docker compose --profile automation up -d automation-redis automation-worker campaign-scheduler
+```
+
+The profile uses an append-only Redis volume and injects only the queue URL;
+Supabase and provider credentials still come from the private
+`backend/.env` file and must never be committed.
+
 After inspecting a dead-letter entry, replay exactly one job with:
 
 ```bash

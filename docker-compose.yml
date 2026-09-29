@@ -5,6 +5,21 @@ name: chatty-managed-supabase
 # The retired provider-neutral stack is intentionally not included. The optional
 # self-hosted component is the LiveKit media plane in backend/voice-agent.
 services:
+  # Durable automation plane. It is opt-in so the managed Supabase profile
+  # remains compatible with deployments that already provide Redis externally.
+  automation-redis:
+    image: redis:7.4-alpine
+    profiles: [automation]
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - automation-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   backend:
     build: ./backend
     env_file:
@@ -22,6 +37,39 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    restart: unless-stopped
+
+  automation-worker:
+    build: ./backend
+    profiles: [automation]
+    env_file:
+      - ./backend/.env
+    environment:
+      DEPLOYMENT_PROFILE: managed_supabase
+      CHATTY_JOB_QUEUE_URL: redis://automation-redis:6379/0
+      CHATTY_WEBHOOK_STREAM: chatty:webhooks
+      PORT: 8000
+    command: ["python", "-m", "app.workers.webhook_worker"]
+    depends_on:
+      automation-redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  campaign-scheduler:
+    build: ./backend
+    profiles: [automation]
+    env_file:
+      - ./backend/.env
+    environment:
+      DEPLOYMENT_PROFILE: managed_supabase
+      CHATTY_JOB_QUEUE_URL: redis://automation-redis:6379/0
+      CHATTY_WEBHOOK_STREAM: chatty:webhooks
+      CHATTY_CAMPAIGN_SCHEDULER_INTERVAL: ${CHATTY_CAMPAIGN_SCHEDULER_INTERVAL:-30}
+      PORT: 8000
+    command: ["python", "-m", "app.workers.campaign_scheduler"]
+    depends_on:
+      automation-redis:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -43,3 +91,6 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  automation-redis-data:
