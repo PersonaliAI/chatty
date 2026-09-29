@@ -530,6 +530,8 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [validationOpen, setValidationOpen] = useState(false);
   const [testRunning, setTestRunning] = useState(false);
+  const [testInputsText, setTestInputsText] = useState("Hello\nI need help\nContinue");
+  const [testContextText, setTestContextText] = useState("{}");
   type DryRunStep = {
     node_id: string;
     label: string;
@@ -841,6 +843,16 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
       showToast("Fix validation errors before running a test.", "error");
       return;
     }
+    let testContext: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(testContextText || "{}");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Test context must be a JSON object.");
+      testContext = parsed as Record<string, unknown>;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Test context must be a JSON object.", "error");
+      return;
+    }
+    const testInputs = testInputsText.split("\n").map((input) => input.trim()).filter(Boolean).slice(0, 50);
     setTestRunning(true);
     try {
       const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/simulate`, {
@@ -849,7 +861,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
         // Test the exact draft the operator is looking at.  The API validates
         // this with the same contract as publishing and stores it with the
         // run, making later replay deterministic even if the flow changes.
-        body: JSON.stringify({ inputs: ["Hello", "I need help", "Continue"], nodes, edges }),
+        body: JSON.stringify({ inputs: testInputs.length ? testInputs : ["Hello"], context: testContext, nodes, edges }),
       });
       if (!response.ok) throw new Error(`Test run failed (${response.status})`);
       const result = await response.json() as { execution_path?: DryRunStep[] };
@@ -1696,6 +1708,14 @@ const FALLBACK_SUPPORT_TRIAGE = {
           <button type="button" onClick={runTest} disabled={!fetchDashboardBackend || testRunning || validation.errors.length > 0} className="w-full mt-2 flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 px-4 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-40 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-950/30">
             {testRunning ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />} {testRunning ? "Running test…" : "Run dry test"}
           </button>
+          <details className="mt-2 rounded-xl border border-neutral-200 bg-neutral-50/70 p-2.5 text-[10px] dark:border-neutral-800 dark:bg-neutral-950/40">
+            <summary className="cursor-pointer font-semibold text-neutral-600 dark:text-neutral-300">Test data & mapping context</summary>
+            <p className="mt-1 text-[9px] leading-relaxed text-neutral-400">One visitor input per line. Context is safe JSON available to webhook mappings as <code>{"{{context.path}}"}</code>; credentials are redacted in the saved trace.</p>
+            <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wider text-neutral-400" htmlFor="flow-test-inputs">Visitor inputs</label>
+            <textarea id="flow-test-inputs" rows={3} value={testInputsText} onChange={(event) => setTestInputsText(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 font-mono text-[10px] focus:outline-none dark:border-neutral-800 dark:bg-neutral-900" spellCheck={false} />
+            <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wider text-neutral-400" htmlFor="flow-test-context">Context JSON</label>
+            <textarea id="flow-test-context" rows={4} value={testContextText} onChange={(event) => setTestContextText(event.target.value)} placeholder={'{"contact":{"email":"visitor@example.com"}}'} className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 font-mono text-[10px] focus:outline-none dark:border-neutral-800 dark:bg-neutral-900" spellCheck={false} />
+          </details>
           {testTrace && <div className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
             <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Last dry run · {testTrace.length} steps</p>
             <ol className="mt-1 max-h-36 space-y-1.5 overflow-y-auto text-[10px] text-indigo-900 dark:text-indigo-100">
