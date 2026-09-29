@@ -3,8 +3,25 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'plugins/**'
+      - 'docker-compose.yml'
+      - 'backend/voice-agent/**'
+      - 'requirements*.txt'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'plugins/**'
+      - 'docker-compose.yml'
+      - 'backend/voice-agent/**'
+      - 'requirements*.txt'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch: {}
 
 # Neither job needs to write to the repo (checkout + test/build only) - the
 # default GITHUB_TOKEN grants broad write access unless scoped down.

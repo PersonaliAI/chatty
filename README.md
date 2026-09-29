@@ -112,6 +112,10 @@ It claims each idempotency key in Redis for 24 hours, enqueues only due jobs,
 and can run as an independently scaled process with
 `CHATTY_CAMPAIGN_SCHEDULER_INTERVAL` (default 30 seconds).
 
+The main CI workflow is path-filtered, so documentation-only changes do not
+run the backend/frontend build matrix. Use **Actions → CI → Run workflow** when
+a docs-only change intentionally needs full validation.
+
 ### Flow Builder safety
 
 The AI Flow Architect endpoint (`POST /api/flow/generate`) is dashboard-only:
