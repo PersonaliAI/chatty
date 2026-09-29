@@ -235,6 +235,7 @@ async def widget_campaigns(
             "trigger_value": trigger_value,
             "channels": ["web"],
             "audience_rules": row.get("audience_rules") or {},
+            "safety_config": row.get("safety_config") or {"frequency_cap_hours": 24},
         })
     return {"campaigns": campaigns[:20]}
 

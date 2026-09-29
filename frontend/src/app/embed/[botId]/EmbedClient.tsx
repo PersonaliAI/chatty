@@ -64,6 +64,7 @@ interface WidgetCampaign {
   message: string;
   trigger_type: "time_on_page" | "scroll_percentage" | "exit_intent" | "url_match";
   trigger_value: number;
+  safety_config?: { frequency_cap_hours?: number };
 }
 
 function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[] } {
@@ -1306,7 +1307,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     let cancelled = false;
     const trigger = (campaign: WidgetCampaign) => {
       if (cancelled || campaignShownRef.current.has(campaign.id)) return;
+      const capHours = Math.max(1, Math.min(8760, Number(campaign.safety_config?.frequency_cap_hours ?? 24) || 24));
+      const capKey = `chatty_campaign_last_${botId}_${campaign.id}`;
+      const lastShown = Number(localStorage.getItem(capKey) || 0);
+      if (lastShown > 0 && Date.now() - lastShown < capHours * 60 * 60 * 1000) return;
       campaignShownRef.current.add(campaign.id);
+      localStorage.setItem(capKey, String(Date.now()));
       setCampaignPrompt(campaign);
       void fetch(`${BACKEND_URL}/api/widget/campaign-events`, {
         method: "POST",
