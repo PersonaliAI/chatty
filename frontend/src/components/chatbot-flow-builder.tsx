@@ -446,8 +446,40 @@ function validateFlow(nodes: Node[], edges: Edge[]): FlowValidation {
   const starts = nodes.filter((node) => node.type === "start");
   if (starts.length !== 1) errors.push(`Flow must contain exactly one Start step (found ${starts.length}).`);
   const nodeIds = new Set(nodes.map((node) => node.id));
+  const incoming = new Map<string, number>();
+  const outgoing = new Map<string, number>();
+  const adjacency = new Map<string, string[]>();
   edges.forEach((edge) => {
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) errors.push(`Connection ${edge.id} points to a missing step.`);
+    if (nodeIds.has(edge.source)) {
+      outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
+      const targets = adjacency.get(edge.source) ?? [];
+      targets.push(edge.target);
+      adjacency.set(edge.source, targets);
+    }
+    if (nodeIds.has(edge.target)) incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+  });
+  if (starts.length === 1 && (incoming.get(starts[0].id) ?? 0) > 0) {
+    errors.push("The Start step cannot have an incoming connection.");
+  }
+  if (starts.length === 1) {
+    const reachable = new Set<string>([starts[0].id]);
+    const pending = [starts[0].id];
+    while (pending.length) {
+      const current = pending.shift()!;
+      for (const target of adjacency.get(current) ?? []) {
+        if (!reachable.has(target)) { reachable.add(target); pending.push(target); }
+      }
+    }
+    nodes.filter((node) => !reachable.has(node.id)).forEach((node) => {
+      errors.push(`Step ${node.id} is unreachable from the Start step.`);
+    });
+  }
+  nodes.filter((node) => node.type !== "start" && (incoming.get(node.id) ?? 0) === 0).forEach((node) => {
+    warnings.push(`${node.id} has no incoming connection.`);
+  });
+  nodes.filter((node) => node.type !== "start" && (outgoing.get(node.id) ?? 0) === 0 && !["bookMeeting", "escalate"].includes(String(node.type))).forEach((node) => {
+    warnings.push(`${node.id} ends the workflow without a next step.`);
   });
   nodes.filter((node) => node.type === "choice").forEach((node) => {
     const options = ((node.data as FlowNodeData)?.options ?? []).map(String).filter(Boolean);
