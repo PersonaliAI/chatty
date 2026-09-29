@@ -55,6 +55,7 @@ from app.schemas.widget import (
 )
 from app.schemas.kb import ArticleFeedbackRequest
 from plugins import notifications as notify
+from app.services.campaign_runtime import campaign_is_active_now
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
@@ -171,6 +172,8 @@ _AI_UNAVAILABLE_REPLY = (
 )
 
 
+
+
 @router.post("/api/widget/verify-origin")
 async def widget_verify_origin(body: WidgetVerifyOriginRequest):
     """Exchange the customer page's real Referer (captured server-side by the
@@ -209,6 +212,11 @@ async def widget_campaign_event(body: WidgetCampaignEventRequest, request: Reque
     ).eq("id", body.campaign_id).eq("bot_id", body.bot_id).maybe_single().execute())
     if not campaign.data:
         raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign_is_active_now(campaign.data):
+        # Telemetry is best-effort for the public widget. Returning a stable
+        # response avoids noisy client errors while preventing inactive or
+        # out-of-window campaigns from polluting conversion analytics.
+        return {"accepted": False, "inactive": True}
     bot = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", body.bot_id).maybe_single().execute())
     if not bot.data:
         raise HTTPException(status_code=404, detail="Bot not found")
