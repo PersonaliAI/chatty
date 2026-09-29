@@ -274,6 +274,17 @@ class CampaignCreateRequest(BaseModel):
             raise ValueError("frequency_cap_hours must be between 1 and 8760")
         config["frequency_cap_hours"] = cap
         config["require_consent"] = bool(config.get("require_consent", True))
+        quiet = config.get("quiet_hours")
+        if quiet is not None:
+            if not isinstance(quiet, dict):
+                raise ValueError("quiet_hours must be an object")
+            for bound in ("start", "end"):
+                raw = str(quiet.get(bound, ""))
+                try:
+                    datetime.strptime(raw, "%H:%M")
+                except ValueError as exc:
+                    raise ValueError("quiet_hours start/end must use HH:MM") from exc
+            config["quiet_hours"] = {"start": str(quiet["start"]), "end": str(quiet["end"])}
         return config
 
     @field_validator("schedule_config")

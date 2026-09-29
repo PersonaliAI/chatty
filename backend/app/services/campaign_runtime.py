@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
+from zoneinfo import ZoneInfo
 from typing import Any
 
 
@@ -26,4 +27,22 @@ def campaign_is_active_now(campaign: dict[str, Any], now: datetime | None = None
             return False
         if lower_bound == "end" and current >= parsed:
             return False
-    return True
+    safety = campaign.get("safety_config") or {}
+    quiet = safety.get("quiet_hours") if isinstance(safety, dict) else None
+    if quiet is None:
+        return True
+    if not isinstance(quiet, dict):
+        return False
+    try:
+        start = time.fromisoformat(str(quiet.get("start", "22:00")))
+        end = time.fromisoformat(str(quiet.get("end", "08:00")))
+        zone = ZoneInfo(str((campaign.get("schedule_config") or {}).get("timezone", "UTC")))
+    except (TypeError, ValueError):
+        return False
+    local_now = current.astimezone(zone).time().replace(tzinfo=None)
+    start_value = start.replace(tzinfo=None)
+    end_value = end.replace(tzinfo=None)
+    if start_value == end_value:
+        return False
+    in_quiet = (start_value <= local_now < end_value) if start_value < end_value else (local_now >= start_value or local_now < end_value)
+    return not in_quiet
