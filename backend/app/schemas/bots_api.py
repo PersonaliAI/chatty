@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BotCreateRequest(BaseModel):
@@ -105,14 +105,50 @@ class FlowUpdateRequest(BaseModel):
 
 
 class FlowSimulationRequest(BaseModel):
-    inputs: list[str] = Field(default_factory=lambda: ["Hello"])
+    inputs: list[str] = Field(default_factory=lambda: ["Hello"], max_length=50)
+
+    @field_validator("inputs")
+    @classmethod
+    def validate_inputs(cls, value: list[str]) -> list[str]:
+        cleaned = [str(item)[:4000] for item in value]
+        return cleaned or ["Hello"]
 
 
 class FlowVersionCreateRequest(BaseModel):
-    nodes: list[dict[str, Any]] = Field(default_factory=list)
-    edges: list[dict[str, Any]] = Field(default_factory=list)
+    nodes: list[dict[str, Any]] = Field(default_factory=list, max_length=200)
+    edges: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
     status: str = Field("draft", pattern="^(draft|published)$")
     note: Optional[str] = Field(None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_graph(self) -> "FlowVersionCreateRequest":
+        """Reject malformed graphs before they can be published or executed.
+
+        Loops are intentionally allowed (they are a first-class node), but all
+        references must resolve and node IDs must be stable and unique. This
+        keeps version history/replay deterministic and prevents runtime walks
+        from silently disappearing at dangling edges.
+        """
+        node_ids: list[str] = []
+        for node in self.nodes:
+            raw_id = node.get("id")
+            if not isinstance(raw_id, str) or not raw_id.strip() or len(raw_id) > 128:
+                raise ValueError("every flow node must have a non-empty id (max 128 characters)")
+            node_id = raw_id.strip()
+            if node_id in node_ids:
+                raise ValueError(f"duplicate flow node id: {node_id}")
+            node_ids.append(node_id)
+        if self.nodes and "start" not in node_ids:
+            raise ValueError("a flow must contain a Start node")
+        known = set(node_ids)
+        for edge in self.edges:
+            source = edge.get("source")
+            target = edge.get("target")
+            if not isinstance(source, str) or source not in known:
+                raise ValueError("flow edge source must reference an existing node")
+            if not isinstance(target, str) or target not in known:
+                raise ValueError("flow edge target must reference an existing node")
+        return self
 
 
 class CampaignCreateRequest(BaseModel):

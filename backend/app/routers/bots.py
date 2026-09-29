@@ -147,6 +147,11 @@ async def simulate_dashboard_flow(
     except (TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=422, detail="Saved flow configuration is invalid JSON") from exc
     nodes, edges = flow.get("nodes") or [], flow.get("edges") or []
+    try:
+        validated_flow = FlowVersionCreateRequest(nodes=nodes, edges=edges, status="draft")
+        nodes, edges = validated_flow.nodes, validated_flow.edges
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Saved flow configuration is invalid: {exc}") from exc
     by_id = {str(node.get("id")): node for node in nodes}
     current = by_id.get("start") or next(iter(by_id.values()), None)
     trace = []
