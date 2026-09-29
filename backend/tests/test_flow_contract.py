@@ -45,4 +45,6 @@ def test_simulation_inputs_are_bounded_and_defaulted():
     assert request.inputs == ["Hello"]
     request = FlowSimulationRequest(inputs=["x" * 5000])
     assert len(request.inputs[0]) == 4000
-
+    assert FlowSimulationRequest(max_steps=500).max_steps == 500
+    with pytest.raises(ValidationError):
+        FlowSimulationRequest(max_steps=501)

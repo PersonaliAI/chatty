@@ -158,9 +158,10 @@ async def simulate_dashboard_flow(
     started = time.perf_counter()
     inputs = body.inputs[:50] or ["Hello"]
     loop_counts: dict[str, int] = {}
-    for step, user_input in enumerate(inputs, start=1):
-        if not current:
-            break
+    step = 0
+    while current and step < body.max_steps:
+        step += 1
+        user_input = inputs[(step - 1) % len(inputs)]
         node_type = str(current.get("type") or "message")
         data = current.get("data") or {}
         config = data.get("config") if isinstance(data.get("config"), dict) else {}
@@ -183,21 +184,29 @@ async def simulate_dashboard_flow(
             normalized = str(user_input).strip().lower()
             edge = next((item for item in outgoing if str(item.get("label") or "").strip().lower() in {normalized, "true" if normalized in {"yes", "true", "1"} else "false"}), None)
         elif node_type == "loop" and outgoing and loop_counts.get(current.get("id", "loop"), 0) >= _bounded_int(config.get("max_iterations"), 10, 1, 100):
-            edge = next((item for item in outgoing if str(item.get("label") or "").lower() in {"done", "complete", "exit"}), outgoing[-1])
+            edge = next((item for item in outgoing if str(item.get("label") or "").lower() in {"done", "complete", "exit"}), None)
+            if edge is None:
+                # A loop without an explicit exit is safe to stop, rather than
+                # silently spinning until the global execution budget.
+                current = None
+                trace[-1]["runtime"]["halted"] = "loop_limit_reached"
+                continue
         if edge is None and outgoing:
             edge = outgoing[0]
         current = by_id.get(str(edge.get("target"))) if edge else None
+    budget_exceeded = current is not None
     run = await run_db(lambda: supabase.table("chatty_flow_runs").insert({
         "bot_id": bot_id,
-        "status": "completed",
+        "status": "failed" if budget_exceeded else "completed",
         "inputs": body.inputs[:50] or ["Hello"],
         "trace": trace,
+        "error": f"execution step budget exceeded ({body.max_steps})" if budget_exceeded else None,
         "duration_ms": round((time.perf_counter() - started) * 1000),
         "created_by": user["auth_user_id"],
         "completed_at": datetime.now(timezone.utc).isoformat(),
     }).execute())
     run_id = (run.data or [{}])[0].get("id")
-    return {"run_id": run_id, "bot_id": bot_id, "completed": current is None, "total_steps": len(trace), "execution_path": trace}
+    return {"run_id": run_id, "bot_id": bot_id, "completed": current is None, "total_steps": len(trace), "execution_path": trace, "budget_exceeded": budget_exceeded}
 
 
 @router.get("/api/bots/{bot_id}/flow/runs")

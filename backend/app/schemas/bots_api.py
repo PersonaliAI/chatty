@@ -106,6 +106,7 @@ class FlowUpdateRequest(BaseModel):
 
 class FlowSimulationRequest(BaseModel):
     inputs: list[str] = Field(default_factory=lambda: ["Hello"], max_length=50)
+    max_steps: int = Field(100, ge=1, le=500)
 
     @field_validator("inputs")
     @classmethod
