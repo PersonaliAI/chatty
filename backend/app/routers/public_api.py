@@ -37,6 +37,7 @@ from main import (
     _RATE_LIMIT,
     _fetch_url_content,
     _hash_api_key,
+    readinesscheck,
     _resolve_api_key,
     _update_key_usage,
 )
@@ -75,14 +76,11 @@ async def health_check(request: Request):
     description="Returns whether the selected provider contract is ready to receive traffic.",
 )
 async def readiness_check(request: Request):
-    payload = {
-        "status": "ready",
-        "profile": "managed_supabase",
-        "providers": {
-            "supabase": True,
-        },
-        "request_id": _sec.get_request_id(request),
-    }
+    # Compatibility endpoint for existing hosts.  It must share the same
+    # dependency-aware semantics as /ready rather than reporting a false
+    # positive during a broken configuration rollout.
+    payload = await readinesscheck()
+    payload["request_id"] = _sec.get_request_id(request)
     return payload
 
 

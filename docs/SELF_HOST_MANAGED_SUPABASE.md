@@ -118,7 +118,7 @@ variables above. Then run:
 ~~~powershell
 docker compose up --build -d backend frontend
 docker compose ps
-curl http://localhost:8000/readyz
+curl http://localhost:8000/ready
 ~~~
 
 The API must return a ready response before you open the frontend at
@@ -147,7 +147,7 @@ chmod 600 backend/.env frontend/.env .env
 ~~~bash
 docker compose up --build -d backend frontend
 docker compose ps
-curl http://127.0.0.1:8000/readyz
+curl http://127.0.0.1:8000/ready
 ~~~
 
 5. Put Caddy, nginx, or Traefik in front of the containers. Terminate TLS at
@@ -156,7 +156,7 @@ curl http://127.0.0.1:8000/readyz
 6. Set final URLs in ALLOWED_ORIGINS, FRONTEND_URL, CHATTY_FRONTEND_URL,
    CHATTY_BACKEND_URL, and NEXT_PUBLIC_BACKEND_URL, then recreate services.
 7. Configure a process monitor, centralise container logs, and monitor
-   /readyz. Supabase remains responsible for database backups and storage
+   /ready. Supabase remains responsible for database backups and storage
    durability; do not add local database volumes to this managed profile.
 
 ## 5. Railway (two services from one repository)
@@ -174,7 +174,7 @@ paths and variables configured per service ([Railway Compose deployment](https:/
    configured as a variable ([Railway Dockerfiles](https://docs.railway.com/builds/dockerfiles)).
 4. Add the backend variables from Section 2 in **Variables → Raw Editor**.
 5. Do not hard-code a public port. The API listens on Railway's injected PORT;
-   configure healthcheck path /readyz. Railway waits for a 2xx response before
+   configure healthcheck path /ready. Railway waits for a 2xx response before
    switching a deployment live ([Railway healthchecks](https://docs.railway.com/deployments/healthchecks)).
 6. Generate a public domain or attach api.example.com. Copy that HTTPS URL
    into CHATTY_BACKEND_URL and ALLOWED_ORIGINS as appropriate.
@@ -214,7 +214,7 @@ support Docker services, health checks, and sync: false prompts for secrets
    YAML; Render's sync: false values are intentionally requested in the
    dashboard ([Render Infrastructure as Code](https://render.com/docs/infrastructure-as-code)).
 4. Set frontend NEXT_PUBLIC_* values.
-5. Apply the Blueprint and wait for chatty-api to pass /readyz. Render HTTP
+5. Apply the Blueprint and wait for chatty-api to pass /ready. Render HTTP
    health checks accept 2xx/3xx responses and prevent traffic from moving to an
    unhealthy new deploy ([Render health checks](https://render.com/docs/health-checks)).
 6. Attach api.example.com to the API and app.example.com to the frontend, or
@@ -228,7 +228,7 @@ If your Render workspace does not allow Blueprints, create two Web Services
 from the same repository:
 
 1. API: runtime Docker, root directory backend, Dockerfile ./Dockerfile,
-   health check /readyz, backend variables from Section 2.
+   health check /ready, backend variables from Section 2.
 2. Frontend: runtime Docker, root directory frontend, Dockerfile ./Dockerfile,
    public NEXT_PUBLIC_* variables.
 3. Add domains, update CORS and callback URLs, deploy, and run the verification
@@ -295,7 +295,7 @@ Supabase and external managed integrations instead.
 
 Run this checklist after every first deploy and after a domain or secret change:
 
-1. GET https://api.example.com/readyz returns HTTP 200 and status=ready.
+1. GET https://api.example.com/ready returns HTTP 200 and status=ready.
 2. The frontend loads over HTTPS with no mixed-content errors.
 3. Sign-up, sign-in, sign-out, and password reset work through Supabase Auth.
 4. A new bot can be created and a knowledge source can be uploaded.
@@ -343,13 +343,13 @@ review Supabase Auth, API, and platform audit logs.
 | Symptom | Check |
 |---|---|
 | API exits during startup | SUPABASE_URL and SUPABASE_SECRET_KEY are missing or still placeholders. |
-| /readyz fails on a hosted platform | The process is not listening on injected PORT, or Supabase is unreachable. |
+| /ready fails on a hosted platform | The process is not listening on injected PORT, or Supabase is unreachable. |
 | Browser shows CORS errors | ALLOWED_ORIGINS must contain the exact HTTPS frontend origin, without a trailing path. |
 | Login redirects to the old site | Update Supabase Auth redirect URLs and CHATTY_FRONTEND_URL. |
 | Widget calls the old API | Rebuild the frontend after changing NEXT_PUBLIC_BACKEND_URL; it is a Next.js build-time value. |
 | Migration cannot connect | Use the Supabase direct/session connection, not the transaction pooler. |
 | Heroku deploy starts then exits | The image must use platform PORT; Heroku does not support Compose networking or persistent volumes. |
-| Render deploy never becomes live | Confirm the Dockerfile has a CMD and /readyz returns 2xx within the health-check timeout. |
+| Render deploy never becomes live | Confirm the Dockerfile has a CMD and /ready returns 2xx within the health-check timeout. |
 | Railway deploy is healthy but browser fails | Railway services are separate; generate a public domain for both and update CORS and frontend build variables. |
 
 For the lower-level variable list, see [backend/.env.example](../backend/.env.example).

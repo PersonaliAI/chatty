@@ -19,7 +19,7 @@ or `NEXT_PUBLIC_*` variable.
 # Create an untracked .env from your secret manager or platform environment.
 # It must use KEY=VALUE syntax and contain the required managed-Supabase keys.
 docker compose -f docker-compose.managed-supabase.yml up --build -d
-curl http://localhost:8000/readyz
+curl http://localhost:8000/ready
 ```
 
 For the complete two-service stack, use the root `docker-compose.yml` in the

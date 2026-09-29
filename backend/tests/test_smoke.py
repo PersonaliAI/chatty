@@ -19,6 +19,16 @@ def test_health_endpoint():
     assert r.json()["status"] == "healthy"
 
 
+def test_legacy_readyz_matches_dependency_aware_ready_probe():
+    client = TestClient(main.app)
+    ready = client.get("/ready")
+    legacy = client.get("/readyz")
+    assert ready.status_code == 200
+    assert legacy.status_code == 200
+    assert legacy.json()["status"] == ready.json()["status"]
+    assert legacy.json()["service"] == ready.json()["service"]
+
+
 def test_openapi_schema_generates():
     """Route annotations must all resolve before a production schema request."""
     client = TestClient(main.app)

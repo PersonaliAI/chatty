@@ -134,7 +134,7 @@ docker inspect --format '{{.State.Health.Status}}' chatty-voice-voice-worker-1
 ```
 
 The release is healthy only when the worker reports `healthy`, remains
-registered with LiveKit, and `/readyz` on the Chatty API still returns 2xx.
+registered with LiveKit, and `/ready` on the Chatty API still returns 2xx.
 Keep the previous image tag or commit recorded in the deployment log. To roll
 back, check out that known-good commit and repeat the `config`, `build`, and
 `up` commands above; never reset the Supabase database to recover a media-plane

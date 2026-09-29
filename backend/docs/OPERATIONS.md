@@ -28,7 +28,7 @@ uvicorn main:app --reload --port 8000
 ```
 
 The minimum release gate is the full backend test suite, Python compilation,
-`git diff --check`, and smoke requests to `/` and `/readyz`. A release must
+`git diff --check`, and smoke requests to `/health` and `/ready`. A release must
 not be promoted when migrations are pending or secrets are detected by the
 repository scanner.
 
@@ -72,7 +72,8 @@ git diff --check
 4. Verify readiness and traffic before considering the release successful:
 
    ```powershell
-   Invoke-WebRequest "https://api.chatty.personaliai.com/readyz" -UseBasicParsing
+   Invoke-WebRequest "https://api.chatty.personaliai.com/health" -UseBasicParsing
+   Invoke-WebRequest "https://api.chatty.personaliai.com/ready" -UseBasicParsing
    gcloud run services describe chatty-api --project $project --region $region --format="value(status.latestReadyRevisionName,status.traffic)"
    gcloud run services describe chatty-voice-worker --project $project --region $region --format="value(status.latestReadyRevisionName,status.traffic)"
    ```
@@ -97,7 +98,7 @@ gcloud run services update-traffic chatty-voice-worker `
   --to-revisions ${voicePrevious}=100 --project $project --region $region --quiet
 ```
 
-Re-run `/readyz`, the voice connect smoke, and the relevant authenticated flow
+Re-run `/health`, `/ready`, the voice connect smoke, and the relevant authenticated flow
 after rollback. Preserve the failed revision's logs and request IDs before
 redeploying a fix. A database migration is not rolled back by changing Cloud
 Run traffic; use an additive forward migration or a verified backup restore
@@ -156,9 +157,10 @@ The built-in worker handles `webhook.deliver`, `woocommerce.sync`,
 `documents.index_file`, `crawl.pages`, `crawl.scheduled`, and `campaign.dispatch`.
 Campaign web steps are deliberately delegated to the browser widget; provider
 steps are fail-closed: WhatsApp requires a consented recipient and bot
-credentials, while email/SMS remain dead-lettered until their provider adapter
-is explicitly configured. The worker never reports an unsupported channel as
-delivered. Human replies,
+credentials; email requires a consented recipient plus configured Resend or
+OneSignal credentials; SMS remains dead-lettered until its provider adapter is
+explicitly configured. The worker never reports an unsupported or unconfigured
+channel as delivered. Human replies,
 WhatsApp messages, document indexing, and website crawling therefore remain
 recoverable across API restarts when the durable queue is configured; channel,
 document, and crawl jobs use bounded concurrency keys.
