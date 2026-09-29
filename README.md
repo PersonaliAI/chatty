@@ -92,6 +92,10 @@ Campaign drafts also support a validated `schedule_config` (`once`, `hourly`,
 `daily`, or `weekly`, with an IANA timezone) and the authenticated dashboard
 endpoint `POST /api/bots/{bot_id}/campaigns/audience-suggest` can generate a
 bounded segment, intent threshold, and rationale before a campaign is saved.
+Campaigns can be paused or resumed from the dashboard without deleting their
+configuration, and the creator supports multiple delivery channels (web,
+email, WhatsApp, and SMS). Sequence steps automatically enable any channel
+they use; disabled or out-of-window campaigns do not contribute telemetry.
 - 🐳 **One-command managed self-host** - `docker compose up`, point it at a Supabase project, done
 
 ## Architecture
