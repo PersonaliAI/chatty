@@ -92,3 +92,14 @@ jobs:
         env:
           BYOK_ENCRYPTION_KEY: kLaaohqu72wbf-6sqsj4_yNq2MYBEREBnQ42qEtwRIk=
         run: python -m pytest tests/test_smoke.py -q
+
+      - name: Verify migration runner and Campaign delivery ledger contracts
+        working-directory: backend
+        env:
+          BYOK_ENCRYPTION_KEY: kLaaohqu72wbf-6sqsj4_yNq2MYBEREBnQ42qEtwRIk=
+        run: >-
+          python -m pytest
+          tests/test_apply_migrations.py
+          tests/test_campaign_delivery_ledger.py
+          tests/test_campaign_router.py
+          -q
