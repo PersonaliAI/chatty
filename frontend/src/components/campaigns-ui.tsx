@@ -48,6 +48,7 @@ type DispatchJob = {
 type DispatchPreview = { loading?: boolean; jobs?: DispatchJob[]; deferred?: boolean; deferred_reason?: string; error?: string };
 type DeliveryRow = { id: string; idempotency_key: string; status: string; channel: string; recipient_id?: string | null; error?: string | null; updated_at?: string | null };
 type DeliveryLog = { loading?: boolean; available?: boolean; deliveries?: DeliveryRow[]; error?: string };
+type DeliveryStatus = "all" | "queued" | "sent" | "failed" | "suppressed";
 
 export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [rules, setRules] = useState<TriggerRule[]>([]);
@@ -74,6 +75,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [audienceRationale, setAudienceRationale] = useState("");
   const [dispatchPlans, setDispatchPlans] = useState<Record<string, DispatchPreview>>({});
   const [deliveryLogs, setDeliveryLogs] = useState<Record<string, DeliveryLog>>({});
+  const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>("all");
 
   const typeOptions: ModernSelectOption[] = [
     { value: "time", label: "Time on page (Seconds)" },
@@ -379,7 +381,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       return;
     }
     setDeliveryLogs((logs) => ({ ...logs, [campaignId]: { loading: true } }));
-    fetchBackend(`/api/bots/${botId}/campaigns/${campaignId}/deliveries?limit=100`)
+    const statusQuery = deliveryStatus === "all" ? "" : `&status=${encodeURIComponent(deliveryStatus)}`;
+    fetchBackend(`/api/bots/${botId}/campaigns/${campaignId}/deliveries?limit=100${statusQuery}`)
       .then(async (response) => {
         if (!response.ok) throw new Error(`Delivery history unavailable (${response.status})`);
         const result = await response.json() as { available?: boolean; deliveries?: DeliveryRow[] };
@@ -592,10 +595,30 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                         <span className="block text-[9px] text-indigo-700/80 dark:text-indigo-200/80">Consent {job.payload.requires_consent ? "required" : "not required"} · frequency cap {job.payload.frequency_cap_hours ?? 24}h · idempotent</span>
                       </div>)}
                     </div>}
-                    <button type="button" onClick={() => toggleDeliveryLog(r.id)} className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-neutral-500 hover:underline dark:text-neutral-300">
-                      {deliveryLogs[r.id]?.loading ? <Loader2 className="size-3 animate-spin" /> : <ListChecks className="size-3" />}
-                      {deliveryLogs[r.id] ? "Hide delivery log" : "View delivery log"}
-                    </button>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => toggleDeliveryLog(r.id)} className="inline-flex items-center gap-1 text-[10px] font-semibold text-neutral-500 hover:underline dark:text-neutral-300">
+                        {deliveryLogs[r.id]?.loading ? <Loader2 className="size-3 animate-spin" /> : <ListChecks className="size-3" />}
+                        {deliveryLogs[r.id] ? "Hide delivery log" : "View delivery log"}
+                      </button>
+                      <label className="inline-flex items-center gap-1 text-[9px] text-neutral-400">
+                        <span className="sr-only">Delivery status filter</span>
+                        <select
+                          aria-label="Delivery status filter"
+                          value={deliveryStatus}
+                          onChange={(event) => {
+                            setDeliveryStatus(event.target.value as DeliveryStatus);
+                            setDeliveryLogs((logs) => { const next = { ...logs }; delete next[r.id]; return next; });
+                          }}
+                          className="rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[9px] dark:border-neutral-800 dark:bg-neutral-900"
+                        >
+                          <option value="all">All statuses</option>
+                          <option value="queued">Queued</option>
+                          <option value="sent">Sent</option>
+                          <option value="failed">Failed</option>
+                          <option value="suppressed">Suppressed</option>
+                        </select>
+                      </label>
+                    </div>
                     {deliveryLogs[r.id]?.error && <p className="mt-1 text-[10px] text-rose-600 dark:text-rose-300">{deliveryLogs[r.id]?.error}</p>}
                     {deliveryLogs[r.id]?.deliveries && <div className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50 p-2 text-[10px] dark:border-neutral-800 dark:bg-neutral-950">
                       {!deliveryLogs[r.id]?.deliveries?.length && <p className="text-neutral-400">No provider delivery attempts recorded.</p>}

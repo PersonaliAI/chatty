@@ -477,6 +477,7 @@ async def campaign_delivery_history(
     campaign_id: str,
     limit: int = Query(100, ge=1, le=200),
     user: dict[str, Any] = Depends(require_user),
+    status: str | None = Query(None, pattern="^(queued|sent|failed|suppressed)$"),
 ):
     """Return sanitized provider delivery attempts for operator troubleshooting."""
     await verify_bot_permission(bot_id, user, "settings")
@@ -485,11 +486,15 @@ async def campaign_delivery_history(
     if not campaign.data:
         raise HTTPException(status_code=404, detail="Campaign not found")
     try:
-        result = await run_db(lambda: supabase.table("chatty_campaign_deliveries").select(
-            "id, idempotency_key, status, channel, recipient_id, error, queued_at, sent_at, updated_at"
-        ).eq("campaign_id", campaign_id).eq("bot_id", bot_id).order(
-            "updated_at", desc=True
-        ).limit(limit).execute())
+        def query_deliveries():
+            query = supabase.table("chatty_campaign_deliveries").select(
+                "id, idempotency_key, status, channel, recipient_id, error, queued_at, sent_at, updated_at"
+            ).eq("campaign_id", campaign_id).eq("bot_id", bot_id)
+            if status:
+                query = query.eq("status", status)
+            return query.order("updated_at", desc=True).limit(limit).execute()
+
+        result = await run_db(query_deliveries)
     except Exception as exc:
         logger.warning("campaign delivery history unavailable: %s", exc)
         return {"campaign_id": campaign_id, "available": False, "deliveries": []}

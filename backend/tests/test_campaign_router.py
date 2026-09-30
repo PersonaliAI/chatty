@@ -108,3 +108,20 @@ def test_delivery_history_is_sanitized_and_bounded(monkeypatch):
     assert result["deliveries"][0]["recipient_id"] == "lead-1"
     assert "@" not in str(result["deliveries"][0])
     assert database.await_count == 2
+
+
+def test_delivery_history_accepts_status_filter(monkeypatch):
+    permission = AsyncMock(return_value="owner")
+    monkeypatch.setattr(bots, "verify_bot_permission", permission)
+    database = AsyncMock(side_effect=[
+        SimpleNamespace(data={"id": "campaign-1"}),
+        SimpleNamespace(data=[]),
+    ])
+    monkeypatch.setattr(bots, "run_db", database)
+
+    result = asyncio.run(bots.campaign_delivery_history(
+        "bot-1", "campaign-1", 25, USER, status="failed"
+    ))
+
+    assert result == {"campaign_id": "campaign-1", "available": True, "deliveries": []}
+    assert database.await_count == 2
