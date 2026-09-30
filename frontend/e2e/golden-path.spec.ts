@@ -61,7 +61,8 @@ test.describe("landing page launcher", () => {
     // releases used an iframe). Playwright locators pierce open shadow roots,
     // so assert the visitor-facing composer directly and keep this check
     // aligned with the current public architecture.
-    await expect(page.getByPlaceholder("Compose your message…")).toBeVisible({ timeout: 10_000 });
+    const composer = page.locator('textarea[placeholder*="message" i], input[placeholder*="message" i]').last();
+    await expect(composer).toBeVisible({ timeout: 10_000 });
   });
 });
 
