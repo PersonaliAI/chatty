@@ -93,7 +93,7 @@ test.describe("owner golden path", () => {
   test("picking a design in the Customizer saves and reflects on the live widget", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email address").fill(ownerEmail!);
-    await page.getByLabel("Password").fill(ownerPassword!);
+    await page.getByRole("textbox", { name: "Password" }).fill(ownerPassword!);
     await page.getByRole("button", { name: /log in|sign in/i }).click();
 
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
@@ -117,7 +117,7 @@ test.describe("owner golden path", () => {
   test("Flow Builder and Campaigns remain reachable as production dashboard surfaces", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email address").fill(ownerEmail!);
-    await page.getByLabel("Password").fill(ownerPassword!);
+    await page.getByRole("textbox", { name: "Password" }).fill(ownerPassword!);
     await page.getByRole("button", { name: /log in|sign in/i }).click();
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
 
@@ -157,7 +157,7 @@ test.describe("owner golden path", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/login");
     await page.getByLabel("Email address").fill(ownerEmail!);
-    await page.getByLabel("Password").fill(ownerPassword!);
+    await page.getByRole("textbox", { name: "Password" }).fill(ownerPassword!);
     await page.getByRole("button", { name: /log in|sign in/i }).click();
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
 
