@@ -24,6 +24,7 @@ from fastapi.responses import StreamingResponse
 from app.core.clients import supabase
 from app.core.config import GEMINI_FALLBACK_MODELS, MODEL_NAME
 from app.core.db import run_db
+from app.core import ssrf
 from app.core.uploads import read_upload_capped
 from app.adapters.redis_jobs import RedisJobQueue
 from app.services.chatty_quota_service import WHITELABEL_PLANS, chatty_quota_exceeded, plan_for
@@ -48,6 +49,7 @@ from app.schemas.widget import (
     WidgetBookingCancelRequest,
     WidgetChatRequest,
     WidgetChatResponse,
+    WidgetFlowWebhookRequest,
     WidgetCsatRequest,
     WidgetFeedbackRequest,
     WidgetCampaignEventRequest,
@@ -58,6 +60,7 @@ from app.schemas.kb import ArticleFeedbackRequest
 from plugins import notifications as notify
 from app.services.campaign_runtime import campaign_is_active_now
 from app.services.campaign_audience import campaign_audience_matches
+from app.services.flow_runtime import resolve_mapping
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
@@ -260,6 +263,90 @@ async def widget_verify_origin(body: WidgetVerifyOriginRequest):
     )
     token = _mint_widget_token(body.bot_id, verified)
     return {"token": token, "verified": verified}
+
+
+@router.post("/api/widget/flow/webhook")
+async def widget_flow_webhook(body: WidgetFlowWebhookRequest, request: Request):
+    """Execute a single webhook node from the currently published visual flow.
+
+    This deliberately does not accept a URL, headers, method, or mapping from
+    the browser. The endpoint reloads the published flow, validates that the
+    requested node is a webhook, resolves only its safe templating language,
+    and pins the outbound connection through the shared SSRF guard. Flow
+    builders can therefore attach a public integration endpoint without
+    exposing a browser-side proxy or turning an arbitrary visitor request into
+    a request to internal infrastructure.
+    """
+    if not body.bot_id or len(body.bot_id) > 80 or not body.node_id or len(body.node_id) > 160:
+        raise HTTPException(status_code=422, detail="invalid flow webhook identifier")
+    if len(body.session_id or "") > 160 or len(body.input or "") > 4_000:
+        raise HTTPException(status_code=422, detail="invalid flow webhook payload")
+    bot_result = await run_db(lambda: supabase.table("chatty_bots").select(
+        "id,custom_js,allowed_domains"
+    ).eq("id", body.bot_id).maybe_single().execute())
+    bot = bot_result.data
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    await _widget_rate_limit_or_429(bot, body.bot_id, _client_ip(request), request.headers.get("x-widget-token"))
+
+    custom_js = str(bot.get("custom_js") or "")
+    match = re.search(r"/\* CHATTY_FLOW_DATA([\s\S]*?)CHATTY_FLOW_DATA \*/", custom_js)
+    try:
+        flow = json.loads(match.group(1).strip()) if match else {}
+    except (AttributeError, json.JSONDecodeError):
+        raise HTTPException(status_code=409, detail="Published flow configuration is invalid")
+    if flow.get("status") != "active":
+        raise HTTPException(status_code=409, detail="Flow is not active")
+    node = next((candidate for candidate in flow.get("nodes", []) if str(candidate.get("id")) == body.node_id), None)
+    if not isinstance(node, dict) or str(node.get("type") or "") != "webhook":
+        raise HTTPException(status_code=404, detail="Published webhook node not found")
+    data = node.get("data") if isinstance(node.get("data"), dict) else {}
+    config = data.get("config") if isinstance(data.get("config"), dict) else {}
+    url = str(config.get("url") or config.get("webhook_url") or "").strip()
+    if not url:
+        return {"success": False, "retryable": False, "reason": "webhook_url_not_configured"}
+
+    # Context is capped to a small JSON-shaped object. Mapping supports only
+    # {{input}} and {{context.path}}, resolved server-side from this data.
+    safe_context = body.context if isinstance(body.context, dict) else {}
+    safe_context = {str(key)[:80]: value for key, value in list(safe_context.items())[:25]}
+    mapping = config.get("mapping") if isinstance(config.get("mapping"), dict) else {}
+    resolved = resolve_mapping(mapping, body.input, safe_context)
+    payload = {
+        "event": "flow.webhook",
+        "bot_id": body.bot_id,
+        "session_id": body.session_id,
+        "node_id": body.node_id,
+        "input": body.input,
+        "data": resolved.get("mapped_payload", {}),
+        "unresolved_fields": resolved.get("unresolved", []),
+    }
+    try:
+        configured_timeout = int(config.get("timeout_ms") or 10_000)
+    except (TypeError, ValueError):
+        configured_timeout = 10_000
+    timeout_ms = max(500, min(30_000, configured_timeout))
+    idempotency_key = hashlib.sha256(
+        f"{body.bot_id}:{body.session_id}:{body.node_id}:{body.input}".encode("utf-8")
+    ).hexdigest()
+    try:
+        async with httpx.AsyncClient(timeout=timeout_ms / 1_000, follow_redirects=False) as client:
+            async with ssrf.stream_async(client, "POST", url, json=payload, headers={
+                "Content-Type": "application/json",
+                "Idempotency-Key": idempotency_key,
+                "User-Agent": "Chatty-Flow/1.0",
+            }) as response:
+                status_code = response.status_code
+        success = 200 <= status_code < 300
+        return {"success": success, "status_code": status_code, "retryable": status_code >= 500}
+    except (ssrf.UnsafeURLError, ValueError) as exc:
+        logger.warning("Blocked flow webhook for bot %s: %s", body.bot_id, exc)
+        return {"success": False, "retryable": False, "reason": "unsafe_or_invalid_webhook_url"}
+    except httpx.TimeoutException:
+        return {"success": False, "retryable": True, "reason": "webhook_timeout"}
+    except httpx.HTTPError as exc:
+        logger.info("Flow webhook delivery failed for bot %s: %s", body.bot_id, type(exc).__name__)
+        return {"success": False, "retryable": True, "reason": "webhook_unavailable"}
 
 
 @router.post("/api/widget/campaign-events")

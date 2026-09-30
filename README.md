@@ -103,6 +103,8 @@ Campaign drafts support a validated `schedule_config` (`once`, `hourly`, `daily`
 
 ### Flow Builder Safety & Deterministic Dry-Runs
 The AI Flow Architect endpoint (`POST /api/flow/generate`) requires authenticated users with `settings` permission. Prompts are bounded to 4,000 characters, and generated graphs are validated for unique node IDs and resolvable edge references. Dry-runs enforce execution step budgets to prevent runaway loops and store immutable graph snapshots for deterministic replay. Webhook/action mappings use a safe `{{input}}` and `{{context.path}}` resolver; exact-value mappings preserve JSON types and unresolved fields are surfaced in the trace rather than silently sent.
+
+Published widget flows execute their control nodes too: `delay` is capped at five minutes, `condition` accepts only the declarative `input ==`, `!=`, `contains`, `starts_with`, and `ends_with` grammar, and `loop` has a 100-iteration hard ceiling plus an explicit `done`, `complete`, or `exit` route. A `webhook` node is dispatched through `POST /api/widget/flow/webhook`, not from browser JavaScript. The API reloads the current active flow and permits only the selected published node's `config.url` (or `config.webhook_url`), posts a bounded mapped body, adds an idempotency key, disables redirects, and pins DNS through the SSRF guard. Browser-supplied destinations, headers, and methods are never accepted. Use labeled `success`/`true` and `error`/`failed`/`timeout` edges to make the outcome path explicit.
 </details>
 
 ## Architecture

@@ -34,6 +34,20 @@ class WidgetChatResponse(BaseModel):
     flow_action: Optional[dict] = None
 
 
+class WidgetFlowWebhookRequest(BaseModel):
+    """A bounded request to execute one published Flow Builder webhook node.
+
+    The client identifies a node, but the URL and mapping are always loaded
+    from the bot's persisted active flow by the API. This prevents a visitor
+    from turning the public widget endpoint into an arbitrary proxy.
+    """
+    bot_id: str
+    session_id: str
+    node_id: str
+    input: str = ""
+    context: dict = Field(default_factory=dict)
+
+
 class WidgetMediaResponse(WidgetChatResponse):
     file_url: Optional[str] = None
     file_type: Optional[str] = None

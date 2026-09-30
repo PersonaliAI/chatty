@@ -144,6 +144,8 @@ interface FlowNode {
     options?: string[];
     field?: "email" | "name" | "company" | "phone";
     prompt?: string;
+    /** Typed automation settings authored in the Flow Builder. */
+    config?: Record<string, unknown>;
   };
 }
 interface FlowEdge {
@@ -478,6 +480,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     lastPollRef.current = new Date().toISOString();
 
     if (flowConfig) {
+      flowLoopCountsRef.current = {};
+      flowStepBudgetRef.current = 0;
+      flowLastInputRef.current = "";
       const startNode = flowConfig.nodes?.find((n) => n.id === "start" || n.type === "start");
       const startEdge = flowConfig.edges?.find((e) => e.source === (startNode?.id || "start"));
       if (startEdge) {
@@ -931,6 +936,12 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   triggerPushRef.current = triggerPush;
 
   const sendTextRef = useRef<(text: string) => Promise<void>>(async () => {});
+  // Flow execution is deliberately bounded in the public widget. A malformed
+  // graph must never be able to create an unbounded timer/recursion loop in a
+  // visitor's browser.
+  const flowLoopCountsRef = useRef<Record<string, number>>({});
+  const flowStepBudgetRef = useRef(0);
+  const flowLastInputRef = useRef("");
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [flowConfig, setFlowConfig] = useState<FlowConfig | null>(null);
   // Track whether the active node is a question node waiting for user typed input
@@ -979,6 +990,33 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     return label.startsWith("📅") || node?.type === "bookMeeting" || node?.id?.startsWith("meet-");
   };
 
+  const boundedFlowInt = (value: unknown, fallback: number, minimum: number, maximum: number) => {
+    const parsed = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+    return Math.max(minimum, Math.min(maximum, Number.isFinite(parsed) ? parsed : fallback));
+  };
+
+  // This mirrors the intentionally small condition language used by the API
+  // dry-run service. It is data only (never eval), so a flow owner cannot turn
+  // a visitor input into arbitrary browser code.
+  const evaluateFlowCondition = (config: Record<string, unknown>, input: string) => {
+    const expression = String(config.expression || "").trim();
+    const normalized = input.trim().toLocaleLowerCase();
+    if (!expression) return Boolean(normalized);
+    const lowered = expression.toLocaleLowerCase();
+    if (lowered === "true" || lowered === "always") return true;
+    if (lowered === "false" || lowered === "never") return false;
+    if (lowered === "input") return Boolean(normalized);
+    const match = /^input\s*(==|!=|contains|starts_with|ends_with)\s*(['"])([\s\S]*?)\2$/i.exec(expression);
+    if (!match) return false;
+    const [, operator, , rawExpected] = match;
+    const expected = rawExpected.trim().toLocaleLowerCase();
+    if (operator === "==") return normalized === expected;
+    if (operator === "!=") return normalized !== expected;
+    if (operator.toLocaleLowerCase() === "contains") return normalized.includes(expected);
+    if (operator.toLocaleLowerCase() === "starts_with") return normalized.startsWith(expected);
+    return normalized.endsWith(expected);
+  };
+
   // React Flow stores edge labels in edge.label OR edge.data?.label - resolve both.
   const getEdgeLabel = (edge: FlowEdge): string => edge.label || edge.data?.label || "";
 
@@ -1007,15 +1045,124 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   const executeFlowNode = (node: FlowNode | null | undefined, currentConfig: FlowConfig | null | undefined) => {
     if (!node || !currentConfig) return;
+    flowStepBudgetRef.current += 1;
+    if (flowStepBudgetRef.current > 100) {
+      setActiveNodeId(null);
+      setFlowAwaitingInput(false);
+      setIsBotResponding(false);
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "This automation stopped safely because it reached its execution limit. Please try again or contact our team.",
+        sender: "ai",
+        created_at: new Date().toISOString(),
+      }]);
+      return;
+    }
     const label = node.data?.label || "";
+    const config = node.data?.config && typeof node.data.config === "object" ? node.data.config : {};
+    const outgoing = currentConfig.edges.filter((edge) => edge.source === node.id);
+    const nextFrom = (edge?: FlowEdge) => {
+      const nextEdge = edge || outgoing[0];
+      const nextNode = nextEdge && currentConfig.nodes.find((candidate) => candidate.id === nextEdge.target);
+      if (nextNode) executeFlowNode(nextNode, currentConfig);
+    };
 
     // Start node - advance directly to next node
     if (node.type === "start" || node.id === "start" || label.startsWith("🚀")) {
-      const nextEdge = currentConfig.edges.find((e) => e.source === node.id);
-      if (nextEdge) {
-        const nextNode = currentConfig.nodes.find((n) => n.id === nextEdge.target);
-        if (nextNode) executeFlowNode(nextNode, currentConfig);
+      nextFrom();
+      return;
+    }
+
+    // A delay is an actual visitor-side wait, bounded to five minutes. The
+    // spinner makes an intentional wait distinguishable from a stalled bot.
+    if (node.type === "delay") {
+      const delayMs = boundedFlowInt(config.duration_ms, 0, 0, 300_000);
+      setActiveNodeId(node.id);
+      setFlowAwaitingInput(false);
+      setIsBotResponding(delayMs > 0);
+      window.setTimeout(() => {
+        setIsBotResponding(false);
+        nextFrom();
+      }, delayMs);
+      return;
+    }
+
+    // Branches use a narrow, deterministic condition language and conventional
+    // true/false/default edge labels. They never execute arbitrary expression
+    // code from a visual-flow payload.
+    if (node.type === "condition") {
+      const result = evaluateFlowCondition(config, flowLastInputRef.current);
+      const selected = outgoing.find((edge) => getEdgeLabel(edge).trim().toLocaleLowerCase() === (result ? "true" : "false"))
+        || outgoing.find((edge) => getEdgeLabel(edge).trim().toLocaleLowerCase() === "default")
+        || outgoing[0];
+      setActiveNodeId(node.id);
+      nextFrom(selected);
+      return;
+    }
+
+    // Loops advance through the normal edge until their bounded iteration cap.
+    // On completion they require an explicit Done/Complete/Exit edge; without
+    // one the widget stops rather than following an ambiguous, potentially
+    // cyclic path forever.
+    if (node.type === "loop") {
+      const iteration = (flowLoopCountsRef.current[node.id] || 0) + 1;
+      flowLoopCountsRef.current[node.id] = iteration;
+      const maxIterations = boundedFlowInt(config.max_iterations, 10, 1, 100);
+      if (iteration >= maxIterations) {
+        const exit = outgoing.find((edge) => ["done", "complete", "exit"].includes(getEdgeLabel(edge).trim().toLocaleLowerCase()));
+        if (!exit) {
+          setActiveNodeId(null);
+          setFlowAwaitingInput(false);
+          return;
+        }
+        nextFrom(exit);
+        return;
       }
+      const body = outgoing.find((edge) => !["done", "complete", "exit"].includes(getEdgeLabel(edge).trim().toLocaleLowerCase()));
+      nextFrom(body);
+      return;
+    }
+
+    // External calls are dispatched by the API, not from the browser. That
+    // keeps configured URLs and SSRF enforcement server-side. A success/error
+    // edge gives authors explicit recovery paths; a missing target fails closed
+    // to the configured error/default branch instead of leaking implementation
+    // details to the visitor.
+    if (node.type === "webhook") {
+      setActiveNodeId(node.id);
+      setFlowAwaitingInput(false);
+      setIsBotResponding(true);
+      fetch(`${BACKEND_URL}/api/widget/flow/webhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          node_id: node.id,
+          input: flowLastInputRef.current.slice(0, 4000),
+          context: { captured_lead: capturedLeadData },
+        }),
+      }).then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        const success = response.ok && body?.success === true;
+        const labels = success ? ["success", "true"] : ["error", "failed", "failure", "timeout", "false"];
+        const branch = outgoing.find((edge) => labels.includes(getEdgeLabel(edge).trim().toLocaleLowerCase()))
+          || outgoing.find((edge) => getEdgeLabel(edge).trim().toLocaleLowerCase() === "default")
+          || (!success ? undefined : outgoing[0]);
+        nextFrom(branch);
+      }).catch(() => {
+        const branch = outgoing.find((edge) => ["error", "failed", "failure", "timeout", "false", "default"].includes(getEdgeLabel(edge).trim().toLocaleLowerCase()));
+        nextFrom(branch);
+      }).finally(() => setIsBotResponding(false));
+      return;
+    }
+
+    // Retry is a policy/control node. The API action above has already made a
+    // bounded attempt; select the author-provided success branch by default.
+    // Failure branches are selected by the webhook action itself.
+    if (node.type === "retry") {
+      const success = outgoing.find((edge) => ["success", "true", "default"].includes(getEdgeLabel(edge).trim().toLocaleLowerCase())) || outgoing[0];
+      nextFrom(success);
       return;
     }
 
@@ -1027,11 +1174,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: `[Flow tag: ${tagValue}]`, is_private_note: true })
       }).catch(() => {});
-      const nextEdge = currentConfig.edges.find((e) => e.source === node.id);
-      if (nextEdge) {
-        const nextNode = currentConfig.nodes.find((n) => n.id === nextEdge.target);
-        if (nextNode) executeFlowNode(nextNode, currentConfig);
-      }
+      nextFrom();
       return;
     }
 
@@ -1106,17 +1249,16 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
     setFlowAwaitingInput(false);
     setIsBotResponding(false);
     setMessages((prev) => [...prev, { role: "assistant", content: cleanLabel(label), sender: "ai", created_at: new Date().toISOString() }]);
-    const outgoing = currentConfig.edges.filter((e) => e.source === node.id);
     if (outgoing.length === 1 && !outgoing[0].label && !outgoing[0].data?.label) {
       setTimeout(() => {
-        const nextNode = currentConfig.nodes.find((n) => n.id === outgoing[0].target);
-        if (nextNode) executeFlowNode(nextNode, currentConfig);
+        nextFrom(outgoing[0]);
       }, 900);
     }
   };
 
   const handleFlowChoice = (choiceText: string, edge?: FlowEdge) => {
     if (!flowConfig) return;
+    flowLastInputRef.current = choiceText.trim();
 
     let targetEdge = edge;
     if (!targetEdge && activeNodeId) {
@@ -1806,6 +1948,9 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
           // state) once per load - not a cascading-render risk.
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setFlowConfig(flow);
+          flowLoopCountsRef.current = {};
+          flowStepBudgetRef.current = 0;
+          flowLastInputRef.current = "";
           const startNode = flow.nodes.find((n) => n.id === "start" || n.type === "start");
           const startEdge = flow.edges.find((e) => e.source === (startNode?.id || "start"));
           if (startEdge) {
@@ -1951,6 +2096,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   const sendText = async (text: string) => {
     if (!text.trim() || isBotResponding) return;
+    flowLastInputRef.current = text.trim();
     setMessages((p) => [...p, { role: "user", content: text, channel: "text", created_at: new Date().toISOString() }]);
     setInputValue("");
     setEmojiOpen(false);
