@@ -101,7 +101,8 @@ test.describe("owner golden path", () => {
 
     // Pick whichever design isn't already selected, so the test proves an
     // actual change round-trips rather than a no-op save.
-    const current = await page.locator('[class*="style-"]').first().getAttribute("class");
+    const previewFrame = page.frameLocator('iframe[src*="/embed/"]');
+    const current = await previewFrame.locator('[class*="style-"]').first().getAttribute("class");
     const target = current?.includes("minimal") ? "Playful" : "Minimal";
     await page.getByText(target, { exact: true }).click();
 
@@ -110,7 +111,7 @@ test.describe("owner golden path", () => {
     await expect(page.getByText("Changes saved.")).toBeVisible({ timeout: 5_000 });
 
     await page.reload();
-    const savedClass = await page.locator('[class*="style-"]').first().getAttribute("class");
+    const savedClass = await page.frameLocator('iframe[src*="/embed/"]').locator('[class*="style-"]').first().getAttribute("class");
     expect(savedClass?.toLowerCase()).toContain(target.toLowerCase());
   });
 
