@@ -12,9 +12,11 @@
   "use strict";
   if (window.__chattyWidgetLoaded) return;
 
-  // Exit immediately if loaded by a crawler, headless browser, or scraper
+  // Suppress indexing crawlers, but do not block headless browsers or
+  // navigator.webdriver. Automated accessibility checks, browser tests, and
+  // assistive tooling must receive the same widget as a normal visitor.
   var ua = (navigator.userAgent || "").toLowerCase();
-  var isBot = /jina|bot|crawl|spider|headless|lighthouse/i.test(ua) || navigator.webdriver;
+  var isBot = /jina|crawler|spider|scraper|lighthouse/i.test(ua);
   if (isBot) return;
 
   // Don't mount floating widget over dashboard editor or embed iframe preview
@@ -89,7 +91,7 @@
   // cached copy silently gets an app that doesn't match what this file
   // expects - doMount()'s `window.ChattyDOM.mount` check just no-ops with
   // no error, so the widget never appears. Bump this on every release that
-  var ASSET_VERSION = "2026-09-23.1";
+  var ASSET_VERSION = "2026-09-30.1";
 
   // Preconnect to origin for fast asset loading
   try {
