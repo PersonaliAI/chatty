@@ -34,3 +34,23 @@ def campaign_audience_matches(
     except (TypeError, ValueError):
         return False
     return score >= minimum and (segment != "high_intent" or score >= 60)
+
+
+def campaign_lead_matches(rules: dict[str, Any] | None, lead: dict[str, Any] | None) -> bool:
+    """Apply the same audience contract to an opted-in provider lead.
+
+    Provider delivery has no browser request from which to obtain live signals.
+    The lead record may carry bounded qualification signals in first-class
+    fields or ``custom_fields`` (for example from an AI qualification step).
+    Missing signals fail closed for returning/high-intent segments, while an
+    ``all`` segment remains eligible after the separate consent check.
+    """
+    row = lead if isinstance(lead, dict) else {}
+    custom = row.get("custom_fields") if isinstance(row.get("custom_fields"), dict) else {}
+    returning = bool(row.get("returning") or custom.get("returning"))
+    raw_score = row.get("intent_score", custom.get("intent_score", 0))
+    try:
+        intent_score = max(0, min(100, int(raw_score or 0)))
+    except (TypeError, ValueError):
+        intent_score = 0
+    return campaign_audience_matches(rules, returning=returning, intent_score=intent_score)

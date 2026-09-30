@@ -14,12 +14,19 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from app.services.campaign_dispatch import build_campaign_dispatch_plan
+from app.services.campaign_audience import campaign_lead_matches
 
 logger = logging.getLogger("chatty.campaign_scheduler")
 Claim = Callable[[str], Awaitable[bool]]
 
 
-async def _consented_lead_recipients(supabase_client: Any, bot_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+async def _consented_lead_recipients(
+    supabase_client: Any,
+    bot_id: str,
+    *,
+    audience_rules: dict[str, Any] | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
     """Load the only scheduler-owned provider audience: consented leads.
 
     Campaign workers must never infer marketing consent from contact presence.
@@ -27,12 +34,14 @@ async def _consented_lead_recipients(supabase_client: Any, bot_id: str, *, limit
     captured contacts excluded until a user has explicitly opted in.
     """
     result = await asyncio.to_thread(
-        lambda: supabase_client.table("chatty_leads").select("id,email,phone,marketing_consent").eq(
+        lambda: supabase_client.table("chatty_leads").select("id,email,phone,marketing_consent,custom_fields").eq(
             "bot_id", bot_id).eq("marketing_consent", True).limit(limit).execute()
     )
     recipients: list[dict[str, Any]] = []
     for lead in result.data or []:
         if not isinstance(lead, dict) or not lead.get("marketing_consent"):
+            continue
+        if not campaign_lead_matches(audience_rules, lead):
             continue
         recipients.append({
             "id": str(lead.get("id") or ""),
@@ -100,7 +109,11 @@ async def schedule_campaigns_once(
         if str(rules.get("recipient_source") or "widget").strip().lower() != "consented_leads":
             stats["deferred"] += len(provider_jobs)
             continue
-        recipients = await _consented_lead_recipients(supabase_client, str(campaign.get("bot_id") or ""))
+        recipients = await _consented_lead_recipients(
+            supabase_client,
+            str(campaign.get("bot_id") or ""),
+            audience_rules=rules,
+        )
         if not recipients:
             stats["deferred"] += len(provider_jobs)
             continue

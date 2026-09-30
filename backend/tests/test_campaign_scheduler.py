@@ -107,3 +107,20 @@ def test_scheduler_expands_provider_steps_only_for_consented_leads():
     assert queue.jobs[0]["payload"]["recipient"] == {
         "id": "lead-consented", "email": "opted-in@example.com", "phone": "+15551234567", "consent": True,
     }
+
+
+def test_scheduler_applies_campaign_audience_to_consented_leads():
+    queue = _Queue()
+    campaign = _campaign()
+    campaign["sequence_steps"] = [{"channel": "email", "after_minutes": 0, "message": "hello"}]
+    campaign["audience_rules"] = {"recipient_source": "consented_leads", "segment": "high_intent", "min_intent_score": 70}
+    leads = [
+        {"id": "lead-high", "email": "high@example.com", "phone": "", "marketing_consent": True, "custom_fields": {"intent_score": 90}},
+        {"id": "lead-low", "email": "low@example.com", "phone": "", "marketing_consent": True, "custom_fields": {"intent_score": 20}},
+    ]
+    now = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
+
+    stats = asyncio.run(schedule_campaigns_once(_Db([campaign], leads), queue, now=now))
+
+    assert stats["enqueued"] == 1
+    assert queue.jobs[0]["payload"]["recipient"]["id"] == "lead-high"
