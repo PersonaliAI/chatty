@@ -112,6 +112,9 @@ test.describe("owner golden path", () => {
     await expect(page.getByText("Changes saved.")).toBeVisible({ timeout: 5_000 });
 
     await page.reload({ waitUntil: "domcontentloaded" });
+    // A dashboard refresh restores the default tab, so reopen Customizer
+    // before asserting the persisted preview state.
+    await page.getByRole("button", { name: "Customizer", exact: true }).click();
     const livePreview = page.locator('iframe[src*="/embed/"]');
     await expect(livePreview).toHaveCount(1, { timeout: 20_000 });
     await expect(livePreview).toBeVisible({ timeout: 20_000 });
