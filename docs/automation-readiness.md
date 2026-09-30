@@ -4,6 +4,11 @@ The industrial automation goal is **not complete**. This checklist preserves
 the full scope; passing a unit test or pushing a commit does not prove deployment
 or production readiness. Every gate needs evidence for the release commit.
 
+Latest validated public release evidence: commit `b9653f3` passed the canonical
+CI workflow (backend compile/tests/audit plus frontend typecheck, lint, browser
+checks, and production build). Documentation-only follow-up commit `ec68f8b`
+is on `main`; it did not change application behavior.
+
 ## 1. Workflow correctness
 
 - Validate triggers, actions, branching, loops, retries, timeouts, scheduling,
