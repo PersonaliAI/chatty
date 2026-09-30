@@ -242,11 +242,25 @@ async def simulate_dashboard_flow(
 
 
 @router.get("/api/bots/{bot_id}/flow/runs")
-async def list_dashboard_flow_runs(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+async def list_dashboard_flow_runs(
+    bot_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    status: str | None = Query(None, min_length=1, max_length=32),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """List bounded execution summaries, optionally filtered by status."""
     await verify_bot_permission(bot_id, user, "settings")
-    result = await run_db(lambda: supabase.table("chatty_flow_runs").select(
-        "id, status, inputs, trace, error, duration_ms, created_at, completed_at"
-    ).eq("bot_id", bot_id).order("created_at", desc=True).limit(50).execute())
+    normalized_status = status.strip().lower() if status else None
+    if normalized_status and normalized_status not in {"completed", "failed"}:
+        raise HTTPException(status_code=422, detail="status must be completed or failed")
+    def query_runs():
+        query = supabase.table("chatty_flow_runs").select(
+            "id, status, inputs, trace, error, duration_ms, created_at, completed_at"
+        ).eq("bot_id", bot_id)
+        if normalized_status:
+            query = query.eq("status", normalized_status)
+        return query.order("created_at", desc=True).limit(limit).execute()
+    result = await run_db(query_runs)
     return result.data or []
 
 

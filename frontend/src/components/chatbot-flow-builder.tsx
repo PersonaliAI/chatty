@@ -549,6 +549,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [runHistory, setRunHistory] = useState<Array<{ id: string; status: string; duration_ms?: number | null; created_at: string; trace?: Array<{ label: string }> }>>([]);
   const [selectedRun, setSelectedRun] = useState<{ id: string; status: string; error?: string | null; trace?: Array<{ node_id?: string; node_type?: string; label?: string; runtime?: Record<string, unknown> }>; flow_data?: unknown } | null>(null);
+  const [runStatusFilter, setRunStatusFilter] = useState<"all" | "completed" | "failed">("all");
   const [runsOpen, setRunsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -875,9 +876,10 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     }
   };
 
-  const loadRuns = async () => {
+  const loadRuns = async (filter: "all" | "completed" | "failed" = runStatusFilter) => {
     if (!botId || !fetchDashboardBackend) return;
-    const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/runs`);
+    const query = filter === "all" ? "" : `?status=${filter}`;
+    const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/runs${query}`);
     if (response.ok) setRunHistory(await response.json());
     setRunsOpen(true);
   };
@@ -1751,8 +1753,13 @@ const FALLBACK_SUPPORT_TRIAGE = {
             </ol>
           </div>}
           {fetchDashboardBackend && <>
-            <button type="button" onClick={loadRuns} className="w-full mt-2 rounded-lg border border-neutral-200 px-3 py-2 text-left text-[10px] font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-850">{runsOpen ? "Execution history" : "View execution history"}</button>
-            {runsOpen && <div className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-lg bg-neutral-50 p-2 dark:bg-neutral-950">
+            <button type="button" onClick={() => void loadRuns()} className="w-full mt-2 rounded-lg border border-neutral-200 px-3 py-2 text-left text-[10px] font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-850">{runsOpen ? "Execution history" : "View execution history"}</button>
+            {runsOpen && <div className="mt-2 rounded-lg bg-neutral-50 p-2 dark:bg-neutral-950">
+              <label htmlFor="flow-run-status" className="sr-only">Execution status filter</label>
+              <select id="flow-run-status" value={runStatusFilter} onChange={(event) => { const next = event.target.value as "all" | "completed" | "failed"; setRunStatusFilter(next); void loadRuns(next); }} className="mb-2 w-full rounded border border-neutral-200 bg-white px-2 py-1 text-[9px] dark:border-neutral-800 dark:bg-neutral-900">
+                <option value="all">All executions</option><option value="completed">Completed</option><option value="failed">Failed</option>
+              </select>
+              <div className="max-h-40 space-y-1 overflow-y-auto">
               {!runHistory.length && <p className="text-[10px] text-neutral-400">No test runs recorded yet.</p>}
               {runHistory.map((run) => <div key={run.id} className="flex items-center justify-between gap-2 text-[10px]">
                 <span className="truncate text-neutral-600 dark:text-neutral-300">{new Date(run.created_at).toLocaleString()} · {run.status} · {run.duration_ms ?? 0}ms</span>
@@ -1763,6 +1770,7 @@ const FALLBACK_SUPPORT_TRIAGE = {
                 {selectedRun.error && <p className="mt-1 text-rose-700 dark:text-rose-300">{selectedRun.error}</p>}
                 <ol className="mt-1 max-h-32 space-y-1 overflow-y-auto">{(selectedRun.trace ?? []).map((step, index) => <li key={`${step.node_id ?? "step"}-${index}`}><b>{index + 1}. {step.label || step.node_type || step.node_id || "step"}</b>{step.runtime && <span className="ml-1 text-indigo-700/80 dark:text-indigo-200/80">{String(step.runtime.outcome || step.runtime.side_effect || step.runtime.halted || "completed")}</span>}</li>)}</ol>
               </div>}
+              </div>
             </div>}
           </>}
           <div className="grid grid-cols-2 gap-2 mt-2">

@@ -30,3 +30,15 @@ def test_flow_run_detail_returns_immutable_trace(monkeypatch):
     result = asyncio.run(bots.get_dashboard_flow_run("bot-1", "run-1", USER))
     assert result["trace"][0]["runtime"]["outcome"] == "timeout"
     assert result["flow_data"]["nodes"] == []
+
+
+def test_flow_run_list_rejects_unknown_status_before_query(monkeypatch):
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    database = AsyncMock()
+    monkeypatch.setattr(bots, "run_db", database)
+    try:
+        asyncio.run(bots.list_dashboard_flow_runs("bot-1", 50, "running", USER))
+        assert False, "expected invalid status"
+    except HTTPException as exc:
+        assert exc.status_code == 422
+    database.assert_not_awaited()
