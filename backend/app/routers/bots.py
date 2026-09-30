@@ -250,6 +250,18 @@ async def list_dashboard_flow_runs(bot_id: str, user: dict[str, Any] = Depends(r
     return result.data or []
 
 
+@router.get("/api/bots/{bot_id}/flow/runs/{run_id}")
+async def get_dashboard_flow_run(bot_id: str, run_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return one immutable execution snapshot for operator inspection."""
+    await verify_bot_permission(bot_id, user, "settings")
+    result = await run_db(lambda: supabase.table("chatty_flow_runs").select(
+        "id, status, inputs, trace, error, duration_ms, created_at, completed_at, flow_data"
+    ).eq("id", run_id).eq("bot_id", bot_id).maybe_single().execute())
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Flow run not found")
+    return result.data
+
+
 @router.post("/api/bots/{bot_id}/flow/runs/{run_id}/replay")
 async def replay_dashboard_flow_run(
     bot_id: str,

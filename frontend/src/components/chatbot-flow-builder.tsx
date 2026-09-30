@@ -548,6 +548,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   const [versions, setVersions] = useState<Array<{ id: string; version: number; status: string; note?: string | null; created_at: string }>>([]);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [runHistory, setRunHistory] = useState<Array<{ id: string; status: string; duration_ms?: number | null; created_at: string; trace?: Array<{ label: string }> }>>([]);
+  const [selectedRun, setSelectedRun] = useState<{ id: string; status: string; error?: string | null; trace?: Array<{ node_id?: string; node_type?: string; label?: string; runtime?: Record<string, unknown> }>; flow_data?: unknown } | null>(null);
   const [runsOpen, setRunsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -892,6 +893,16 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     setTestTrace(result.execution_path ?? []);
     await loadRuns();
     showToast("Run replayed.", "success");
+  };
+
+  const inspectRun = async (runId: string) => {
+    if (!botId || !fetchDashboardBackend) return;
+    const response = await fetchDashboardBackend(`/api/bots/${botId}/flow/runs/${runId}`);
+    if (!response.ok) {
+      showToast("Execution details unavailable.", "error");
+      return;
+    }
+    setSelectedRun(await response.json());
   };
 
   const loadVersions = async () => {
@@ -1745,8 +1756,13 @@ const FALLBACK_SUPPORT_TRIAGE = {
               {!runHistory.length && <p className="text-[10px] text-neutral-400">No test runs recorded yet.</p>}
               {runHistory.map((run) => <div key={run.id} className="flex items-center justify-between gap-2 text-[10px]">
                 <span className="truncate text-neutral-600 dark:text-neutral-300">{new Date(run.created_at).toLocaleString()} · {run.status} · {run.duration_ms ?? 0}ms</span>
-                <button type="button" onClick={() => replayRun(run.id)} className="shrink-0 font-semibold text-indigo-600 hover:underline dark:text-indigo-300">Replay</button>
+                <span className="flex shrink-0 gap-2"><button type="button" onClick={() => inspectRun(run.id)} className="font-semibold text-neutral-600 hover:underline dark:text-neutral-300">Inspect</button><button type="button" onClick={() => replayRun(run.id)} className="font-semibold text-indigo-600 hover:underline dark:text-indigo-300">Replay</button></span>
               </div>)}
+              {selectedRun && <div className="mt-2 rounded-lg border border-indigo-100 bg-indigo-50/50 p-2 text-[9px] text-indigo-950 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-100">
+                <div className="font-bold uppercase tracking-wide">Run detail · {selectedRun.status}</div>
+                {selectedRun.error && <p className="mt-1 text-rose-700 dark:text-rose-300">{selectedRun.error}</p>}
+                <ol className="mt-1 max-h-32 space-y-1 overflow-y-auto">{(selectedRun.trace ?? []).map((step, index) => <li key={`${step.node_id ?? "step"}-${index}`}><b>{index + 1}. {step.label || step.node_type || step.node_id || "step"}</b>{step.runtime && <span className="ml-1 text-indigo-700/80 dark:text-indigo-200/80">{String(step.runtime.outcome || step.runtime.side_effect || step.runtime.halted || "completed")}</span>}</li>)}</ol>
+              </div>}
             </div>}
           </>}
           <div className="grid grid-cols-2 gap-2 mt-2">
