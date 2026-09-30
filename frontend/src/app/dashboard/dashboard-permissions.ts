@@ -20,7 +20,9 @@ export const TAB_LABELS: Record<ChattyTeamTab, string> = {
 
 export const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   home: null,
-  customizer: "design",
+  // Viewers can inspect the live design preview; save controls enforce the
+  // design permission before mutating bot configuration.
+  customizer: null,
   knowledge: "sources",
   playground: null,
   inbox: "inbox",
