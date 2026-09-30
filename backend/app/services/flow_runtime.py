@@ -137,11 +137,16 @@ def _resolve_mapping_path(path: str, user_input: str, context: dict[str, Any]) -
     if not path.startswith("context."):
         return False, None
     current: Any = context
-    for segment in path.removeprefix("context.").split("."):
+    segments = path.removeprefix("context.").split(".")
+    for segment in segments:
         if not isinstance(current, dict) or segment not in current:
             return False, None
         current = current[segment]
-    return True, current
+    if any(_SENSITIVE_MAPPING_KEY.search(segment) for segment in segments):
+        return True, "[redacted]"
+    # Redact before interpolation too: converting an object to a string would
+    # otherwise conceal its credential keys from the final recursive pass.
+    return True, _redact_mapping_value(current)
 
 
 def resolve_mapping(

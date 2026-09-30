@@ -82,3 +82,13 @@ def test_mapping_redacts_nested_credentials_and_preserves_source_context():
     assert payload["credentials"][0] == {"api_key": "[redacted]", "enabled": True}
     assert payload["credentials"][1]["nested"]["Authorization"] == "[redacted]"
     assert context["integration"]["credentials"][0]["api_key"] == "private-key"
+
+
+def test_mapping_redacts_sensitive_source_paths_even_with_non_sensitive_aliases():
+    result = resolve_mapping({"value": "{{context.integration.api_key}}",
+                              "description": "Details: {{context.integration}}"}, "",
+                             {"integration": {"api_key": "private-credential", "name": "CRM"}})
+    assert result["mapped_payload"]["value"] == "[redacted]"
+    assert "private-credential" not in result["mapped_payload"]["description"]
+    assert "CRM" in result["mapped_payload"]["description"]
+    assert result["unresolved_fields"] == []
