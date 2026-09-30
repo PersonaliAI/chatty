@@ -27,11 +27,12 @@ class _Table:
 
 
 class _Db:
-    def __init__(self, rows):
+    def __init__(self, rows, leads=None):
         self.rows = rows
+        self.leads = leads or []
 
-    def table(self, *_):
-        return _Table(self.rows)
+    def table(self, name):
+        return _Table(self.leads if name == "chatty_leads" else self.rows)
 
 
 class _Queue:
@@ -87,3 +88,22 @@ def test_scheduler_defers_provider_steps_without_a_recipient():
     assert stats["deferred"] == 1
     assert stats["enqueued"] == 0
     assert queue.jobs == []
+
+
+def test_scheduler_expands_provider_steps_only_for_consented_leads():
+    queue = _Queue()
+    campaign = _campaign()
+    campaign["sequence_steps"] = [{"channel": "email", "after_minutes": 0, "message": "hello"}]
+    campaign["audience_rules"] = {"recipient_source": "consented_leads"}
+    leads = [
+        {"id": "lead-consented", "email": "opted-in@example.com", "phone": "+15551234567", "marketing_consent": True},
+        {"id": "lead-no-consent", "email": "nope@example.com", "phone": "+15550000000", "marketing_consent": False},
+    ]
+    now = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
+
+    stats = asyncio.run(schedule_campaigns_once(_Db([campaign], leads), queue, now=now))
+
+    assert stats["enqueued"] == 1
+    assert queue.jobs[0]["payload"]["recipient"] == {
+        "id": "lead-consented", "email": "opted-in@example.com", "phone": "+15551234567", "consent": True,
+    }

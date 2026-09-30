@@ -231,10 +231,14 @@ def _normalize_audience_rules(value: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("audience min_intent_score must be an integer") from exc
     if score < 0 or score > 100:
         raise ValueError("audience min_intent_score must be between 0 and 100")
+    recipient_source = str(rules.get("recipient_source", "widget")).strip().lower()
+    if recipient_source not in {"widget", "consented_leads"}:
+        raise ValueError("audience recipient_source must be widget or consented_leads")
     return {
         "segment": segment,
         "min_intent_score": score,
         "returning_only": bool(rules.get("returning_only", segment == "returning")),
+        "recipient_source": recipient_source,
     }
 
 

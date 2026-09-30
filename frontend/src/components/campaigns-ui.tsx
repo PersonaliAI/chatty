@@ -17,6 +17,7 @@ interface TriggerRule {
   byDevice?: Record<string, number>;
   byChannel?: Record<string, number>;
   audience?: string;
+  recipientSource?: "widget" | "consented_leads";
   channels?: string[];
   sequenceSteps?: Array<Record<string, unknown>>;
   isActive?: boolean;
@@ -95,6 +96,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             clicks: Number(row.clicks ?? 0),
             conversions: Number(row.conversions ?? 0),
             audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
+            recipientSource: String((row.audience_rules as { recipient_source?: string } | undefined)?.recipient_source ?? "widget") === "consented_leads" ? "consented_leads" : "widget",
             channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
             sequenceSteps: Array.isArray(row.sequence_steps) ? row.sequence_steps as Array<Record<string, unknown>> : [],
             isActive: row.is_active !== false,
@@ -195,7 +197,12 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         trigger_value: type === "url" ? 0 : Number(newRule.value) || 0,
         target_devices: ["desktop", "mobile"],
         is_active: true,
-        audience_rules: { segment: audience, min_intent_score: minIntentScore, returning_only: returningOnly },
+        audience_rules: {
+          segment: audience,
+          min_intent_score: minIntentScore,
+          returning_only: returningOnly,
+          recipient_source: (channels.some((channel) => channel !== "web") || cleanSequenceSteps.some((step) => step.channel !== "web")) ? "consented_leads" : "widget",
+        },
         channels,
         sequence_steps: cleanSequenceSteps,
         safety_config: {
@@ -414,6 +421,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                     </button>
                   ))}
                 </div>
+                {channels.some((channel) => channel !== "web") && <p className="mt-1 text-[9px] leading-relaxed text-neutral-400">Provider channels target only leads with recorded marketing consent. Contacts without opt-in are never queued.</p>}
                 <div className="mt-2 flex items-center gap-2">
                   <label className="text-[9px] text-neutral-400" htmlFor="campaign-intent-score">Min intent</label>
                   <input id="campaign-intent-score" type="number" min={0} max={100} value={minIntentScore} onChange={(event) => setMinIntentScore(Math.max(0, Math.min(100, Number(event.target.value) || 0)))} className="w-16 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-950" />
@@ -518,7 +526,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       {Object.keys(r.byDevice ?? {}).length > 0 && <span>Devices: {Object.entries(r.byDevice ?? {}).map(([key, value]) => `${key} ${value}`).join(" · ")}</span>}
                       {Object.keys(r.byChannel ?? {}).length > 0 && <span>Channels: {Object.entries(r.byChannel ?? {}).map(([key, value]) => `${key} ${value}`).join(" · ")}</span>}
                     </div>
-                    <div className="text-[10px] text-neutral-400">Audience: {r.audience ?? "all"} · Channels: {(r.channels ?? ["web"]).join(", ")}</div>
+                    <div className="text-[10px] text-neutral-400">Audience: {r.audience ?? "all"} · Channels: {(r.channels ?? ["web"]).join(", ")}{r.recipientSource === "consented_leads" ? " · consented leads only" : ""}</div>
                     <div className="text-[10px] text-neutral-400">
                       Schedule: {r.scheduleCadence ?? "once"}
                       {r.nextRunAt ? ` · next run ${new Date(r.nextRunAt).toLocaleString()}` : " · no future run"}

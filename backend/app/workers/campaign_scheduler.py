@@ -19,6 +19,30 @@ logger = logging.getLogger("chatty.campaign_scheduler")
 Claim = Callable[[str], Awaitable[bool]]
 
 
+async def _consented_lead_recipients(supabase_client: Any, bot_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    """Load the only scheduler-owned provider audience: consented leads.
+
+    Campaign workers must never infer marketing consent from contact presence.
+    A migration adds ``marketing_consent`` with a false default, keeping older
+    captured contacts excluded until a user has explicitly opted in.
+    """
+    result = await asyncio.to_thread(
+        lambda: supabase_client.table("chatty_leads").select("id,email,phone,marketing_consent").eq(
+            "bot_id", bot_id).eq("marketing_consent", True).limit(limit).execute()
+    )
+    recipients: list[dict[str, Any]] = []
+    for lead in result.data or []:
+        if not isinstance(lead, dict) or not lead.get("marketing_consent"):
+            continue
+        recipients.append({
+            "id": str(lead.get("id") or ""),
+            "email": str(lead.get("email") or "").strip(),
+            "phone": str(lead.get("phone") or "").strip(),
+            "consent": True,
+        })
+    return recipients
+
+
 async def schedule_campaigns_once(
     supabase_client: Any,
     queue: Any,
@@ -43,6 +67,7 @@ async def schedule_campaigns_once(
             stats["invalid"] += 1
             logger.warning("skipping invalid campaign id=%s", campaign.get("id"))
             continue
+        provider_jobs = [job for job in jobs if str((job.get("payload") or {}).get("channel") or "web").lower() != "web"]
         for job in jobs:
             stats["planned"] += 1
             # The periodic scheduler has no visitor/contact recipient. Web
@@ -51,9 +76,9 @@ async def schedule_campaigns_once(
             # an undeliverable job that would only churn retries and DLQ.
             payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
             channel = str(payload.get("channel") or "web").strip().lower()
-            recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
-            if channel != "web" and not any(str(recipient.get(key) or "").strip() for key in ("email", "phone", "whatsapp")):
-                stats["deferred"] += 1
+            # Provider jobs are expanded below against the selected recipient
+            # source. Never enqueue a recipient-less provider job first.
+            if channel != "web":
                 continue
             scheduled_at = datetime.fromisoformat(str(job["scheduled_at"]).replace("Z", "+00:00"))
             if scheduled_at > current:
@@ -69,6 +94,40 @@ async def schedule_campaigns_once(
                 idempotency_key=key,
             )
             stats["enqueued"] += 1
+        if not provider_jobs:
+            continue
+        rules = campaign.get("audience_rules") if isinstance(campaign.get("audience_rules"), dict) else {}
+        if str(rules.get("recipient_source") or "widget").strip().lower() != "consented_leads":
+            stats["deferred"] += len(provider_jobs)
+            continue
+        recipients = await _consented_lead_recipients(supabase_client, str(campaign.get("bot_id") or ""))
+        if not recipients:
+            stats["deferred"] += len(provider_jobs)
+            continue
+        for recipient in recipients:
+            try:
+                recipient_jobs = build_campaign_dispatch_plan(campaign, now=current, recipient=recipient)
+            except ValueError:
+                stats["invalid"] += 1
+                continue
+            for job in recipient_jobs:
+                payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+                if str(payload.get("channel") or "web").strip().lower() == "web":
+                    continue
+                scheduled_at = datetime.fromisoformat(str(job["scheduled_at"]).replace("Z", "+00:00"))
+                if scheduled_at > current:
+                    stats["skipped"] += 1
+                    continue
+                key = str(job["idempotency_key"])
+                if claim is not None and not await claim(key):
+                    stats["skipped"] += 1
+                    continue
+                await queue.enqueue(
+                    name=str(job["name"]),
+                    payload=dict(payload),
+                    idempotency_key=key,
+                )
+                stats["enqueued"] += 1
     return stats
 
 

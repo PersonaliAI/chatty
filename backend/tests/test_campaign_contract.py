@@ -52,7 +52,10 @@ def test_campaign_contract_normalizes_ai_audience_rules_and_matches_channels():
         audience_rules={"segment": "HIGH_INTENT", "min_intent_score": "70"},
         sequence_steps=[{"channel": "EMAIL", "after_minutes": 10}],
     )
-    assert request.audience_rules == {"segment": "high_intent", "min_intent_score": 70, "returning_only": False}
+    assert request.audience_rules == {
+        "segment": "high_intent", "min_intent_score": 70,
+        "returning_only": False, "recipient_source": "widget",
+    }
     auto_enabled = CampaignCreateRequest(
         name="Sequence channel",
         message_content="Hello",
@@ -62,3 +65,5 @@ def test_campaign_contract_normalizes_ai_audience_rules_and_matches_channels():
     assert auto_enabled.channels == ["web", "email"]
     with pytest.raises(ValidationError):
         CampaignCreateRequest(name="Bad audience", message_content="Hello", audience_rules={"min_intent_score": 101})
+    with pytest.raises(ValidationError):
+        CampaignCreateRequest(name="Bad source", message_content="Hello", audience_rules={"recipient_source": "all_leads"})
