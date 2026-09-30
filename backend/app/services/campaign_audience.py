@@ -48,7 +48,9 @@ def campaign_lead_matches(rules: dict[str, Any] | None, lead: dict[str, Any] | N
     """
     row = lead if isinstance(lead, dict) else {}
     custom = row.get("custom_fields") if isinstance(row.get("custom_fields"), dict) else {}
-    returning = bool(row.get("returning") or custom.get("returning"))
+    # Qualification integrations can supply malformed strings ("false" is
+    # truthy in Python). Never turn those into a positive targeting signal.
+    returning = row.get("returning") is True or custom.get("returning") is True
     raw_score = row.get("intent_score", custom.get("intent_score", 0))
     try:
         intent_score = max(0, min(100, int(raw_score or 0)))

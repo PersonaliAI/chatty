@@ -22,3 +22,11 @@ def test_provider_lead_audience_uses_persisted_qualification_signals():
     assert not campaign_lead_matches(rules, {"custom_fields": {"intent_score": 60}})
     assert not campaign_lead_matches({"segment": "returning"}, {"custom_fields": {}})
     assert campaign_lead_matches({"segment": "returning"}, {"custom_fields": {"returning": True}})
+
+
+def test_returning_segment_rejects_truthy_non_boolean_qualification():
+    for value in ("false", "true", 1, [True], {"value": True}):
+        assert not campaign_lead_matches({"segment": "returning"}, {"returning": value})
+        assert not campaign_lead_matches({"segment": "returning"},
+                                         {"custom_fields": {"returning": value}})
+    assert campaign_lead_matches({"segment": "returning"}, {"returning": True})
