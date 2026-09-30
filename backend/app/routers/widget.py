@@ -319,7 +319,7 @@ async def widget_flow_webhook(body: WidgetFlowWebhookRequest, request: Request):
         "node_id": body.node_id,
         "input": body.input,
         "data": resolved.get("mapped_payload", {}),
-        "unresolved_fields": resolved.get("unresolved", []),
+        "unresolved_fields": resolved.get("unresolved_fields", []),
     }
     try:
         configured_timeout = int(config.get("timeout_ms") or 10_000)

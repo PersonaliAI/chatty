@@ -189,7 +189,7 @@ def test_widget_flow_webhook_uses_only_published_url_and_server_mapping(monkeypa
             "id": "bot-1",
             "custom_js": _published_webhook_flow({
                 "url": "https://integrations.example.test/flow",
-                "mapping": {"message": "{{input}}", "lead": "{{context.captured_lead.email}}"},
+                "mapping": {"message": "{{input}}", "lead": "{{context.captured_lead.email}}", "missing": "{{context.unknown}}"},
             }),
             "allowed_domains": [],
         })
@@ -216,6 +216,7 @@ def test_widget_flow_webhook_uses_only_published_url_and_server_mapping(monkeypa
     assert calls[0][0] == "POST"
     assert calls[0][1] == "https://integrations.example.test/flow"
     assert calls[0][2]["json"]["data"] == {"message": "Hello", "lead": "visitor@example.com"}
+    assert calls[0][2]["json"]["unresolved_fields"] == ["missing"]
 
 
 def test_widget_flow_webhook_retries_transient_statuses(monkeypatch):
