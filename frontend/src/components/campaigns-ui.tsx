@@ -374,13 +374,30 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     setSaving(true);
     setError(null);
 
+    const invalidTiming = sequenceSteps.find((s) => {
+      const minutes = Number(s.after_minutes);
+      return !Number.isFinite(minutes) || minutes < 0 || minutes > 43_200;
+    });
+    if (invalidTiming) {
+      setError("Sequence delays must be between 0 minutes and 30 days.");
+      setSaving(false);
+      return;
+    }
     const cleanSteps = sequenceSteps
       .map((s) => ({
         channel: s.channel,
-        after_minutes: Math.max(0, Math.min(43_200, Number(s.after_minutes) || 0)),
+        after_minutes: Number(s.after_minutes),
         message: s.message.trim(),
       }))
       .filter((s) => Boolean(s.message));
+    const duplicateStep = cleanSteps.find((step, index) =>
+      cleanSteps.slice(0, index).some((prior) => prior.channel === step.channel && prior.after_minutes === step.after_minutes && prior.message === step.message)
+    );
+    if (duplicateStep) {
+      setError("Sequence steps must not contain duplicate channel, timing, and message combinations.");
+      setSaving(false);
+      return;
+    }
     const invalidStep = cleanSteps.find((step) => !channels.includes(step.channel));
     if (invalidStep) {
       setError(`Sequence channel “${invalidStep.channel}” is not enabled for this campaign.`);
