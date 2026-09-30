@@ -81,6 +81,39 @@ def test_scheduler_bounds_campaign_batch():
         raise AssertionError("expected limit validation")
 
 
+def test_scheduler_uses_atomic_enqueue_and_retries_failed_append():
+    class AtomicQueue(_Queue):
+        def __init__(self):
+            super().__init__()
+            self.failed = False
+            self.keys = set()
+
+        async def enqueue_once(self, **job):
+            if not self.failed:
+                self.failed = True
+                raise RuntimeError("queue temporarily unavailable")
+            if job["idempotency_key"] in self.keys:
+                return None
+            self.keys.add(job["idempotency_key"])
+            self.jobs.append(job)
+            return "1-0"
+
+    queue = AtomicQueue()
+    now = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
+
+    async def ticks():
+        first = await campaign_scheduler.schedule_campaigns_tick(_Db([_campaign()]), queue, now=now)
+        second = await schedule_campaigns_once(_Db([_campaign()]), queue, now=now)
+        third = await schedule_campaigns_once(_Db([_campaign()]), queue, now=now)
+        return first, second, third
+
+    first, second, third = asyncio.run(ticks())
+    assert first is None
+    assert second["enqueued"] == 1
+    assert third["skipped"] == 1
+    assert len(queue.jobs) == 1
+
+
 def test_scheduler_tick_recovers_after_transient_failure(monkeypatch):
     attempts = AsyncMock(side_effect=[RuntimeError("database unavailable"), {"planned": 1}])
     monkeypatch.setattr(campaign_scheduler, "schedule_campaigns_once", attempts)

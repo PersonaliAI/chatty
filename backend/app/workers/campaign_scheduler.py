@@ -20,6 +20,17 @@ logger = logging.getLogger("chatty.campaign_scheduler")
 Claim = Callable[[str], Awaitable[bool]]
 
 
+async def _enqueue_scheduled(queue: Any, job: dict[str, Any], key: str) -> bool:
+    enqueue_once = getattr(queue, "enqueue_once", None)
+    enqueue = enqueue_once if callable(enqueue_once) else queue.enqueue
+    result = await enqueue(
+        name=str(job["name"]),
+        payload={**dict(job["payload"]), "delivery_idempotency_key": key},
+        idempotency_key=key,
+    )
+    return result is not None if callable(enqueue_once) else True
+
+
 async def schedule_campaigns_tick(*args: Any, **kwargs: Any) -> dict[str, int] | None:
     """Keep the periodic service alive after a transient tick failure.
 
@@ -83,12 +94,7 @@ async def schedule_campaigns_once(
             if claim is not None and not await claim(key):
                 stats["skipped"] += 1
                 continue
-            await queue.enqueue(
-                name=str(job["name"]),
-                payload={**dict(job["payload"]), "delivery_idempotency_key": key},
-                idempotency_key=key,
-            )
-            stats["enqueued"] += 1
+            stats["enqueued" if await _enqueue_scheduled(queue, job, key) else "skipped"] += 1
         if not provider_jobs:
             continue
         rules = campaign.get("audience_rules") if isinstance(campaign.get("audience_rules"), dict) else {}
@@ -135,12 +141,7 @@ async def schedule_campaigns_once(
                 if claim is not None and not await claim(key):
                     stats["skipped"] += 1
                     continue
-                await queue.enqueue(
-                    name=str(job["name"]),
-                    payload={**dict(payload), "delivery_idempotency_key": key},
-                    idempotency_key=key,
-                )
-                stats["enqueued"] += 1
+                stats["enqueued" if await _enqueue_scheduled(queue, job, key) else "skipped"] += 1
     return stats
 
 
@@ -154,15 +155,12 @@ async def run() -> None:  # pragma: no cover - deployment entry point
         from app.adapters.redis_jobs import RedisJobQueue
     except ImportError as exc:
         raise RuntimeError("campaign scheduler dependencies are unavailable") from exc
-    queue = RedisJobQueue(queue_url, stream="chatty:webhooks")
     client = redis_asyncio.from_url(queue_url, decode_responses=True)
-
-    async def claim(key: str) -> bool:
-        return bool(await client.set(f"chatty:campaign:scheduled:{key}", "1", nx=True, ex=86_400))
+    queue = RedisJobQueue(queue_url, stream="chatty:webhooks", client=client)
 
     try:
         while True:
-            stats = await schedule_campaigns_tick(supabase, queue, claim=claim)
+            stats = await schedule_campaigns_tick(supabase, queue)
             if stats and stats["planned"]:
                 logger.info("campaign scheduler tick=%s", stats)
             await asyncio.sleep(float(os.environ.get("CHATTY_CAMPAIGN_SCHEDULER_INTERVAL", "30")))
