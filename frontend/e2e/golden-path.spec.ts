@@ -126,6 +126,11 @@ test.describe("owner golden path", () => {
     await expect(page.getByLabel("Visitor inputs")).toBeVisible();
     await expect(page.getByLabel("Context JSON")).toBeVisible();
     await expect(page.getByRole("button", { name: /view execution history/i })).toBeVisible();
+    await page.getByRole("button", { name: /view execution history/i }).click();
+    const runStatusFilter = page.getByRole("combobox", { name: "Execution status filter" });
+    await expect(runStatusFilter).toBeVisible();
+    await runStatusFilter.selectOption("failed");
+    await expect(runStatusFilter).toHaveValue("failed");
     await page.getByText("Campaigns", { exact: true }).click();
     await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
     await expect(page.getByText("AI campaign copilot", { exact: true })).toBeVisible();
