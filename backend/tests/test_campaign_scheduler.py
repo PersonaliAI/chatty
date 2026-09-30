@@ -164,6 +164,21 @@ def test_scheduler_expands_provider_steps_only_for_consented_leads():
     }
 
 
+def test_scheduler_enqueues_delayed_step_from_previous_cadence():
+    campaign = _campaign()
+    campaign["schedule_config"]["cadence"] = "hourly"
+    campaign["sequence_steps"] = [{"channel": "email", "after_minutes": 90}]
+    campaign["audience_rules"] = {"recipient_source": "consented_leads"}
+    queue = _Queue()
+    db = _Db([campaign], leads=[{"id": "lead-1", "email": "a@example.com",
+                                "marketing_consent": True}])
+    stats = asyncio.run(schedule_campaigns_once(db, queue,
+                        now=datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)))
+    assert stats["enqueued"] == 1
+    assert queue.jobs[0]["payload"]["step_index"] == 0
+    assert queue.jobs[0]["payload"]["recipient"]["id"] == "lead-1"
+
+
 def test_scheduler_applies_campaign_audience_to_consented_leads():
     queue = _Queue()
     campaign = _campaign()

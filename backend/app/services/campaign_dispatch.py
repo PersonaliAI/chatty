@@ -59,6 +59,7 @@ def build_campaign_dispatch_plan(
     *,
     now: datetime | None = None,
     recipient: dict[str, Any] | None = None,
+    due_steps: bool = False,
 ) -> list[dict[str, Any]]:
     """Build bounded sequence jobs with stable idempotency keys.
 
@@ -100,10 +101,18 @@ def build_campaign_dispatch_plan(
             raise ValueError("sequence delay must be an integer") from exc
         if delay_minutes < 0 or delay_minutes > 43_200:
             raise ValueError("sequence delay must be between 0 and 43200 minutes")
-        scheduled_at = occurrence + timedelta(minutes=delay_minutes)
+        step_occurrence = occurrence
+        if due_steps:
+            # Find the occurrence whose delayed step is due, not simply the
+            # newest campaign occurrence. Otherwise a 90-minute step in an
+            # hourly campaign is perpetually planned in the future.
+            step_occurrence = campaign_occurrence_at(campaign, current - timedelta(minutes=delay_minutes))
+            if step_occurrence is None:
+                continue
+        scheduled_at = step_occurrence + timedelta(minutes=delay_minutes)
         recipient_id = str((recipient or {}).get("id") or "").strip() or campaign_recipient_identity(recipient)
         recipient_seed = hashlib.sha256(recipient_id.encode()).hexdigest()[:16] if recipient_id else "broadcast"
-        seed = f"{campaign_id}:{occurrence.isoformat()}:{index}:{channel}:{recipient_seed}"
+        seed = f"{campaign_id}:{step_occurrence.isoformat()}:{index}:{channel}:{recipient_seed}"
         jobs.append({
             "name": "campaign.dispatch",
             "idempotency_key": f"campaign.dispatch:{hashlib.sha256(seed.encode()).hexdigest()[:32]}",

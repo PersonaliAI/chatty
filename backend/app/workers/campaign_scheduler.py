@@ -68,7 +68,7 @@ async def schedule_campaigns_once(
     for campaign in result.data or []:
         stats["campaigns"] += 1
         try:
-            jobs = build_campaign_dispatch_plan(campaign, now=current)
+            jobs = build_campaign_dispatch_plan(campaign, now=current, due_steps=True)
         except ValueError:
             stats["invalid"] += 1
             logger.warning("skipping invalid campaign id=%s", campaign.get("id"))
@@ -125,7 +125,7 @@ async def schedule_campaigns_once(
             continue
         for recipient in recipients:
             try:
-                recipient_jobs = build_campaign_dispatch_plan(campaign, now=current, recipient=recipient)
+                recipient_jobs = build_campaign_dispatch_plan(campaign, now=current, recipient=recipient, due_steps=True)
             except ValueError:
                 stats["invalid"] += 1
                 continue

@@ -62,3 +62,13 @@ def test_inactive_or_future_campaign_has_no_jobs():
 def test_unsupported_channel_fails_closed():
     with pytest.raises(ValueError, match="unsupported campaign channel"):
         build_campaign_dispatch_plan(_campaign(sequence_steps=[{"channel": "carrier-pigeon"}]), now=NOW)
+
+
+def test_due_sequence_crosses_cadence_without_losing_delayed_step():
+    campaign = _campaign(sequence_steps=[{"channel": "email", "after_minutes": 90}])
+    initial = build_campaign_dispatch_plan(campaign, now=datetime(2026, 9, 29, 10, 0, tzinfo=timezone.utc))
+    due = build_campaign_dispatch_plan(campaign, now=NOW, due_steps=True)
+    assert due[0]["scheduled_at"] == "2026-09-29T11:30:00+00:00"
+    assert due[0]["idempotency_key"] == initial[0]["idempotency_key"]
+    assert build_campaign_dispatch_plan(campaign, now=datetime(2026, 9, 29, 11, 0, tzinfo=timezone.utc),
+                                        due_steps=True) == []
