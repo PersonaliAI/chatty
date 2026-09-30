@@ -48,8 +48,10 @@ campaign pause semantics still require acceptance evidence.
 - Run unit, integration, browser, smoke, resilience, security and accessibility
   gates against the release commit; record skips and limitations explicitly.
 - Measure sustained throughput, latency and recovery on isolated infrastructure.
-- Resolve actionable dependency/security findings; a non-blocking audit is not
-  a security acceptance gate.
+- Resolve actionable dependency/security findings; the current frontend
+  `npm audit` reports zero vulnerabilities and the canonical CI backend
+  `pip-audit` gate passes. These dependency checks still do not replace the
+  broader security acceptance gate below.
 - Verify migrations, deployment configuration, health/readiness and rollback.
 - Deploy through documented providers with secret bindings preserved; verify
   authenticated critical flows after deployment and retain rollback evidence.
