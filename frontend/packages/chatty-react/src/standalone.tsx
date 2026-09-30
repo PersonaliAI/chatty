@@ -631,6 +631,7 @@ export function ChattyStandaloneApp({
             handleOpen(!open);
           }}
           aria-label={open ? "Close chat" : "Open chat"}
+          title={open ? "Close Chat Assistant" : "Chat Assistant"}
           style={{
             position: "fixed",
             bottom: "20px",
