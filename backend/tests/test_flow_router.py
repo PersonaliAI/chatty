@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+import pytest
 
 from fastapi import HTTPException
 
@@ -85,3 +86,20 @@ def test_unhandled_retry_failure_does_not_follow_success_edge(monkeypatch):
     assert not result["completed"]
     assert "unhandled retry failure" in result["error"]
     assert [step["node_id"] for step in result["execution_path"]] == ["start", "retry"]
+
+
+@pytest.mark.parametrize("failures, expected", [(0, "success"), (2, "error")])
+def test_retry_output_is_selected_by_outcome_not_edge_order(monkeypatch, failures, expected):
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(bots, "run_db", AsyncMock(return_value=SimpleNamespace(data=[{"id": "run-1"}])))
+    body = bots.FlowSimulationRequest(nodes=[
+        {"id": "start", "type": "start", "data": {}},
+        {"id": "retry", "type": "retry", "data": {"config": {"max_attempts": 2, "simulate_failures": failures}}},
+        {"id": "success", "type": "message", "data": {}},
+        {"id": "error", "type": "message", "data": {}},
+    ], edges=[{"id": "start-edge", "source": "start", "target": "retry"},
+              {"id": "error-edge", "source": "retry", "target": "error", "label": "error"},
+              {"id": "success-edge", "source": "retry", "target": "success", "label": "success"}])
+    result = asyncio.run(bots.simulate_dashboard_flow("bot-1", body, USER, flow_override=None))
+    assert result["completed"]
+    assert [step["node_id"] for step in result["execution_path"]] == ["start", "retry", expected]

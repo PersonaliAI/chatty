@@ -223,6 +223,14 @@ async def simulate_dashboard_flow(
                 runtime["halted"] = "unhandled_retry_failure"
                 current = None
                 break
+        elif node_type == "retry":
+            edge = next((item for item in outgoing if str(item.get("label") or "").strip().lower() in {"success", "done", "complete"}), None)
+            if edge is None:
+                edge = next((item for item in outgoing if str(item.get("label") or "").strip().lower() not in {"error", "failed", "failure", "timeout"}), None)
+            # Never fall back to an error-only output on a successful retry.
+            current = by_id.get(str(edge.get("target"))) if edge else None
+            runtime["selected_edge_id"] = edge.get("id") if edge else None
+            continue
         if edge is None and outgoing:
             edge = outgoing[0]
         current = by_id.get(str(edge.get("target"))) if edge else None
