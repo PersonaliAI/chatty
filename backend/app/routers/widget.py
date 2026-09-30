@@ -326,27 +326,52 @@ async def widget_flow_webhook(body: WidgetFlowWebhookRequest, request: Request):
     except (TypeError, ValueError):
         configured_timeout = 10_000
     timeout_ms = max(500, min(30_000, configured_timeout))
+    try:
+        configured_attempts = int(config.get("max_attempts") or 1)
+    except (TypeError, ValueError):
+        configured_attempts = 1
+    max_attempts = max(1, min(5, configured_attempts))
+    try:
+        configured_backoff = int(config.get("backoff_ms") or 250)
+    except (TypeError, ValueError):
+        configured_backoff = 250
+    backoff_ms = max(0, min(5_000, configured_backoff))
     idempotency_key = hashlib.sha256(
         f"{body.bot_id}:{body.session_id}:{body.node_id}:{body.input}".encode("utf-8")
     ).hexdigest()
-    try:
-        async with httpx.AsyncClient(timeout=timeout_ms / 1_000, follow_redirects=False) as client:
-            async with ssrf.stream_async(client, "POST", url, json=payload, headers={
-                "Content-Type": "application/json",
-                "Idempotency-Key": idempotency_key,
-                "User-Agent": "Chatty-Flow/1.0",
-            }) as response:
-                status_code = response.status_code
-        success = 200 <= status_code < 300
-        return {"success": success, "status_code": status_code, "retryable": status_code >= 500}
-    except (ssrf.UnsafeURLError, ValueError) as exc:
-        logger.warning("Blocked flow webhook for bot %s: %s", body.bot_id, exc)
-        return {"success": False, "retryable": False, "reason": "unsafe_or_invalid_webhook_url"}
-    except httpx.TimeoutException:
-        return {"success": False, "retryable": True, "reason": "webhook_timeout"}
-    except httpx.HTTPError as exc:
-        logger.info("Flow webhook delivery failed for bot %s: %s", body.bot_id, type(exc).__name__)
-        return {"success": False, "retryable": True, "reason": "webhook_unavailable"}
+    for attempt in range(1, max_attempts + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout_ms / 1_000, follow_redirects=False) as client:
+                async with ssrf.stream_async(client, "POST", url, json=payload, headers={
+                    "Content-Type": "application/json",
+                    "Idempotency-Key": idempotency_key,
+                    "User-Agent": "Chatty-Flow/1.0",
+                }) as response:
+                    status_code = response.status_code
+            if 200 <= status_code < 300:
+                return {"success": True, "status_code": status_code, "attempts": attempt, "retryable": False}
+            # A 4xx response is a terminal integration/configuration failure;
+            # retry only transient 5xx responses.
+            if status_code < 500:
+                return {"success": False, "status_code": status_code, "attempts": attempt, "retryable": False}
+            failure = {"success": False, "status_code": status_code, "attempts": attempt, "retryable": True}
+        except (ssrf.UnsafeURLError, ValueError) as exc:
+            logger.warning("Blocked flow webhook for bot %s: %s", body.bot_id, exc)
+            return {"success": False, "retryable": False, "reason": "unsafe_or_invalid_webhook_url", "attempts": attempt}
+        except httpx.TimeoutException:
+            failure = {"success": False, "retryable": True, "reason": "webhook_timeout", "attempts": attempt}
+        except httpx.HTTPError as exc:
+            logger.info("Flow webhook delivery failed for bot %s: %s", body.bot_id, type(exc).__name__)
+            failure = {"success": False, "retryable": True, "reason": "webhook_unavailable", "attempts": attempt}
+        if attempt < max_attempts:
+            # Bounded exponential backoff keeps transient outages from turning
+            # a public widget hit into an unbounded request chain.
+            await asyncio.sleep(min(5_000, backoff_ms * (2 ** (attempt - 1))) / 1_000)
+            continue
+        return failure
+    # The bounds above guarantee a return. This protects type checkers and
+    # makes a future refactor fail closed if that invariant changes.
+    return {"success": False, "retryable": False, "reason": "webhook_execution_unreachable"}
 
 
 @router.post("/api/widget/campaign-events")

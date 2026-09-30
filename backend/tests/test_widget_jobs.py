@@ -212,7 +212,40 @@ def test_widget_flow_webhook_uses_only_published_url_and_server_mapping(monkeypa
         ),
         _WidgetRequest(),
     ))
-    assert result == {"success": True, "status_code": 202, "retryable": False}
+    assert result == {"success": True, "status_code": 202, "attempts": 1, "retryable": False}
     assert calls[0][0] == "POST"
     assert calls[0][1] == "https://integrations.example.test/flow"
     assert calls[0][2]["json"]["data"] == {"message": "Hello", "lead": "visitor@example.com"}
+
+
+def test_widget_flow_webhook_retries_transient_statuses(monkeypatch):
+    calls = []
+
+    async def fake_run_db(_fn):
+        return SimpleNamespace(data={
+            "id": "bot-1",
+            "custom_js": _published_webhook_flow({
+                "url": "https://integrations.example.test/flow", "max_attempts": 3, "backoff_ms": 0,
+            }),
+            "allowed_domains": [],
+        })
+
+    async def allowed(*_args, **_kwargs):
+        return None
+
+    statuses = iter((503, 202))
+
+    @asynccontextmanager
+    async def safe_stream(*_args, **_kwargs):
+        calls.append(1)
+        yield SimpleNamespace(status_code=next(statuses))
+
+    monkeypatch.setattr(widget, "run_db", fake_run_db)
+    monkeypatch.setattr(widget, "_widget_rate_limit_or_429", allowed)
+    monkeypatch.setattr(widget.ssrf, "stream_async", safe_stream)
+    result = asyncio.run(widget.widget_flow_webhook(
+        WidgetFlowWebhookRequest(bot_id="bot-1", session_id="session-1", node_id="hook-1"),
+        _WidgetRequest(),
+    ))
+    assert result == {"success": True, "status_code": 202, "attempts": 2, "retryable": False}
+    assert len(calls) == 2
