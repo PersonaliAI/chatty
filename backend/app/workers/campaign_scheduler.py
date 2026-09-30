@@ -20,6 +20,19 @@ logger = logging.getLogger("chatty.campaign_scheduler")
 Claim = Callable[[str], Awaitable[bool]]
 
 
+async def schedule_campaigns_tick(*args: Any, **kwargs: Any) -> dict[str, int] | None:
+    """Keep the periodic service alive after a transient tick failure.
+
+    Cancellation propagates so shutdown remains prompt. Log only the exception
+    class: database/provider exception text may contain contact information.
+    """
+    try:
+        return await schedule_campaigns_once(*args, **kwargs)
+    except Exception as exc:
+        logger.error("campaign scheduler tick failed error_type=%s", type(exc).__name__)
+        return None
+
+
 async def _consented_lead_recipients(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
     """Compatibility wrapper for worker callers and existing integrations."""
     return await load_consented_lead_recipients(*args, **kwargs)
@@ -149,8 +162,8 @@ async def run() -> None:  # pragma: no cover - deployment entry point
 
     try:
         while True:
-            stats = await schedule_campaigns_once(supabase, queue, claim=claim)
-            if stats["planned"]:
+            stats = await schedule_campaigns_tick(supabase, queue, claim=claim)
+            if stats and stats["planned"]:
                 logger.info("campaign scheduler tick=%s", stats)
             await asyncio.sleep(float(os.environ.get("CHATTY_CAMPAIGN_SCHEDULER_INTERVAL", "30")))
     finally:

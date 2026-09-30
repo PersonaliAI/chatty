@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 
 import app.workers.campaign_scheduler as campaign_scheduler
+from unittest.mock import AsyncMock
 from app.workers.campaign_scheduler import schedule_campaigns_once
 
 
@@ -78,6 +79,26 @@ def test_scheduler_bounds_campaign_batch():
         assert "between 1 and 500" in str(exc)
     else:
         raise AssertionError("expected limit validation")
+
+
+def test_scheduler_tick_recovers_after_transient_failure(monkeypatch):
+    attempts = AsyncMock(side_effect=[RuntimeError("database unavailable"), {"planned": 1}])
+    monkeypatch.setattr(campaign_scheduler, "schedule_campaigns_once", attempts)
+
+    async def two_ticks():
+        first = await campaign_scheduler.schedule_campaigns_tick(None, None)
+        second = await campaign_scheduler.schedule_campaigns_tick(None, None)
+        return first, second
+
+    assert asyncio.run(two_ticks()) == (None, {"planned": 1})
+
+
+def test_scheduler_tick_preserves_shutdown_cancellation(monkeypatch):
+    attempts = AsyncMock(side_effect=asyncio.CancelledError())
+    monkeypatch.setattr(campaign_scheduler, "schedule_campaigns_once", attempts)
+    import pytest
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(campaign_scheduler.schedule_campaigns_tick(None, None))
 
 
 def test_scheduler_defers_provider_steps_without_a_recipient():
