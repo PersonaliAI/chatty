@@ -40,6 +40,7 @@ type DispatchJob = {
   scheduled_at: string;
   payload: { channel?: string; requires_consent?: boolean; frequency_cap_hours?: number; message?: string };
 };
+type DispatchPreview = { loading?: boolean; jobs?: DispatchJob[]; deferred?: boolean; deferred_reason?: string; error?: string };
 
 export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [rules, setRules] = useState<TriggerRule[]>([]);
@@ -64,7 +65,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [suggesting, setSuggesting] = useState(false);
   const [suggestingAudience, setSuggestingAudience] = useState(false);
   const [audienceRationale, setAudienceRationale] = useState("");
-  const [dispatchPlans, setDispatchPlans] = useState<Record<string, { loading?: boolean; jobs?: DispatchJob[]; error?: string }>>({});
+  const [dispatchPlans, setDispatchPlans] = useState<Record<string, DispatchPreview>>({});
 
   const typeOptions: ModernSelectOption[] = [
     { value: "time", label: "Time on page (Seconds)" },
@@ -336,8 +337,15 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     fetchBackend(`/api/bots/${botId}/campaigns/${campaignId}/dispatch-plan`)
       .then(async (response) => {
         if (!response.ok) throw new Error(`Preview unavailable (${response.status})`);
-        const result = await response.json() as { jobs?: DispatchJob[] };
-        setDispatchPlans((plans) => ({ ...plans, [campaignId]: { jobs: Array.isArray(result.jobs) ? result.jobs : [] } }));
+        const result = await response.json() as { jobs?: DispatchJob[]; deferred?: boolean; deferred_reason?: string };
+        setDispatchPlans((plans) => ({
+          ...plans,
+          [campaignId]: {
+            jobs: Array.isArray(result.jobs) ? result.jobs : [],
+            deferred: result.deferred === true,
+            deferred_reason: result.deferred_reason,
+          },
+        }));
       })
       .catch((previewError: unknown) => setDispatchPlans((plans) => ({
         ...plans,
@@ -541,7 +549,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                     </button>
                     {dispatchPlans[r.id]?.error && <p className="mt-1 text-[10px] text-rose-600 dark:text-rose-300">{dispatchPlans[r.id]?.error}</p>}
                     {dispatchPlans[r.id]?.jobs && <div className="mt-2 space-y-1 rounded-lg border border-indigo-100 bg-indigo-50/50 p-2 text-[10px] text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-100">
-                      {!dispatchPlans[r.id]?.jobs?.length && <p>No dispatch is due now. Check the campaign schedule, date window, or quiet-hours safeguard.</p>}
+                      {dispatchPlans[r.id]?.deferred && <p className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">Deferred safely: {dispatchPlans[r.id]?.deferred_reason ?? "recipient and consent checks must complete before provider delivery."}</p>}
+                      {!dispatchPlans[r.id]?.deferred && !dispatchPlans[r.id]?.jobs?.length && <p>No dispatch is due now. Check the campaign schedule, date window, or quiet-hours safeguard.</p>}
                       {dispatchPlans[r.id]?.jobs?.map((job, jobIndex) => <div key={job.idempotency_key} className="rounded-md border border-indigo-100 bg-white/70 px-2 py-1 dark:border-indigo-900/50 dark:bg-neutral-950/30">
                         <span className="font-bold">{jobIndex + 1}. {job.payload.channel ?? "web"}</span> · {new Date(job.scheduled_at).toLocaleString()}
                         <span className="block text-[9px] text-indigo-700/80 dark:text-indigo-200/80">Consent {job.payload.requires_consent ? "required" : "not required"} · frequency cap {job.payload.frequency_cap_hours ?? 24}h · idempotent</span>
