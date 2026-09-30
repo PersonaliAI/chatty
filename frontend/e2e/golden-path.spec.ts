@@ -105,6 +105,9 @@ test.describe("owner golden path", () => {
     const previewFrame = page.frameLocator('iframe[src*="/embed/"]');
     const current = await previewFrame.locator('[class*="style-"]').first().getAttribute("class");
     const target = current?.includes("minimal") ? "Playful" : "Minimal";
+    // Let the initial bot hydration finish so the assertion below observes
+    // the save caused by this interaction, not an earlier hydration toast.
+    await page.waitForTimeout(2_000);
     await page.getByText(target, { exact: true }).click();
     await expect(previewFrame.locator(`[class*="style-${target.toLowerCase()}"]`).first()).toBeVisible({ timeout: 10_000 });
 
