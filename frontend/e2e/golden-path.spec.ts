@@ -106,10 +106,14 @@ test.describe("owner golden path", () => {
     const current = await previewFrame.locator('[class*="style-"]').first().getAttribute("class");
     const target = current?.includes("minimal") ? "Playful" : "Minimal";
     await page.getByText(target, { exact: true }).click();
+    await expect(previewFrame.locator(`[class*="style-${target.toLowerCase()}"]`).first()).toBeVisible({ timeout: 10_000 });
 
     // Debounced autosave - see the stale-closure fix earlier this session;
     // this test is exactly the regression guard for that bug class.
     await expect(page.getByText("Changes saved.")).toBeVisible({ timeout: 5_000 });
+    // Allow the debounced save response and dashboard state propagation to
+    // settle before deliberately tearing down the preview with a refresh.
+    await page.waitForTimeout(1_500);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     // A dashboard refresh restores the default tab, so reopen Customizer
