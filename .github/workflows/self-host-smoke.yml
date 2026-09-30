@@ -102,4 +102,7 @@ jobs:
           tests/test_apply_migrations.py
           tests/test_campaign_delivery_ledger.py
           tests/test_campaign_router.py
+          tests/test_campaign_scheduler.py
+          tests/test_campaign_worker.py
+          tests/test_job_worker.py
           -q
