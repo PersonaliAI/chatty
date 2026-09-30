@@ -121,8 +121,6 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
     bot_id = str(payload.get("bot_id") or "").strip()
     channel = str(payload.get("channel") or "").strip().lower()
     message = str(payload.get("message") or "").strip()
-    if not bot_id or not channel or not message:
-        raise PermanentJobError("campaign dispatch is missing bot_id, channel, or message")
 
     async def mark(status: str, error: str | None = None) -> None:
         if not payload.get("delivery_idempotency_key"):
@@ -133,6 +131,11 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
             await record_campaign_delivery(supabase, payload, status, error=error)
         except Exception as exc:  # ledger must never turn a provider success into a retry
             logger.warning("campaign delivery ledger update failed: %s", exc)
+
+    if not bot_id or not channel or not message:
+        error = "campaign dispatch is missing bot_id, channel, or message"
+        await mark("failed", error)
+        raise PermanentJobError(error)
 
     if payload.get("quiet_hours") is not None:
         from app.services.campaign_runtime import campaign_is_active_now
@@ -149,7 +152,9 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
         return
     recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
     if bool(payload.get("requires_consent", True)) and not bool(recipient.get("consent")):
-        raise PermanentJobError("campaign recipient consent is required")
+        error = "campaign recipient consent is required"
+        await mark("failed", error)
+        raise PermanentJobError(error)
     if redis_client is not None:
         from app.services.campaign_delivery_guard import claim_campaign_frequency_cap
 
