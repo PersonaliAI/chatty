@@ -137,4 +137,23 @@ test.describe("owner golden path", () => {
     await expect(page.getByText("Start window", { exact: true })).toBeVisible();
     await expect(page.getByText("End window", { exact: true })).toBeVisible();
   });
+
+  test("mobile dashboard exposes the navigation and responsive automation surfaces", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/login");
+    await page.getByPlaceholder(/email/i).fill(ownerEmail!);
+    await page.getByPlaceholder(/password/i).fill(ownerPassword!);
+    await page.getByRole("button", { name: /log in|sign in/i }).click();
+    await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
+
+    const openSidebar = page.getByRole("button", { name: "Open dashboard sidebar" });
+    await expect(openSidebar).toBeVisible();
+    await openSidebar.click();
+    await expect(page.getByRole("button", { name: "Close sidebar" })).toBeVisible();
+
+    await page.getByText("Flow Builder", { exact: true }).click();
+    await expect(page.getByText("Visual Flow Builder", { exact: true })).toBeVisible();
+    await page.getByText("Campaigns", { exact: true }).click();
+    await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
+  });
 });

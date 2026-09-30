@@ -3990,7 +3990,13 @@ export default function Dashboard() {
             >
               {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
             </button>
-            <button className="md:hidden p-1 text-neutral-400 hover:text-neutral-900" onClick={() => setSidebarOpen(false)}>
+            <button
+              type="button"
+              aria-label="Close sidebar"
+              title="Close sidebar"
+              className="md:hidden p-1 text-neutral-400 hover:text-neutral-900"
+              onClick={() => setSidebarOpen(false)}
+            >
               <X className="size-4" />
             </button>
           </div>
@@ -4237,7 +4243,13 @@ export default function Dashboard() {
         {/* Header bar */}
         <header className="h-16 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 sm:px-6 md:px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <button className="md:hidden p-1 text-neutral-500 hover:text-neutral-950" onClick={() => setSidebarOpen(true)}>
+            <button
+              type="button"
+              aria-label="Open dashboard sidebar"
+              title="Open dashboard sidebar"
+              className="md:hidden p-1 text-neutral-500 hover:text-neutral-950"
+              onClick={() => setSidebarOpen(true)}
+            >
               <Menu className="size-5" />
             </button>
             <div className="min-w-0">
