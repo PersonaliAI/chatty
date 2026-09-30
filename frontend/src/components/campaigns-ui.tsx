@@ -622,7 +622,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 AI campaign copilot
               </p>
               <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                Start window · End window
+                <span>Start window</span><span aria-hidden="true"> · </span><span>End window</span>
               </p>
             </div>
           </div>
