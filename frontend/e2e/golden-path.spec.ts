@@ -97,7 +97,7 @@ test.describe("owner golden path", () => {
     await page.getByRole("button", { name: /log in|sign in/i }).click();
 
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
-    await page.getByRole("link", { name: "Customizer" }).click();
+    await page.getByRole("button", { name: "Customizer", exact: true }).click();
 
     // Pick whichever design isn't already selected, so the test proves an
     // actual change round-trips rather than a no-op save.
@@ -129,7 +129,7 @@ test.describe("owner golden path", () => {
     await expect(page.getByRole("button", { name: /expand sidebar/i })).toBeVisible();
     await page.getByRole("button", { name: /expand sidebar/i }).click();
 
-    await page.getByText("Flow Builder", { exact: true }).click();
+    await page.getByRole("button", { name: "Flow Builder", exact: true }).click();
     await expect(page.getByText("Visual Flow Builder", { exact: true })).toBeVisible();
     const toolboxCollapse = page.getByRole("button", { name: /collapse flow toolbox/i });
     await expect(toolboxCollapse).toBeVisible();
@@ -146,7 +146,7 @@ test.describe("owner golden path", () => {
     await expect(runStatusFilter).toBeVisible();
     await runStatusFilter.selectOption("failed");
     await expect(runStatusFilter).toHaveValue("failed");
-    await page.getByText("Campaigns", { exact: true }).click();
+    await page.getByRole("button", { name: "Campaigns", exact: true }).click();
     await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
     await expect(page.getByText("AI campaign copilot", { exact: true })).toBeVisible();
     await expect(page.getByText("Start window", { exact: true })).toBeVisible();
@@ -166,9 +166,9 @@ test.describe("owner golden path", () => {
     await openSidebar.click();
     await expect(page.getByRole("button", { name: "Close sidebar" })).toBeVisible();
 
-    await page.getByText("Flow Builder", { exact: true }).click();
+    await page.getByRole("button", { name: "Flow Builder", exact: true }).click();
     await expect(page.getByText("Visual Flow Builder", { exact: true })).toBeVisible();
-    await page.getByText("Campaigns", { exact: true }).click();
+    await page.getByRole("button", { name: "Campaigns", exact: true }).click();
     await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
   });
 });
