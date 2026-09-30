@@ -99,6 +99,22 @@ jobs:
       - name: Verify widget design tokens haven't drifted
         run: node scripts/verify-design-snapshot.mjs
 
+      - name: Install deterministic browser test runtime
+        run: npx playwright install --with-deps chromium
+
+      - name: Run deterministic browser checks
+        run: npm run test:e2e
+        env:
+          E2E_MODE: deterministic
+
+      - name: Upload browser failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: deterministic-browser-results
+          path: frontend/test-results/
+          retention-days: 14
+
       - name: Build
         run: npm run build
         env:
