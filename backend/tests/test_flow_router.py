@@ -68,3 +68,20 @@ def test_simulation_persists_redacted_context_without_mutating_request(monkeypat
     asyncio.run(bots.simulate_dashboard_flow("bot-1", body, USER, flow_override=None))
     assert captured["flow_data"]["simulation_context"] == {"crm": {"api_key": "[redacted]", "name": "CRM"}}
     assert body.context["crm"]["api_key"] == "private-value"
+
+
+def test_unhandled_retry_failure_does_not_follow_success_edge(monkeypatch):
+    from app.routers.bots import FlowSimulationRequest
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    database = AsyncMock(return_value=SimpleNamespace(data=[{"id": "run-1"}]))
+    monkeypatch.setattr(bots, "run_db", database)
+    body = FlowSimulationRequest(nodes=[
+        {"id": "start", "type": "start", "data": {}},
+        {"id": "retry", "type": "retry", "data": {"config": {"max_attempts": 2, "simulate_failures": 2}}},
+        {"id": "success", "type": "message", "data": {}},
+    ], edges=[{"id": "e1", "source": "start", "target": "retry"},
+              {"id": "e2", "source": "retry", "target": "success", "label": "success"}])
+    result = asyncio.run(bots.simulate_dashboard_flow("bot-1", body, USER, flow_override=None))
+    assert not result["completed"]
+    assert "unhandled retry failure" in result["error"]
+    assert [step["node_id"] for step in result["execution_path"]] == ["start", "retry"]

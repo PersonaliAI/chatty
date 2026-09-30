@@ -177,6 +177,7 @@ async def simulate_dashboard_flow(
     started = time.perf_counter()
     inputs = body.inputs[:50] or ["Hello"]
     loop_counts: dict[str, int] = {}
+    execution_error: str | None = None
     step = 0
     while current and step < body.max_steps:
         step += 1
@@ -215,8 +216,13 @@ async def simulate_dashboard_flow(
                 current = None
                 trace[-1]["runtime"]["halted"] = "loop_limit_reached"
                 continue
-        if node_type == "retry" and outgoing and not runtime.get("succeeded", True):
+        if node_type == "retry" and not runtime.get("succeeded", True):
             edge = next((item for item in outgoing if str(item.get("label") or "").strip().lower() in {"error", "failed", "failure", "timeout"}), None)
+            if edge is None:
+                execution_error = f"unhandled retry failure at node {current.get('id')}: {runtime.get('outcome')}"
+                runtime["halted"] = "unhandled_retry_failure"
+                current = None
+                break
         if edge is None and outgoing:
             edge = outgoing[0]
         current = by_id.get(str(edge.get("target"))) if edge else None
@@ -229,16 +235,16 @@ async def simulate_dashboard_flow(
             "edges": edges,
             "simulation_context": redact_flow_trace_value(body.context),
         },
-        "status": "failed" if budget_exceeded else "completed",
+        "status": "failed" if budget_exceeded or execution_error else "completed",
         "inputs": body.inputs[:50] or ["Hello"],
         "trace": trace,
-        "error": f"execution step budget exceeded ({body.max_steps})" if budget_exceeded else None,
+        "error": f"execution step budget exceeded ({body.max_steps})" if budget_exceeded else execution_error,
         "duration_ms": round((time.perf_counter() - started) * 1000),
         "created_by": user["auth_user_id"],
         "completed_at": datetime.now(timezone.utc).isoformat(),
     }).execute())
     run_id = (run.data or [{}])[0].get("id")
-    return {"run_id": run_id, "bot_id": bot_id, "completed": current is None, "total_steps": len(trace), "execution_path": trace, "budget_exceeded": budget_exceeded}
+    return {"run_id": run_id, "bot_id": bot_id, "completed": current is None and not execution_error, "total_steps": len(trace), "execution_path": trace, "budget_exceeded": budget_exceeded, "error": execution_error}
 
 
 @router.get("/api/bots/{bot_id}/flow/runs")
