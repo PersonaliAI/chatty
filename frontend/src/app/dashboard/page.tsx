@@ -512,6 +512,13 @@ export default function Dashboard() {
   const [collectedInPlayground, setCollectedInPlayground] = useState(false);
   
   const playgroundEndRef = useRef<HTMLDivElement>(null);
+  const contentScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (contentScrollRef.current) {
+      contentScrollRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   // Localization State
   const [language, setLanguage] = useState<"EN" | "ES" | "FR" | "DE" | "IT">("EN");
@@ -4239,7 +4246,7 @@ export default function Dashboard() {
       </aside>
 
       {/* Main Panel */}
-      <main className="flex-1 flex flex-col overflow-y-auto">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Header bar */}
         <header className="h-16 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 sm:px-6 md:px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -4302,7 +4309,7 @@ export default function Dashboard() {
         </header>
 
         {/* Tab Contents (Center Aligned Layout) */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={contentScrollRef} className="flex-1 overflow-y-auto">
           
           {/* TAB 1: OVERVIEW */}
           {activeTab === "home" && (

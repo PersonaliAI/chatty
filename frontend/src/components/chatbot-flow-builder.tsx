@@ -52,6 +52,9 @@ import {
   Sliders,
   Repeat,
   ShieldAlert,
+  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -877,6 +880,9 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   const [loadingRuns, setLoadingRuns] = useState(false);
   const [selectedRun, setSelectedRun] = useState<{ id: string; status: string; error?: string | null; trace?: Array<{ node_id?: string; node_type?: string; label?: string; runtime?: Record<string, unknown> }>; flow_data?: unknown } | null>(null);
   const [runStatusFilter, setRunStatusFilter] = useState<"all" | "completed" | "failed">("all");
+  const [runsOpen, setRunsOpen] = useState(false);
+  const [toolboxCollapsed, setToolboxCollapsed] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const isInitialMount = useRef(true);
@@ -1484,21 +1490,21 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
       {/* ── n8n-Inspired Top Navigation Bar ── */}
       <header className="h-16 px-4 sm:px-6 border-b border-slate-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md flex items-center justify-between gap-3 shrink-0 z-20">
         {/* Left: Workflow Title & Tags */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3 shrink-0 min-w-fit">
           <div className="size-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
             <GitBranch className="size-5" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-sm tracking-tight text-neutral-900 dark:text-neutral-100 truncate">
+              <h3 className="font-bold text-sm tracking-tight text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
                 Interactive Bot Flow
               </h3>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-500 shrink-0">
                 v1.2
               </span>
             </div>
             <div className="flex items-center gap-2 text-[10px] text-neutral-400 font-medium">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 shrink-0">
                 {saveStatus === "saving" && <Loader2 className="size-2.5 animate-spin text-blue-500" />}
                 {saveStatus === "saving" && "Saving changes..."}
                 {saveStatus === "saved" && <span className="text-emerald-500 font-semibold flex items-center gap-1"><Check className="size-2.5" /> Saved</span>}
@@ -1521,12 +1527,12 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
         </div>
 
         {/* Center: n8n Segmented Tab Switcher */}
-        <div className="hidden md:flex items-center p-1 bg-slate-100 dark:bg-neutral-850 rounded-xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs">
+        <div className="hidden md:flex items-center p-1 bg-slate-100 dark:bg-neutral-850 rounded-xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs shrink-0">
           {[
             { id: "editor", label: "Editor", icon: <Sliders className="size-3.5" /> },
             { id: "executions", label: "Executions", icon: <Zap className="size-3.5" />, badge: runHistory.length },
             { id: "versions", label: "Versions", icon: <History className="size-3.5" /> },
-            { id: "simulation", label: "Dry Simulation", icon: <Play className="size-3.5" /> },
+            { id: "simulation", label: "Dry Test", icon: <Play className="size-3.5" /> },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -1539,7 +1545,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                   if (tab.id === "versions") loadVersions();
                   if (tab.id === "editor") setTimeout(() => safeFitView(0.2, 0), 100);
                 }}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   isActive
                     ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
                     : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
@@ -1557,9 +1563,9 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
           })}
         </div>
 
-        {/* Right: Active Toggle, Add Node, Save Button */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="hidden sm:flex items-center border-r border-slate-200 dark:border-neutral-800 pr-3 mr-1">
+        {/* Right: Active Toggle, Add Node, Save Button, More Actions Dropdown */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:flex items-center border-r border-slate-200 dark:border-neutral-800 pr-2.5 mr-0.5">
             <ModernSwitch
               checked={flowStatus === "active"}
               onChange={(nextChecked) => {
@@ -1585,17 +1591,8 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
 
           <button
             type="button"
-            onClick={() => setTemplatesOpen(true)}
-            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-slate-50 dark:hover:bg-neutral-850 text-xs font-bold text-neutral-700 dark:text-neutral-200 shadow-2xs transition-colors cursor-pointer"
-          >
-            <Layers className="size-3.5 text-indigo-500" />
-            <span>Templates</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setAiCopilotOpen(true)}
-            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-200 dark:border-orange-900/60 hover:border-orange-300 text-xs font-bold text-orange-700 dark:text-orange-300 shadow-2xs transition-colors cursor-pointer"
+            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-200 dark:border-orange-900/60 hover:border-orange-300 text-xs font-bold text-orange-700 dark:text-orange-300 shadow-2xs transition-colors cursor-pointer"
           >
             <Sparkles className="size-3.5 text-[#f97316]" />
             <span>AI Copilot</span>
@@ -1603,34 +1600,95 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
 
           <button
             type="button"
-            onClick={exportFlow}
-            title="Export workflow as JSON"
-            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-slate-50 dark:hover:bg-neutral-850 text-xs font-bold text-neutral-700 dark:text-neutral-200 shadow-2xs transition-colors cursor-pointer"
-          >
-            <Download className="size-3.5 text-neutral-400" />
-            <span>Export</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => importInputRef.current?.click()}
-            title="Import workflow JSON"
-            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-slate-50 dark:hover:bg-neutral-850 text-xs font-bold text-neutral-700 dark:text-neutral-200 shadow-2xs transition-colors cursor-pointer"
-          >
-            <Upload className="size-3.5 text-neutral-400" />
-            <span>Import</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => saveFlowToBackend(true)}
             disabled={saveStatus === "saving"}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer hover:opacity-95 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer hover:opacity-95 disabled:opacity-50"
             style={{ background: color }}
           >
             {saveStatus === "saving" ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-            <span>Save & Publish</span>
+            <span className="hidden sm:inline">Save & Publish</span>
+            <span className="sm:hidden">Save</span>
           </button>
+
+          {/* More actions dropdown (n8n pattern for secondary actions) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMoreMenuOpen((v) => !v)}
+              title="More actions"
+              aria-label="More flow actions"
+              className="flex items-center justify-center size-8 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-slate-50 dark:hover:bg-neutral-850 text-neutral-600 dark:text-neutral-300 shadow-2xs transition-colors cursor-pointer"
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+            {moreMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setMoreMenuOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl shadow-xl py-1.5 z-40 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      setTemplatesOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-neutral-800 font-medium text-neutral-700 dark:text-neutral-200 cursor-pointer"
+                  >
+                    <Layers className="size-4 text-indigo-500 shrink-0" />
+                    <span>Flow Templates</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      setAiCopilotOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-neutral-800 font-medium text-neutral-700 dark:text-neutral-200 cursor-pointer xl:hidden"
+                  >
+                    <Sparkles className="size-4 text-[#f97316] shrink-0" />
+                    <span>AI Flow Copilot</span>
+                  </button>
+                  <div className="my-1 border-t border-slate-100 dark:border-neutral-800" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      exportFlow();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-neutral-800 font-medium text-neutral-700 dark:text-neutral-200 cursor-pointer"
+                  >
+                    <Download className="size-4 text-emerald-500 shrink-0" />
+                    <span>Export Workflow (JSON)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      importInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-neutral-800 font-medium text-neutral-700 dark:text-neutral-200 cursor-pointer"
+                  >
+                    <Upload className="size-4 text-blue-500 shrink-0" />
+                    <span>Import Workflow (JSON)</span>
+                  </button>
+                  <div className="my-1 border-t border-slate-100 dark:border-neutral-800" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      loadTemplate(FALLBACK_FIN_DEMO);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left hover:bg-rose-50 dark:hover:bg-rose-950/30 font-medium text-rose-600 dark:text-rose-400 cursor-pointer"
+                  >
+                    <RotateCcw className="size-4 shrink-0" />
+                    <span>Reset to Default Flow</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1662,7 +1720,205 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
       <div className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-neutral-950">
         {/* TAB 1: VISUAL CANVAS */}
         {activeTab === "editor" && (
-          <div className="w-full h-full relative">
+          <div className="w-full h-full flex relative overflow-hidden">
+            {/* Left Collapsible Toolbox (n8n-style) */}
+            <div
+              className={`h-full bg-white dark:bg-neutral-900 border-r border-slate-200 dark:border-neutral-800 flex flex-col shrink-0 z-10 transition-[width] duration-200 ease-in-out ${
+                toolboxCollapsed ? "w-12 p-2" : "w-72 sm:w-80 p-3 sm:p-4 overflow-y-auto"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-neutral-800 shrink-0">
+                {!toolboxCollapsed && (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 truncate">Toolbox & Test</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setToolboxCollapsed((v) => !v)}
+                  aria-label={toolboxCollapsed ? "Expand flow toolbox" : "Collapse flow toolbox"}
+                  title={toolboxCollapsed ? "Expand flow toolbox" : "Collapse flow toolbox"}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 transition-colors mx-auto cursor-pointer"
+                >
+                  {toolboxCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+                </button>
+              </div>
+
+              {!toolboxCollapsed && (
+                <div className="flex-1 space-y-4 pt-3 text-xs">
+                  {/* Quick Node Adder */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Node Toolbox</span>
+                      <button
+                        type="button"
+                        onClick={() => setNodePaletteOpen(true)}
+                        className="text-[10px] font-semibold text-[#f97316] hover:underline cursor-pointer"
+                      >
+                        + Browse All
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => insertNode("message", { label: "💬 Hi! How can I assist you today?" })}
+                        className="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-850 text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer text-left"
+                      >
+                        <MessageSquare className="size-3 text-blue-500 shrink-0" />
+                        <span className="truncate">Message</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => insertNode("question", { label: "❓ What is your company name?" })}
+                        className="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-850 text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer text-left"
+                      >
+                        <HelpCircle className="size-3 text-purple-500 shrink-0" />
+                        <span className="truncate">Question</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => insertNode("choice", { label: "🔘 Select option:", options: ["Sales", "Support", "Pricing"] })}
+                        className="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-850 text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer text-left"
+                      >
+                        <ListFilter className="size-3 text-violet-500 shrink-0" />
+                        <span className="truncate">Choices</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => insertNode("leadCapture", { label: "👤 Please share your work email:", field: "email" })}
+                        className="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-850 text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer text-left"
+                      >
+                        <UserCheck className="size-3 text-cyan-500 shrink-0" />
+                        <span className="truncate">Lead Capture</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dry Run Simulation Control */}
+                  <div className="border-t border-slate-100 dark:border-neutral-800 pt-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Dry Run & Verification</span>
+                    <button
+                      type="button"
+                      onClick={runTestSimulation}
+                      disabled={testRunning || validation.errors.length > 0}
+                      className="w-full mt-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      style={{ background: color }}
+                      aria-label="Run dry test"
+                    >
+                      {testRunning ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5 fill-white" />}
+                      <span>{testRunning ? "Testing..." : "Run dry test"}</span>
+                    </button>
+
+                    {/* Test Context Accordion */}
+                    <details className="mt-2.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-50/70 dark:bg-neutral-950/40 p-2.5 text-[10px]">
+                      <summary className="cursor-pointer font-semibold text-neutral-600 dark:text-neutral-300 select-none">
+                        Test data & mapping context
+                      </summary>
+                      <p className="mt-1 text-[9px] leading-relaxed text-neutral-400">
+                        One visitor input per line. Context is safe JSON available to webhooks as <code>{"{{context.path}}"}</code>.
+                      </p>
+                      <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wider text-neutral-400" htmlFor="flow-test-inputs">
+                        Visitor inputs
+                      </label>
+                      <textarea
+                        id="flow-test-inputs"
+                        aria-label="Visitor inputs"
+                        rows={3}
+                        value={testInputsText}
+                        onChange={(event) => setTestInputsText(event.target.value)}
+                        placeholder="Hello&#10;I want to book a demo"
+                        className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 font-mono text-[10px] focus:outline-none dark:border-neutral-800 dark:bg-neutral-900"
+                        spellCheck={false}
+                      />
+                      <label className="mt-2 block text-[9px] font-semibold uppercase tracking-wider text-neutral-400" htmlFor="flow-test-context">
+                        Context JSON
+                      </label>
+                      <textarea
+                        id="flow-test-context"
+                        aria-label="Context JSON"
+                        rows={4}
+                        value={testContextText}
+                        onChange={(event) => setTestContextText(event.target.value)}
+                        placeholder={'{"contact":{"email":"visitor@example.com"}}'}
+                        className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 font-mono text-[10px] focus:outline-none dark:border-neutral-800 dark:bg-neutral-900"
+                        spellCheck={false}
+                      />
+                    </details>
+
+                    {/* View Execution History Accordion/Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRunsOpen((prev) => !prev);
+                        if (!runsOpen) void loadRuns(runStatusFilter);
+                      }}
+                      className="w-full mt-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 text-left text-[10px] font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Zap className="size-3 text-[#f97316]" />
+                        <span>{runsOpen ? "Hide execution history" : "View execution history"}</span>
+                      </span>
+                      <span className="text-[9px] font-mono text-neutral-400">{runHistory.length}</span>
+                    </button>
+
+                    {runsOpen && (
+                      <div className="mt-2 rounded-xl bg-slate-50 dark:bg-neutral-950 p-2.5 border border-slate-200 dark:border-neutral-800 space-y-2">
+                        <div>
+                          <label htmlFor="flow-run-status" className="block text-[9px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
+                            Execution status filter
+                          </label>
+                          <select
+                            id="flow-run-status"
+                            aria-label="Execution status filter"
+                            name="Execution status filter"
+                            value={runStatusFilter}
+                            onChange={(event) => {
+                              const next = event.target.value as "all" | "completed" | "failed";
+                              setRunStatusFilter(next);
+                              void loadRuns(next);
+                            }}
+                            className="w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] text-neutral-700 dark:text-neutral-300 dark:border-neutral-800 dark:bg-neutral-900 focus:outline-none"
+                          >
+                            <option value="all">All executions</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                          </select>
+                        </div>
+                        <div className="max-h-40 space-y-1.5 overflow-y-auto">
+                          {!runHistory.length && <p className="text-[10px] text-neutral-400 text-center py-2">No executions recorded.</p>}
+                          {runHistory.map((run) => (
+                            <div
+                              key={run.id}
+                              onClick={() => {
+                                setSelectedRun(run as any);
+                                setActiveTab("executions");
+                              }}
+                              className="p-1.5 rounded-lg border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-slate-300 text-[10px] flex items-center justify-between gap-1 cursor-pointer"
+                            >
+                              <span className="truncate text-neutral-600 dark:text-neutral-300 font-medium">
+                                {new Date(run.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {run.duration_ms ?? 0}ms
+                              </span>
+                              <span
+                                className={`text-[8px] font-extrabold uppercase px-1.5 py-0.2 rounded-full ${
+                                  run.status === "completed"
+                                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                    : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                                }`}
+                              >
+                                {run.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Flow Canvas & Inspector */}
+            <div className="flex-1 h-full relative min-w-0">
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-neutral-950/70 z-30">
                 <div className="flex flex-col items-center gap-2">
@@ -2004,6 +2260,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                 </motion.aside>
               )}
             </AnimatePresence>
+            </div>
           </div>
         )}
 
@@ -2021,20 +2278,25 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
               </div>
 
               <div className="flex items-center gap-3">
-                <ModernSelect
+                <label htmlFor="executions-tab-status-filter" className="sr-only">
+                  Execution status filter
+                </label>
+                <select
+                  id="executions-tab-status-filter"
+                  aria-label="Execution status filter"
+                  name="Execution status filter"
                   value={runStatusFilter}
-                  options={[
-                    { value: "all", label: "All Statuses" },
-                    { value: "completed", label: "Completed" },
-                    { value: "failed", label: "Failed" },
-                  ]}
-                  onChange={(val) => {
-                    const next = val as "all" | "completed" | "failed";
+                  onChange={(e) => {
+                    const next = e.target.value as "all" | "completed" | "failed";
                     setRunStatusFilter(next);
-                    loadRuns(next);
+                    void loadRuns(next);
                   }}
-                  size="sm"
-                />
+                  className="rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 shadow-2xs focus:outline-none cursor-pointer"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                </select>
                 <button
                   type="button"
                   onClick={() => loadRuns(runStatusFilter)}
