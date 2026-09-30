@@ -100,7 +100,10 @@ jobs:
         run: node scripts/verify-design-snapshot.mjs
 
       - name: Install deterministic browser test runtime
-        run: npx playwright install --with-deps chromium
+        # GitHub's hosted Ubuntu image already includes Chromium runtime
+        # libraries. Avoid the apt-heavy --with-deps path here: it can stall
+        # the push gate while the deterministic suite itself is unchanged.
+        run: npx playwright install chromium
 
       - name: Run deterministic browser checks
         run: npm run test:e2e
