@@ -879,6 +879,15 @@ export default function Dashboard() {
 
   // Authenticate user and fetch configuration from Supabase
   useEffect(() => {
+    // Session bootstrap must never leave the entire console unmounted when a
+    // secondary backend/integration request is slow or unavailable.  Keep
+    // loading state bounded; the individual loaders already handle their
+    // own errors and can continue updating the dashboard after first paint.
+    const sessionBootstrapDeadline = window.setTimeout(() => {
+      console.warn("Console session bootstrap exceeded 12 seconds; rendering dashboard with partial data");
+      setLoadingSession(false);
+    }, 12_000);
+
     async function checkSession() {
       try {
         if (SELF_HOST_MODE) {
@@ -944,6 +953,7 @@ export default function Dashboard() {
       } catch (err) {
         console.error("Supabase session check error:", err);
       } finally {
+        window.clearTimeout(sessionBootstrapDeadline);
         setLoadingSession(false);
       }
     }
