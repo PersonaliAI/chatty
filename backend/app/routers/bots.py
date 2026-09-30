@@ -20,6 +20,7 @@ from app.core.permissions import get_bot_role_and_permissions, verify_bot_permis
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.services.campaign_schedule import next_campaign_run_at
 from app.services.campaign_dispatch import build_campaign_dispatch_plan
+from app.services.campaign_audience import load_consented_lead_recipients
 from app.services.campaign_analytics import aggregate_campaign_events
 from app.services.flow_runtime import evaluate_condition, evaluate_retry, resolve_mapping, select_condition_branch
 from app.core.uploads import read_upload_capped
@@ -449,6 +450,27 @@ async def campaign_dispatch_plan(bot_id: str, campaign_id: str, user: dict[str, 
         raise HTTPException(status_code=404, detail="Campaign not found")
     try:
         jobs = build_campaign_dispatch_plan(campaign.data)
+        provider_jobs = [job for job in jobs if str((job.get("payload") or {}).get("channel") or "web").lower() != "web"]
+        rules = campaign.data.get("audience_rules") if isinstance(campaign.data.get("audience_rules"), dict) else {}
+        if provider_jobs and str(rules.get("recipient_source") or "widget").strip().lower() == "consented_leads":
+            recipients = await load_consented_lead_recipients(
+                supabase, bot_id, audience_rules=rules, limit=100
+            )
+            jobs = []
+            for recipient in recipients:
+                jobs.extend(build_campaign_dispatch_plan(campaign.data, recipient=recipient))
+            # Never expose contact details in an operator preview response.
+            for job in jobs:
+                payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+                recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
+                payload["recipient"] = {
+                    "id": str(recipient.get("id") or ""),
+                    "consent": bool(recipient.get("consent")),
+                    "has_email": bool(str(recipient.get("email") or "").strip()),
+                    "has_phone": bool(str(recipient.get("phone") or "").strip()),
+                }
+        elif provider_jobs:
+            return {"campaign_id": campaign_id, "jobs": jobs, "deferred": True, "deferred_reason": "provider delivery requires consented_leads recipient source"}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"campaign_id": campaign_id, "jobs": jobs}

@@ -48,3 +48,42 @@ def test_dispatch_plan_is_preview_after_authorization(monkeypatch):
     assert result["campaign_id"] == "campaign-1"
     assert len(result["jobs"]) == 1
     assert result["jobs"][0]["payload"]["channel"] == "web"
+
+
+def test_dispatch_plan_expands_consented_provider_jobs_without_pii(monkeypatch):
+    permission = AsyncMock(return_value="owner")
+    monkeypatch.setattr(bots, "verify_bot_permission", permission)
+    campaign = {
+        **_campaign(),
+        "sequence_steps": [{"channel": "email", "after_minutes": 0, "message": "Hi"}],
+        "audience_rules": {"recipient_source": "consented_leads", "segment": "all"},
+    }
+    monkeypatch.setattr(bots, "run_db", AsyncMock(return_value=SimpleNamespace(data=campaign)))
+    monkeypatch.setattr(
+        bots,
+        "load_consented_lead_recipients",
+        AsyncMock(return_value=[{"id": "lead-1", "email": "secret@example.com", "consent": True}]),
+    )
+
+    result = asyncio.run(bots.campaign_dispatch_plan("bot-1", "campaign-1", USER))
+
+    assert len(result["jobs"]) == 1
+    recipient = result["jobs"][0]["payload"]["recipient"]
+    assert recipient == {"id": "lead-1", "consent": True, "has_email": True, "has_phone": False}
+    assert "secret@example.com" not in str(result)
+
+
+def test_dispatch_plan_defers_provider_without_consent_audience(monkeypatch):
+    permission = AsyncMock(return_value="owner")
+    monkeypatch.setattr(bots, "verify_bot_permission", permission)
+    campaign = {
+        **_campaign(),
+        "sequence_steps": [{"channel": "sms", "after_minutes": 0, "message": "Hi"}],
+        "audience_rules": {"recipient_source": "widget"},
+    }
+    monkeypatch.setattr(bots, "run_db", AsyncMock(return_value=SimpleNamespace(data=campaign)))
+
+    result = asyncio.run(bots.campaign_dispatch_plan("bot-1", "campaign-1", USER))
+
+    assert result["deferred"] is True
+    assert result["deferred_reason"] == "provider delivery requires consented_leads recipient source"

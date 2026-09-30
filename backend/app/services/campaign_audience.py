@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 
@@ -54,3 +55,33 @@ def campaign_lead_matches(rules: dict[str, Any] | None, lead: dict[str, Any] | N
     except (TypeError, ValueError):
         intent_score = 0
     return campaign_audience_matches(rules, returning=returning, intent_score=intent_score)
+
+
+async def load_consented_lead_recipients(
+    supabase_client: Any,
+    bot_id: str,
+    *,
+    audience_rules: dict[str, Any] | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Load the bounded, opted-in audience shared by preview and workers."""
+    if limit < 1 or limit > 500:
+        raise ValueError("limit must be between 1 and 500")
+    result = await asyncio.to_thread(
+        lambda: supabase_client.table("chatty_leads").select(
+            "id,email,phone,marketing_consent,custom_fields"
+        ).eq("bot_id", bot_id).eq("marketing_consent", True).limit(limit).execute()
+    )
+    recipients: list[dict[str, Any]] = []
+    for lead in result.data or []:
+        if not isinstance(lead, dict) or not lead.get("marketing_consent"):
+            continue
+        if not campaign_lead_matches(audience_rules, lead):
+            continue
+        recipients.append({
+            "id": str(lead.get("id") or ""),
+            "email": str(lead.get("email") or "").strip(),
+            "phone": str(lead.get("phone") or "").strip(),
+            "consent": True,
+        })
+    return recipients

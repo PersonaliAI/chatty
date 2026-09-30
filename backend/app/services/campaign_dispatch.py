@@ -100,7 +100,9 @@ def build_campaign_dispatch_plan(
         if delay_minutes < 0 or delay_minutes > 43_200:
             raise ValueError("sequence delay must be between 0 and 43200 minutes")
         scheduled_at = occurrence + timedelta(minutes=delay_minutes)
-        seed = f"{campaign_id}:{occurrence.isoformat()}:{index}:{channel}"
+        recipient_id = str((recipient or {}).get("id") or "").strip()
+        recipient_seed = hashlib.sha256(recipient_id.encode()).hexdigest()[:16] if recipient_id else "broadcast"
+        seed = f"{campaign_id}:{occurrence.isoformat()}:{index}:{channel}:{recipient_seed}"
         jobs.append({
             "name": "campaign.dispatch",
             "idempotency_key": f"campaign.dispatch:{hashlib.sha256(seed.encode()).hexdigest()[:32]}",
