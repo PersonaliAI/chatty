@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Script from "next/script";
-import { Caprasimo, Figtree } from "next/font/google";
 import {
   ArrowRight,
   Zap,
@@ -21,8 +20,6 @@ import { captureAffiliateReferral } from "@/lib/affiliate-referral";
 import VoiceCallWidget from "@/components/voice-call-widget";
 import { BACKEND_URL } from "@/lib/backend-client";
 
-const caprasimo = Caprasimo({ weight: "400", subsets: ["latin"], variable: "--font-heading", display: "swap" });
-const figtree = Figtree({ weight: ["400", "600", "700"], subsets: ["latin"], variable: "--font-body", display: "swap" });
 
 // Color tokens - a single warm, organic palette (this design has no dark
 // mode, matching the reference it was redesigned from).
@@ -343,7 +340,7 @@ export default function Home() {
   );
 
   return (
-    <div className={`${caprasimo.variable} ${figtree.variable} antialiased`} style={{ ...colorVars, fontFamily: "var(--font-body)", background: "var(--color-bg)", color: "var(--color-text)", overflowX: "clip" }}>
+    <div className="antialiased" style={{ ...colorVars, fontFamily: "var(--font-body), system-ui, sans-serif", background: "var(--color-bg)", color: "var(--color-text)", overflowX: "clip" }}>
       {/* Announcement bar auto slider */}
       <div className="relative overflow-hidden h-[40px] sm:h-[44px] transition-colors duration-700" style={{ background: activeAnnouncement === 0 ? "var(--color-accent-2-100)" : "var(--color-accent-100)" }}>
         {/* MCP Notification */}
