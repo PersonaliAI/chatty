@@ -123,6 +123,17 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
     message = str(payload.get("message") or "").strip()
     if not bot_id or not channel or not message:
         raise ValueError("campaign dispatch is missing bot_id, channel, or message")
+
+    async def mark(status: str, error: str | None = None) -> None:
+        if not payload.get("delivery_idempotency_key"):
+            return
+        try:
+            from app.core.clients import supabase
+            from app.services.campaign_delivery_ledger import record_campaign_delivery
+            await record_campaign_delivery(supabase, payload, status, error=error)
+        except Exception as exc:  # ledger must never turn a provider success into a retry
+            logger.warning("campaign delivery ledger update failed: %s", exc)
+
     if payload.get("quiet_hours") is not None:
         from app.services.campaign_runtime import campaign_is_active_now
         if not campaign_is_active_now({
@@ -131,6 +142,7 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
             "safety_config": {"quiet_hours": payload.get("quiet_hours")},
         }):
             logger.info("campaign dispatch suppressed by quiet hours bot=%s campaign=%s", bot_id, payload.get("campaign_id"))
+            await mark("suppressed", "quiet_hours")
             return
     if channel == "web":
         logger.info("campaign web step delegated to widget bot=%s campaign=%s", bot_id, payload.get("campaign_id"))
@@ -144,53 +156,47 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
         allowed, cap_key = await claim_campaign_frequency_cap(redis_client, payload)
         if not allowed:
             logger.info("campaign dispatch suppressed by frequency cap bot=%s campaign=%s key=%s", bot_id, payload.get("campaign_id"), cap_key)
+            await mark("suppressed", "frequency_cap")
             return
-    if channel == "whatsapp":
-        phone = str(recipient.get("phone") or recipient.get("whatsapp") or "").strip()
-        if not phone:
-            raise ValueError("whatsapp campaign requires recipient.phone")
-        from app.core.clients import supabase
-        from app.services.whatsapp_service import send_whatsapp_message
-        from app.core.crypto import decrypt_secret
-
-        result = await asyncio.to_thread(
-            lambda: supabase.table("chatty_bots").select(
+    try:
+        if channel == "whatsapp":
+            phone = str(recipient.get("phone") or recipient.get("whatsapp") or "").strip()
+            if not phone:
+                raise ValueError("whatsapp campaign requires recipient.phone")
+            from app.core.clients import supabase
+            from app.services.whatsapp_service import send_whatsapp_message
+            from app.core.crypto import decrypt_secret
+            result = await asyncio.to_thread(lambda: supabase.table("chatty_bots").select(
                 "whatsapp_phone_number_id, whatsapp_access_token"
-            ).eq("id", bot_id).maybe_single().execute()
-        )
-        bot = result.data or {}
-        phone_number_id = str(bot.get("whatsapp_phone_number_id") or "").strip()
-        access_token = decrypt_secret(str(bot.get("whatsapp_access_token") or "").strip())
-        if not phone_number_id or not access_token:
-            raise RuntimeError("whatsapp campaign provider is not configured")
-        if not await send_whatsapp_message(phone_number_id, phone, message, access_token):
-            raise RuntimeError("whatsapp campaign delivery failed")
-        return
-    if channel == "email":
-        email = str(recipient.get("email") or "").strip()
-        if not email:
-            raise ValueError("email campaign requires recipient.email")
-        from app.services.email_service import send_campaign_email
-
-        result = await send_campaign_email(
-            to_email=email,
-            subject=str(payload.get("subject") or "Update from Chatty"),
-            body_text=message,
-            bot_name=str(payload.get("bot_name") or "Chatty"),
-        )
-        if not result.get("sent"):
-            raise RuntimeError(result.get("error") or result.get("reason") or "email campaign delivery failed")
-        return
-    if channel == "sms":
-        phone = str(recipient.get("phone") or "").strip()
-        if not phone:
-            raise ValueError("sms campaign requires recipient.phone")
-        from app.services.sms_service import send_campaign_sms
-
-        if not await send_campaign_sms(to=phone, body=message):
-            raise RuntimeError("sms campaign delivery failed")
-        return
-    raise ValueError(f"unsupported campaign channel: {channel}")
+            ).eq("id", bot_id).maybe_single().execute())
+            bot = result.data or {}
+            phone_number_id = str(bot.get("whatsapp_phone_number_id") or "").strip()
+            access_token = decrypt_secret(str(bot.get("whatsapp_access_token") or "").strip())
+            if not phone_number_id or not access_token:
+                raise RuntimeError("whatsapp campaign provider is not configured")
+            if not await send_whatsapp_message(phone_number_id, phone, message, access_token):
+                raise RuntimeError("whatsapp campaign delivery failed")
+        elif channel == "email":
+            email = str(recipient.get("email") or "").strip()
+            if not email:
+                raise ValueError("email campaign requires recipient.email")
+            from app.services.email_service import send_campaign_email
+            result = await send_campaign_email(to_email=email, subject=str(payload.get("subject") or "Update from Chatty"), body_text=message, bot_name=str(payload.get("bot_name") or "Chatty"))
+            if not result.get("sent"):
+                raise RuntimeError(result.get("error") or result.get("reason") or "email campaign delivery failed")
+        elif channel == "sms":
+            phone = str(recipient.get("phone") or "").strip()
+            if not phone:
+                raise ValueError("sms campaign requires recipient.phone")
+            from app.services.sms_service import send_campaign_sms
+            if not await send_campaign_sms(to=phone, body=message):
+                raise RuntimeError("sms campaign delivery failed")
+        else:
+            raise ValueError(f"unsupported campaign channel: {channel}")
+    except Exception as exc:
+        await mark("failed", str(exc))
+        raise
+    await mark("sent")
 
 
 async def run() -> None:

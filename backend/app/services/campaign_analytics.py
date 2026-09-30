@@ -32,3 +32,26 @@ def aggregate_campaign_events(events: list[dict[str, Any]] | None) -> dict[str, 
         "by_device": dict(sorted(by_device.items())),
         "by_channel": dict(sorted(by_channel.items())),
     }
+
+
+def aggregate_campaign_deliveries(deliveries: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """Summarize durable provider execution state for operators."""
+    counts = Counter({kind: 0 for kind in ("queued", "sent", "failed", "suppressed")})
+    by_channel: Counter[str] = Counter()
+    for row in deliveries or []:
+        status = str(row.get("status") or "").strip().lower()
+        if status not in counts:
+            continue
+        counts[status] += 1
+        channel = str(row.get("channel") or "unknown").strip().lower()[:32] or "unknown"
+        by_channel[channel] += 1
+    attempted = counts["sent"] + counts["failed"] + counts["suppressed"]
+    return {
+        "queued": counts["queued"],
+        "sent": counts["sent"],
+        "failed": counts["failed"],
+        "suppressed": counts["suppressed"],
+        "delivery_success_rate": round(counts["sent"] / attempted, 4) if attempted else 0,
+        "delivery_sample_size": len(deliveries or []),
+        "delivery_by_channel": dict(sorted(by_channel.items())),
+    }

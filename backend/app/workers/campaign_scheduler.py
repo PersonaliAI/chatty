@@ -72,7 +72,7 @@ async def schedule_campaigns_once(
                 continue
             await queue.enqueue(
                 name=str(job["name"]),
-                payload=dict(job["payload"]),
+                payload={**dict(job["payload"]), "delivery_idempotency_key": key},
                 idempotency_key=key,
             )
             stats["enqueued"] += 1
@@ -110,7 +110,7 @@ async def schedule_campaigns_once(
                     continue
                 await queue.enqueue(
                     name=str(job["name"]),
-                    payload=dict(payload),
+                    payload={**dict(payload), "delivery_idempotency_key": key},
                     idempotency_key=key,
                 )
                 stats["enqueued"] += 1

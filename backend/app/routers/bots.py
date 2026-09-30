@@ -21,7 +21,7 @@ from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.services.campaign_schedule import next_campaign_run_at
 from app.services.campaign_dispatch import build_campaign_dispatch_plan
 from app.services.campaign_audience import load_consented_lead_recipients
-from app.services.campaign_analytics import aggregate_campaign_events
+from app.services.campaign_analytics import aggregate_campaign_deliveries, aggregate_campaign_events
 from app.services.flow_runtime import evaluate_condition, evaluate_retry, resolve_mapping, select_condition_branch
 from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
@@ -409,6 +409,16 @@ async def campaign_analytics(bot_id: str, campaign_id: str, user: dict[str, Any]
         "event_type, metadata, created_at"
     ).eq("campaign_id", campaign_id).order("created_at", desc=True).limit(10000).execute())
     counts = aggregate_campaign_events(events.data or [])
+    # Delivery analytics roll out independently from the existing telemetry
+    # table; keep campaign analytics readable during a staged migration.
+    try:
+        deliveries = await run_db(lambda: supabase.table("chatty_campaign_deliveries").select(
+            "status, channel, error, updated_at"
+        ).eq("campaign_id", campaign_id).order("updated_at", desc=True).limit(10000).execute())
+        counts.update(aggregate_campaign_deliveries(deliveries.data or []))
+    except Exception as exc:
+        logger.warning("campaign delivery ledger unavailable: %s", exc)
+        counts.update(aggregate_campaign_deliveries([]))
     return {
         "campaign_id": campaign_id,
         "name": campaign.data.get("name"),

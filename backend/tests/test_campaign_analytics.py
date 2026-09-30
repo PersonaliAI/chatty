@@ -1,4 +1,4 @@
-from app.services.campaign_analytics import aggregate_campaign_events
+from app.services.campaign_analytics import aggregate_campaign_deliveries, aggregate_campaign_events
 
 
 def test_campaign_analytics_returns_rates_and_breakdowns():
@@ -21,3 +21,19 @@ def test_campaign_analytics_is_safe_for_empty_input():
     assert result["impression"] == 0
     assert result["click_rate"] == 0
     assert result["by_device"] == {}
+
+
+def test_campaign_delivery_analytics_reports_execution_health():
+    result = aggregate_campaign_deliveries([
+        {"status": "queued", "channel": "email"},
+        {"status": "sent", "channel": "email"},
+        {"status": "failed", "channel": "sms"},
+        {"status": "suppressed", "channel": "email"},
+        {"status": "unknown", "channel": "web"},
+    ])
+    assert result["queued"] == 1
+    assert result["sent"] == 1
+    assert result["failed"] == 1
+    assert result["suppressed"] == 1
+    assert result["delivery_success_rate"] == 0.3333
+    assert result["delivery_by_channel"] == {"email": 3, "sms": 1}
