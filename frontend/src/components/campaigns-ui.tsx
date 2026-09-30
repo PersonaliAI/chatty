@@ -618,6 +618,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
                 Trigger targeted teaser popups, behavioral prompts, and automated multi-channel sequences.
               </p>
+              <p className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400">
+                AI campaign copilot
+              </p>
             </div>
           </div>
         </div>

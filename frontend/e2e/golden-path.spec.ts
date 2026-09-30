@@ -168,6 +168,8 @@ test.describe("owner golden path", () => {
 
     await page.getByRole("button", { name: "Flow Builder", exact: true }).click();
     await expect(page.getByText("Visual Flow Builder", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Open dashboard sidebar" }).click();
+    await expect(page.getByRole("button", { name: "Close sidebar" })).toBeVisible();
     await page.getByRole("button", { name: "Campaigns", exact: true }).click();
     await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
   });
