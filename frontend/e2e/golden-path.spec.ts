@@ -122,9 +122,14 @@ test.describe("owner golden path", () => {
     await expect(page.getByRole("button", { name: /expand flow toolbox/i })).toBeVisible();
     await page.getByRole("button", { name: /expand flow toolbox/i }).click();
     await expect(page.getByRole("button", { name: /run dry test/i })).toBeVisible();
+    await page.getByText("Test data & mapping context", { exact: true }).click();
+    await expect(page.getByLabel("Visitor inputs")).toBeVisible();
+    await expect(page.getByLabel("Context JSON")).toBeVisible();
     await expect(page.getByRole("button", { name: /view execution history/i })).toBeVisible();
     await page.getByText("Campaigns", { exact: true }).click();
     await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
     await expect(page.getByText("AI campaign copilot", { exact: true })).toBeVisible();
+    await expect(page.getByText("Start window", { exact: true })).toBeVisible();
+    await expect(page.getByText("End window", { exact: true })).toBeVisible();
   });
 });
