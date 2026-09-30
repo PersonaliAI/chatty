@@ -3927,19 +3927,6 @@ export default function Dashboard() {
   const embedScriptCode = `<script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  defer\n></script>`;
   const embedIframeCode = `<iframe\n  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}"\n  width="100%"\n  height="600"\n  frameborder="0"\n></iframe>`;
 
-  // Reusable Chatty composer (input card)
-  // Render loading state if session loading
-  if (loadingSession) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950 font-sans">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="size-8 animate-spin text-[#f97316]" />
-          <p className="text-xs text-neutral-400 font-semibold">Loading console session...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen bg-neutral-50 dark:bg-neutral-955 font-sans text-neutral-900 dark:text-neutral-100 overflow-hidden antialiased">
       
