@@ -759,6 +759,47 @@ function validateFlow(nodes: Node[], edges: Edge[]): FlowValidation {
     if (ids.has(node.id)) errors.push(`Duplicate step ID: ${node.id}`);
     ids.add(node.id);
     if (!String((node.data as FlowNodeData)?.label ?? "").trim()) warnings.push(`${node.id} has no label.`);
+
+    // Validate operational controls before a flow can be published. These
+    // limits protect the worker from accidental hot loops, unbounded retries,
+    // and webhook calls that can hang an execution indefinitely.
+    const data = (node.data as FlowNodeData) || {};
+    const config = data.config || {};
+    const numberConfig = (key: string) => {
+      const value = Number(config[key]);
+      return Number.isFinite(value) ? value : null;
+    };
+    if (node.type === "webhook") {
+      const url = String(config.url || "").trim();
+      if (!url) errors.push(`Webhook ${node.id} needs a destination URL.`);
+      else if (!/^https:\/\//i.test(url)) errors.push(`Webhook ${node.id} must use HTTPS.`);
+      const timeout = numberConfig("timeout_ms");
+      if (timeout !== null && (timeout < 100 || timeout > 120000)) {
+        errors.push(`Webhook ${node.id} timeout must be between 100ms and 120s.`);
+      }
+    }
+    if (node.type === "retry") {
+      const attempts = numberConfig("max_attempts");
+      if (attempts !== null && (attempts < 1 || attempts > 10)) {
+        errors.push(`Retry ${node.id} must allow between 1 and 10 attempts.`);
+      }
+      const backoff = numberConfig("backoff_ms");
+      if (backoff !== null && (backoff < 0 || backoff > 300000)) {
+        errors.push(`Retry ${node.id} backoff must be between 0 and 5 minutes.`);
+      }
+    }
+    if (node.type === "delay") {
+      const delay = numberConfig("delay_ms");
+      if (delay !== null && (delay < 0 || delay > 86400000)) {
+        errors.push(`Delay ${node.id} must be between 0 and 24 hours.`);
+      }
+    }
+    if (node.type === "loop") {
+      const maxIterations = numberConfig("max_iterations");
+      if (maxIterations !== null && (maxIterations < 1 || maxIterations > 1000)) {
+        errors.push(`Loop ${node.id} must allow between 1 and 1,000 iterations.`);
+      }
+    }
   });
   const starts = nodes.filter((node) => node.type === "start" || node.type === "input");
   if (starts.length !== 1) errors.push(`Flow must contain exactly one Start trigger step (found ${starts.length}).`);
