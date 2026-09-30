@@ -112,6 +112,25 @@ _MAPPING_TOKEN = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}")
 _SENSITIVE_MAPPING_KEY = re.compile(r"(?:password|secret|token|api[_-]?key|authorization)", re.IGNORECASE)
 
 
+def _redact_mapping_value(value: Any, depth: int = 0) -> Any:
+    """Redact nested credentials without mutating operator context.
+
+    Bound traversal for deeply nested input so execution logging cannot exhaust
+    the Python stack. Full-token object mappings retain their JSON types.
+    """
+    if depth >= 32 and isinstance(value, (dict, list)):
+        return "[depth limit]"
+    if isinstance(value, dict):
+        return {
+            str(key): "[redacted]" if _SENSITIVE_MAPPING_KEY.search(str(key))
+            else _redact_mapping_value(item, depth + 1)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_mapping_value(item, depth + 1) for item in value]
+    return value
+
+
 def _resolve_mapping_path(path: str, user_input: str, context: dict[str, Any]) -> tuple[bool, Any]:
     if path == "input":
         return True, user_input
@@ -166,8 +185,5 @@ def resolve_mapping(
             unresolved.append(str(key))
     # Runs are persisted for later replay and troubleshooting. Never put an
     # obvious credential-shaped mapping value into that durable trace.
-    trace_payload = {
-        key: "[redacted]" if _SENSITIVE_MAPPING_KEY.search(key) else value
-        for key, value in resolved.items()
-    }
+    trace_payload = _redact_mapping_value(resolved)
     return {"mapped_payload": trace_payload, "unresolved_fields": unresolved}

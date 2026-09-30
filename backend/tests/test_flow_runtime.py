@@ -69,3 +69,16 @@ def test_mapping_resolution_preserves_types_and_surfaces_missing_values():
         "literal": 4,
     }
     assert result["unresolved_fields"] == ["missing"]
+
+
+def test_mapping_redacts_nested_credentials_and_preserves_source_context():
+    context = {"integration": {"name": "CRM", "credentials": [
+        {"api_key": "private-key", "enabled": True},
+        {"nested": {"Authorization": "Bearer private-token"}},
+    ]}}
+    result = resolve_mapping({"integration": "{{context.integration}}"}, "", context)
+    payload = result["mapped_payload"]["integration"]
+    assert payload["name"] == "CRM"
+    assert payload["credentials"][0] == {"api_key": "[redacted]", "enabled": True}
+    assert payload["credentials"][1]["nested"]["Authorization"] == "[redacted]"
+    assert context["integration"]["credentials"][0]["api_key"] == "private-key"
