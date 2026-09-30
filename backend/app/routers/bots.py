@@ -302,6 +302,8 @@ async def replay_dashboard_flow_run(
     if not result.data:
         raise HTTPException(status_code=404, detail="Flow run not found")
     snapshot = result.data.get("flow_data") or {}
+    if not isinstance(snapshot, dict) or not snapshot.get("nodes"):
+        raise HTTPException(status_code=409, detail="This run has no replayable flow snapshot; create a new dry run instead")
     replay = await simulate_dashboard_flow(
         bot_id,
         FlowSimulationRequest(
@@ -309,9 +311,9 @@ async def replay_dashboard_flow_run(
             context=snapshot.get("simulation_context") if isinstance(snapshot.get("simulation_context"), dict) else {},
         ),
         user,
-        flow_override=snapshot if snapshot.get("nodes") else None,
+        flow_override=snapshot,
     )
-    replay["replayed_from_snapshot"] = bool(snapshot.get("nodes"))
+    replay["replayed_from_snapshot"] = True
     return replay
 
 

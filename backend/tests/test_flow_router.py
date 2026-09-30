@@ -11,6 +11,43 @@ from app.routers import bots
 USER = {"auth_user_id": "operator-1", "email": "operator@example.com"}
 
 
+@pytest.mark.parametrize("snapshot", [None, {}, {"nodes": []}, "invalid"])
+def test_replay_missing_snapshot_never_runs_current_workflow(monkeypatch, snapshot):
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(bots, "run_db", AsyncMock(return_value=SimpleNamespace(data={"flow_data": snapshot})))
+    simulate = AsyncMock()
+    monkeypatch.setattr(bots, "simulate_dashboard_flow", simulate)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(bots.replay_dashboard_flow_run("bot-1", "run-1", USER))
+    assert error.value.status_code == 409
+    simulate.assert_not_awaited()
+
+
+def test_replay_uses_saved_snapshot_and_inputs(monkeypatch):
+    snapshot = {"nodes": [{"id": "start", "type": "start"}], "edges": [],
+                "simulation_context": {"name": "Ari"}}
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(bots, "run_db", AsyncMock(return_value=SimpleNamespace(
+        data={"flow_data": snapshot, "inputs": ["saved input"]})))
+    simulate = AsyncMock(return_value={"completed": True})
+    monkeypatch.setattr(bots, "simulate_dashboard_flow", simulate)
+    result = asyncio.run(bots.replay_dashboard_flow_run("bot-1", "run-1", USER))
+    assert result["replayed_from_snapshot"] is True
+    assert simulate.await_args.kwargs["flow_override"] == snapshot
+    assert simulate.await_args.args[1].inputs == ["saved input"]
+    assert simulate.await_args.args[1].context == {"name": "Ari"}
+
+
+def test_replay_permission_failure_prevents_snapshot_read(monkeypatch):
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(side_effect=HTTPException(403, "Forbidden")))
+    database = AsyncMock()
+    monkeypatch.setattr(bots, "run_db", database)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(bots.replay_dashboard_flow_run("bot-1", "run-1", USER))
+    assert error.value.status_code == 403
+    database.assert_not_awaited()
+
+
 def test_flow_run_detail_requires_bot_ownership(monkeypatch):
     permission = AsyncMock(side_effect=HTTPException(status_code=403, detail="Forbidden"))
     monkeypatch.setattr(bots, "verify_bot_permission", permission)
