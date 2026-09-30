@@ -4,10 +4,12 @@ The industrial automation goal is **not complete**. This checklist preserves
 the full scope; passing a unit test or pushing a commit does not prove deployment
 or production readiness. Every gate needs evidence for the release commit.
 
-Latest validated public release evidence: commit `b9653f3` passed the canonical
+Latest validated public release evidence: commit `b592430` passed the canonical
 CI workflow (backend compile/tests/audit plus frontend typecheck, lint, browser
-checks, and production build). Documentation-only follow-up commit `ec68f8b`
-is on `main`; it did not change application behavior.
+checks, and production build) and production E2E run `36758263161` (5 passed,
+3 authenticated owner tests skipped). The owner tests are gated by
+`E2E_OWNER_EMAIL` and `E2E_OWNER_PASSWORD`; no such Actions secrets are
+currently configured, so authenticated editor acceptance is not proven.
 
 ## 1. Workflow correctness
 
@@ -32,8 +34,9 @@ yet prove full live/simulator parity or atomic version publication.
   screen-reader names and desktop/mobile canvas usability.
 - Verify malformed import and failed save recovery without losing drafts.
 
-Current evidence: deterministic landing browser checks pass locally; push CI now
-runs them. Authenticated golden-path tests remain optional and cover only basic
+Current evidence: deterministic landing browser checks pass in CI and the
+production launcher/embed smoke suite is green. Authenticated golden-path tests
+remain skipped without owner credentials and currently cover only basic
 automation surface controls. Full editor accessibility acceptance is unverified.
 
 ## 3. Campaign orchestration
