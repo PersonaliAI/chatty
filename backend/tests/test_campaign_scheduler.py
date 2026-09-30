@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 
+import app.workers.campaign_scheduler as campaign_scheduler
 from app.workers.campaign_scheduler import schedule_campaigns_once
 
 
@@ -124,3 +125,26 @@ def test_scheduler_applies_campaign_audience_to_consented_leads():
 
     assert stats["enqueued"] == 1
     assert queue.jobs[0]["payload"]["recipient"]["id"] == "lead-high"
+
+
+def test_scheduler_defers_one_campaign_when_audience_lookup_fails(monkeypatch):
+    queue = _Queue()
+    failing = _campaign()
+    failing["id"] = "campaign-failing"
+    failing["sequence_steps"] = [{"channel": "email", "after_minutes": 0, "message": "hello"}]
+    failing["audience_rules"] = {"recipient_source": "consented_leads"}
+    healthy = _campaign()
+    healthy["id"] = "campaign-healthy"
+    now = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
+
+    async def fail_for_one_campaign(_db, bot_id, *, audience_rules):
+        if bot_id == "bot-1" and audience_rules.get("recipient_source") == "consented_leads":
+            raise RuntimeError("temporary database outage")
+        return []
+
+    monkeypatch.setattr(campaign_scheduler, "_consented_lead_recipients", fail_for_one_campaign)
+    stats = asyncio.run(schedule_campaigns_once(_Db([failing, healthy]), queue, now=now))
+
+    assert stats["deferred"] == 1
+    assert stats["enqueued"] == 1
+    assert queue.jobs[0]["payload"]["campaign_id"] == "campaign-healthy"

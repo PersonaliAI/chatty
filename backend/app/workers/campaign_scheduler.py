@@ -82,11 +82,25 @@ async def schedule_campaigns_once(
         if str(rules.get("recipient_source") or "widget").strip().lower() != "consented_leads":
             stats["deferred"] += len(provider_jobs)
             continue
-        recipients = await _consented_lead_recipients(
-            supabase_client,
-            str(campaign.get("bot_id") or ""),
-            audience_rules=rules,
-        )
+        try:
+            recipients = await _consented_lead_recipients(
+                supabase_client,
+                str(campaign.get("bot_id") or ""),
+                audience_rules=rules,
+            )
+        except Exception as exc:
+            # A transient audience/database failure must not abort the whole
+            # scheduler tick. Fail closed for this campaign, leave the jobs
+            # unqueued so a later tick can retry, and keep unrelated campaigns
+            # moving. The warning is intentionally bounded to campaign IDs;
+            # recipient data must never enter scheduler logs.
+            stats["deferred"] += len(provider_jobs)
+            logger.warning(
+                "deferring campaign provider jobs after audience lookup failure campaign=%s error=%s",
+                campaign.get("id"),
+                str(exc)[:240],
+            )
+            continue
         if not recipients:
             stats["deferred"] += len(provider_jobs)
             continue
