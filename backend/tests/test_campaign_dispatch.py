@@ -44,6 +44,16 @@ def test_recipient_jobs_have_distinct_idempotency_keys():
     assert first[0]["idempotency_key"] != second[0]["idempotency_key"]
 
 
+@pytest.mark.parametrize("field", ["email", "phone", "session_id"])
+def test_recipient_without_database_id_has_distinct_private_delivery_key(field):
+    first = build_campaign_dispatch_plan(_campaign(), now=NOW, recipient={field: "contact-a"})
+    second = build_campaign_dispatch_plan(_campaign(), now=NOW, recipient={field: "contact-b"})
+    same = build_campaign_dispatch_plan(_campaign(), now=NOW, recipient={field: " CONTACT-A "})
+    assert first[0]["idempotency_key"] != second[0]["idempotency_key"]
+    assert first[0]["idempotency_key"] == same[0]["idempotency_key"]
+    assert "contact-a" not in first[0]["idempotency_key"]
+
+
 def test_inactive_or_future_campaign_has_no_jobs():
     assert build_campaign_dispatch_plan(_campaign(is_active=False), now=NOW) == []
     assert build_campaign_dispatch_plan(_campaign(start_date="2026-09-30T00:00:00Z"), now=NOW) == []

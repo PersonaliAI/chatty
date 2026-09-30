@@ -115,9 +115,9 @@ async def schedule_campaigns_once(
             # recipient data must never enter scheduler logs.
             stats["deferred"] += len(provider_jobs)
             logger.warning(
-                "deferring campaign provider jobs after audience lookup failure campaign=%s error=%s",
+                "deferring campaign provider jobs after audience lookup failure campaign=%s error_type=%s",
                 campaign.get("id"),
-                str(exc)[:240],
+                type(exc).__name__,
             )
             continue
         if not recipients:
