@@ -30,6 +30,8 @@ import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-se
 import { ModernSwitch } from "@/components/ui/modern-switch";
 import { ModernAlert } from "@/components/ui/modern-alert";
 import { DateTimePicker, TimePicker } from "@/components/ui/date-time-picker";
+import { createClient } from "@/lib/supabase/client";
+import { SELF_HOST_MODE } from "@/lib/deployment";
 
 interface TriggerRule {
   id: string;
@@ -141,104 +143,142 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     { value: "weekly", label: "Weekly Digest" },
   ];
 
+  const mapCampaignRow = (row: Record<string, unknown>): TriggerRule => ({
+    id: String(row.id),
+    name: String(row.name || `${row.trigger_type || "Proactive"} Campaign`),
+    type:
+      String(row.trigger_type ?? "time_on_page") === "scroll_percentage"
+        ? "scroll"
+        : String(row.trigger_type ?? "time_on_page") === "exit_intent"
+          ? "exit"
+          : String(row.trigger_type ?? "time_on_page") === "url_match"
+            ? "url"
+            : "time",
+    value:
+      String(row.trigger_type ?? "") === "url_match"
+        ? String((row.url_patterns as string[] | undefined)?.[0] ?? "")
+        : String(row.trigger_value ?? ""),
+    message: String(row.message_content ?? row.message ?? ""),
+    impressions: Number(row.impressions ?? 0),
+    clicks: Number(row.clicks ?? 0),
+    conversions: Number(row.conversions ?? 0),
+    audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
+    recipientSource:
+      String((row.audience_rules as { recipient_source?: string } | undefined)?.recipient_source ?? "widget") === "consented_leads"
+        ? "consented_leads"
+        : "widget",
+    channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
+    sequenceSteps: Array.isArray(row.sequence_steps) ? (row.sequence_steps as Array<Record<string, unknown>>) : [],
+    isActive: row.is_active !== false,
+    startDate: row.start_date ? String(row.start_date) : null,
+    endDate: row.end_date ? String(row.end_date) : null,
+    quietHours:
+      (row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.start &&
+      (row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.end
+        ? {
+            start: String((row.safety_config as { quiet_hours: { start: string } }).quiet_hours.start),
+            end: String((row.safety_config as { quiet_hours: { end: string } }).quiet_hours.end),
+          }
+        : null,
+  });
+
   // Fetch campaigns
-  const loadCampaigns = () => {
+  const loadCampaigns = async () => {
     if (!botId) return;
     setLoading(true);
     setError(null);
-    fetchBackend(`/api/bots/${botId}/campaigns`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Campaigns could not be loaded (${response.status})`);
-        const rows = (await response.json()) as Array<Record<string, unknown>>;
-        const mapped: TriggerRule[] = rows.map((row) => ({
-          id: String(row.id),
-          name: String(row.name || `${row.trigger_type || "Proactive"} Campaign`),
-          type:
-            String(row.trigger_type ?? "time_on_page") === "scroll_percentage"
-              ? "scroll"
-              : String(row.trigger_type ?? "time_on_page") === "exit_intent"
-                ? "exit"
-                : String(row.trigger_type ?? "time_on_page") === "url_match"
-                  ? "url"
-                  : "time",
-          value:
-            String(row.trigger_type ?? "") === "url_match"
-              ? String((row.url_patterns as string[] | undefined)?.[0] ?? "")
-              : String(row.trigger_value ?? ""),
-          message: String(row.message_content ?? row.message ?? ""),
-          impressions: Number(row.impressions ?? 0),
-          clicks: Number(row.clicks ?? 0),
-          conversions: Number(row.conversions ?? 0),
-          audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
-          recipientSource:
-            String((row.audience_rules as { recipient_source?: string } | undefined)?.recipient_source ?? "widget") === "consented_leads"
-              ? "consented_leads"
-              : "widget",
-          channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
-          sequenceSteps: Array.isArray(row.sequence_steps) ? (row.sequence_steps as Array<Record<string, unknown>>) : [],
-          isActive: row.is_active !== false,
-          startDate: row.start_date ? String(row.start_date) : null,
-          endDate: row.end_date ? String(row.end_date) : null,
-          quietHours:
-            (row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.start &&
-            (row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.end
-              ? {
-                  start: String((row.safety_config as { quiet_hours: { start: string } }).quiet_hours.start),
-                  end: String((row.safety_config as { quiet_hours: { end: string } }).quiet_hours.end),
-                }
-              : null,
-        }));
-        setRules(mapped);
+    let loadedRules: TriggerRule[] | null = null;
 
-        // Load metrics asynchronously
-        const analytics = await Promise.all(
-          mapped.map(async (rule) => {
-            try {
-              const [metricResponse, scheduleResponse] = await Promise.all([
-                fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/analytics`),
-                fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/schedule-preview`),
-              ]);
-              const metric = metricResponse.ok ? await metricResponse.json() : {};
-              const schedule = scheduleResponse.ok ? await scheduleResponse.json() : {};
-              return {
-                id: rule.id,
-                impressions: Number(metric.impressions ?? rule.impressions ?? 0),
-                clicks: Number(metric.clicks ?? rule.clicks ?? 0),
-                conversions: Number(metric.conversions ?? rule.conversions ?? 0),
-                clickRate: Number(metric.click_rate ?? 0),
-                conversionRate: Number(metric.conversion_rate ?? 0),
-                queued: Number(metric.queued ?? 0),
-                sent: Number(metric.sent ?? 0),
-                failed: Number(metric.failed ?? 0),
-                suppressed: Number(metric.suppressed ?? 0),
-                deliverySuccessRate: Number(metric.delivery_success_rate ?? 0),
-                byDevice: metric.by_device ?? {},
-                byChannel: metric.by_channel ?? {},
-                nextRunAt: schedule.next_run_at ?? null,
-                scheduleCadence: String(schedule.schedule_config?.cadence ?? "once"),
-              };
-            } catch {
-              return null;
-            }
-          })
-        );
+    // 1. Try REST API endpoint
+    try {
+      const response = await fetchBackend(`/api/bots/${botId}/campaigns`);
+      if (response.ok) {
+        const rows = (await response.json()) as Array<Record<string, unknown>>;
+        loadedRules = rows.map(mapCampaignRow);
+      }
+    } catch {
+      // Backend API offline or error; fallback to direct Supabase query
+    }
+
+    // 2. Direct Supabase Fallback (managed mode)
+    if (!loadedRules && !SELF_HOST_MODE) {
+      try {
+        const supabase = createClient();
+        const { data, error: dbErr } = await supabase
+          .from("chatty_campaigns")
+          .select("*")
+          .eq("bot_id", botId)
+          .order("created_at", { ascending: false });
+        if (!dbErr && data) {
+          loadedRules = data.map((r) => mapCampaignRow(r as Record<string, unknown>));
+        }
+      } catch {
+        // Supabase query error
+      }
+    }
+
+    // 3. Local Storage Fallback if all network queries fail
+    if (!loadedRules) {
+      try {
+        const saved = botId ? localStorage.getItem(`chatty_campaigns_${botId}`) : null;
+        if (saved) {
+          loadedRules = JSON.parse(saved);
+          setError("Campaign service is offline; showing local backup.");
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (loadedRules) {
+      setRules(loadedRules);
+      try {
+        localStorage.setItem(`chatty_campaigns_${botId}`, JSON.stringify(loadedRules));
+      } catch {}
+
+      // Asynchronously enrich with metrics & schedule previews
+      Promise.all(
+        loadedRules.map(async (rule) => {
+          try {
+            const [metricResponse, scheduleResponse] = await Promise.all([
+              fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/analytics`),
+              fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/schedule-preview`),
+            ]);
+            const metric = metricResponse.ok ? await metricResponse.json() : {};
+            const schedule = scheduleResponse.ok ? await scheduleResponse.json() : {};
+            return {
+              id: rule.id,
+              impressions: Number(metric.impressions ?? rule.impressions ?? 0),
+              clicks: Number(metric.clicks ?? rule.clicks ?? 0),
+              conversions: Number(metric.conversions ?? rule.conversions ?? 0),
+              clickRate: Number(metric.click_rate ?? 0),
+              conversionRate: Number(metric.conversion_rate ?? 0),
+              queued: Number(metric.queued ?? 0),
+              sent: Number(metric.sent ?? 0),
+              failed: Number(metric.failed ?? 0),
+              suppressed: Number(metric.suppressed ?? 0),
+              deliverySuccessRate: Number(metric.delivery_success_rate ?? 0),
+              byDevice: metric.by_device ?? {},
+              byChannel: metric.by_channel ?? {},
+              nextRunAt: schedule.next_run_at ?? null,
+              scheduleCadence: String(schedule.schedule_config?.cadence ?? "once"),
+            };
+          } catch {
+            return null;
+          }
+        })
+      ).then((analytics) => {
         setRules((current) =>
           current.map((rule) => {
             const metric = analytics.find((item) => item?.id === rule.id);
             return metric ? { ...rule, ...metric } : rule;
           })
         );
-      })
-      .catch(() => {
-        try {
-          const saved = botId ? localStorage.getItem(`chatty_campaigns_${botId}`) : null;
-          if (saved) setRules(JSON.parse(saved));
-        } catch {
-          // ignore
-        }
-        setError("Campaign service is offline; showing local backup.");
-      })
-      .finally(() => setLoading(false));
+      });
+    } else {
+      setError("Campaign service is offline; showing local backup.");
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -290,7 +330,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     setSequenceSteps((curr) => curr.map((step, i) => (i === idx ? { ...step, ...patch } : step)));
   };
 
-  const saveNewCampaign = () => {
+  const saveNewCampaign = async () => {
     if (!message.trim() || !botId) return;
     if (!channels.length) {
       setError("Please select at least one channel (e.g. Website).");
@@ -309,86 +349,147 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
     const triggerType = type === "time" ? "time_on_page" : type === "scroll" ? "scroll_percentage" : type === "exit" ? "exit_intent" : "url_match";
 
-    fetchBackend(`/api/bots/${botId}/campaigns`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: campaignName.trim() || `${type.toUpperCase()} Campaign`,
-        campaign_type: "chat_bubble",
-        message_content: message.trim(),
-        url_patterns: type === "url" ? [value.trim() || "/"] : ["*"],
-        trigger_type: triggerType,
-        trigger_value: type === "url" || type === "exit" ? 0 : Number(value) || 5,
-        target_devices: ["desktop", "mobile"],
-        is_active: true,
-        audience_rules: {
-          segment: audience,
-          min_intent_score: minIntentScore,
-          returning_only: returningOnly,
-          recipient_source: channels.some((c) => c !== "web") || cleanSteps.some((s) => s.channel !== "web") ? "consented_leads" : "widget",
-        },
-        channels,
-        sequence_steps: cleanSteps,
-        safety_config: {
-          frequency_cap_hours: 24,
-          require_consent: true,
-          ...(quietHoursEnabled ? { quiet_hours: { start: quietHoursStart, end: quietHoursEnd } } : {}),
-        },
-        schedule_config: { cadence, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" },
-        start_date: startDate ? new Date(startDate).toISOString() : null,
-        end_date: endDate ? new Date(endDate).toISOString() : null,
-      }),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Save failed (${response.status})`);
-        const row = (await response.json()) as Record<string, unknown>;
-        const created: TriggerRule = {
-          id: String(row.id),
-          name: campaignName.trim() || `${type.toUpperCase()} Campaign`,
-          type,
-          value: type === "exit" ? "" : value.trim() || "5",
-          message: message.trim(),
-          audience,
-          channels,
-          isActive: true,
-          quietHours: quietHoursEnabled ? { start: quietHoursStart, end: quietHoursEnd } : null,
-        };
-        setRules((curr) => [created, ...curr]);
-        // Reset builder form
-        setCampaignName("");
-        setMessage("");
-        setValue("5");
-        setSequenceSteps([]);
-        setStartDate("");
-        setEndDate("");
-        setQuietHoursEnabled(false);
-        setActiveTab("list");
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to create campaign"))
-      .finally(() => setSaving(false));
+    const payload = {
+      bot_id: botId,
+      name: campaignName.trim() || `${type.toUpperCase()} Campaign`,
+      campaign_type: "chat_bubble",
+      message_content: message.trim(),
+      url_patterns: type === "url" ? [value.trim() || "/"] : ["*"],
+      trigger_type: triggerType,
+      trigger_value: type === "url" || type === "exit" ? 0 : Number(value) || 5,
+      target_devices: ["desktop", "mobile"],
+      is_active: true,
+      audience_rules: {
+        segment: audience,
+        min_intent_score: minIntentScore,
+        returning_only: returningOnly,
+        recipient_source: channels.some((c) => c !== "web") || cleanSteps.some((s) => s.channel !== "web") ? "consented_leads" : "widget",
+      },
+      channels,
+      sequence_steps: cleanSteps,
+      safety_config: {
+        frequency_cap_hours: 24,
+        require_consent: true,
+        ...(quietHoursEnabled ? { quiet_hours: { start: quietHoursStart, end: quietHoursEnd } } : {}),
+      },
+      schedule_config: { cadence, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" },
+      start_date: startDate ? new Date(startDate).toISOString() : null,
+      end_date: endDate ? new Date(endDate).toISOString() : null,
+    };
+
+    setSaving(true);
+    let createdRow: Record<string, unknown> | null = null;
+    try {
+      const response = await fetchBackend(`/api/bots/${botId}/campaigns`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        createdRow = (await response.json()) as Record<string, unknown>;
+      }
+    } catch {
+      // Backend API offline; fallback to direct Supabase insert
+    }
+
+    if (!createdRow && !SELF_HOST_MODE) {
+      try {
+        const supabase = createClient();
+        const { data, error: dbErr } = await supabase
+          .from("chatty_campaigns")
+          .insert(payload)
+          .select()
+          .single();
+        if (!dbErr && data) {
+          createdRow = data as Record<string, unknown>;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (createdRow) {
+      const created = mapCampaignRow(createdRow);
+      setRules((curr) => {
+        const next = [created, ...curr];
+        if (botId) localStorage.setItem(`chatty_campaigns_${botId}`, JSON.stringify(next));
+        return next;
+      });
+      // Reset builder form
+      setCampaignName("");
+      setMessage("");
+      setValue("5");
+      setSequenceSteps([]);
+      setStartDate("");
+      setEndDate("");
+      setQuietHoursEnabled(false);
+      setActiveTab("list");
+      setError(null);
+    } else {
+      setError("Failed to create campaign.");
+    }
+    setSaving(false);
   };
 
-  const toggleRuleActive = (rule: TriggerRule) => {
+  const toggleRuleActive = async (rule: TriggerRule) => {
     if (!botId) return;
     const nextState = rule.isActive === false;
-    fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: nextState }),
-    }).then((res) => {
-      if (res.ok) {
-        setRules((curr) => curr.map((r) => (r.id === rule.id ? { ...r, isActive: nextState } : r)));
-      }
-    });
+    let success = false;
+    try {
+      const res = await fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: nextState }),
+      });
+      if (res.ok) success = true;
+    } catch {}
+
+    if (!success && !SELF_HOST_MODE) {
+      try {
+        const supabase = createClient();
+        const { error: dbErr } = await supabase
+          .from("chatty_campaigns")
+          .update({ is_active: nextState })
+          .eq("id", rule.id);
+        if (!dbErr) success = true;
+      } catch {}
+    }
+
+    if (success) {
+      setRules((curr) => {
+        const next = curr.map((r) => (r.id === rule.id ? { ...r, isActive: nextState } : r));
+        if (botId) localStorage.setItem(`chatty_campaigns_${botId}`, JSON.stringify(next));
+        return next;
+      });
+    }
   };
 
-  const deleteRule = (id: string) => {
+  const deleteRule = async (id: string) => {
     if (!botId) return;
-    fetchBackend(`/api/bots/${botId}/campaigns/${id}`, { method: "DELETE" }).then((res) => {
-      if (res.ok) {
-        setRules((curr) => curr.filter((r) => r.id !== id));
-      }
-    });
+    let success = false;
+    try {
+      const res = await fetchBackend(`/api/bots/${botId}/campaigns/${id}`, { method: "DELETE" });
+      if (res.ok) success = true;
+    } catch {}
+
+    if (!success && !SELF_HOST_MODE) {
+      try {
+        const supabase = createClient();
+        const { error: dbErr } = await supabase
+          .from("chatty_campaigns")
+          .delete()
+          .eq("id", id);
+        if (!dbErr) success = true;
+      } catch {}
+    }
+
+    if (success) {
+      setRules((curr) => {
+        const next = curr.filter((r) => r.id !== id);
+        if (botId) localStorage.setItem(`chatty_campaigns_${botId}`, JSON.stringify(next));
+        return next;
+      });
+    }
   };
 
   const suggestCampaignWithAI = () => {
