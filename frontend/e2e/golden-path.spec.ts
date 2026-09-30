@@ -57,12 +57,22 @@ test.describe("landing page launcher", () => {
     await expect(launcher).toBeVisible({ timeout: 10_000 });
     await launcher.click();
 
-    // The production loader mounts the panel in an open Shadow DOM (older
-    // releases used an iframe). Playwright locators pierce open shadow roots,
-    // so assert the visitor-facing composer directly and keep this check
-    // aligned with the current public architecture.
-    const composer = page.locator("#chatty-widget-host").locator("textarea").last();
-    await expect(composer).toBeVisible({ timeout: 10_000 });
+    // The production loader has shipped both direct Shadow-DOM and
+    // iframe-backed panel implementations. Validate the user-visible composer
+    // through either supported transport without coupling the smoke test to
+    // one DOM shape.
+    await expect.poll(async () => {
+      const host = page.locator("#chatty-widget-host");
+      if (await host.locator("textarea").count()) {
+        return await host.locator("textarea").last().isVisible();
+      }
+      const iframe = host.locator("iframe").first();
+      if (await iframe.count()) {
+        const frame = await iframe.contentFrame();
+        return frame ? await frame.getByPlaceholder("Compose your message…").isVisible() : false;
+      }
+      return false;
+    }, { timeout: 10_000 }).toBe(true);
   });
 });
 
