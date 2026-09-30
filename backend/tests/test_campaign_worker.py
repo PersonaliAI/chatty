@@ -61,6 +61,34 @@ def test_configured_email_campaign_delivery_uses_provider_boundary(monkeypatch):
     }))
 
 
+def test_configured_sms_campaign_delivery_uses_provider_boundary(monkeypatch):
+    from app.services import sms_service
+
+    async def sent(**kwargs):
+        assert kwargs == {"to": "+15551234567", "body": "Hello"}
+        return True
+
+    monkeypatch.setattr(sms_service, "send_campaign_sms", sent)
+    asyncio.run(_process_campaign_dispatch({
+        "bot_id": "bot-1",
+        "channel": "sms",
+        "message": "Hello",
+        "requires_consent": False,
+        "recipient": {"phone": "+15551234567"},
+    }))
+
+
+def test_sms_campaign_requires_phone_before_provider_call():
+    with pytest.raises(ValueError, match="recipient.phone"):
+        asyncio.run(_process_campaign_dispatch({
+            "bot_id": "bot-1",
+            "channel": "sms",
+            "message": "Hello",
+            "requires_consent": False,
+            "recipient": {},
+        }))
+
+
 def test_frequency_capped_provider_step_is_suppressed_before_send(monkeypatch):
     from app.services import email_service
 

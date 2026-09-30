@@ -182,7 +182,14 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
             raise RuntimeError(result.get("error") or result.get("reason") or "email campaign delivery failed")
         return
     if channel == "sms":
-        raise RuntimeError("sms campaign delivery adapter is not configured")
+        phone = str(recipient.get("phone") or "").strip()
+        if not phone:
+            raise ValueError("sms campaign requires recipient.phone")
+        from app.services.sms_service import send_campaign_sms
+
+        if not await send_campaign_sms(to=phone, body=message):
+            raise RuntimeError("sms campaign delivery failed")
+        return
     raise ValueError(f"unsupported campaign channel: {channel}")
 
 
