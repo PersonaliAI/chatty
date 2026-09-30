@@ -1375,6 +1375,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                   AI Campaign Strategist
                 </h4>
+                <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                  AI campaign copilot
+                </p>
                 <p className="text-xs text-neutral-400">
                   Describe what you want to achieve, and AI will generate high-converting triggers, copy, and audience segment.
                 </p>
