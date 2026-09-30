@@ -1,14 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, Trash2, Megaphone, Sparkles, Pause, Play, ListChecks, Loader2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import {
+  Megaphone,
+  Sparkles,
+  ListChecks,
+  Loader2,
+  Plus,
+  Trash2,
+  Clock,
+  MousePointer,
+  ArrowUpRight,
+  Globe,
+  Users,
+  UserCheck,
+  Send,
+  Mail,
+  MessageSquare,
+  Smartphone,
+  Search,
+  Eye,
+  Check,
+  X,
+  ShieldCheck,
+  RefreshCw,
+  History,
+} from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
+import { ModernSwitch } from "@/components/ui/modern-switch";
+import { ModernAlert } from "@/components/ui/modern-alert";
+import { DateTimePicker, TimePicker } from "@/components/ui/date-time-picker";
 
 interface TriggerRule {
   id: string;
   type: "time" | "scroll" | "exit" | "url";
   value: string;
   message: string;
+  name?: string;
   impressions?: number;
   clicks?: number;
   conversions?: number;
@@ -50,13 +78,24 @@ type DeliveryRow = { id: string; idempotency_key: string; status: string; channe
 type DeliveryLog = { loading?: boolean; available?: boolean; deliveries?: DeliveryRow[]; error?: string };
 type DeliveryStatus = "all" | "queued" | "sent" | "failed" | "suppressed";
 
+type ActiveCampaignTab = "list" | "builder" | "copilot" | "audit";
+
 export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
+  const [activeTab, setActiveTab] = useState<ActiveCampaignTab>("list");
+
+  // State: List
   const [rules, setRules] = useState<TriggerRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+
+  // State: Builder Form
+  const [campaignName, setCampaignName] = useState("");
   const [type, setType] = useState<"time" | "scroll" | "exit" | "url">("time");
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState("5");
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState("all");
   const [minIntentScore, setMinIntentScore] = useState(0);
@@ -69,84 +108,98 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [quietHoursStart, setQuietHoursStart] = useState("22:00");
   const [quietHoursEnd, setQuietHoursEnd] = useState("08:00");
   const [sequenceSteps, setSequenceSteps] = useState<CampaignSequenceStep[]>([]);
+
+  // State: AI Copilot
   const [goal, setGoal] = useState("");
   const [suggesting, setSuggesting] = useState(false);
   const [suggestingAudience, setSuggestingAudience] = useState(false);
   const [audienceRationale, setAudienceRationale] = useState("");
+
+  // State: Previews & Logs
   const [dispatchPlans, setDispatchPlans] = useState<Record<string, DispatchPreview>>({});
   const [deliveryLogs, setDeliveryLogs] = useState<Record<string, DeliveryLog>>({});
   const [deliveryStatus, setDeliveryStatus] = useState<Record<string, DeliveryStatus>>({});
 
+  // Options for ModernSelect
   const typeOptions: ModernSelectOption[] = [
-    { value: "time", label: "Time on page (Seconds)" },
-    { value: "scroll", label: "Scroll depth (Percentage)" },
-    { value: "exit", label: "Exit Intent (Leaver)" },
-    { value: "url", label: "URL Match (Path/Regexp)" },
+    { value: "time", label: "Time on Page (Seconds)", icon: <Clock className="size-4 text-blue-500" />, hint: "Trigger after visitor spends X seconds" },
+    { value: "scroll", label: "Scroll Depth (Percentage)", icon: <MousePointer className="size-4 text-purple-500" />, hint: "Trigger when scrolled past X%" },
+    { value: "exit", label: "Exit Intent (Mouse Leave)", icon: <ArrowUpRight className="size-4 text-rose-500" />, hint: "Trigger when cursor heads towards browser exit" },
+    { value: "url", label: "URL Path Match", icon: <Globe className="size-4 text-emerald-500" />, hint: "Trigger only on matching subpaths (e.g. /pricing)" },
   ];
 
-  useEffect(() => {
+  const audienceOptions: ModernSelectOption[] = [
+    { value: "all", label: "All Website Visitors", icon: <Users className="size-4 text-blue-500" />, hint: "Targets every new & returning visitor" },
+    { value: "returning", label: "Returning Visitors Only", icon: <UserCheck className="size-4 text-emerald-500" />, hint: "Only visitors with prior recorded visits" },
+    { value: "high_intent", label: "High-Intent Prospects", icon: <Sparkles className="size-4 text-amber-500" />, hint: "Scored by browsing depth & page engagement" },
+  ];
+
+  const cadenceOptions: ModernSelectOption[] = [
+    { value: "once", label: "Run Once (Per Visitor Session)" },
+    { value: "hourly", label: "Hourly (Re-evaluate Every Hour)" },
+    { value: "daily", label: "Daily (Once per 24 Hours)" },
+    { value: "weekly", label: "Weekly Digest" },
+  ];
+
+  // Fetch campaigns
+  const loadCampaigns = () => {
     if (!botId) return;
-    let cancelled = false;
     setLoading(true);
     setError(null);
     fetchBackend(`/api/bots/${botId}/campaigns`)
       .then(async (response) => {
         if (!response.ok) throw new Error(`Campaigns could not be loaded (${response.status})`);
-        const rows = await response.json() as Array<Record<string, unknown>>;
-        if (!cancelled) {
-          const mapped: TriggerRule[] = rows.map((row) => ({
-            id: String(row.id),
-            type: String(row.trigger_type ?? "time_on_page") === "scroll_percentage" ? "scroll"
-              : String(row.trigger_type ?? "time_on_page") === "exit_intent" ? "exit"
-              : String(row.trigger_type ?? "time_on_page") === "url_match" ? "url" : "time",
-            value: String(row.trigger_type ?? "") === "url_match"
+        const rows = (await response.json()) as Array<Record<string, unknown>>;
+        const mapped: TriggerRule[] = rows.map((row) => ({
+          id: String(row.id),
+          name: String(row.name || `${row.trigger_type || "Proactive"} Campaign`),
+          type:
+            String(row.trigger_type ?? "time_on_page") === "scroll_percentage"
+              ? "scroll"
+              : String(row.trigger_type ?? "time_on_page") === "exit_intent"
+                ? "exit"
+                : String(row.trigger_type ?? "time_on_page") === "url_match"
+                  ? "url"
+                  : "time",
+          value:
+            String(row.trigger_type ?? "") === "url_match"
               ? String((row.url_patterns as string[] | undefined)?.[0] ?? "")
               : String(row.trigger_value ?? ""),
-            message: String(row.message ?? ""),
-            impressions: Number(row.impressions ?? 0),
-            clicks: Number(row.clicks ?? 0),
-            conversions: Number(row.conversions ?? 0),
-            audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
-            recipientSource: String((row.audience_rules as { recipient_source?: string } | undefined)?.recipient_source ?? "widget") === "consented_leads" ? "consented_leads" : "widget",
-            channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
-            sequenceSteps: Array.isArray(row.sequence_steps) ? row.sequence_steps as Array<Record<string, unknown>> : [],
-            isActive: row.is_active !== false,
-            startDate: row.start_date ? String(row.start_date) : null,
-            endDate: row.end_date ? String(row.end_date) : null,
-            quietHours: ((row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.start && (row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.end)
-              ? { start: String((row.safety_config as { quiet_hours: { start: string } }).quiet_hours.start), end: String((row.safety_config as { quiet_hours: { end: string } }).quiet_hours.end) }
+          message: String(row.message_content ?? row.message ?? ""),
+          impressions: Number(row.impressions ?? 0),
+          clicks: Number(row.clicks ?? 0),
+          conversions: Number(row.conversions ?? 0),
+          audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
+          recipientSource:
+            String((row.audience_rules as { recipient_source?: string } | undefined)?.recipient_source ?? "widget") === "consented_leads"
+              ? "consented_leads"
+              : "widget",
+          channels: Array.isArray(row.channels) ? row.channels.map(String) : ["web"],
+          sequenceSteps: Array.isArray(row.sequence_steps) ? (row.sequence_steps as Array<Record<string, unknown>>) : [],
+          isActive: row.is_active !== false,
+          startDate: row.start_date ? String(row.start_date) : null,
+          endDate: row.end_date ? String(row.end_date) : null,
+          quietHours:
+            (row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.start &&
+            (row.safety_config as { quiet_hours?: { start?: string; end?: string } } | undefined)?.quiet_hours?.end
+              ? {
+                  start: String((row.safety_config as { quiet_hours: { start: string } }).quiet_hours.start),
+                  end: String((row.safety_config as { quiet_hours: { end: string } }).quiet_hours.end),
+                }
               : null,
-          }));
-          setRules(mapped);
-          // Counters on the campaign row are legacy snapshots. Read the
-          // recomputable event-ledger metrics when available, without making
-          // campaign loading fail if telemetry has not been migrated yet.
-          const analytics = await Promise.all(mapped.map(async (rule) => {
+        }));
+        setRules(mapped);
+
+        // Load metrics asynchronously
+        const analytics = await Promise.all(
+          mapped.map(async (rule) => {
             try {
               const [metricResponse, scheduleResponse] = await Promise.all([
                 fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/analytics`),
                 fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/schedule-preview`),
               ]);
-              const metric = metricResponse.ok
-                ? await metricResponse.json() as {
-                    impressions?: number;
-                    clicks?: number;
-                    conversions?: number;
-                    click_rate?: number;
-                    conversion_rate?: number;
-                    queued?: number;
-                    sent?: number;
-                    failed?: number;
-                    suppressed?: number;
-                    delivery_success_rate?: number;
-                    by_device?: Record<string, number>;
-                    by_channel?: Record<string, number>;
-                  }
-                : {};
-              const schedule = scheduleResponse.ok
-                ? await scheduleResponse.json() as { next_run_at?: string | null; schedule_config?: { cadence?: string } }
-                : {};
-              if (!metricResponse.ok && !scheduleResponse.ok) return null;
+              const metric = metricResponse.ok ? await metricResponse.json() : {};
+              const schedule = scheduleResponse.ok ? await scheduleResponse.json() : {};
               return {
                 id: rule.id,
                 impressions: Number(metric.impressions ?? rule.impressions ?? 0),
@@ -164,68 +217,118 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 nextRunAt: schedule.next_run_at ?? null,
                 scheduleCadence: String(schedule.schedule_config?.cadence ?? "once"),
               };
-            } catch { return null; }
-          }));
-          if (!cancelled) setRules((current) => current.map((rule) => {
+            } catch {
+              return null;
+            }
+          })
+        );
+        setRules((current) =>
+          current.map((rule) => {
             const metric = analytics.find((item) => item?.id === rule.id);
             return metric ? { ...rule, ...metric } : rule;
-          }));
-        }
+          })
+        );
       })
       .catch(() => {
-        // Keep old browser rules readable during rollout, but all new writes go
-        // to the authenticated API so campaigns work across devices.
         try {
           const saved = botId ? localStorage.getItem(`chatty_campaigns_${botId}`) : null;
-          if (!cancelled && saved) setRules(JSON.parse(saved));
-        } catch { /* ignore corrupt legacy state */ }
-        if (!cancelled) setError("Campaign service is unavailable; showing local rules.");
+          if (saved) setRules(JSON.parse(saved));
+        } catch {
+          // ignore
+        }
+        setError("Campaign service is offline; showing local backup.");
       })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [botId, fetchBackend]);
+      .finally(() => setLoading(false));
+  };
 
-  const addRule = () => {
-    if (!message.trim()) return;
-    const cleanSequenceSteps = sequenceSteps.map((step) => ({
-      channel: step.channel,
-      after_minutes: Math.max(0, Math.min(43_200, Number(step.after_minutes) || 0)),
-      message: step.message.trim(),
-    })).filter((step) => Boolean(step.message));
-    const newRule: TriggerRule = {
-      id: crypto.randomUUID(),
-      type,
-      value: type === "exit" ? "" : value.trim() || "10",
-      message: message.trim(),
-    };
-    if (!botId) return;
+  useEffect(() => {
+    loadCampaigns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botId]);
+
+  // Aggregate Metrics
+  const metrics = useMemo(() => {
+    const totalCampaigns = rules.length;
+    const activeCount = rules.filter((r) => r.isActive !== false).length;
+    const totalImpressions = rules.reduce((acc, r) => acc + (r.impressions || 0), 0);
+    const totalClicks = rules.reduce((acc, r) => acc + (r.clicks || 0), 0);
+    const totalConversions = rules.reduce((acc, r) => acc + (r.conversions || 0), 0);
+    const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+    const avgCvr = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
+    const totalDelivered = rules.reduce((acc, r) => acc + (r.sent || 0), 0);
+
+    return { totalCampaigns, activeCount, totalImpressions, totalClicks, totalConversions, avgCtr, avgCvr, totalDelivered };
+  }, [rules]);
+
+  // Filtered Rules
+  const filteredRules = useMemo(() => {
+    return rules.filter((r) => {
+      if (statusFilter === "active" && r.isActive === false) return false;
+      if (statusFilter === "paused" && r.isActive !== false) return false;
+      if (typeFilter !== "all" && r.type !== typeFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          r.message.toLowerCase().includes(q) ||
+          (r.name && r.name.toLowerCase().includes(q)) ||
+          r.value.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [rules, statusFilter, typeFilter, searchQuery]);
+
+  const toggleChannel = (val: string) => {
+    setChannels((curr) => (curr.includes(val) ? curr.filter((c) => c !== val) : [...curr, val]));
+  };
+
+  const addSequenceStep = () => {
+    setSequenceSteps((curr) => [...curr, { channel: channels[0] || "web", after_minutes: 15, message: "" }]);
+  };
+
+  const updateSequenceStep = (idx: number, patch: Partial<CampaignSequenceStep>) => {
+    setSequenceSteps((curr) => curr.map((step, i) => (i === idx ? { ...step, ...patch } : step)));
+  };
+
+  const saveNewCampaign = () => {
+    if (!message.trim() || !botId) return;
     if (!channels.length) {
-      setError("Select at least one campaign channel.");
+      setError("Please select at least one channel (e.g. Website).");
       return;
     }
     setSaving(true);
     setError(null);
-    const triggerType = type === "time" ? "time_on_page" : type === "scroll" ? "scroll_percentage" : "exit_intent";
+
+    const cleanSteps = sequenceSteps
+      .map((s) => ({
+        channel: s.channel,
+        after_minutes: Math.max(0, Math.min(43_200, Number(s.after_minutes) || 0)),
+        message: s.message.trim(),
+      }))
+      .filter((s) => Boolean(s.message));
+
+    const triggerType = type === "time" ? "time_on_page" : type === "scroll" ? "scroll_percentage" : type === "exit" ? "exit_intent" : "url_match";
+
     fetchBackend(`/api/bots/${botId}/campaigns`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: `${type} campaign`,
+        name: campaignName.trim() || `${type.toUpperCase()} Campaign`,
         campaign_type: "chat_bubble",
-        message_content: newRule.message,
-        url_patterns: type === "url" ? [newRule.value] : ["*"],
-        trigger_type: type === "url" ? "url_match" : triggerType,
-        trigger_value: type === "url" ? 0 : Number(newRule.value) || 0,
+        message_content: message.trim(),
+        url_patterns: type === "url" ? [value.trim() || "/"] : ["*"],
+        trigger_type: triggerType,
+        trigger_value: type === "url" || type === "exit" ? 0 : Number(value) || 5,
         target_devices: ["desktop", "mobile"],
         is_active: true,
         audience_rules: {
           segment: audience,
           min_intent_score: minIntentScore,
           returning_only: returningOnly,
-          recipient_source: (channels.some((channel) => channel !== "web") || cleanSequenceSteps.some((step) => step.channel !== "web")) ? "consented_leads" : "widget",
+          recipient_source: channels.some((c) => c !== "web") || cleanSteps.some((s) => s.channel !== "web") ? "consented_leads" : "widget",
         },
         channels,
-        sequence_steps: cleanSequenceSteps,
+        sequence_steps: cleanSteps,
         safety_config: {
           frequency_cap_hours: 24,
           require_consent: true,
@@ -235,40 +338,60 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         start_date: startDate ? new Date(startDate).toISOString() : null,
         end_date: endDate ? new Date(endDate).toISOString() : null,
       }),
-    }).then(async (response) => {
-      if (!response.ok) throw new Error(`Campaign could not be saved (${response.status})`);
-      const row = await response.json() as Record<string, unknown>;
-      setRules((current) => [{ ...newRule, id: String(row.id), quietHours: quietHoursEnabled ? { start: quietHoursStart, end: quietHoursEnd } : null }, ...current]);
-      setValue("");
-      setMessage("");
-      setAudience("all");
-      setMinIntentScore(0);
-      setReturningOnly(false);
-      setChannels(["web"]);
-      setCadence("once");
-      setStartDate("");
-      setEndDate("");
-      setQuietHoursEnabled(false);
-      setQuietHoursStart("22:00");
-      setQuietHoursEnd("08:00");
-      setSequenceSteps([]);
-    }).catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : "Campaign could not be saved."))
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Save failed (${response.status})`);
+        const row = (await response.json()) as Record<string, unknown>;
+        const created: TriggerRule = {
+          id: String(row.id),
+          name: campaignName.trim() || `${type.toUpperCase()} Campaign`,
+          type,
+          value: type === "exit" ? "" : value.trim() || "5",
+          message: message.trim(),
+          audience,
+          channels,
+          isActive: true,
+          quietHours: quietHoursEnabled ? { start: quietHoursStart, end: quietHoursEnd } : null,
+        };
+        setRules((curr) => [created, ...curr]);
+        // Reset builder form
+        setCampaignName("");
+        setMessage("");
+        setValue("5");
+        setSequenceSteps([]);
+        setStartDate("");
+        setEndDate("");
+        setQuietHoursEnabled(false);
+        setActiveTab("list");
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to create campaign"))
       .finally(() => setSaving(false));
   };
 
-  const toggleChannel = (value: string) => {
-    setChannels((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+  const toggleRuleActive = (rule: TriggerRule) => {
+    if (!botId) return;
+    const nextState = rule.isActive === false;
+    fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: nextState }),
+    }).then((res) => {
+      if (res.ok) {
+        setRules((curr) => curr.map((r) => (r.id === rule.id ? { ...r, isActive: nextState } : r)));
+      }
+    });
   };
 
-  const addSequenceStep = () => {
-    setSequenceSteps((current) => [...current, { channel: channels[0] || "web", after_minutes: 0, message: "" }]);
+  const deleteRule = (id: string) => {
+    if (!botId) return;
+    fetchBackend(`/api/bots/${botId}/campaigns/${id}`, { method: "DELETE" }).then((res) => {
+      if (res.ok) {
+        setRules((curr) => curr.filter((r) => r.id !== id));
+      }
+    });
   };
 
-  const updateSequenceStep = (index: number, patch: Partial<CampaignSequenceStep>) => {
-    setSequenceSteps((current) => current.map((step, stepIndex) => stepIndex === index ? { ...step, ...patch } : step));
-  };
-
-  const suggestCampaign = () => {
+  const suggestCampaignWithAI = () => {
     if (!botId || !goal.trim()) return;
     setSuggesting(true);
     setError(null);
@@ -276,27 +399,34 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ goal: goal.trim() }),
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("AI campaign suggestion failed");
-      const suggestion = await response.json() as {
-        message_content?: string; trigger_type?: string; trigger_value?: number; sequence_steps?: Array<Record<string, unknown>>;
-      };
-      const suggestedType = suggestion.trigger_type === "scroll_percentage" ? "scroll"
-        : suggestion.trigger_type === "exit_intent" ? "exit"
-        : suggestion.trigger_type === "url_match" ? "url" : "time";
-      setType(suggestedType);
-      setValue(suggestedType === "exit" ? "" : String(suggestion.trigger_value ?? 5));
-      setMessage(String(suggestion.message_content ?? ""));
-      setSequenceSteps((Array.isArray(suggestion.sequence_steps) ? suggestion.sequence_steps : []).map((step) => ({
-        channel: String(step.channel ?? "web").toLowerCase(),
-        after_minutes: Math.max(0, Number(step.after_minutes ?? 0) || 0),
-        message: String(step.message ?? ""),
-      })));
-    }).catch((suggestionError: unknown) => setError(suggestionError instanceof Error ? suggestionError.message : "AI suggestion failed."))
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("AI copilot suggestion failed");
+        const suggestion = (await response.json()) as {
+          message_content?: string;
+          trigger_type?: string;
+          trigger_value?: number;
+          sequence_steps?: Array<Record<string, unknown>>;
+        };
+        const suggestedType =
+          suggestion.trigger_type === "scroll_percentage"
+            ? "scroll"
+            : suggestion.trigger_type === "exit_intent"
+              ? "exit"
+              : suggestion.trigger_type === "url_match"
+                ? "url"
+                : "time";
+        setType(suggestedType);
+        setValue(suggestedType === "exit" ? "" : String(suggestion.trigger_value ?? 5));
+        setMessage(String(suggestion.message_content ?? ""));
+        setCampaignName(`AI: ${goal.trim().slice(0, 30)}`);
+        setActiveTab("builder");
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "AI suggestion failed"))
       .finally(() => setSuggesting(false));
   };
 
-  const suggestAudience = () => {
+  const suggestAudienceWithAI = () => {
     if (!botId || !goal.trim()) return;
     setSuggestingAudience(true);
     setError(null);
@@ -304,345 +434,951 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ goal: goal.trim(), audience }),
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("AI audience suggestion failed");
-      const result = await response.json() as { audience_rules?: { segment?: string; min_intent_score?: number; returning_only?: boolean }; rationale?: string };
-      const segment = result.audience_rules?.segment;
-      if (segment === "all" || segment === "returning" || segment === "high_intent") setAudience(segment);
-      setMinIntentScore(Math.max(0, Math.min(100, Number(result.audience_rules?.min_intent_score ?? 0))));
-      setReturningOnly(Boolean(result.audience_rules?.returning_only));
-      setAudienceRationale(String(result.rationale ?? "").slice(0, 240));
-    }).catch((suggestionError: unknown) => setError(suggestionError instanceof Error ? suggestionError.message : "AI audience suggestion failed."))
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("AI audience suggestion failed");
+        const result = (await response.json()) as {
+          audience_rules?: { segment?: string; min_intent_score?: number; returning_only?: boolean };
+          rationale?: string;
+        };
+        const segment = result.audience_rules?.segment;
+        if (segment === "all" || segment === "returning" || segment === "high_intent") setAudience(segment);
+        setMinIntentScore(Math.max(0, Math.min(100, Number(result.audience_rules?.min_intent_score ?? 0))));
+        setReturningOnly(Boolean(result.audience_rules?.returning_only));
+        setAudienceRationale(String(result.rationale ?? "").slice(0, 240));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "AI audience suggestion failed"))
       .finally(() => setSuggestingAudience(false));
   };
 
-  const deleteRule = (id: string) => {
+  const toggleDispatchPlan = (id: string) => {
     if (!botId) return;
-    setSaving(true);
-    fetchBackend(`/api/bots/${botId}/campaigns/${id}`, { method: "DELETE" })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Campaign could not be deleted (${response.status})`);
-        setRules((current) => current.filter((r) => r.id !== id));
-      })
-      .catch((deleteError: unknown) => setError(deleteError instanceof Error ? deleteError.message : "Campaign could not be deleted."))
-      .finally(() => setSaving(false));
-  };
-
-  const toggleRule = (rule: TriggerRule) => {
-    if (!botId) return;
-    setSaving(true);
-    fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: rule.isActive === false }),
-    }).then((response) => {
-      if (!response.ok) throw new Error(`Campaign could not be updated (${response.status})`);
-      setRules((current) => current.map((item) => item.id === rule.id ? { ...item, isActive: rule.isActive === false } : item));
-    }).catch((toggleError: unknown) => setError(toggleError instanceof Error ? toggleError.message : "Campaign could not be updated."))
-      .finally(() => setSaving(false));
-  };
-
-  const toggleDispatchPlan = (campaignId: string) => {
-    if (!botId) return;
-    const current = dispatchPlans[campaignId];
-    if (current?.jobs || current?.error) {
-      setDispatchPlans((plans) => {
-        const next = { ...plans };
-        delete next[campaignId];
+    if (dispatchPlans[id]) {
+      setDispatchPlans((prev) => {
+        const next = { ...prev };
+        delete next[id];
         return next;
       });
       return;
     }
-    setDispatchPlans((plans) => ({ ...plans, [campaignId]: { loading: true } }));
-    fetchBackend(`/api/bots/${botId}/campaigns/${campaignId}/dispatch-plan`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Preview unavailable (${response.status})`);
-        const result = await response.json() as { jobs?: DispatchJob[]; deferred?: boolean; deferred_reason?: string };
-        setDispatchPlans((plans) => ({
-          ...plans,
-          [campaignId]: {
-            jobs: Array.isArray(result.jobs) ? result.jobs : [],
-            deferred: result.deferred === true,
-            deferred_reason: result.deferred_reason,
-          },
+    setDispatchPlans((prev) => ({ ...prev, [id]: { loading: true } }));
+    fetchBackend(`/api/bots/${botId}/campaigns/${id}/dispatch-plan`)
+      .then(async (res) => {
+        const data = await res.json();
+        setDispatchPlans((prev) => ({
+          ...prev,
+          [id]: { jobs: data.jobs || [], deferred: data.deferred, deferred_reason: data.deferred_reason },
         }));
       })
-      .catch((previewError: unknown) => setDispatchPlans((plans) => ({
-        ...plans,
-        [campaignId]: { error: previewError instanceof Error ? previewError.message : "Preview unavailable." },
-      })));
+      .catch((err) => {
+        setDispatchPlans((prev) => ({ ...prev, [id]: { error: err.message } }));
+      });
   };
 
-  const toggleDeliveryLog = (campaignId: string) => {
+  const toggleDeliveryLog = (id: string) => {
     if (!botId) return;
-    const current = deliveryLogs[campaignId];
-    if (current?.deliveries || current?.error) {
-      setDeliveryLogs((logs) => { const next = { ...logs }; delete next[campaignId]; return next; });
+    if (deliveryLogs[id]) {
+      setDeliveryLogs((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       return;
     }
-    setDeliveryLogs((logs) => ({ ...logs, [campaignId]: { loading: true } }));
-    const selectedStatus = deliveryStatus[campaignId] ?? "all";
-    const statusQuery = selectedStatus === "all" ? "" : `&status=${encodeURIComponent(selectedStatus)}`;
-    fetchBackend(`/api/bots/${botId}/campaigns/${campaignId}/deliveries?limit=100${statusQuery}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Delivery history unavailable (${response.status})`);
-        const result = await response.json() as { available?: boolean; deliveries?: DeliveryRow[] };
-        setDeliveryLogs((logs) => ({ ...logs, [campaignId]: { available: result.available !== false, deliveries: Array.isArray(result.deliveries) ? result.deliveries : [] } }));
+    setDeliveryLogs((prev) => ({ ...prev, [id]: { loading: true } }));
+    const status = deliveryStatus[id] || "all";
+    const query = status === "all" ? "" : `&status=${encodeURIComponent(status)}`;
+    fetchBackend(`/api/bots/${botId}/campaigns/${id}/deliveries?limit=50${query}`)
+      .then(async (res) => {
+        const data = await res.json();
+        setDeliveryLogs((prev) => ({
+          ...prev,
+          [id]: { available: data.available, deliveries: data.deliveries || [] },
+        }));
       })
-      .catch((historyError: unknown) => setDeliveryLogs((logs) => ({ ...logs, [campaignId]: { error: historyError instanceof Error ? historyError.message : "Delivery history unavailable." } })));
+      .catch((err) => {
+        setDeliveryLogs((prev) => ({ ...prev, [id]: { error: err.message } }));
+      });
   };
 
   return (
-    <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-7xl mx-auto w-full py-6 px-4 sm:px-6 space-y-6">
+      {/* ── Top Header & Stats Overview ── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-neutral-800 pb-5">
         <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
-            <Megaphone className="size-4" style={{ color }} /> Proactive Campaigns
-          </h4>
-          <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">
-            Display targeted teaser popups to web visitors based on user behaviors.
-          </p>
+          <div className="flex items-center gap-2.5">
+            <div className="size-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs">
+              <Megaphone className="size-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
+                Proactive Campaigns
+              </h2>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                Trigger targeted teaser popups, behavioral prompts, and automated multi-channel sequences.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Global Action */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab("builder")}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer hover:opacity-95"
+            style={{ background: color }}
+          >
+            <Plus className="size-4" />
+            <span>Create Campaign</span>
+          </button>
         </div>
       </div>
-      {error && <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">{error}</div>}
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        {/* Creator form */}
-        <div className="md:col-span-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4 h-fit">
-          <h5 className="text-xs font-bold text-neutral-850">Create Campaign Rule</h5>
-          <div className="rounded-xl border border-orange-100 bg-orange-50/70 p-3 space-y-2 dark:border-orange-900/40 dark:bg-orange-950/20">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-orange-800 dark:text-orange-200"><Sparkles className="size-3.5" /> AI campaign copilot</div>
-            <input value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="Goal, e.g. convert pricing visitors" className="w-full rounded-lg border border-orange-200 bg-white px-2.5 py-1.5 text-xs focus:outline-none dark:border-orange-900 dark:bg-neutral-950" />
-            <button type="button" onClick={suggestCampaign} disabled={!goal.trim() || suggesting} className="w-full rounded-lg border border-orange-200 px-3 py-1.5 text-[11px] font-semibold text-orange-700 disabled:opacity-50 dark:border-orange-900 dark:text-orange-200">{suggesting ? "Thinking…" : "Suggest campaign"}</button>
-            <button type="button" onClick={suggestAudience} disabled={!goal.trim() || suggestingAudience} className="w-full rounded-lg border border-orange-200 px-3 py-1.5 text-[11px] font-semibold text-orange-700 disabled:opacity-50 dark:border-orange-900 dark:text-orange-200">{suggestingAudience ? "Selecting audience…" : "Suggest audience"}</button>
-            {audienceRationale && <p className="text-[10px] leading-relaxed text-orange-800/80 dark:text-orange-200/80">{audienceRationale}</p>}
+      {/* ── Metrics Cards Ribbon ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="p-4 rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xs space-y-1">
+          <div className="flex items-center justify-between text-neutral-400 text-xs font-medium">
+            <span>Active Campaigns</span>
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
           </div>
-          
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Trigger Type</label>
-              <ModernSelect
-                value={type}
-                options={typeOptions}
-                onChange={(val) => setType(val as "time" | "scroll" | "exit" | "url")}
+          <div className="text-xl font-extrabold text-neutral-900 dark:text-neutral-100">
+            {metrics.activeCount} <span className="text-xs font-normal text-neutral-400">/ {metrics.totalCampaigns}</span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xs space-y-1">
+          <div className="flex items-center justify-between text-neutral-400 text-xs font-medium">
+            <span>Impressions</span>
+            <Eye className="size-3.5 text-blue-500" />
+          </div>
+          <div className="text-xl font-extrabold text-neutral-900 dark:text-neutral-100">
+            {metrics.totalImpressions.toLocaleString()}
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xs space-y-1">
+          <div className="flex items-center justify-between text-neutral-400 text-xs font-medium">
+            <span>Click-Through (CTR)</span>
+            <MousePointer className="size-3.5 text-purple-500" />
+          </div>
+          <div className="text-xl font-extrabold text-neutral-900 dark:text-neutral-100">
+            {metrics.avgCtr.toFixed(1)}%
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xs space-y-1">
+          <div className="flex items-center justify-between text-neutral-400 text-xs font-medium">
+            <span>Conversions (CVR)</span>
+            <Sparkles className="size-3.5 text-amber-500" />
+          </div>
+          <div className="text-xl font-extrabold text-neutral-900 dark:text-neutral-100">
+            {metrics.avgCvr.toFixed(1)}%
+          </div>
+        </div>
+      </div>
+
+      {/* ── Error Banner ── */}
+      {error && (
+        <ModernAlert variant="error" onDismiss={() => setError(null)} title="Action Alert">
+          {error}
+        </ModernAlert>
+      )}
+
+      {/* ── Segmented Navigation Tabs ── */}
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-neutral-800 pb-2">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-neutral-850 rounded-xl border border-slate-200/80 dark:border-neutral-800">
+          {[
+            { id: "list", label: "All Campaigns", count: rules.length },
+            { id: "builder", label: "Campaign Builder" },
+            { id: "copilot", label: "AI Copilot & Playbooks" },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as ActiveCampaignTab)}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+              >
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-neutral-750 text-neutral-600 dark:text-neutral-300 font-semibold">
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {activeTab === "list" && (
+          <button
+            type="button"
+            onClick={loadCampaigns}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:bg-slate-50 cursor-pointer shadow-2xs"
+          >
+            <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+            <span>Sync</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── TAB 1: ALL CAMPAIGNS LIST ── */}
+      {activeTab === "list" && (
+        <div className="space-y-4">
+          {/* Filters & Search Toolbar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200 dark:border-neutral-800 shadow-2xs">
+            <div className="relative flex-1 max-w-md">
+              <Search className="size-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search campaigns by name, message, or URL path..."
+                className="w-full bg-slate-50 dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-xl pl-9 pr-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#f97316]/20"
               />
             </div>
 
-            {type !== "exit" && (
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
-                  {type === "time" ? "Delay (seconds)" : type === "scroll" ? "Scroll past (%)" : "Path contains"}
+            <div className="flex items-center gap-2">
+              <ModernSelect
+                value={statusFilter}
+                options={[
+                  { value: "all", label: "Status: All" },
+                  { value: "active", label: "Status: Active Only" },
+                  { value: "paused", label: "Status: Paused Only" },
+                ]}
+                onChange={(val) => setStatusFilter(val as "all" | "active" | "paused")}
+                size="sm"
+              />
+
+              <ModernSelect
+                value={typeFilter}
+                options={[
+                  { value: "all", label: "Trigger: All" },
+                  { value: "time", label: "Trigger: Time on Page" },
+                  { value: "scroll", label: "Trigger: Scroll Depth" },
+                  { value: "exit", label: "Trigger: Exit Intent" },
+                  { value: "url", label: "Trigger: URL Match" },
+                ]}
+                onChange={(val) => setTypeFilter(val)}
+                size="sm"
+              />
+            </div>
+          </div>
+
+          {loading && (
+            <div className="py-16 flex flex-col items-center justify-center gap-2 text-neutral-400">
+              <Loader2 className="size-7 animate-spin text-[#f97316]" />
+              <span className="text-xs">Loading campaigns…</span>
+            </div>
+          )}
+
+          {!loading && filteredRules.length === 0 && (
+            <div className="text-center py-16 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-8 space-y-3">
+              <Megaphone className="size-10 text-neutral-300 mx-auto" />
+              <h4 className="font-bold text-sm text-neutral-800 dark:text-neutral-200">No campaigns found</h4>
+              <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+                Create proactive trigger campaigns to engage visitors based on delay, scroll percentage, or exit intent.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab("builder")}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm cursor-pointer"
+                style={{ background: color }}
+              >
+                Create First Campaign
+              </button>
+            </div>
+          )}
+
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredRules.map((rule) => {
+              const typeBadge = {
+                time: { label: "Time on Page", icon: <Clock className="size-3.5 text-blue-500" />, bg: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
+                scroll: { label: "Scroll Depth", icon: <MousePointer className="size-3.5 text-purple-500" />, bg: "bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300" },
+                exit: { label: "Exit Intent", icon: <ArrowUpRight className="size-3.5 text-rose-500" />, bg: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300" },
+                url: { label: "URL Match", icon: <Globe className="size-3.5 text-emerald-500" />, bg: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
+              }[rule.type];
+
+              return (
+                <div
+                  key={rule.id}
+                  className={`bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-5 shadow-xs space-y-4 transition-all hover:shadow-md ${
+                    rule.isActive === false ? "opacity-70" : ""
+                  }`}
+                >
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${typeBadge.bg}`}>
+                          {typeBadge.icon}
+                          <span>{typeBadge.label}</span>
+                        </span>
+                        {rule.type !== "exit" && (
+                          <span className="text-[10px] font-mono text-neutral-400 bg-slate-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
+                            {rule.value}{rule.type === "time" ? "s" : rule.type === "scroll" ? "%" : ""}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-sm text-neutral-900 dark:text-neutral-100 truncate">
+                        {rule.name || `${rule.type.toUpperCase()} Campaign`}
+                      </h4>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <ModernSwitch
+                        checked={rule.isActive !== false}
+                        onChange={() => toggleRuleActive(rule)}
+                        size="sm"
+                        activeColor="#10b981"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => deleteRule(rule.id)}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                        title="Delete campaign"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Teaser Preview Bubble */}
+                  <div className="p-3 bg-slate-50 dark:bg-neutral-950/60 rounded-xl border border-slate-200/80 dark:border-neutral-800/80 text-xs text-neutral-800 dark:text-neutral-200 leading-relaxed break-words font-medium">
+                    &quot;{rule.message}&quot;
+                  </div>
+
+                  {/* Metrics Bar */}
+                  <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 dark:border-neutral-800 text-center">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-neutral-400">Views</div>
+                      <div className="font-bold text-xs text-neutral-800 dark:text-neutral-200">
+                        {rule.impressions || 0}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-neutral-400">CTR</div>
+                      <div className="font-bold text-xs text-purple-600 dark:text-purple-400">
+                        {rule.clickRate ? (rule.clickRate * 100).toFixed(1) : 0}%
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-neutral-400">CVR</div>
+                      <div className="font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                        {rule.conversionRate ? (rule.conversionRate * 100).toFixed(1) : 0}%
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer metadata & buttons */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[11px] text-neutral-400">
+                      <span>Audience: <b className="text-neutral-600 dark:text-neutral-300">{rule.audience || "all"}</b></span>
+                      <span>Cadence: <b className="text-neutral-600 dark:text-neutral-300">{rule.scheduleCadence || "once"}</b></span>
+                    </div>
+
+                    {rule.quietHours && (
+                      <div className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-200/60 dark:border-amber-900/40 flex items-center gap-1.5">
+                        <Clock className="size-3" />
+                        <span>Quiet Hours: {rule.quietHours.start} – {rule.quietHours.end}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleDispatchPlan(rule.id)}
+                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <ListChecks className="size-3" />
+                        <span>{dispatchPlans[rule.id] ? "Hide Dispatch Plan" : "Dispatch Plan"}</span>
+                      </button>
+
+                      <span className="text-neutral-300">·</span>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleDeliveryLog(rule.id)}
+                        className="text-[11px] font-bold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <History className="size-3" />
+                        <span>{deliveryLogs[rule.id] ? "Hide Logs" : "Delivery Logs"}</span>
+                      </button>
+                    </div>
+
+                    {/* Collapsible Dispatch Plan */}
+                    {dispatchPlans[rule.id]?.jobs && (
+                      <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-xl space-y-1.5 text-xs text-indigo-950 dark:text-indigo-200">
+                        <div className="font-bold text-[11px] uppercase tracking-wide">
+                          Scheduled Jobs ({dispatchPlans[rule.id]?.jobs?.length ?? 0})
+                        </div>
+                        {dispatchPlans[rule.id]?.jobs?.map((job) => (
+                          <div key={job.idempotency_key} className="p-2 bg-white/80 dark:bg-neutral-900 rounded-lg text-[10px]">
+                            <b>{job.payload.channel}</b> · {new Date(job.scheduled_at).toLocaleString()}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Collapsible Delivery Logs */}
+                    {deliveryLogs[rule.id]?.deliveries && (
+                      <div className="p-3 bg-slate-50 dark:bg-neutral-950/80 border border-slate-200 dark:border-neutral-800 rounded-xl space-y-2 text-xs max-h-48 overflow-y-auto">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-[11px] uppercase tracking-wide text-neutral-400">
+                            Delivery Attempts
+                          </span>
+                          <select
+                            aria-label="Filter deliveries"
+                            value={deliveryStatus[rule.id] || "all"}
+                            onChange={(e) => {
+                              const s = e.target.value as DeliveryStatus;
+                              setDeliveryStatus((prev) => ({ ...prev, [rule.id]: s }));
+                              setDeliveryLogs((prev) => {
+                                const next = { ...prev };
+                                delete next[rule.id];
+                                return next;
+                              });
+                            }}
+                            className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg px-2 py-0.5 text-[10px]"
+                          >
+                            <option value="all">All Statuses</option>
+                            <option value="sent">Sent</option>
+                            <option value="failed">Failed</option>
+                            <option value="suppressed">Suppressed</option>
+                          </select>
+                        </div>
+                        {deliveryLogs[rule.id]?.deliveries?.length === 0 && (
+                          <div className="text-[10px] text-neutral-400">No deliveries recorded yet.</div>
+                        )}
+                        {deliveryLogs[rule.id]?.deliveries?.map((d) => (
+                          <div key={d.id} className="p-2 bg-white dark:bg-neutral-900 rounded-lg text-[10px] flex items-center justify-between">
+                            <span><b className="uppercase">{d.status}</b> · {d.channel}</span>
+                            <span className="text-neutral-400">{d.updated_at ? new Date(d.updated_at).toLocaleTimeString() : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 2: CAMPAIGN BUILDER ── */}
+      {activeTab === "builder" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Builder Form Card */}
+          <div className="lg:col-span-8 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xs space-y-6">
+            <div>
+              <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                Campaign Configuration
+              </h3>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Set behavioral triggers, audience targeting, teaser copy, and multi-channel follow-ups.
+              </p>
+            </div>
+
+            {/* Section 1: Campaign Identity & Trigger */}
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                  Campaign Title
                 </label>
                 <input
-                  type="text"
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                  placeholder={type === "time" ? "5" : type === "scroll" ? "50" : "/pricing"}
-                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                  value={campaignName}
+                  onChange={(e) => setCampaignName(e.target.value)}
+                  placeholder="e.g. Enterprise Pricing Teaser / Exit Intent Discount"
+                  className="w-full bg-slate-50 dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#f97316]/20"
                 />
               </div>
-            )}
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Teaser Message</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                    Behavior Trigger Type
+                  </label>
+                  <ModernSelect
+                    value={type}
+                    options={typeOptions}
+                    onChange={(val) => setType(val as "time" | "scroll" | "exit" | "url")}
+                  />
+                </div>
+
+                {type !== "exit" && (
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                      {type === "time" ? "Delay (Seconds)" : type === "scroll" ? "Scroll Depth (%)" : "Path Match"}
+                    </label>
+                    <input
+                      value={value}
+                      onChange={(e) => setValue(e.target.value)}
+                      placeholder={type === "time" ? "5" : type === "scroll" ? "50" : "/pricing"}
+                      className="w-full bg-slate-50 dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#f97316]/20"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 2: Teaser Message */}
+            <div className="space-y-1.5 pt-2">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                Teaser Popup Message
+              </label>
               <textarea
                 rows={3}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="👋 Need help? Chat with our sales team!"
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
+                placeholder="👋 Evaluating our enterprise plan? Chat with an SDR for custom pricing!"
+                className="w-full bg-slate-50 dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-xl p-3 text-xs leading-relaxed font-medium focus:outline-none focus:ring-2 focus:ring-[#f97316]/20"
               />
+              <p className="text-[10px] text-neutral-400">
+                This copy pops up beside the chat widget to prompt the visitor before they open the full window.
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Audience</label>
-                <ModernSelect value={audience} options={[{ value: "all", label: "All visitors" }, { value: "returning", label: "Returning visitors" }, { value: "high_intent", label: "High intent" }]} onChange={(value) => { setAudience(value); if (value === "returning") setReturningOnly(true); }} />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Channels</label>
-                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Campaign channels">
-                  {[{ value: "web", label: "Website" }, { value: "email", label: "Email" }, { value: "whatsapp", label: "WhatsApp" }, { value: "sms", label: "SMS" }].map((option) => (
-                    <button type="button" key={option.value} onClick={() => toggleChannel(option.value)} aria-pressed={channels.includes(option.value)} className={`rounded-lg border px-2 py-1 text-[10px] font-semibold transition-colors ${channels.includes(option.value) ? "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-200" : "border-neutral-200 text-neutral-500 dark:border-neutral-800"}`}>
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                {channels.some((channel) => channel !== "web") && <p className="mt-1 text-[9px] leading-relaxed text-neutral-400">Provider channels target only leads with recorded marketing consent. Contacts without opt-in are never queued.</p>}
-                <div className="mt-2 flex items-center gap-2">
-                  <label className="text-[9px] text-neutral-400" htmlFor="campaign-intent-score">Min intent</label>
-                  <input id="campaign-intent-score" type="number" min={0} max={100} value={minIntentScore} onChange={(event) => setMinIntentScore(Math.max(0, Math.min(100, Number(event.target.value) || 0)))} className="w-16 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-950" />
-                  <label className="flex items-center gap-1 text-[9px] text-neutral-400">
-                    <input type="checkbox" checked={returningOnly} onChange={(event) => setReturningOnly(event.target.checked)} /> Returning only
+            {/* Section 3: Audience & Delivery Channels */}
+            <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-neutral-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                    Target Audience
                   </label>
+                  <ModernSelect
+                    value={audience}
+                    options={audienceOptions}
+                    onChange={(val) => {
+                      setAudience(val);
+                      if (val === "returning") setReturningOnly(true);
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                    Delivery Cadence
+                  </label>
+                  <ModernSelect
+                    value={cadence}
+                    options={cadenceOptions}
+                    onChange={setCadence}
+                  />
+                </div>
+              </div>
+
+              {/* Channels Pills */}
+              <div className="space-y-2">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                  Notification Channels
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "web", label: "Website Chat Bubble", icon: <MessageSquare className="size-3.5" /> },
+                    { id: "email", label: "Email Notification", icon: <Mail className="size-3.5" /> },
+                    { id: "whatsapp", label: "WhatsApp Direct", icon: <Smartphone className="size-3.5" /> },
+                    { id: "sms", label: "SMS Broadcast", icon: <Send className="size-3.5" /> },
+                  ].map((chan) => {
+                    const isSelected = channels.includes(chan.id);
+                    return (
+                      <button
+                        key={chan.id}
+                        type="button"
+                        onClick={() => toggleChannel(chan.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-orange-500 bg-orange-50 text-orange-700 dark:border-orange-600 dark:bg-orange-950/60 dark:text-orange-200 shadow-2xs"
+                            : "border-slate-200 text-neutral-500 dark:border-neutral-800 hover:border-slate-300"
+                        }`}
+                      >
+                        {chan.icon}
+                        <span>{chan.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {channels.some((c) => c !== "web") && (
+                  <ModernAlert variant="info">
+                    Multichannel notifications (Email, WhatsApp, SMS) target consented leads with recorded marketing opt-in.
+                  </ModernAlert>
+                )}
+              </div>
+
+              {/* Min Intent Slider & Returning Only Switch */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-1.5 bg-slate-50 dark:bg-neutral-950 p-3.5 rounded-xl border border-slate-200 dark:border-neutral-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                      Min Intent Score Threshold
+                    </label>
+                    <span className="text-xs font-bold text-[#f97316]">{minIntentScore}/100</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={minIntentScore}
+                    onChange={(e) => setMinIntentScore(Number(e.target.value))}
+                    className="w-full accent-[#f97316] cursor-pointer"
+                  />
+                  <p className="text-[10px] text-neutral-400">Visitors with score ≥ {minIntentScore} will be triggered.</p>
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-neutral-950 rounded-xl border border-slate-200 dark:border-neutral-800">
+                  <div>
+                    <h5 className="font-bold text-xs text-neutral-800 dark:text-neutral-200">
+                      Returning Visitors Only
+                    </h5>
+                    <p className="text-[10px] text-neutral-400">Exclude first-time website visitors</p>
+                  </div>
+                  <ModernSwitch
+                    checked={returningOnly}
+                    onChange={setReturningOnly}
+                    size="sm"
+                    activeColor="#f97316"
+                  />
                 </div>
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Sequence cadence</label>
-              <ModernSelect value={cadence} options={[{ value: "once", label: "Run once" }, { value: "hourly", label: "Hourly" }, { value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }]} onChange={setCadence} />
-              <p className="text-[9px] text-neutral-400">The schedule is persisted with the campaign and interpreted in the visitor’s configured timezone.</p>
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <label className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400">Start window
-                <input type="datetime-local" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-[10px] font-normal dark:border-neutral-800 dark:bg-neutral-950" />
-              </label>
-              <label className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400">End window
-                <input type="datetime-local" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-[10px] font-normal dark:border-neutral-800 dark:bg-neutral-950" />
-              </label>
-              <p className="sm:col-span-2 text-[9px] text-neutral-400">Optional. Set a bounded campaign window; leaving either blank keeps the schedule open-ended.</p>
-            </div>
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-2.5 dark:border-neutral-800 dark:bg-neutral-950/40">
-              <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-                <input type="checkbox" checked={quietHoursEnabled} onChange={(event) => setQuietHoursEnabled(event.target.checked)} />
-                Quiet hours safeguard
-              </label>
-              {quietHoursEnabled && <div className="mt-2 grid grid-cols-2 gap-2">
-                <label className="text-[9px] text-neutral-400">Suppress from<input type="time" value={quietHoursStart} onChange={(event) => setQuietHoursStart(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-900" /></label>
-                <label className="text-[9px] text-neutral-400">Suppress until<input type="time" value={quietHoursEnd} onChange={(event) => setQuietHoursEnd(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-900" /></label>
-              </div>}
-              <p className="mt-1 text-[9px] text-neutral-400">Uses the campaign timezone and applies to every channel.</p>
-            </div>
-            <div className="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/60 p-2.5 dark:border-neutral-800 dark:bg-neutral-950/40">
-              <div className="flex items-center justify-between gap-2">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Intelligent sequence</label>
-                <button type="button" onClick={addSequenceStep} disabled={sequenceSteps.length >= 20} className="rounded-md border border-orange-200 px-2 py-1 text-[10px] font-semibold text-orange-700 disabled:opacity-40 dark:border-orange-900 dark:text-orange-200">+ Add step</button>
+
+            {/* Section 4: Modern Date Time Windows & Quiet Hours */}
+            <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-neutral-800">
+              <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
+                Schedule & Safeguards
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DateTimePicker
+                  label="Campaign Start Date & Time"
+                  value={startDate}
+                  onChange={setStartDate}
+                  placeholder="Immediately (or pick future date)"
+                />
+
+                <DateTimePicker
+                  label="Campaign End Date & Time"
+                  value={endDate}
+                  onChange={setEndDate}
+                  min={startDate}
+                  placeholder="Open-ended (no expiry)"
+                />
               </div>
-              {!sequenceSteps.length && <p className="text-[9px] text-neutral-400">Add follow-ups or use the AI copilot to generate a multi-channel sequence.</p>}
-              {sequenceSteps.map((step, index) => (
-                <div key={`sequence-${index}`} className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5 rounded-lg border border-neutral-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-900">
-                  <span className="text-[9px] font-bold text-neutral-400">{index + 1}</span>
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex gap-1.5">
-                      <select value={step.channel} onChange={(event) => updateSequenceStep(index, { channel: event.target.value })} className="w-24 rounded-md border border-neutral-200 px-1.5 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-950">
-                        {["web", "email", "whatsapp", "sms"].map((channel) => <option key={channel} value={channel}>{channel}</option>)}
-                      </select>
-                      <input type="number" min={0} max={43_200} value={step.after_minutes} onChange={(event) => updateSequenceStep(index, { after_minutes: Number(event.target.value) || 0 })} aria-label={`Step ${index + 1} delay in minutes`} className="w-20 rounded-md border border-neutral-200 px-1.5 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-950" placeholder="Minutes" />
+
+              {/* Quiet Hours Switch & TimePicker */}
+              <div className="p-4 bg-slate-50 dark:bg-neutral-950 rounded-2xl border border-slate-200 dark:border-neutral-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="size-4 text-emerald-500" />
+                    <div>
+                      <h5 className="font-bold text-xs text-neutral-800 dark:text-neutral-200">
+                        Quiet Hours Safeguard
+                      </h5>
+                      <p className="text-[10px] text-neutral-400">
+                        Suppress notifications during late night hours in visitor&apos;s timezone
+                      </p>
                     </div>
-                    <input value={step.message} onChange={(event) => updateSequenceStep(index, { message: event.target.value })} aria-label={`Step ${index + 1} message`} className="w-full rounded-md border border-neutral-200 px-2 py-1 text-[10px] dark:border-neutral-800 dark:bg-neutral-950" placeholder="Follow-up message" />
                   </div>
-                  <button type="button" onClick={() => setSequenceSteps((current) => current.filter((_, stepIndex) => stepIndex !== index))} aria-label={`Remove step ${index + 1}`} className="rounded-md p-1 text-neutral-400 hover:text-red-500"><Trash2 className="size-3.5" /></button>
+                  <ModernSwitch
+                    checked={quietHoursEnabled}
+                    onChange={setQuietHoursEnabled}
+                    size="sm"
+                    activeColor="#10b981"
+                  />
+                </div>
+
+                {quietHoursEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200/80 dark:border-neutral-800">
+                    <TimePicker
+                      label="Suppress From"
+                      value={quietHoursStart}
+                      onChange={setQuietHoursStart}
+                    />
+                    <TimePicker
+                      label="Suppress Until"
+                      value={quietHoursEnd}
+                      onChange={setQuietHoursEnd}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 5: Intelligent Sequence Follow-ups */}
+            <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-neutral-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
+                    Follow-Up Sequences
+                  </h4>
+                  <p className="text-[10px] text-neutral-400">
+                    Automatically send chained follow-up messages across channels if visitor does not convert.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addSequenceStep}
+                  disabled={sequenceSteps.length >= 10}
+                  className="px-3 py-1.5 rounded-xl border border-orange-200 text-orange-700 dark:border-orange-800 dark:text-orange-300 hover:bg-orange-50 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  + Add Step
+                </button>
+              </div>
+
+              {sequenceSteps.length === 0 && (
+                <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-neutral-800 text-center text-xs text-neutral-400">
+                  No automated sequence steps added. Click &quot;+ Add Step&quot; to queue follow-ups.
+                </div>
+              )}
+
+              {sequenceSteps.map((step, idx) => (
+                <div
+                  key={idx}
+                  className="p-3.5 bg-slate-50 dark:bg-neutral-950 rounded-xl border border-slate-200 dark:border-neutral-800 flex items-start gap-3"
+                >
+                  <span className="size-6 rounded-full bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 font-bold text-xs flex items-center justify-center shrink-0">
+                    {idx + 1}
+                  </span>
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={step.channel}
+                        onChange={(e) => updateSequenceStep(idx, { channel: e.target.value })}
+                        className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-xs font-semibold"
+                      >
+                        {["web", "email", "whatsapp", "sms"].map((c) => (
+                          <option key={c} value={c}>
+                            {c.toUpperCase()}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-xs text-neutral-400">after</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10080}
+                        value={step.after_minutes}
+                        onChange={(e) => updateSequenceStep(idx, { after_minutes: Number(e.target.value) || 0 })}
+                        className="w-18 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-xs font-semibold"
+                      />
+                      <span className="text-xs text-neutral-400">minutes</span>
+                    </div>
+                    <input
+                      value={step.message}
+                      onChange={(e) => updateSequenceStep(idx, { message: e.target.value })}
+                      placeholder="Follow-up message copy..."
+                      className="w-full bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSequenceSteps((curr) => curr.filter((_, i) => i !== idx))}
+                    className="p-1 rounded-lg text-neutral-400 hover:text-red-500"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions Footer */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setActiveTab("list")}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveNewCampaign}
+                disabled={!message.trim() || saving}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                style={{ background: color }}
+              >
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                <span>{saving ? "Publishing Campaign..." : "Save & Activate Campaign"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Live Teaser Preview Card */}
+          <div className="lg:col-span-4 space-y-4">
+            <div className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-5 shadow-xs space-y-4 sticky top-6">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                  Live Visitor Mockup
+                </h4>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-full">
+                  Real-Time
+                </span>
+              </div>
+
+              {/* Website Mockup Window */}
+              <div className="rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-100 dark:bg-neutral-950 p-4 min-h-[300px] flex flex-col justify-end relative overflow-hidden">
+                <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                  <div className="size-2.5 rounded-full bg-rose-400" />
+                  <div className="size-2.5 rounded-full bg-amber-400" />
+                  <div className="size-2.5 rounded-full bg-emerald-400" />
+                  <span className="text-[10px] text-neutral-400 ml-2 font-mono">acme.com{type === "url" && value ? value : "/"}</span>
+                </div>
+
+                {/* Floating Chat Bubble & Teaser Popup */}
+                <div className="flex flex-col items-end gap-2 z-10">
+                  <div className="max-w-[240px] bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-3.5 shadow-xl space-y-1 relative animate-bounce-subtle">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-neutral-400">
+                      <span>Chatty Assistant</span>
+                      <X className="size-3 text-neutral-400" />
+                    </div>
+                    <p className="text-xs text-neutral-800 dark:text-neutral-100 font-medium leading-relaxed">
+                      {message || "👋 Evaluating our enterprise plan? Chat with an SDR for custom pricing!"}
+                    </p>
+                  </div>
+
+                  <div
+                    className="size-12 rounded-full text-white flex items-center justify-center shadow-xl cursor-pointer"
+                    style={{ background: color }}
+                  >
+                    <MessageSquare className="size-6 fill-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 dark:bg-neutral-950 rounded-xl border border-slate-200/80 dark:border-neutral-800/80 text-[11px] text-neutral-500 space-y-1">
+                <div className="font-bold text-neutral-800 dark:text-neutral-200">Trigger Conditions:</div>
+                <div>• Type: <b>{type.toUpperCase()}</b> ({type === "exit" ? "Mouse leave" : value})</div>
+                <div>• Segment: <b>{audience}</b></div>
+                <div>• Cadence: <b>{cadence}</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 3: AI COPILOT & PLAYBOOKS ── */}
+      {activeTab === "copilot" && (
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="size-8 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center">
+                <Sparkles className="size-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                  AI Campaign Strategist
+                </h4>
+                <p className="text-xs text-neutral-400">
+                  Describe what you want to achieve, and AI will generate high-converting triggers, copy, and audience segment.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <textarea
+                rows={3}
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                placeholder="e.g. Convert visitors who linger on pricing for more than 10 seconds into booked discovery demos..."
+                className="w-full bg-slate-50 dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-xl p-3 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#f97316]/20"
+              />
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={suggestCampaignWithAI}
+                  disabled={!goal.trim() || suggesting}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  style={{ background: color }}
+                >
+                  {suggesting ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                  <span>{suggesting ? "Analyzing & Generating..." : "Generate Campaign with AI"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={suggestAudienceWithAI}
+                  disabled={!goal.trim() || suggestingAudience}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border border-orange-200 text-orange-700 dark:border-orange-800 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {suggestingAudience ? <Loader2 className="size-4 animate-spin" /> : <Users className="size-4" />}
+                  <span>{suggestingAudience ? "Optimizing Audience..." : "Suggest Target Audience"}</span>
+                </button>
+              </div>
+
+              {audienceRationale && (
+                <ModernAlert variant="ai" title="Audience Optimization Strategy">
+                  {audienceRationale}
+                </ModernAlert>
+              )}
+            </div>
+          </div>
+
+          {/* Pre-built Strategy Playbooks */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+              Proven High-Conversion Playbooks
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              {[
+                {
+                  title: "Exit-Intent Offer",
+                  type: "exit",
+                  val: "",
+                  msg: "Wait! Before you leave, get an exclusive 20% discount on standard plans today.",
+                  desc: "Recovers abandoning website visitors right when their cursor leaves the viewport.",
+                },
+                {
+                  title: "Pricing Page Whitepaper",
+                  type: "url",
+                  val: "/pricing",
+                  msg: "Need help choosing the right plan for your team? Download our enterprise feature comparison guide.",
+                  desc: "Targets prospects evaluating pricing with actionable buying guidance.",
+                },
+                {
+                  title: "Engaged Reader Prompt",
+                  type: "scroll",
+                  val: "60",
+                  msg: "Enjoying the article? Subscribe to our weekly AI newsletter for curated updates.",
+                  desc: "Triggers after visitor demonstrates high engagement by scrolling past 60%.",
+                },
+              ].map((playbook) => (
+                <div
+                  key={playbook.title}
+                  onClick={() => {
+                    setCampaignName(playbook.title);
+                    setType(playbook.type as "time" | "scroll" | "exit" | "url");
+                    setValue(playbook.val);
+                    setMessage(playbook.msg);
+                    setActiveTab("builder");
+                  }}
+                  className="p-4 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 hover:border-orange-300 dark:hover:border-orange-700/60 rounded-2xl shadow-2xs space-y-2 cursor-pointer transition-all hover:scale-101"
+                >
+                  <h5 className="font-bold text-xs text-neutral-900 dark:text-neutral-100 flex items-center justify-between">
+                    <span>{playbook.title}</span>
+                    <span className="text-[9px] uppercase font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                      {playbook.type}
+                    </span>
+                  </h5>
+                  <p className="text-[11px] text-neutral-500 leading-relaxed">
+                    {playbook.desc}
+                  </p>
+                  <div className="text-[10px] font-bold text-[#f97316] pt-1">
+                    Use this playbook →
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-
-            <button
-            onClick={addRule}
-            disabled={!message.trim() || saving || loading}
-            className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white rounded-xl cursor-pointer disabled:opacity-40"
-            style={{ background: color }}
-          >
-            <Plus className="size-4" /> {saving ? "Saving…" : "Add Campaign Rule"}
-          </button>
         </div>
-
-        {/* Existing campaigns list */}
-        <div className="md:col-span-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4">
-          <h5 className="text-xs font-bold text-neutral-850">Campaigns ({rules.length})</h5>
-          {loading && <p className="text-[11px] text-neutral-400">Loading persisted campaigns…</p>}
-          
-          <div className="space-y-3 divide-y divide-neutral-100 dark:divide-neutral-850">
-            {rules.length === 0 ? (
-              <div className="text-center py-10 text-neutral-400">
-                <Megaphone className="size-8 text-neutral-300 mx-auto mb-2" />
-                <p className="text-xs">No proactive rules defined.</p>
-              </div>
-            ) : (
-              rules.map((r, idx) => (
-                <div key={r.id} className={`flex items-start justify-between gap-4 pt-3 ${idx === 0 ? "pt-0 border-0" : ""} ${r.isActive === false ? "opacity-60" : ""}`}>
-                  <div className="space-y-1.5 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                        {r.type}
-                      </span>
-                      {r.type !== "exit" && (
-                        <span className="text-[10px] font-mono text-neutral-400">
-                          ({r.value}{r.type === "time" ? "s" : r.type === "scroll" ? "%" : ""})
-                        </span>
-                      )}
-                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${r.isActive === false ? "bg-neutral-100 text-neutral-500" : "bg-emerald-50 text-emerald-700"}`}>
-                        {r.isActive === false ? "paused" : "active"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-neutral-700 dark:text-neutral-300 font-medium whitespace-pre-wrap leading-relaxed">{r.message}</p>
-                    <div className="flex flex-wrap gap-2 text-[10px] text-neutral-400" aria-label="Campaign analytics">
-                      <span>{r.impressions ?? 0} impressions</span><span>{r.clicks ?? 0} clicks</span><span>{r.conversions ?? 0} conversions</span>
-                      {r.clickRate !== undefined && <span>{(r.clickRate * 100).toFixed(1)}% CTR</span>}
-                      {r.conversionRate !== undefined && <span>{(r.conversionRate * 100).toFixed(1)}% CVR</span>}
-                      {(r.sent ?? 0) + (r.failed ?? 0) + (r.suppressed ?? 0) > 0 && <span>Delivery {((r.deliverySuccessRate ?? 0) * 100).toFixed(1)}% · {r.sent ?? 0} sent · {r.failed ?? 0} failed · {r.suppressed ?? 0} suppressed</span>}
-                      {Object.keys(r.byDevice ?? {}).length > 0 && <span>Devices: {Object.entries(r.byDevice ?? {}).map(([key, value]) => `${key} ${value}`).join(" · ")}</span>}
-                      {Object.keys(r.byChannel ?? {}).length > 0 && <span>Channels: {Object.entries(r.byChannel ?? {}).map(([key, value]) => `${key} ${value}`).join(" · ")}</span>}
-                    </div>
-                    <div className="text-[10px] text-neutral-400">Audience: {r.audience ?? "all"} · Channels: {(r.channels ?? ["web"]).join(", ")}{r.recipientSource === "consented_leads" ? " · consented leads only" : ""}</div>
-                    <div className="text-[10px] text-neutral-400">
-                      Schedule: {r.scheduleCadence ?? "once"}
-                      {r.nextRunAt ? ` · next run ${new Date(r.nextRunAt).toLocaleString()}` : " · no future run"}
-                      {r.startDate ? ` · starts ${new Date(r.startDate).toLocaleString()}` : ""}
-                      {r.endDate ? ` · ends ${new Date(r.endDate).toLocaleString()}` : ""}
-                      {r.quietHours ? ` · quiet ${r.quietHours.start}–${r.quietHours.end}` : ""}
-                    </div>
-                    {!!r.sequenceSteps?.length && <div className="text-[10px] text-neutral-400">{r.sequenceSteps.length} sequenced follow-up{r.sequenceSteps.length === 1 ? "" : "s"}</div>}
-                    <button type="button" onClick={() => toggleDispatchPlan(r.id)} className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:underline dark:text-indigo-300">
-                      {dispatchPlans[r.id]?.loading ? <Loader2 className="size-3 animate-spin" /> : <ListChecks className="size-3" />}
-                      {dispatchPlans[r.id] ? "Hide delivery plan" : "Preview delivery plan"}
-                    </button>
-                    {dispatchPlans[r.id]?.error && <p className="mt-1 text-[10px] text-rose-600 dark:text-rose-300">{dispatchPlans[r.id]?.error}</p>}
-                    {dispatchPlans[r.id]?.jobs && <div className="mt-2 space-y-1 rounded-lg border border-indigo-100 bg-indigo-50/50 p-2 text-[10px] text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-100">
-                      {dispatchPlans[r.id]?.deferred && <p className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">Deferred safely: {dispatchPlans[r.id]?.deferred_reason ?? "recipient and consent checks must complete before provider delivery."}</p>}
-                      {!dispatchPlans[r.id]?.deferred && !dispatchPlans[r.id]?.jobs?.length && <p>No dispatch is due now. Check the campaign schedule, date window, or quiet-hours safeguard.</p>}
-                      {dispatchPlans[r.id]?.jobs?.map((job, jobIndex) => <div key={job.idempotency_key} className="rounded-md border border-indigo-100 bg-white/70 px-2 py-1 dark:border-indigo-900/50 dark:bg-neutral-950/30">
-                        <span className="font-bold">{jobIndex + 1}. {job.payload.channel ?? "web"}</span> · {new Date(job.scheduled_at).toLocaleString()}
-                        <span className="block text-[9px] text-indigo-700/80 dark:text-indigo-200/80">Consent {job.payload.requires_consent ? "required" : "not required"} · frequency cap {job.payload.frequency_cap_hours ?? 24}h · idempotent</span>
-                      </div>)}
-                    </div>}
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <button type="button" onClick={() => toggleDeliveryLog(r.id)} className="inline-flex items-center gap-1 text-[10px] font-semibold text-neutral-500 hover:underline dark:text-neutral-300">
-                        {deliveryLogs[r.id]?.loading ? <Loader2 className="size-3 animate-spin" /> : <ListChecks className="size-3" />}
-                        {deliveryLogs[r.id] ? "Hide delivery log" : "View delivery log"}
-                      </button>
-                      <label className="inline-flex items-center gap-1 text-[9px] text-neutral-400">
-                        <span className="sr-only">Delivery status filter</span>
-                        <select
-                          aria-label="Delivery status filter"
-                          value={deliveryStatus[r.id] ?? "all"}
-                          onChange={(event) => {
-                            setDeliveryStatus((statuses) => ({ ...statuses, [r.id]: event.target.value as DeliveryStatus }));
-                            setDeliveryLogs((logs) => { const next = { ...logs }; delete next[r.id]; return next; });
-                          }}
-                          className="rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[9px] dark:border-neutral-800 dark:bg-neutral-900"
-                        >
-                          <option value="all">All statuses</option>
-                          <option value="queued">Queued</option>
-                          <option value="sent">Sent</option>
-                          <option value="failed">Failed</option>
-                          <option value="suppressed">Suppressed</option>
-                        </select>
-                      </label>
-                    </div>
-                    {deliveryLogs[r.id]?.error && <p className="mt-1 text-[10px] text-rose-600 dark:text-rose-300">{deliveryLogs[r.id]?.error}</p>}
-                    {deliveryLogs[r.id]?.deliveries && <div className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50 p-2 text-[10px] dark:border-neutral-800 dark:bg-neutral-950">
-                      {!deliveryLogs[r.id]?.deliveries?.length && <p className="text-neutral-400">No provider delivery attempts recorded.</p>}
-                      {deliveryLogs[r.id]?.deliveries?.map((delivery) => <div key={delivery.id} className="flex items-start justify-between gap-2 rounded-md border border-neutral-200 bg-white px-2 py-1 dark:border-neutral-800 dark:bg-neutral-900">
-                        <span><b className="uppercase">{delivery.status}</b> · {delivery.channel} · recipient {delivery.recipient_id || "—"}<span className="block text-[9px] text-neutral-400">{delivery.updated_at ? new Date(delivery.updated_at).toLocaleString() : "time unavailable"}</span></span>
-                        {delivery.error && <span className="max-w-[55%] text-right text-rose-600 dark:text-rose-300">{delivery.error}</span>}
-                      </div>)}
-                    </div>}
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button type="button" onClick={() => toggleRule(r)} disabled={saving} aria-label={r.isActive === false ? "Resume campaign" : "Pause campaign"} title={r.isActive === false ? "Resume campaign" : "Pause campaign"} className="p-1.5 text-neutral-450 hover:text-orange-500 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer transition-colors disabled:opacity-40">
-                      {r.isActive === false ? <Play className="size-4" /> : <Pause className="size-4" />}
-                    </button>
-                    <button type="button" onClick={() => deleteRule(r.id)} disabled={saving} aria-label="Delete campaign" title="Delete campaign" className="p-1.5 text-neutral-450 hover:text-red-500 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer transition-colors disabled:opacity-40">
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

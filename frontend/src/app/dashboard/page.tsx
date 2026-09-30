@@ -4934,7 +4934,7 @@ export default function Dashboard() {
           )}
           {/* TAB: FLOW BUILDER */}
           {activeTab === "flows" && (
-            <div className="max-w-7xl mx-auto w-full py-6 px-4 space-y-4">
+            <div className="max-w-[1600px] mx-auto w-full py-4 px-2 sm:px-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Visual Flow Builder</h4>
