@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from app.core.clients import supabase
 from app.core.config import MODEL_NAME
 from app.core.db import run_db
@@ -443,6 +443,31 @@ async def campaign_schedule_preview(bot_id: str, campaign_id: str, user: dict[st
         "schedule_config": campaign.data.get("schedule_config") or {},
         "next_run_at": next_run.isoformat() if next_run else None,
     }
+
+
+@router.get("/api/bots/{bot_id}/campaigns/{campaign_id}/deliveries")
+async def campaign_delivery_history(
+    bot_id: str,
+    campaign_id: str,
+    limit: int = Query(100, ge=1, le=200),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Return sanitized provider delivery attempts for operator troubleshooting."""
+    await verify_bot_permission(bot_id, user, "settings")
+    campaign = await run_db(lambda: supabase.table("chatty_campaigns").select("id").eq(
+        "id", campaign_id).eq("bot_id", bot_id).maybe_single().execute())
+    if not campaign.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    try:
+        result = await run_db(lambda: supabase.table("chatty_campaign_deliveries").select(
+            "id, idempotency_key, status, channel, recipient_id, error, queued_at, sent_at, updated_at"
+        ).eq("campaign_id", campaign_id).eq("bot_id", bot_id).order(
+            "updated_at", desc=True
+        ).limit(limit).execute())
+    except Exception as exc:
+        logger.warning("campaign delivery history unavailable: %s", exc)
+        return {"campaign_id": campaign_id, "available": False, "deliveries": []}
+    return {"campaign_id": campaign_id, "available": True, "deliveries": result.data or []}
 
 
 @router.get("/api/bots/{bot_id}/campaigns/{campaign_id}/dispatch-plan")

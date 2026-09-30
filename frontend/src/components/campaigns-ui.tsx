@@ -46,6 +46,8 @@ type DispatchJob = {
   payload: { channel?: string; requires_consent?: boolean; frequency_cap_hours?: number; message?: string };
 };
 type DispatchPreview = { loading?: boolean; jobs?: DispatchJob[]; deferred?: boolean; deferred_reason?: string; error?: string };
+type DeliveryRow = { id: string; idempotency_key: string; status: string; channel: string; recipient_id?: string | null; error?: string | null; updated_at?: string | null };
+type DeliveryLog = { loading?: boolean; available?: boolean; deliveries?: DeliveryRow[]; error?: string };
 
 export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [rules, setRules] = useState<TriggerRule[]>([]);
@@ -71,6 +73,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [suggestingAudience, setSuggestingAudience] = useState(false);
   const [audienceRationale, setAudienceRationale] = useState("");
   const [dispatchPlans, setDispatchPlans] = useState<Record<string, DispatchPreview>>({});
+  const [deliveryLogs, setDeliveryLogs] = useState<Record<string, DeliveryLog>>({});
 
   const typeOptions: ModernSelectOption[] = [
     { value: "time", label: "Time on page (Seconds)" },
@@ -368,6 +371,23 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       })));
   };
 
+  const toggleDeliveryLog = (campaignId: string) => {
+    if (!botId) return;
+    const current = deliveryLogs[campaignId];
+    if (current?.deliveries || current?.error) {
+      setDeliveryLogs((logs) => { const next = { ...logs }; delete next[campaignId]; return next; });
+      return;
+    }
+    setDeliveryLogs((logs) => ({ ...logs, [campaignId]: { loading: true } }));
+    fetchBackend(`/api/bots/${botId}/campaigns/${campaignId}/deliveries?limit=100`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Delivery history unavailable (${response.status})`);
+        const result = await response.json() as { available?: boolean; deliveries?: DeliveryRow[] };
+        setDeliveryLogs((logs) => ({ ...logs, [campaignId]: { available: result.available !== false, deliveries: Array.isArray(result.deliveries) ? result.deliveries : [] } }));
+      })
+      .catch((historyError: unknown) => setDeliveryLogs((logs) => ({ ...logs, [campaignId]: { error: historyError instanceof Error ? historyError.message : "Delivery history unavailable." } })));
+  };
+
   return (
     <div className="max-w-4xl mx-auto w-full py-6 px-4 space-y-6">
       <div className="flex items-center justify-between">
@@ -570,6 +590,18 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       {dispatchPlans[r.id]?.jobs?.map((job, jobIndex) => <div key={job.idempotency_key} className="rounded-md border border-indigo-100 bg-white/70 px-2 py-1 dark:border-indigo-900/50 dark:bg-neutral-950/30">
                         <span className="font-bold">{jobIndex + 1}. {job.payload.channel ?? "web"}</span> · {new Date(job.scheduled_at).toLocaleString()}
                         <span className="block text-[9px] text-indigo-700/80 dark:text-indigo-200/80">Consent {job.payload.requires_consent ? "required" : "not required"} · frequency cap {job.payload.frequency_cap_hours ?? 24}h · idempotent</span>
+                      </div>)}
+                    </div>}
+                    <button type="button" onClick={() => toggleDeliveryLog(r.id)} className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-neutral-500 hover:underline dark:text-neutral-300">
+                      {deliveryLogs[r.id]?.loading ? <Loader2 className="size-3 animate-spin" /> : <ListChecks className="size-3" />}
+                      {deliveryLogs[r.id] ? "Hide delivery log" : "View delivery log"}
+                    </button>
+                    {deliveryLogs[r.id]?.error && <p className="mt-1 text-[10px] text-rose-600 dark:text-rose-300">{deliveryLogs[r.id]?.error}</p>}
+                    {deliveryLogs[r.id]?.deliveries && <div className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50 p-2 text-[10px] dark:border-neutral-800 dark:bg-neutral-950">
+                      {!deliveryLogs[r.id]?.deliveries?.length && <p className="text-neutral-400">No provider delivery attempts recorded.</p>}
+                      {deliveryLogs[r.id]?.deliveries?.map((delivery) => <div key={delivery.id} className="flex items-start justify-between gap-2 rounded-md border border-neutral-200 bg-white px-2 py-1 dark:border-neutral-800 dark:bg-neutral-900">
+                        <span><b className="uppercase">{delivery.status}</b> · {delivery.channel} · recipient {delivery.recipient_id || "—"}<span className="block text-[9px] text-neutral-400">{delivery.updated_at ? new Date(delivery.updated_at).toLocaleString() : "time unavailable"}</span></span>
+                        {delivery.error && <span className="max-w-[55%] text-right text-rose-600 dark:text-rose-300">{delivery.error}</span>}
                       </div>)}
                     </div>}
                   </div>

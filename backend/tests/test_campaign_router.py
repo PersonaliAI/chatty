@@ -87,3 +87,24 @@ def test_dispatch_plan_defers_provider_without_consent_audience(monkeypatch):
 
     assert result["deferred"] is True
     assert result["deferred_reason"] == "provider delivery requires consented_leads recipient source"
+
+
+def test_delivery_history_is_sanitized_and_bounded(monkeypatch):
+    permission = AsyncMock(return_value="owner")
+    monkeypatch.setattr(bots, "verify_bot_permission", permission)
+    database = AsyncMock(side_effect=[
+        SimpleNamespace(data={"id": "campaign-1"}),
+        SimpleNamespace(data=[{
+            "id": "delivery-1", "idempotency_key": "campaign.dispatch:key",
+            "status": "failed", "channel": "email", "recipient_id": "lead-1",
+            "error": "provider unavailable", "updated_at": "2026-09-30T10:00:00Z",
+        }]),
+    ])
+    monkeypatch.setattr(bots, "run_db", database)
+
+    result = asyncio.run(bots.campaign_delivery_history("bot-1", "campaign-1", 100, USER))
+
+    assert result["available"] is True
+    assert result["deliveries"][0]["recipient_id"] == "lead-1"
+    assert "@" not in str(result["deliveries"][0])
+    assert database.await_count == 2
