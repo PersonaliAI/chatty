@@ -884,9 +884,9 @@ export default function Dashboard() {
     // loading state bounded; the individual loaders already handle their
     // own errors and can continue updating the dashboard after first paint.
     const sessionBootstrapDeadline = window.setTimeout(() => {
-      console.warn("Console session bootstrap exceeded 12 seconds; rendering dashboard with partial data");
+      console.warn("Console session bootstrap exceeded 5 seconds; rendering dashboard with partial data");
       setLoadingSession(false);
-    }, 12_000);
+    }, 5_000);
 
     async function checkSession() {
       try {
