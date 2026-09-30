@@ -158,6 +158,11 @@ class FlowVersionCreateRequest(BaseModel):
         from silently disappearing at dangling edges.
         """
         node_ids: list[str] = []
+        known_node_types = {
+            "start", "input", "message", "question", "choice", "leadcapture",
+            "aiqualify", "bookmeeting", "settag", "escalate", "delay",
+            "condition", "loop", "webhook", "retry",
+        }
         start_nodes = 0
         for node in self.nodes:
             raw_id = node.get("id")
@@ -167,7 +172,10 @@ class FlowVersionCreateRequest(BaseModel):
             if node_id in node_ids:
                 raise ValueError(f"duplicate flow node id: {node_id}")
             node_ids.append(node_id)
-            if str(node.get("type") or "").strip().lower() in {"start", "input"} or node_id == "start":
+            node_type = str(node.get("type") or "message").strip().lower()
+            if node_type not in known_node_types:
+                raise ValueError(f"unsupported flow node type: {node_type}")
+            if node_type in {"start", "input"} or node_id == "start":
                 start_nodes += 1
             data = node.get("data")
             if data is not None and not isinstance(data, dict):
@@ -176,6 +184,8 @@ class FlowVersionCreateRequest(BaseModel):
             if config is not None and not isinstance(config, dict):
                 raise ValueError("flow node config must be an object")
             if isinstance(config, dict):
+                if len(config) > 50:
+                    raise ValueError("flow node config may contain at most 50 fields")
                 mapping = config.get("mapping")
                 if mapping is not None:
                     if not isinstance(mapping, dict) or len(mapping) > 100:
@@ -187,6 +197,32 @@ class FlowVersionCreateRequest(BaseModel):
                 expression = config.get("expression")
                 if expression is not None and (not isinstance(expression, str) or len(expression) > 2000):
                     raise ValueError("flow condition expressions must be strings of at most 2000 characters")
+                if node_type == "delay":
+                    try:
+                        duration_ms = int(config.get("duration_ms", 0))
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError("flow delay duration_ms must be an integer") from exc
+                    if duration_ms < 0 or duration_ms > 300_000:
+                        raise ValueError("flow delay duration_ms must be between 0 and 300000")
+                if node_type == "loop":
+                    try:
+                        max_iterations = int(config.get("max_iterations", 10))
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError("flow loop max_iterations must be an integer") from exc
+                    if max_iterations < 1 or max_iterations > 100:
+                        raise ValueError("flow loop max_iterations must be between 1 and 100")
+                if node_type == "webhook":
+                    url = config.get("url", config.get("webhook_url", ""))
+                    if not isinstance(url, str) or len(url) > 2048:
+                        raise ValueError("flow webhook url must be a string of at most 2048 characters")
+                if node_type == "retry":
+                    for key, minimum, maximum in (("max_attempts", 1, 10), ("timeout_ms", 100, 300_000), ("backoff_ms", 0, 300_000)):
+                        try:
+                            value = int(config.get(key, {"max_attempts": 3, "timeout_ms": 30_000, "backoff_ms": 1000}[key]))
+                        except (TypeError, ValueError) as exc:
+                            raise ValueError(f"flow retry {key} must be an integer") from exc
+                        if value < minimum or value > maximum:
+                            raise ValueError(f"flow retry {key} is out of bounds")
         if self.nodes and start_nodes != 1:
             raise ValueError(f"a flow must contain exactly one Start node (found {start_nodes})")
         known = set(node_ids)

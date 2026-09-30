@@ -88,3 +88,15 @@ def test_flow_requires_one_start_and_unique_edge_ids():
     duplicate_edges["edges"].append({"id": "e1", "source": "start", "target": "message"})
     with pytest.raises(ValidationError, match="duplicate flow edge"):
         FlowVersionCreateRequest(**duplicate_edges)
+
+
+def test_flow_automation_config_is_bounded_and_node_types_are_explicit():
+    invalid_type = _valid_flow()
+    invalid_type["nodes"][1]["type"] = "run arbitrary code"
+    with pytest.raises(ValidationError, match="unsupported flow node type"):
+        FlowVersionCreateRequest(**invalid_type)
+
+    invalid_delay = _valid_flow()
+    invalid_delay["nodes"][1] = {"id": "delay", "type": "delay", "data": {"config": {"duration_ms": 300001}}}
+    with pytest.raises(ValidationError, match="duration_ms"):
+        FlowVersionCreateRequest(**invalid_delay)
