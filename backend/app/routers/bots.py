@@ -22,7 +22,7 @@ from app.services.campaign_schedule import next_campaign_run_at
 from app.services.campaign_dispatch import build_campaign_dispatch_plan
 from app.services.campaign_audience import load_consented_lead_recipients
 from app.services.campaign_analytics import aggregate_campaign_deliveries, aggregate_campaign_events
-from app.services.flow_runtime import evaluate_condition, evaluate_retry, resolve_mapping, select_condition_branch
+from app.services.flow_runtime import evaluate_condition, evaluate_retry, resolve_mapping, select_condition_branch, redact_flow_trace_value
 from app.core.uploads import read_upload_capped
 from app.schemas.bots import (
     BYOKUpdate,
@@ -227,7 +227,7 @@ async def simulate_dashboard_flow(
             "status": flow.get("status", "paused"),
             "nodes": nodes,
             "edges": edges,
-            "simulation_context": body.context,
+            "simulation_context": redact_flow_trace_value(body.context),
         },
         "status": "failed" if budget_exceeded else "completed",
         "inputs": body.inputs[:50] or ["Hello"],

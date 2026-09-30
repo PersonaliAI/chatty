@@ -42,3 +42,29 @@ def test_flow_run_list_rejects_unknown_status_before_query(monkeypatch):
     except HTTPException as exc:
         assert exc.status_code == 422
     database.assert_not_awaited()
+
+
+def test_simulation_persists_redacted_context_without_mutating_request(monkeypatch):
+    from app.routers.bots import FlowSimulationRequest
+
+    captured = {}
+
+    class Table:
+        def insert(self, payload):
+            captured.update(payload)
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[{"id": "run-1"}])
+
+    async def database(operation):
+        return operation()
+
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(bots, "run_db", database)
+    monkeypatch.setattr(bots, "supabase", SimpleNamespace(table=lambda _: Table()))
+    body = FlowSimulationRequest(nodes=[{"id": "start", "type": "start", "data": {}}],
+                                 edges=[], context={"crm": {"api_key": "private-value", "name": "CRM"}})
+    asyncio.run(bots.simulate_dashboard_flow("bot-1", body, USER, flow_override=None))
+    assert captured["flow_data"]["simulation_context"] == {"crm": {"api_key": "[redacted]", "name": "CRM"}}
+    assert body.context["crm"]["api_key"] == "private-value"
