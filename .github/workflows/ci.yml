@@ -23,6 +23,13 @@ on:
       - '.github/workflows/ci.yml'
   workflow_dispatch: {}
 
+# A newer push supersedes an older validation run on the same branch. This
+# prevents parallel pushes from consuming runners while still preserving full
+# validation for the latest commit.
+concurrency:
+  group: chatty-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # Neither job needs to write to the repo (checkout + test/build only) - the
 # default GITHUB_TOKEN grants broad write access unless scoped down.
 permissions:
