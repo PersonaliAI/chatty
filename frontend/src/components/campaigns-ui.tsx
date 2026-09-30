@@ -348,11 +348,26 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setError("Scroll depth cannot exceed 100 percent.");
       return;
     }
-    if (startDate && endDate && new Date(endDate).getTime() <= new Date(startDate).getTime()) {
+    const parsedStart = startDate ? new Date(startDate).getTime() : null;
+    const parsedEnd = endDate ? new Date(endDate).getTime() : null;
+    if (parsedStart !== null && !Number.isFinite(parsedStart)) {
+      setError("The campaign start date is invalid.");
+      return;
+    }
+    if (parsedEnd !== null && !Number.isFinite(parsedEnd)) {
+      setError("The campaign end date is invalid.");
+      return;
+    }
+    if (parsedStart !== null && parsedEnd !== null && parsedEnd <= parsedStart) {
       setError("The campaign end date must be later than its start date.");
       return;
     }
-    if (quietHoursEnabled && (!/^\d{2}:\d{2}$/.test(quietHoursStart) || !/^\d{2}:\d{2}$/.test(quietHoursEnd))) {
+    const validClock = (value: string) => {
+      if (!/^\d{2}:\d{2}$/.test(value)) return false;
+      const [hours, minutes] = value.split(":").map(Number);
+      return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+    };
+    if (quietHoursEnabled && (!validClock(quietHoursStart) || !validClock(quietHoursEnd))) {
       setError("Quiet hours must use the HH:MM format.");
       return;
     }
