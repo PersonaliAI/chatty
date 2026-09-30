@@ -832,6 +832,27 @@ function validateFlow(nodes: Node[], edges: Edge[]): FlowValidation {
     nodes.filter((node) => !reachable.has(node.id)).forEach((node) => {
       errors.push(`Step ${node.id} is unreachable from the Start step.`);
     });
+
+    // A cycle is only safe when it is explicitly represented by a Loop step.
+    // Reject accidental back-edges (a common drag/connect mistake) before a
+    // published workflow can cause an unbounded worker execution.
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const walk = (id: string) => {
+      if (visiting.has(id)) return true;
+      if (visited.has(id)) return false;
+      visiting.add(id);
+      const hasCycle = (adjacency.get(id) ?? []).some((target) => walk(target));
+      visiting.delete(id);
+      visited.add(id);
+      return hasCycle;
+    };
+    if (walk(starts[0].id)) {
+      const loopIds = new Set(nodes.filter((node) => node.type === "loop").map((node) => node.id));
+      if (!loopIds.size) {
+        errors.push("Flow contains a cycle without an explicit Loop step.");
+      }
+    }
   }
   nodes.filter((node) => node.type !== "start" && node.type !== "input" && (incoming.get(node.id) ?? 0) === 0).forEach((node) => {
     warnings.push(`${node.id} has no incoming connection.`);
