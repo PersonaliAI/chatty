@@ -69,11 +69,19 @@ async def load_consented_lead_recipients(
     """Load the bounded, opted-in audience shared by preview and workers."""
     if limit < 1 or limit > 500:
         raise ValueError("limit must be between 1 and 500")
-    result = await asyncio.to_thread(
-        lambda: supabase_client.table("chatty_leads").select(
+    def load_rows() -> Any:
+        query = supabase_client.table("chatty_leads").select(
             "id,email,phone,marketing_consent,custom_fields"
-        ).eq("bot_id", bot_id).eq("marketing_consent", True).limit(limit).execute()
-    )
+        ).eq("bot_id", bot_id).eq("marketing_consent", True)
+        order = getattr(query, "order", None)
+        if callable(order):
+            try:
+                query = order("created_at", desc=False).order("id", desc=False)
+            except (AttributeError, TypeError):
+                pass
+        return query.limit(limit).execute()
+
+    result = await asyncio.to_thread(load_rows)
     recipients: list[dict[str, Any]] = []
     for lead in result.data or []:
         if not isinstance(lead, dict) or not lead.get("marketing_consent"):

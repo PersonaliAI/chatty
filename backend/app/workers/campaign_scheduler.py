@@ -20,6 +20,23 @@ logger = logging.getLogger("chatty.campaign_scheduler")
 Claim = Callable[[str], Awaitable[bool]]
 
 
+def _stable_query(query: Any) -> Any:
+    """Apply deterministic ordering when the database adapter supports it.
+
+    Supabase's query builder exposes ``order``; small test doubles and older
+    adapters may not. Keeping the fallback makes the scheduler compatible
+    while ensuring production ticks do not repeatedly select an arbitrary
+    subset of rows at the per-tick limit.
+    """
+    order = getattr(query, "order", None)
+    if not callable(order):
+        return query
+    try:
+        return order("created_at", desc=False).order("id", desc=False)
+    except (AttributeError, TypeError):
+        return query
+
+
 async def _enqueue_scheduled(queue: Any, job: dict[str, Any], key: str) -> bool:
     enqueue_once = getattr(queue, "enqueue_once", None)
     enqueue = enqueue_once if callable(enqueue_once) else queue.enqueue
@@ -61,9 +78,11 @@ async def schedule_campaigns_once(
     if limit < 1 or limit > 500:
         raise ValueError("limit must be between 1 and 500")
     current = now or datetime.now(timezone.utc)
-    result = await asyncio.to_thread(
-        lambda: supabase_client.table("chatty_campaigns").select("*").eq("is_active", True).limit(limit).execute()
-    )
+    def load_campaigns() -> Any:
+        query = supabase_client.table("chatty_campaigns").select("*").eq("is_active", True)
+        return _stable_query(query).limit(limit).execute()
+
+    result = await asyncio.to_thread(load_campaigns)
     stats = {"campaigns": 0, "planned": 0, "enqueued": 0, "skipped": 0, "deferred": 0, "invalid": 0}
     for campaign in result.data or []:
         stats["campaigns"] += 1
