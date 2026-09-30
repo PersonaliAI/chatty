@@ -121,3 +121,42 @@ def test_campaign_worker_rechecks_quiet_hours():
         "quiet_hours": {"start": "00:00", "end": "23:59"},
         "timezone": "UTC",
     }))
+
+
+def test_provider_failure_can_retry_without_frequency_cap_suppression(monkeypatch):
+    from app.services import email_service
+
+    class CapRedis:
+        value = None
+
+        async def set(self, key, value, **kwargs):
+            if self.value is not None:
+                return False
+            self.value = value
+            return True
+
+        async def get(self, key):
+            return self.value
+
+    calls = []
+
+    async def send(**kwargs):
+        calls.append(kwargs)
+        return {"sent": len(calls) > 1, "error": "temporary provider failure"}
+
+    monkeypatch.setattr(email_service, "send_campaign_email", send)
+
+    async def exercise():
+        client = CapRedis()
+        payload = {"bot_id": "bot-1", "campaign_id": "campaign-1",
+                   "channel": "email", "message": "Hello", "requires_consent": False,
+                   "recipient": {"email": "a@example.com"},
+                   "delivery_idempotency_key": "delivery-1"}
+        with pytest.raises(RuntimeError, match="temporary provider failure"):
+            await _process_campaign_dispatch(payload, redis_client=client)
+        await _process_campaign_dispatch(payload, redis_client=client)
+        await _process_campaign_dispatch({**payload, "delivery_idempotency_key": "delivery-2"},
+                                         redis_client=client)
+        assert len(calls) == 2
+
+    asyncio.run(exercise())

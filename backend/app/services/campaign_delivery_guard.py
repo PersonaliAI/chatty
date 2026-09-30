@@ -34,5 +34,17 @@ async def claim_campaign_frequency_cap(redis_client: Any, payload: dict[str, Any
         hours = 24
     seed = f"{campaign_id}:{identity}".encode("utf-8")
     key = f"chatty:campaign:frequency:{hashlib.sha256(seed).hexdigest()}"
-    claimed = await redis_client.set(key, "1", nx=True, ex=hours * 3600)
-    return bool(claimed), key
+    # The stream worker serializes attempts by delivery idempotency key. Keep
+    # the cap owned by that delivery so a provider failure does not suppress
+    # its retry. Other deliveries still cannot consume this recipient window.
+    delivery_id = str(payload.get("delivery_idempotency_key") or "").strip()
+    owner = hashlib.sha256(delivery_id.encode()).hexdigest() if delivery_id else "1"
+    claimed = await redis_client.set(key, owner, nx=True, ex=hours * 3600)
+    if claimed:
+        return True, key
+    if delivery_id:
+        existing = await redis_client.get(key)
+        if isinstance(existing, bytes):
+            existing = existing.decode("utf-8")
+        return existing == owner, key
+    return False, key

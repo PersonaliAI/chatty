@@ -39,3 +39,28 @@ def test_recipient_identity_prefers_email_then_phone():
     assert campaign_recipient_identity({"email": "a@example.com", "phone": "+1"}) == "a@example.com"
     assert campaign_recipient_identity({"phone": "+1"}) == "+1"
     assert campaign_recipient_identity({}) == ""
+
+
+def test_frequency_cap_allows_same_delivery_retry_but_blocks_other_deliveries():
+    class StatefulRedis:
+        value = None
+
+        async def set(self, key, value, **kwargs):
+            if self.value is not None:
+                return False
+            self.value = value
+            return True
+
+        async def get(self, key):
+            return self.value.encode()
+
+    async def exercise():
+        client = StatefulRedis()
+        payload = {"campaign_id": "campaign-1", "recipient": {"email": "a@example.com"},
+                   "delivery_idempotency_key": "delivery-1"}
+        assert (await claim_campaign_frequency_cap(client, payload))[0]
+        assert (await claim_campaign_frequency_cap(client, payload))[0]
+        assert not (await claim_campaign_frequency_cap(client, {**payload,
+                    "delivery_idempotency_key": "delivery-2"}))[0]
+
+    asyncio.run(exercise())
