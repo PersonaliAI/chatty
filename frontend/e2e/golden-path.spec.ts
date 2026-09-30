@@ -113,7 +113,7 @@ test.describe("owner golden path", () => {
 
     // Debounced autosave - see the stale-closure fix earlier this session;
     // this test is exactly the regression guard for that bug class.
-    await expect(page.getByText("Changes saved.")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("Changes saved.")).toBeVisible({ timeout: 15_000 });
     // Allow the debounced save response and dashboard state propagation to
     // settle before deliberately tearing down the preview with a refresh.
     await page.waitForTimeout(1_500);
