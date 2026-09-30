@@ -56,13 +56,17 @@ test.describe("landing page launcher", () => {
     const launcher = page.getByTitle("Chat Assistant");
     await expect(launcher).toBeVisible({ timeout: 10_000 });
     await launcher.click();
+    // The launcher opens on the configured Home tab; enter Chat before
+    // asserting the composer, matching the visitor flow in the widget UI.
+    const host = page.locator("#chatty-widget-host");
+    const chatTab = host.getByRole("button", { name: "Chat", exact: true });
+    if (await chatTab.count()) await chatTab.click();
 
     // The production loader has shipped both direct Shadow-DOM and
     // iframe-backed panel implementations. Validate the user-visible composer
     // through either supported transport without coupling the smoke test to
     // one DOM shape.
     await expect.poll(async () => {
-      const host = page.locator("#chatty-widget-host");
       if (await host.locator("textarea").count()) {
         return await host.locator("textarea").last().isVisible();
       }
