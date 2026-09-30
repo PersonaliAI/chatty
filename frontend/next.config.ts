@@ -4,17 +4,11 @@ import path from "node:path";
 const nextConfig: NextConfig = {
   // Used by the canonical self-host container image.
   output: "standalone",
+  outputFileTracingRoot: path.resolve(__dirname),
   // Playwright's deterministic local server uses 127.0.0.1. Allow it in
   // development so browser checks exercise real client bundles without
   // cross-origin dev-resource warnings.
   allowedDevOrigins: ["127.0.0.1"],
-  // Dependencies are intentionally installed once at the canonical repo
-  // root. Tell Turbopack that boundary explicitly so `next dev` is
-  // reproducible from `frontend/` in local checks and CI instead of looking
-  // for a second, nonexistent frontend/node_modules installation.
-  turbopack: {
-    root: path.resolve(__dirname, ".."),
-  },
   async headers() {
     return [
       {
