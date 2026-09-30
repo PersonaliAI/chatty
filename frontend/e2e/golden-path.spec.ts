@@ -57,11 +57,11 @@ test.describe("landing page launcher", () => {
     await expect(launcher).toBeVisible({ timeout: 10_000 });
     await launcher.click();
 
-    // The panel is a fixed-position div that becomes visible/interactive on
-    // open - check the state that actually matters to a visitor: can they
-    // now see and reach the iframe, not just that a class toggled.
-    const panelIframe = page.frameLocator("iframe[title=\"Live Chatbot Widget\"], iframe").first();
-    await expect(panelIframe.getByPlaceholder("Compose your message…")).toBeVisible({ timeout: 10_000 });
+    // The production loader mounts the panel in an open Shadow DOM (older
+    // releases used an iframe). Playwright locators pierce open shadow roots,
+    // so assert the visitor-facing composer directly and keep this check
+    // aligned with the current public architecture.
+    await expect(page.getByPlaceholder("Compose your message…")).toBeVisible({ timeout: 10_000 });
   });
 });
 
