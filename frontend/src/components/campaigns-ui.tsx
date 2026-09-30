@@ -336,6 +336,26 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setError("Please select at least one channel (e.g. Website).");
       return;
     }
+    if (message.trim().length > 10_000) {
+      setError("Campaign message must be 10,000 characters or fewer.");
+      return;
+    }
+    if ((type === "time" || type === "scroll") && (!Number.isFinite(Number(value)) || Number(value) <= 0)) {
+      setError(type === "time" ? "Time on page must be greater than zero seconds." : "Scroll depth must be greater than zero percent.");
+      return;
+    }
+    if (type === "scroll" && Number(value) > 100) {
+      setError("Scroll depth cannot exceed 100 percent.");
+      return;
+    }
+    if (startDate && endDate && new Date(endDate).getTime() <= new Date(startDate).getTime()) {
+      setError("The campaign end date must be later than its start date.");
+      return;
+    }
+    if (quietHoursEnabled && (!/^\d{2}:\d{2}$/.test(quietHoursStart) || !/^\d{2}:\d{2}$/.test(quietHoursEnd))) {
+      setError("Quiet hours must use the HH:MM format.");
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -346,6 +366,12 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         message: s.message.trim(),
       }))
       .filter((s) => Boolean(s.message));
+    const invalidStep = cleanSteps.find((step) => !channels.includes(step.channel));
+    if (invalidStep) {
+      setError(`Sequence channel “${invalidStep.channel}” is not enabled for this campaign.`);
+      setSaving(false);
+      return;
+    }
 
     const triggerType = type === "time" ? "time_on_page" : type === "scroll" ? "scroll_percentage" : type === "exit" ? "exit_intent" : "url_match";
 
