@@ -91,6 +91,7 @@ test.describe("owner golden path", () => {
   test.skip(!ownerEmail || !ownerPassword, "requires E2E_OWNER_EMAIL / E2E_OWNER_PASSWORD");
 
   test("picking a design in the Customizer saves and reflects on the live widget", async ({ page }) => {
+    test.setTimeout(60_000);
     await page.goto("/login");
     await page.getByLabel("Email address").fill(ownerEmail!);
     await page.getByRole("textbox", { name: "Password" }).fill(ownerPassword!);
@@ -110,8 +111,16 @@ test.describe("owner golden path", () => {
     // this test is exactly the regression guard for that bug class.
     await expect(page.getByText("Changes saved.")).toBeVisible({ timeout: 5_000 });
 
-    await page.reload();
-    const savedClass = await page.frameLocator('iframe[src*="/embed/"]').locator('[class*="style-"]').first().getAttribute("class");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const livePreview = page.locator('iframe[src*="/embed/"]');
+    await expect(livePreview).toHaveCount(1, { timeout: 20_000 });
+    await expect(livePreview).toBeVisible({ timeout: 20_000 });
+    // The dashboard and embed load independently after a refresh. Wait for
+    // the embed document's root style marker instead of reading a detached
+    // frame immediately after the parent navigation completes.
+    const savedClassLocator = livePreview.contentFrame().locator('[class*="style-"]').first();
+    await expect(savedClassLocator).toHaveAttribute("class", /style-/, { timeout: 40_000 });
+    const savedClass = await savedClassLocator.getAttribute("class");
     expect(savedClass?.toLowerCase()).toContain(target.toLowerCase());
   });
 
