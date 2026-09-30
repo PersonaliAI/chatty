@@ -1130,10 +1130,17 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
 
   const addAutomationNode = (type: "delay" | "condition" | "loop" | "webhook" | "retry", kind: string, label: string) => {
     const id = `${type}-${Date.now()}`;
+    const defaults: Record<typeof type, Record<string, unknown>> = {
+      delay: { duration_ms: 1000 },
+      condition: { expression: "input" },
+      loop: { max_iterations: 10 },
+      webhook: { url: "", timeout_ms: 10000, mapping: { message: "{{input}}" } },
+      retry: { max_attempts: 3, backoff_ms: 1000, timeout_ms: 30000 },
+    };
     setNodes((nds) => [...nds, {
       id,
       type,
-      data: { automationKind: kind, label, config: type === "retry" ? { max_attempts: 3, backoff_ms: 1000, timeout_ms: 30000 } : {} },
+      data: { automationKind: kind, label, config: defaults[type] },
       position: { x: 120 + Math.random() * 80, y: 160 + Math.random() * 80 },
     }]);
     switchCanvasOnMobile();
@@ -1601,6 +1608,10 @@ const FALLBACK_SUPPORT_TRIAGE = {
                   <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-950/30">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Typed automation config (JSON)</span>
                     <textarea rows={4} value={nodeConfigText} onChange={(e) => setNodeConfigText(e.target.value)} className="w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 font-mono text-[10px] focus:outline-none dark:border-neutral-800 dark:bg-neutral-900" spellCheck={false} />
+                    {selectedNode.type === "condition" && <p className="text-[9px] leading-relaxed text-slate-500">Use <code>input</code>, <code>input contains &quot;value&quot;</code>, or equality operators. Label outgoing edges <code>true</code>, <code>false</code>, or <code>default</code>.</p>}
+                    {selectedNode.type === "loop" && <p className="text-[9px] leading-relaxed text-slate-500">Set <code>max_iterations</code> (1–100) and add a <code>done</code>, <code>complete</code>, or <code>exit</code> edge.</p>}
+                    {selectedNode.type === "webhook" && <p className="text-[9px] leading-relaxed text-slate-500">Set public <code>url</code>, optional <code>timeout_ms</code>, and <code>mapping</code>. The API executes it with SSRF protection; use <code>success</code> and <code>error</code> edges.</p>}
+                    {selectedNode.type === "delay" && <p className="text-[9px] leading-relaxed text-slate-500">Use <code>duration_ms</code>; widget waits are capped at five minutes.</p>}
                   </div>
                 )}
 
