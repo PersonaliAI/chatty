@@ -24,8 +24,11 @@ export const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   knowledge: "sources",
   playground: null,
   inbox: "inbox",
-  flows: "settings",
-  campaigns: "settings",
+  // Flow Builder and Campaigns are operational surfaces. Team members need
+  // read/monitor access even when they cannot change settings; mutation
+  // controls remain guarded inside each surface.
+  flows: null,
+  campaigns: null,
   leads: "inbox",
   feedback: "inbox",
   map: "inbox",
