@@ -75,7 +75,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [audienceRationale, setAudienceRationale] = useState("");
   const [dispatchPlans, setDispatchPlans] = useState<Record<string, DispatchPreview>>({});
   const [deliveryLogs, setDeliveryLogs] = useState<Record<string, DeliveryLog>>({});
-  const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>("all");
+  const [deliveryStatus, setDeliveryStatus] = useState<Record<string, DeliveryStatus>>({});
 
   const typeOptions: ModernSelectOption[] = [
     { value: "time", label: "Time on page (Seconds)" },
@@ -381,7 +381,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       return;
     }
     setDeliveryLogs((logs) => ({ ...logs, [campaignId]: { loading: true } }));
-    const statusQuery = deliveryStatus === "all" ? "" : `&status=${encodeURIComponent(deliveryStatus)}`;
+    const selectedStatus = deliveryStatus[campaignId] ?? "all";
+    const statusQuery = selectedStatus === "all" ? "" : `&status=${encodeURIComponent(selectedStatus)}`;
     fetchBackend(`/api/bots/${botId}/campaigns/${campaignId}/deliveries?limit=100${statusQuery}`)
       .then(async (response) => {
         if (!response.ok) throw new Error(`Delivery history unavailable (${response.status})`);
@@ -604,9 +605,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                         <span className="sr-only">Delivery status filter</span>
                         <select
                           aria-label="Delivery status filter"
-                          value={deliveryStatus}
+                          value={deliveryStatus[r.id] ?? "all"}
                           onChange={(event) => {
-                            setDeliveryStatus(event.target.value as DeliveryStatus);
+                            setDeliveryStatus((statuses) => ({ ...statuses, [r.id]: event.target.value as DeliveryStatus }));
                             setDeliveryLogs((logs) => { const next = { ...logs }; delete next[r.id]; return next; });
                           }}
                           className="rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[9px] dark:border-neutral-800 dark:bg-neutral-900"
