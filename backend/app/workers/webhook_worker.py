@@ -12,7 +12,7 @@ import logging
 import os
 import socket
 
-from app.workers.job_worker import RedisStreamWorker
+from app.workers.job_worker import PermanentJobError, RedisStreamWorker
 
 logger = logging.getLogger("chatty.webhook_worker")
 
@@ -122,7 +122,7 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
     channel = str(payload.get("channel") or "").strip().lower()
     message = str(payload.get("message") or "").strip()
     if not bot_id or not channel or not message:
-        raise ValueError("campaign dispatch is missing bot_id, channel, or message")
+        raise PermanentJobError("campaign dispatch is missing bot_id, channel, or message")
 
     async def mark(status: str, error: str | None = None) -> None:
         if not payload.get("delivery_idempotency_key"):
@@ -149,7 +149,7 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
         return
     recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
     if bool(payload.get("requires_consent", True)) and not bool(recipient.get("consent")):
-        raise ValueError("campaign recipient consent is required")
+        raise PermanentJobError("campaign recipient consent is required")
     if redis_client is not None:
         from app.services.campaign_delivery_guard import claim_campaign_frequency_cap
 
@@ -162,7 +162,7 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
         if channel == "whatsapp":
             phone = str(recipient.get("phone") or recipient.get("whatsapp") or "").strip()
             if not phone:
-                raise ValueError("whatsapp campaign requires recipient.phone")
+                raise PermanentJobError("whatsapp campaign requires recipient.phone")
             from app.core.clients import supabase
             from app.services.whatsapp_service import send_whatsapp_message
             from app.core.crypto import decrypt_secret
@@ -179,7 +179,7 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
         elif channel == "email":
             email = str(recipient.get("email") or "").strip()
             if not email:
-                raise ValueError("email campaign requires recipient.email")
+                raise PermanentJobError("email campaign requires recipient.email")
             from app.services.email_service import send_campaign_email
             result = await send_campaign_email(to_email=email, subject=str(payload.get("subject") or "Update from Chatty"), body_text=message, bot_name=str(payload.get("bot_name") or "Chatty"))
             if not result.get("sent"):
@@ -187,12 +187,12 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
         elif channel == "sms":
             phone = str(recipient.get("phone") or "").strip()
             if not phone:
-                raise ValueError("sms campaign requires recipient.phone")
+                raise PermanentJobError("sms campaign requires recipient.phone")
             from app.services.sms_service import send_campaign_sms
             if not await send_campaign_sms(to=phone, body=message):
                 raise RuntimeError("sms campaign delivery failed")
         else:
-            raise ValueError(f"unsupported campaign channel: {channel}")
+            raise PermanentJobError(f"unsupported campaign channel: {channel}")
     except Exception as exc:
         await mark("failed", str(exc))
         raise

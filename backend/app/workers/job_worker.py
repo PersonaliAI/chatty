@@ -22,6 +22,15 @@ class JobConcurrencyBusy(RuntimeError):
 class JobIdempotencyBusy(RuntimeError):
     """Raised when another worker is already executing the same job key."""
 
+
+class PermanentJobError(ValueError):
+    """Raised when retrying a job cannot change its outcome.
+
+    Producers use this for malformed or policy-invalid payloads. The worker
+    dead-letters these deliveries immediately while ordinary exceptions keep
+    the bounded retry/backoff behavior used for transient outages.
+    """
+
 JobHandler = Callable[[Mapping[str, Any]], Any | Awaitable[Any]]
 
 
@@ -302,6 +311,23 @@ class RedisStreamWorker:
                         stats["dead_lettered"] += 1
                         continue
                     try:
+                        if isinstance(exc, PermanentJobError):
+                            fields = {
+                                "name": job.name,
+                                "payload": json.dumps(dict(job.payload), separators=(",", ":")),
+                                "idempotency_key": job.idempotency_key,
+                                "attempts": str(max(self.max_attempts, job.attempts + 1)),
+                                "last_error": str(exc)[:500],
+                            }
+                            await self.client.xadd(
+                                self.dead_letter_stream,
+                                fields,
+                                maxlen=100_000,
+                                approximate=True,
+                            )
+                            await self.client.xack(self.stream, self.group, stream_id)
+                            stats["dead_lettered"] += 1
+                            continue
                         if isinstance(exc, (JobConcurrencyBusy, JobIdempotencyBusy)):
                             busy_delay = min(
                                 self.retry_backoff_cap_seconds,

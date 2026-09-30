@@ -2,7 +2,7 @@ import asyncio
 import json
 
 from app.workers import job_worker
-from app.workers.job_worker import RedisStreamWorker
+from app.workers.job_worker import PermanentJobError, RedisStreamWorker
 
 
 class FakeRedis:
@@ -112,6 +112,24 @@ def test_worker_retries_then_dead_letters_poison_job():
     assert stats["dead_lettered"] == 1
     assert client.published[0][0] == "chatty:jobs:dead-letter"
     assert client.published[0][1]["attempts"] == "2"
+    assert client.acked == [("chatty:jobs", "chatty-workers", "1-0")]
+
+
+def test_worker_dead_letters_permanent_job_error_without_retrying():
+    client = FakeRedis([("1-0", {
+        "name": "invalid", "payload": json.dumps({"recipient": {}}), "idempotency_key": "event-invalid"
+    })])
+    worker = RedisStreamWorker(
+        client,
+        max_attempts=5,
+        handlers={"invalid": lambda _: (_ for _ in ()).throw(PermanentJobError("invalid recipient"))},
+    )
+
+    stats = asyncio.run(worker.run_once())
+
+    assert stats == {"received": 1, "succeeded": 0, "retried": 0, "dead_lettered": 1}
+    assert client.published[0][0] == "chatty:jobs:dead-letter"
+    assert client.published[0][1]["attempts"] == "5"
     assert client.acked == [("chatty:jobs", "chatty-workers", "1-0")]
 
 
