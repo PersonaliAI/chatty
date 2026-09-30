@@ -61,7 +61,7 @@ test.describe("landing page launcher", () => {
     // releases used an iframe). Playwright locators pierce open shadow roots,
     // so assert the visitor-facing composer directly and keep this check
     // aligned with the current public architecture.
-    const composer = page.locator('textarea[placeholder*="message" i], input[placeholder*="message" i]').last();
+    const composer = page.locator("#chatty-widget-host").locator("textarea").last();
     await expect(composer).toBeVisible({ timeout: 10_000 });
   });
 });
