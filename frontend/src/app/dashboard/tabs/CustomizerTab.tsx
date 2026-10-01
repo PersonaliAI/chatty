@@ -58,6 +58,7 @@ interface CustomizerTabProps {
   setWidgetStyle: (s: string) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleInputChange: (setter: (v: any) => void, val: any) => void;
+  saveChanges?: () => Promise<void>;
   fontFamily: string | null;
   setFontFamily: (f: string | null) => void;
   fontOptions: ModernSelectOption[];
@@ -115,6 +116,7 @@ export function CustomizerTab({
   widgetStyle,
   setWidgetStyle,
   handleInputChange,
+  saveChanges,
   fontFamily,
   setFontFamily,
   fontOptions,
@@ -191,16 +193,24 @@ export function CustomizerTab({
               ].map((style) => {
                 const sig = PRESET_SIGNATURES[style.id];
                 const isSelected = widgetStyle === style.id;
+                const applyPreset = () => {
+                  handleInputChange(setWidgetStyle, style.id);
+                  handleInputChange(setPrimaryColor, sig.primary);
+                  handleInputChange(setFontFamily, sig.fontFamily);
+                  handleInputChange(setColorScheme, null);
+                  // Presets are a coordinated multi-field transaction. Flush
+                  // one explicit save after React applies the setters so a
+                  // delayed autosave or bot switch cannot leave production on
+                  // the previous preset.
+                  if (saveChanges) setTimeout(() => { void saveChanges(); }, 50);
+                };
                 return (
                   <button
                     key={style.id}
                     type="button"
                     onClick={() => {
                       const sig = getPresetSignature(style.id);
-                      handleInputChange(setWidgetStyle, style.id);
-                      handleInputChange(setPrimaryColor, sig.primary);
-                      handleInputChange(setFontFamily, sig.fontFamily);
-                      handleInputChange(setColorScheme, null);
+                      applyPreset();
                     }}
                     className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
                       isSelected
@@ -219,10 +229,7 @@ export function CustomizerTab({
                           title={`Click to apply default ${style.name} palette (${sig.primary})`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleInputChange(setWidgetStyle, style.id);
-                            handleInputChange(setPrimaryColor, sig.primary);
-                            handleInputChange(setFontFamily, sig.fontFamily);
-                            handleInputChange(setColorScheme, null);
+                            applyPreset();
                           }}
                         >
                           {sig.previewPalette.map((col, idx) => (

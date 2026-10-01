@@ -4391,6 +4391,7 @@ export default function Dashboard() {
               widgetStyle={widgetStyle}
               setWidgetStyle={setWidgetStyle}
               handleInputChange={handleInputChange}
+              saveChanges={handleSaveChanges}
               fontFamily={fontFamily}
               setFontFamily={setFontFamily}
               fontOptions={fontOptions}
