@@ -121,3 +121,29 @@ def test_typed_mapping_coerces_scalars_and_reports_invalid_values():
     assert result["mapped_payload"]["amount"] == 12.5
     assert result["mapped_payload"]["confirmed"] is True
     assert result["type_errors"] == [{"field": "bad", "expected": "number", "actual": "str"}]
+
+
+def test_mapping_handles_a_bounded_batch_without_cross_run_state_leaks():
+    """Exercise a realistic bounded batch used by dry-run/load safeguards.
+
+    The runtime must remain deterministic across repeated executions and must
+    never carry visitor data or credentials from one mapping context into the
+    next execution.
+    """
+    template = {
+        "email": "{{context.email}}",
+        "message": "Hello {{input}}",
+        "token": "{{context.integration.api_key}}",
+    }
+    for index in range(1_000):
+        result = resolve_mapping(
+            template,
+            f"visitor-{index}",
+            {"email": f"visitor-{index}@example.com", "integration": {"api_key": f"secret-{index}"}},
+        )
+        assert result["mapped_payload"] == {
+            "email": f"visitor-{index}@example.com",
+            "message": f"Hello visitor-{index}",
+            "token": "[redacted]",
+        }
+        assert result["trace_payload"]["email"] == "[redacted]"
