@@ -82,6 +82,22 @@ def test_scheduler_bounds_campaign_batch():
         raise AssertionError("expected limit validation")
 
 
+def test_scheduler_handles_maximum_bounded_batch_without_duplicate_jobs():
+    campaigns = []
+    for index in range(500):
+        campaign = _campaign()
+        campaign["id"] = f"campaign-{index}"
+        campaigns.append(campaign)
+    queue = _Queue()
+    now = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
+
+    stats = asyncio.run(schedule_campaigns_once(_Db(campaigns), queue, now=now, limit=500))
+
+    assert stats["enqueued"] == 500
+    assert len(queue.jobs) == 500
+    assert len({job["idempotency_key"] for job in queue.jobs}) == 500
+
+
 def test_scheduler_uses_atomic_enqueue_and_retries_failed_append():
     class AtomicQueue(_Queue):
         def __init__(self):
