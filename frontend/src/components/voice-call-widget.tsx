@@ -304,8 +304,21 @@ export default function VoiceCallWidget({
               for (const seg of segments) {
                 const idx = next.findIndex((e) => e.id === seg.id);
                 const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final };
-                if (idx >= 0) next[idx] = entry;
-                else next.push(entry);
+                if (idx >= 0) {
+                  next[idx] = entry;
+                } else {
+                  // Some LiveKit/provider combinations emit the same final
+                  // assistant sentence twice with different segment IDs
+                  // (once from the model transcript and once from the audio
+                  // transcript). Keep the transcript readable and avoid
+                  // making a user think the agent repeated itself.
+                  const normalized = seg.text.trim().replace(/\s+/g, " ").toLowerCase();
+                  const duplicateAgentFinal = speaker === "agent" && seg.final && normalized && next.some(
+                    (item) => item.speaker === "agent" && item.final &&
+                      item.text.trim().replace(/\s+/g, " ").toLowerCase() === normalized,
+                  );
+                  if (!duplicateAgentFinal) next.push(entry);
+                }
               }
               return next;
             });
