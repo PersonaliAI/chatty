@@ -37,7 +37,7 @@ regressions are green locally: **50 passed, 1 intentionally skipped**. This
 includes retry/idempotency, concurrency-lock release, provider-failure recovery,
 and fail-closed security paths.
 For a reproducible isolated runtime load signal, run
-`python backend/scripts/benchmark_flow_runtime.py --iterations 10000`; the
+`python backend/scripts/benchmark_flow_runtime.py --iterations 100000`; the
 benchmark uses synthetic contexts only and fails if credential redaction regresses.
 This benchmark is enforced in CI; workflow run `36935595292` completed the
 benchmark, backend tests, frontend checks, and production build successfully.
