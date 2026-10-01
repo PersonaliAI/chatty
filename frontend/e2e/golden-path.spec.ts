@@ -109,6 +109,7 @@ test.describe("owner golden path", () => {
     await botSelector.click();
     const botOptions = page.locator('[data-chatbot-option="true"]');
     const canonicalOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${BOT_ID}"]`);
+    const canonicalName = await canonicalOption.count() ? (await canonicalOption.textContent())?.trim() : null;
     if (await canonicalOption.count()) await canonicalOption.click();
     else if (await botOptions.count() > 1) await botOptions.last().click();
     // The picker is a popover with a full-screen click-away layer. Close it
@@ -116,6 +117,7 @@ test.describe("owner golden path", () => {
     // overlay intercepting the next sidebar action.
     await page.locator("div.fixed.inset-0.bg-transparent").click({ position: { x: 4, y: 4 } });
     await expect(botOptions.first()).toBeHidden();
+    if (canonicalName) await expect(botSelector).toContainText(canonicalName, { timeout: 15_000 });
     await page.getByRole("button", { name: "Customizer", exact: true }).click();
 
     // Pick whichever design isn't already selected, so the test proves an
