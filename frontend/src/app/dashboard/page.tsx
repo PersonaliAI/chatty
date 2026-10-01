@@ -1266,7 +1266,10 @@ export default function Dashboard() {
       // capture toggle) would silently snap the whole panel back to a
       // different bot's data whenever the active bot wasn't the newest one,
       // making saves on any other bot look like they hadn't persisted.
-      let activeBot = (botId && bots?.find((b) => b.id === botId)) || bots?.[0];
+      const storedBotId = typeof window !== "undefined" ? window.localStorage.getItem(`chatty_active_bot_${userId}`) : null;
+      let activeBot = (botId && bots?.find((b) => b.id === botId))
+        || (storedBotId && bots?.find((b) => b.id === storedBotId))
+        || bots?.[0];
 
       if (!activeBot) {
         // Create a default chatbot configuration if none exists
@@ -1303,6 +1306,7 @@ export default function Dashboard() {
 
       if (activeBot) {
         setBotId(activeBot.id);
+        if (typeof window !== "undefined") window.localStorage.setItem(`chatty_active_bot_${userId}`, activeBot.id);
         setBotName(activeBot.name);
         setWelcomeMsg(activeBot.welcome_message || "Hello! How can I help you today?");
         setConversationStarters(Array.isArray(activeBot.conversation_starters) ? activeBot.conversation_starters : []);
@@ -1481,6 +1485,7 @@ export default function Dashboard() {
     setLoadingLists(true);
     try {
       setBotId(selected.id);
+      if (user?.id && typeof window !== "undefined") window.localStorage.setItem(`chatty_active_bot_${user.id}`, selected.id);
       setBotName(selected.name);
       setWelcomeMsg(selected.welcome_message || "Hello! How can I help you today?");
       setConversationStarters(Array.isArray(selected.conversation_starters) ? selected.conversation_starters : []);
