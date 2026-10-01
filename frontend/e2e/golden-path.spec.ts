@@ -111,7 +111,7 @@ test.describe("owner golden path", () => {
     // The picker is a popover with a full-screen click-away layer. Close it
     // explicitly before navigating so a delayed bot switch cannot leave the
     // overlay intercepting the next sidebar action.
-    await page.keyboard.press("Escape");
+    await page.locator("div.fixed.inset-0.bg-transparent").click({ position: { x: 4, y: 4 } });
     await expect(botOptions.first()).toBeHidden();
     await page.getByRole("button", { name: "Customizer", exact: true }).click();
 
