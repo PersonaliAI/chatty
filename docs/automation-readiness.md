@@ -36,6 +36,9 @@ Resilience-focused worker, queue, dead-letter, booking-security, and widget-job
 regressions are green locally: **50 passed, 1 intentionally skipped**. This
 includes retry/idempotency, concurrency-lock release, provider-failure recovery,
 and fail-closed security paths.
+For a reproducible isolated runtime load signal, run
+`python backend/scripts/benchmark_flow_runtime.py --iterations 10000`; the
+benchmark uses synthetic contexts only and fails if credential redaction regresses.
 
 ## 1. Workflow correctness
 
