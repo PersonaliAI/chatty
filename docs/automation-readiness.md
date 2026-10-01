@@ -39,6 +39,8 @@ and fail-closed security paths.
 For a reproducible isolated runtime load signal, run
 `python backend/scripts/benchmark_flow_runtime.py --iterations 10000`; the
 benchmark uses synthetic contexts only and fails if credential redaction regresses.
+This benchmark is enforced in CI; workflow run `36934305682` completed the
+benchmark, backend tests, frontend checks, and production build successfully.
 
 ## 1. Workflow correctness
 
