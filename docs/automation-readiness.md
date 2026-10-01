@@ -32,6 +32,11 @@ The deterministic landing/browser accessibility-adjacent checks are also green:
 guard. Static widget contrast verification covers **75 WCAG AA pairs**, and all
 10 design snapshots match.
 
+Resilience-focused worker, queue, dead-letter, booking-security, and widget-job
+regressions are green locally: **50 passed, 1 intentionally skipped**. This
+includes retry/idempotency, concurrency-lock release, provider-failure recovery,
+and fail-closed security paths.
+
 ## 1. Workflow correctness
 
 - Validate triggers, actions, branching, loops, retries, timeouts, scheduling,
