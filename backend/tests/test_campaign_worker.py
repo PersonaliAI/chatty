@@ -159,6 +159,35 @@ def test_paused_campaign_suppresses_already_queued_provider_delivery(monkeypatch
     assert ledger_updates == [("delivery-paused-1", "suppressed", "campaign_paused")]
 
 
+def test_campaign_state_lookup_failure_retries_before_provider_send(monkeypatch):
+    from app.services import email_service
+    from app.core import clients
+
+    class Query:
+        def select(self, *_args): return self
+        def eq(self, *_args): return self
+        def maybe_single(self): return self
+        def execute(self): raise RuntimeError("database temporarily unavailable")
+
+    class Supabase:
+        def table(self, name):
+            assert name == "chatty_campaigns"
+            return Query()
+
+    async def should_not_send(**_kwargs):
+        raise AssertionError("state lookup failures must retry before provider delivery")
+
+    monkeypatch.setattr(clients, "supabase", Supabase())
+    monkeypatch.setattr(email_service, "send_campaign_email", should_not_send)
+    with pytest.raises(RuntimeError, match="database temporarily unavailable"):
+        asyncio.run(_process_campaign_dispatch({
+            "bot_id": "bot-1", "campaign_id": "campaign-1",
+            "enforce_campaign_state": True, "channel": "email", "message": "Hello",
+            "requires_consent": False, "recipient": {"email": "a@example.com"},
+            "delivery_idempotency_key": "delivery-db-failure-1",
+        }))
+
+
 def test_provider_failure_can_retry_without_frequency_cap_suppression(monkeypatch):
     from app.services import email_service
 
