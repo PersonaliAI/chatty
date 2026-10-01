@@ -26,10 +26,11 @@ currently configured, so authenticated editor acceptance is not proven.
 - Verify version concurrency, atomic publication, draft isolation and rollback.
 - Verify templates, import/export and AI generation/optimization round trips.
 
-Current evidence: backend Flow contract/runtime/router tests exist, including
+Current evidence: backend Flow contract/runtime/router tests pass (35 focused
+tests in the latest local run), including immutable run-snapshot replay,
 typed webhook mapping coercion and fail-closed type errors. Live widget
-webhook tests cover published URLs, mapping and transient retries. These do not
-yet prove full live/simulator parity or atomic version publication.
+webhook tests cover published URLs, mapping and transient retries. These do
+not yet prove full live/simulator parity or atomic version publication.
 
 ## 2. Operator experience
 
