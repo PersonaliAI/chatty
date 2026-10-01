@@ -298,7 +298,7 @@ def _build_stt(bot: dict[str, Any]):
     if provider == "google":
         try:
             return google.STT(languages="en-US", model="latest_long")
-        except ValueError as exc:
+        except Exception as exc:
             # Google STT requires Application Default Credentials, which are
             # not present on a normal VPS. Keep Google as the preferred path,
             # but fail over to the configured server key instead of crashing
@@ -306,7 +306,10 @@ def _build_stt(bot: dict[str, Any]):
             if OPENAI_API_KEY:
                 logger.warning("voice worker: Google STT credentials unavailable; falling back to OpenAI STT: %s", exc)
                 return openai.STT(api_key=OPENAI_API_KEY)
-            raise
+            raise RuntimeError(
+                "Google Pipeline STT requires Google Application Default Credentials; "
+                "choose Realtime mode or configure GOOGLE_APPLICATION_CREDENTIALS"
+            ) from exc
 
     key = _decrypt_byok(bot.get("voice_stt_byok_key_encrypted"))
 
@@ -344,13 +347,16 @@ def _build_tts(bot: dict[str, Any]):
     if provider == "google":
         try:
             return google.TTS(language="en-US", voice_name=voice) if voice else google.TTS(language="en-US")
-        except ValueError as exc:
+        except Exception as exc:
             if OPENAI_API_KEY:
                 # A Google voice id is not valid for OpenAI TTS, so let the
                 # OpenAI plugin select its configured default voice.
                 logger.warning("voice worker: Google TTS credentials unavailable; falling back to OpenAI TTS: %s", exc)
                 return openai.TTS(api_key=OPENAI_API_KEY)
-            raise
+            raise RuntimeError(
+                "Google Pipeline TTS requires Google Application Default Credentials; "
+                "choose Realtime mode or configure GOOGLE_APPLICATION_CREDENTIALS"
+            ) from exc
 
     key = _decrypt_byok(bot.get("voice_tts_byok_key_encrypted"))
 

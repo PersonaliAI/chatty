@@ -257,8 +257,13 @@ export function VoiceAgentTab({
                   <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1">
                     {voiceMode === "realtime"
                       ? "Speech-to-speech - the model listens and speaks directly, no separate transcription/synthesis step. Faster and more natural, still uses your knowledge base and booking/lead-capture tools."
-                      : "Classic pipeline - pick a speech-to-text and text-to-speech provider independently."}
+                    : "Classic pipeline - pick a speech-to-text and text-to-speech provider independently."}
                   </p>
+                  {voiceMode === "pipeline" && voiceSttProvider === "google" && voiceTtsProvider === "google" && (
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                      Google Pipeline STT/TTS needs Google Application Default Credentials on a VPS. For a key-only deployment, select Realtime (Google Gemini Live), or mount <code className="font-mono">GOOGLE_APPLICATION_CREDENTIALS</code> in the worker.
+                    </div>
+                  )}
                 </div>
 
                 {voiceMode === "realtime" ? (
@@ -383,7 +388,7 @@ export function VoiceAgentTab({
                           handleAutoSaveVoiceField({ voice_stt_provider: v });
                         }}
                         options={[
-                          { value: "google", label: "Google", hint: "Included, no setup" },
+                          { value: "google", label: "Google", hint: "ADC required on VPS" },
                           { value: "deepgram", label: "Deepgram", hint: "Requires your own API key" },
                           { value: "assemblyai", label: "AssemblyAI", hint: "Requires your own API key" },
                           { value: "soniox", label: "Soniox", hint: "Requires your own API key" },
@@ -455,7 +460,7 @@ export function VoiceAgentTab({
                           handleAutoSaveVoiceField({ voice_tts_provider: v, voice_tts_voice: firstVoice || null });
                         }}
                         options={[
-                          { value: "google", label: "Google", hint: "Included, no setup" },
+                          { value: "google", label: "Google", hint: "ADC required on VPS" },
                           { value: "cartesia", label: "Cartesia", hint: "Requires your own API key" },
                           { value: "elevenlabs", label: "ElevenLabs", hint: "Requires your own API key" },
                           { value: "openai", label: "OpenAI", hint: "Requires your own API key" },
