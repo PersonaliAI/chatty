@@ -52,6 +52,13 @@ def _flow_runs_table_missing(exc: Exception) -> bool:
     return isinstance(exc, PostgrestAPIError) and "PGRST205" in str(exc) and "chatty_flow_runs" in str(exc)
 
 
+def _flow_version_conflict(exc: Exception) -> bool:
+    """Detect a concurrent version-number allocation without masking DB errors."""
+    return isinstance(exc, PostgrestAPIError) and (
+        str(getattr(exc, "code", "")) == "23505" or "23505" in str(exc)
+    ) and "chatty_flow_versions" in str(exc)
+
+
 def _internal_flow_override() -> None:
     """Keep replay-only graph injection out of the public request surface."""
     return None
@@ -162,11 +169,19 @@ async def create_dashboard_flow_version(
         }).eq("id", bot_id).execute())
         if not updated.data:
             raise HTTPException(status_code=500, detail="Failed to publish flow")
-    created = await run_db(lambda: supabase.table("chatty_flow_versions").insert({
-        "bot_id": bot_id, "version": version, "status": body.status, "flow_data": flow_data,
-        "note": body.note, "created_by": user["auth_user_id"],
-        "published_at": datetime.now(timezone.utc).isoformat() if body.status == "published" else None,
-    }).execute())
+    try:
+        created = await run_db(lambda: supabase.table("chatty_flow_versions").insert({
+            "bot_id": bot_id, "version": version, "status": body.status, "flow_data": flow_data,
+            "note": body.note, "created_by": user["auth_user_id"],
+            "published_at": datetime.now(timezone.utc).isoformat() if body.status == "published" else None,
+        }).execute())
+    except Exception as exc:
+        if _flow_version_conflict(exc):
+            raise HTTPException(
+                status_code=409,
+                detail="Another workflow version was published concurrently. Reload the editor and retry.",
+            ) from exc
+        raise
     if not created.data:
         raise HTTPException(status_code=500, detail="Failed to create flow version")
     return created.data[0]

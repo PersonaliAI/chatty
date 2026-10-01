@@ -160,6 +160,32 @@ def test_publishing_flow_requires_webhook_url(monkeypatch):
     database.assert_not_awaited()
 
 
+def test_flow_version_race_returns_conflict(monkeypatch):
+    class VersionConflict(Exception):
+        code = "23505"
+
+    monkeypatch.setattr(bots, "PostgrestAPIError", VersionConflict)
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(
+        bots,
+        "run_db",
+        AsyncMock(side_effect=[
+            SimpleNamespace(data=[{"version": 4}]),
+            SimpleNamespace(data=[{"custom_js": ""}]),
+            VersionConflict("23505 chatty_flow_versions_bot_id_version_key"),
+        ]),
+    )
+    body = bots.FlowVersionCreateRequest(
+        status="draft",
+        nodes=[{"id": "start", "type": "start", "data": {}}],
+        edges=[],
+    )
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(bots.create_dashboard_flow_version("bot-1", body, USER))
+    assert error.value.status_code == 409
+    assert "concurrently" in error.value.detail
+
+
 def test_simulation_persists_redacted_context_without_mutating_request(monkeypatch):
     from app.routers.bots import FlowSimulationRequest
 
