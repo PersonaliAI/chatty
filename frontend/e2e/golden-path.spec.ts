@@ -175,10 +175,15 @@ test.describe("owner golden path", () => {
     await expect(page.getByLabel("Context JSON")).toBeVisible();
     await expect(page.getByRole("button", { name: /view execution history/i })).toBeVisible();
     await page.getByRole("button", { name: /view execution history/i }).click();
-    const runStatusFilter = page.getByRole("combobox", { name: "Execution status filter" });
+    // The dashboard uses the accessible ModernSelect trigger (a button with
+    // a listbox popup), not a native <select>/combobox. Keep this assertion
+    // aligned with the production control so the test verifies the real
+    // keyboard/portal-based selector rather than an obsolete role.
+    const runStatusFilter = page.getByRole("button", { name: "Execution status filter" });
     await expect(runStatusFilter).toBeVisible();
-    await runStatusFilter.selectOption("failed");
-    await expect(runStatusFilter).toHaveValue("failed");
+    await runStatusFilter.click();
+    await page.getByRole("option", { name: "Failed", exact: true }).click();
+    await expect(runStatusFilter).toContainText("Failed");
     await page.getByRole("button", { name: "Campaigns", exact: true }).click();
     await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
     await expect(page.getByText("AI campaign copilot", { exact: true })).toBeVisible();
