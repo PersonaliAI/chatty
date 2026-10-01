@@ -53,7 +53,8 @@ automation surface controls. Full editor accessibility acceptance is unverified.
   provider retries, worker recovery, dead letters and replay without duplicate sends.
 - Verify pause/delete effects on queued deliveries and accurate analytics/logs.
 
-Current evidence: campaign unit tests cover schedule planning, consent, retries,
+Current evidence: the full backend suite passes with 836 tests and 6 explicit
+skips; campaign unit tests cover schedule planning, consent, retries,
 bounded tag/locale audience predicates, normalized audience rules, and editing
 existing campaigns while preserving cadence, quiet-hours, and frequency-cap
 safeguards; a real Redis scheduling CI test exists.
