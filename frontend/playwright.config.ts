@@ -10,10 +10,13 @@ export default defineConfig({
   // CI runs deterministic browser checks only.  The production-connected
   // suite remains available locally/on demand as a separate smoke signal.
   testIgnore: process.env.E2E_MODE === "deterministic" ? /golden-path\.spec\.ts/ : undefined,
-  fullyParallel: true,
+  // The production-connected owner tests share one authenticated account and
+  // deliberately mutate its active bot/customizer state. Running those tests
+  // concurrently makes iframe persistence assertions race across bots.
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  workers: process.env.CI ? 1 : undefined,
   reporter: [["list"]],
   use: {
     baseURL: process.env.BASE_URL || "http://127.0.0.1:3000",
