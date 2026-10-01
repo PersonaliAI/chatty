@@ -11,7 +11,7 @@ secret scan `36936719417`, code quality `36936719757`, and managed Supabase
 compose smoke `36936719469`. The dependency security patch is also covered by
 the backend audit and local `npm audit --omit=dev` (0 vulnerabilities). The
 local backend regression suite now passes `838 passed, 6 skipped, 2 warnings`.
-Production authenticated E2E run `36927088166` completed with 8 passed and 1
+Production authenticated E2E run `36937917748` completed with 8 passed and 1
 skipped. Flow Builder, Campaigns, sidebar, mobile and execution-filter checks
 are green. The Customizer owner round-trip is explicitly skipped because the
 configured production account has no bot with owner/design/settings
@@ -75,8 +75,10 @@ production launcher/embed smoke suite is green. Authenticated golden-path
 coverage is now enabled by repository owner credentials and the latest
 production smoke run `36933216448` completed with 8 passed and 1 explicitly
 skipped owner-persistence test because the shared account had no editable bot.
-Full editor accessibility acceptance remains unverified until a dedicated owner
-fixture is provisioned and the authenticated editor checks complete.
+The production run also exercises the Campaigns Delivery Audit tab and its
+refresh control. Full editor accessibility acceptance remains unverified until
+a dedicated owner fixture is provisioned and the authenticated editor checks
+complete.
 The repository currently has `E2E_OWNER_EMAIL` and `E2E_OWNER_PASSWORD` secrets,
 but no `E2E_OWNER_BOT_ID` secret, so that fixture provisioning is the remaining
 external acceptance prerequisite.
