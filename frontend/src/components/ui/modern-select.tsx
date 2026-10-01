@@ -171,7 +171,7 @@ export function ModernSelect({
       {open && createPortal(<AnimatePresence>
         {open && (
           <motion.div
-            data-modern-select-popup
+            data-modern-select-popup={listId}
             onKeyDown={(event) => {
               if ((event.target as HTMLElement).tagName === "INPUT") return;
               const options = Array.from(popupRef.current?.querySelectorAll<HTMLButtonElement>('button[role="option"]:not(:disabled)') || []);

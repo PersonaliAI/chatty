@@ -4320,9 +4320,9 @@ export default function Dashboard() {
               <Menu className="size-5" />
             </button>
             <div className="min-w-0">
-              <span className="block text-[10px] uppercase tracking-wider text-neutral-400 font-semibold whitespace-nowrap">Chatty Console</span>
+              <span className="block text-[10px] uppercase tracking-wider text-neutral-400 font-semibold whitespace-nowrap max-sm:truncate">Chatty Console</span>
               <div className="flex items-center gap-2 mt-0.5">
-                <h2 className="text-sm font-semibold capitalize whitespace-nowrap">{activeTab === "home" ? "Overview" : activeTab.replace("_", " ")}</h2>
+                <h2 className="text-sm font-semibold capitalize whitespace-nowrap max-sm:truncate">{activeTab === "home" ? "Overview" : activeTab.replace("_", " ")}</h2>
               </div>
             </div>
           </div>

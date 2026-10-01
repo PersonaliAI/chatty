@@ -80,7 +80,8 @@ export function DateTimePicker({
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest("[data-modern-select-popup]")) return;
+      const popupId = (e.target as HTMLElement).closest("[data-modern-select-popup]")?.getAttribute("data-modern-select-popup");
+      if (popupId && containerRef.current?.querySelector(`[aria-controls="${popupId}"]`)) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
