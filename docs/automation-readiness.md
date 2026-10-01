@@ -4,21 +4,20 @@ The industrial automation goal is **not complete**. This checklist preserves
 the full scope; passing a unit test or pushing a commit does not prove deployment
 or production readiness. Every gate needs evidence for the release commit.
 
-Latest fully validated public release evidence: commit `547a23e` passed
-canonical CI workflow `36913345825` (backend compile/tests/audit plus frontend
+Latest fully validated public release evidence: commit `3b56b53` passed
+canonical CI workflow `36921808458` (backend compile/tests/audit plus frontend
 typecheck, lint, browser checks, and production build), CodeQL `36913345786`,
-secret scan `36913345752`, code quality `36913345357`, and managed Supabase
-compose smoke `36913345864`. The dependency security patch is also covered by
-the backend audit and local `npm audit --omit=dev` (0 vulnerabilities).
-Production E2E run `36758263161` remains the last completed recorded run
-(5 passed, 3 authenticated owner tests skipped). The repository now has
-`E2E_OWNER_EMAIL` and `E2E_OWNER_PASSWORD` configured, and a new manually
-triggered production run `36914275228` completed with 7 passed and 2 failed:
-the live Customizer did not persist the selected preset and the live Flow
-Builder did not expose the execution-status filter. The source tree contains
-both behaviors, so the evidence indicates a stale frontend rollout; commit
-`0685c7a` now triggers the canonical App Hosting frontend path. Authenticated
-editor acceptance remains unproven until the rerun is green.
+secret scan `36921808381`, code quality `36921808208`, and managed Supabase
+compose smoke `36921808657`. The dependency security patch is also covered by
+the backend audit and local `npm audit --omit=dev` (0 vulnerabilities). The
+local backend regression suite now passes `837 passed, 6 skipped, 2 warnings`.
+Production authenticated E2E run `36921026888` completed with 8 passed and 1
+failed. Flow Builder, Campaigns, sidebar, mobile and execution-filter checks
+are green. The remaining failure is the live Customizer preset round-trip;
+commit `3b56b53` fixes the identified stale-closure save race by passing the
+selected preset transaction explicitly to the dashboard PATCH handler. A new
+App Hosting rollout is queued for that release; authenticated acceptance is
+unproven until the hosted revision serves `3b56b53` and the rerun is green.
 
 ## 1. Workflow correctness
 
@@ -60,7 +59,7 @@ unverified until that run and the accessibility checks complete.
   provider retries, worker recovery, dead letters and replay without duplicate sends.
 - Verify pause/delete effects on queued deliveries and accurate analytics/logs.
 
-Current evidence: the full backend suite passes with 836 tests and 6 explicit
+Current evidence: the full backend suite passes with 837 tests and 6 explicit
 skips; campaign unit tests cover schedule planning, consent, retries,
 bounded tag/locale audience predicates, normalized audience rules, and editing
 existing campaigns while preserving cadence, quiet-hours, and frequency-cap
