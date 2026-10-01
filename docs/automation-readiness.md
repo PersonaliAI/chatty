@@ -13,8 +13,12 @@ the backend audit and local `npm audit --omit=dev` (0 vulnerabilities).
 Production E2E run `36758263161` remains the last completed recorded run
 (5 passed, 3 authenticated owner tests skipped). The repository now has
 `E2E_OWNER_EMAIL` and `E2E_OWNER_PASSWORD` configured, and a new manually
-triggered production run `36914275228` is in progress against `main`; its
-result must be recorded before authenticated editor acceptance is claimed.
+triggered production run `36914275228` completed with 7 passed and 2 failed:
+the live Customizer did not persist the selected preset and the live Flow
+Builder did not expose the execution-status filter. The source tree contains
+both behaviors, so the evidence indicates a stale frontend rollout; commit
+`0685c7a` now triggers the canonical App Hosting frontend path. Authenticated
+editor acceptance remains unproven until the rerun is green.
 
 ## 1. Workflow correctness
 
