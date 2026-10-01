@@ -19,6 +19,10 @@ permission; the earlier 403 diagnostic confirmed this is an unprovisioned
 fixture rather than a save failure. The preset save race is fixed in
 `3b56b53`, and the hosted revision is serving the updated frontend. A true
 owner fixture is still required before claiming the Customizer acceptance gate.
+The production Playwright job accepts `E2E_OWNER_BOT_ID` as an optional secret;
+when set, it targets that explicitly provisioned owner/design-capable bot rather
+than relying on the shared public widget bot. This avoids false negatives from
+team bots that are visible but intentionally read-only.
 
 ## 1. Workflow correctness
 

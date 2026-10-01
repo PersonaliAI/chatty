@@ -56,6 +56,7 @@ jobs:
           # (dashboard login) test; it skips cleanly without them.
           E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
           E2E_OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
+          E2E_OWNER_BOT_ID: ${{ secrets.E2E_OWNER_BOT_ID }}
 
       - name: Upload Playwright report
         if: always()
