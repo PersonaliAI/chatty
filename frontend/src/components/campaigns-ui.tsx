@@ -185,7 +185,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
   // Fetch campaigns
   const loadCampaigns = async () => {
-    if (!botId) return;
+    if (!botId || loading) return;
     setLoading(true);
     setError(null);
     let loadedRules: TriggerRule[] | null = null;
@@ -792,7 +792,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
           <button
             type="button"
             onClick={loadCampaigns}
-            className="self-start sm:self-auto shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:bg-slate-50 cursor-pointer shadow-2xs whitespace-nowrap"
+            disabled={loading}
+            aria-busy={loading}
+            className="self-start sm:self-auto shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:bg-slate-50 cursor-pointer shadow-2xs whitespace-nowrap disabled:cursor-wait disabled:opacity-60"
           >
             <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
             <span>Sync</span>
@@ -859,7 +861,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
               <button
                 type="button"
                 onClick={() => setActiveTab("builder")}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm cursor-pointer whitespace-nowrap"
                 style={{ background: color }}
               >
                 Create First Campaign
@@ -966,7 +968,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       <button
                         type="button"
                         onClick={() => toggleDispatchPlan(rule.id)}
-                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1 whitespace-nowrap"
                       >
                         <ListChecks className="size-3" />
                         <span>{dispatchPlans[rule.id] ? "Hide Dispatch Plan" : "Dispatch Plan"}</span>
@@ -977,7 +979,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       <button
                         type="button"
                         onClick={() => toggleDeliveryLog(rule.id)}
-                        className="text-[11px] font-bold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:underline cursor-pointer flex items-center gap-1"
+                        className="text-[11px] font-bold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:underline cursor-pointer flex items-center gap-1 whitespace-nowrap"
                       >
                         <History className="size-3" />
                         <span>{deliveryLogs[rule.id] ? "Hide Logs" : "Delivery Logs"}</span>
