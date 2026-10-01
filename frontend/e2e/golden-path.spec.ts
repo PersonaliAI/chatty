@@ -119,12 +119,20 @@ test.describe("owner golden path", () => {
     await botSelector.click();
     const botOptions = page.locator('[data-chatbot-option="true"]');
     const canonicalOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${BOT_ID}"]`);
-    const canEditBot = async (id: string) => page.evaluate(async (botId) => {
-      const response = await fetch(`/api/team/me?bot_id=${encodeURIComponent(botId)}`);
+    const accessToken = await page.evaluate(() => {
+      const entry = Object.entries(window.localStorage).find(([key]) => key.endsWith("-auth-token"));
+      if (!entry) return null;
+      try { return (JSON.parse(entry[1]) as { access_token?: string }).access_token || null; } catch { return null; }
+    });
+    expect(accessToken, "owner golden path requires a hydrated dashboard session").toBeTruthy();
+    const canEditBot = async (id: string) => page.evaluate(async ({ botId, token }) => {
+      const response = await fetch(`https://api.chatty.personaliai.com/api/team/me?bot_id=${encodeURIComponent(botId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!response.ok) return false;
       const body = await response.json().catch(() => ({}));
       return body.role === "owner" || body.permissions?.includes("design") || body.permissions?.includes("settings");
-    }, id);
+    }, { botId: id, token: accessToken });
     const optionIds = await botOptions.evaluateAll((elements) => elements
       .map((element) => element.getAttribute("data-bot-id"))
       .filter((id): id is string => Boolean(id)));
