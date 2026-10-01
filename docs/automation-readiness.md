@@ -81,7 +81,7 @@ fixture is provisioned and the authenticated editor checks complete.
   provider retries, worker recovery, dead letters and replay without duplicate sends.
 - Verify pause/delete effects on queued deliveries and accurate analytics/logs.
 
-Current evidence: the full backend suite passes with 837 tests and 6 explicit
+Current evidence: the full backend suite passes with 838 tests and 6 explicit
 skips; campaign unit tests cover schedule planning, consent, retries,
 bounded tag/locale audience predicates, normalized audience rules, and editing
 existing campaigns while preserving cadence, quiet-hours, and frequency-cap
