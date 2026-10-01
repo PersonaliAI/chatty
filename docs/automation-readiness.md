@@ -41,6 +41,10 @@ For a reproducible isolated runtime load signal, run
 benchmark uses synthetic contexts only and fails if credential redaction regresses.
 This benchmark is enforced in CI; workflow run `36935595292` completed the
 benchmark, backend tests, frontend checks, and production build successfully.
+The latest local 100,000-context run completed in 3.876 seconds at 25,802
+mapping operations/second with credential redaction checks intact. This is a
+repeatable synthetic throughput signal, not a substitute for a sustained
+multi-worker infrastructure load test.
 
 ## 1. Workflow correctness
 
