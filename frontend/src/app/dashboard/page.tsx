@@ -2543,7 +2543,7 @@ export default function Dashboard() {
           updated_at: new Date().toISOString()
       };
 
-      let missingColWarning: string | null = null;
+      const missingColWarning: string | null = null;
       if (SELF_HOST_MODE) {
         const response = await fetchWithFallback(`/api/bots/${botId}`, {
           method: "PATCH",
