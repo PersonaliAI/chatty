@@ -250,3 +250,43 @@ def test_widget_flow_webhook_retries_transient_statuses(monkeypatch):
     ))
     assert result == {"success": True, "status_code": 202, "attempts": 2, "retryable": False}
     assert len(calls) == 2
+
+
+def test_widget_flow_webhook_fails_closed_on_typed_mapping_error(monkeypatch):
+    """Live delivery must enforce the same typed mapping contract as dry runs."""
+    network_calls = []
+
+    async def fake_run_db(_fn):
+        return SimpleNamespace(data={
+            "id": "bot-1",
+            "custom_js": _published_webhook_flow({
+                "url": "https://integrations.example.test/flow",
+                "mapping": {"amount": "{{context.amount}}"},
+                "mapping_schema": {"amount": "number"},
+            }),
+            "allowed_domains": [],
+        })
+
+    async def allowed(*_args, **_kwargs):
+        return None
+
+    @asynccontextmanager
+    async def safe_stream(*args, **kwargs):
+        network_calls.append((args, kwargs))
+        yield SimpleNamespace(status_code=202)
+
+    monkeypatch.setattr(widget, "run_db", fake_run_db)
+    monkeypatch.setattr(widget, "_widget_rate_limit_or_429", allowed)
+    monkeypatch.setattr(widget.ssrf, "stream_async", safe_stream)
+    result = asyncio.run(widget.widget_flow_webhook(
+        WidgetFlowWebhookRequest(
+            bot_id="bot-1", session_id="session-1", node_id="hook-1",
+            input="hello", context={"amount": "not-a-number"},
+        ),
+        _WidgetRequest(),
+    ))
+    assert result["success"] is False
+    assert result["reason"] == "invalid_mapping_types"
+    assert result["retryable"] is False
+    assert result["mapping_errors"][0]["field"] == "amount"
+    assert network_calls == []
