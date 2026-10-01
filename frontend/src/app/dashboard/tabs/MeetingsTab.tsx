@@ -209,7 +209,7 @@ export function MeetingsTab({
 
           {reschedulingMeetingId === selectedMeeting.id && (
             <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3">
-              <DateTimePicker value={rescheduleDateTime} onChange={setRescheduleDateTime} label="New meeting time" />
+              <DateTimePicker value={rescheduleDateTime} onChange={setRescheduleDateTime} size="sm" />
               <button
                 onClick={() => handleRescheduleMeeting(selectedMeeting)}
                 disabled={!rescheduleDateTime || reschedulingBusy}

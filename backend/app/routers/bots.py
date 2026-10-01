@@ -126,6 +126,28 @@ async def create_dashboard_flow_version(
     await verify_bot_permission(bot_id, user, "settings")
     if not body.nodes or not any(node.get("id") == "start" for node in body.nodes):
         raise HTTPException(status_code=422, detail="A flow version must contain a Start node")
+    if body.status == "published":
+        # Webhook nodes are operator-configured outbound requests. Validate
+        # every target before publishing so a flow cannot be used to reach
+        # loopback, link-local, cloud-metadata, or other private services.
+        for node in body.nodes:
+            if str(node.get("type") or "").strip().lower() != "webhook":
+                continue
+            data = node.get("data") if isinstance(node.get("data"), dict) else {}
+            config = data.get("config") if isinstance(data.get("config"), dict) else {}
+            url = str(config.get("url") or config.get("webhook_url") or "").strip()
+            if not url:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Webhook node {node.get('id')} requires a public http(s) URL before publishing.",
+                )
+            try:
+                await assert_safe_url_async(url)
+            except UnsafeURLError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Webhook node {node.get('id')} has an unsafe target: {exc}",
+                ) from exc
     latest = await run_db(lambda: supabase.table("chatty_flow_versions").select("version").eq(
         "bot_id", bot_id).order("version", desc=True).limit(1).execute())
     version = int((latest.data or [{}])[0].get("version") or 0) + 1

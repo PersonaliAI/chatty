@@ -128,8 +128,8 @@ export function TimePicker({ minutes, onChange }: { minutes: number; onChange: (
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-1">
-      <div className="min-w-0 flex-1 sm:w-[68px] sm:flex-none">
+    <div className="flex min-w-0 sm:min-w-max sm:shrink-0 items-center gap-1">
+      <div className="w-[68px] shrink-0 max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
         <ModernSelect
           size="sm" value={String(h12)}
           options={TIME_PICKER_HOURS.map((h) => ({ value: h, label: h }))}
@@ -137,14 +137,14 @@ export function TimePicker({ minutes, onChange }: { minutes: number; onChange: (
         />
       </div>
       <span className="text-neutral-400 text-[10px]">:</span>
-      <div className="min-w-0 flex-1 sm:w-[68px] sm:flex-none">
+      <div className="w-[68px] shrink-0 max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
         <ModernSelect
           size="sm" value={String(m).padStart(2, "0")}
           options={TIME_PICKER_MINUTES.map((mm) => ({ value: mm, label: mm }))}
           onChange={(v) => update(h12, parseInt(v, 10), isPM)}
         />
       </div>
-      <div className="min-w-0 flex-1 sm:w-[68px] sm:flex-none">
+      <div className="w-[68px] shrink-0 max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
         <ModernSelect
           size="sm" value={isPM ? "PM" : "AM"}
           options={[{ value: "AM", label: "AM" }, { value: "PM", label: "PM" }]}
@@ -264,7 +264,7 @@ export function MemberAvailabilityEditor({ memberId, botId, showToast, fetchWith
               <>
                 <TimePicker minutes={rule.start_minute} onChange={(m) => updateDay(value, "start_minute", m)} />
                 <span className="col-start-2 text-[10px] text-neutral-400">to</span>
-                <div className="col-start-2">
+                <div className="col-start-2 sm:contents">
                   <TimePicker minutes={rule.end_minute} onChange={(m) => updateDay(value, "end_minute", m)} />
                 </div>
               </>

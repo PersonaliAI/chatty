@@ -116,6 +116,50 @@ def test_flow_run_list_rejects_unknown_status_before_query(monkeypatch):
     database.assert_not_awaited()
 
 
+def test_publishing_flow_rejects_unsafe_webhook_target(monkeypatch):
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(
+        bots,
+        "assert_safe_url_async",
+        AsyncMock(side_effect=bots.UnsafeURLError("127.0.0.1 is private")),
+    )
+    database = AsyncMock()
+    monkeypatch.setattr(bots, "run_db", database)
+    body = bots.FlowVersionCreateRequest(
+        status="published",
+        nodes=[
+            {"id": "start", "type": "start", "data": {}},
+            {"id": "notify", "type": "webhook", "data": {"config": {"url": "http://127.0.0.1/hook"}}},
+        ],
+        edges=[{"id": "e1", "source": "start", "target": "notify"}],
+    )
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(bots.create_dashboard_flow_version("bot-1", body, USER))
+    assert error.value.status_code == 422
+    assert "unsafe target" in error.value.detail
+    database.assert_not_awaited()
+
+
+def test_publishing_flow_requires_webhook_url(monkeypatch):
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(bots, "assert_safe_url_async", AsyncMock())
+    database = AsyncMock()
+    monkeypatch.setattr(bots, "run_db", database)
+    body = bots.FlowVersionCreateRequest(
+        status="published",
+        nodes=[
+            {"id": "start", "type": "start", "data": {}},
+            {"id": "notify", "type": "webhook", "data": {"config": {}}},
+        ],
+        edges=[{"id": "e1", "source": "start", "target": "notify"}],
+    )
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(bots.create_dashboard_flow_version("bot-1", body, USER))
+    assert error.value.status_code == 422
+    assert "requires a public" in error.value.detail
+    database.assert_not_awaited()
+
+
 def test_simulation_persists_redacted_context_without_mutating_request(monkeypatch):
     from app.routers.bots import FlowSimulationRequest
 
