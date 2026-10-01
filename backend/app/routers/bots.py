@@ -85,6 +85,22 @@ def _inject_flow_version(custom_js: str | None, flow: dict[str, Any]) -> str:
     return f'{base}\n/* CHATTY_FLOW_DATA\n{json.dumps(flow, indent=2)}\nCHATTY_FLOW_DATA */'.strip()
 
 
+@router.delete("/api/bots/{bot_id}/flow")
+async def delete_dashboard_flow(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Remove the published Flow Builder block while preserving other custom JS."""
+    await verify_bot_permission(bot_id, user, "settings")
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("custom_js").eq("id", bot_id).maybe_single().execute())
+    if not bot.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    custom_js = bot.data.get("custom_js") or ""
+    cleaned = re.sub(r"/\* CHATTY_FLOW_START \*/[\s\S]*?/\* CHATTY_FLOW_END \*/", "", custom_js)
+    cleaned = re.sub(r"/\* CHATTY_FLOW_DATA[\s\S]*?CHATTY_FLOW_DATA \*/", "", cleaned).strip()
+    result = await run_db(lambda: supabase.table("chatty_bots").update({"custom_js": cleaned or None}).eq("id", bot_id).execute())
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to delete workflow")
+    return {"bot_id": bot_id, "deleted": True}
+
+
 def _bounded_int(value: Any, default: int, minimum: int, maximum: int) -> int:
     try:
         return max(minimum, min(int(value), maximum))

@@ -1222,6 +1222,33 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     showToast("Step deleted from canvas", "success");
   };
 
+  const resetDraft = () => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+    setFlowStatus("paused");
+    setSelectedNode(null);
+    setSaveStatus("unsaved");
+    setTimeout(() => safeFitView(0.25, 150), 50);
+    showToast("Draft reset. Save to keep the reset.", "success");
+  };
+
+  const deleteWorkflow = async () => {
+    if (!botId || !fetchDashboardBackend) return;
+    if (!window.confirm("Delete this workflow from the bot? This removes the published flow but keeps the bot.")) return;
+    try {
+      const response = await fetchDashboardBackend(`/api/bots/${botId}/flow`, { method: "DELETE" });
+      if (!response.ok) throw new Error(`Delete failed (${response.status})`);
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+      setFlowStatus("paused");
+      setSelectedNode(null);
+      setSaveStatus("saved");
+      showToast("Workflow deleted from this bot.", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to delete workflow.", "error");
+    }
+  };
+
   // Node insertion helper
   const insertNode = (type: string, initialData: FlowNodeData) => {
     const id = `${type}-${Date.now()}`;
@@ -1682,6 +1709,26 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
             {saveStatus === "saving" ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
             <span className="hidden sm:inline">Save & Publish</span>
             <span className="sm:hidden">Save</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={resetDraft}
+            title="Reset draft"
+            className="flex items-center justify-center size-8 sm:w-auto sm:px-2.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-slate-50 dark:hover:bg-neutral-850 text-neutral-600 dark:text-neutral-300 text-xs font-bold cursor-pointer"
+          >
+            <RotateCcw className="size-3.5" />
+            <span className="hidden sm:inline ml-1.5">Reset</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={deleteWorkflow}
+            title="Delete workflow"
+            className="flex items-center justify-center size-8 sm:w-auto sm:px-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-neutral-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-bold cursor-pointer"
+          >
+            <Trash2 className="size-3.5" />
+            <span className="hidden sm:inline ml-1.5">Delete</span>
           </button>
 
           {/* More actions dropdown (n8n pattern for secondary actions) */}
