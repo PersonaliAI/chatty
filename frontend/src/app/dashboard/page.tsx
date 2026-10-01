@@ -1263,20 +1263,25 @@ export default function Dashboard() {
       // through the canonical team-permission endpoint before using it as the
       // active dashboard context, so stale selections cannot expose broken
       // edit controls or route writes to a guaranteed 403.
+      const editableBotIds = new Set<string>();
       if (!SELF_HOST_MODE && bots?.length) {
         const candidates = bots;
         const permissionChecks = await Promise.all(
           candidates.map(async (candidate) => {
             try {
               const response = await fetchWithFallback(`/api/team/me?bot_id=${encodeURIComponent(candidate.id)}`);
-              return response.ok;
+              if (!response.ok) return { id: candidate.id, accessible: false, editable: false };
+              const body = await response.json().catch(() => ({}));
+              const permissions = Array.isArray(body.permissions) ? body.permissions : [];
+              return { id: candidate.id, accessible: true, editable: body.role === "owner" || permissions.includes("design") || permissions.includes("settings") };
             } catch {
-              return false;
+              return { id: candidate.id, accessible: false, editable: false };
             }
           })
         );
-        if (permissionChecks.some(Boolean)) {
-          bots = candidates.filter((_, index) => permissionChecks[index]);
+        permissionChecks.filter((check) => check.editable).forEach((check) => editableBotIds.add(check.id));
+        if (permissionChecks.some((check) => check.accessible)) {
+          bots = candidates.filter((_, index) => permissionChecks[index].accessible);
         }
       }
       setUserBots(bots || []);
@@ -1294,8 +1299,9 @@ export default function Dashboard() {
       const ownedBots = bots?.filter((b) => b.user_id === userId) || [];
       const currentBot = botId ? bots?.find((b) => b.id === botId) : undefined;
       const storedBot = storedBotId ? bots?.find((b) => b.id === storedBotId) : undefined;
-      let activeBot = (currentBot && currentBot.user_id === userId ? currentBot : undefined)
-        || (storedBot && storedBot.user_id === userId ? storedBot : undefined)
+      let activeBot = (currentBot && editableBotIds.has(currentBot.id) ? currentBot : undefined)
+        || (storedBot && editableBotIds.has(storedBot.id) ? storedBot : undefined)
+        || bots?.find((candidate) => editableBotIds.has(candidate.id))
         || ownedBots[0]
         || bots?.[0];
 
