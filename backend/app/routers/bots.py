@@ -699,9 +699,12 @@ async def update_dashboard_bot(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Update dashboard configuration using a strict column allow-list."""
-    # Match the dashboard's team-access model: owners and explicitly
-    # authorized admins may edit settings; read-only/agent members may not.
-    await verify_bot_permission(bot_id, user, "settings")
+    # Match the dashboard's team-access model: owners and members explicitly
+    # authorized for either the design or settings surface may edit widget
+    # configuration; read-only/agent members may not.
+    role, permissions = await get_bot_role_and_permissions(bot_id, user)
+    if role != "owner" and not ({"design", "settings"} & set(permissions)):
+        raise HTTPException(status_code=403, detail="You don't have access to widget settings for this bot")
     updates = {key: value for key, value in body.items() if key in _DASHBOARD_BOT_UPDATE_FIELDS}
     if not updates:
         raise HTTPException(status_code=400, detail="No supported fields to update")
