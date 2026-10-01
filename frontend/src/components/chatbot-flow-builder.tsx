@@ -800,6 +800,14 @@ function validateFlow(nodes: Node[], edges: Edge[]): FlowValidation {
         errors.push(`Loop ${node.id} must allow between 1 and 1,000 iterations.`);
       }
     }
+    if (config.mapping !== undefined) {
+      const mapping = config.mapping;
+      if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) {
+        errors.push(`Data mapping for ${node.id} must be an object of target fields.`);
+      } else if (Object.entries(mapping as Record<string, unknown>).some(([key, value]) => !key.trim() || typeof value !== "string" || !value.trim())) {
+        errors.push(`Data mapping for ${node.id} must contain non-empty string field paths.`);
+      }
+    }
   });
   const starts = nodes.filter((node) => node.type === "start" || node.type === "input");
   if (starts.length !== 1) errors.push(`Flow must contain exactly one Start trigger step (found ${starts.length}).`);
