@@ -48,11 +48,13 @@ and fail-closed security paths.
 - Verify version concurrency, atomic publication, draft isolation and rollback.
 - Verify templates, import/export and AI generation/optimization round trips.
 
-Current evidence: backend Flow contract/runtime/router tests pass (62 focused
+Current evidence: backend Flow contract/runtime/router tests pass (63 focused
 tests in the latest local run), including immutable run-snapshot replay,
 typed webhook mapping coercion and fail-closed type errors. Live widget
 webhook tests cover published URLs, mapping and transient retries. These do
-not yet prove full live/simulator parity or atomic version publication.
+not yet prove full live/simulator parity or atomic version publication. The
+runtime suite also exercises a bounded 1,000-context mapping batch to catch
+cross-run state leaks and credential exposure.
 
 ## 2. Operator experience
 
