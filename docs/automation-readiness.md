@@ -72,6 +72,9 @@ production smoke run `36927088166` completed with 8 passed and 1 explicitly
 skipped owner-persistence test because the shared account had no editable bot.
 Full editor accessibility acceptance remains unverified until a dedicated owner
 fixture is provisioned and the authenticated editor checks complete.
+The repository currently has `E2E_OWNER_EMAIL` and `E2E_OWNER_PASSWORD` secrets,
+but no `E2E_OWNER_BOT_ID` secret, so that fixture provisioning is the remaining
+external acceptance prerequisite.
 
 ## 3. Campaign orchestration
 
