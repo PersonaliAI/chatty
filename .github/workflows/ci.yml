@@ -73,7 +73,7 @@ jobs:
           BYOK_ENCRYPTION_KEY: kLaaohqu72wbf-6sqsj4_yNq2MYBEREBnQ42qEtwRIk=
 
       - name: Bounded Flow runtime benchmark
-        run: python scripts/benchmark_flow_runtime.py --iterations 100000
+        run: python scripts/benchmark_flow_runtime.py --iterations 100000 --workers 4
 
       # Non-blocking: surfaces known CVEs in dependencies without failing the
       # build outright - a build shouldn't go red over an advisory in a

@@ -37,14 +37,16 @@ regressions are green locally: **50 passed, 1 intentionally skipped**. This
 includes retry/idempotency, concurrency-lock release, provider-failure recovery,
 and fail-closed security paths.
 For a reproducible isolated runtime load signal, run
-`python backend/scripts/benchmark_flow_runtime.py --iterations 100000`; the
-benchmark uses synthetic contexts only and fails if credential redaction regresses.
+`python backend/scripts/benchmark_flow_runtime.py --iterations 100000 --workers 4`;
+the benchmark uses synthetic contexts only, exercises bounded concurrent workers,
+and fails if credential redaction regresses.
 This benchmark is enforced in CI; workflow run `36935595292` completed the
 benchmark, backend tests, frontend checks, and production build successfully.
-The latest local 100,000-context run completed in 3.876 seconds at 25,802
-mapping operations/second with credential redaction checks intact. This is a
-repeatable synthetic throughput signal, not a substitute for a sustained
-multi-worker infrastructure load test.
+The latest local single-worker 100,000-context run completed in 3.876 seconds at
+25,802 mapping operations/second with credential redaction checks intact. The
+CI gate now runs the same workload across four bounded workers. This is a
+repeatable synthetic concurrency signal, not a substitute for a sustained
+multi-worker infrastructure load test with real queues, providers, and recovery.
 
 ## 1. Workflow correctness
 
