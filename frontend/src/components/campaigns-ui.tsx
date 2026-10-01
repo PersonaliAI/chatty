@@ -696,7 +696,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
           <button
             type="button"
             onClick={() => setActiveTab("builder")}
-            className="w-full sm:w-auto justify-center flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer hover:opacity-95"
+            className="w-full sm:w-auto justify-center flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer hover:opacity-95 whitespace-nowrap"
             style={{ background: color }}
           >
             <Plus className="size-4" />
@@ -770,7 +770,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as ActiveCampaignTab)}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   isActive
                     ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
                     : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
@@ -792,7 +792,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
           <button
             type="button"
             onClick={loadCampaigns}
-            className="self-start sm:self-auto shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:bg-slate-50 cursor-pointer shadow-2xs"
+            className="self-start sm:self-auto shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:bg-slate-50 cursor-pointer shadow-2xs whitespace-nowrap"
           >
             <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
             <span>Sync</span>
