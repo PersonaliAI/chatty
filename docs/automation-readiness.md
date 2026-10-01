@@ -68,7 +68,7 @@ Current evidence: deterministic landing browser checks pass in CI and a local
 Playwright run independently passed all three deterministic checks (3/3); the
 production launcher/embed smoke suite is green. Authenticated golden-path
 coverage is now enabled by repository owner credentials and the latest
-production smoke run `36927088166` completed with 8 passed and 1 explicitly
+production smoke run `36933216448` completed with 8 passed and 1 explicitly
 skipped owner-persistence test because the shared account had no editable bot.
 Full editor accessibility acceptance remains unverified until a dedicated owner
 fixture is provisioned and the authenticated editor checks complete.
