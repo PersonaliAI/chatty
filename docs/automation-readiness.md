@@ -40,7 +40,8 @@ not yet prove full live/simulator parity or atomic version publication.
   screen-reader names and desktop/mobile canvas usability.
 - Verify malformed import and failed save recovery without losing drafts.
 
-Current evidence: deterministic landing browser checks pass in CI and the
+Current evidence: deterministic landing browser checks pass in CI and a local
+Playwright run independently passed both deterministic checks (2/2); the
 production launcher/embed smoke suite is green. Authenticated golden-path tests
 remain skipped without owner credentials and currently cover only basic
 automation surface controls. Full editor accessibility acceptance is unverified.
