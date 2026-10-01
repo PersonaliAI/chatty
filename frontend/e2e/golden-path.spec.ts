@@ -111,7 +111,9 @@ test.describe("owner golden path", () => {
     const canonicalOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${BOT_ID}"]`);
     const canonicalName = await canonicalOption.count() ? (await canonicalOption.textContent())?.trim() : null;
     if (await canonicalOption.count()) await canonicalOption.click();
-    else if (await botOptions.count() > 1) await botOptions.last().click();
+    // If the public smoke bot is not owned by this account, retain the
+    // dashboard's already-selected owner bot. Picking an arbitrary team bot
+    // can make a valid persistence check look like a save regression.
     // The picker is a popover with a full-screen click-away layer. Close it
     // explicitly before navigating so a delayed bot switch cannot leave the
     // overlay intercepting the next sidebar action.
