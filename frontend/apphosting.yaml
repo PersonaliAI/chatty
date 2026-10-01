@@ -1,4 +1,7 @@
 # Firebase App Hosting Configuration
+# Keep this file in the required rollout paths so a canonical-main frontend
+# release rebuilds the dashboard/widget bundle instead of leaving production
+# on an older cached application revision.
 # See https://firebase.google.com/docs/app-hosting/configure for schema details
 
 env:
