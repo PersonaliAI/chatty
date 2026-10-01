@@ -2027,7 +2027,11 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                             <div
                               key={run.id}
                               onClick={() => {
-                                setSelectedRun(run as any);
+                                setSelectedRun({
+                                  id: run.id,
+                                  status: run.status,
+                                  trace: run.trace?.map((step) => ({ label: step.label })),
+                                });
                                 setActiveTab("executions");
                               }}
                               className="p-1.5 rounded-lg border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-slate-300 text-[10px] flex items-center justify-between gap-1 cursor-pointer"
