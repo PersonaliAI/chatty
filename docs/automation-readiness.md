@@ -24,6 +24,9 @@ when set, it targets that explicitly provisioned owner/design-capable bot rather
 than relying on the shared public widget bot. This avoids false negatives from
 team bots that are visible but intentionally read-only.
 
+The focused Flow Builder/Campaigns backend contract, runtime, router, audience,
+schedule, and dispatch regression set is currently green: **62 passed** locally.
+
 ## 1. Workflow correctness
 
 - Validate triggers, actions, branching, loops, retries, timeouts, scheduling,
