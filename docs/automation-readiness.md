@@ -4,7 +4,7 @@ The industrial automation goal is **not complete**. This checklist preserves
 the full scope; passing a unit test or pushing a commit does not prove deployment
 or production readiness. Every gate needs evidence for the release commit.
 
-Latest validated public release evidence: commit `b592430` passed the canonical
+Latest validated public release evidence: commit `58f4f43` passed the canonical
 CI workflow (backend compile/tests/audit plus frontend typecheck, lint, browser
 checks, and production build) and production E2E run `36758263161` (5 passed,
 3 authenticated owner tests skipped). The owner tests are gated by
@@ -22,7 +22,8 @@ currently configured, so authenticated editor acceptance is not proven.
 - Verify version concurrency, atomic publication, draft isolation and rollback.
 - Verify templates, import/export and AI generation/optimization round trips.
 
-Current evidence: backend Flow contract/runtime/router tests exist. Live widget
+Current evidence: backend Flow contract/runtime/router tests exist, including
+typed webhook mapping coercion and fail-closed type errors. Live widget
 webhook tests cover published URLs, mapping and transient retries. These do not
 yet prove full live/simulator parity or atomic version publication.
 
@@ -47,7 +48,8 @@ automation surface controls. Full editor accessibility acceptance is unverified.
   provider retries, worker recovery, dead letters and replay without duplicate sends.
 - Verify pause/delete effects on queued deliveries and accurate analytics/logs.
 
-Current evidence: campaign unit tests and a real Redis scheduling CI test exist.
+Current evidence: campaign unit tests cover schedule planning, consent, retries,
+and bounded tag/locale audience predicates; a real Redis scheduling CI test exists.
 Actual provider delivery, large-audience fairness, consent revocation and queued
 campaign pause semantics still require acceptance evidence.
 
