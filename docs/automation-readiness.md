@@ -4,13 +4,13 @@ The industrial automation goal is **not complete**. This checklist preserves
 the full scope; passing a unit test or pushing a commit does not prove deployment
 or production readiness. Every gate needs evidence for the release commit.
 
-Latest fully validated public release evidence: commit `3b56b53` passed
-canonical CI workflow `36921808458` (backend compile/tests/audit plus frontend
-typecheck, lint, browser checks, and production build), CodeQL `36913345786`,
-secret scan `36921808381`, code quality `36921808208`, and managed Supabase
-compose smoke `36921808657`. The dependency security patch is also covered by
+Latest fully validated public release evidence: commit `766893b` passed
+canonical CI workflow `36935595292` (backend compile/tests/audit plus frontend
+typecheck, lint, browser checks, and production build), CodeQL `36935595214`,
+secret scan `36935595235`, code quality `36935595157`, and managed Supabase
+compose smoke `36935595256`. The dependency security patch is also covered by
 the backend audit and local `npm audit --omit=dev` (0 vulnerabilities). The
-local backend regression suite now passes `837 passed, 6 skipped, 2 warnings`.
+local backend regression suite now passes `838 passed, 6 skipped, 2 warnings`.
 Production authenticated E2E run `36927088166` completed with 8 passed and 1
 skipped. Flow Builder, Campaigns, sidebar, mobile and execution-filter checks
 are green. The Customizer owner round-trip is explicitly skipped because the
@@ -25,7 +25,7 @@ than relying on the shared public widget bot. This avoids false negatives from
 team bots that are visible but intentionally read-only.
 
 The focused Flow Builder/Campaigns backend contract, runtime, router, audience,
-schedule, and dispatch regression set is currently green: **62 passed** locally.
+schedule, and dispatch regression set is currently green: **63 passed** locally.
 
 The deterministic landing/browser accessibility-adjacent checks are also green:
 **3 passed**, including help-center navigation and a 390px horizontal-overflow
@@ -39,7 +39,7 @@ and fail-closed security paths.
 For a reproducible isolated runtime load signal, run
 `python backend/scripts/benchmark_flow_runtime.py --iterations 10000`; the
 benchmark uses synthetic contexts only and fails if credential redaction regresses.
-This benchmark is enforced in CI; workflow run `36934305682` completed the
+This benchmark is enforced in CI; workflow run `36935595292` completed the
 benchmark, backend tests, frontend checks, and production build successfully.
 
 ## 1. Workflow correctness
