@@ -4,11 +4,11 @@ The industrial automation goal is **not complete**. This checklist preserves
 the full scope; passing a unit test or pushing a commit does not prove deployment
 or production readiness. Every gate needs evidence for the release commit.
 
-Latest fully validated public release evidence: commit `766893b` passed
-canonical CI workflow `36935595292` (backend compile/tests/audit plus frontend
-typecheck, lint, browser checks, and production build), CodeQL `36935595214`,
-secret scan `36935595235`, code quality `36935595157`, and managed Supabase
-compose smoke `36935595256`. The dependency security patch is also covered by
+Latest fully validated public release evidence: commit `62026ce` passed
+canonical CI workflow `36936719472` (backend compile/tests/audit plus frontend
+typecheck, lint, browser checks, and production build), CodeQL `36936719532`,
+secret scan `36936719417`, code quality `36936719757`, and managed Supabase
+compose smoke `36936719469`. The dependency security patch is also covered by
 the backend audit and local `npm audit --omit=dev` (0 vulnerabilities). The
 local backend regression suite now passes `838 passed, 6 skipped, 2 warnings`.
 Production authenticated E2E run `36927088166` completed with 8 passed and 1
