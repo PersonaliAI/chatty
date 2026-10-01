@@ -1669,7 +1669,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
         </div>
 
         {/* Right: Active Toggle, Add Node, Save Button, More Actions Dropdown */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="dashboard-button-row flex items-center gap-2 shrink-0">
           <div className="hidden sm:flex items-center border-r border-slate-200 dark:border-neutral-800 pr-2.5 mr-0.5">
             <ModernSwitch
               checked={flowStatus === "active"}

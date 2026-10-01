@@ -47,6 +47,22 @@
     white-space: nowrap;
   }
 
+  /* Keep action controls on one touch-friendly row; swipe to reach overflow. */
+  [data-dashboard] .dashboard-button-row {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    padding-bottom: 4px;
+  }
+
+  [data-dashboard] .dashboard-button-row > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
   [data-dashboard] [data-modern-select-trigger],
   [data-dashboard] .dashboard-action-bar button:not(:empty) {
     min-height: 36px;

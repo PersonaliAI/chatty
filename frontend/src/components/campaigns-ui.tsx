@@ -692,7 +692,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         </div>
 
         {/* Global Action */}
-        <div className="flex items-center gap-3">
+        <div className="dashboard-button-row flex items-center gap-3">
           <button
             type="button"
             onClick={() => setActiveTab("builder")}
@@ -1154,7 +1154,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">
                   Notification Channels
                 </label>
-                <div className="flex flex-wrap gap-2">
+                <div className="dashboard-button-row flex items-center gap-2">
                   {[
                     { id: "web", label: "Website Chat Bubble", icon: <MessageSquare className="size-3.5" /> },
                     { id: "email", label: "Email Notification", icon: <Mail className="size-3.5" /> },
@@ -1486,7 +1486,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 className="w-full bg-slate-50 dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-xl p-3 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#f97316]/20"
               />
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="dashboard-button-row flex items-center gap-3">
                 <button
                   type="button"
                   onClick={suggestCampaignWithAI}
