@@ -56,8 +56,10 @@ Current evidence: campaign unit tests cover schedule planning, consent, retries,
 bounded tag/locale audience predicates, normalized audience rules, and editing
 existing campaigns while preserving cadence, quiet-hours, and frequency-cap
 safeguards; a real Redis scheduling CI test exists.
-Actual provider delivery, large-audience fairness, consent revocation and queued
-campaign pause semantics still require acceptance evidence.
+Actual provider delivery, large-audience fairness, and consent revocation still
+require acceptance evidence. Queued campaign pause/delete semantics now have a
+worker regression test that verifies an inactive campaign is suppressed before
+the provider is called; production acceptance is still pending.
 
 ## 4. Release verification
 
