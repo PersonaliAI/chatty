@@ -14,4 +14,11 @@ test.describe("landing page deterministic checks", () => {
     await expect(page.locator("#help-center")).toBeInViewport();
     await expect(page.getByRole("link", { name: "Browse documentation" })).toHaveAttribute("href", "https://docs.chatty.personaliai.com");
   });
+
+  test("does not introduce horizontal overflow on a phone viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
 });
