@@ -4,10 +4,12 @@ The industrial automation goal is **not complete**. This checklist preserves
 the full scope; passing a unit test or pushing a commit does not prove deployment
 or production readiness. Every gate needs evidence for the release commit.
 
-Latest validated public release evidence: commit `58f4f43` passed the canonical
-CI workflow (backend compile/tests/audit plus frontend typecheck, lint, browser
-checks, and production build) and production E2E run `36758263161` (5 passed,
-3 authenticated owner tests skipped). The owner tests are gated by
+Latest validated public release evidence: commit `9b904ee` passed the canonical
+CI workflow `36903462601` (backend compile/tests/audit plus frontend typecheck,
+lint, browser checks, and production build), CodeQL `36903462507`, secret scan
+`36903462651`, code quality `36903461855`, and managed Supabase compose smoke
+`36903462637`. Production E2E run `36758263161` remains the last recorded run
+(5 passed, 3 authenticated owner tests skipped). The owner tests are gated by
 `E2E_OWNER_EMAIL` and `E2E_OWNER_PASSWORD`; no such Actions secrets are
 currently configured, so authenticated editor acceptance is not proven.
 
@@ -49,7 +51,9 @@ automation surface controls. Full editor accessibility acceptance is unverified.
 - Verify pause/delete effects on queued deliveries and accurate analytics/logs.
 
 Current evidence: campaign unit tests cover schedule planning, consent, retries,
-and bounded tag/locale audience predicates; a real Redis scheduling CI test exists.
+bounded tag/locale audience predicates, normalized audience rules, and editing
+existing campaigns while preserving cadence, quiet-hours, and frequency-cap
+safeguards; a real Redis scheduling CI test exists.
 Actual provider delivery, large-audience fairness, consent revocation and queued
 campaign pause semantics still require acceptance evidence.
 
