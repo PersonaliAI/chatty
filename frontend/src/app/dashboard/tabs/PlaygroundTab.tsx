@@ -21,7 +21,7 @@ export function PlaygroundTab({
 
   return (
     <div className="flex flex-col items-center justify-center p-4 sm:p-6 w-full max-w-4xl mx-auto space-y-4">
-      <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
+      <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between max-sm:gap-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
         <div>
           <h2 className="text-lg font-bold text-neutral-900 dark:text-white flex items-center gap-2">
             <Sparkles className="size-5 text-indigo-500" />

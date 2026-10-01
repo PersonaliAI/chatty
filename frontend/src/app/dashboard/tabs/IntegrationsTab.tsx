@@ -588,7 +588,7 @@ export function IntegrationsTab({
         {/* Instructions */}
         {selected && (
           <div className="mt-5 space-y-4">
-            <div className="flex max-sm:flex-col max-sm:items-start items-center justify-between gap-3">
+            <div className="flex max-sm:flex-col max-sm:items-start items-center justify-between max-sm:gap-3">
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selected.title}</h4>
                 {selected.badge && (

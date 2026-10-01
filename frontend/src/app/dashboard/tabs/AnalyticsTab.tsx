@@ -163,7 +163,7 @@ function DateRangePicker({
         <Calendar className="size-3.5 text-[#f97316]" />
         <span className="text-[11px] font-medium text-neutral-700 dark:text-neutral-200 tabular-nums">{fmtDate(draftFrom)} – {draftTo ? fmtDate(draftTo) : "Select end"}</span>
       </div>
-      <div className="absolute right-0 top-10 w-[292px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-xl">
+      <div className="absolute right-0 top-10 w-[292px] max-sm:fixed max-sm:inset-x-4 max-sm:top-20 max-sm:z-50 max-sm:w-auto rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 shadow-xl">
         <div className="flex items-center justify-between mb-3">
           <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Previous month"><ChevronLeft className="size-4" /></button>
           <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-100">{monthLabel}</span>
@@ -797,16 +797,16 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
   return (
     <div className="max-w-5xl mx-auto w-full space-y-5 py-6 px-4">
       {/* ── Header & Controls ─────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold">Analytics</h2>
           <p className="text-[11px] text-neutral-400 mt-0.5">
             {fmtDate(fromDate)} – {fmtDate(toDate)}
           </p>
         </div>
-        <div className="flex max-sm:flex-col max-sm:items-stretch items-center gap-2 flex-wrap">
+        <div className="dashboard-action-bar flex items-center gap-2 flex-wrap">
           {/* Preset buttons */}
-          <div className="dashboard-action-bar flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1">
             {PRESETS.map(p => (
               <button
                 key={p.label}
