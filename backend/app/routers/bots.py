@@ -324,9 +324,17 @@ async def list_dashboard_flow_runs(
 async def get_dashboard_flow_run(bot_id: str, run_id: str, user: dict[str, Any] = Depends(require_user)):
     """Return one immutable execution snapshot for operator inspection."""
     await verify_bot_permission(bot_id, user, "settings")
-    result = await run_db(lambda: supabase.table("chatty_flow_runs").select(
-        "id, status, inputs, trace, error, duration_ms, created_at, completed_at, flow_data"
-    ).eq("id", run_id).eq("bot_id", bot_id).maybe_single().execute())
+    try:
+        result = await run_db(lambda: supabase.table("chatty_flow_runs").select(
+            "id, status, inputs, trace, error, duration_ms, created_at, completed_at, flow_data"
+        ).eq("id", run_id).eq("bot_id", bot_id).maybe_single().execute())
+    except Exception as exc:
+        if _flow_runs_table_missing(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="Flow run history is not available yet; apply the chatty_flow_runs migration and retry.",
+            ) from exc
+        raise
     if not result.data:
         raise HTTPException(status_code=404, detail="Flow run not found")
     return result.data
@@ -339,8 +347,16 @@ async def replay_dashboard_flow_run(
     user: dict[str, Any] = Depends(require_user),
 ):
     await verify_bot_permission(bot_id, user, "settings")
-    result = await run_db(lambda: supabase.table("chatty_flow_runs").select("inputs, flow_data").eq(
-        "id", run_id).eq("bot_id", bot_id).maybe_single().execute())
+    try:
+        result = await run_db(lambda: supabase.table("chatty_flow_runs").select("inputs, flow_data").eq(
+            "id", run_id).eq("bot_id", bot_id).maybe_single().execute())
+    except Exception as exc:
+        if _flow_runs_table_missing(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="Flow run history is not available yet; apply the chatty_flow_runs migration and retry.",
+            ) from exc
+        raise
     if not result.data:
         raise HTTPException(status_code=404, detail="Flow run not found")
     snapshot = result.data.get("flow_data") or {}

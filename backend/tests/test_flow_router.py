@@ -70,6 +70,40 @@ def test_flow_run_detail_returns_immutable_trace(monkeypatch):
     assert result["flow_data"]["nodes"] == []
 
 
+def test_flow_run_detail_reports_missing_history_migration(monkeypatch):
+    class MissingHistoryError(Exception):
+        pass
+
+    monkeypatch.setattr(bots, "PostgrestAPIError", MissingHistoryError)
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(
+        bots,
+        "run_db",
+        AsyncMock(side_effect=MissingHistoryError("PGRST205 chatty_flow_runs not found")),
+    )
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(bots.get_dashboard_flow_run("bot-1", "run-1", USER))
+    assert error.value.status_code == 503
+    assert "chatty_flow_runs migration" in error.value.detail
+
+
+def test_flow_run_replay_reports_missing_history_migration(monkeypatch):
+    class MissingHistoryError(Exception):
+        pass
+
+    monkeypatch.setattr(bots, "PostgrestAPIError", MissingHistoryError)
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(
+        bots,
+        "run_db",
+        AsyncMock(side_effect=MissingHistoryError("PGRST205 chatty_flow_runs not found")),
+    )
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(bots.replay_dashboard_flow_run("bot-1", "run-1", USER))
+    assert error.value.status_code == 503
+    assert "chatty_flow_runs migration" in error.value.detail
+
+
 def test_flow_run_list_rejects_unknown_status_before_query(monkeypatch):
     monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
     database = AsyncMock()
