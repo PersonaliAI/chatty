@@ -248,6 +248,7 @@ export default function Dashboard() {
   // was selected synchronously available to the debounced autosave so a
   // render from the previous state cannot persist the old preset.
   const widgetStyleRef = useRef(widgetStyle);
+  const settingsChangeVersionRef = useRef(0);
   // Which view the Customizer's live preview shows - a static mockup of the
   // in-chat text conversation, or of the voice-call screen (orb, live
   // transcript bubbles, mute/hangup). Both are hand-built mockups (like the
@@ -2460,6 +2461,7 @@ export default function Dashboard() {
   // Persist chatbot appearance/settings to Supabase
   async function handleSaveChanges() {
     if (!user || !botId) return;
+    const saveVersion = settingsChangeVersionRef.current;
     setIsSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -2565,6 +2567,13 @@ export default function Dashboard() {
         }
         if (error) throw error;
       }
+      // A newer preset/settings change may have happened while this request
+      // was in flight. Re-run the save with the newest state so an older
+      // response can never win the race and revert the user's change.
+      if (saveVersion !== settingsChangeVersionRef.current) {
+        setTimeout(() => handleSaveChangesRef.current(), 0);
+        return;
+      }
       setHasUnsavedChanges(false);
       showToast(
         missingColWarning ? `Saved, but "${missingColWarning}" needs a pending database update first.` : "Changes saved.",
@@ -2649,6 +2658,7 @@ export default function Dashboard() {
   // handleSaveChanges fires once input settles, same pattern already used
   // for voice settings (handleAutoSaveVoiceField).
   const handleInputChange = <T,>(setter: (val: T) => void, val: T) => {
+    settingsChangeVersionRef.current += 1;
     if (setter === setWidgetStyle) widgetStyleRef.current = String(val);
     setter(val);
     setHasUnsavedChanges(true);
