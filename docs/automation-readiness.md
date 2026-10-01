@@ -11,13 +11,14 @@ secret scan `36921808381`, code quality `36921808208`, and managed Supabase
 compose smoke `36921808657`. The dependency security patch is also covered by
 the backend audit and local `npm audit --omit=dev` (0 vulnerabilities). The
 local backend regression suite now passes `837 passed, 6 skipped, 2 warnings`.
-Production authenticated E2E run `36921026888` completed with 8 passed and 1
-failed. Flow Builder, Campaigns, sidebar, mobile and execution-filter checks
-are green. The remaining failure is the live Customizer preset round-trip;
-commit `3b56b53` fixes the identified stale-closure save race by passing the
-selected preset transaction explicitly to the dashboard PATCH handler. A new
-App Hosting rollout is queued for that release; authenticated acceptance is
-unproven until the hosted revision serves `3b56b53` and the rerun is green.
+Production authenticated E2E run `36927088166` completed with 8 passed and 1
+skipped. Flow Builder, Campaigns, sidebar, mobile and execution-filter checks
+are green. The Customizer owner round-trip is explicitly skipped because the
+configured production account has no bot with owner/design/settings
+permission; the earlier 403 diagnostic confirmed this is an unprovisioned
+fixture rather than a save failure. The preset save race is fixed in
+`3b56b53`, and the hosted revision is serving the updated frontend. A true
+owner fixture is still required before claiming the Customizer acceptance gate.
 
 ## 1. Workflow correctness
 
