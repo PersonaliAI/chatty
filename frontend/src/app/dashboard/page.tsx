@@ -2555,30 +2555,21 @@ export default function Dashboard() {
           throw new Error(`Save failed (${response.status})${details ? `: ${details}` : ""}`);
         }
       } else {
-        let { data: updatedBot, error } = await supabase.from("chatty_bots").update(payload).eq("id", botId).select("id, widget_style").maybeSingle();
-        // A column this build knows about (e.g. color_scheme) can lag behind
-        // its migration being applied - PostgREST rejects the WHOLE update
-        // with a 400 in that case, silently breaking every other field too.
-        // Retry once without the field PostgREST names, so a pending
-        // migration degrades to "that one setting didn't save" instead of
-        // "nothing saved and no error shown".
-        if (error && /schema cache/i.test(error.message || "")) {
-          const missingCol = error.message.match(/'([a-z_]+)' column/)?.[1];
-          if (missingCol && missingCol in payload) {
-            const { [missingCol]: _omit, ...retryPayload } = payload;
-            void _omit;
-            const retry = await supabase.from("chatty_bots").update(retryPayload).eq("id", botId);
-            error = retry.error;
-            if (!error) {
-              const verify = await supabase.from("chatty_bots").select("id, widget_style").eq("id", botId).maybeSingle();
-              updatedBot = verify.data;
-              error = verify.error;
-              if (!error) missingColWarning = missingCol;
-            }
-          }
+        // Managed mode uses the same authenticated backend write path as the
+        // widget read path. This avoids browser-RLS/read-replica divergence
+        // where the dashboard appeared to save while the live embed still
+        // resolved the previous style through the service-role API.
+        const response = await fetchWithFallback(`/api/bots/${botId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const details = await response.text().catch(() => "");
+          throw new Error(`Save failed (${response.status})${details ? `: ${details}` : ""}`);
         }
-        if (error) throw error;
-        if (!updatedBot?.id) throw new Error("Save returned no updated bot row; check owner permissions and RLS policies.");
+        const updatedBot = await response.json().catch(() => null);
+        if (!updatedBot?.id) throw new Error("Save returned no updated bot row; check owner permissions and backend access.");
         if (updatedBot.widget_style !== payload.widget_style) {
           throw new Error("Saved bot style did not match the requested preset.");
         }
