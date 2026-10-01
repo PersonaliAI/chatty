@@ -7,6 +7,7 @@ import {
   ListChecks,
   Loader2,
   Plus,
+  Pencil,
   Trash2,
   Clock,
   MousePointer,
@@ -52,6 +53,7 @@ interface TriggerRule {
   byDevice?: Record<string, number>;
   byChannel?: Record<string, number>;
   audience?: string;
+  audienceRules?: Record<string, unknown>;
   recipientSource?: "widget" | "consented_leads";
   channels?: string[];
   sequenceSteps?: Array<Record<string, unknown>>;
@@ -96,6 +98,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
   // State: Builder Form
   const [campaignName, setCampaignName] = useState("");
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [type, setType] = useState<"time" | "scroll" | "exit" | "url">("time");
   const [value, setValue] = useState("5");
   const [message, setMessage] = useState("");
@@ -167,6 +170,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     clicks: Number(row.clicks ?? 0),
     conversions: Number(row.conversions ?? 0),
     audience: String((row.audience_rules as { segment?: string } | undefined)?.segment ?? "all"),
+    audienceRules: (row.audience_rules as Record<string, unknown> | undefined) ?? {},
     recipientSource:
       String((row.audience_rules as { recipient_source?: string } | undefined)?.recipient_source ?? "widget") === "consented_leads"
         ? "consented_leads"
@@ -449,8 +453,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     setSaving(true);
     let createdRow: Record<string, unknown> | null = null;
     try {
-      const response = await fetchBackend(`/api/bots/${botId}/campaigns`, {
-        method: "POST",
+      const response = await fetchBackend(`/api/bots/${botId}/campaigns${editingCampaignId ? `/${editingCampaignId}` : ""}`, {
+        method: editingCampaignId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -464,11 +468,10 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     if (!createdRow && !SELF_HOST_MODE) {
       try {
         const supabase = createClient();
-        const { data, error: dbErr } = await supabase
-          .from("chatty_campaigns")
-          .insert(payload)
-          .select()
-          .single();
+        const query = editingCampaignId
+          ? supabase.from("chatty_campaigns").update(payload).eq("id", editingCampaignId)
+          : supabase.from("chatty_campaigns").insert(payload);
+        const { data, error: dbErr } = await query.select().single();
         if (!dbErr && data) {
           createdRow = data as Record<string, unknown>;
         }
@@ -480,12 +483,13 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     if (createdRow) {
       const created = mapCampaignRow(createdRow);
       setRules((curr) => {
-        const next = [created, ...curr];
+        const next = editingCampaignId ? curr.map((row) => row.id === editingCampaignId ? created : row) : [created, ...curr];
         if (botId) localStorage.setItem(`chatty_campaigns_${botId}`, JSON.stringify(next));
         return next;
       });
       // Reset builder form
       setCampaignName("");
+      setEditingCampaignId(null);
       setMessage("");
       setValue("5");
       setSequenceSteps([]);
@@ -495,9 +499,29 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setActiveTab("list");
       setError(null);
     } else {
-      setError("Failed to create campaign.");
+      setError(editingCampaignId ? "Failed to update campaign." : "Failed to create campaign.");
     }
     setSaving(false);
+  };
+
+  const editRule = (rule: TriggerRule) => {
+    const rules = rule.audienceRules || {};
+    setEditingCampaignId(rule.id);
+    setCampaignName(rule.name || "");
+    setMessage(rule.message || "");
+    setType(rule.type);
+    setValue(rule.value || "5");
+    setAudience(rule.audience || "all");
+    setMinIntentScore(Number(rules.min_intent_score || 0));
+    setReturningOnly(Boolean(rules.returning_only));
+    setAudienceTagsAny(Array.isArray(rules.tags_any) ? rules.tags_any.map(String).join(", ") : "");
+    setAudienceTagsAll(Array.isArray(rules.tags_all) ? rules.tags_all.map(String).join(", ") : "");
+    setAudienceLocale(String(rules.locale || ""));
+    setChannels(rule.channels || ["web"]);
+    setSequenceSteps((rule.sequenceSteps || []) as CampaignSequenceStep[]);
+    setStartDate(rule.startDate || "");
+    setEndDate(rule.endDate || "");
+    setActiveTab("builder");
   };
 
   const toggleRuleActive = async (rule: TriggerRule) => {
@@ -971,6 +995,15 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                     )}
 
                     <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => editRule(rule)}
+                        className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <Pencil className="size-3" />
+                        <span>Edit</span>
+                      </button>
+                      <span className="text-neutral-300">·</span>
                       <button
                         type="button"
                         onClick={() => toggleDispatchPlan(rule.id)}
