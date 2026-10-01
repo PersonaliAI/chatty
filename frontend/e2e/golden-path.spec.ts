@@ -92,6 +92,16 @@ test.describe("owner golden path", () => {
 
   test("picking a design in the Customizer saves and reflects on the live widget", async ({ page }) => {
     test.setTimeout(60_000);
+    const customizerSaves: Array<{ status: number; botId: string; widgetStyle?: string }> = [];
+    page.on("response", async (response) => {
+      if (response.request().method() !== "PATCH" || !/\/api\/bots\/[^/]+$/.test(response.url())) return;
+      const body = await response.json().catch(() => null) as { id?: string; widget_style?: string } | null;
+      customizerSaves.push({
+        status: response.status(),
+        botId: body?.id || response.url().split("/api/bots/")[1] || "unknown",
+        widgetStyle: body?.widget_style,
+      });
+    });
     // The production account is shared by smoke runs. Do not inherit a stale
     // active-bot selection from a prior role/permission test run.
     await page.addInitScript(() => window.localStorage.clear());
@@ -132,6 +142,11 @@ test.describe("owner golden path", () => {
     await page.waitForTimeout(2_000);
     await page.getByText(target, { exact: true }).click();
     await expect(previewFrame.locator(`[class*="style-${target.toLowerCase()}"]`).first()).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => customizerSaves.length, { timeout: 15_000 }).toBeGreaterThan(0);
+    const latestSave = customizerSaves.at(-1)!;
+    console.log(`Customizer PATCH status=${latestSave.status} bot=${latestSave.botId} widget_style=${latestSave.widgetStyle || "missing"}`);
+    expect(latestSave.status).toBe(200);
+    expect(latestSave.widgetStyle).toContain(target.toLowerCase());
 
     // The toast is transient and can be replaced by a later background save.
     // Verify the durable behavior below instead of coupling this regression
