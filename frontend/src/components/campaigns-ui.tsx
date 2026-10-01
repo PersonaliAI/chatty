@@ -81,6 +81,7 @@ type DispatchJob = {
 type DispatchPreview = { loading?: boolean; jobs?: DispatchJob[]; deferred?: boolean; deferred_reason?: string; error?: string };
 type DeliveryRow = { id: string; idempotency_key: string; status: string; channel: string; recipient_id?: string | null; error?: string | null; updated_at?: string | null };
 type DeliveryLog = { loading?: boolean; available?: boolean; deliveries?: DeliveryRow[]; error?: string };
+type CampaignAuditRow = DeliveryRow & { campaign_id: string; campaign_name: string };
 type DeliveryStatus = "all" | "queued" | "sent" | "failed" | "suppressed";
 
 type ActiveCampaignTab = "list" | "builder" | "copilot" | "audit";
@@ -129,6 +130,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [dispatchPlans, setDispatchPlans] = useState<Record<string, DispatchPreview>>({});
   const [deliveryLogs, setDeliveryLogs] = useState<Record<string, DeliveryLog>>({});
   const [deliveryStatus, setDeliveryStatus] = useState<Record<string, DeliveryStatus>>({});
+  const [auditRows, setAuditRows] = useState<CampaignAuditRow[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   // Options for ModernSelect
   const typeOptions: ModernSelectOption[] = [
@@ -295,6 +298,43 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     loadCampaigns();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId]);
+
+  const loadCampaignAudit = async () => {
+    if (!botId || auditLoading) return;
+    setAuditLoading(true);
+    try {
+      const batches = await Promise.all(
+        rules.map(async (rule) => {
+          try {
+            const response = await fetchBackend(`/api/bots/${botId}/campaigns/${rule.id}/deliveries?limit=50`);
+            if (!response.ok) return [];
+            const payload = (await response.json()) as { deliveries?: DeliveryRow[] };
+            return (payload.deliveries || []).map((delivery) => ({
+              ...delivery,
+              campaign_id: rule.id,
+              campaign_name: rule.name || "Unnamed campaign",
+            }));
+          } catch {
+            return [];
+          }
+        })
+      );
+      setAuditRows(
+        batches
+          .flat()
+          .sort((left, right) => String(right.updated_at || "").localeCompare(String(left.updated_at || "")))
+          .slice(0, 200)
+      );
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "audit") void loadCampaignAudit();
+    // The audit loader intentionally snapshots the current campaign list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, botId, rules]);
 
   // Aggregate Metrics
   const metrics = useMemo(() => {
@@ -805,6 +845,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             { id: "list", label: "All Campaigns", count: rules.length },
             { id: "builder", label: "Campaign Builder" },
             { id: "copilot", label: "AI Copilot & Playbooks" },
+            { id: "audit", label: "Delivery Audit" },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -1645,6 +1686,55 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 4: DELIVERY AUDIT ── */}
+      {activeTab === "audit" && (
+        <div id="campaign-panel-audit" role="tabpanel" aria-labelledby="campaign-tab-audit" className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Delivery audit</h3>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                Recent queued, sent, failed, and suppressed attempts across campaigns. Recipient details are intentionally omitted.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={loadCampaignAudit}
+              disabled={auditLoading}
+              aria-busy={auditLoading}
+              aria-label={auditLoading ? "Refreshing delivery audit" : "Refresh delivery audit"}
+              className="dashboard-button-row shrink-0 self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:bg-slate-50 cursor-pointer shadow-2xs whitespace-nowrap disabled:cursor-wait disabled:opacity-60"
+            >
+              <RefreshCw className={`size-3.5 ${auditLoading ? "animate-spin" : ""}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
+            {auditLoading && auditRows.length === 0 ? (
+              <div className="p-10 text-center text-xs text-neutral-400">Loading delivery audit…</div>
+            ) : auditRows.length === 0 ? (
+              <div className="p-10 text-center text-xs text-neutral-400">No delivery attempts recorded yet.</div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-neutral-800">
+                {auditRows.map((row) => (
+                  <div key={`${row.campaign_id}-${row.id}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 p-3.5 text-xs">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-neutral-800 dark:text-neutral-100 truncate">{row.campaign_name}</div>
+                      <div className="text-[11px] text-neutral-400 truncate">{row.channel} · {row.idempotency_key}</div>
+                      {row.error && <div className="text-[11px] text-rose-600 dark:text-rose-400 truncate">{row.error}</div>}
+                    </div>
+                    <div className="text-right whitespace-nowrap">
+                      <div className="font-bold uppercase tracking-wide text-[10px] text-neutral-600 dark:text-neutral-300">{row.status}</div>
+                      <div className="text-[10px] text-neutral-400">{row.updated_at ? new Date(row.updated_at).toLocaleString() : "—"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
