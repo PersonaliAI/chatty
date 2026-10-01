@@ -27,6 +27,11 @@ team bots that are visible but intentionally read-only.
 The focused Flow Builder/Campaigns backend contract, runtime, router, audience,
 schedule, and dispatch regression set is currently green: **62 passed** locally.
 
+The deterministic landing/browser accessibility-adjacent checks are also green:
+**3 passed**, including help-center navigation and a 390px horizontal-overflow
+guard. Static widget contrast verification covers **75 WCAG AA pairs**, and all
+10 design snapshots match.
+
 ## 1. Workflow correctness
 
 - Validate triggers, actions, branching, loops, retries, timeouts, scheduling,
