@@ -1,5 +1,7 @@
 "use client";
 
+import "./mobile.css";
+
 import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
@@ -4304,10 +4306,10 @@ export default function Dashboard() {
       </aside>
 
       {/* Main Panel */}
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      <main data-dashboard className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Header bar */}
         <header className="h-16 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 sm:px-6 md:px-8 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               aria-label="Open dashboard sidebar"
@@ -4332,7 +4334,7 @@ export default function Dashboard() {
               onChange={(v) => setLanguage(v as "EN" | "ES" | "FR" | "DE" | "IT")}
               align="right"
               size="sm"
-              className="w-28 sm:w-36"
+              className="w-20 sm:w-36 shrink-0"
             />
 
             {/* Re-run Setup (agentic flow) */}
@@ -4367,7 +4369,7 @@ export default function Dashboard() {
         </header>
 
         {/* Tab Contents (Center Aligned Layout) */}
-        <div ref={contentScrollRef} className="flex-1 overflow-y-auto">
+        <div ref={contentScrollRef} className="dashboard-content flex-1 overflow-y-auto">
           
           {/* TAB 1: OVERVIEW */}
           {activeTab === "home" && (

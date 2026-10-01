@@ -61,7 +61,7 @@ export function LeadsTab({
             placeholder="Search leads..."
             value={leadsSearch}
             onChange={(e) => setLeadsSearch(e.target.value)}
-            className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 w-48"
+            className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 w-0 min-w-0 flex-1 sm:w-48 sm:flex-none"
           />
           <button
             onClick={refreshLeads}

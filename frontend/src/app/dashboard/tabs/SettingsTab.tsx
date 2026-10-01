@@ -437,7 +437,7 @@ export function SettingsTab({
 
   return (
             <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
-              <div className="w-full max-w-2xl p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-8">
+              <div className="w-full max-w-2xl p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-8">
 
                 {/* SECTION: YOUR PROFILE & PHOTO */}
                 <div id="settings-profile-section" className="space-y-4">
@@ -1376,7 +1376,7 @@ export function SettingsTab({
                         </h5>
 
                         {/* Business hours */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Open From</label>
                             <ModernSelect
@@ -1420,7 +1420,7 @@ export function SettingsTab({
                         </div>
 
                         {/* Buffer + advance notice */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Buffer Between Meetings</label>
                             <ModernSelect
@@ -1440,7 +1440,7 @@ export function SettingsTab({
                         </div>
 
                         {/* Daily + weekly booking quotas */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Meetings Per Day</label>
                             <ModernSelect

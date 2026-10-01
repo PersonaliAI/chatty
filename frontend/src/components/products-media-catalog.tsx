@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   ShoppingBag,
@@ -90,6 +92,7 @@ export function ProductsMediaCatalog({
   fetchWithFallback,
   primaryColor = "#f97316",
 }: ProductsMediaCatalogProps) {
+  const { confirm, confirmationDialog } = useConfirmDialog();
   const [activeSubTab, setActiveSubTab] = useState<"woocommerce" | "manual_product" | "video">("woocommerce");
 
   // WooCommerce Integration State
@@ -258,7 +261,7 @@ export function ProductsMediaCatalog({
   }, [loadWcStatus, loadCatalogItems, loadCatalogWebhook]);
 
   const handleProvisionCatalogWebhook = async (rotate = false) => {
-    if (rotate && !confirm("Rotate this signing secret? Existing senders will stop working until updated.")) return;
+    if (rotate && !await confirm("Rotate this signing secret? Existing senders will stop working until updated.")) return;
     setProvisioningCatalogWebhook(true);
     setCatalogWebhookError(null);
     try {
@@ -418,7 +421,7 @@ export function ProductsMediaCatalog({
 
   // Handle Disconnect WooCommerce
   const handleDisconnectWc = async () => {
-    if (!confirm("Are you sure you want to disconnect your WooCommerce store?")) return;
+    if (!await confirm("Are you sure you want to disconnect your WooCommerce store?")) return;
     try {
       const res = await fetchWithFallback(`/api/bots/${botId}/integrations/woocommerce`, {
         method: "DELETE",
@@ -433,7 +436,7 @@ export function ProductsMediaCatalog({
 
   // Handle Delete Single Item
   const handleDeleteItem = async (itemId: string) => {
-    if (!confirm("Delete this item from the bot's catalog?")) return;
+    if (!await confirm("Delete this item from the bot's catalog?")) return;
     setDeletingId(itemId);
     try {
       const res = await fetchWithFallback(`/api/bots/${botId}/media-items/${itemId}`, {
@@ -572,6 +575,7 @@ export function ProductsMediaCatalog({
 
   return (
     <div className="space-y-6">
+      {confirmationDialog}
       {/* Top Banner / Mode Switcher */}
       <div className="p-1.5 bg-neutral-100 dark:bg-neutral-800/60 rounded-xl flex items-center gap-1 border border-neutral-200/80 dark:border-neutral-800 overflow-x-auto scrollbar-thin">
         <button

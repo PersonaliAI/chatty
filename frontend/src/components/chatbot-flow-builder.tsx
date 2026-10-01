@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+
 import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent } from "react";
 import {
   ReactFlow,
@@ -893,6 +895,7 @@ function extractFlowFromJs(customJs: string): (FlowSchema & { status: "active" |
 
 export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fetchDashboardBackend }: Props) {
   // Navigation / Tabs (Editor | Executions | Versions | Simulation)
+  const { confirm, confirmationDialog } = useConfirmDialog();
   const [activeTab, setActiveTab] = useState<ActiveEditorTab>("editor");
 
   // React Flow state
@@ -1234,7 +1237,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
 
   const deleteWorkflow = async () => {
     if (!botId || !fetchDashboardBackend) return;
-    if (!window.confirm("Delete this workflow from the bot? This removes the published flow but keeps the bot.")) return;
+    if (!await confirm("Delete this workflow from the bot? This removes the published flow but keeps the bot.")) return;
     try {
       const response = await fetchDashboardBackend(`/api/bots/${botId}/flow`, { method: "DELETE" });
       if (!response.ok) throw new Error(`Delete failed (${response.status})`);
@@ -1588,10 +1591,11 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
 
   return (
     <div className="w-full bg-white dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[620px] md:min-h-[780px] h-[calc(100dvh-120px)] md:h-[calc(100vh-140px)]">
+      {confirmationDialog}
       {/* ── n8n-Inspired Top Navigation Bar ── */}
-      <header className="min-h-16 px-3 sm:px-6 py-2 border-b border-slate-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-20">
+      <header className="min-h-16 px-3 sm:px-6 py-2 border-b border-slate-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md flex max-sm:flex-col max-sm:items-stretch items-center justify-between gap-2 sm:gap-3 shrink-0 z-20">
         {/* Left: Workflow Title & Tags */}
-        <div className="flex items-center gap-3 shrink-0 min-w-fit">
+        <div className="flex items-center gap-3 shrink-0 min-w-0 sm:min-w-fit">
           <div className="size-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
             <GitBranch className="size-5" />
           </div>
@@ -1988,22 +1992,22 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                           <label htmlFor="flow-run-status" className="block text-[9px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
                             Execution status filter
                           </label>
-                          <select
+                          <ModernSelect
                             id="flow-run-status"
                             aria-label="Execution status filter"
-                            name="Execution status filter"
                             value={runStatusFilter}
-                            onChange={(event) => {
-                              const next = event.target.value as "all" | "completed" | "failed";
+                            onChange={(value) => {
+                              const next = value as "all" | "completed" | "failed";
                               setRunStatusFilter(next);
                               void loadRuns(next);
                             }}
-                            className="w-full rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[10px] text-neutral-700 dark:text-neutral-300 dark:border-neutral-800 dark:bg-neutral-900 focus:outline-none"
-                          >
-                            <option value="all">All executions</option>
-                            <option value="completed">Completed</option>
-                            <option value="failed">Failed</option>
-                          </select>
+                            options={[
+                              { value: "all", label: "All executions" },
+                              { value: "completed", label: "Completed" },
+                              { value: "failed", label: "Failed" },
+                            ]}
+                            size="sm"
+                          />
                         </div>
                         <div className="max-h-40 space-y-1.5 overflow-y-auto">
                           {!runHistory.length && <p className="text-[10px] text-neutral-400 text-center py-2">No executions recorded.</p>}
@@ -2402,22 +2406,22 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                 <label htmlFor="executions-tab-status-filter" className="sr-only">
                   Execution status filter
                 </label>
-                <select
+                <ModernSelect
                   id="executions-tab-status-filter"
                   aria-label="Execution status filter"
-                  name="Execution status filter"
                   value={runStatusFilter}
-                  onChange={(e) => {
-                    const next = e.target.value as "all" | "completed" | "failed";
+                  onChange={(value) => {
+                    const next = value as "all" | "completed" | "failed";
                     setRunStatusFilter(next);
                     void loadRuns(next);
                   }}
-                  className="rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-1.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 shadow-2xs focus:outline-none cursor-pointer"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="completed">Completed</option>
-                  <option value="failed">Failed</option>
-                </select>
+                  options={[
+                    { value: "all", label: "All Statuses" },
+                    { value: "completed", label: "Completed" },
+                    { value: "failed", label: "Failed" },
+                  ]}
+                  size="sm"
+                />
                 <button
                   type="button"
                   onClick={() => loadRuns(runStatusFilter)}

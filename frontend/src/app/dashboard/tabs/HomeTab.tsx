@@ -36,7 +36,7 @@ export function HomeTab({
 }: HomeTabProps) {
   return (
     <div className="max-w-4xl mx-auto w-full space-y-6 py-6 px-4 flex flex-col">
-      <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div className="p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold flex items-center gap-2">
           <Sparkles className="size-4 text-[#f97316]" />
           Welcome to Chatty!
@@ -71,7 +71,7 @@ export function HomeTab({
 
       {/* Stats Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
           <div>
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Conversations</span>
             <h4 className="text-2xl font-bold mt-1">{totalSessions}</h4>
@@ -84,7 +84,7 @@ export function HomeTab({
           </div>
         </div>
 
-        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
           <div>
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Trained Sources</span>
             <h4 className="text-2xl font-bold mt-1">{sources.length} Active</h4>
@@ -97,7 +97,7 @@ export function HomeTab({
           </div>
         </div>
 
-        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
           <div>
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Leads Captured</span>
             <h4 className="text-2xl font-bold mt-1">{leads.length}</h4>
@@ -113,7 +113,7 @@ export function HomeTab({
 
       {/* Performance Row - the ROI metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
           <div>
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">AI Resolution Rate</span>
             <h4 className="text-2xl font-bold mt-1">{resolutionRate}</h4>
@@ -124,7 +124,7 @@ export function HomeTab({
           </div>
         </div>
 
-        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
           <div>
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">CSAT</span>
             <h4 className="text-2xl font-bold mt-1">{csatScore}</h4>
@@ -135,7 +135,7 @@ export function HomeTab({
           </div>
         </div>
 
-        <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-between">
           <div>
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold">Busiest Hour</span>
             <h4 className="text-2xl font-bold mt-1">{busiestHour}</h4>
@@ -148,7 +148,7 @@ export function HomeTab({
       </div>
 
       {/* Recent Feedback - the post-chat star rating + comment popup */}
-      <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Recent Feedback</h3>
           {csatFeedback.length > 0 && (

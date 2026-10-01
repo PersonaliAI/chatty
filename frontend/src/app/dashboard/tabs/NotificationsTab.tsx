@@ -30,7 +30,7 @@ export function NotificationsTab({
 }: NotificationsTabProps) {
   return (
     <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
-      <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold flex items-center gap-2">
           <Mail className="size-4 text-[#f97316]" /> Support Team Notification Emails
         </h3>
@@ -46,7 +46,7 @@ export function NotificationsTab({
         />
       </div>
 
-      <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold flex items-center gap-2">
           <Link2 className="size-4 text-[#f97316]" /> Outbound Webhook
         </h3>

@@ -618,7 +618,7 @@ function exportCsv(overview: AnalyticsOverview | null, volume: VolumePoint[], ag
 
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+    <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
       <div className="flex items-center justify-between mb-4">
         <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{title}</h4>
         {action}
@@ -804,9 +804,9 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
             {fmtDate(fromDate)} – {fmtDate(toDate)}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex max-sm:flex-col max-sm:items-stretch items-center gap-2 flex-wrap">
           {/* Preset buttons */}
-          <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1">
+          <div className="dashboard-action-bar flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1">
             {PRESETS.map(p => (
               <button
                 key={p.label}
@@ -873,7 +873,7 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
 
       {/* Loading skeleton */}
       {loading && !overview && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="dashboard-kpi-grid grid grid-cols-2 sm:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="h-24 bg-neutral-100 dark:bg-neutral-800 rounded-2xl animate-pulse" />
           ))}
@@ -882,7 +882,7 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
 
       {/* ── KPI Cards ─────────────────────────────────────────────────── */}
       {k && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="dashboard-kpi-grid grid grid-cols-2 sm:grid-cols-4 gap-4">
           <KpiCard label="Conversations" value={(k.total_sessions.value ?? 0).toLocaleString()} delta={k.total_sessions.delta}
             icon={<MessageCircle className="size-4" />} colorClass="bg-orange-50 dark:bg-orange-950/30 text-[#f97316]" />
           <KpiCard label="User Messages" value={(k.total_messages.value ?? 0).toLocaleString()} delta={k.total_messages.delta}

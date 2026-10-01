@@ -10,6 +10,18 @@ import {
   Check,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { ModernSelect } from "./modern-select";
+
+function TimeFields({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [hour = "09", minute = "00"] = (value || "09:00").split(":");
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <ModernSelect size="sm" aria-label="Hour" className="w-16" value={hour} options={Array.from({ length: 24 }, (_, i) => ({ value: String(i).padStart(2, "0"), label: String(i).padStart(2, "0") }))} onChange={(h) => onChange(`${h}:${minute}`)} />
+      <span className="text-neutral-400">:</span>
+      <ModernSelect size="sm" aria-label="Minute" className="w-16" value={minute} options={Array.from({ length: 60 }, (_, i) => ({ value: String(i).padStart(2, "0"), label: String(i).padStart(2, "0") }))} onChange={(m) => onChange(`${hour}:${m}`)} />
+    </div>
+  );
+}
 
 interface DateTimePickerProps {
   value: string; // ISO string or "YYYY-MM-DDTHH:mm"
@@ -68,6 +80,7 @@ export function DateTimePicker({
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest("[data-modern-select-popup]")) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
@@ -136,7 +149,7 @@ export function DateTimePicker({
   const handleSelectDay = (targetDate: Date) => {
     const [hours, minutes] = selectedTime.split(":").map(Number);
     const newDate = new Date(targetDate);
-    newDate.setHours(hours || 9, minutes || 0, 0, 0);
+    newDate.setHours(hours ?? 9, minutes ?? 0, 0, 0);
 
     const year = newDate.getFullYear();
     const month = String(newDate.getMonth() + 1).padStart(2, "0");
@@ -270,7 +283,7 @@ export function DateTimePicker({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 6, scale: 0.98 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="absolute z-50 top-full mt-2 left-0 w-80 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-2xl p-3.5 space-y-3"
+              className="absolute z-50 top-full mt-2 left-0 w-80 max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4 max-sm:top-auto max-sm:z-[9998] max-sm:w-auto max-sm:max-h-[calc(100dvh-2rem)] max-sm:overflow-y-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-2xl p-3.5 space-y-3"
             >
               {/* Presets row */}
               <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
@@ -373,12 +386,7 @@ export function DateTimePicker({
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <input
-                    type="time"
-                    value={selectedTime}
-                    onChange={(e) => handleTimeChange(e.target.value)}
-                    className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#f97316]"
-                  />
+                  <TimeFields value={selectedTime} onChange={handleTimeChange} />
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
@@ -416,15 +424,10 @@ export function TimePicker({ value, onChange, label, className = "" }: TimePicke
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Clock className="size-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="time"
-            value={value || "09:00"}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#f97316] focus:ring-2 focus:ring-[#f97316]/15"
-          />
+          <div className="pl-8"><TimeFields value={value} onChange={onChange} /></div>
         </div>
       </div>
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1 overflow-x-auto">
         {presets.slice(0, 5).map((p) => (
           <button
             key={p}

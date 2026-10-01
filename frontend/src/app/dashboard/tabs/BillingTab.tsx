@@ -227,7 +227,7 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 flex items-center justify-center gap-2 text-xs text-neutral-400">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-6 flex items-center justify-center gap-2 text-xs text-neutral-400">
         <RefreshCw className="size-4 animate-spin" />
         <span>Loading affiliate &amp; payout settings...</span>
       </div>
@@ -237,7 +237,7 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
   // State A: User is an Active Affiliate Partner
   if (isAffiliate && profile) {
     return (
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-5 shadow-xs">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-6 space-y-5 shadow-xs">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-4">
           <div>
@@ -351,7 +351,7 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
 
   // State B: User has not joined yet — 1-click Activation Card
   return (
-    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 shadow-xs">
+    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xs">
       <div className="flex items-center gap-2">
         <span className="text-[10px] font-mono uppercase tracking-widest text-[#f97316] font-bold">
           Partner Program
@@ -451,7 +451,7 @@ export function BillingTab({
       </div>
 
       {/* Current Plan Overview Card */}
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400">
@@ -545,7 +545,7 @@ export function BillingTab({
             return (
               <div
                 key={card.id}
-                className={`rounded-2xl p-6 flex flex-col justify-between border transition-all ${
+                className={`rounded-2xl p-4 sm:p-6 flex flex-col justify-between border transition-all ${
                   card.popular
                     ? "border-[#f97316] bg-white dark:bg-neutral-900 shadow-md relative"
                     : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"

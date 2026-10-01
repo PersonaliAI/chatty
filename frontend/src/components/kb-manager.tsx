@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+
 import React, { useState, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -205,6 +207,7 @@ export function KBManager({
   color = "#f97316",
   initialSubTab = "sources",
 }: KBManagerProps) {
+  const { confirm, confirmationDialog } = useConfirmDialog();
   const [subTab, setSubTab] = useState<KBSubTab>(initialSubTab);
 
   // Articles state
@@ -384,7 +387,7 @@ export function KBManager({
 
   // Delete article handler
   const handleDeleteArticle = async (id: string, title: string) => {
-    if (!confirm(`Are you sure you want to delete "${title}"? This will also remove it from the public help center and AI brain.`)) {
+    if (!await confirm(`Are you sure you want to delete "${title}"? This will also remove it from the public help center and AI brain.`)) {
       return;
     }
     try {
@@ -448,7 +451,7 @@ export function KBManager({
 
   // Delete category
   const handleDeleteCategory = async (id: string, name: string) => {
-    if (!confirm(`Delete category "${name}"? Articles inside will become unassigned.`)) return;
+    if (!await confirm(`Delete category "${name}"? Articles inside will become unassigned.`)) return;
     try {
       const res = await fetchBackend(`/api/admin/kb/categories/${id}`, { method: "DELETE" });
       if (res.ok) {
@@ -485,6 +488,7 @@ export function KBManager({
 
   return (
     <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-6">
+      {confirmationDialog}
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 px-4 py-3 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-3">
@@ -612,8 +616,8 @@ export function KBManager({
           </div>
 
           {/* Action Toolbar */}
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[260px]">
               <div className="relative flex-1">
                 <Search className="size-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input

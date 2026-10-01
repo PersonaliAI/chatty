@@ -1007,25 +1007,26 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                           <span className="font-bold text-[11px] uppercase tracking-wide text-neutral-400">
                             Delivery Attempts
                           </span>
-                          <select
+                          <ModernSelect
                             aria-label="Filter deliveries"
                             value={deliveryStatus[rule.id] || "all"}
-                            onChange={(e) => {
-                              const s = e.target.value as DeliveryStatus;
-                              setDeliveryStatus((prev) => ({ ...prev, [rule.id]: s }));
+                            onChange={(value) => {
+                              const status = value as DeliveryStatus;
+                              setDeliveryStatus((prev) => ({ ...prev, [rule.id]: status }));
                               setDeliveryLogs((prev) => {
                                 const next = { ...prev };
                                 delete next[rule.id];
                                 return next;
                               });
                             }}
-                            className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg px-2 py-0.5 text-[10px]"
-                          >
-                            <option value="all">All Statuses</option>
-                            <option value="sent">Sent</option>
-                            <option value="failed">Failed</option>
-                            <option value="suppressed">Suppressed</option>
-                          </select>
+                            options={[
+                              { value: "all", label: "All Statuses" },
+                              { value: "sent", label: "Sent" },
+                              { value: "failed", label: "Failed" },
+                              { value: "suppressed", label: "Suppressed" },
+                            ]}
+                            size="sm"
+                          />
                         </div>
                         {deliveryLogs[rule.id]?.deliveries?.length === 0 && (
                           <div className="text-[10px] text-neutral-400">No deliveries recorded yet.</div>
@@ -1342,17 +1343,15 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                   </span>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2">
-                      <select
+                      <ModernSelect
                         value={step.channel}
-                        onChange={(e) => updateSequenceStep(idx, { channel: e.target.value })}
-                        className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-xs font-semibold"
-                      >
-                        {["web", "email", "whatsapp", "sms"].map((c) => (
-                          <option key={c} value={c}>
-                            {c.toUpperCase()}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(value) => updateSequenceStep(idx, { channel: value })}
+                        options={["web", "email", "whatsapp", "sms"].map((channel) => ({
+                          value: channel,
+                          label: channel.toUpperCase(),
+                        }))}
+                        size="sm"
+                      />
                       <span className="text-xs text-neutral-400">after</span>
                       <input
                         type="number"

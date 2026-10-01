@@ -268,7 +268,7 @@ export function KnowledgeTab({
               </div>
 
               {/* Lead Capture */}
-              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4">
+              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h4 className="text-xs font-bold flex items-center gap-2"><Database className="size-4 text-[#f97316]" />Lead Capture</h4>
@@ -331,7 +331,7 @@ export function KnowledgeTab({
               </div>
 
               {/* Quick connect strip */}
-              <div className="flex flex-wrap items-center gap-2 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+              <div className="dashboard-action-bar flex flex-wrap items-center gap-2 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mr-1">Quick connect:</span>
                 <CloudProviderMenu
                   label="Google"
@@ -368,7 +368,7 @@ export function KnowledgeTab({
               </div>
 
               {/* Scheduling quick-config */}
-              <div className="flex flex-wrap items-center gap-4 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+              <div className="dashboard-action-bar flex flex-wrap items-center gap-4 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5"><Calendar className="size-3.5" /> Scheduling:</span>
                 <button
                   onClick={() => handleInputChange(setCalendarSchedulingEnabled, !calendarSchedulingEnabled)}
@@ -473,7 +473,7 @@ export function KnowledgeTab({
                   })}
                 </div>
 
-                <div className="p-5">
+                <div className="p-4 sm:p-5">
                   {/* Text source */}
                   {kbSourceTab === "text" && (
                     <form onSubmit={handleTrainText} className="space-y-3">

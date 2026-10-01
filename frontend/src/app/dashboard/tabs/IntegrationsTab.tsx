@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+
 import React, { useState } from "react";
 import {
   Check,
@@ -123,6 +125,7 @@ export function IntegrationsTab({
   authToken = "",
 }: IntegrationsTabProps) {
   const [showToken, setShowToken] = useState(false);
+  const { confirm, confirmationDialog } = useConfirmDialog();
   const [showSecret, setShowSecret] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [newQuickReply, setNewQuickReply] = useState("");
@@ -217,7 +220,7 @@ export function IntegrationsTab({
 
   const handleDisconnectWhatsApp = async () => {
     if (!botId || !authToken || disconnectingWhatsApp) return;
-    if (!window.confirm("Disconnect WhatsApp from this bot and remove its saved Meta credentials?")) return;
+    if (!await confirm("Disconnect WhatsApp from this bot and remove its saved Meta credentials?")) return;
     setDisconnectingWhatsApp(true);
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/disconnect?bot_id=${encodeURIComponent(botId)}`, {
@@ -243,7 +246,7 @@ export function IntegrationsTab({
 
   const handleDeauthorizeWhatsApp = async () => {
     if (!botId || !authToken || deauthorizingWhatsApp) return;
-    if (!window.confirm("Revoke Chatty's Meta authorization and disconnect WhatsApp? This affects this app's access and cannot be undone automatically.")) return;
+    if (!await confirm("Revoke Chatty's Meta authorization and disconnect WhatsApp? This affects this app's access and cannot be undone automatically.")) return;
     setDeauthorizingWhatsApp(true);
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/deauthorize?bot_id=${encodeURIComponent(botId)}`, {
@@ -532,7 +535,8 @@ export function IntegrationsTab({
 
   return (
     <div className="max-w-4xl mx-auto w-full py-6 px-4 flex flex-col gap-6">
-      <nav className="sticky top-2 z-20 flex flex-wrap items-center gap-1.5 rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95" aria-label="Integration sections">
+      {confirmationDialog}
+      <nav className="dashboard-action-bar sticky top-2 z-20 flex flex-wrap items-center gap-1.5 rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95" aria-label="Integration sections">
         {[
           { id: "whatsapp", label: "WhatsApp" },
           { id: "embed", label: "Embed & SDKs" },
@@ -550,7 +554,7 @@ export function IntegrationsTab({
         ))}
       </nav>
 
-      <div id="integration-embed" className="order-2 scroll-mt-24 p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div id="integration-embed" className="order-2 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold">Embed Chatbot</h3>
         <p className="text-xs text-neutral-400 mt-1">
           Select your website builder to get tailored installation instructions.
@@ -584,7 +588,7 @@ export function IntegrationsTab({
         {/* Instructions */}
         {selected && (
           <div className="mt-5 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex max-sm:flex-col max-sm:items-start items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selected.title}</h4>
                 {selected.badge && (
@@ -658,7 +662,7 @@ export function IntegrationsTab({
       </div>
 
       {/* Dedicated voice agent */}
-      <div id="integration-voice" className="order-3 scroll-mt-24 p-6 bg-gradient-to-br from-[#fff8f2] to-white dark:from-orange-950/20 dark:to-neutral-900 border border-orange-200/70 dark:border-orange-900/50 rounded-2xl">
+      <div id="integration-voice" className="order-3 scroll-mt-24 p-4 sm:p-6 bg-gradient-to-br from-[#fff8f2] to-white dark:from-orange-950/20 dark:to-neutral-900 border border-orange-200/70 dark:border-orange-900/50 rounded-2xl">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold">Talk to voice agent</h3>
@@ -690,7 +694,7 @@ export function IntegrationsTab({
       </div>
 
       {/* Mobile SDKs */}
-      <div id="integration-mobile" className="order-3 p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div id="integration-mobile" className="order-3 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold">Embed the widget within your mobile app</h3>
         <p className="text-xs text-neutral-400 mt-1 leading-relaxed max-w-xl">
           Enhance and personalize your user experience by integrating the Chatty SDK into your app. Whether you&apos;re using
@@ -699,7 +703,7 @@ export function IntegrationsTab({
         </p>
         <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mt-5 mb-2.5">Select your option:</p>
 
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {mobilePlatforms.map((p) => (
             <button
               key={p.id}
@@ -814,7 +818,7 @@ export function IntegrationsTab({
             <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Connect with Meta in one step</p>
             <p className="text-[11px] text-emerald-800/70 dark:text-emerald-300/70 mt-0.5">Authorize your Business Account and phone number. Chatty will configure the webhook automatically.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="dashboard-action-bar flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={handleTestWhatsApp}
@@ -1093,7 +1097,7 @@ export function IntegrationsTab({
       </div>
 
       {/* Security: Allowed Domains */}
-      <div id="integration-domains" className="order-4 scroll-mt-24 p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div id="integration-domains" className="order-4 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold flex items-center gap-2">
           <ShieldAlert className="size-4 text-[#f97316]" /> Allowed Domains
         </h3>
@@ -1135,7 +1139,7 @@ export function IntegrationsTab({
           </button>
         </form>
 
-        <div className="flex flex-wrap gap-2 mt-3">
+        <div className="dashboard-action-bar flex flex-wrap gap-2 mt-3">
           {allowedDomains.length === 0 ? (
             <span className="text-[11px] text-neutral-400 flex items-center gap-1.5">
               <Globe className="size-3.5" /> Open to all domains (no restriction)

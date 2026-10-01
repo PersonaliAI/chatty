@@ -9,6 +9,7 @@ import momentTimezonePlugin from "@fullcalendar/moment-timezone";
 import type { EventClickArg, EventContentArg, EventInput } from "@fullcalendar/core";
 import { colorForMeetingStatus } from "@/lib/meeting-colors";
 import { getTimezones, tzOffsetLabel, detectTimezone } from "@/lib/locale-data";
+import { ModernSelect } from "@/components/ui/modern-select";
 import { Globe } from "lucide-react";
 
 export interface MeetingsCalendarMeeting {
@@ -77,7 +78,7 @@ export function MeetingsCalendar({
       {/* Calendar Control Header: Status Legend & Timezone Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 px-3 py-2 bg-neutral-50 dark:bg-neutral-850/50 border border-neutral-200 dark:border-neutral-800 rounded-xl text-xs">
         {/* Status Legend */}
-        <div className="flex items-center flex-wrap gap-3 text-[11px] text-neutral-600 dark:text-neutral-300">
+        <div className="dashboard-action-bar flex items-center flex-wrap gap-3 text-[11px] text-neutral-600 dark:text-neutral-300">
           <span className="font-semibold text-[10px] uppercase tracking-wider text-neutral-400">Legend:</span>
           <div className="flex items-center gap-1.5">
             <span className="inline-block size-2.5 rounded-full bg-emerald-500 shadow-sm" />
@@ -98,31 +99,22 @@ export function MeetingsCalendar({
         </div>
 
         {/* Timezone Selector */}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <Globe className="size-3.5 text-neutral-400 shrink-0" />
           <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 shrink-0">Calendar Timezone:</span>
-          <select
+          <ModernSelect
+            aria-label="Calendar Timezone"
             value={selectedTz}
-            onChange={(e) => setSelectedTz(e.target.value)}
-            className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 rounded-lg text-xs py-1 px-2.5 focus:outline-none focus:ring-1 focus:ring-orange-500 cursor-pointer max-w-[240px] truncate"
-          >
-            {defaultTimezone && (
-              <option value={defaultTimezone}>
-                Bot Timezone: {defaultTimezone} ({tzOffsetLabel(defaultTimezone)})
-              </option>
-            )}
-            {localBrowserTz && localBrowserTz !== defaultTimezone && (
-              <option value={localBrowserTz}>
-                Local Browser: {localBrowserTz} ({tzOffsetLabel(localBrowserTz)})
-              </option>
-            )}
-            <option disabled>------------------------</option>
-            {allTimezones.map((tz) => (
-              <option key={tz} value={tz}>
-                {tz} ({tzOffsetLabel(tz)})
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedTz}
+            searchable
+            size="sm"
+            className="min-w-0 flex-1 sm:max-w-[240px]"
+            options={[
+              ...(defaultTimezone ? [{ value: defaultTimezone, label: `Bot Timezone: ${defaultTimezone} (${tzOffsetLabel(defaultTimezone)})` }] : []),
+              ...(localBrowserTz && localBrowserTz !== defaultTimezone ? [{ value: localBrowserTz, label: `Local Browser: ${localBrowserTz} (${tzOffsetLabel(localBrowserTz)})` }] : []),
+              ...allTimezones.filter(tz => tz !== defaultTimezone && tz !== localBrowserTz).map(tz => ({ value: tz, label: `${tz} (${tzOffsetLabel(tz)})` })),
+            ]}
+          />
         </div>
       </div>
 

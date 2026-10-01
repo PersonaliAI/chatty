@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -376,10 +378,12 @@ function ModernFilterDropdown<T extends string>({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ left: 0, top: 0 });
 
   useEffect(() => {
     function handleClickOutside(e: Event) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (!ref.current?.contains(e.target as Node) && !popupRef.current?.contains(e.target as Node)) {
         setOpen(false);
       }
     }
@@ -387,16 +391,26 @@ function ModernFilterDropdown<T extends string>({
       if (e.key === "Escape") setOpen(false);
     };
     if (open) {
+      const place = () => {
+        const rect = ref.current?.getBoundingClientRect();
+        const width = popupRef.current?.offsetWidth || 260;
+        if (rect) setPosition({ left: Math.max(12, Math.min(align === "right" ? rect.right - width : rect.left, window.innerWidth - width - 12)), top: rect.bottom + 6 });
+      };
+      place();
+      window.addEventListener("scroll", place, true);
+      window.addEventListener("resize", place);
       document.addEventListener("mousedown", handleClickOutside);
       document.addEventListener("touchstart", handleClickOutside);
       document.addEventListener("keydown", onKey);
       return () => {
+        window.removeEventListener("scroll", place, true);
+        window.removeEventListener("resize", place);
         document.removeEventListener("mousedown", handleClickOutside);
         document.removeEventListener("touchstart", handleClickOutside);
         document.removeEventListener("keydown", onKey);
       };
     }
-  }, [open]);
+  }, [open, align]);
 
   const selectedOpt = options.find((o) => o.value === value) || options[0];
 
@@ -405,6 +419,8 @@ function ModernFilterDropdown<T extends string>({
       <button
         type="button"
         title={title}
+        aria-label={title}
+        aria-expanded={open}
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 px-2.5 py-1.5 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-950 dark:hover:bg-neutral-850 border border-neutral-200/90 dark:border-neutral-800 rounded-lg text-neutral-700 dark:text-neutral-300 transition-colors text-[10px] font-semibold cursor-pointer shadow-xs focus:outline-none focus:ring-1 focus:ring-[#f97316]/40 whitespace-nowrap"
       >
@@ -413,8 +429,8 @@ function ModernFilterDropdown<T extends string>({
         <ChevronDown className={`size-3 text-neutral-400 transition-transform duration-150 shrink-0 ${open ? "rotate-180 text-neutral-700 dark:text-neutral-200" : ""}`} />
       </button>
 
-      {open && (
-        <div className={`absolute top-full mt-1.5 ${align === "right" ? "right-0" : "left-0"} z-[9999] min-w-[145px] w-max max-w-[260px] max-h-56 overflow-y-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100`}>
+      {open && createPortal(
+        <div ref={popupRef} style={{ left: position.left, top: position.top }} className="fixed z-[9999] min-w-[145px] w-max max-w-[min(260px,calc(100vw-24px))] max-h-56 overflow-y-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
           {options.map((opt) => {
             const isSelected = opt.value === value;
             return (
@@ -440,7 +456,7 @@ function ModernFilterDropdown<T extends string>({
             );
           })}
         </div>
-      )}
+      , ref.current?.closest("[data-dashboard]") || document.body)}
     </div>
   );
 }
@@ -1663,7 +1679,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search visitor, message, ticket..."
-              className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-[#f97316]/50"
+              className="min-w-0 flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-[#f97316]/50"
             />
             <button
               onClick={loadSessions}
@@ -1675,7 +1691,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </div>
 
           {/* Secondary Filters: Priority, Assignee, Channel & Tags */}
-          <div className="flex items-center flex-wrap gap-1.5 py-0.5 relative z-20">
+          <div className="dashboard-action-bar flex items-center flex-wrap gap-1.5 py-0.5 relative z-20">
             {/* Priority Filter */}
             <ModernFilterDropdown
               title="Filter by priority"

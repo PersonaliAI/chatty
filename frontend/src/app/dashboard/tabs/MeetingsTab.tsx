@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { RefreshCw, Loader2, ExternalLink } from "lucide-react";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { ModernSelect } from "@/components/ui/modern-select";
 import { colorForAssignee } from "@/lib/meeting-colors";
 import type { AdminMeeting } from "../dashboard-types";
@@ -130,7 +131,7 @@ export function MeetingsTab({
       )}
 
       {selectedMeeting && (
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 space-y-4">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h5 className="text-sm font-bold text-neutral-900 dark:text-white">
@@ -180,7 +181,7 @@ export function MeetingsTab({
           )}
 
           {selectedMeeting.status !== "cancelled" && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="dashboard-action-bar flex flex-wrap items-center gap-2">
               <button
                 onClick={() => handleUpdateMeetingStatus(selectedMeeting.id, "completed")}
                 className="text-[10px] font-bold bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-300 px-2.5 py-1.5 rounded-lg cursor-pointer"
@@ -207,13 +208,8 @@ export function MeetingsTab({
           )}
 
           {reschedulingMeetingId === selectedMeeting.id && (
-            <div className="flex flex-wrap items-center gap-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3">
-              <input
-                type="datetime-local"
-                value={rescheduleDateTime}
-                onChange={(e) => setRescheduleDateTime(e.target.value)}
-                className="text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5"
-              />
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 rounded-lg p-3">
+              <DateTimePicker value={rescheduleDateTime} onChange={setRescheduleDateTime} label="New meeting time" />
               <button
                 onClick={() => handleRescheduleMeeting(selectedMeeting)}
                 disabled={!rescheduleDateTime || reschedulingBusy}

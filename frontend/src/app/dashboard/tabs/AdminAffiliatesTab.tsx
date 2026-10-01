@@ -436,7 +436,7 @@ export function AdminAffiliatesTab() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+        <div className="dashboard-action-bar flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <button
             type="button"
             onClick={handleReleaseMatureCommissions}
@@ -813,7 +813,7 @@ export function AdminAffiliatesTab() {
       {/* Edit Rate Modal */}
       {rateModalAffiliate && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl space-y-4 relative">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-4 sm:p-5 sm:p-6 max-w-sm w-full shadow-2xl space-y-4 relative">
             <button
               type="button"
               onClick={() => setRateModalAffiliate(null)}
@@ -872,7 +872,7 @@ export function AdminAffiliatesTab() {
       {/* Record Payout Modal */}
       {payoutModalAffiliate && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 relative">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-4 sm:p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 relative">
             <button
               type="button"
               onClick={() => setPayoutModalAffiliate(null)}

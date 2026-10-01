@@ -474,7 +474,7 @@ export function DeveloperTab({
       {/* Keep this surface focused on server-to-server API work. Embed and
           third-party setup live in Integrations, so this page starts with
           the credentials and runtime contract developers actually need. */}
-      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-950 text-white p-5 sm:p-6">
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-950 text-white p-4 sm:p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
           <div>
             <div className="flex items-center gap-2 text-orange-300 text-[10px] uppercase tracking-[0.18em] font-bold">
@@ -506,7 +506,7 @@ export function DeveloperTab({
       {/* ── 1. API Keys ───────────────────────────────────────────────────── */}
       <Section title="API Keys" icon={<Shield className="size-4" />}>
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {[
             { label: "Total Requests", value: totalRequests.toLocaleString() },
             { label: "Active Keys", value: activeKeys.length.toString() },
@@ -577,7 +577,7 @@ export function DeveloperTab({
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide block mb-2">Scopes</label>
-                <div className="flex flex-wrap gap-2">
+                <div className="dashboard-action-bar flex flex-wrap gap-2">
                   {ALL_SCOPES.map(s => {
                     const checked = newKeyScopes.includes(s);
                     return (
@@ -642,7 +642,7 @@ export function DeveloperTab({
         </Card>
 
         {/* Scope reference */}
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
           {ALL_SCOPES.map(s => (
             <div key={s} className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800">
               <ScopeBadge scope={s} />
@@ -750,7 +750,7 @@ export function DeveloperTab({
 
       {/* ── 4. Code Samples (5 languages) ─────────────────────────────────── */}
       <Section title="Code Samples" icon={<Code2 className="size-4" />}>
-        <div className="flex items-center gap-1 mb-4 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1 w-fit">
+        <div className="dashboard-action-bar flex items-center gap-1 mb-4 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1 w-fit max-w-full">
           {LANGS.map(l => (
             <button
               key={l.key}
@@ -763,7 +763,7 @@ export function DeveloperTab({
           ))}
         </div>
         <div className="relative group">
-          <pre className="bg-neutral-950 text-neutral-100 rounded-2xl p-5 overflow-x-auto text-[11px] font-mono leading-relaxed">{samples[codeTab]}</pre>
+          <pre className="bg-neutral-950 text-neutral-100 rounded-2xl p-4 sm:p-5 overflow-x-auto text-[11px] font-mono leading-relaxed">{samples[codeTab]}</pre>
           <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
             <CopyButton text={samples[codeTab]} />
           </div>
@@ -777,7 +777,7 @@ export function DeveloperTab({
       <button
         type="button"
         onClick={() => setActiveTab("mcp")}
-        className="w-full flex items-center justify-between gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/20 dark:to-indigo-950/20 border border-purple-200 dark:border-purple-900/40 rounded-2xl p-5 text-left hover:border-purple-300 transition-colors cursor-pointer"
+        className="w-full flex items-center justify-between gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/20 dark:to-indigo-950/20 border border-purple-200 dark:border-purple-900/40 rounded-2xl p-4 sm:p-5 text-left hover:border-purple-300 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-3">
           <Cpu className="size-5 text-purple-500 shrink-0" />
@@ -846,7 +846,7 @@ export function DeveloperTab({
                       {events.every(e => newWebhookEvents.includes(e)) ? "deselect all" : "select all"}
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="dashboard-action-bar flex flex-wrap gap-1.5">
                     {events.map(ev => {
                       const checked = newWebhookEvents.includes(ev);
                       return (

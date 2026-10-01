@@ -135,7 +135,7 @@ export function VoiceAgentTab({
           </p>
         </div>
 
-        <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
+        <div className="p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
             <div className="flex items-center gap-2">
               <Mic className="size-4 text-[#f97316]" />

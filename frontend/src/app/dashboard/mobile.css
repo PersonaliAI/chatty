@@ -1,0 +1,75 @@
+/* Dashboard-only phone refinements. Desktop utilities remain authoritative. */
+@media (width < 640px) {
+  [data-dashboard] .dashboard-content > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  [data-dashboard] .dashboard-content :where(.grid, .flex) > :where(div, section, form) {
+    min-width: 0;
+  }
+
+  [data-dashboard] .dashboard-content :where(p, label, h2, h3, h4, h5) {
+    overflow-wrap: anywhere;
+  }
+
+  [data-dashboard] :where(button, a) {
+    flex-shrink: 0;
+  }
+
+  [data-dashboard] button:not(:has(p)):not(:has(div)) {
+    white-space: nowrap;
+  }
+
+  [data-dashboard] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]), textarea) {
+    min-width: 0;
+    max-width: 100%;
+    /* Avoid Safari zooming the page when a compact field receives focus. */
+    font-size: 16px;
+  }
+
+  [data-dashboard] .dashboard-action-bar {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    padding-bottom: 6px;
+  }
+
+  [data-dashboard] .dashboard-action-bar > * {
+    flex-shrink: 0;
+  }
+
+  [data-dashboard] .dashboard-action-bar button {
+    white-space: nowrap;
+  }
+
+  [data-dashboard] .chatty-fc-theme .fc-header-toolbar {
+    display: grid;
+    gap: 12px;
+  }
+
+  [data-dashboard] .chatty-fc-theme .fc-toolbar-chunk {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  [data-dashboard] .chatty-fc-theme .fc-toolbar-chunk:nth-child(2) {
+    grid-row: 1;
+  }
+
+  [data-dashboard] .chatty-fc-theme .fc-button {
+    min-height: 36px;
+  }
+}
+
+@media (width < 360px) {
+  [data-dashboard] .dashboard-kpi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Check, ChevronDown } from "lucide-react";
 
@@ -18,17 +19,34 @@ export function CloudProviderMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ left: 0, top: 0 });
   useEffect(() => {
     if (!open) return;
-    const onClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onClick = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node) && !popupRef.current?.contains(e.target as Node)) setOpen(false); };
+    const place = () => {
+      const rect = ref.current?.getBoundingClientRect();
+      if (rect) setPosition({ left: Math.max(12, Math.min(rect.left, window.innerWidth - 236)), top: rect.bottom + 6 });
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); ref.current?.querySelector("button")?.focus(); } };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
   }, [open]);
 
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
           connected ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-400" : "border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 hover:bg-[#f97316]/5"
@@ -39,8 +57,8 @@ export function CloudProviderMenu({
         {connected && <Check className="size-3" />}
         <ChevronDown className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && (
-        <div className="absolute z-20 mt-1.5 w-56 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-lg shadow-black/10 dark:shadow-black/40 overflow-hidden">
+      {open && createPortal(
+        <div ref={popupRef} style={{ left: position.left, top: position.top }} className="fixed z-[9999] w-56 max-w-[calc(100vw-24px)] rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-lg shadow-black/10 dark:shadow-black/40 overflow-hidden">
           {!connected && (
             <div className="px-3 py-2 text-[10px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-850">
               Connect {label} to unlock:
@@ -67,7 +85,7 @@ export function CloudProviderMenu({
             </button>
           )}
         </div>
-      )}
+      , ref.current?.closest("[data-dashboard]") || document.body)}
     </div>
   );
 }
@@ -110,8 +128,8 @@ export function TimePicker({ minutes, onChange }: { minutes: number; onChange: (
   }
 
   return (
-    <div className="flex items-center gap-1">
-      <div className="w-[68px] shrink-0">
+    <div className="flex min-w-0 items-center gap-1">
+      <div className="min-w-0 flex-1 sm:w-[68px] sm:flex-none">
         <ModernSelect
           size="sm" value={String(h12)}
           options={TIME_PICKER_HOURS.map((h) => ({ value: h, label: h }))}
@@ -119,14 +137,14 @@ export function TimePicker({ minutes, onChange }: { minutes: number; onChange: (
         />
       </div>
       <span className="text-neutral-400 text-[10px]">:</span>
-      <div className="w-[68px] shrink-0">
+      <div className="min-w-0 flex-1 sm:w-[68px] sm:flex-none">
         <ModernSelect
           size="sm" value={String(m).padStart(2, "0")}
           options={TIME_PICKER_MINUTES.map((mm) => ({ value: mm, label: mm }))}
           onChange={(v) => update(h12, parseInt(v, 10), isPM)}
         />
       </div>
-      <div className="w-[68px] shrink-0">
+      <div className="min-w-0 flex-1 sm:w-[68px] sm:flex-none">
         <ModernSelect
           size="sm" value={isPM ? "PM" : "AM"}
           options={[{ value: "AM", label: "AM" }, { value: "PM", label: "PM" }]}
@@ -238,15 +256,17 @@ export function MemberAvailabilityEditor({ memberId, botId, showToast, fetchWith
         const rule = dayRule(value);
         const on = !!rule;
         return (
-          <div key={value} className="flex items-center gap-2.5">
-            <div className="w-16 shrink-0">
+          <div key={value} className="grid grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-2 sm:flex sm:gap-2.5">
+            <div className="w-11 sm:w-16 shrink-0">
               <TeamTabCheckbox checked={on} onChange={(checked) => toggleDay(value, checked)} label={label} />
             </div>
             {on && rule && (
               <>
                 <TimePicker minutes={rule.start_minute} onChange={(m) => updateDay(value, "start_minute", m)} />
-                <span className="text-[10px] text-neutral-400">to</span>
-                <TimePicker minutes={rule.end_minute} onChange={(m) => updateDay(value, "end_minute", m)} />
+                <span className="col-start-2 text-[10px] text-neutral-400">to</span>
+                <div className="col-start-2">
+                  <TimePicker minutes={rule.end_minute} onChange={(m) => updateDay(value, "end_minute", m)} />
+                </div>
               </>
             )}
           </div>

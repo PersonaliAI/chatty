@@ -20,8 +20,8 @@ export function PlaygroundTab({
   const reloadIframe = () => setRefreshKey((k) => k + 1);
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 w-full max-w-4xl mx-auto space-y-4">
-      <div className="w-full flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800">
+    <div className="flex flex-col items-center justify-center p-4 sm:p-6 w-full max-w-4xl mx-auto space-y-4">
+      <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
         <div>
           <h2 className="text-lg font-bold text-neutral-900 dark:text-white flex items-center gap-2">
             <Sparkles className="size-5 text-indigo-500" />
@@ -92,7 +92,7 @@ export function PlaygroundTab({
           />
         </div>
       ) : (
-        <div className="w-full max-w-lg h-[450px] rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 flex flex-col items-center justify-center text-center p-6">
+        <div className="w-full max-w-lg h-[450px] rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 flex flex-col items-center justify-center text-center p-4 sm:p-6">
           <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
             No active bot selected
           </p>

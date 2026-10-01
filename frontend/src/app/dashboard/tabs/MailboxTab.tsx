@@ -156,7 +156,7 @@ export function MailboxTab({
                       className="w-full h-full min-h-[420px] border-0 bg-white"
                     />
                   ) : (
-                    <pre className="p-5 text-xs text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed font-sans">
+                    <pre className="p-4 sm:p-5 text-xs text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed font-sans">
                       {selected.content}
                     </pre>
                   )}

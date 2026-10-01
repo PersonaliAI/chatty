@@ -172,11 +172,11 @@ export function CustomizerTab({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Customizer Panel */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
+          <div className="p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Design Assistant presets</h3>
             
             {/* Design Presets cards */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
                 { id: "minimal", name: "Minimal", desc: "Clean SaaS · off-white" },
                 { id: "playful", name: "Playful", desc: "Consumer app · rounded & warm" },
@@ -445,7 +445,7 @@ export function CustomizerTab({
                   className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
                 />
               </div>
-              <div className="flex items-center gap-2 mt-2">
+              <div className="dashboard-action-bar flex items-center gap-2 mt-2">
                 {["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#111827"].map((color) => (
                   <button
                     key={color}
@@ -716,7 +716,7 @@ export function CustomizerTab({
 
             <div>
               <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Send Button</label>
-              <div className="flex flex-wrap gap-2">
+              <div className="dashboard-action-bar flex flex-wrap gap-2">
                 {[
                   { key: "plane", shape: "size-8 rounded-full", icon: <Send className="size-4" /> },
                   { key: "arrowUp", shape: "size-8 rounded-full", icon: <ArrowUp className="size-4" /> },
@@ -748,7 +748,7 @@ export function CustomizerTab({
 
             <div>
               <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-355 mb-1.5">Assistant Icon</label>
-              <div className="flex flex-wrap gap-2">
+              <div className="dashboard-action-bar flex flex-wrap gap-2">
                 {[
                   // eslint-disable-next-line @next/next/no-img-element -- uploaded-file URL, not in next/image's domain allowlist
                   { key: "logo", node: logoUrl ? <img src={logoUrl} alt="" className="size-5 rounded-full object-cover" /> : <span className="text-xs font-bold">{(botName?.[0] || "C").toUpperCase()}</span> },
@@ -831,7 +831,7 @@ export function CustomizerTab({
               {suggestedColors.length > 0 && (
                 <div className="mt-4">
                   <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-400 mb-1.5 font-medium">Suggested Colors (from Logo)</label>
-                  <div className="flex flex-wrap gap-2.5">
+                  <div className="dashboard-action-bar flex flex-wrap gap-2.5">
                     {suggestedColors.map((color) => (
                       <div key={color} className="flex flex-col items-center gap-1 p-1.5 border border-neutral-200 dark:border-neutral-850 rounded-xl bg-neutral-50/50 dark:bg-neutral-950/50">
                         <div 
@@ -912,7 +912,7 @@ export function CustomizerTab({
               {/* Launcher Button Shape */}
               <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-450 mb-1.5">Launcher Button Shape</label>
-                <div className="flex flex-wrap gap-2">
+                <div className="dashboard-action-bar flex flex-wrap gap-2">
                   {[
                     { key: "circle", name: "Circle", radiusClass: "rounded-full" },
                     { key: "bubble", name: "WhatsApp Bubble", radiusClass: "rounded-3xl rounded-br-sm" },
