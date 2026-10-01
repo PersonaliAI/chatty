@@ -110,6 +110,10 @@ def select_condition_branch(
 
 _MAPPING_TOKEN = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}")
 _SENSITIVE_MAPPING_KEY = re.compile(r"(?:password|secret|token|api[_-]?key|authorization)", re.IGNORECASE)
+_TRACE_SENSITIVE_MAPPING_KEY = re.compile(
+    r"(?:password|secret|token|api[_-]?key|authorization|email|phone|mobile|contact)",
+    re.IGNORECASE,
+)
 
 
 def redact_flow_trace_value(value: Any, depth: int = 0) -> Any:
@@ -122,7 +126,7 @@ def redact_flow_trace_value(value: Any, depth: int = 0) -> Any:
         return "[depth limit]"
     if isinstance(value, dict):
         return {
-            str(key): "[redacted]" if _SENSITIVE_MAPPING_KEY.search(str(key))
+            str(key): "[redacted]" if _TRACE_SENSITIVE_MAPPING_KEY.search(str(key))
             else redact_flow_trace_value(item, depth + 1)
             for key, item in value.items()
         }
@@ -190,5 +194,11 @@ def resolve_mapping(
             unresolved.append(str(key))
     # Runs are persisted for later replay and troubleshooting. Never put an
     # obvious credential-shaped mapping value into that durable trace.
-    trace_payload = redact_flow_trace_value(resolved)
-    return {"mapped_payload": trace_payload, "unresolved_fields": unresolved}
+    # Keep the operational payload intact for the outbound integration. A
+    # separate trace payload is returned for durable run history so contact
+    # fields (email/phone) cannot leak into operator logs or replay snapshots.
+    return {
+        "mapped_payload": resolved,
+        "trace_payload": redact_flow_trace_value(resolved),
+        "unresolved_fields": unresolved,
+    }

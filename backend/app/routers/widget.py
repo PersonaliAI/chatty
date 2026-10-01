@@ -318,6 +318,8 @@ async def widget_flow_webhook(body: WidgetFlowWebhookRequest, request: Request):
         "session_id": body.session_id,
         "node_id": body.node_id,
         "input": body.input,
+        # Use the operational payload here; only the dashboard dry-run trace
+        # uses the redacted trace_payload returned by resolve_mapping.
         "data": resolved.get("mapped_payload", {}),
         "unresolved_fields": resolved.get("unresolved_fields", []),
     }

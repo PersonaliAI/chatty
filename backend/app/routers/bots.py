@@ -251,10 +251,12 @@ async def simulate_dashboard_flow(
         if node_type == "delay":
             runtime = {"simulated": True, "delay_ms": _bounded_int(config.get("duration_ms"), 0, 0, 300000)}
         elif node_type == "webhook":
+            mapping_result = resolve_mapping(config.get("mapping"), user_input, body.context)
             runtime = {
                 "simulated": True,
                 "side_effect": "webhook_not_sent",
-                **resolve_mapping(config.get("mapping"), user_input, body.context),
+                "mapped_payload": mapping_result.get("trace_payload", {}),
+                "unresolved_fields": mapping_result.get("unresolved_fields", []),
             }
         elif node_type == "retry":
             runtime = {"simulated": True, **evaluate_retry(config)}

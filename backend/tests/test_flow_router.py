@@ -212,6 +212,43 @@ def test_simulation_persists_redacted_context_without_mutating_request(monkeypat
     assert body.context["crm"]["api_key"] == "private-value"
 
 
+def test_simulation_trace_redacts_contact_mapping_without_changing_runtime_contract(monkeypatch):
+    from app.routers.bots import FlowSimulationRequest
+
+    captured = {}
+
+    class Table:
+        def insert(self, payload):
+            captured.update(payload)
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[{"id": "run-1"}])
+
+    async def database(operation):
+        return operation()
+
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(bots, "run_db", database)
+    monkeypatch.setattr(bots, "supabase", SimpleNamespace(table=lambda _: Table()))
+    body = FlowSimulationRequest(
+        nodes=[
+            {"id": "start", "type": "start", "data": {}},
+            {"id": "notify", "type": "webhook", "data": {
+                "config": {"mapping": {
+                    "email": "{{context.email}}",
+                    "phone": "{{context.phone}}",
+                }}
+            }},
+        ],
+        edges=[{"id": "e1", "source": "start", "target": "notify"}],
+        context={"email": "visitor@example.com", "phone": "+15551234567"},
+    )
+    asyncio.run(bots.simulate_dashboard_flow("bot-1", body, USER, flow_override=None))
+    webhook_trace = captured["trace"][1]["runtime"]["mapped_payload"]
+    assert webhook_trace == {"email": "[redacted]", "phone": "[redacted]"}
+
+
 def test_unhandled_retry_failure_does_not_follow_success_edge(monkeypatch):
     from app.routers.bots import FlowSimulationRequest
     monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))

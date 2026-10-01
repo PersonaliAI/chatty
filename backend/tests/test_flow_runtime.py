@@ -68,6 +68,8 @@ def test_mapping_resolution_preserves_types_and_surfaces_missing_values():
         "api_key": "[redacted]",
         "literal": 4,
     }
+    assert result["trace_payload"]["email"] == "[redacted]"
+    assert result["trace_payload"]["message"] == "Hello Ari — need a demo"
     assert result["unresolved_fields"] == ["missing"]
 
 
@@ -92,3 +94,19 @@ def test_mapping_redacts_sensitive_source_paths_even_with_non_sensitive_aliases(
     assert "private-credential" not in result["mapped_payload"]["description"]
     assert "CRM" in result["mapped_payload"]["description"]
     assert result["unresolved_fields"] == []
+
+
+def test_mapping_keeps_operational_contact_payload_but_redacts_trace():
+    result = resolve_mapping(
+        {"email": "{{context.email}}", "phone": "{{context.phone}}"},
+        "",
+        {"email": "visitor@example.com", "phone": "+15551234567"},
+    )
+    assert result["mapped_payload"] == {
+        "email": "visitor@example.com",
+        "phone": "+15551234567",
+    }
+    assert result["trace_payload"] == {
+        "email": "[redacted]",
+        "phone": "[redacted]",
+    }
