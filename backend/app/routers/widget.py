@@ -18,7 +18,7 @@ from typing import Any, Optional
 import pytz
 import httpx
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.core.clients import supabase
@@ -1202,7 +1202,7 @@ async def widget_live(bot_id: str, session_id: str, after: str = ""):
 
 
 @router.get("/api/widget/theme")
-async def widget_theme(bot_id: str):
+async def widget_theme(bot_id: str, response: Response):
     """Public, unauthenticated bot config for the embed widget + launcher.
     Served from the backend (service role) so it works inside third-party
     iframes where the browser Supabase client is blocked by storage
@@ -1236,6 +1236,12 @@ async def widget_theme(bot_id: str):
                 # Falls back to the columns that are guaranteed to exist.
                 res = await run_db(lambda: supabase.table("chatty_bots").select(
                     base_columns).eq("id", bot_id).execute())
+    # Theme changes are operator-controlled and must be visible immediately
+    # across dashboard previews and third-party embeds. Never let a browser,
+    # CDN, or intermediary replay an older bot style after a successful save.
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Vary"] = "Origin"
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     b = res.data[0]
