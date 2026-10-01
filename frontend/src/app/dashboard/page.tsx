@@ -244,6 +244,10 @@ export default function Dashboard() {
   // currently showing - transient UI state, not saved with the bot.
   const [sectionColorProp, setSectionColorProp] = useState<Record<string, "bg" | "text" | "icon">>({});
   const [widgetStyle, setWidgetStyle] = useState<string>("minimal");
+  // Preset clicks update several settings in one event. Keep the style that
+  // was selected synchronously available to the debounced autosave so a
+  // render from the previous state cannot persist the old preset.
+  const widgetStyleRef = useRef(widgetStyle);
   // Which view the Customizer's live preview shows - a static mockup of the
   // in-chat text conversation, or of the voice-call screen (orb, live
   // transcript bubbles, mute/hangup). Both are hand-built mockups (like the
@@ -2464,7 +2468,7 @@ export default function Dashboard() {
           conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
           teaser_message: teaserMessage,
           primary_color: primaryColor,
-          widget_style: `${widgetStyle}:${logoBgColor || ""}:${launcherShape}`,
+          widget_style: `${widgetStyleRef.current}:${logoBgColor || ""}:${launcherShape}`,
           color_scheme: colorScheme,
           font_family: fontFamily,
           font_size_percent: fontSizePercent,
@@ -2645,6 +2649,7 @@ export default function Dashboard() {
   // handleSaveChanges fires once input settles, same pattern already used
   // for voice settings (handleAutoSaveVoiceField).
   const handleInputChange = <T,>(setter: (val: T) => void, val: T) => {
+    if (setter === setWidgetStyle) widgetStyleRef.current = String(val);
     setter(val);
     setHasUnsavedChanges(true);
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
