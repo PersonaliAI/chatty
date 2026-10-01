@@ -40,9 +40,17 @@ def _stable_query(query: Any) -> Any:
 async def _enqueue_scheduled(queue: Any, job: dict[str, Any], key: str) -> bool:
     enqueue_once = getattr(queue, "enqueue_once", None)
     enqueue = enqueue_once if callable(enqueue_once) else queue.enqueue
+    payload = {
+        **dict(job["payload"]),
+        "delivery_idempotency_key": key,
+    }
+    # Provider jobs must re-check campaign state at delivery time so a pause
+    # or delete takes effect for already queued work, not only future ticks.
+    if payload.get("campaign_id"):
+        payload["enforce_campaign_state"] = True
     result = await enqueue(
         name=str(job["name"]),
-        payload={**dict(job["payload"]), "delivery_idempotency_key": key},
+        payload=payload,
         idempotency_key=key,
     )
     return result is not None if callable(enqueue_once) else True

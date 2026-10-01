@@ -150,6 +150,23 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
             logger.info("campaign dispatch suppressed by quiet hours bot=%s campaign=%s", bot_id, payload.get("campaign_id"))
             await mark("suppressed", "quiet_hours")
             return
+    if payload.get("enforce_campaign_state") and payload.get("campaign_id"):
+        # Queued provider jobs must observe an operator pause/delete that
+        # happened after scheduling. Database failures are allowed to raise so
+        # the durable worker retries instead of sending blindly.
+        from app.core.clients import supabase
+        campaign_id = str(payload.get("campaign_id"))
+        state = await asyncio.to_thread(lambda: supabase.table("chatty_campaigns").select(
+            "is_active"
+        ).eq("id", campaign_id).eq("bot_id", bot_id).maybe_single().execute())
+        if not state.data or not bool(state.data.get("is_active")):
+            logger.info(
+                "campaign dispatch suppressed by campaign state bot=%s campaign=%s",
+                bot_id,
+                campaign_id,
+            )
+            await mark("suppressed", "campaign_paused")
+            return
     if channel == "web":
         logger.info("campaign web step delegated to widget bot=%s campaign=%s", bot_id, payload.get("campaign_id"))
         return
