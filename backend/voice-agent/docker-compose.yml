@@ -54,6 +54,11 @@ services:
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       FISH_API_KEY: ${FISH_API_KEY:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # Google STT/TTS use Application Default Credentials. The credential
+      # file is provisioned out-of-band on VPS hosts and never committed.
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-service-account.json
+    volumes:
+      - ./secrets/google-service-account.json:/run/secrets/google-service-account.json:ro
     extra_hosts:
       # LiveKit runs in host networking so its 50k-port UDP range is not
       # expanded into thousands of docker-proxy processes. This mapping lets
