@@ -108,6 +108,11 @@ test.describe("owner golden path", () => {
     await botSelector.click();
     const botOptions = page.locator('[data-chatbot-option="true"]');
     if (await botOptions.count() > 1) await botOptions.last().click();
+    // The picker is a popover with a full-screen click-away layer. Close it
+    // explicitly before navigating so a delayed bot switch cannot leave the
+    // overlay intercepting the next sidebar action.
+    await page.keyboard.press("Escape");
+    await expect(botOptions.first()).toBeHidden();
     await page.getByRole("button", { name: "Customizer", exact: true }).click();
 
     // Pick whichever design isn't already selected, so the test proves an
