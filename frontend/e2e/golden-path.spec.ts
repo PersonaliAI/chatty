@@ -239,6 +239,9 @@ test.describe("owner golden path", () => {
     await expect(page.getByText("AI campaign copilot", { exact: true })).toBeVisible();
     await expect(page.getByText("Start window", { exact: true })).toBeVisible();
     await expect(page.getByText("End window", { exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: /Delivery Audit/i }).click();
+    await expect(page.getByRole("tabpanel", { name: "Delivery Audit" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /refresh delivery audit/i })).toBeVisible();
   });
 
   test("mobile dashboard exposes the navigation and responsive automation surfaces", async ({ page }) => {
