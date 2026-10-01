@@ -28,3 +28,7 @@ backend/supabase/.temp/
 .claude/
 .DS_Store
 Thumbs.db
+# Google Cloud service-account credentials (never commit)
+*service-account*.json
+*-service-account*.json
+*voice-pipeline*.json
