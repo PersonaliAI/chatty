@@ -101,6 +101,13 @@ test.describe("owner golden path", () => {
     await page.getByRole("button", { name: /log in|sign in/i }).click();
 
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
+    // The owner fixture can also contain inbox-only team bots. Select the
+    // last available bot option so this test exercises the editable owner
+    // context rather than whichever read-only bot sorted first.
+    const botSelector = page.getByText("Active Chatbot", { exact: true }).locator("..").getByRole("button");
+    await botSelector.click();
+    const botOptions = page.locator('[data-chatbot-option="true"]');
+    if (await botOptions.count() > 1) await botOptions.last().click();
     await page.getByRole("button", { name: "Customizer", exact: true }).click();
 
     // Pick whichever design isn't already selected, so the test proves an

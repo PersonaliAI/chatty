@@ -4089,6 +4089,8 @@ export default function Dashboard() {
                     {userBots.map((bot) => (
                       <div
                         key={bot.id}
+                        data-chatbot-option="true"
+                        data-bot-id={bot.id}
                         className={`flex items-center justify-between px-3 py-2 text-xs cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors ${
                           bot.id === botId ? "bg-neutral-50/70 dark:bg-neutral-900/70 font-semibold text-neutral-900 dark:text-white" : "text-neutral-700 dark:text-neutral-350"
                         }`}
