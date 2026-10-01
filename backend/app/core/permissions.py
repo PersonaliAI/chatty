@@ -31,7 +31,12 @@ async def get_bot_role_and_permissions(bot_id: str, user: dict[str, Any]) -> tup
             "role, permissions").eq("bot_id", bot_id).ilike("email", email).limit(1).execute())
         if members.data:
             row = members.data[0]
-            return row.get("role") or "agent", list(row.get("permissions") or [])
+            role = row.get("role") or "agent"
+            configured = row.get("permissions")
+            # Older invitations stored NULL/[] instead of materializing the
+            # role defaults. Normalize them at the authorization boundary so
+            # team/me and write routes make the same decision.
+            return role, list(configured) if configured else default_permissions_for_role(role)
     raise HTTPException(status_code=403, detail="Unauthorized")
 
 
