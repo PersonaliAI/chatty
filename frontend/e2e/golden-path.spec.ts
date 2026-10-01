@@ -101,13 +101,16 @@ test.describe("owner golden path", () => {
     await page.getByRole("button", { name: /log in|sign in/i }).click();
 
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
-    // The owner fixture can also contain inbox-only team bots. Select the
-    // last available bot option so this test exercises the editable owner
-    // context rather than whichever read-only bot sorted first.
+    // Prefer the same canonical bot used by the public widget smoke test. The
+    // owner fixture can contain inbox-only team bots; choosing by id avoids
+    // accidentally exercising a read-only/shared bot whose style cannot be
+    // persisted.
     const botSelector = page.getByText("Active Chatbot", { exact: true }).locator("..").getByRole("button");
     await botSelector.click();
     const botOptions = page.locator('[data-chatbot-option="true"]');
-    if (await botOptions.count() > 1) await botOptions.last().click();
+    const canonicalOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${BOT_ID}"]`);
+    if (await canonicalOption.count()) await canonicalOption.click();
+    else if (await botOptions.count() > 1) await botOptions.last().click();
     // The picker is a popover with a full-screen click-away layer. Close it
     // explicitly before navigating so a delayed bot switch cannot leave the
     // overlay intercepting the next sidebar action.
