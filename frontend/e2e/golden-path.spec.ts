@@ -86,6 +86,10 @@ test.describe("landing page launcher", () => {
 // this locally or in CI; it skips cleanly without them rather than failing.
 const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const ownerPassword = process.env.E2E_OWNER_PASSWORD;
+// CI can point at a dedicated owner fixture without changing the public
+// widget bot used by the visitor smoke tests. This keeps the persistence test
+// deterministic when the shared account has multiple assistants.
+const ownerBotId = process.env.E2E_OWNER_BOT_ID;
 
 test.describe("owner golden path", () => {
   test.skip(!ownerEmail || !ownerPassword, "requires E2E_OWNER_EMAIL / E2E_OWNER_PASSWORD");
@@ -118,14 +122,14 @@ test.describe("owner golden path", () => {
     await page.getByRole("button", { name: /log in|sign in/i }).click();
 
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
-    // Prefer the same canonical bot used by the public widget smoke test. The
-    // owner fixture can contain inbox-only team bots; choosing by id avoids
-    // accidentally exercising a read-only/shared bot whose style cannot be
-    // persisted.
+    // Prefer an explicitly provisioned owner fixture, then the public widget
+    // bot. The owner fixture can contain inbox-only team bots; choosing by id
+    // avoids accidentally exercising a read-only/shared bot whose style cannot
+    // be persisted.
     const botSelector = page.getByText("Active Chatbot", { exact: true }).locator("..").getByRole("button");
     await botSelector.click();
     const botOptions = page.locator('[data-chatbot-option="true"]');
-    const canonicalOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${BOT_ID}"]`);
+    const preferredBotIds = [ownerBotId, BOT_ID].filter((id): id is string => Boolean(id));
     const canEditBot = async (id: string) => {
       await expect.poll(() => botEditability.has(id), { timeout: 15_000 }).toBeTruthy();
       return botEditability.get(id) === true;
@@ -133,10 +137,16 @@ test.describe("owner golden path", () => {
     const optionIds = await botOptions.evaluateAll((elements) => elements
       .map((element) => element.getAttribute("data-bot-id"))
       .filter((id): id is string => Boolean(id)));
-    const canonicalEditable = await canonicalOption.count() ? await canEditBot(BOT_ID) : false;
+    const preferredEditable = await (async () => {
+      for (const id of preferredBotIds) {
+        const option = page.locator(`[data-chatbot-option="true"][data-bot-id="${id}"]`);
+        if (await option.count() && await canEditBot(id)) return id;
+      }
+      return null;
+    })();
     const editableCandidates = await Promise.all(optionIds.map(async (id) => ({ id, editable: await canEditBot(id) })));
-    const editableId = canonicalEditable
-      ? BOT_ID
+    const editableId = preferredEditable
+      ? preferredEditable
       : editableCandidates.find((candidate) => candidate.editable)?.id || null;
     test.skip(!editableId, "production E2E account has no bot with owner/design/settings permission");
     const editableOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${editableId}"]`);
