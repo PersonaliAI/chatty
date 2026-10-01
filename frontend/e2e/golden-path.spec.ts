@@ -119,11 +119,25 @@ test.describe("owner golden path", () => {
     await botSelector.click();
     const botOptions = page.locator('[data-chatbot-option="true"]');
     const canonicalOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${BOT_ID}"]`);
-    const canonicalName = await canonicalOption.count() ? (await canonicalOption.textContent())?.trim() : null;
-    if (await canonicalOption.count()) await canonicalOption.click();
-    // If the public smoke bot is not owned by this account, retain the
-    // dashboard's already-selected owner bot. Picking an arbitrary team bot
-    // can make a valid persistence check look like a save regression.
+    const canEditBot = async (id: string) => page.evaluate(async (botId) => {
+      const response = await fetch(`/api/team/me?bot_id=${encodeURIComponent(botId)}`);
+      if (!response.ok) return false;
+      const body = await response.json().catch(() => ({}));
+      return body.role === "owner" || body.permissions?.includes("design") || body.permissions?.includes("settings");
+    }, id);
+    const optionIds = await botOptions.evaluateAll((elements) => elements
+      .map((element) => element.getAttribute("data-bot-id"))
+      .filter((id): id is string => Boolean(id)));
+    const editableId = (await canonicalOption.count() && await canEditBot(BOT_ID))
+      ? BOT_ID
+      : (await (async () => {
+          for (const id of optionIds) if (await canEditBot(id)) return id;
+          return null;
+        })());
+    expect(editableId, "owner golden path requires an editable bot with design/settings permission").toBeTruthy();
+    const editableOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${editableId}"]`);
+    const canonicalName = editableId ? (await editableOption.textContent())?.trim() : null;
+    await editableOption.click();
     // The picker is a popover with a full-screen click-away layer. Close it
     // explicitly before navigating so a delayed bot switch cannot leave the
     // overlay intercepting the next sidebar action.
