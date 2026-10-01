@@ -110,3 +110,14 @@ def test_mapping_keeps_operational_contact_payload_but_redacts_trace():
         "email": "[redacted]",
         "phone": "[redacted]",
     }
+
+
+def test_typed_mapping_coerces_scalars_and_reports_invalid_values():
+    result = resolve_mapping(
+        {"amount": "{{context.amount}}", "confirmed": "{{context.confirmed}}", "bad": "{{context.bad}}"},
+        "", {"amount": "12.50", "confirmed": "yes", "bad": "not-a-number"},
+        {"amount": "number", "confirmed": "boolean", "bad": "number"},
+    )
+    assert result["mapped_payload"]["amount"] == 12.5
+    assert result["mapped_payload"]["confirmed"] is True
+    assert result["type_errors"] == [{"field": "bad", "expected": "number", "actual": "str"}]

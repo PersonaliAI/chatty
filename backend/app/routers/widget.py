@@ -311,7 +311,15 @@ async def widget_flow_webhook(body: WidgetFlowWebhookRequest, request: Request):
     safe_context = body.context if isinstance(body.context, dict) else {}
     safe_context = {str(key)[:80]: value for key, value in list(safe_context.items())[:25]}
     mapping = config.get("mapping") if isinstance(config.get("mapping"), dict) else {}
-    resolved = resolve_mapping(mapping, body.input, safe_context)
+    mapping_schema = config.get("mapping_schema") if isinstance(config.get("mapping_schema"), dict) else None
+    resolved = resolve_mapping(mapping, body.input, safe_context, mapping_schema)
+    if resolved.get("type_errors"):
+        return {
+            "success": False,
+            "retryable": False,
+            "reason": "invalid_mapping_types",
+            "mapping_errors": resolved["type_errors"],
+        }
     payload = {
         "event": "flow.webhook",
         "bot_id": body.bot_id,
@@ -322,6 +330,7 @@ async def widget_flow_webhook(body: WidgetFlowWebhookRequest, request: Request):
         # uses the redacted trace_payload returned by resolve_mapping.
         "data": resolved.get("mapped_payload", {}),
         "unresolved_fields": resolved.get("unresolved_fields", []),
+        "mapping_errors": resolved.get("type_errors", []),
     }
     try:
         configured_timeout = int(config.get("timeout_ms") or 10_000)

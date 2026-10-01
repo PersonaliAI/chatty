@@ -810,6 +810,18 @@ function validateFlow(nodes: Node[], edges: Edge[]): FlowValidation {
         errors.push(`Data mapping for ${node.id} must contain non-empty string field paths.`);
       }
     }
+    if (config.mapping_schema !== undefined) {
+      const schema = config.mapping_schema;
+      const mapping = config.mapping as Record<string, unknown> | undefined;
+      const allowedTypes = new Set(["any", "string", "number", "boolean", "object", "array"]);
+      if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+        errors.push(`Mapping schema for ${node.id} must be an object.`);
+      } else if (Object.entries(schema as Record<string, unknown>).some(([key, value]) => {
+        return !key.trim() || typeof value !== "string" || !allowedTypes.has(value.toLowerCase()) || !mapping || !(key in mapping);
+      })) {
+        errors.push(`Mapping schema for ${node.id} must use supported types and fields present in mapping.`);
+      }
+    }
   });
   const starts = nodes.filter((node) => node.type === "start" || node.type === "input");
   if (starts.length !== 1) errors.push(`Flow must contain exactly one Start trigger step (found ${starts.length}).`);
@@ -2350,6 +2362,13 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                           onChange={(e) => setNodeConfigText(e.target.value)}
                           className="w-full font-mono text-[11px] bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl p-2.5 focus:outline-none"
                         />
+                        {selectedNode.type === "webhook" && (
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                            Optional typed mapping: add <code>mapping_schema</code> beside <code>mapping</code> with field types
+                            <code> any</code>, <code>string</code>, <code>number</code>, <code>boolean</code>, <code>object</code>, or <code>array</code>.
+                            Number and boolean values are coerced safely; invalid values fail before delivery.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

@@ -274,13 +274,19 @@ async def simulate_dashboard_flow(
         if node_type == "delay":
             runtime = {"simulated": True, "delay_ms": _bounded_int(config.get("duration_ms"), 0, 0, 300000)}
         elif node_type == "webhook":
-            mapping_result = resolve_mapping(config.get("mapping"), user_input, body.context)
+            mapping_result = resolve_mapping(
+                config.get("mapping"), user_input, body.context,
+                config.get("mapping_schema") if isinstance(config.get("mapping_schema"), dict) else None,
+            )
             runtime = {
                 "simulated": True,
                 "side_effect": "webhook_not_sent",
                 "mapped_payload": mapping_result.get("trace_payload", {}),
                 "unresolved_fields": mapping_result.get("unresolved_fields", []),
+                "mapping_errors": mapping_result.get("type_errors", []),
             }
+            if mapping_result.get("type_errors"):
+                execution_error = "webhook mapping type validation failed"
         elif node_type == "retry":
             runtime = {"simulated": True, **evaluate_retry(config)}
         elif node_type == "loop":

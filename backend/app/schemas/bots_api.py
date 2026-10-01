@@ -194,6 +194,19 @@ class FlowVersionCreateRequest(BaseModel):
                         raise ValueError("flow mapping keys must be non-empty strings of at most 128 characters")
                     if any(not isinstance(value, (str, int, float, bool, list, dict)) and value is not None for value in mapping.values()):
                         raise ValueError("flow mapping values must be JSON-compatible")
+                mapping_schema = config.get("mapping_schema")
+                if mapping_schema is not None:
+                    allowed_mapping_types = {"any", "string", "number", "boolean", "object", "array"}
+                    if not isinstance(mapping_schema, dict) or len(mapping_schema) > 100:
+                        raise ValueError("flow mapping_schema must be an object with at most 100 fields")
+                    if not isinstance(mapping, dict):
+                        raise ValueError("flow mapping_schema requires a mapping object")
+                    if any(not isinstance(key, str) or not key.strip() or len(key) > 128 for key in mapping_schema):
+                        raise ValueError("flow mapping_schema keys must be non-empty strings of at most 128 characters")
+                    if any(not isinstance(value, str) or value.lower() not in allowed_mapping_types for value in mapping_schema.values()):
+                        raise ValueError("flow mapping_schema types must be any, string, number, boolean, object, or array")
+                    if any(key not in mapping for key in mapping_schema):
+                        raise ValueError("flow mapping_schema fields must also exist in mapping")
                 expression = config.get("expression")
                 if expression is not None and (not isinstance(expression, str) or len(expression) > 2000):
                     raise ValueError("flow condition expressions must be strings of at most 2000 characters")

@@ -77,6 +77,29 @@ def test_flow_mapping_contract_is_typed_and_bounded():
     with pytest.raises(ValidationError, match="mapping keys"):
         FlowVersionCreateRequest(**invalid)
 
+    typed = _valid_flow()
+    typed["nodes"][1]["data"] = {"config": {
+        "mapping": {"amount": "{{context.amount}}"},
+        "mapping_schema": {"amount": "number"},
+    }}
+    assert FlowVersionCreateRequest(**typed).nodes[1]["data"]["config"]["mapping_schema"]["amount"] == "number"
+
+    invalid_type = _valid_flow()
+    invalid_type["nodes"][1]["data"] = {"config": {
+        "mapping": {"amount": "{{context.amount}}"},
+        "mapping_schema": {"amount": "currency"},
+    }}
+    with pytest.raises(ValidationError, match="mapping_schema types"):
+        FlowVersionCreateRequest(**invalid_type)
+
+    missing_field = _valid_flow()
+    missing_field["nodes"][1]["data"] = {"config": {
+        "mapping": {"amount": "{{context.amount}}"},
+        "mapping_schema": {"missing": "number"},
+    }}
+    with pytest.raises(ValidationError, match="also exist in mapping"):
+        FlowVersionCreateRequest(**missing_field)
+
 
 def test_flow_requires_one_start_and_unique_edge_ids():
     multiple = _valid_flow()

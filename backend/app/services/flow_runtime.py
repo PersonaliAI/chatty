@@ -155,6 +155,7 @@ def _resolve_mapping_path(path: str, user_input: str, context: dict[str, Any]) -
 
 def resolve_mapping(
     mapping: dict[str, Any] | None, user_input: str, context: dict[str, Any] | None = None,
+    mapping_schema: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Resolve the safe ``{{input}}``/``{{context.path}}`` mapping language.
 
@@ -192,6 +193,35 @@ def resolve_mapping(
         resolved[str(key)] = _MAPPING_TOKEN.sub(replace, raw_value)
         if failed:
             unresolved.append(str(key))
+    type_errors: list[dict[str, str]] = []
+    schema = mapping_schema if isinstance(mapping_schema, dict) else {}
+    for key, expected in schema.items():
+        if key not in resolved:
+            continue
+        value = resolved[key]
+        expected = str(expected).lower()
+        if expected == "any":
+            continue
+        if expected == "string" and not isinstance(value, str):
+            resolved[key] = str(value)
+        elif expected == "number" and (isinstance(value, bool) or not isinstance(value, (int, float))):
+            try:
+                text = str(value).strip()
+                resolved[key] = float(text) if "." in text else int(text)
+            except (TypeError, ValueError):
+                type_errors.append({"field": str(key), "expected": expected, "actual": type(value).__name__})
+        elif expected == "boolean" and not isinstance(value, bool):
+            normalized = str(value).strip().lower()
+            if normalized in {"true", "1", "yes", "on"}:
+                resolved[key] = True
+            elif normalized in {"false", "0", "no", "off"}:
+                resolved[key] = False
+            else:
+                type_errors.append({"field": str(key), "expected": expected, "actual": type(value).__name__})
+        elif expected == "object" and (not isinstance(value, dict)):
+            type_errors.append({"field": str(key), "expected": expected, "actual": type(value).__name__})
+        elif expected == "array" and (not isinstance(value, list)):
+            type_errors.append({"field": str(key), "expected": expected, "actual": type(value).__name__})
     # Runs are persisted for later replay and troubleshooting. Never put an
     # obvious credential-shaped mapping value into that durable trace.
     # Keep the operational payload intact for the outbound integration. A
@@ -201,4 +231,5 @@ def resolve_mapping(
         "mapped_payload": resolved,
         "trace_payload": redact_flow_trace_value(resolved),
         "unresolved_fields": unresolved,
+        "type_errors": type_errors,
     }
