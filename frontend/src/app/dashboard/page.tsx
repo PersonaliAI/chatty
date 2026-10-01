@@ -1267,8 +1267,15 @@ export default function Dashboard() {
       // different bot's data whenever the active bot wasn't the newest one,
       // making saves on any other bot look like they hadn't persisted.
       const storedBotId = typeof window !== "undefined" ? window.localStorage.getItem(`chatty_active_bot_${userId}`) : null;
-      let activeBot = (botId && bots?.find((b) => b.id === botId))
-        || (storedBotId && bots?.find((b) => b.id === storedBotId))
+      // A persisted selection can outlive a role change or an old team
+      // membership. Never restore such a bot as the editable dashboard
+      // context; prefer the authenticated user's own bot first.
+      const ownedBots = bots?.filter((b) => b.user_id === userId) || [];
+      const currentBot = botId ? bots?.find((b) => b.id === botId) : undefined;
+      const storedBot = storedBotId ? bots?.find((b) => b.id === storedBotId) : undefined;
+      let activeBot = (currentBot && currentBot.user_id === userId ? currentBot : undefined)
+        || (storedBot && storedBot.user_id === userId ? storedBot : undefined)
+        || ownedBots[0]
         || bots?.[0];
 
       if (!activeBot) {
