@@ -130,7 +130,10 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
             from app.services.campaign_delivery_ledger import record_campaign_delivery
             await record_campaign_delivery(supabase, payload, status, error=error)
         except Exception as exc:  # ledger must never turn a provider success into a retry
-            logger.warning("campaign delivery ledger update failed: %s", exc)
+            logger.warning(
+                "campaign delivery ledger update failed error_type=%s",
+                type(exc).__name__,
+            )
 
     if not bot_id or not channel or not message:
         error = "campaign dispatch is missing bot_id, channel, or message"

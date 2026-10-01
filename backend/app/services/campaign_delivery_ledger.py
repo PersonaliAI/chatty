@@ -4,9 +4,26 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+import re
 from typing import Any
 
 _STATUSES = {"queued", "sent", "failed", "suppressed"}
+_EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+_PHONE_RE = re.compile(r"(?<!\w)\+\d[\d\s().-]{7,}\d(?!\w)")
+_SECRET_RE = re.compile(
+    r"(?i)\b(?:token|secret|api[_-]?key|authorization|password)\s*[=:]\s*[^\s,;]+"
+)
+
+
+def sanitize_campaign_error(error: object | None) -> str | None:
+    """Keep durable delivery diagnostics useful without persisting recipient secrets."""
+    text = str(error or "").strip()
+    if not text:
+        return None
+    text = _SECRET_RE.sub(lambda match: match.group(0).split("=")[0].split(":")[0] + "=[redacted]", text)
+    text = _EMAIL_RE.sub("[redacted-email]", text)
+    text = _PHONE_RE.sub("[redacted-phone]", text)
+    return text[:500] or None
 
 
 async def record_campaign_delivery(
@@ -33,7 +50,7 @@ async def record_campaign_delivery(
         "status": status,
         "channel": str(payload.get("channel") or "web").strip().lower()[:32],
         "recipient_id": str(recipient.get("id") or "").strip()[:128] or None,
-        "error": str(error or "").strip()[:500] or None,
+        "error": sanitize_campaign_error(error),
         "metadata": {"frequency_cap_hours": payload.get("frequency_cap_hours")},
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }

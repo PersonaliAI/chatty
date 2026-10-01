@@ -1,7 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
-from app.services.campaign_delivery_ledger import record_campaign_delivery
+from app.services.campaign_delivery_ledger import record_campaign_delivery, sanitize_campaign_error
 
 
 class _Table:
@@ -45,3 +45,18 @@ def test_delivery_ledger_ignores_missing_identity():
     db = _Db()
     asyncio.run(record_campaign_delivery(db, {"bot_id": "bot-1"}, "sent"))
     assert db.table_obj.row is None
+
+
+def test_delivery_error_redacts_recipient_and_secret_values():
+    error = "provider rejected secret@example.com +15551234567 token=super-secret"
+    sanitized = sanitize_campaign_error(error)
+    assert sanitized == "provider rejected [redacted-email] [redacted-phone] token=[redacted]"
+
+    db = _Db()
+    asyncio.run(record_campaign_delivery(db, {
+        "bot_id": "bot-1",
+        "campaign_id": "campaign-1",
+        "delivery_idempotency_key": "campaign.dispatch:key",
+        "recipient": {"id": "lead-1"},
+    }, "failed", error=error))
+    assert db.table_obj.row["error"] == sanitized
