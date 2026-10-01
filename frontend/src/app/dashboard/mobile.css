@@ -1,10 +1,10 @@
 /* Dashboard-only phone refinements. Desktop utilities remain authoritative. */
-[data-dashboard] button,
-[data-dashboard] [role="button"] {
-  white-space: nowrap;
-}
-
 @media (width < 640px) {
+  [data-dashboard] button,
+  [data-dashboard] [role="button"] {
+    white-space: nowrap;
+  }
+
   [data-dashboard] .dashboard-content > * {
     min-width: 0;
     max-width: 100%;
