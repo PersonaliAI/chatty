@@ -1,5 +1,42 @@
 /* Dashboard-only phone refinements. Desktop utilities remain authoritative. */
 @media (width < 640px) {
+  [data-dashboard] [data-inbox-routing] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-dashboard] [data-inbox-presence] {
+    gap: 8px;
+  }
+
+  [data-dashboard] [data-inbox-presence] > div:last-child {
+    gap: 6px;
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+
+  [data-dashboard] [data-inbox-presence] > div:last-child > div {
+    width: 32px;
+  }
+
+  [data-dashboard] [data-inbox-roster] > button {
+    gap: 4px;
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+
+  [data-dashboard] [data-inbox-queue] {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    padding-bottom: 6px;
+  }
+
+  [data-dashboard] [data-inbox-queue] > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
   [data-dashboard] button,
   [data-dashboard] [role="button"] {
     white-space: nowrap;

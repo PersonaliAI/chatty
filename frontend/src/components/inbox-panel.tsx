@@ -1454,9 +1454,9 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   return (
     <div className="space-y-4">
       {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar ── */}
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      <div data-inbox-routing className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         {/* Left: Agent Presence Status & Capacity */}
-        <div className="flex items-center gap-3">
+        <div data-inbox-presence className="flex items-center gap-3">
           <div ref={presenceMenuRef} className="relative">
             <button
               onClick={() => setPresenceMenuOpen(!presenceMenuOpen)}
@@ -1537,7 +1537,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
 
         {/* Middle: Team Presence Roster & Automation Rules */}
-        <div ref={rosterRef} className="relative flex items-center gap-2">
+        <div ref={rosterRef} data-inbox-roster className="relative flex items-center gap-2">
           <button
             onClick={() => setShowRoster(!showRoster)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors text-xs font-medium cursor-pointer whitespace-nowrap"
@@ -1595,7 +1595,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
 
         {/* Right: Unassigned Queue & Auto-Assign Action */}
-        <div className="flex items-center gap-2">
+        <div data-inbox-queue className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-400 text-xs font-semibold">
             <Radio className="size-3 animate-ping shrink-0" />
             <span>Queue:</span>
