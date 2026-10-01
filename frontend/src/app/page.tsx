@@ -340,7 +340,7 @@ export default function Home() {
   );
 
   return (
-    <div className="antialiased" style={{ ...colorVars, fontFamily: "var(--font-body), system-ui, sans-serif", background: "var(--color-bg)", color: "var(--color-text)", overflowX: "clip" }}>
+    <div className="chatty-landing antialiased" style={{ ...colorVars, fontFamily: "var(--font-body)", background: "var(--color-bg)", color: "var(--color-text)", overflowX: "clip" }}>
       {/* Announcement bar auto slider */}
       <div className="relative overflow-hidden h-[40px] sm:h-[44px] transition-colors duration-700" style={{ background: activeAnnouncement === 0 ? "var(--color-accent-2-100)" : "var(--color-accent-100)" }}>
         {/* MCP Notification */}

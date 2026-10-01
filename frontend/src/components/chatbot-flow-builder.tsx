@@ -1310,19 +1310,23 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     if (!aiPrompt.trim() || !botId) return;
     setGenerating(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/flow/generate`, {
+      const editingExistingFlow = nodes.length > 1;
+      const res = await fetch(`${BACKEND_URL}/api/flow/${editingExistingFlow ? "optimize" : "generate"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_id: botId, description: aiPrompt }),
+        body: JSON.stringify(editingExistingFlow
+          ? { bot_id: botId, nodes, edges, goal: aiPrompt }
+          : { bot_id: botId, description: aiPrompt }),
       });
       if (res.ok) {
-        const schema: FlowSchema = await res.json();
+        const payload = await res.json();
+        const schema: FlowSchema = editingExistingFlow ? payload : payload;
         if (schema.nodes && schema.edges) {
           setNodes(schema.nodes);
           setEdges(schema.edges);
           setAiPrompt("");
           setAiCopilotOpen(false);
-          showToast("AI generated workflow successfully!", "success");
+          showToast(editingExistingFlow ? "AI applied your workflow changes." : "AI generated workflow successfully!", "success");
           setTimeout(() => safeFitView(0.2, 400), 150);
         } else {
           showToast("Invalid structure returned by AI.", "error");
@@ -1556,9 +1560,9 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
   })).filter((cat) => cat.items.length > 0);
 
   return (
-    <div className="w-full bg-white dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[780px] h-[calc(100vh-140px)]">
+    <div className="w-full bg-white dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[620px] md:min-h-[780px] h-[calc(100dvh-120px)] md:h-[calc(100vh-140px)]">
       {/* ── n8n-Inspired Top Navigation Bar ── */}
-      <header className="h-16 px-4 sm:px-6 border-b border-slate-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md flex items-center justify-between gap-3 shrink-0 z-20">
+      <header className="min-h-16 px-3 sm:px-6 py-2 border-b border-slate-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-20">
         {/* Left: Workflow Title & Tags */}
         <div className="flex items-center gap-3 shrink-0 min-w-fit">
           <div className="size-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
@@ -1787,14 +1791,14 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
       </div>
 
       {/* ── Body: Canvas or Tabs ── */}
-      <div className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-neutral-950">
+      <div className="flex-1 min-h-0 relative overflow-hidden bg-slate-50 dark:bg-neutral-950">
         {/* TAB 1: VISUAL CANVAS */}
         {activeTab === "editor" && (
           <div className="w-full h-full flex relative overflow-hidden">
             {/* Left Collapsible Toolbox (n8n-style) */}
             <div
-              className={`h-full bg-white dark:bg-neutral-900 border-r border-slate-200 dark:border-neutral-800 flex flex-col shrink-0 z-10 transition-[width] duration-200 ease-in-out ${
-                toolboxCollapsed ? "w-12 p-2" : "w-72 sm:w-80 p-3 sm:p-4 overflow-y-auto"
+                className={`h-full bg-white dark:bg-neutral-900 border-r border-slate-200 dark:border-neutral-800 flex flex-col shrink-0 z-30 transition-[width,transform] duration-200 ease-in-out md:relative ${
+                toolboxCollapsed ? "w-12 p-2" : "absolute md:relative left-0 top-0 w-[min(86vw,20rem)] md:w-80 p-3 sm:p-4 overflow-y-auto shadow-xl md:shadow-none"
               }`}
             >
               <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-neutral-800 shrink-0">
@@ -2827,13 +2831,13 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
 
               <div className="space-y-3">
                 <p className="text-xs text-neutral-500">
-                  Describe what you want the bot to do in plain English, and AI will create and layout the workflow.
+                  Chat with the workflow architect: describe a new workflow, or ask it to edit the current canvas. Changes stay as a draft until you publish.
                 </p>
                 <textarea
                   rows={4}
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="e.g. Ask for the visitor's company email, check if they are looking for enterprise plans, and schedule a 30-min call..."
+                  placeholder="e.g. Add a support branch for billing issues, capture the account email, and route urgent cases to a human..."
                   className="w-full bg-slate-50 dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-[#f97316]/20"
                 />
                 <button
@@ -2844,7 +2848,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
                   style={{ background: color }}
                 >
                   {generating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                  <span>{generating ? "Generating Workflow..." : "Generate Workflow with AI"}</span>
+                  <span>{generating ? "Updating Workflow..." : nodes.length > 1 ? "Apply Changes to Workflow" : "Create Workflow with AI"}</span>
                 </button>
               </div>
             </motion.div>

@@ -35,12 +35,21 @@ from plugins import ai_client
 from plugins import llm_providers
 from plugins import notifications as notify
 from plugins.widget_brain import GEMINI_FALLBACK_MODELS
+try:
+    from postgrest.exceptions import APIError as PostgrestAPIError
+except ImportError:  # pragma: no cover - dependency is present in production
+    PostgrestAPIError = Exception  # type: ignore[misc,assignment]
 
 import json
 
 logger = logging.getLogger("chatty")
 
 router = APIRouter()
+
+
+def _flow_runs_table_missing(exc: Exception) -> bool:
+    """Detect an un-applied flow-runs migration without masking other DB errors."""
+    return isinstance(exc, PostgrestAPIError) and "PGRST205" in str(exc) and "chatty_flow_runs" in str(exc)
 
 
 def _internal_flow_override() -> None:
@@ -235,24 +244,35 @@ async def simulate_dashboard_flow(
             edge = outgoing[0]
         current = by_id.get(str(edge.get("target"))) if edge else None
     budget_exceeded = current is not None
-    run = await run_db(lambda: supabase.table("chatty_flow_runs").insert({
-        "bot_id": bot_id,
-        "flow_data": {
-            "status": flow.get("status", "paused"),
-            "nodes": nodes,
-            "edges": edges,
-            "simulation_context": redact_flow_trace_value(body.context),
-        },
-        "status": "failed" if budget_exceeded or execution_error else "completed",
-        "inputs": body.inputs[:50] or ["Hello"],
-        "trace": trace,
-        "error": f"execution step budget exceeded ({body.max_steps})" if budget_exceeded else execution_error,
-        "duration_ms": round((time.perf_counter() - started) * 1000),
-        "created_by": user["auth_user_id"],
-        "completed_at": datetime.now(timezone.utc).isoformat(),
-    }).execute())
-    run_id = (run.data or [{}])[0].get("id")
-    return {"run_id": run_id, "bot_id": bot_id, "completed": current is None and not execution_error, "total_steps": len(trace), "execution_path": trace, "budget_exceeded": budget_exceeded, "error": execution_error}
+    persistence_warning = None
+    try:
+        run = await run_db(lambda: supabase.table("chatty_flow_runs").insert({
+            "bot_id": bot_id,
+            "flow_data": {
+                "status": flow.get("status", "paused"),
+                "nodes": nodes,
+                "edges": edges,
+                "simulation_context": redact_flow_trace_value(body.context),
+            },
+            "status": "failed" if budget_exceeded or execution_error else "completed",
+            "inputs": body.inputs[:50] or ["Hello"],
+            "trace": trace,
+            "error": f"execution step budget exceeded ({body.max_steps})" if budget_exceeded else execution_error,
+            "duration_ms": round((time.perf_counter() - started) * 1000),
+            "created_by": user["auth_user_id"],
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        }).execute())
+    except Exception as exc:
+        if not _flow_runs_table_missing(exc):
+            raise
+        # Keep dry-run useful while a managed Supabase rollout is still
+        # applying the optional history migration. The trace is still returned
+        # to the editor; persistence resumes automatically once the table exists.
+        logger.error("flow run history table is unavailable; returning non-persisted simulation", exc_info=True)
+        run = None
+        persistence_warning = "Flow run completed but history is temporarily unavailable."
+    run_id = ((run.data or [{}])[0].get("id") if run is not None else None)
+    return {"run_id": run_id, "bot_id": bot_id, "completed": current is None and not execution_error, "total_steps": len(trace), "execution_path": trace, "budget_exceeded": budget_exceeded, "error": execution_error, "persistence_warning": persistence_warning}
 
 
 @router.get("/api/bots/{bot_id}/flow/runs")
@@ -274,7 +294,13 @@ async def list_dashboard_flow_runs(
         if normalized_status:
             query = query.eq("status", normalized_status)
         return query.order("created_at", desc=True).limit(limit).execute()
-    result = await run_db(query_runs)
+    try:
+        result = await run_db(query_runs)
+    except Exception as exc:
+        if not _flow_runs_table_missing(exc):
+            raise
+        logger.error("flow run history table is unavailable; returning empty history", exc_info=True)
+        return []
     return result.data or []
 
 

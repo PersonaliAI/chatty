@@ -84,6 +84,14 @@
   --sidebar-ring: #0a0a0a;
 }
 
+/* Marketing page typography fallback. The landing page used to import
+   Caprasimo/Figtree directly; keep the same editorial contrast without a
+   network-dependent build-time font fetch. */
+.chatty-landing {
+  --font-heading: var(--font-playfair), Georgia, serif;
+  --font-body: var(--font-sans), system-ui, sans-serif;
+}
+
 .dark {
   --background: #0a0a0a;
   --foreground: #fafafa;
