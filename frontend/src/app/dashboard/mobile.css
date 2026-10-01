@@ -47,6 +47,15 @@
     white-space: nowrap;
   }
 
+  [data-dashboard] [data-modern-select-trigger],
+  [data-dashboard] .dashboard-action-bar button:not(:empty) {
+    min-height: 36px;
+  }
+
+  [data-dashboard] [data-modern-select-popup] [role="option"] {
+    min-height: 40px;
+  }
+
   [data-dashboard] .chatty-fc-theme .fc-header-toolbar {
     display: grid;
     gap: 12px;

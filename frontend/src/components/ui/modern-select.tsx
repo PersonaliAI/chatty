@@ -139,6 +139,7 @@ export function ModernSelect({
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <button
+        data-modern-select-trigger
         id={id}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
