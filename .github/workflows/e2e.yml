@@ -43,7 +43,10 @@ jobs:
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        # ubuntu-latest already includes the Chromium system libraries. Avoid
+        # apt-based --with-deps installation here: it is slow and can stall
+        # the production acceptance job while holding the runner lock.
+        run: npx playwright install chromium
 
       - name: Run golden-path suite against production
         run: npm run test:e2e
@@ -59,5 +62,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: playwright-report
-          path: frontend/playwright-report/
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
           retention-days: 14
