@@ -1318,6 +1318,7 @@ export default function Dashboard() {
         setPanelSize(activeBot.panel_size || "default");
         const styleVal = activeBot.widget_style || "minimal";
         const [styleName, logoBg, shapeVal] = styleVal.split(":");
+        widgetStyleRef.current = normalizeWidgetStyle(styleName);
         setWidgetStyle(normalizeWidgetStyle(styleName));
         setLogoBgColor(logoBg || "");
         setLauncherShape(shapeVal || "circle");
@@ -1498,6 +1499,7 @@ export default function Dashboard() {
 
       const styleVal = selected.widget_style || "minimal";
       const [styleName, logoBg, shapeVal] = styleVal.split(":");
+      widgetStyleRef.current = normalizeWidgetStyle(styleName);
       setWidgetStyle(normalizeWidgetStyle(styleName));
       setLogoBgColor(logoBg || "");
       setLauncherShape(shapeVal || "circle");
@@ -2605,7 +2607,7 @@ export default function Dashboard() {
                 conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
                 teaser_message: teaserMessage,
                 primary_color: primaryColor,
-                widget_style: `${widgetStyle}:${logoBgColor || ""}:${launcherShape}`,
+              widget_style: `${widgetStyleRef.current}:${logoBgColor || ""}:${launcherShape}`,
                 color_scheme: colorScheme,
                 font_family: fontFamily,
                 font_size_percent: fontSizePercent,
