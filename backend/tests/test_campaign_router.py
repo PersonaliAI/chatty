@@ -195,3 +195,17 @@ def test_ai_campaign_suggestion_returns_canonical_validated_draft(monkeypatch):
     assert result["channels"] == ["web", "email"]
     assert result["sequence_steps"] == [{"channel": "email", "after_minutes": 15, "message": "Follow up"}]
     assert result["trigger_value"] == 12
+
+
+def test_campaign_audience_predicates_are_bounded_and_normalized():
+    request = bots.CampaignCreateRequest(
+        name="Targeted", message_content="Hello",
+        audience_rules={"tags_any": ["VIP"], "tags_all": ["customer"], "locale": "en-US"},
+    )
+    assert request.audience_rules["tags_any"] == ["VIP"]
+    assert request.audience_rules["locale"] == "en-US"
+    with pytest.raises(ValueError, match="at most 20"):
+        bots.CampaignCreateRequest(
+            name="Too many", message_content="Hello",
+            audience_rules={"tags_any": [str(index) for index in range(21)]},
+        )

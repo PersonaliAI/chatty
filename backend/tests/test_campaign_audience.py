@@ -30,3 +30,11 @@ def test_returning_segment_rejects_truthy_non_boolean_qualification():
         assert not campaign_lead_matches({"segment": "returning"},
                                          {"custom_fields": {"returning": value}})
     assert campaign_lead_matches({"segment": "returning"}, {"returning": True})
+
+
+def test_audience_applies_tags_and_locale_predicates():
+    rules = {"segment": "all", "tags_any": ["vip", "trial"], "tags_all": ["customer"], "locale": "en-US"}
+    assert campaign_audience_matches(rules, tags=["customer", "VIP"], locale="en-US")
+    assert not campaign_audience_matches(rules, tags=["customer"], locale="en-US")
+    assert not campaign_audience_matches(rules, tags=["customer", "vip"], locale="de-DE")
+    assert campaign_lead_matches(rules, {"custom_fields": {"tags": ["customer", "vip"], "locale": "en-US"}})

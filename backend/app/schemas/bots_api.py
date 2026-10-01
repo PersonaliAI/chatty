@@ -283,11 +283,25 @@ def _normalize_audience_rules(value: dict[str, Any]) -> dict[str, Any]:
     recipient_source = str(rules.get("recipient_source", "widget")).strip().lower()
     if recipient_source not in {"widget", "consented_leads"}:
         raise ValueError("audience recipient_source must be widget or consented_leads")
+    def normalize_list(key: str) -> list[str]:
+        raw = rules.get(key, [])
+        if raw is None:
+            return []
+        if not isinstance(raw, list) or len(raw) > 20:
+            raise ValueError(f"audience {key} must be a list of at most 20 values")
+        values = [str(item).strip() for item in raw if str(item).strip()]
+        if any(len(item) > 64 for item in values) or len(set(item.lower() for item in values)) != len(values):
+            raise ValueError(f"audience {key} contains invalid or duplicate values")
+        return values
+    locale = str(rules.get("locale", "")).strip()[:32]
     return {
         "segment": segment,
         "min_intent_score": score,
         "returning_only": bool(rules.get("returning_only", segment == "returning")),
         "recipient_source": recipient_source,
+        "tags_any": normalize_list("tags_any"),
+        "tags_all": normalize_list("tags_all"),
+        "locale": locale,
     }
 
 

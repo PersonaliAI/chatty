@@ -11,6 +11,8 @@ def campaign_audience_matches(
     *,
     returning: bool = False,
     intent_score: int = 0,
+    tags: list[str] | None = None,
+    locale: str | None = None,
 ) -> bool:
     """Evaluate the bounded audience contract used by public widget campaigns.
 
@@ -34,7 +36,19 @@ def campaign_audience_matches(
         score = max(0, min(100, int(intent_score)))
     except (TypeError, ValueError):
         return False
-    return score >= minimum and (segment != "high_intent" or score >= 60)
+    if score < minimum or (segment == "high_intent" and score < 60):
+        return False
+    normalized_tags = {str(tag).strip().lower() for tag in (tags or []) if str(tag).strip()}
+    any_tags = {str(tag).strip().lower() for tag in config.get("tags_any", []) if str(tag).strip()}
+    all_tags = {str(tag).strip().lower() for tag in config.get("tags_all", []) if str(tag).strip()}
+    if any_tags and not normalized_tags.intersection(any_tags):
+        return False
+    if all_tags and not all_tags.issubset(normalized_tags):
+        return False
+    required_locale = str(config.get("locale") or "").strip().lower()
+    if required_locale and str(locale or "").strip().lower() != required_locale:
+        return False
+    return True
 
 
 def campaign_lead_matches(rules: dict[str, Any] | None, lead: dict[str, Any] | None) -> bool:
@@ -56,7 +70,17 @@ def campaign_lead_matches(rules: dict[str, Any] | None, lead: dict[str, Any] | N
         intent_score = max(0, min(100, int(raw_score or 0)))
     except (TypeError, ValueError):
         intent_score = 0
-    return campaign_audience_matches(rules, returning=returning, intent_score=intent_score)
+    raw_tags = row.get("tags", custom.get("tags", []))
+    if isinstance(raw_tags, str):
+        raw_tags = [raw_tags]
+    tags = raw_tags if isinstance(raw_tags, list) else []
+    return campaign_audience_matches(
+        rules,
+        returning=returning,
+        intent_score=intent_score,
+        tags=tags,
+        locale=str(row.get("locale", custom.get("locale", "")) or ""),
+    )
 
 
 async def load_consented_lead_recipients(
