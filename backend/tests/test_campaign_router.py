@@ -179,3 +179,19 @@ def test_campaign_update_rejects_more_than_four_merged_channels(monkeypatch):
         asyncio.run(bots.update_dashboard_campaign("bot-1", "campaign-1", body, USER))
     assert error.value.status_code == 422
     assert database.await_count == 1
+
+
+def test_ai_campaign_suggestion_returns_canonical_validated_draft(monkeypatch):
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(bots.ai_client, "resolve_gemini_model", lambda value: value)
+    monkeypatch.setattr(bots.ai_client, "chat", AsyncMock(return_value=SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content='''{"name":"Nurture","campaign_type":"chat_bubble","message_content":"Hello","trigger_type":"time_on_page","trigger_value":"12","url_patterns":["/pricing"],"sequence_steps":[{"channel":"EMAIL","after_minutes":"15","message":"Follow up"}]}'''))]
+    )))
+
+    result = asyncio.run(bots.suggest_dashboard_campaign(
+        "bot-1", bots.CampaignSuggestRequest(goal="Recover pricing-page visitors"), USER
+    ))
+
+    assert result["channels"] == ["web", "email"]
+    assert result["sequence_steps"] == [{"channel": "email", "after_minutes": 15, "message": "Follow up"}]
+    assert result["trigger_value"] == 12

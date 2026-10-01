@@ -468,19 +468,29 @@ async def suggest_dashboard_campaign(
             raw = raw[4:].strip() if raw.lower().startswith("json") else raw
         data = json.loads(raw)
         trigger_type = str(data.get("trigger_type") or "time_on_page")
-        if trigger_type not in {"time_on_page", "scroll_percentage", "exit_intent", "url_match"}:
-            trigger_type = "time_on_page"
         campaign_type = str(data.get("campaign_type") or "chat_bubble")
-        if campaign_type not in {"chat_bubble", "popup_modal", "top_banner", "slide_in"}:
-            campaign_type = "chat_bubble"
+        raw_steps = data.get("sequence_steps") if isinstance(data.get("sequence_steps"), list) else []
+        # Reuse the public campaign contract for AI output. This keeps a draft
+        # saveable even when a provider returns duplicate channels, string
+        # delays, or an otherwise slightly malformed JSON shape.
+        draft = CampaignCreateRequest(
+            name=str(data.get("name") or "AI campaign")[:255],
+            campaign_type=campaign_type,
+            message_content=str(data.get("message_content") or "How can we help?")[:180],
+            trigger_type=trigger_type,
+            trigger_value=max(0, min(int(data.get("trigger_value") or 5), 86_400)),
+            url_patterns=data.get("url_patterns") if isinstance(data.get("url_patterns"), list) else ["*"],
+            sequence_steps=raw_steps,
+        )
         return {
-            "name": str(data.get("name") or "AI campaign")[:255],
-            "campaign_type": campaign_type,
-            "message_content": str(data.get("message_content") or "How can we help?")[:180],
-            "trigger_type": trigger_type,
-            "trigger_value": max(0, min(int(data.get("trigger_value") or 5), 3600)),
-            "url_patterns": data.get("url_patterns") if isinstance(data.get("url_patterns"), list) else ["*"],
-            "sequence_steps": data.get("sequence_steps") if isinstance(data.get("sequence_steps"), list) else [],
+            "name": draft.name,
+            "campaign_type": draft.campaign_type,
+            "message_content": draft.message_content,
+            "trigger_type": draft.trigger_type,
+            "trigger_value": draft.trigger_value,
+            "url_patterns": draft.url_patterns,
+            "channels": draft.channels,
+            "sequence_steps": draft.sequence_steps,
         }
     except Exception as exc:
         logger.exception("campaign suggestion failed: %s", exc)
