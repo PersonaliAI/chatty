@@ -661,7 +661,9 @@ async def update_dashboard_campaign(
     user: dict[str, Any] = Depends(require_user),
 ):
     await verify_bot_permission(bot_id, user, "settings")
-    existing = await run_db(lambda: supabase.table("chatty_campaigns").select("start_date, end_date").eq(
+    existing = await run_db(lambda: supabase.table("chatty_campaigns").select(
+        "start_date, end_date, channels, sequence_steps"
+    ).eq(
         "id", campaign_id).eq("bot_id", bot_id).maybe_single().execute())
     if not existing.data:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -673,6 +675,26 @@ async def update_dashboard_campaign(
     }
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+    # Keep the persisted channel list authoritative when an operator edits
+    # only the sequence. Otherwise a newly added email/SMS step can be saved
+    # but never scheduled because the campaign's top-level channels remain
+    # stale. Merge both sources and fail closed at the same four-channel
+    # contract used by CampaignCreateRequest.
+    if "sequence_steps" in updates or "channels" in updates:
+        raw_channels = updates.get("channels", existing.data.get("channels") or [])
+        raw_steps = updates.get("sequence_steps", existing.data.get("sequence_steps") or [])
+        step_channels = [
+            str(step.get("channel") or "").strip().lower()
+            for step in raw_steps
+            if isinstance(step, dict) and str(step.get("channel") or "").strip()
+        ]
+        merged_channels = list(dict.fromkeys([
+            *(str(channel).strip().lower() for channel in raw_channels),
+            *step_channels,
+        ]))
+        if len(merged_channels) > 4:
+            raise HTTPException(status_code=422, detail="a campaign may use at most four channels")
+        updates["channels"] = merged_channels
     merged_start = updates.get("start_date", existing.data.get("start_date"))
     merged_end = updates.get("end_date", existing.data.get("end_date"))
     start = _parse_campaign_datetime(merged_start, "start_date")

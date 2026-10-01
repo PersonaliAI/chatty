@@ -2,6 +2,7 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
 from fastapi import HTTPException
 
 from app.routers import bots
@@ -125,3 +126,56 @@ def test_delivery_history_accepts_status_filter(monkeypatch):
 
     assert result == {"campaign_id": "campaign-1", "available": True, "deliveries": []}
     assert database.await_count == 2
+
+
+def test_campaign_sequence_update_merges_channels(monkeypatch):
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    captured = {}
+
+    class Table:
+        def select(self, *_):
+            return self
+
+        def update(self, payload):
+            captured.update(payload)
+            return self
+
+        def eq(self, *_):
+            return self
+
+        def maybe_single(self):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=(
+                {"start_date": None, "end_date": None, "channels": ["web"], "sequence_steps": []}
+                if not captured else [{"id": "campaign-1", **captured}]
+            ))
+
+    monkeypatch.setattr(bots, "supabase", SimpleNamespace(table=lambda _: Table()))
+
+    async def database(operation):
+        return operation()
+
+    monkeypatch.setattr(bots, "run_db", database)
+    body = bots.CampaignUpdateRequest(sequence_steps=[{"channel": "email", "after_minutes": 0}])
+
+    result = asyncio.run(bots.update_dashboard_campaign("bot-1", "campaign-1", body, USER))
+
+    assert result["channels"] == ["web", "email"]
+    assert captured["channels"] == ["web", "email"]
+
+
+def test_campaign_update_rejects_more_than_four_merged_channels(monkeypatch):
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    database = AsyncMock(return_value=SimpleNamespace(data={
+        "start_date": None, "end_date": None,
+        "channels": ["web", "email", "sms", "push"],
+        "sequence_steps": [],
+    }))
+    monkeypatch.setattr(bots, "run_db", database)
+    body = bots.CampaignUpdateRequest(sequence_steps=[{"channel": "whatsapp", "after_minutes": 0}])
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(bots.update_dashboard_campaign("bot-1", "campaign-1", body, USER))
+    assert error.value.status_code == 422
+    assert database.await_count == 1
