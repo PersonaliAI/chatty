@@ -2505,7 +2505,12 @@ export default function Dashboard() {
   };
 
   // Persist chatbot appearance/settings to Supabase
-  async function handleSaveChanges() {
+  async function handleSaveChanges(overrides?: {
+    widgetStyle?: string;
+    primaryColor?: string;
+    fontFamily?: string | null;
+    colorScheme?: WidgetColorScheme | null;
+  }) {
     if (!user || !botId) return;
     const saveVersion = settingsChangeVersionRef.current;
     setIsSaving(true);
@@ -2515,10 +2520,10 @@ export default function Dashboard() {
           welcome_message: welcomeMsg,
           conversation_starters: conversationStarters.map((s) => s.trim()).filter(Boolean),
           teaser_message: teaserMessage,
-          primary_color: primaryColor,
-          widget_style: `${widgetStyleRef.current}:${logoBgColor || ""}:${launcherShape}`,
-          color_scheme: colorScheme,
-          font_family: fontFamily,
+          primary_color: overrides?.primaryColor ?? primaryColor,
+          widget_style: `${overrides?.widgetStyle ?? widgetStyleRef.current}:${logoBgColor || ""}:${launcherShape}`,
+          color_scheme: overrides && Object.prototype.hasOwnProperty.call(overrides, "colorScheme") ? overrides.colorScheme : colorScheme,
+          font_family: overrides && Object.prototype.hasOwnProperty.call(overrides, "fontFamily") ? overrides.fontFamily : fontFamily,
           font_size_percent: fontSizePercent,
           panel_size: panelSize,
           send_button_style: sendButtonStyle,

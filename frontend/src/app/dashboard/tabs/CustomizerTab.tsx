@@ -58,7 +58,12 @@ interface CustomizerTabProps {
   setWidgetStyle: (s: string) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleInputChange: (setter: (v: any) => void, val: any) => void;
-  saveChanges?: () => Promise<void>;
+  saveChanges?: (overrides?: {
+    widgetStyle?: string;
+    primaryColor?: string;
+    fontFamily?: string | null;
+    colorScheme?: WidgetColorScheme | null;
+  }) => Promise<void>;
   fontFamily: string | null;
   setFontFamily: (f: string | null) => void;
   fontOptions: ModernSelectOption[];
@@ -202,7 +207,19 @@ export function CustomizerTab({
                   // one explicit save after React applies the setters so a
                   // delayed autosave or bot switch cannot leave production on
                   // the previous preset.
-                  if (saveChanges) setTimeout(() => { void saveChanges(); }, 50);
+                  if (saveChanges) {
+                    // Pass the complete preset transaction explicitly. The
+                    // parent save handler is debounced and its render closure
+                    // may still contain the values from before these setters.
+                    setTimeout(() => {
+                      void saveChanges({
+                        widgetStyle: style.id,
+                        primaryColor: sig.primary,
+                        fontFamily: sig.fontFamily,
+                        colorScheme: null,
+                      });
+                    }, 50);
+                  }
                 };
                 return (
                   <button
