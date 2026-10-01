@@ -2553,7 +2553,7 @@ export default function Dashboard() {
           throw new Error(`Save failed (${response.status})${details ? `: ${details}` : ""}`);
         }
       } else {
-        let { error } = await supabase.from("chatty_bots").update(payload).eq("id", botId);
+        let { data: updatedBot, error } = await supabase.from("chatty_bots").update(payload).eq("id", botId).select("id, widget_style").maybeSingle();
         // A column this build knows about (e.g. color_scheme) can lag behind
         // its migration being applied - PostgREST rejects the WHOLE update
         // with a 400 in that case, silently breaking every other field too.
@@ -2567,10 +2567,19 @@ export default function Dashboard() {
             void _omit;
             const retry = await supabase.from("chatty_bots").update(retryPayload).eq("id", botId);
             error = retry.error;
-            if (!error) missingColWarning = missingCol;
+            if (!error) {
+              const verify = await supabase.from("chatty_bots").select("id, widget_style").eq("id", botId).maybeSingle();
+              updatedBot = verify.data;
+              error = verify.error;
+              if (!error) missingColWarning = missingCol;
+            }
           }
         }
         if (error) throw error;
+        if (!updatedBot?.id) throw new Error("Save returned no updated bot row; check owner permissions and RLS policies.");
+        if (updatedBot.widget_style !== payload.widget_style) {
+          throw new Error("Saved bot style did not match the requested preset.");
+        }
       }
       // A newer preset/settings change may have happened while this request
       // was in flight. Re-run the save with the newest state so an older
