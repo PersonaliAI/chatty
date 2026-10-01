@@ -104,8 +104,17 @@
     justify-content: flex-start;
     overflow-x: auto;
     overscroll-behavior-x: contain;
-    scrollbar-width: thin;
+    /* Controls stay on one line and remain swipe-scrollable without a
+       second, legacy-looking scrollbar competing with the page scrollbar. */
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
     padding-bottom: 6px;
+  }
+
+  [data-dashboard] .dashboard-action-bar::-webkit-scrollbar,
+  [data-dashboard] .dashboard-button-row::-webkit-scrollbar,
+  [data-dashboard] [data-campaign-tabs]::-webkit-scrollbar {
+    display: none;
   }
 
   [data-dashboard] .dashboard-action-bar > * {
@@ -123,8 +132,25 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     overscroll-behavior-x: contain;
-    scrollbar-width: thin;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
     padding-bottom: 4px;
+  }
+
+  /* Campaign navigation is deliberately a single horizontal strip on
+     phones; the sync/action controls must not wrap underneath it. */
+  [data-dashboard] [data-campaign-tabs] {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  [data-dashboard] [data-campaign-tabs] > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   [data-dashboard] .dashboard-button-row > * {

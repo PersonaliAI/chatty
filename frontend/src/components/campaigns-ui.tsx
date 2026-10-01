@@ -794,7 +794,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
       {/* ── Segmented Navigation Tabs ── */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 dark:border-neutral-800 pb-2">
-        <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div data-campaign-tabs className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="inline-flex min-w-max items-center gap-1.5 p-1 bg-slate-100 dark:bg-neutral-850 rounded-xl border border-slate-200/80 dark:border-neutral-800">
           {[
             { id: "list", label: "All Campaigns", count: rules.length },
