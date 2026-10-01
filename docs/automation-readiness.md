@@ -48,7 +48,7 @@ and fail-closed security paths.
 - Verify version concurrency, atomic publication, draft isolation and rollback.
 - Verify templates, import/export and AI generation/optimization round trips.
 
-Current evidence: backend Flow contract/runtime/router tests pass (35 focused
+Current evidence: backend Flow contract/runtime/router tests pass (62 focused
 tests in the latest local run), including immutable run-snapshot replay,
 typed webhook mapping coercion and fail-closed type errors. Live widget
 webhook tests cover published URLs, mapping and transient retries. These do
@@ -65,9 +65,11 @@ not yet prove full live/simulator parity or atomic version publication.
 Current evidence: deterministic landing browser checks pass in CI and a local
 Playwright run independently passed all three deterministic checks (3/3); the
 production launcher/embed smoke suite is green. Authenticated golden-path
-coverage is now enabled by repository owner credentials and is being evaluated
-by production run `36914275228`; full editor accessibility acceptance remains
-unverified until that run and the accessibility checks complete.
+coverage is now enabled by repository owner credentials and the latest
+production smoke run `36927088166` completed with 8 passed and 1 explicitly
+skipped owner-persistence test because the shared account had no editable bot.
+Full editor accessibility acceptance remains unverified until a dedicated owner
+fixture is provisioned and the authenticated editor checks complete.
 
 ## 3. Campaign orchestration
 
