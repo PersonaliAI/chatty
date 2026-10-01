@@ -92,6 +92,9 @@ test.describe("owner golden path", () => {
 
   test("picking a design in the Customizer saves and reflects on the live widget", async ({ page }) => {
     test.setTimeout(60_000);
+    // The production account is shared by smoke runs. Do not inherit a stale
+    // active-bot selection from a prior role/permission test run.
+    await page.addInitScript(() => window.localStorage.clear());
     await page.goto("/login");
     await page.getByLabel("Email address").fill(ownerEmail!);
     await page.getByRole("textbox", { name: "Password" }).fill(ownerPassword!);
