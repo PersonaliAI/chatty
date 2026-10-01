@@ -1644,7 +1644,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
         </div>
 
         {/* Center: n8n Segmented Tab Switcher */}
-        <div className="hidden md:flex items-center p-1 bg-slate-100 dark:bg-neutral-850 rounded-xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs shrink-0">
+        <div role="tablist" aria-label="Flow workspace views" className="hidden md:flex items-center p-1 bg-slate-100 dark:bg-neutral-850 rounded-xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs shrink-0">
           {[
             { id: "editor", label: "Editor", icon: <Sliders className="size-3.5" /> },
             { id: "executions", label: "Executions", icon: <Zap className="size-3.5" />, badge: runHistory.length },
@@ -1656,6 +1656,8 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => {
                   setActiveTab(tab.id as ActiveEditorTab);
                   if (tab.id === "executions") loadRuns();
@@ -1830,7 +1832,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
       </header>
 
       {/* ── Mobile View Switcher ── */}
-      <div className="flex md:hidden items-center border-b border-slate-200 dark:border-neutral-800 p-2 bg-slate-50 dark:bg-neutral-900 gap-1">
+      <div role="tablist" aria-label="Flow workspace views" className="flex md:hidden items-center border-b border-slate-200 dark:border-neutral-800 p-2 bg-slate-50 dark:bg-neutral-900 gap-1">
         {[
           { id: "editor", label: "Editor", icon: <Sliders className="size-3" /> },
           { id: "executions", label: "Runs", icon: <Zap className="size-3" /> },
@@ -1840,6 +1842,8 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
           <button
             key={tab.id}
             type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id as ActiveEditorTab)}
             className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 ${
               activeTab === tab.id

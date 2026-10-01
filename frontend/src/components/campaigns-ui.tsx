@@ -794,7 +794,12 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
       {/* ── Segmented Navigation Tabs ── */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 dark:border-neutral-800 pb-2">
-        <div data-campaign-tabs className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          data-campaign-tabs
+          role="tablist"
+          aria-label="Campaign workspace views"
+          className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <div className="inline-flex min-w-max items-center gap-1.5 p-1 bg-slate-100 dark:bg-neutral-850 rounded-xl border border-slate-200/80 dark:border-neutral-800">
           {[
             { id: "list", label: "All Campaigns", count: rules.length },
@@ -806,6 +811,10 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
               <button
                 key={tab.id}
                 type="button"
+                id={`campaign-tab-${tab.id}`}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`campaign-panel-${tab.id}`}
                 onClick={() => setActiveTab(tab.id as ActiveCampaignTab)}
                 className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   isActive
@@ -831,6 +840,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             onClick={loadCampaigns}
             disabled={loading}
             aria-busy={loading}
+            aria-label={loading ? "Syncing campaigns" : "Sync campaigns"}
             className="self-start sm:self-auto shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:bg-slate-50 cursor-pointer shadow-2xs whitespace-nowrap disabled:cursor-wait disabled:opacity-60"
           >
             <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -841,7 +851,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
       {/* ── TAB 1: ALL CAMPAIGNS LIST ── */}
       {activeTab === "list" && (
-        <div className="space-y-4">
+        <div id="campaign-panel-list" role="tabpanel" aria-labelledby="campaign-tab-list" className="space-y-4">
           {/* Filters & Search Toolbar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200 dark:border-neutral-800 shadow-2xs">
             <div className="relative flex-1 max-w-md">
@@ -1095,7 +1105,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
       {/* ── TAB 2: CAMPAIGN BUILDER ── */}
       {activeTab === "builder" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div id="campaign-panel-builder" role="tabpanel" aria-labelledby="campaign-tab-builder" className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Builder Form Card */}
           <div className="lg:col-span-8 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xs space-y-6">
             <div>
@@ -1520,7 +1530,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
       {/* ── TAB 3: AI COPILOT & PLAYBOOKS ── */}
       {activeTab === "copilot" && (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div id="campaign-panel-copilot" role="tabpanel" aria-labelledby="campaign-tab-copilot" className="max-w-4xl mx-auto space-y-6">
           <div className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xs space-y-4">
             <div className="flex items-center gap-2">
               <div className="size-8 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center">
