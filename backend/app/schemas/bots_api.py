@@ -294,15 +294,23 @@ def _normalize_audience_rules(value: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"audience {key} contains invalid or duplicate values")
         return values
     locale = str(rules.get("locale", "")).strip()[:32]
-    return {
+    normalized = {
         "segment": segment,
         "min_intent_score": score,
         "returning_only": bool(rules.get("returning_only", segment == "returning")),
         "recipient_source": recipient_source,
-        "tags_any": normalize_list("tags_any"),
-        "tags_all": normalize_list("tags_all"),
-        "locale": locale,
     }
+    # Preserve the compact legacy representation when no advanced predicates
+    # were requested; this keeps existing API clients and stored drafts stable.
+    tags_any = normalize_list("tags_any")
+    tags_all = normalize_list("tags_all")
+    if tags_any or "tags_any" in rules:
+        normalized["tags_any"] = tags_any
+    if tags_all or "tags_all" in rules:
+        normalized["tags_all"] = tags_all
+    if locale or "locale" in rules:
+        normalized["locale"] = locale
+    return normalized
 
 
 class CampaignCreateRequest(BaseModel):
