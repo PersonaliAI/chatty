@@ -889,9 +889,12 @@ export default function Dashboard() {
     // loading state bounded; the individual loaders already handle their
     // own errors and can continue updating the dashboard after first paint.
     const sessionBootstrapDeadline = window.setTimeout(() => {
-      console.warn("Console session bootstrap exceeded 5 seconds; rendering dashboard with partial data");
+      // Supabase cold starts and browser extension throttling can exceed five
+      // seconds. Keep the dashboard usable, but avoid treating this expected
+      // partial-data fallback as an application error in production consoles.
+      console.info("Console session bootstrap is still loading; rendering dashboard with partial data");
       setLoadingSession(false);
-    }, 5_000);
+    }, 10_000);
 
     async function checkSession() {
       try {
