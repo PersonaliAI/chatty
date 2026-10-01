@@ -1,5 +1,32 @@
 /* Dashboard-only phone refinements. Desktop utilities remain authoritative. */
 @media (width < 640px) {
+  [data-dashboard] [data-inbox-ticket-header] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-dashboard] [data-inbox-ticket-actions] {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    padding-bottom: 6px;
+  }
+
+  [data-dashboard] [data-inbox-ticket-actions] > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  /* The mobile tags menu is portaled outside the scrolling action row. */
+  [data-inbox-ticket-tags] {
+    position: fixed;
+    inset: auto 16px 16px;
+    width: auto;
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    z-index: 9999;
+  }
+
   [data-dashboard] [data-inbox-routing] {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

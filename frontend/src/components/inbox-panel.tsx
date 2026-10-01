@@ -357,6 +357,18 @@ function getSlaState(s: Session): SlaState | null {
   return null;
 }
 
+function MobilePopoverPortal({ children }: { children: React.ReactNode }) {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(width < 640px)");
+    const update = () => setMobile(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return mobile ? createPortal(children, document.body) : children;
+}
+
 interface FilterOption<T extends string> {
   value: T;
   label: string;
@@ -558,6 +570,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const priorityPopoverRef = useRef<HTMLDivElement>(null);
   const assigneePopoverRef = useRef<HTMLDivElement>(null);
   const tagPopoverRef = useRef<HTMLDivElement>(null);
+  const tagPopupRef = useRef<HTMLDivElement>(null);
   const presenceMenuRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
@@ -573,7 +586,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       if (assigneePopoverOpen && assigneePopoverRef.current && !assigneePopoverRef.current.contains(target)) {
         setAssigneePopoverOpen(false);
       }
-      if (tagPopoverOpen && tagPopoverRef.current && !tagPopoverRef.current.contains(target)) {
+      if (tagPopoverOpen && tagPopoverRef.current && !tagPopoverRef.current.contains(target) && !tagPopupRef.current?.contains(target)) {
         setTagPopoverOpen(false);
       }
       if (presenceMenuOpen && presenceMenuRef.current && !presenceMenuRef.current.contains(target)) {
@@ -1896,7 +1909,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         ) : (
           <>
             {/* Ticket Header Bar */}
-            <div className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
+            <div data-inbox-ticket-header className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-40 flex items-center gap-1.5">
                   {current?.visitor_name || `Visitor ${selected.slice(-5)}`}
@@ -2070,7 +2083,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               </div>
 
               {/* Right Controls: Quick Resolve, Tags, ViewMode, AI */}
-              <div className="flex items-center gap-1.5">
+              <div data-inbox-ticket-actions className="flex items-center gap-1.5">
                 {/* 1-Click Resolve / Reopen Action */}
                 {(current?.status === "resolved" || current?.status === "closed") ? (
                   <button
@@ -2116,7 +2129,8 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     🏷️ Tags
                   </button>
                   {tagPopoverOpen && (
-                    <div className="absolute top-8 right-0 z-50 w-44 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-2 space-y-1">
+                    <MobilePopoverPortal>
+                    <div ref={tagPopupRef} data-inbox-ticket-tags className="absolute top-8 right-0 z-50 w-44 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-2 space-y-1">
                       <div className="flex justify-between items-center px-1 pb-1 border-b border-neutral-100 dark:border-neutral-800">
                         <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Ticket Tags</span>
                         <button onClick={() => setTagPopoverOpen(false)} className="text-[10px] text-neutral-400 hover:text-neutral-600">&times;</button>
@@ -2137,6 +2151,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                         })}
                       </div>
                     </div>
+                    </MobilePopoverPortal>
                   )}
                 </div>
 
