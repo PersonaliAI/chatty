@@ -109,6 +109,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
   const [quietHoursStart, setQuietHoursStart] = useState("22:00");
   const [quietHoursEnd, setQuietHoursEnd] = useState("08:00");
+  const [frequencyCapHours, setFrequencyCapHours] = useState(24);
   const [sequenceSteps, setSequenceSteps] = useState<CampaignSequenceStep[]>([]);
 
   // State: AI Copilot
@@ -371,6 +372,10 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       setError("Quiet hours must use the HH:MM format.");
       return;
     }
+    if (!Number.isInteger(frequencyCapHours) || frequencyCapHours < 1 || frequencyCapHours > 720) {
+      setError("Frequency cap must be between 1 and 720 hours.");
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -426,7 +431,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
       channels,
       sequence_steps: cleanSteps,
       safety_config: {
-        frequency_cap_hours: 24,
+        frequency_cap_hours: frequencyCapHours,
         require_consent: true,
         ...(quietHoursEnabled ? { quiet_hours: { start: quietHoursStart, end: quietHoursEnd } } : {}),
       },
@@ -1234,6 +1239,27 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                   min={startDate}
                   placeholder="Open-ended (no expiry)"
                 />
+              </div>
+
+              <div className="flex items-center justify-between gap-4 p-3.5 bg-slate-50 dark:bg-neutral-950 rounded-xl border border-slate-200 dark:border-neutral-800">
+                <div>
+                  <label htmlFor="campaign-frequency-cap" className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                    Visitor frequency cap
+                  </label>
+                  <p className="text-[10px] text-neutral-400">Suppress repeat sends for this many hours.</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <input
+                    id="campaign-frequency-cap"
+                    type="number"
+                    min={1}
+                    max={720}
+                    value={frequencyCapHours}
+                    onChange={(e) => setFrequencyCapHours(Number(e.target.value))}
+                    className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                  />
+                  <span className="text-[10px] text-neutral-500">hours</span>
+                </div>
               </div>
 
               {/* Quiet Hours Switch & TimePicker */}
