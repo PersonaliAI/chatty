@@ -78,3 +78,42 @@ the provider is called; production acceptance is still pending.
 Do not run load tests or provider-send acceptance against real customer contacts.
 Use isolated test tenants, explicit disposable recipients and bounded workloads.
 Source synchronization, a Git push and green build checks are not deployment proof.
+
+### Reproducible deployment and rollback runbook
+
+1. Record the exact release SHA and migration set before rollout:
+
+   ```bash
+   git fetch origin main --tags
+   git rev-parse origin/main
+   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
+   ```
+
+2. Build and tag immutable artifacts from that SHA. Never deploy a mutable
+   branch checkout or an unpinned `latest` image:
+
+   ```bash
+   export RELEASE_SHA="$(git rev-parse origin/main)"
+   docker build --file backend/Dockerfile --tag "chatty-api:${RELEASE_SHA}" .
+   docker build --file frontend/Dockerfile --tag "chatty-frontend:${RELEASE_SHA}" .
+   ```
+
+3. Apply migrations using the managed database connection for the target
+   environment, then deploy the API, worker, and frontend with secrets bound
+   by the hosting provider. Keep the previous image/tag available until the
+   smoke and authenticated acceptance checks pass.
+
+4. Verify health/readiness and critical automation paths before serving
+   traffic: API health, dashboard login, flow dry-run/history/replay, campaign
+   pause suppression, and widget message round-trip. Record URLs, SHA, test
+   run IDs, and timestamps in the release ticket.
+
+5. Roll back by selecting the previous immutable SHA/image, not by reverting
+   live database state. If a migration is backward-incompatible, stop traffic,
+   use the migration's documented down/forward repair procedure, and restore
+   the prior application image only after schema compatibility is confirmed.
+   Re-run the same health and smoke checks and retain the failed-release logs.
+
+These commands are a provider-neutral checklist; the provider-specific secret,
+image, and rollout commands must be captured in the deployment environment's
+runbook without committing credentials to the public repository.
