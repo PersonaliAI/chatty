@@ -89,7 +89,7 @@
    network-dependent build-time font fetch. */
 .chatty-landing {
   --font-heading: var(--font-playfair), Georgia, serif;
-  --font-body: var(--font-sans), system-ui, sans-serif;
+  --font-body: var(--font-dm-sans), var(--font-sans), system-ui, sans-serif;
 }
 
 .dark {
