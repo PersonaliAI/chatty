@@ -1258,6 +1258,27 @@ export default function Dashboard() {
         bots = result.data as Bot[];
       }
 
+      // Supabase RLS can return a team bot that the API principal no longer
+      // has access to (for example after a role change). Validate each bot
+      // through the canonical team-permission endpoint before using it as the
+      // active dashboard context, so stale selections cannot expose broken
+      // edit controls or route writes to a guaranteed 403.
+      if (!SELF_HOST_MODE && bots?.length) {
+        const candidates = bots;
+        const permissionChecks = await Promise.all(
+          candidates.map(async (candidate) => {
+            try {
+              const response = await fetchWithFallback(`/api/team/me?bot_id=${encodeURIComponent(candidate.id)}`);
+              return response.ok;
+            } catch {
+              return false;
+            }
+          })
+        );
+        if (permissionChecks.some(Boolean)) {
+          bots = candidates.filter((_, index) => permissionChecks[index]);
+        }
+      }
       setUserBots(bots || []);
       // chatty_bots.updated_at has no update trigger - it only ever reflects
       // creation time - so ordering by it and taking [0] really means "most
