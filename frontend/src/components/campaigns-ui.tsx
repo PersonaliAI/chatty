@@ -102,6 +102,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   const [audience, setAudience] = useState("all");
   const [minIntentScore, setMinIntentScore] = useState(0);
   const [returningOnly, setReturningOnly] = useState(false);
+  const [audienceTagsAny, setAudienceTagsAny] = useState("");
+  const [audienceTagsAll, setAudienceTagsAll] = useState("");
+  const [audienceLocale, setAudienceLocale] = useState("");
   const [channels, setChannels] = useState<string[]>(["web"]);
   const [cadence, setCadence] = useState("once");
   const [startDate, setStartDate] = useState("");
@@ -426,6 +429,9 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         segment: audience,
         min_intent_score: minIntentScore,
         returning_only: returningOnly,
+        tags_any: audienceTagsAny.split(",").map((tag) => tag.trim()).filter(Boolean),
+        tags_all: audienceTagsAll.split(",").map((tag) => tag.trim()).filter(Boolean),
+        locale: audienceLocale.trim(),
         recipient_source: channels.some((c) => c !== "web") || cleanSteps.some((s) => s.channel !== "web") ? "consented_leads" : "widget",
       },
       channels,
@@ -1221,6 +1227,22 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label htmlFor="campaign-tags-any" className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Match any tags</label>
+                  <input id="campaign-tags-any" value={audienceTagsAny} onChange={(e) => setAudienceTagsAny(e.target.value)} placeholder="vip, trial" className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-900" />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="campaign-tags-all" className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Require all tags</label>
+                  <input id="campaign-tags-all" value={audienceTagsAll} onChange={(e) => setAudienceTagsAll(e.target.value)} placeholder="customer, opted-in" className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-900" />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="campaign-audience-locale" className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Locale (optional)</label>
+                  <input id="campaign-audience-locale" value={audienceLocale} onChange={(e) => setAudienceLocale(e.target.value)} placeholder="en-US" maxLength={32} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-900" />
+                </div>
+              </div>
+              <p className="text-[10px] text-neutral-400">Tag and locale filters apply to consented lead delivery and fail closed when a lead lacks the required signal.</p>
             </div>
 
             {/* Section 4: Modern Date Time Windows & Quiet Hours */}
