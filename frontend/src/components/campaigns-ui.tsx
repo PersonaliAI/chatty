@@ -63,6 +63,7 @@ interface TriggerRule {
   startDate?: string | null;
   endDate?: string | null;
   quietHours?: { start: string; end: string } | null;
+  frequencyCapHours?: number;
 }
 
 interface Props {
@@ -188,6 +189,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
             end: String((row.safety_config as { quiet_hours: { end: string } }).quiet_hours.end),
           }
         : null,
+    frequencyCapHours: Number((row.safety_config as { frequency_cap_hours?: number } | undefined)?.frequency_cap_hours ?? 24),
   });
 
   // Fetch campaigns
@@ -519,6 +521,11 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
     setAudienceLocale(String(rules.locale || ""));
     setChannels(rule.channels || ["web"]);
     setSequenceSteps((rule.sequenceSteps || []) as CampaignSequenceStep[]);
+    setCadence(rule.scheduleCadence || "once");
+    setFrequencyCapHours(rule.frequencyCapHours || 24);
+    setQuietHoursEnabled(Boolean(rule.quietHours));
+    setQuietHoursStart(rule.quietHours?.start || "22:00");
+    setQuietHoursEnd(rule.quietHours?.end || "08:00");
     setStartDate(rule.startDate || "");
     setEndDate(rule.endDate || "");
     setActiveTab("builder");
