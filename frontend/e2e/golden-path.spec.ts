@@ -128,12 +128,11 @@ test.describe("owner golden path", () => {
     const optionIds = await botOptions.evaluateAll((elements) => elements
       .map((element) => element.getAttribute("data-bot-id"))
       .filter((id): id is string => Boolean(id)));
-    const editableId = (await canonicalOption.count() && await canEditBot(BOT_ID))
+    const canonicalEditable = await canonicalOption.count() ? await canEditBot(BOT_ID) : false;
+    const editableCandidates = await Promise.all(optionIds.map(async (id) => ({ id, editable: await canEditBot(id) })));
+    const editableId = canonicalEditable
       ? BOT_ID
-      : (await (async () => {
-          for (const id of optionIds) if (await canEditBot(id)) return id;
-          return null;
-        })());
+      : editableCandidates.find((candidate) => candidate.editable)?.id || null;
     expect(editableId, "owner golden path requires an editable bot with design/settings permission").toBeTruthy();
     const editableOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${editableId}"]`);
     const canonicalName = editableId ? (await editableOption.textContent())?.trim() : null;
