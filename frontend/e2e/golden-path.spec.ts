@@ -93,7 +93,14 @@ test.describe("owner golden path", () => {
   test("picking a design in the Customizer saves and reflects on the live widget", async ({ page }) => {
     test.setTimeout(60_000);
     const customizerSaves: Array<{ status: number; botId: string; widgetStyle?: string }> = [];
+    const botEditability = new Map<string, boolean>();
     page.on("response", async (response) => {
+      const permissionMatch = response.url().match(/\/api\/team\/me\?bot_id=([^&]+)/);
+      if (permissionMatch) {
+        const body = await response.json().catch(() => ({}));
+        botEditability.set(decodeURIComponent(permissionMatch[1]), response.ok() &&
+          (body.role === "owner" || body.permissions?.includes("design") || body.permissions?.includes("settings")));
+      }
       if (response.request().method() !== "PATCH" || !/\/api\/bots\/[^/]+$/.test(response.url())) return;
       const body = await response.json().catch(() => null) as { id?: string; widget_style?: string } | null;
       customizerSaves.push({
@@ -119,20 +126,10 @@ test.describe("owner golden path", () => {
     await botSelector.click();
     const botOptions = page.locator('[data-chatbot-option="true"]');
     const canonicalOption = page.locator(`[data-chatbot-option="true"][data-bot-id="${BOT_ID}"]`);
-    const accessToken = await page.evaluate(() => {
-      const entry = Object.entries(window.localStorage).find(([key]) => key.endsWith("-auth-token"));
-      if (!entry) return null;
-      try { return (JSON.parse(entry[1]) as { access_token?: string }).access_token || null; } catch { return null; }
-    });
-    expect(accessToken, "owner golden path requires a hydrated dashboard session").toBeTruthy();
-    const canEditBot = async (id: string) => page.evaluate(async ({ botId, token }) => {
-      const response = await fetch(`https://api.chatty.personaliai.com/api/team/me?bot_id=${encodeURIComponent(botId)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return false;
-      const body = await response.json().catch(() => ({}));
-      return body.role === "owner" || body.permissions?.includes("design") || body.permissions?.includes("settings");
-    }, { botId: id, token: accessToken });
+    const canEditBot = async (id: string) => {
+      await expect.poll(() => botEditability.has(id), { timeout: 15_000 }).toBeTruthy();
+      return botEditability.get(id) === true;
+    };
     const optionIds = await botOptions.evaluateAll((elements) => elements
       .map((element) => element.getAttribute("data-bot-id"))
       .filter((id): id is string => Boolean(id)));
