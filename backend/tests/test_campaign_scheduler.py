@@ -70,6 +70,7 @@ def test_scheduler_enqueues_only_due_jobs_and_claims_once():
     assert first["enqueued"] == 1
     assert second["enqueued"] == 0
     assert len(queue.jobs) == 1
+    assert queue.jobs[0]["payload"]["enforce_campaign_state"] is True
 
 
 def test_scheduler_bounds_campaign_batch():
