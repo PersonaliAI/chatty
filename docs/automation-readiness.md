@@ -10,10 +10,11 @@ typecheck, lint, browser checks, and production build), CodeQL `36913345786`,
 secret scan `36913345752`, code quality `36913345357`, and managed Supabase
 compose smoke `36913345864`. The dependency security patch is also covered by
 the backend audit and local `npm audit --omit=dev` (0 vulnerabilities).
-Production E2E run `36758263161` remains the last recorded run
-(5 passed, 3 authenticated owner tests skipped). The owner tests are gated by
-`E2E_OWNER_EMAIL` and `E2E_OWNER_PASSWORD`; no such Actions secrets are
-currently configured, so authenticated editor acceptance is not proven.
+Production E2E run `36758263161` remains the last completed recorded run
+(5 passed, 3 authenticated owner tests skipped). The repository now has
+`E2E_OWNER_EMAIL` and `E2E_OWNER_PASSWORD` configured, and a new manually
+triggered production run `36914275228` is in progress against `main`; its
+result must be recorded before authenticated editor acceptance is claimed.
 
 ## 1. Workflow correctness
 
@@ -42,9 +43,10 @@ not yet prove full live/simulator parity or atomic version publication.
 
 Current evidence: deterministic landing browser checks pass in CI and a local
 Playwright run independently passed all three deterministic checks (3/3); the
-production launcher/embed smoke suite is green. Authenticated golden-path tests
-remain skipped without owner credentials and currently cover only basic
-automation surface controls. Full editor accessibility acceptance is unverified.
+production launcher/embed smoke suite is green. Authenticated golden-path
+coverage is now enabled by repository owner credentials and is being evaluated
+by production run `36914275228`; full editor accessibility acceptance remains
+unverified until that run and the accessibility checks complete.
 
 ## 3. Campaign orchestration
 
