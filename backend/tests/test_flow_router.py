@@ -186,6 +186,61 @@ def test_flow_version_race_returns_conflict(monkeypatch):
     assert "concurrently" in error.value.detail
 
 
+def test_published_flow_uses_atomic_publish_rpc(monkeypatch):
+    class Rpc:
+        def __init__(self):
+            self.params = None
+
+        def execute(self):
+            return SimpleNamespace(data=[{"id": "version-1", "status": "published"}])
+
+    rpc = Rpc()
+
+    class Table:
+        def __init__(self):
+            self.result = [SimpleNamespace(data=[]), SimpleNamespace(data={"custom_js": "existing"})]
+
+        def select(self, *_args):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def order(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        def maybe_single(self):
+            return self
+
+        def execute(self):
+            return self.result.pop(0)
+
+    table = Table()
+
+    async def database(operation):
+        return operation()
+    client = SimpleNamespace(
+        table=lambda _name: table,
+        rpc=lambda name, params: (setattr(rpc, "params", (name, params)) or rpc),
+    )
+    monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
+    monkeypatch.setattr(bots, "run_db", database)
+    monkeypatch.setattr(bots, "supabase", client)
+    body = bots.FlowVersionCreateRequest(
+        status="published",
+        nodes=[{"id": "start", "type": "start", "data": {}}],
+        edges=[],
+    )
+    result = asyncio.run(bots.create_dashboard_flow_version("bot-1", body, USER))
+    assert result["status"] == "published"
+    assert rpc.params[0] == "publish_chatty_flow_version"
+    assert rpc.params[1]["p_bot_id"] == "bot-1"
+    assert rpc.params[1]["p_flow_data"]["status"] == "active"
+
+
 def test_simulation_persists_redacted_context_without_mutating_request(monkeypatch):
     from app.routers.bots import FlowSimulationRequest
 

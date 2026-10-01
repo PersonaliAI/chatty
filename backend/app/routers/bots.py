@@ -158,12 +158,35 @@ async def create_dashboard_flow_version(
     latest = await run_db(lambda: supabase.table("chatty_flow_versions").select("version").eq(
         "bot_id", bot_id).order("version", desc=True).limit(1).execute())
     version = int((latest.data or [{}])[0].get("version") or 0) + 1
+    flow_data = {"status": "active" if body.status == "published" else "paused", "nodes": body.nodes, "edges": body.edges}
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("custom_js").eq("id", bot_id).maybe_single().execute())
+    if body.status == "published" and callable(getattr(supabase, "rpc", None)):
+        # Keep deployment, prior-version demotion, and audit insertion in one
+        # database transaction. The fallback below remains for lightweight
+        # local/test clients that do not expose RPC support.
+        custom_js = _inject_flow_version((bot.data or {}).get("custom_js"), flow_data)
+        try:
+            created = await run_db(lambda: supabase.rpc("publish_chatty_flow_version", {
+                "p_bot_id": bot_id,
+                "p_version": version,
+                "p_flow_data": flow_data,
+                "p_note": body.note,
+                "p_created_by": user["auth_user_id"],
+                "p_custom_js": custom_js,
+            }).execute())
+        except Exception as exc:
+            if _flow_version_conflict(exc):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Another workflow version was published concurrently. Reload the editor and retry.",
+                ) from exc
+            raise
+        if not created.data:
+            raise HTTPException(status_code=500, detail="Failed to publish flow version")
+        return created.data[0]
     if body.status == "published":
         await run_db(lambda: supabase.table("chatty_flow_versions").update({"status": "draft"}).eq(
             "bot_id", bot_id).eq("status", "published").execute())
-    flow_data = {"status": "active" if body.status == "published" else "paused", "nodes": body.nodes, "edges": body.edges}
-    bot = await run_db(lambda: supabase.table("chatty_bots").select("custom_js").eq("id", bot_id).maybe_single().execute())
-    if body.status == "published":
         updated = await run_db(lambda: supabase.table("chatty_bots").update({
             "custom_js": _inject_flow_version((bot.data or {}).get("custom_js"), flow_data)
         }).eq("id", bot_id).execute())
