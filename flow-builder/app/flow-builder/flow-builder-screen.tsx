@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Activity, ArrowRight, Bot, Check, ChevronDown, Clock3, Code2, Copy, Database, GitBranch, Globe2, History, LayoutGrid, Menu, MessageSquare, MoreHorizontal, Play, Plus, RotateCcw, Save, Search, Settings2, ShieldCheck, Sparkles, Terminal, Trash2, Webhook, X, Zap } from "lucide-react";
+import { Activity, ArrowRight, Bot, Check, ChevronDown, Clock3, Code2, Copy, Database, GitBranch, Globe2, History, LayoutGrid, Menu, MessageSquare, MoreHorizontal, Play, Plus, RotateCcw, Save, Search, Settings2, ShieldCheck, Sparkles, Terminal, Trash2, Upload, Webhook, X, Zap } from "lucide-react";
 import { chattyRequest } from "./lib";
 import { nodeCatalog, type NodeDefinition } from "./node-registry";
+import { importN8nWorkflow } from "./n8n-import";
 import type { FlowEdge, FlowNode } from "./types";
 
 
@@ -50,6 +51,7 @@ export default function FlowBuilderPage() {
   const [version, setVersion] = useState(0);
   const [syncState, setSyncState] = useState("Local draft");
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const selected = nodes.find((node) => node.id === selectedId) ?? null;
   const filteredCatalog = useMemo(() => nodeCatalog.filter((item) => {
     const matchesSearch = `${item.title} ${item.subtitle} ${item.provider}`.toLowerCase().includes(search.toLowerCase());
@@ -143,11 +145,29 @@ export default function FlowBuilderPage() {
     setEdges((current) => [...current, { from: selected.id, to: targetId }]); setSaved(false);
   }
 
+  async function handleN8nImport(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const imported = importN8nWorkflow(JSON.parse(await file.text()));
+      setNodes(imported.nodes);
+      setEdges(imported.edges);
+      setSelectedId(imported.nodes[0]?.id ?? "");
+      setSaved(false);
+      setSyncState("Imported n8n draft");
+    } catch (error) {
+      setTestError(error instanceof Error ? error.message : "The n8n workflow could not be imported.");
+      setRunning(true);
+    }
+  }
+
   return <main className="builder-shell">
+    <input ref={importRef} className="sr-only" type="file" accept="application/json,.json" onChange={(event) => void handleN8nImport(event)} />
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Sparkles size={17} /></div><div><strong>Chatty Flows</strong><span>Automation workspace</span></div></div>
       <div className="crumb"><span>Acme Support</span><ChevronDown size={14} /><span className="muted">/</span><strong>Lead routing v4</strong><span className="draft-pill"><span className="status-dot" /> Draft</span></div>
-      <div className="top-actions"><button className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button className="secondary" onClick={() => void runTest()}><Play size={14} /> Test</button><button className="secondary save-button" onClick={() => void saveDraft(false)}><Save size={14} /> Save draft</button><button className="primary" onClick={() => void saveDraft(true)}><Check size={14} /> Publish</button><button className="avatar">A</button></div>
+      <div className="top-actions"><button className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button className="secondary" onClick={() => importRef.current?.click()}><Upload size={14} /> Import n8n</button><button className="secondary" onClick={() => void runTest()}><Play size={14} /> Test</button><button className="secondary save-button" onClick={() => void saveDraft(false)}><Save size={14} /> Save draft</button><button className="primary" onClick={() => void saveDraft(true)}><Check size={14} /> Publish</button><button className="avatar">A</button></div>
     </header>
     <div className="workspace">
       <aside className={`palette ${mobilePanel === "palette" ? "mobile-open" : ""}`}>
