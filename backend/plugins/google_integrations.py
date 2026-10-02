@@ -93,7 +93,7 @@ DRIVE_UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3/files"
 
 def auth_url(state: str, scopes: Optional[list[str]] = None) -> str:
     params = {
-        "client_id": os.environ["GOOGLE_CLIENT_ID"],
+        "client_id": os.environ["GOOGLE_CLIENT_ID"].strip(),
         "redirect_uri": os.environ["GOOGLE_REDIRECT_URI"],
         "response_type": "code",
         "scope": " ".join(scopes or SCOPES),
@@ -111,8 +111,8 @@ async def exchange_code(code: str) -> dict[str, Any]:
             GOOGLE_TOKEN_URL,
             data={
                 "code": code,
-                "client_id": os.environ["GOOGLE_CLIENT_ID"],
-                "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+                "client_id": os.environ["GOOGLE_CLIENT_ID"].strip(),
+                "client_secret": os.environ["GOOGLE_CLIENT_SECRET"].strip(),
                 "redirect_uri": os.environ["GOOGLE_REDIRECT_URI"],
                 "grant_type": "authorization_code",
             },
@@ -127,8 +127,8 @@ async def refresh_access_token(refresh_token: str) -> dict[str, Any]:
             GOOGLE_TOKEN_URL,
             data={
                 "refresh_token": refresh_token,
-                "client_id": os.environ["GOOGLE_CLIENT_ID"],
-                "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+                "client_id": os.environ["GOOGLE_CLIENT_ID"].strip(),
+                "client_secret": os.environ["GOOGLE_CLIENT_SECRET"].strip(),
                 "grant_type": "refresh_token",
             },
         )

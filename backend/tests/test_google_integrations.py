@@ -84,6 +84,22 @@ def _set_google_env(monkeypatch):
     monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://example.com/callback")
 
 
+@pytest.mark.parametrize("operation", ["exchange", "refresh"])
+def test_oauth_credentials_trim_secret_manager_newlines(monkeypatch, operation):
+    _set_google_env(monkeypatch)
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-123\r\n")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "secret-456\r\n")
+    calls = []
+    response = _FakeResponse(200, json_data={"access_token": "token"})
+    monkeypatch.setattr(g.httpx, "AsyncClient", _fake_client_factory([response], calls))
+    if operation == "exchange":
+        asyncio.run(g.exchange_code("code"))
+    else:
+        asyncio.run(g.refresh_access_token("refresh"))
+    assert calls[0]["data"]["client_id"] == "client-123"
+    assert calls[0]["data"]["client_secret"] == "secret-456"
+
+
 # ---------------------------------------------------------------------------
 # OAuth token exchange / refresh / userinfo
 # ---------------------------------------------------------------------------
