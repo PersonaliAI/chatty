@@ -12,7 +12,6 @@ from app.schemas.bots_api import (
     BotCreateRequest,
     BotUpdateRequest,
     WidgetStylingUpdateRequest,
-    FlowUpdateRequest,
     CampaignCreateRequest,
     CampaignUpdateRequest,
     VoiceAgentConfigRequest,
@@ -25,7 +24,6 @@ from app.schemas.bots_api import (
 from app.services import (
     bots_service,
     mcp_design_service,
-    mcp_flow_service,
     mcp_campaign_service,
     mcp_voice_service,
     mcp_inbox_service,
@@ -246,44 +244,16 @@ def test_preview_html_and_embed_generator():
 
 
 # ===========================================================================
-# 3. FLOW BUILDER
+# 3. AUTOMATIONS
 # ===========================================================================
 
 
-def test_flow_update_and_simulation():
-    principal = _mock_principal()
-    flow_payload = {
-        "nodes": [
-            {"id": "start", "type": "input", "data": {"label": "🚀 Start"}},
-            {"id": "msg-1", "data": {"label": "💬 Welcome!"}},
-        ],
-        "edges": [{"id": "e1", "source": "start", "target": "msg-1"}],
-    }
-    # The real storage mechanism is a JSON blob smuggled inside
-    # chatty_bots.custom_js between CHATTY_FLOW_DATA markers (see
-    # mcp_flow_service._extract_flow_from_custom_js) - there's no
-    # dedicated flow_data/flow_active column.
-    import json as _json
-    flow_custom_js = "\n/* CHATTY_FLOW_DATA\n" + _json.dumps(
-        {"status": "active", "nodes": flow_payload["nodes"], "edges": flow_payload["edges"]}, indent=2
-    ) + "\nCHATTY_FLOW_DATA */"
-    bot_data = {"id": "bot-abc-123", "custom_js": flow_custom_js}
+def test_automation_starter_has_bot_scoped_trigger():
+    from app.services import n8n_service
 
-    with patch("app.core.oauth.require_bot_access", return_value=bot_data):
-        with patch("app.services.mcp_flow_service.supabase.table") as mock_table:
-            mock_table.return_value = _mock_query_result([bot_data])
-
-            # Update flow
-            res = asyncio.run(mcp_flow_service.update_bot_flow(
-                principal, "bot-abc-123", FlowUpdateRequest(nodes=flow_payload["nodes"], edges=flow_payload["edges"])
-            ))
-            assert res["nodes_count"] == 2
-            assert res["edges_count"] == 1
-
-            # Simulate flow (reads back the same custom_js-embedded flow via get_bot_flow)
-            sim = asyncio.run(mcp_flow_service.simulate_flow_execution(principal, "bot-abc-123", ["Hi"]))
-            assert sim["completed"] is True
-            assert sim["total_steps"] >= 1
+    template = asyncio.run(n8n_service.get_bot_starter_template("bot-abc-123", "Support"))
+    assert template["nodes"][0]["parameters"]["path"] == "chatty-bot-abc-123"
+    assert template["nodes"][0]["type"] == "n8n-nodes-base.webhook"
 
 
 # ===========================================================================
