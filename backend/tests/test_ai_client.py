@@ -3,8 +3,24 @@ plugins/memory.py's embedding model default - no network calls (see
 tests/test_integration_live.py for the real-API smoke tests)."""
 from types import SimpleNamespace
 import asyncio
+import pytest
 
 from plugins import ai_client, memory
+from app.core.config import _normalized_api_key
+
+
+def test_api_key_trims_pasted_newlines_for_sdk_environment(monkeypatch):
+    monkeypatch.setenv("TEST_PROVIDER_KEY", "fake-key\r\n")
+    assert _normalized_api_key("TEST_PROVIDER_KEY") == "fake-key"
+    import os
+    assert os.environ["TEST_PROVIDER_KEY"] == "fake-key"
+
+
+def test_api_key_rejects_embedded_control_without_exposing_value(monkeypatch):
+    monkeypatch.setenv("TEST_PROVIDER_KEY", "secret\r\ninjected")
+    with pytest.raises(RuntimeError, match="TEST_PROVIDER_KEY contains invalid control characters") as error:
+        _normalized_api_key("TEST_PROVIDER_KEY")
+    assert "secret" not in str(error.value)
 
 
 def test_resolve_gemini_model_uses_ai_studio_prefix_when_key_set(monkeypatch):

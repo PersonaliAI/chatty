@@ -106,7 +106,18 @@ for _v in os.environ.get("LEMON_VARIANT_PLANS", "").split(","):
         _k, _p = _v.strip().split(":", 1)
         LEMON_VARIANT_TO_PLAN[_k] = _p
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+def _normalized_api_key(name: str) -> str:
+    """Accept pasted trailing whitespace, reject embedded header controls."""
+    value = os.environ.get(name, "").strip()
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise RuntimeError(f"{name} contains invalid control characters")
+    if name in os.environ:
+        # Provider SDKs also read the environment directly.
+        os.environ[name] = value
+    return value
+
+
+GEMINI_API_KEY = _normalized_api_key("GEMINI_API_KEY")
 GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
 GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 
