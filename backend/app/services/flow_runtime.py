@@ -163,6 +163,7 @@ async def execute_flow_job(supabase, payload: dict[str, Any]) -> None:
                             response = await ssrf.request_async(client, str(config.get("method") or "POST").upper(), url, json=body)
                         if response.status_code < 300:
                             status = "completed"
+                            failed = None
                             break
                         status = "failed"
                         failed = f"{title} returned HTTP {response.status_code}"

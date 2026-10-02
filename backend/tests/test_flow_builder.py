@@ -1,6 +1,10 @@
+import asyncio
+from unittest.mock import AsyncMock
+
 import pytest
 from fastapi import HTTPException
 
+from app.routers import flow_builder
 from app.routers.flow_builder import _flow_trace, _validate_flow_data
 
 
@@ -31,3 +35,13 @@ def test_flow_trace_is_topological_and_rejects_cycles():
 
     with pytest.raises(HTTPException, match="cycle"):
         _flow_trace({"nodes": graph["nodes"], "edges": [{"from": "trigger", "to": "action"}, {"from": "action", "to": "trigger"}]})
+
+
+def test_handoff_cannot_cross_bot_tenant(monkeypatch):
+    permission = AsyncMock()
+    monkeypatch.setattr(flow_builder, "verify_bot_permission", permission)
+
+    with pytest.raises(HTTPException, match="bound to another bot"):
+        asyncio.run(flow_builder._authorize("bot-b", {"_flow_handoff_bot_id": "bot-a", "auth_user_id": "user-a"}))
+
+    permission.assert_not_awaited()
