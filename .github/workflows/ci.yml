@@ -60,6 +60,13 @@ jobs:
       - name: Compile check (catches syntax/indentation errors)
         run: python -m compileall -q main.py app plugins
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Check custom n8n authentication
+        run: node --test voice-agent/custom-n8n/*.test.cjs
+
       - name: Run smoke + unit tests
         run: python -m pytest tests/ -q
         env:

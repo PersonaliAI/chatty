@@ -1,0 +1,7 @@
+ARG N8N_BASE_IMAGE
+FROM ${N8N_BASE_IMAGE}
+USER root
+COPY verify-supabase-token.cjs /usr/local/lib/node_modules/n8n/dist/auth/verify-supabase-token.cjs
+COPY patch-auth.cjs /tmp/patch-auth.cjs
+RUN node /tmp/patch-auth.cjs /usr/local/lib/node_modules/n8n/dist/auth/auth.service.js && rm /tmp/patch-auth.cjs
+USER node

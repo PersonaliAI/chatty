@@ -48,7 +48,7 @@ async def get_bot_starter_template(bot_id: str, bot_name: str) -> Dict[str, Any]
     """Build a standard n8n starter workflow definition for a Chatty bot."""
     webhook_path = f"chatty-{bot_id}"
     return {
-        "name": f"Chatty Bot: {bot_name} ({bot_id[:8]})",
+        "name": f"Chatty Bot: {bot_name} ({bot_id})",
         "nodes": [
             {
                 "id": "chatty-webhook-trigger",
@@ -98,7 +98,6 @@ async def get_bot_starter_template(bot_id: str, bot_name: str) -> Dict[str, Any]
 async def get_or_create_bot_workflow(bot_id: str, bot_name: str) -> Dict[str, Any]:
     """Find existing workflow for bot or provision a starter workflow in n8n."""
     headers = get_n8n_headers()
-    target_prefix = f"Chatty Bot: {bot_name} ({bot_id[:8]})"
     
     # 1. Search existing workflows
     try:
@@ -107,7 +106,11 @@ async def get_or_create_bot_workflow(bot_id: str, bot_name: str) -> Dict[str, An
             if list_resp.status_code == 200:
                 workflows = list_resp.json().get("data", [])
                 for wf in workflows:
-                    if bot_id in wf.get("name", ""):
+                    if any(
+                        node.get("type") == "n8n-nodes-base.webhook"
+                        and node.get("parameters", {}).get("path") == f"chatty-{bot_id}"
+                        for node in wf.get("nodes", [])
+                    ):
                         wf_id = wf["id"]
                         return {
                             "workflow_id": wf_id,
@@ -157,9 +160,9 @@ async def trigger_bot_workflow(bot_id: str, action: str, payload: Dict[str, Any]
     """Forward an event from Chatty to n8n webhook."""
     webhook_url = f"{N8N_INTERNAL_URL}/webhook/chatty-{bot_id}"
     request_data = {
+        **payload,
         "bot_id": bot_id,
         "action": action,
-        **payload
     }
     
     try:

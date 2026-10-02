@@ -21,6 +21,8 @@ class N8nTriggerRequest(BaseModel):
 
 async def _verify_bot_access(bot_id: str, user: dict[str, Any]) -> dict[str, Any]:
     user_id = user.get("auth_user_id") or user.get("sub") or user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     res = await run_db(
         lambda: supabase.table("chatty_bots")
         .select("id, name, user_id")
@@ -32,8 +34,8 @@ async def _verify_bot_access(bot_id: str, user: dict[str, Any]) -> dict[str, Any
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bot not found")
     bot = res.data
     if bot.get("user_id") != user_id:
-        # Check team access if applicable, or raise 403
-        pass
+        from app.core.permissions import verify_bot_permission
+        await verify_bot_permission(bot_id, user, "webhooks")
     return bot
 
 

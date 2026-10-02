@@ -1,0 +1,6 @@
+services:
+  n8n:
+    image: ${CHATTY_N8N_IMAGE:?Set the tested custom n8n image tag}
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?Set the Supabase project URL}
+      N8N_PREVIEW_MODE: "false"
