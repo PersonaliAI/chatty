@@ -268,7 +268,7 @@ test.describe("owner golden path", () => {
     await expect(page.getByRole("button", { name: "Close sidebar" })).toBeVisible();
     await page.getByRole("button", { name: "Campaigns", exact: true }).click();
     await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
-    const campaignsHeader = page.locator("div").filter({ has: page.getByText("Proactive Campaigns", { exact: true }) }).filter({ has: page.getByRole("button", { name: "Sync campaigns" }) }).first();
+    const campaignsHeader = page.locator("[data-campaign-header]");
     await expect(campaignsHeader).toHaveClass(/overflow-x-auto/);
     await expect(page.getByRole("button", { name: "Sync campaigns" })).toBeVisible();
   });
