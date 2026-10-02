@@ -8,13 +8,9 @@ import { importN8nWorkflow } from "./n8n-import";
 import type { FlowEdge, FlowNode } from "./types";
 
 
-const initialNodes: FlowNode[] = [
-  { id: "trigger", kind: "trigger", title: "Chatty event", subtitle: "When a lead is captured", icon: "chatty", color: "#f97316", x: 90, y: 180, config: { event: "lead.created", bot: "Current bot" } },
-  { id: "condition", kind: "logic", title: "Condition", subtitle: "Lead has a business email", icon: "branch", color: "#f59e0b", x: 390, y: 180, config: { field: "lead.email", operator: "contains", value: "@" } },
-  { id: "crm", kind: "action", title: "CRM record", subtitle: "Create contact", icon: "crm", color: "#6366f1", x: 690, y: 100, config: { provider: "HubSpot", operation: "Create contact" } },
-  { id: "slack", kind: "action", title: "Slack message", subtitle: "Notify sales", icon: "slack", color: "#14b8a6", x: 690, y: 280, config: { channel: "#new-leads", message: "New lead from Chatty" } },
-];
-const initialEdges: FlowEdge[] = [{ from: "trigger", to: "condition" }, { from: "condition", to: "crm" }, { from: "condition", to: "slack" }];
+// New flows start empty. This avoids presenting sample workflows as saved data.
+const initialNodes: FlowNode[] = [];
+const initialEdges: FlowEdge[] = [];
 
 function NodeIcon({ icon, size = 17 }: { icon: string; size?: number }) {
   const props = { size, strokeWidth: 2 };
@@ -50,6 +46,7 @@ export default function FlowBuilderPage() {
   const [flowId, setFlowId] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [syncState, setSyncState] = useState("Local draft");
+  const [flowName, setFlowName] = useState("New workflow");
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const selected = nodes.find((node) => node.id === selectedId) ?? null;
@@ -69,10 +66,10 @@ export default function FlowBuilderPage() {
     if (!selectedBot) return;
     void chattyRequest(`/api/flow-builder/versions?bot_id=${encodeURIComponent(selectedBot)}`).then(async (response) => {
       if (!response.ok) return;
-      const payload = await response.json() as { versions?: Array<{ id: string; flow_id?: string; version: number; flow_data: { nodes?: FlowNode[]; edges?: FlowEdge[] }; status: string }> };
+      const payload = await response.json() as { versions?: Array<{ id: string; flow_id?: string; flow_name?: string; version: number; flow_data: { nodes?: FlowNode[]; edges?: FlowEdge[] }; status: string }> };
       const latest = payload.versions?.find((item) => !selectedFlow || item.flow_id === selectedFlow);
       if (!latest?.flow_data?.nodes?.length) return;
-      setFlowId(latest.flow_id || selectedFlow); setNodes(latest.flow_data.nodes); setEdges(latest.flow_data.edges ?? []); setVersion(latest.version); setPublished(latest.status === "published"); setSaved(true); setSyncState("Synced from Chatty");
+      setFlowId(latest.flow_id || selectedFlow); setFlowName(latest.flow_name || "New workflow"); setNodes(latest.flow_data.nodes); setEdges(latest.flow_data.edges ?? []); setVersion(latest.version); setPublished(latest.status === "published"); setSaved(true); setSyncState("Synced from Chatty");
     }).catch(() => setSyncState("Offline draft"));
   }, []);
 
@@ -101,14 +98,16 @@ export default function FlowBuilderPage() {
   async function saveDraft(publish = false) {
     if (!botId) { setSaved(true); setSyncState("Local draft"); return; }
     setSyncState("Saving…");
-    const response = publish
-      ? await chattyRequest("/api/flow-builder/publish", { method: "POST", body: JSON.stringify({ bot_id: botId, flow_id: flowId, name: "Chatty automation", version: version || 1, flow_data: { nodes, edges }, note: "Published from Chatty Flow Builder" }) })
-      : await chattyRequest("/api/flow-builder/versions", { method: "POST", body: JSON.stringify({ bot_id: botId, flow_id: flowId, name: "Chatty automation", flow_data: { nodes, edges }, note: "Saved from Chatty Flow Builder" }) });
-    if (!response.ok) { setSyncState("Save failed"); return; }
-    const result = await response.json() as { version?: number; flow_id?: string; published?: boolean };
-    if (result.flow_id) setFlowId(result.flow_id);
-    if (result.version) setVersion(typeof result.version === "number" ? result.version : version);
-    setSaved(true); setPublished(publish); setSyncState(publish ? "Published to Chatty" : "Saved to Chatty");
+    try {
+      const response = publish
+        ? await chattyRequest("/api/flow-builder/publish", { method: "POST", body: JSON.stringify({ bot_id: botId, flow_id: flowId, name: flowName, version: version || 1, flow_data: { nodes, edges }, note: "Published from Chatty Flow Builder" }) })
+        : await chattyRequest("/api/flow-builder/versions", { method: "POST", body: JSON.stringify({ bot_id: botId, flow_id: flowId, name: flowName, flow_data: { nodes, edges }, note: "Saved from Chatty Flow Builder" }) });
+      if (!response.ok) { setSyncState(`Save failed (${response.status})`); return; }
+      const result = await response.json() as { version?: number; flow_id?: string; published?: boolean };
+      if (result.flow_id) setFlowId(result.flow_id);
+      if (result.version) setVersion(typeof result.version === "number" ? result.version : version);
+      setSaved(true); setPublished(publish); setSyncState(publish ? "Published to Chatty" : "Saved to Chatty");
+    } catch { setSyncState("Save failed: network error"); }
   }
 
   async function runTest() {
@@ -166,7 +165,7 @@ export default function FlowBuilderPage() {
     <input ref={importRef} className="sr-only" type="file" accept="application/json,.json" onChange={(event) => void handleN8nImport(event)} />
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Sparkles size={17} /></div><div><strong>Chatty Flows</strong><span>Automation workspace</span></div></div>
-      <div className="crumb"><span>Acme Support</span><ChevronDown size={14} /><span className="muted">/</span><strong>Lead routing v4</strong><span className="draft-pill"><span className="status-dot" /> Draft</span></div>
+      <div className="crumb"><span>Chatty</span><ChevronDown size={14} /><span className="muted">/</span><strong>{flowName}</strong><span className="draft-pill"><span className="status-dot" /> {published ? "Published" : "Draft"}</span></div>
       <div className="top-actions"><button className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button className="secondary" onClick={() => importRef.current?.click()}><Upload size={14} /> Import n8n</button><button className="secondary" onClick={() => void runTest()}><Play size={14} /> Test</button><button className="secondary save-button" onClick={() => void saveDraft(false)}><Save size={14} /> Save draft</button><button className="primary" onClick={() => void saveDraft(true)}><Check size={14} /> Publish</button><button className="avatar">A</button></div>
     </header>
     <div className="workspace">

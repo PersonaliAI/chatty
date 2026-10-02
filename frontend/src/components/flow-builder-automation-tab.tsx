@@ -61,7 +61,7 @@ export function FlowBuilderAutomationTab({ botId, onCreate }: Props) {
     const response = await fetchBackend(createClient(), "/api/flow-builder/handoff?bot_id=" + encodeURIComponent(botId), { method: "POST" });
     const body = response.ok ? await response.json() as { handoff?: string } : {};
     const params = new URLSearchParams({ bot_id: botId });
-    if (flow?.id) params.set("flow_id", flow.id);
+    if (flow?.flow_id) params.set("flow_id", flow.flow_id);
     if (flow?.version) params.set("version", String(flow.version));
     if (body.handoff) params.set("handoff", body.handoff);
     const builderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://flows.chatty.personaliai.com";

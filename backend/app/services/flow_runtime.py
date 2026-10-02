@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import asyncio
 import json
 import logging
 import time
@@ -15,6 +16,9 @@ from app.core import ssrf
 import httpx
 
 logger = logging.getLogger("chatty.flow_runtime")
+
+_MAX_ADAPTER_ATTEMPTS = 3
+_RETRY_DELAYS_SECONDS = (0.2, 0.5)
 
 
 def _matches_event(flow_data: dict[str, Any], event: str) -> bool:
@@ -96,7 +100,12 @@ async def enqueue_flow_event(
 
 
 async def execute_flow_job(supabase, payload: dict[str, Any]) -> None:
-    """Execute safe webhook adapters and record unsupported nodes explicitly."""
+    """Execute a published graph and record every node outcome.
+
+    Action nodes use an explicitly configured HTTPS adapter endpoint. Nodes
+    without an adapter fail the run so a published workflow never reports a
+    false success.
+    """
     run_id = str(payload.get("run_id") or "")
     version_id = str(payload.get("version_id") or "")
     if not run_id or not version_id:
@@ -111,24 +120,57 @@ async def execute_flow_job(supabase, payload: dict[str, Any]) -> None:
     inputs = (run.data or {}).get("inputs") or {}
     trace = []
     failed = None
-    for node in flow_data.get("nodes", []):
+    nodes = [node for node in flow_data.get("nodes", []) if isinstance(node, dict)]
+    edges = [edge for edge in flow_data.get("edges", []) if isinstance(edge, dict)]
+    by_id = {str(node.get("id")): node for node in nodes if node.get("id")}
+    incoming = {node_id: 0 for node_id in by_id}
+    outgoing: dict[str, list[str]] = {node_id: [] for node_id in by_id}
+    for edge in edges:
+        source = str(edge.get("from") or "")
+        target = str(edge.get("to") or "")
+        if source in outgoing and target in incoming:
+            outgoing[source].append(target)
+            incoming[target] += 1
+    queue = [node_id for node_id, count in incoming.items() if count == 0]
+    ordered_ids: list[str] = []
+    while queue:
+        node_id = queue.pop(0)
+        ordered_ids.append(node_id)
+        for child in outgoing[node_id]:
+            incoming[child] -= 1
+            if incoming[child] == 0:
+                queue.append(child)
+    if len(ordered_ids) != len(by_id):
+        failed = "Flow contains a cycle"
+        ordered_ids = list(by_id)
+    for node_id in ordered_ids:
+        node = by_id[node_id]
         if not isinstance(node, dict):
             continue
-        node_id = node.get("id")
         title = node.get("title") or node_id
         status = "observed" if node.get("kind") in {"trigger", "logic", "chatty"} else "awaiting_adapter"
         config = node.get("config") if isinstance(node.get("config"), dict) else {}
-        if node.get("kind") == "action" and config.get("url"):
-            try:
-                body = {"event": inputs.get("event"), "session_id": inputs.get("session_id"), "data": inputs.get("data", {}), "flow_node_id": node_id}
-                async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
-                    response = await ssrf.request_async(client, str(config.get("method") or "POST").upper(), str(config["url"]), json=body)
-                status = "completed" if response.status_code < 300 else "failed"
-                if status == "failed":
-                    failed = f"{title} returned HTTP {response.status_code}"
-            except Exception as exc:
+        if node.get("kind") == "action":
+            url = str(config.get("url") or "").strip()
+            if not url:
                 status = "failed"
-                failed = f"{title} adapter failed: {type(exc).__name__}"
+                failed = f"{title} has no adapter endpoint configured"
+            else:
+                body = {"event": inputs.get("event"), "session_id": inputs.get("session_id"), "data": inputs.get("data", {}), "flow_node_id": node_id}
+                for attempt in range(_MAX_ADAPTER_ATTEMPTS):
+                    try:
+                        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+                            response = await ssrf.request_async(client, str(config.get("method") or "POST").upper(), url, json=body)
+                        if response.status_code < 300:
+                            status = "completed"
+                            break
+                        status = "failed"
+                        failed = f"{title} returned HTTP {response.status_code}"
+                    except Exception as exc:
+                        status = "failed"
+                        failed = f"{title} adapter failed: {type(exc).__name__}"
+                    if attempt < _MAX_ADAPTER_ATTEMPTS - 1:
+                        await asyncio.sleep(_RETRY_DELAYS_SECONDS[attempt])
         trace.append({"node_id": node_id, "title": title, "status": status})
         if failed:
             break

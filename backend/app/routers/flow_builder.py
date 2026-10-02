@@ -64,6 +64,7 @@ def _validate_flow_data(flow_data: dict[str, Any], *, require_nodes: bool = Fals
     if len(nodes) > 100 or len(edges) > 250:
         raise HTTPException(status_code=400, detail="Flow exceeds the supported graph size")
     node_ids: set[str] = set()
+    has_trigger = False
     for node in nodes:
         if not isinstance(node, dict) or not isinstance(node.get("id"), str):
             raise HTTPException(status_code=400, detail="Each node needs a unique id")
@@ -74,6 +75,14 @@ def _validate_flow_data(flow_data: dict[str, Any], *, require_nodes: bool = Fals
         kind = node.get("kind")
         if kind is not None and kind not in ALLOWED_NODE_KINDS:
             raise HTTPException(status_code=400, detail=f"Unsupported node kind: {kind}")
+        if kind == "trigger":
+            has_trigger = True
+        if require_nodes and kind == "action":
+            config = node.get("config") if isinstance(node.get("config"), dict) else {}
+            if not str(config.get("url") or "").strip():
+                raise HTTPException(status_code=400, detail=f"Action node {node.get('title') or node_id} needs an adapter endpoint before publishing")
+    if require_nodes and not has_trigger:
+        raise HTTPException(status_code=400, detail="A published flow needs at least one trigger node")
     for edge in edges:
         if not isinstance(edge, dict) or edge.get("from") not in node_ids or edge.get("to") not in node_ids:
             raise HTTPException(status_code=400, detail="Every edge must reference existing nodes")
