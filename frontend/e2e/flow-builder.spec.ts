@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const ownerPassword = process.env.E2E_OWNER_PASSWORD;
 const ownerBotId = process.env.E2E_OWNER_BOT_ID;
+const standaloneBuilderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://chatty-flow-builder--personaliai.us-central1.hosted.app";
 
 test.describe("standalone flow builder lifecycle", () => {
   test.skip(!ownerEmail || !ownerPassword || !ownerBotId, "requires E2E_OWNER_EMAIL, E2E_OWNER_PASSWORD, and E2E_OWNER_BOT_ID");
@@ -14,14 +15,19 @@ test.describe("standalone flow builder lifecycle", () => {
     await page.getByRole("textbox", { name: "Password" }).fill(ownerPassword!);
     await page.getByRole("button", { name: /log in|sign in/i }).click();
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
+    const onboardingSkip = page.getByRole("button", { name: "Skip", exact: true });
+    await onboardingSkip.click({ force: true, timeout: 10_000 }).catch(() => undefined);
+    await page.getByRole("heading", { name: "Set up your AI Assistant" }).waitFor({ state: "hidden", timeout: 10_000 }).catch(() => undefined);
 
     await page.getByRole("button", { name: "Automations", exact: true }).click();
     const automations = page.getByRole("region", { name: "Chatty automations" });
     await expect(automations).toBeVisible();
 
-    const popupPromise = page.waitForEvent("popup");
+    const handoffResponse = page.waitForResponse((response) => response.url().includes("/api/flow-builder/handoff") && response.request().method() === "POST");
     await automations.getByRole("button", { name: /new workflow/i }).click();
-    const builder = await popupPromise;
+    const handoff = await (await handoffResponse).json() as { handoff: string };
+    const builder = await page.context().newPage();
+    await builder.goto(`${standaloneBuilderUrl}/?bot_id=${encodeURIComponent(ownerBotId!)}&handoff=${encodeURIComponent(handoff.handoff)}`);
     await builder.waitForLoadState("domcontentloaded");
     await expect(builder.getByText("Chatty Flows", { exact: true })).toBeVisible();
     await expect(builder.getByText(/0\s+nodes/, { exact: false })).toBeVisible();

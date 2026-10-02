@@ -43,6 +43,7 @@ export async function fetchBackend(
   const request = (url: string, token?: string) => {
     const headers = new Headers(options.headers);
     if (token) headers.set("Authorization", `Bearer ${token}`);
+    if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
     return fetch(`${url}${path}`, { ...options, headers });
   };
 
