@@ -46,23 +46,6 @@ logger = logging.getLogger("chatty")
 router = APIRouter()
 
 
-def _flow_runs_table_missing(exc: Exception) -> bool:
-    """Detect an un-applied flow-runs migration without masking other DB errors."""
-    return isinstance(exc, PostgrestAPIError) and "PGRST205" in str(exc) and "chatty_flow_runs" in str(exc)
-
-
-def _flow_version_conflict(exc: Exception) -> bool:
-    """Detect a concurrent version-number allocation without masking DB errors."""
-    return isinstance(exc, PostgrestAPIError) and (
-        str(getattr(exc, "code", "")) == "23505" or "23505" in str(exc)
-    ) and "chatty_flow_versions" in str(exc)
-
-
-def _internal_flow_override() -> None:
-    """Keep replay-only graph injection out of the public request surface."""
-    return None
-
-
 def _campaign_row(body: CampaignCreateRequest) -> dict[str, Any]:
     """Map the dashboard/API model to the canonical campaign table columns."""
     return {
