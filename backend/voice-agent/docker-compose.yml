@@ -65,6 +65,23 @@ services:
       # the worker reach the host-networked signaling endpoint privately.
       - "host.docker.internal:host-gateway"
 
+
+  # n8n workflow automation (always-on — required for webhook triggers)
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_PORT: 5678
+      N8N_PROTOCOL: https
+      N8N_HOST: ${N8N_EXTERNAL_DOMAIN:-n8n.example.com}
+      WEBHOOK_URL: ${N8N_EXTERNAL_URL:-https://n8n.example.com}
+      N8N_SECURITY_DISABLE_FRAME_EMBED_RESTRICTION: "true"
+      GENERIC_TIMEZONE: UTC
+    volumes:
+      - n8n_data:/home/node/.n8n
+
   # Everything below is opt-in. Start it with:
   #   docker compose --profile self-hosted up -d --build
   livekit:

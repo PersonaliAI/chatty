@@ -24,7 +24,6 @@ from app.schemas.bots_api import (
     BotUpdateRequest,
     WidgetStylingUpdateRequest,
     WidgetColorSchemeInput,
-    FlowUpdateRequest,
     CampaignCreateRequest,
     CampaignUpdateRequest,
     VoiceAgentConfigRequest,
@@ -38,7 +37,6 @@ from app.schemas.bots_api import (
 from app.services import (
     bots_service,
     mcp_design_service,
-    mcp_flow_service,
     mcp_campaign_service,
     mcp_voice_service,
     mcp_inbox_service,
@@ -276,44 +274,6 @@ async def generate_embed_code(bot_id: str, framework: str = "html_script") -> di
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "read")
     return await mcp_design_service.generate_embed_code(principal, bot_id, framework)
-
-
-# ===========================================================================
-# 3. VISUAL FLOW BUILDER
-# ===========================================================================
-
-
-@mcp.tool()
-async def generate_flow_with_ai(bot_id: str, description: str) -> dict:
-    """Generate a visual conversational React Flow schema using AI."""
-    principal = await _current_principal()
-    _oauth.check_principal_scope(principal, "write")
-    return await mcp_flow_service.generate_flow_with_ai(principal, bot_id, description)
-
-
-@mcp.tool()
-async def get_bot_flow(bot_id: str) -> dict:
-    """Get the visual conversational flow nodes and edges for a bot."""
-    principal = await _current_principal()
-    _oauth.check_principal_scope(principal, "read")
-    return await mcp_flow_service.get_bot_flow(principal, bot_id)
-
-
-@mcp.tool()
-async def update_bot_flow(bot_id: str, nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]], is_active: bool = True) -> dict:
-    """Update and activate/deactivate a visual flow schema for a bot."""
-    principal = await _current_principal()
-    _oauth.check_principal_scope(principal, "write")
-    body = FlowUpdateRequest(nodes=nodes, edges=edges, is_active=is_active)
-    return await mcp_flow_service.update_bot_flow(principal, bot_id, body)
-
-
-@mcp.tool()
-async def simulate_flow_execution(bot_id: str, simulated_user_inputs: List[str]) -> dict:
-    """Simulate user interactions through the bot's visual flow."""
-    principal = await _current_principal()
-    _oauth.check_principal_scope(principal, "read")
-    return await mcp_flow_service.simulate_flow_execution(principal, bot_id, simulated_user_inputs)
 
 
 # ===========================================================================
@@ -1031,7 +991,6 @@ def prompt_build_bot_from_brand(website_url: str, bot_name: str) -> str:
         f"Please build a complete, ready-to-deploy Chatty chatbot for '{website_url}':\n"
         f"1. Create the bot named '{bot_name}' with `create_chatbot`.\n"
         f"2. Add initial brand knowledge text with `add_chatbot_knowledge`.\n"
-        f"3. Generate a multi-step visual flow using `generate_flow_with_ai`.\n"
         f"4. Verify WCAG contrast with `analyze_widget_design`.\n"
         f"5. Return the ready-to-embed WordPress and React snippets from `generate_embed_code`."
     )
