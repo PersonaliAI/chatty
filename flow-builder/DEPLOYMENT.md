@@ -13,6 +13,17 @@ The Firebase project is `personaliai`. A dedicated App Hosting backend now exist
 6. Add the same URL to `ALLOWED_ORIGINS` if the deployment uses a custom API allowlist.
 7. Apply the Chatty flow migration before opening the builder for users.
 
+Run the migrations from a trusted deployment environment that has the linked
+Supabase project and its database credentials:
+
+```bash
+supabase db push --db-url "$SUPABASE_DB_URL"
+```
+
+The migration set creates workflow identities, enable state, and idempotent
+run fields. Verify that `chatty_flows` and the new `chatty_flow_runs` fields
+exist before enabling customer access.
+
 The browser never receives the Supabase secret key. Chatty creates a one-minute, bot-bound handoff token when a user opens the builder. The builder uses that token for its first API calls, then uses the normal Supabase session when available.
 
 The builder can run locally with `pnpm dev` from this directory. Open `http://localhost:3000/?bot_id=<bot-id>` after the Chatty API is running.
