@@ -149,7 +149,9 @@ async def _ensure_flow(body: FlowDraftRequest, user: dict[str, Any]) -> str:
         raise HTTPException(status_code=404, detail="Flow not found")
     result = await run_db(lambda: supabase.table("chatty_flows").insert({
         "bot_id": body.bot_id, "name": body.name[:120], "created_by": user["auth_user_id"]
-    }).select("id").single().execute())
+    }).select("id").maybe_single().execute())
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Flow could not be created")
     return result.data["id"]
 
 
@@ -268,9 +270,11 @@ async def create_flow_draft(body: FlowDraftRequest, user: dict[str, Any] = Depen
             "created_by": user["auth_user_id"],
         })
         .select()
-        .single()
+        .maybe_single()
         .execute()
     )
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Flow draft could not be saved")
     return result.data
 
 
