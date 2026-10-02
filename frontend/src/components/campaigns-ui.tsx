@@ -31,6 +31,7 @@ import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-se
 import { ModernSwitch } from "@/components/ui/modern-switch";
 import { ModernAlert } from "@/components/ui/modern-alert";
 import { DateTimePicker, TimePicker } from "@/components/ui/date-time-picker";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { SELF_HOST_MODE } from "@/lib/deployment";
 
@@ -87,6 +88,7 @@ type DeliveryStatus = "all" | "queued" | "sent" | "failed" | "suppressed";
 type ActiveCampaignTab = "list" | "builder" | "copilot" | "audit";
 
 export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
+  const { confirm, confirmationDialog } = useConfirmDialog();
   const [activeTab, setActiveTab] = useState<ActiveCampaignTab>("list");
 
   // State: List
@@ -601,11 +603,16 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         if (botId) localStorage.setItem(`chatty_campaigns_${botId}`, JSON.stringify(next));
         return next;
       });
+    } else {
+      setError("Campaign status could not be updated. The previous state was preserved.");
     }
   };
 
   const deleteRule = async (id: string) => {
     if (!botId) return;
+    const target = rules.find((rule) => rule.id === id);
+    const label = target?.name || "this campaign";
+    if (!await confirm(`Delete “${label}”? This permanently removes its audience, schedule, and delivery history.`)) return;
     let success = false;
     try {
       const res = await fetchBackend(`/api/bots/${botId}/campaigns/${id}`, { method: "DELETE" });
@@ -629,6 +636,8 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         if (botId) localStorage.setItem(`chatty_campaigns_${botId}`, JSON.stringify(next));
         return next;
       });
+    } else {
+      setError("Campaign could not be deleted. No changes were made.");
     }
   };
 
@@ -744,6 +753,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto w-full pt-4 sm:pt-6 pb-12 px-4 sm:px-6 space-y-6">
+      {confirmationDialog}
       {/* ── Top Header & Stats Overview ── */}
       <div className="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-neutral-800 pb-5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="min-w-0">
@@ -1003,6 +1013,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       <button
                         type="button"
                         onClick={() => deleteRule(rule.id)}
+                        aria-label={`Delete campaign ${rule.name || rule.type}`}
                         className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
                         title="Delete campaign"
                       >
