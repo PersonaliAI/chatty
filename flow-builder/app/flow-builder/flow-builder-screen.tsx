@@ -180,7 +180,7 @@ export default function FlowBuilderPage() {
     <div className="workspace">
       <aside className={`palette ${mobilePanel === "palette" ? "mobile-open" : ""}`}>
         <div className="panel-head"><div><small>BUILD</small><h2>Node library</h2></div><button className="icon-btn mobile-only" onClick={() => setMobilePanel(null)}><X size={17} /></button></div>
-        <div className="search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search 1500+ actions" /></div>
+        <div className="search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search available actions" /></div>
         <div className="source-row"><button className={`source ${sourceFilter === "all" ? "active" : ""}`} onClick={() => setSourceFilter("all")}>Chatty</button><button className={`source ${sourceFilter === "native" ? "active" : ""}`} onClick={() => setSourceFilter("native")}>Native</button><button className={`source ${sourceFilter === "apps" ? "active" : ""}`} onClick={() => setSourceFilter("apps")}>Apps</button></div>
         <div className="catalog">{filteredCatalog.map((item) => <button key={item.title} className="catalog-item" onClick={() => addNode(item)}><span className="catalog-icon" style={{ color: item.color, background: `${item.color}16` }}><NodeIcon icon={item.icon} size={16} /></span><span><b>{item.title}</b><small>{item.subtitle}</small></span><Plus size={14} className="add-icon" /></button>)}</div>
         <div className="library-foot"><ShieldCheck size={15} /><span>Every action is tenant-scoped and replay-safe.</span></div>

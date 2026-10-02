@@ -27,5 +27,23 @@ Supabase access token to Chatty. Chatty checks the bot's existing `design`
 permission before reading, saving, or publishing a flow version.
 
 The API route and the database migration must be deployed before enabling the
-dashboard link. Production work still needs browser SSO, rate limits, audit
-events, workflow execution adapters, and a full mobile acceptance pass.
+dashboard link. The builder uses the Chatty Supabase session or a short-lived,
+bot-bound handoff token. Every API operation checks the user's design
+permission for the selected bot.
+
+Published flows execute from Chatty events. Action nodes call an explicitly
+configured HTTPS adapter endpoint. Chatty applies SSRF protection, three
+attempts with backoff, durable run records, idempotency keys, and failure
+traces. The node catalog provides portable Chatty, HTTP, webhook, and provider
+adapter definitions. n8n JSON import maps compatible nodes into this contract;
+it does not embed the n8n runtime or claim native execution of n8n nodes.
+
+For the authenticated acceptance test, set `E2E_OWNER_EMAIL`,
+`E2E_OWNER_PASSWORD`, and `E2E_OWNER_BOT_ID`, then run:
+
+```bash
+pnpm --dir frontend exec playwright test e2e/flow-builder.spec.ts
+```
+
+The test creates a real workflow, publishes it, pauses it, resumes it, and
+deletes it at the end of the run.
