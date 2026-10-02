@@ -14,6 +14,8 @@ report is a checkpoint, not evidence that every tenant boundary was verified.
 - n8n `/healthz`: HTTP 200.
 - Local verification: 25 backend MCP/n8n tests and 5 Node auth-overlay tests passed.
 - Backend n8n routes now require bot ownership or explicit webhook permission.
+- Cloud Run `chatty-api-00150-p6p` serves the backend fix at 100% traffic;
+  another account's bot status request returned HTTP 403 and `/ready` is ready.
 - Starter lookup uses its exact bot webhook path rather than its editable name;
   trigger payloads cannot replace the server-selected bot ID or action.
 
@@ -41,7 +43,10 @@ n8n instance on that VPS.
 5. Add member-focused canvas navigation and mobile end-to-end verification.
 6. Build the complete fork reproducibly in CI, publish immutable image tags,
    and test restore/rollback, external task runners, and execution limits.
+7. Remove the remaining legacy `/api/widget/flow/webhook` call from the embed
+   client and explicitly migrate or retire existing saved widget flows.
 
-Local `.env.local` still used a disabled legacy Supabase public key during the
+Local `.env.local` used a disabled legacy Supabase public key during the
 first smoke attempt. The successful check used the current publishable key
-from `frontend/apphosting.yaml`; no Supabase settings were weakened.
+from `frontend/apphosting.yaml`; the ignored local configuration is now aligned
+with it. No Supabase settings were weakened.

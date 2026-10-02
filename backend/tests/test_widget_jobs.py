@@ -1,7 +1,4 @@
 import asyncio
-import json
-from contextlib import asynccontextmanager
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -9,7 +6,6 @@ from fastapi import HTTPException
 
 import main  # noqa: F401
 from app.routers import widget
-from app.schemas.widget import WidgetFlowWebhookRequest
 from app.workers.widget_jobs import process_ticket_escalation, process_unanswered
 
 
@@ -129,164 +125,7 @@ def test_widget_webhook_worker_fans_out_event():
     assert fanout.await_args.kwargs["event"] == "message.user"
 
 
-class _WidgetRequest:
-    headers = {"x-widget-token": "test-token"}
-    client = SimpleNamespace(host="203.0.113.10")
-
-
-def _published_webhook_flow(config: dict) -> str:
-    return "/* CHATTY_FLOW_DATA\n" + json.dumps({
-        "status": "active",
-        "nodes": [{"id": "hook-1", "type": "webhook", "data": {"config": config}}],
-        "edges": [],
-    }) + "\nCHATTY_FLOW_DATA */"
-
-
-def test_widget_flow_webhook_never_accepts_a_browser_supplied_url(monkeypatch):
-    """Only the persisted node config may supply the destination URL."""
-    async def fake_run_db(_fn):
-        return SimpleNamespace(data={"id": "bot-1", "custom_js": _published_webhook_flow({}), "allowed_domains": []})
-
-    async def allowed(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(widget, "run_db", fake_run_db)
-    monkeypatch.setattr(widget, "_widget_rate_limit_or_429", allowed)
-    result = asyncio.run(widget.widget_flow_webhook(
-        WidgetFlowWebhookRequest(
-            bot_id="bot-1", session_id="session-1", node_id="hook-1",
-            input="hello", context={"url": "https://attacker.invalid"},
-        ),
-        _WidgetRequest(),
-    ))
-    assert result == {"success": False, "retryable": False, "reason": "webhook_url_not_configured"}
-
-
-def test_widget_flow_webhook_rejects_non_webhook_node(monkeypatch):
-    async def fake_run_db(_fn):
-        return SimpleNamespace(data={"id": "bot-1", "custom_js": "/* CHATTY_FLOW_DATA\n" + json.dumps({
-            "status": "active", "nodes": [{"id": "message-1", "type": "message", "data": {}}], "edges": [],
-        }) + "\nCHATTY_FLOW_DATA */", "allowed_domains": []})
-
-    async def allowed(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(widget, "run_db", fake_run_db)
-    monkeypatch.setattr(widget, "_widget_rate_limit_or_429", allowed)
-    with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(widget.widget_flow_webhook(
-            WidgetFlowWebhookRequest(bot_id="bot-1", session_id="session-1", node_id="message-1"),
-            _WidgetRequest(),
-        ))
-    assert exc_info.value.status_code == 404
-
-
-def test_widget_flow_webhook_uses_only_published_url_and_server_mapping(monkeypatch):
-    calls = []
-
-    async def fake_run_db(_fn):
-        return SimpleNamespace(data={
-            "id": "bot-1",
-            "custom_js": _published_webhook_flow({
-                "url": "https://integrations.example.test/flow",
-                "mapping": {"message": "{{input}}", "lead": "{{context.captured_lead.email}}", "missing": "{{context.unknown}}"},
-            }),
-            "allowed_domains": [],
-        })
-
-    async def allowed(*_args, **_kwargs):
-        return None
-
-    @asynccontextmanager
-    async def safe_stream(_client, method, url, **kwargs):
-        calls.append((method, url, kwargs))
-        yield SimpleNamespace(status_code=202)
-
-    monkeypatch.setattr(widget, "run_db", fake_run_db)
-    monkeypatch.setattr(widget, "_widget_rate_limit_or_429", allowed)
-    monkeypatch.setattr(widget.ssrf, "stream_async", safe_stream)
-    result = asyncio.run(widget.widget_flow_webhook(
-        WidgetFlowWebhookRequest(
-            bot_id="bot-1", session_id="session-1", node_id="hook-1", input="Hello",
-            context={"captured_lead": {"email": "visitor@example.com"}, "url": "https://attacker.invalid"},
-        ),
-        _WidgetRequest(),
-    ))
-    assert result == {"success": True, "status_code": 202, "attempts": 1, "retryable": False}
-    assert calls[0][0] == "POST"
-    assert calls[0][1] == "https://integrations.example.test/flow"
-    assert calls[0][2]["json"]["data"] == {"message": "Hello", "lead": "visitor@example.com"}
-    assert calls[0][2]["json"]["unresolved_fields"] == ["missing"]
-
-
-def test_widget_flow_webhook_retries_transient_statuses(monkeypatch):
-    calls = []
-
-    async def fake_run_db(_fn):
-        return SimpleNamespace(data={
-            "id": "bot-1",
-            "custom_js": _published_webhook_flow({
-                "url": "https://integrations.example.test/flow", "max_attempts": 3, "backoff_ms": 0,
-            }),
-            "allowed_domains": [],
-        })
-
-    async def allowed(*_args, **_kwargs):
-        return None
-
-    statuses = iter((503, 202))
-
-    @asynccontextmanager
-    async def safe_stream(*_args, **_kwargs):
-        calls.append(1)
-        yield SimpleNamespace(status_code=next(statuses))
-
-    monkeypatch.setattr(widget, "run_db", fake_run_db)
-    monkeypatch.setattr(widget, "_widget_rate_limit_or_429", allowed)
-    monkeypatch.setattr(widget.ssrf, "stream_async", safe_stream)
-    result = asyncio.run(widget.widget_flow_webhook(
-        WidgetFlowWebhookRequest(bot_id="bot-1", session_id="session-1", node_id="hook-1"),
-        _WidgetRequest(),
-    ))
-    assert result == {"success": True, "status_code": 202, "attempts": 2, "retryable": False}
-    assert len(calls) == 2
-
-
-def test_widget_flow_webhook_fails_closed_on_typed_mapping_error(monkeypatch):
-    """Live delivery must enforce the same typed mapping contract as dry runs."""
-    network_calls = []
-
-    async def fake_run_db(_fn):
-        return SimpleNamespace(data={
-            "id": "bot-1",
-            "custom_js": _published_webhook_flow({
-                "url": "https://integrations.example.test/flow",
-                "mapping": {"amount": "{{context.amount}}"},
-                "mapping_schema": {"amount": "number"},
-            }),
-            "allowed_domains": [],
-        })
-
-    async def allowed(*_args, **_kwargs):
-        return None
-
-    @asynccontextmanager
-    async def safe_stream(*args, **kwargs):
-        network_calls.append((args, kwargs))
-        yield SimpleNamespace(status_code=202)
-
-    monkeypatch.setattr(widget, "run_db", fake_run_db)
-    monkeypatch.setattr(widget, "_widget_rate_limit_or_429", allowed)
-    monkeypatch.setattr(widget.ssrf, "stream_async", safe_stream)
-    result = asyncio.run(widget.widget_flow_webhook(
-        WidgetFlowWebhookRequest(
-            bot_id="bot-1", session_id="session-1", node_id="hook-1",
-            input="hello", context={"amount": "not-a-number"},
-        ),
-        _WidgetRequest(),
-    ))
-    assert result["success"] is False
-    assert result["reason"] == "invalid_mapping_types"
-    assert result["retryable"] is False
-    assert result["mapping_errors"][0]["field"] == "amount"
-    assert network_calls == []
+def test_retired_widget_flow_endpoint_is_not_registered():
+    paths = {getattr(route, "path", "") for route in main.app.routes}
+    assert "/api/widget/flow/webhook" not in paths
+    assert not hasattr(widget, "widget_flow_webhook")
