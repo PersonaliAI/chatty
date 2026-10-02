@@ -259,9 +259,17 @@ test.describe("owner golden path", () => {
 
     await page.getByRole("button", { name: "Flow Builder", exact: true }).click();
     await expect(page.getByText("Visual Flow Builder", { exact: true })).toBeVisible();
+    const flowHeader = page.locator("header").filter({ has: page.getByRole("button", { name: "Reset flow draft" }) });
+    await expect(flowHeader).toHaveClass(/overflow-x-auto/);
+    await expect(flowHeader).toHaveCSS("flex-direction", "row");
+    await expect(page.getByRole("button", { name: "Reset flow draft" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Delete workflow" })).toBeVisible();
     await page.getByRole("button", { name: "Open dashboard sidebar" }).click();
     await expect(page.getByRole("button", { name: "Close sidebar" })).toBeVisible();
     await page.getByRole("button", { name: "Campaigns", exact: true }).click();
     await expect(page.getByText("Proactive Campaigns", { exact: true })).toBeVisible();
+    const campaignsHeader = page.locator("div").filter({ has: page.getByText("Proactive Campaigns", { exact: true }) }).filter({ has: page.getByRole("button", { name: "Sync campaigns" }) }).first();
+    await expect(campaignsHeader).toHaveClass(/overflow-x-auto/);
+    await expect(page.getByRole("button", { name: "Sync campaigns" })).toBeVisible();
   });
 });
