@@ -4,11 +4,11 @@ The industrial automation goal is **not complete**. This checklist preserves
 the full scope; passing a unit test or pushing a commit does not prove deployment
 or production readiness. Every gate needs evidence for the release commit.
 
-Latest fully validated public release evidence: commit `62026ce` passed
-canonical CI workflow `36936719472` (backend compile/tests/audit plus frontend
-typecheck, lint, browser checks, and production build), CodeQL `36936719532`,
-secret scan `36936719417`, code quality `36936719757`, and managed Supabase
-compose smoke `36936719469`. The dependency security patch is also covered by
+Latest fully validated public release evidence: commit `54eb5a0` passed
+canonical CI workflow `36938850765` (backend compile/tests/audit plus frontend
+typecheck, lint, browser checks, production build, and the four-worker runtime
+benchmark), CodeQL `36938850732`, secret scan `36938850906`, code quality
+`36938850211`, and managed Supabase compose smoke `36938850703`. The dependency security patch is also covered by
 the backend audit and local `npm audit --omit=dev` (0 vulnerabilities). The
 local backend regression suite now passes `838 passed, 6 skipped, 2 warnings`.
 Production authenticated E2E run `36937917748` completed with 8 passed and 1
@@ -40,7 +40,7 @@ For a reproducible isolated runtime load signal, run
 `python backend/scripts/benchmark_flow_runtime.py --iterations 100000 --workers 4`;
 the benchmark uses synthetic contexts only, exercises bounded concurrent workers,
 and fails if credential redaction regresses.
-This benchmark is enforced in CI; workflow run `36935595292` completed the
+This benchmark is enforced in CI; workflow run `36938850765` completed the
 benchmark, backend tests, frontend checks, and production build successfully.
 The latest local single-worker 100,000-context run completed in 3.876 seconds at
 25,802 mapping operations/second with credential redaction checks intact. The
@@ -79,7 +79,7 @@ Current evidence: deterministic landing browser checks pass in CI and a local
 Playwright run independently passed all three deterministic checks (3/3); the
 production launcher/embed smoke suite is green. Authenticated golden-path
 coverage is now enabled by repository owner credentials and the latest
-production smoke run `36933216448` completed with 8 passed and 1 explicitly
+production smoke run `36937917748` completed with 8 passed and 1 explicitly
 skipped owner-persistence test because the shared account had no editable bot.
 The production run also exercises the Campaigns Delivery Audit tab and its
 refresh control. Full editor accessibility acceptance remains unverified until
