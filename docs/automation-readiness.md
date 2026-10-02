@@ -10,7 +10,7 @@ typecheck, lint, browser checks, production build, and the four-worker runtime
 benchmark), CodeQL `36976897203`, secret scan `36976897210`, code quality
 `36976896189`, and managed Supabase compose smoke `36976897174`. The dependency security patch is also covered by
 the backend audit and local `npm audit --omit=dev` (0 vulnerabilities). The
-local backend regression suite now passes `838 passed, 6 skipped, 2 warnings`.
+local backend regression suite now passes `840 passed, 6 skipped, 2 warnings`.
 Production authenticated E2E run `36937917748` completed with 8 passed and 1
 skipped. Flow Builder, Campaigns, sidebar, mobile and execution-filter checks
 are green. The Customizer owner round-trip is explicitly skipped because the
@@ -97,7 +97,7 @@ external acceptance prerequisite.
   provider retries, worker recovery, dead letters and replay without duplicate sends.
 - Verify pause/delete effects on queued deliveries and accurate analytics/logs.
 
-Current evidence: the full backend suite passes with 838 tests and 6 explicit
+Current evidence: the full backend suite passes with 840 tests and 6 explicit
 skips; campaign unit tests cover schedule planning, consent, retries,
 bounded tag/locale audience predicates, normalized audience rules, and editing
 existing campaigns while preserving cadence, quiet-hours, and frequency-cap
