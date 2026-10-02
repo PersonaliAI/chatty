@@ -569,6 +569,7 @@ from app.routers import bots_api as _router_bots_api  # noqa: E402
 from app.routers import crawl as _router_crawl  # noqa: E402
 from app.routers import cron as _router_cron  # noqa: E402
 from app.routers import documents as _router_documents  # noqa: E402
+from app.routers import flow_builder as _router_flow_builder  # noqa: E402
 from app.routers import integrations as _router_integrations  # noqa: E402
 from app.routers import mcp as _router_mcp  # noqa: E402
 from app.routers import oauth as _router_oauth  # noqa: E402
@@ -597,6 +598,7 @@ app.include_router(_router_bots.router)
 app.include_router(_router_bots_api.router)
 app.include_router(_router_crawl.router)
 app.include_router(_router_documents.router)
+app.include_router(_router_flow_builder.router)
 app.include_router(_router_integrations.router)
 app.include_router(_router_onboarding.router)
 app.include_router(_router_cron.router)

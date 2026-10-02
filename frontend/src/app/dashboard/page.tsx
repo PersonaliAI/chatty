@@ -18,6 +18,7 @@ import { LeadsMap } from "@/components/leads-map";
 import { OnboardingWizard, extractDomain } from "@/components/onboarding-wizard";
 import { InboxPanel } from "@/components/inbox-panel";
 import { CampaignsUI } from "@/components/campaigns-ui";
+import { FlowBuilderAutomationTab } from "@/components/flow-builder-automation-tab";
 import { KBManager } from "@/components/kb-manager";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
@@ -108,6 +109,7 @@ import {
   Megaphone,
   Phone,
   LayoutGrid,
+  Workflow,
   Pencil,
   Info,
   Play,
@@ -4184,6 +4186,8 @@ export default function Dashboard() {
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
               { id: "inbox", label: "Inbox", icon: Inbox },
               { id: "campaigns", label: "Campaigns", icon: Megaphone },
+              { id: "automations", label: "Automations", icon: Workflow },
+              { id: "flow_builder", label: "Flow Builder", icon: Workflow },
               { id: "leads", label: t("leads"), icon: Users },
               { id: "feedback", label: "Feedback", icon: Star },
               { id: "map", label: "Map", icon: MapPin },
@@ -4207,6 +4211,18 @@ export default function Dashboard() {
                 <button
                   key={link.id}
                   onClick={() => {
+                    if (link.id === "flow_builder") {
+                      const flowBuilderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://flows.chatty.personaliai.com";
+                      void fetchWithFallback(`/api/flow-builder/handoff?bot_id=${encodeURIComponent(botId || "")}`, { method: "POST" })
+                        .then(async (response) => {
+                          const payload = response.ok ? await response.json() as { handoff?: string } : {};
+                          const query = new URLSearchParams({ bot_id: botId || "" });
+                          if (payload.handoff) query.set("handoff", payload.handoff);
+                          window.open(`${flowBuilderUrl}?${query.toString()}`, "_blank", "noopener,noreferrer");
+                        });
+                      setSidebarOpen(false);
+                      return;
+                    }
                     setActiveTab(link.id);
                     setSidebarOpen(false);
                   }}
@@ -5006,6 +5022,10 @@ export default function Dashboard() {
           {/* TAB: CAMPAIGNS */}
           {activeTab === "campaigns" && (
             <CampaignsUI botId={botId} color={primaryColor} fetchBackend={fetchWithFallback} />
+          )}
+
+          {activeTab === "automations" && (
+            <FlowBuilderAutomationTab botId={botId} />
           )}
         </div>
       </main>
