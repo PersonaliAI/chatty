@@ -4,3 +4,4 @@ services:
     environment:
       SUPABASE_URL: ${SUPABASE_URL:?Set the Supabase project URL}
       N8N_PREVIEW_MODE: "false"
+      N8N_CUSTOM_EXTENSIONS: "/home/node/.n8n/custom"

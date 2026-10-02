@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.core.clients import supabase
@@ -48,10 +48,19 @@ async def get_n8n_status(bot_id: str, user: dict[str, Any] = Depends(require_use
 
 
 @router.get("/{bot_id}/n8n/workflow")
-async def get_bot_n8n_workflow(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+async def get_bot_n8n_workflow(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+    authorization: Optional[str] = Header(None),
+):
     """Get or auto-provision an n8n workflow for this bot."""
     bot = await _verify_bot_access(bot_id, user)
-    workflow_info = await n8n_service.get_or_create_bot_workflow(bot_id, bot.get("name", "Support Bot"))
+    auth_token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        auth_token = authorization.split(" ", 1)[1].strip()
+    workflow_info = await n8n_service.get_or_create_bot_workflow(
+        bot_id, bot.get("name", "Support Bot"), auth_token=auth_token
+    )
     return workflow_info
 
 

@@ -71,7 +71,7 @@ async def get_bot_starter_template(bot_id: str, bot_name: str) -> Dict[str, Any]
                 "position": [680, 300],
                 "parameters": {
                     "respondWith": "json",
-                    "responseBody": "={{ { success: true, message: 'Automation executed successfully', data: $json } }}",
+                    "responseBody": "={{ { success: True, message: 'Automation executed successfully', data: $json } }}",
                     "options": {}
                 }
             }
@@ -95,16 +95,156 @@ async def get_bot_starter_template(bot_id: str, bot_name: str) -> Dict[str, Any]
     }
 
 
-async def get_or_create_bot_workflow(bot_id: str, bot_name: str) -> Dict[str, Any]:
-    """Find existing workflow for bot or provision a starter workflow in n8n."""
-    headers = get_n8n_headers()
+async def get_voice_and_bot_starter_template(bot_id: str, bot_name: str) -> Dict[str, Any]:
+    """Build a rich starter workflow with voice event and lead routing."""
+    webhook_path = f"chatty-{bot_id}"
+    return {
+        "name": f"Chatty Bot: {bot_name} ({bot_id})",
+        "nodes": [
+            {
+                "id": "chatty-webhook-trigger",
+                "name": "Chatty Event Trigger",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 2,
+                "position": [240, 300],
+                "parameters": {
+                    "httpMethod": "POST",
+                    "path": webhook_path,
+                    "responseMode": "responseNode",
+                    "options": {}
+                }
+            },
+            {
+                "id": "chatty-event-router",
+                "name": "Event Router",
+                "type": "n8n-nodes-base.switch",
+                "typeVersion": 3,
+                "position": [480, 300],
+                "parameters": {
+                    "rules": {
+                        "values": [
+                            {
+                                "conditions": {
+                                    "options": {"caseSensitive": False, "leftValue": "", "typeValidation": "loose"},
+                                    "conditions": [
+                                        {
+                                            "leftValue": "={{ $json.body?.action || $json.action }}",
+                                            "rightValue": "call_ended",
+                                            "operator": {"type": "string", "operation": "contains"}
+                                        }
+                                    ],
+                                    "combinator": "and"
+                                },
+                                "renameOutput": True,
+                                "outputKey": "Voice Call Ended"
+                            },
+                            {
+                                "conditions": {
+                                    "options": {"caseSensitive": False, "leftValue": "", "typeValidation": "loose"},
+                                    "conditions": [
+                                        {
+                                            "leftValue": "={{ $json.body?.action || $json.action }}",
+                                            "rightValue": "lead_captured",
+                                            "operator": {"type": "string", "operation": "contains"}
+                                        }
+                                    ],
+                                    "combinator": "and"
+                                },
+                                "renameOutput": True,
+                                "outputKey": "Lead Captured"
+                            }
+                        ]
+                    },
+                    "options": {"fallbackOutput": "extra"}
+                }
+            },
+            {
+                "id": "chatty-voice-handler",
+                "name": "Process Voice Call",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [740, 200],
+                "parameters": {
+                    "jsCode": "// Extract voice session details\nconst event = $json.body || $json;\nconst duration = event.payload?.duration_seconds || event.duration_seconds || 0;\nreturn {\n  json: {\n    event_type: 'voice_call_summary',\n    session_id: event.payload?.session_id || 'unknown',\n    duration_seconds: duration,\n    duration_minutes: (duration / 60).toFixed(1),\n    processed_at: new Date().toISOString()\n  }\n};"
+                }
+            },
+            {
+                "id": "chatty-lead-handler",
+                "name": "Format Lead Info",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [740, 400],
+                "parameters": {
+                    "jsCode": "// Format lead for CRM/notification\nconst event = $json.body || $json;\nconst payload = event.payload || {};\nreturn {\n  json: {\n    event_type: 'lead_captured',\n    name: payload.customer_name || payload.name || 'Anonymous',\n    email: payload.customer_email || payload.email || '',\n    phone: payload.customer_phone || payload.phone || '',\n    captured_at: new Date().toISOString()\n  }\n};"
+                }
+            },
+            {
+                "id": "chatty-respond-webhook",
+                "name": "Respond to Chatty",
+                "type": "n8n-nodes-base.respondToWebhook",
+                "typeVersion": 1.1,
+                "position": [1020, 300],
+                "parameters": {
+                    "respondWith": "json",
+                    "responseBody": "={{ { success: True, message: 'Automation executed successfully', action: $json.body?.action || $json.action } }}",
+                    "options": {}
+                }
+            }
+        ],
+        "connections": {
+            "Chatty Event Trigger": {
+                "main": [[{"node": "Event Router", "type": "main", "index": 0}]]
+            },
+            "Event Router": {
+                "main": [
+                    [{"node": "Process Voice Call", "type": "main", "index": 0}],
+                    [{"node": "Format Lead Info", "type": "main", "index": 0}],
+                    [{"node": "Respond to Chatty", "type": "main", "index": 0}]
+                ]
+            },
+            "Process Voice Call": {
+                "main": [[{"node": "Respond to Chatty", "type": "main", "index": 0}]]
+            },
+            "Format Lead Info": {
+                "main": [[{"node": "Respond to Chatty", "type": "main", "index": 0}]]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        }
+    }
+
+
+async def get_or_create_bot_workflow(
+    bot_id: str,
+    bot_name: str,
+    auth_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Find existing workflow for bot or provision a starter workflow in n8n.
     
+    When auth_token is provided (e.g. from user's Supabase session), requests are
+    scoped directly to the tenant's personal project in n8n via the /rest/workflows
+    endpoint. Otherwise, falls back to the instance API key via /api/v1/workflows.
+    """
+    headers = {"Content-Type": "application/json"}
+    endpoint = "/api/v1/workflows"
+    if auth_token:
+        headers["Authorization"] = f"Bearer {auth_token}"
+        endpoint = "/rest/workflows"
+    elif N8N_API_KEY:
+        headers["X-N8N-API-KEY"] = N8N_API_KEY
+
     # 1. Search existing workflows
     try:
         async with httpx.AsyncClient(timeout=6.0) as client:
-            list_resp = await client.get(f"{N8N_INTERNAL_URL}/api/v1/workflows", headers=headers)
+            list_resp = await client.get(f"{N8N_INTERNAL_URL}{endpoint}", headers=headers)
             if list_resp.status_code == 200:
-                workflows = list_resp.json().get("data", [])
+                data = list_resp.json()
+                workflows = (
+                    data.get("data", [])
+                    if isinstance(data, dict)
+                    else (data if isinstance(data, list) else [])
+                )
                 for wf in workflows:
                     if any(
                         node.get("type") == "n8n-nodes-base.webhook"
@@ -114,12 +254,35 @@ async def get_or_create_bot_workflow(bot_id: str, bot_name: str) -> Dict[str, An
                         wf_id = wf["id"]
                         return {
                             "workflow_id": wf_id,
-                            "workflow_name": wf["name"],
+                            "workflow_name": wf.get("name", f"Chatty Bot: {bot_name}"),
                             "active": wf.get("active", False),
                             "editor_url": f"{N8N_EXTERNAL_URL}/workflow/{wf_id}",
                             "webhook_url": f"{N8N_EXTERNAL_URL}/webhook/chatty-{bot_id}",
-                            "created": False
+                            "created": False,
                         }
+            elif auth_token and list_resp.status_code == 401 and N8N_API_KEY:
+                # Fallback to API key if bearer token expired
+                headers = get_n8n_headers()
+                endpoint = "/api/v1/workflows"
+                list_resp = await client.get(f"{N8N_INTERNAL_URL}{endpoint}", headers=headers)
+                if list_resp.status_code == 200:
+                    data = list_resp.json()
+                    workflows = data.get("data", []) if isinstance(data, dict) else []
+                    for wf in workflows:
+                        if any(
+                            node.get("type") == "n8n-nodes-base.webhook"
+                            and node.get("parameters", {}).get("path") == f"chatty-{bot_id}"
+                            for node in wf.get("nodes", [])
+                        ):
+                            wf_id = wf["id"]
+                            return {
+                                "workflow_id": wf_id,
+                                "workflow_name": wf.get("name", f"Chatty Bot: {bot_name}"),
+                                "active": wf.get("active", False),
+                                "editor_url": f"{N8N_EXTERNAL_URL}/workflow/{wf_id}",
+                                "webhook_url": f"{N8N_EXTERNAL_URL}/webhook/chatty-{bot_id}",
+                                "created": False,
+                            }
     except Exception as exc:
         logger.warning("Failed to query n8n workflows: %s", exc)
 
@@ -128,9 +291,9 @@ async def get_or_create_bot_workflow(bot_id: str, bot_name: str) -> Dict[str, An
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             create_resp = await client.post(
-                f"{N8N_INTERNAL_URL}/api/v1/workflows",
+                f"{N8N_INTERNAL_URL}{endpoint}",
                 json=template,
-                headers=headers
+                headers=headers,
             )
             if create_resp.status_code in (200, 201):
                 new_wf = create_resp.json()
@@ -141,7 +304,7 @@ async def get_or_create_bot_workflow(bot_id: str, bot_name: str) -> Dict[str, An
                     "active": False,
                     "editor_url": f"{N8N_EXTERNAL_URL}/workflow/{wf_id}",
                     "webhook_url": f"{N8N_EXTERNAL_URL}/webhook/chatty-{bot_id}",
-                    "created": True
+                    "created": True,
                 }
     except Exception as exc:
         logger.error("Failed to create n8n workflow for bot %s: %s", bot_id, exc)
@@ -152,7 +315,7 @@ async def get_or_create_bot_workflow(bot_id: str, bot_name: str) -> Dict[str, An
         "active": False,
         "editor_url": f"{N8N_EXTERNAL_URL}",
         "webhook_url": f"{N8N_EXTERNAL_URL}/webhook/chatty-{bot_id}",
-        "created": False
+        "created": False,
     }
 
 

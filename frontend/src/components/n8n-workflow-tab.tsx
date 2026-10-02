@@ -7,12 +7,10 @@ import {
   Copy,
   Check,
   Zap,
-  Layers,
-  Sparkles,
-  AlertTriangle,
   Play,
-  ArrowRight,
-  ShieldCheck,
+  Maximize2,
+  Minimize2,
+  AlertTriangle,
 } from "lucide-react";
 import { BACKEND_URL, fetchBackend } from "@/lib/backend-client";
 import { createClient } from "@/lib/supabase/client";
@@ -32,13 +30,36 @@ interface WorkflowInfo {
   created: boolean;
 }
 
-export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
+export function N8nWorkflowTab({ botId, color = "#0ea5e9", fetchBackend: propFetchBackend }: Props) {
   const [loading, setLoading] = useState(true);
   const [n8nStatus, setN8nStatus] = useState<"checking" | "connected" | "offline">("checking");
   const [workflow, setWorkflow] = useState<WorkflowInfo | null>(null);
   const [copied, setCopied] = useState(false);
   const [triggering, setTriggering] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+
+  const callBackend = async (path: string, options?: RequestInit): Promise<Response> => {
+    if (propFetchBackend) {
+      return propFetchBackend(path, options);
+    }
+    const supabase = createClient();
+    return fetchBackend(supabase, path, options);
+  };
+
+  useEffect(() => {
+    try {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session?.access_token) {
+          setSessionToken(data.session.access_token);
+        }
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const loadWorkflow = async () => {
     if (!botId) return;
@@ -46,7 +67,7 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
     setTestResult(null);
     try {
       // 1. Check status
-      const statusRes = await fetchBackend(`/api/bots/${botId}/n8n/status`);
+      const statusRes = await callBackend(`/api/bots/${botId}/n8n/status`);
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         setN8nStatus(statusData.reachable ? "connected" : "offline");
@@ -54,13 +75,13 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
         setN8nStatus("offline");
       }
 
-      // 2. Fetch or provision workflow
-      const wfRes = await fetchBackend(`/api/bots/${botId}/n8n/workflow`);
+      // 2. Fetch or provision workflow with tenant auth
+      const wfRes = await callBackend(`/api/bots/${botId}/n8n/workflow`);
       if (wfRes.ok) {
         const wfData = await wfRes.json();
         setWorkflow(wfData);
       }
-    } catch (err) {
+    } catch {
       setN8nStatus("offline");
     } finally {
       setLoading(false);
@@ -83,7 +104,7 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
     setTriggering(true);
     setTestResult(null);
     try {
-      const res = await fetchBackend(`/api/bots/${botId}/n8n/trigger`, {
+      const res = await callBackend(`/api/bots/${botId}/n8n/trigger`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -91,42 +112,29 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
           payload: {
             customer_name: "Demo Customer",
             customer_email: "demo@example.com",
-            message: "Hello from Chatty!",
+            message: "Hello from Chatty Automations!",
             timestamp: new Date().toISOString(),
           },
         }),
       });
       const data = await res.json();
       setTestResult(JSON.stringify(data, null, 2));
-    } catch (err) {
+    } catch {
       setTestResult(JSON.stringify({ error: "Failed to trigger webhook" }));
     } finally {
       setTriggering(false);
     }
   };
 
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const supabase = createClient();
-      supabase.auth.getSession().then(({ data }) => {
-        if (data.session?.access_token) {
-          setSessionToken(data.session.access_token);
-        }
-      });
-    } catch {
-      // ignore
-    }
-  }, []);
-
   const N8N_PUBLIC_URL =
     process.env.NEXT_PUBLIC_N8N_EXTERNAL_URL ||
     "https://n8n.chatty.personaliai.com";
   const baseUrl = workflow?.editor_url || N8N_PUBLIC_URL;
-  const iframeSrc = sessionToken
-    ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}sb_token=${encodeURIComponent(sessionToken)}`
-    : baseUrl;
+  const separator = baseUrl.includes("?") ? "&" : "?";
+  const queryParams = new URLSearchParams();
+  if (sessionToken) queryParams.set("sb_token", sessionToken);
+  queryParams.set("embed", "true");
+  const iframeSrc = `${baseUrl}${separator}${queryParams.toString()}`;
 
   return (
     <div className="space-y-4 w-full">
@@ -140,7 +148,7 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
               </span>
               <div>
                 <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-                  {workflow?.workflow_name || "Bot Automation Engine (Powered by n8n)"}
+                  {workflow?.workflow_name || "Bot Automation Engine (Chatty Automations)"}
                   {n8nStatus === "connected" ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                       <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -154,7 +162,7 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
                   )}
                 </h3>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Connect your bot to 1,500+ integrations, trigger CRM updates, manage calendars, and run AI Agent tools.
+                  Connect your bot to 1,500+ integrations, trigger CRM updates, manage calendars, and run AI voice automations.
                 </p>
               </div>
             </div>
@@ -178,6 +186,24 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
             >
               <Play className={`size-3.5 text-emerald-500 ${triggering ? "animate-pulse" : ""}`} />
               {triggering ? "Triggering..." : "Test Event"}
+            </button>
+
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Canvas"}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="size-3.5 text-blue-500" />
+                  Exit Fullscreen
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="size-3.5 text-blue-500" />
+                  Fullscreen
+                </>
+              )}
             </button>
 
             <a
@@ -231,22 +257,46 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
       </div>
 
       {/* Embedded n8n Visual Workflow Canvas */}
-      <div className="w-full h-[760px] rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-50 dark:bg-neutral-950 relative shadow-inner">
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-neutral-950/80 z-10">
-            <div className="flex items-center gap-2 text-sm text-neutral-500">
-              <RefreshCw className="size-4 animate-spin text-orange-500" />
-              Loading n8n Workflow Studio...
+      <div
+        className={
+          isFullscreen
+            ? "fixed inset-0 z-50 bg-white dark:bg-neutral-950 p-4 flex flex-col shadow-2xl"
+            : "w-full h-[760px] rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-50 dark:bg-neutral-950 relative shadow-inner"
+        }
+      >
+        {isFullscreen && (
+          <div className="flex items-center justify-between pb-3 mb-2 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="flex items-center gap-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+              <Zap className="size-4 text-orange-500" />
+              <span>{workflow?.workflow_name || "Chatty Automations"}</span>
             </div>
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="px-3 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <Minimize2 className="size-3.5" />
+              Exit Fullscreen
+            </button>
           </div>
         )}
 
-        <iframe
-          src={iframeSrc}
-          title="n8n Workflow Editor"
-          className="w-full h-full border-0"
-          allow="clipboard-read; clipboard-write"
-        />
+        <div className="relative flex-1 w-full h-full min-h-0">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-neutral-950/80 z-10">
+              <div className="flex items-center gap-2 text-sm text-neutral-500">
+                <RefreshCw className="size-4 animate-spin text-orange-500" />
+                Loading n8n Workflow Studio...
+              </div>
+            </div>
+          )}
+
+          <iframe
+            src={iframeSrc}
+            title="Chatty Workflow Editor"
+            className="w-full h-full border-0 rounded-lg"
+            allow="clipboard-read; clipboard-write"
+          />
+        </div>
       </div>
     </div>
   );
