@@ -17,7 +17,7 @@ import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-se
 import { LeadsMap } from "@/components/leads-map";
 import { OnboardingWizard, extractDomain } from "@/components/onboarding-wizard";
 import { InboxPanel } from "@/components/inbox-panel";
-import { ChatbotFlowBuilder } from "@/components/chatbot-flow-builder";
+import { N8nWorkflowTab } from "@/components/n8n-workflow-tab";
 import { CampaignsUI } from "@/components/campaigns-ui";
 import { KBManager } from "@/components/kb-manager";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
@@ -4185,7 +4185,7 @@ export default function Dashboard() {
               { id: "knowledge", label: t("knowledge_base"), icon: Database },
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
               { id: "inbox", label: "Inbox", icon: Inbox },
-              { id: "flows", label: "Flow Builder", icon: GitBranch },
+              { id: "flows", label: "Automations (n8n)", icon: GitBranch },
               { id: "campaigns", label: "Campaigns", icon: Megaphone },
               { id: "leads", label: t("leads"), icon: Users },
               { id: "feedback", label: "Feedback", icon: Star },
@@ -5005,16 +5005,10 @@ export default function Dashboard() {
               formatDateTime={formatDateTime}
             />
           )}
-          {/* TAB: FLOW BUILDER */}
+          {/* TAB: AUTOMATIONS (N8N) */}
           {activeTab === "flows" && (
             <div className="max-w-[1600px] mx-auto w-full py-4 px-2 sm:px-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Visual Flow Builder</h4>
-                  <p className="text-[10px] text-neutral-450 dark:text-neutral-500 mt-1">Design visual logic branches and custom chatbot flows.</p>
-                </div>
-              </div>
-              <ChatbotFlowBuilder botId={botId} color={primaryColor} fetchBackend={fetchWithFallback} />
+              <N8nWorkflowTab botId={botId} color={primaryColor} fetchBackend={fetchWithFallback} />
             </div>
           )}
 
