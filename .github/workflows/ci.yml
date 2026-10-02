@@ -63,11 +63,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
-
-      - name: Check custom n8n authentication
-        run: node --test voice-agent/custom-n8n/*.test.cjs
-
-      - name: Run smoke + unit tests
+- name: Run smoke + unit tests
         run: python -m pytest tests/ -q
         env:
           # Test-only dummy key (not a real secret) - app/core/crypto.py's

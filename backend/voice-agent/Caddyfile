@@ -5,8 +5,3 @@
     # media port. Caddy is host-networked as well and proxies locally.
     reverse_proxy 127.0.0.1:7880
 }
-
-# n8n workflow automation
-${N8N_EXTERNAL_DOMAIN:-n8n.example.com} {
-    reverse_proxy 127.0.0.1:5678
-}

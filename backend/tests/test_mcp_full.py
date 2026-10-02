@@ -244,19 +244,6 @@ def test_preview_html_and_embed_generator():
 
 
 # ===========================================================================
-# 3. AUTOMATIONS
-# ===========================================================================
-
-
-def test_automation_starter_has_bot_scoped_trigger():
-    from app.services import n8n_service
-
-    template = asyncio.run(n8n_service.get_bot_starter_template("bot-abc-123", "Support"))
-    assert template["nodes"][0]["parameters"]["path"] == "chatty-bot-abc-123"
-    assert template["nodes"][0]["type"] == "n8n-nodes-base.webhook"
-
-
-# ===========================================================================
 # 4. CAMPAIGNS
 # ===========================================================================
 

@@ -3,7 +3,7 @@
 Self-contained: no google-auth-oauthlib dependency. We talk to Google's REST
 endpoints directly with httpx so the Cloud Run image stays small.
 
-Coverage mirrors n8n's Google nodes:
+Coverage mirrors Google integration nodes:
   Gmail:    message {send, reply, get, list, modify-labels, trash},
             draft {create}, label {list, get, create}, thread {get, reply}
   Calendar: event {create, get, list, update, delete}, free/busy

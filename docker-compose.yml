@@ -72,26 +72,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-
-  n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
-    profiles: [n8n]
-    container_name: chatty-n8n
-    restart: unless-stopped
-    ports:
-      - "${N8N_PORT:-5678}:5678"
-    environment:
-      - N8N_HOST=${N8N_HOST:-localhost}
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
-      - EXECUTIONS_DATA_PRUNE=true
-      - EXECUTIONS_DATA_MAX_AGE=168
-      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=none
-      - N8N_SECURITY_DISABLE_FRAME_EMBED_RESTRICTION=true
-    volumes:
-      - n8n-data:/home/node/.n8n
-
   frontend:
     build:
       context: ./frontend
@@ -114,4 +94,3 @@ services:
 
 volumes:
   automation-redis-data:
-  n8n-data:
