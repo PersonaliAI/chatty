@@ -7,6 +7,8 @@ import psycopg2
 
 
 MIGRATIONS = (
+    "20260925190000_chatty_flow_versions.sql",
+    "20260925200000_chatty_flow_runs.sql",
     "20261003000000_flow_enable_state.sql",
     "20261003010000_chatty_flows.sql",
     "20261003020000_flow_run_identity.sql",
