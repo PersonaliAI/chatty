@@ -149,10 +149,10 @@ async def _ensure_flow(body: FlowDraftRequest, user: dict[str, Any]) -> str:
         raise HTTPException(status_code=404, detail="Flow not found")
     result = await run_db(lambda: supabase.table("chatty_flows").insert({
         "bot_id": body.bot_id, "name": body.name[:120], "created_by": user["auth_user_id"]
-    }).select("id").maybe_single().execute())
-    if not result.data:
+    }).select("id").execute())
+    if not result.data or not isinstance(result.data, list):
         raise HTTPException(status_code=500, detail="Flow could not be created")
-    return result.data["id"]
+    return result.data[0]["id"]
 
 
 @router.post("/handoff")
@@ -270,12 +270,11 @@ async def create_flow_draft(body: FlowDraftRequest, user: dict[str, Any] = Depen
             "created_by": user["auth_user_id"],
         })
         .select()
-        .maybe_single()
         .execute()
     )
-    if not result.data:
+    if not result.data or not isinstance(result.data, list):
         raise HTTPException(status_code=500, detail="Flow draft could not be saved")
-    return result.data
+    return result.data[0]
 
 
 @router.post("/publish")
