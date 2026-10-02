@@ -3,7 +3,9 @@ import { test, expect } from "@playwright/test";
 const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const ownerPassword = process.env.E2E_OWNER_PASSWORD;
 const ownerBotId = process.env.E2E_OWNER_BOT_ID;
+const supabaseServiceKey = process.env.E2E_SUPABASE_SERVICE_KEY;
 const standaloneBuilderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://chatty-flow-builder--personaliai.us-central1.hosted.app";
+const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.chatty.personaliai.com";
 
 test.describe("standalone flow builder lifecycle", () => {
   test.skip(!ownerEmail || !ownerPassword || !ownerBotId, "requires E2E_OWNER_EMAIL, E2E_OWNER_PASSWORD, and E2E_OWNER_BOT_ID");
@@ -33,10 +35,30 @@ test.describe("standalone flow builder lifecycle", () => {
     await expect(builder.getByText(/0\s+nodes/, { exact: false })).toBeVisible();
 
     await builder.getByRole("button", { name: /^Chatty event/ }).click();
+    await builder.getByLabel("Event type").selectOption("session.started");
     await builder.getByRole("button", { name: /^HTTP request/ }).click();
     await builder.getByLabel("Adapter endpoint URL").fill("https://httpbin.org/status/204");
+    const publishResponse = builder.waitForResponse((response) => response.url().includes("/api/flow-builder/publish") && response.request().method() === "POST");
     await builder.getByRole("button", { name: "Publish", exact: true }).click();
+    const publishBody = await (await publishResponse).json() as { flow_id?: string };
+    expect(publishBody.flow_id).toBeTruthy();
     await expect(builder.getByText(/Published v\d+/, { exact: false })).toBeVisible({ timeout: 15_000 });
+
+    if (supabaseServiceKey) {
+      const sessionId = `codex-flow-${Date.now()}`;
+      const eventResponse = await fetch(`${apiUrl}/api/widget/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: ownerBotId, session_id: sessionId, text: "flow acceptance", offline_ticket: true }),
+      });
+      expect(eventResponse.ok).toBeTruthy();
+      const runsUrl = `https://dckjbkcormifiuwfpahj.supabase.co/rest/v1/chatty_flow_runs?flow_id=eq.${publishBody.flow_id}&select=status&order=created_at.desc&limit=1`;
+      await expect.poll(async () => {
+        const runsResponse = await fetch(runsUrl, { headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` } });
+        const runs = await runsResponse.json() as Array<{ status?: string }>;
+        return runs[0]?.status || "pending";
+      }, { timeout: 30_000 }).toBe("completed");
+    }
     await builder.close();
 
     await page.reload();

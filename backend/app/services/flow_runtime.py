@@ -83,11 +83,12 @@ async def enqueue_flow_event(
                     "created_by": owner_id,
                     "event_id": event_id,
                     "idempotency_key": idempotency_key,
-                }).select("id").maybe_single().execute())
+                }).select("id").execute())
             except Exception:
                 logger.info("flow event already claimed or could not be recorded flow=%s event=%s", version.get("flow_id"), event_id)
                 continue
-            run_id = (run_result.data or {}).get("id")
+            run_rows = run_result.data or []
+            run_id = run_rows[0].get("id") if run_rows and isinstance(run_rows[0], dict) else None
             if not run_id:
                 continue
             payload = {"run_id": run_id, "version_id": version["id"]}
