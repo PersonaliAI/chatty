@@ -765,7 +765,7 @@ export function IntegrationsTab({
       {/* WhatsApp Business Channel (Meta Cloud API) */}
       <div id="integration-whatsapp" className="order-1 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-emerald-200/80 dark:border-emerald-900/60 rounded-2xl space-y-6 shadow-sm">
         {/* Header with status badge and toggle switch */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 dark:border-neutral-800 pb-5">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${whatsappEnabled ? "border-b border-neutral-100 dark:border-neutral-800 pb-5" : ""}`}>
           <div className="flex items-start sm:items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
               <svg viewBox="0 0 24 24" className="size-6 fill-current">
@@ -801,6 +801,8 @@ export function IntegrationsTab({
             <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
               <input
                 type="checkbox"
+                role="switch"
+                aria-label="Enable WhatsApp integration"
                 checked={whatsappEnabled}
                 onChange={(e) => handleInputChange(setWhatsappEnabled, e.target.checked)}
                 className="sr-only peer"
@@ -813,6 +815,8 @@ export function IntegrationsTab({
           )}
         </div>
 
+        {whatsappEnabled && (
+        <>
         <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/20 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Connect with Meta in one step</p>
@@ -1094,6 +1098,8 @@ export function IntegrationsTab({
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* Security: Allowed Domains */}
