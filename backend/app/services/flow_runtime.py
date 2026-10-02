@@ -118,7 +118,7 @@ async def execute_flow_job(supabase, payload: dict[str, Any]) -> None:
         title = node.get("title") or node_id
         status = "observed" if node.get("kind") in {"trigger", "logic", "chatty"} else "awaiting_adapter"
         config = node.get("config") if isinstance(node.get("config"), dict) else {}
-        if node.get("kind") == "action" and node.get("icon") in {"globe", "make", "zapier", "n8n"} and config.get("url"):
+        if node.get("kind") == "action" and config.get("url"):
             try:
                 body = {"event": inputs.get("event"), "session_id": inputs.get("session_id"), "data": inputs.get("data", {}), "flow_node_id": node_id}
                 async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
