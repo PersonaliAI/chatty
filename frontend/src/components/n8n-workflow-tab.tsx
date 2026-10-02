@@ -222,37 +222,12 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
           </div>
         )}
 
-        {n8nStatus === "offline" && !loading ? (
-          <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
-            <div className="p-3 rounded-full bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 mb-4">
-              <Layers className="size-8" />
-            </div>
-            <h4 className="text-base font-bold text-neutral-900 dark:text-neutral-100 mb-1">
-              Start n8n to design workflows
-            </h4>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-md mb-4">
-              n8n is not currently reachable at <code className="font-mono text-orange-600">{iframeSrc}</code>.
-              Start your n8n container or configure <code className="font-mono">N8N_EXTERNAL_URL</code> in your environment.
-            </p>
-            <div className="bg-neutral-900 text-neutral-200 p-3 rounded-lg text-xs font-mono max-w-lg text-left select-all mb-4">
-              docker run -it --rm --name chatty-n8n -p 5678:5678 -e N8N_SECURITY_DISABLE_FRAME_EMBED_RESTRICTION=true docker.n8n.io/n8nio/n8n
-            </div>
-            <button
-              onClick={loadWorkflow}
-              className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold flex items-center gap-2 shadow-sm transition-colors"
-            >
-              <RefreshCw className="size-3.5" />
-              Check Connection Again
-            </button>
-          </div>
-        ) : (
-          <iframe
-            src={iframeSrc}
-            title="n8n Workflow Editor"
-            className="w-full h-full border-0"
-            allow="clipboard-read; clipboard-write"
-          />
-        )}
+        <iframe
+          src={iframeSrc}
+          title="n8n Workflow Editor"
+          className="w-full h-full border-0"
+          allow="clipboard-read; clipboard-write"
+        />
       </div>
     </div>
   );

@@ -14,8 +14,8 @@ import httpx
 
 logger = logging.getLogger("chatty")
 
-N8N_INTERNAL_URL = os.getenv("N8N_INTERNAL_URL", "http://n8n:5678").rstrip("/")
 N8N_EXTERNAL_URL = os.getenv("N8N_EXTERNAL_URL", "https://n8n.chatty.personaliai.com").rstrip("/")
+N8N_INTERNAL_URL = os.getenv("N8N_INTERNAL_URL", N8N_EXTERNAL_URL).rstrip("/")
 N8N_API_KEY = os.getenv("N8N_API_KEY", "")
 
 
@@ -28,14 +28,19 @@ def get_n8n_headers() -> Dict[str, str]:
 
 async def check_n8n_health() -> Dict[str, Any]:
     """Check if n8n service is reachable and responsive."""
-    url = f"{N8N_INTERNAL_URL}/healthz"
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                return {"status": "ok", "url": N8N_EXTERNAL_URL, "reachable": True}
-    except Exception as exc:
-        logger.debug("n8n health check failed: %s", exc)
+    candidates = [N8N_INTERNAL_URL]
+    if N8N_EXTERNAL_URL not in candidates:
+        candidates.append(N8N_EXTERNAL_URL)
+
+    for base_url in candidates:
+        url = f"{base_url}/healthz"
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    return {"status": "ok", "url": N8N_EXTERNAL_URL, "reachable": True}
+        except Exception as exc:
+            logger.debug("n8n health check failed for %s: %s", url, exc)
     return {"status": "unavailable", "url": N8N_EXTERNAL_URL, "reachable": False}
 
 
