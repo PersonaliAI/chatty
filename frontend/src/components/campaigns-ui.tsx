@@ -745,7 +745,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
   return (
     <div className="max-w-7xl mx-auto w-full pt-4 sm:pt-6 pb-12 px-4 sm:px-6 space-y-6">
       {/* ── Top Header & Stats Overview ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-neutral-800 pb-5">
+      <div className="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-neutral-800 pb-5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="size-10 sm:size-9 shrink-0 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs">
@@ -769,7 +769,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
         </div>
 
         {/* Global Action */}
-        <div className="dashboard-button-row flex items-center gap-3">
+        <div className="dashboard-button-row flex items-center gap-3 shrink-0 whitespace-nowrap">
           <button
             type="button"
             onClick={() => setActiveTab("builder")}

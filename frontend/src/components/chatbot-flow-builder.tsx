@@ -1605,9 +1605,9 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
     <div className="w-full bg-white dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[620px] md:min-h-[780px] h-[calc(100dvh-120px)] md:h-[calc(100vh-140px)]">
       {confirmationDialog}
       {/* ── n8n-Inspired Top Navigation Bar ── */}
-      <header className="min-h-16 px-3 sm:px-6 py-2 border-b border-slate-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md flex max-sm:flex-col max-sm:items-stretch items-center justify-between gap-2 sm:gap-3 shrink-0 z-20">
+      <header className="min-h-16 px-3 sm:px-6 py-2 border-b border-slate-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-20 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* Left: Workflow Title & Tags */}
-        <div className="flex items-center gap-3 shrink-0 min-w-0 sm:min-w-fit">
+        <div className="flex items-center gap-3 shrink-0 min-w-[220px] sm:min-w-fit">
           <div className="size-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
             <GitBranch className="size-5" />
           </div>
@@ -1683,7 +1683,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
         </div>
 
         {/* Right: Active Toggle, Add Node, Save Button, More Actions Dropdown */}
-        <div className="dashboard-button-row flex items-center gap-2 shrink-0">
+        <div className="dashboard-button-row flex items-center gap-2 shrink-0 whitespace-nowrap">
           <div className="hidden sm:flex items-center border-r border-slate-200 dark:border-neutral-800 pr-2.5 mr-0.5">
             <ModernSwitch
               checked={flowStatus === "active"}
@@ -1732,6 +1732,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
           <button
             type="button"
             onClick={resetDraft}
+            aria-label="Reset flow draft"
             title="Reset draft"
             className="flex items-center justify-center size-8 sm:w-auto sm:px-2.5 rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-slate-50 dark:hover:bg-neutral-850 text-neutral-600 dark:text-neutral-300 text-xs font-bold cursor-pointer"
           >
@@ -1742,6 +1743,7 @@ export function ChatbotFlowBuilder({ botId, color = "#f97316", fetchBackend: fet
           <button
             type="button"
             onClick={deleteWorkflow}
+            aria-label="Delete workflow"
             title="Delete workflow"
             className="flex items-center justify-center size-8 sm:w-auto sm:px-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-neutral-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-bold cursor-pointer"
           >
