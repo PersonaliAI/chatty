@@ -19,7 +19,12 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [["list"]],
   use: {
-    baseURL: process.env.BASE_URL || "http://127.0.0.1:3000",
+    // Production is the canonical connected environment. Deterministic runs
+    // explicitly opt into the local web server; ad-hoc golden-path runs should
+    // never fail against an accidental empty localhost port.
+    baseURL: process.env.BASE_URL || (process.env.E2E_MODE === "deterministic"
+      ? "http://127.0.0.1:3000"
+      : "https://chatty.personaliai.com"),
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
