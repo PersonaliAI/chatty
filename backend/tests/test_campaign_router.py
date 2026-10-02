@@ -128,6 +128,21 @@ def test_delivery_history_accepts_status_filter(monkeypatch):
     assert database.await_count == 2
 
 
+def test_delivery_history_fails_closed_when_delivery_store_is_unavailable(monkeypatch):
+    permission = AsyncMock(return_value="owner")
+    monkeypatch.setattr(bots, "verify_bot_permission", permission)
+    database = AsyncMock(side_effect=[
+        SimpleNamespace(data={"id": "campaign-1"}),
+        RuntimeError("delivery store unavailable"),
+    ])
+    monkeypatch.setattr(bots, "run_db", database)
+
+    result = asyncio.run(bots.campaign_delivery_history("bot-1", "campaign-1", 50, USER))
+
+    assert result == {"campaign_id": "campaign-1", "available": False, "deliveries": []}
+    assert database.await_count == 2
+
+
 def test_campaign_sequence_update_merges_channels(monkeypatch):
     monkeypatch.setattr(bots, "verify_bot_permission", AsyncMock(return_value="owner"))
     captured = {}
