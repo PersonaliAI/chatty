@@ -4,11 +4,11 @@ The industrial automation goal is **not complete**. This checklist preserves
 the full scope; passing a unit test or pushing a commit does not prove deployment
 or production readiness. Every gate needs evidence for the release commit.
 
-Latest fully validated public release evidence: commit `54eb5a0` passed
-canonical CI workflow `36938850765` (backend compile/tests/audit plus frontend
+Latest fully validated public release evidence: commit `997d90a` passed
+canonical CI workflow `36976897138` (backend compile/tests/audit plus frontend
 typecheck, lint, browser checks, production build, and the four-worker runtime
-benchmark), CodeQL `36938850732`, secret scan `36938850906`, code quality
-`36938850211`, and managed Supabase compose smoke `36938850703`. The dependency security patch is also covered by
+benchmark), CodeQL `36976897203`, secret scan `36976897210`, code quality
+`36976896189`, and managed Supabase compose smoke `36976897174`. The dependency security patch is also covered by
 the backend audit and local `npm audit --omit=dev` (0 vulnerabilities). The
 local backend regression suite now passes `838 passed, 6 skipped, 2 warnings`.
 Production authenticated E2E run `36937917748` completed with 8 passed and 1
@@ -40,7 +40,7 @@ For a reproducible isolated runtime load signal, run
 `python backend/scripts/benchmark_flow_runtime.py --iterations 100000 --workers 4`;
 the benchmark uses synthetic contexts only, exercises bounded concurrent workers,
 and fails if credential redaction regresses.
-This benchmark is enforced in CI; workflow run `36938850765` completed the
+This benchmark is enforced in CI; workflow run `36976897138` completed the
 benchmark, backend tests, frontend checks, and production build successfully.
 The latest local single-worker 100,000-context run completed in 3.876 seconds at
 25,802 mapping operations/second with credential redaction checks intact. The
