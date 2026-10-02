@@ -24,6 +24,9 @@ The migration set creates workflow identities, enable state, and idempotent
 run fields. Verify that `chatty_flows` and the new `chatty_flow_runs` fields
 exist before enabling customer access.
 
+Run `python scripts/verify_flow_schema.py` with `SUPABASE_URL` and
+`SUPABASE_PUBLISHABLE_KEY` to check REST visibility.
+
 The browser never receives the Supabase secret key. Chatty creates a one-minute, bot-bound handoff token when a user opens the builder. The builder uses that token for its first API calls, then uses the normal Supabase session when available.
 
 The builder can run locally with `pnpm dev` from this directory. Open `http://localhost:3000/?bot_id=<bot-id>` after the Chatty API is running.
