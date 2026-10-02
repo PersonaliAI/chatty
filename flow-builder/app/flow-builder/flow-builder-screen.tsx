@@ -68,8 +68,8 @@ export default function FlowBuilderPage() {
       if (!response.ok) return;
       const payload = await response.json() as { versions?: Array<{ id: string; flow_id?: string; flow_name?: string; version: number; flow_data: { nodes?: FlowNode[]; edges?: FlowEdge[] }; status: string }> };
       const latest = payload.versions?.find((item) => !selectedFlow || item.flow_id === selectedFlow);
-      if (!latest?.flow_data?.nodes?.length) return;
-      setFlowId(latest.flow_id || selectedFlow); setFlowName(latest.flow_name || "New workflow"); setNodes(latest.flow_data.nodes); setEdges(latest.flow_data.edges ?? []); setVersion(latest.version); setPublished(latest.status === "published"); setSaved(true); setSyncState("Synced from Chatty");
+      if (!latest?.flow_data) return;
+      setFlowId(latest.flow_id || selectedFlow); setFlowName(latest.flow_name || "New workflow"); setNodes(latest.flow_data.nodes ?? []); setEdges(latest.flow_data.edges ?? []); setVersion(latest.version); setPublished(latest.status === "published"); setSaved(true); setSyncState("Synced from Chatty");
     }).catch(() => setSyncState("Offline draft"));
   }, []);
 
