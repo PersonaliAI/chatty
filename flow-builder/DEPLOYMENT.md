@@ -20,12 +20,17 @@ Supabase project and its database credentials:
 supabase db push --db-url "$SUPABASE_DB_URL"
 ```
 
-The migration set creates workflow identities, enable state, and idempotent
-run fields. Verify that `chatty_flows` and the new `chatty_flow_runs` fields
-exist before enabling customer access.
+The migration set includes the prerequisite version and run tables. It then
+creates workflow identities, enable state, and idempotent run fields. Verify
+that `chatty_flows`, `chatty_flow_versions`, and `chatty_flow_runs` exist
+before enabling customer access.
 
 Run `python scripts/verify_flow_schema.py` with `SUPABASE_URL` and
 `SUPABASE_PUBLISHABLE_KEY` to check REST visibility.
+
+For Cloud Run deployments, use the bundled
+`backend/scripts/apply_flow_migrations.py` runner as a one-off job. The job
+must receive `SUPABASE_DB_PASSWORD` from Secret Manager.
 
 The browser never receives the Supabase secret key. Chatty creates a one-minute, bot-bound handoff token when a user opens the builder. The builder uses that token for its first API calls, then uses the normal Supabase session when available.
 
