@@ -24,7 +24,7 @@ def main() -> None:
     )
     try:
         for migration in MIGRATIONS:
-            sql = (Path(__file__).parents[1] / "supabase" / "migrations" / migration).read_text(encoding="utf-8")
+            sql = (Path(__file__).parent / "flow_migrations" / migration).read_text(encoding="utf-8")
             with connection:
                 with connection.cursor() as cursor:
                     cursor.execute(sql)
