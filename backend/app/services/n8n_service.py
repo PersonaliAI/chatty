@@ -15,7 +15,7 @@ import httpx
 logger = logging.getLogger("chatty")
 
 N8N_INTERNAL_URL = os.getenv("N8N_INTERNAL_URL", "http://n8n:5678").rstrip("/")
-N8N_EXTERNAL_URL = os.getenv("N8N_EXTERNAL_URL", "http://localhost:5678").rstrip("/")
+N8N_EXTERNAL_URL = os.getenv("N8N_EXTERNAL_URL", "https://n8n.chatty.personaliai.com").rstrip("/")
 N8N_API_KEY = os.getenv("N8N_API_KEY", "")
 
 

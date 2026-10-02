@@ -104,7 +104,10 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
     }
   };
 
-  const iframeSrc = workflow?.editor_url || "http://localhost:5678";
+  const N8N_PUBLIC_URL =
+    process.env.NEXT_PUBLIC_N8N_EXTERNAL_URL ||
+    "https://n8n.chatty.personaliai.com";
+  const iframeSrc = workflow?.editor_url || N8N_PUBLIC_URL;
 
   return (
     <div className="space-y-4 w-full">
