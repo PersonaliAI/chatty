@@ -78,6 +78,7 @@ services:
       N8N_HOST: ${N8N_EXTERNAL_DOMAIN:-n8n.example.com}
       WEBHOOK_URL: ${N8N_EXTERNAL_URL:-https://n8n.example.com}
       N8N_SECURITY_DISABLE_FRAME_EMBED_RESTRICTION: "true"
+      N8N_PREVIEW_MODE: "true"
       GENERIC_TIMEZONE: UTC
     volumes:
       - n8n_data:/home/node/.n8n
@@ -135,6 +136,7 @@ services:
         condition: service_started
 
 volumes:
+  n8n_data:
   redis_data:
   caddy_data:
   caddy_config:
