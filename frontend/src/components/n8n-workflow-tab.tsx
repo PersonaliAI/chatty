@@ -15,6 +15,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { BACKEND_URL, fetchBackend } from "@/lib/backend-client";
+import { createClient } from "@/lib/supabase/client";
 
 interface Props {
   botId: string | null;
@@ -104,10 +105,28 @@ export function N8nWorkflowTab({ botId, color = "#0ea5e9" }: Props) {
     }
   };
 
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session?.access_token) {
+          setSessionToken(data.session.access_token);
+        }
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const N8N_PUBLIC_URL =
     process.env.NEXT_PUBLIC_N8N_EXTERNAL_URL ||
     "https://n8n.chatty.personaliai.com";
-  const iframeSrc = workflow?.editor_url || N8N_PUBLIC_URL;
+  const baseUrl = workflow?.editor_url || N8N_PUBLIC_URL;
+  const iframeSrc = sessionToken
+    ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}sb_token=${encodeURIComponent(sessionToken)}`
+    : baseUrl;
 
   return (
     <div className="space-y-4 w-full">
