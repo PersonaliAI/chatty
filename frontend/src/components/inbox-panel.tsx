@@ -549,6 +549,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [selectedStatusTab, setSelectedStatusTab] = useState<InboxStatusTab>("open");
   const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<string>("all");
   const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<string>("all");
+  const [mentionedSessionIds, setMentionedSessionIds] = useState<string[]>([]);
   const [selectedChannelFilter, setSelectedChannelFilter] = useState<string>("all");
   const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
@@ -944,6 +945,18 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       }
     } catch {}
   }, [botId, fetchBackend]);
+
+  const loadMentions = useCallback(async () => {
+    try {
+      const res = await fetchBackend(`/api/admin/inbox/mentions?bot_id=${botId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMentionedSessionIds(Array.isArray(data.session_ids) ? data.session_ids : []);
+      }
+    } catch {}
+  }, [botId, fetchBackend]);
+
+  useEffect(() => { void loadMentions(); }, [loadMentions]);
 
   const loadPresence = useCallback(async () => {
     try {
@@ -1370,6 +1383,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       if (res.ok) {
         const d = await res.json();
         if (activeSessionRef.current === selected) setSessionNotes((prev) => [...prev, d.note]);
+        void loadMentions();
         showToast("Internal staff note added.", "success");
       }
     } catch {
@@ -1609,6 +1623,8 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       }
     } else if (selectedAssigneeFilter === "unassigned") {
       if (s.assigned_agent_email || !isHumanQueueTicket(s)) return false;
+    } else if (selectedAssigneeFilter === "mentions") {
+      if (!mentionedSessionIds.includes(s.session_id)) return false;
     } else if (selectedAssigneeFilter !== "all") {
       if (s.assigned_agent_email?.toLowerCase() !== selectedAssigneeFilter.toLowerCase()) {
         return false;
@@ -1849,6 +1865,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </div>
           <div className="inbox-nav-content">
             <button type="button" aria-pressed={selectedAssigneeFilter === "me"} onClick={() => { setSelectedAssigneeFilter("me"); setSelectedStatusTab("open"); }}><User className="size-4" />My inbox</button>
+            <button type="button" aria-pressed={selectedAssigneeFilter === "mentions"} onClick={() => { setSelectedAssigneeFilter("mentions"); setSelectedStatusTab("all"); }}><AtSign className="size-4" />Mentions <span>{mentionedSessionIds.length}</span></button>
             <button type="button" aria-pressed={selectedStatusTab === "unassigned"} onClick={() => { setSelectedAssigneeFilter("all"); setSelectedStatusTab("unassigned"); }}><InboxIcon className="size-4" />Unassigned <span>{ticketCounts.unassigned}</span></button>
             <button type="button" aria-pressed={selectedStatusTab === "all" && selectedAssigneeFilter === "all"} onClick={() => { setSelectedAssigneeFilter("all"); setSelectedStatusTab("all"); }}><MessageSquare className="size-4" />All conversations <span>{ticketCounts.all}</span></button>
             <h3>Lifecycle</h3>
@@ -1862,7 +1879,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         {/* ── Sessions / Tickets List Pane ── */}
         <div className="inbox-queue bg-white dark:bg-neutral-900 flex flex-col">
           <div className="inbox-pane-title">
-            <h2>{selectedAssigneeFilter === "me" ? "My inbox" : selectedStatusTab === "all" ? "All conversations" : capitalize(selectedStatusTab)}</h2>
+            <h2>{selectedAssigneeFilter === "me" ? "My inbox" : selectedAssigneeFilter === "mentions" ? "Mentions" : selectedStatusTab === "all" ? "All conversations" : capitalize(selectedStatusTab)}</h2>
             <div className="flex items-center gap-1.5">
               <ModernFilterDropdown title="Filter by status" value={selectedStatusTab} onChange={setSelectedStatusTab} options={[
                 { value: "all", label: "All conversations" },

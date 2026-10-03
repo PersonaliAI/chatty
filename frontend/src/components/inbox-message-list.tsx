@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, type RefObject } from "react";
-import { Bot, Calendar, Clock, Headphones, Paperclip, ThumbsDown, ThumbsUp, User, Video } from "lucide-react";
+import { Bot, Calendar, Clock, Headphones, Lock, Paperclip, ThumbsDown, ThumbsUp, User, Video } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -44,12 +44,14 @@ function isTrustedAttachmentUrl(url: string): boolean {
 function InboxBookingCard({ content }: { content: string }) {
   const isWidgetPrompt = content.includes("[BOOKING_WIDGET]");
   const isCancelled = /cancelled|canceled/i.test(content) && /meeting|booking|demo/i.test(content);
-  const isConfirmed = !isCancelled && /scheduled|confirmed/i.test(content) && /meeting|demo|appointment/i.test(content);
+  const isConfirmed = !isCancelled && /scheduled|confirmed|booked/i.test(content) && /meeting|demo|appointment|booking/i.test(content);
   const meetLinkMatch = content.match(/https:\/\/(?:meet\.google\.com|teams\.microsoft\.com|zoom\.us\/j)\/[^\s)>]+/i);
   const meetUrl = meetLinkMatch ? meetLinkMatch[0] : null;
 
-  const dateMatch = content.match(/(?:for|on)\s+([A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:\s+at\s+\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)?(?:\s*\([^)]+\))?)/i);
-  const timeStr = dateMatch ? dateMatch[1] : null;
+  const confirmationTime = content.match(/(?:scheduled|confirmed|booked)\s+(?:for|on)\s+([^\n.!]+?)(?:\.|!|\s+Join\b|\s+https?:\/\/|$)/i);
+  const dateMatch = content.match(/(?:for|on)\s+([A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)?(?:\s*\([^)]+\))?)/i);
+  const timeStr = confirmationTime?.[1]?.trim() || dateMatch?.[1] || null;
+  const attendeeMatch = content.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
 
   return (
     <div className={`mt-2 p-2.5 rounded-xl border text-xs ${
@@ -61,8 +63,8 @@ function InboxBookingCard({ content }: { content: string }) {
     }`}>
       <div className="flex items-center justify-between gap-2 mb-1">
         <span className="flex items-center gap-1.5 font-bold text-[11px]">
-          <Calendar className="size-3.5" />
-          {isCancelled ? "Meeting Cancelled" : isConfirmed ? "Demo Scheduled" : "Booking Widget Active"}
+          {isConfirmed ? <Lock className="size-3.5" /> : <Calendar className="size-3.5" />}
+          {isCancelled ? "Meeting Cancelled" : isConfirmed ? "Booking confirmed · locked" : "Booking Widget Active"}
         </span>
         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
           isCancelled
@@ -71,7 +73,7 @@ function InboxBookingCard({ content }: { content: string }) {
             ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
             : "bg-blue-500/20 text-blue-600 dark:text-blue-400"
         }`}>
-          {isCancelled ? "Cancelled" : isConfirmed ? "Confirmed" : "Sent"}
+          {isCancelled ? "Cancelled" : isConfirmed ? "Locked" : "Select time"}
         </span>
       </div>
 
@@ -80,6 +82,17 @@ function InboxBookingCard({ content }: { content: string }) {
           <Clock className="size-3 shrink-0" />
           {timeStr}
         </p>
+      )}
+
+      {attendeeMatch && isConfirmed && (
+        <p className="text-[11px] font-medium opacity-90 flex items-center gap-1.5 my-1">
+          <span className="size-3 shrink-0 rounded-full border border-current/50" aria-hidden="true" />
+          {attendeeMatch[0]}
+        </p>
+      )}
+
+      {isConfirmed && !timeStr && (
+        <p className="text-[10px] opacity-80 mt-0.5">The visitor’s selected slot is locked and the calendar invitation was sent.</p>
       )}
 
       {meetUrl && (

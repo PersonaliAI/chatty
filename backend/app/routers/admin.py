@@ -644,6 +644,34 @@ async def get_inbox_assignees(bot_id: str, user: dict[str, Any] = Depends(requir
     return {"assignees": assignees}
 
 
+@router.get("/api/admin/inbox/mentions")
+async def get_inbox_mentions(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return conversation ids where the signed-in teammate was mentioned.
+
+    Mentions are intentionally read from internal session notes only; visitor
+    names and emails can never appear in this list.
+    """
+    await _verify_inbox_access(bot_id, user)
+    email = (user.get("email") or "").strip().lower()
+    metadata = user.get("user_metadata") if isinstance(user.get("user_metadata"), dict) else {}
+    name = str(metadata.get("name") or "").strip().lower()
+    candidates = {f"@{email}", f"@{email.split('@')[0]}"} if email else set()
+    if name:
+        candidates.add(f"@{name}")
+        candidates.add(f"@{name.replace(' ', '')}")
+    rows = (await run_db(lambda: supabase.table("chatty_session_notes").select(
+        "session_id,note,created_at"
+    ).eq("bot_id", bot_id).order("created_at", desc=True).limit(1000).execute())).data or []
+    session_ids: list[str] = []
+    for row in rows:
+        note = str(row.get("note") or "").lower()
+        if any(token in note for token in candidates):
+            sid = str(row.get("session_id") or "")
+            if sid and sid not in session_ids:
+                session_ids.append(sid)
+    return {"session_ids": session_ids[:200]}
+
+
 @router.post("/api/admin/inbox/ai")
 async def admin_inbox_ai(req: InboxAIToggle, user: dict[str, Any] = Depends(require_user)):
     await _verify_session_inbox_access(req.bot_id, req.session_id, user)
