@@ -83,10 +83,27 @@ Initial source `c214223d5c464b6a1419714d724857c17ad2890d` passed CI (frontend an
 backend), compose smoke, CodeQL and secret scan. Firebase
 `rollout-2026-10-03-024` / `build-2026-10-03-028` succeeded. Authenticated live
 desktop inspection confirmed the new navigation, queue, transcript and contact
-workspace, with no document-width overflow. A follow-up routing-popover fix and
-final responsive live acceptance are still pending.
+workspace, with no document-width overflow.
+
+Final application source `ab6789c6062a041929043f51bab8a38a4d9b0158` includes
+the routing-popover fix (`0efd04fc`) and mobile Back-button alignment fix. CI
+run `37140665834` passed frontend/backend checks, deterministic browser tests
+and production build; compose smoke `37140665876`, CodeQL `37140665868` and
+secret scan also passed. Firebase `rollout-2026-10-03-026` /
+`build-2026-10-03-030` succeeded with that exact application source.
+
+Authenticated live acceptance at 1600 and 390 pixels confirmed independent
+panes, loaded transcripts/contact details, mobile queue-to-chat/back navigation,
+private-note mode hiding the public composer, identity setup, loaded automation
+rules, unclipped presence/capacity and team-roster menus, and document width
+equal to viewport width. No real customer reply, deletion, key rotation or rule
+change was made. Light/dark and intermediate widths were validated with isolated
+browser fixtures. Existing provider integrations are preserved, not newly
+certified by this layout release; the repository's existing dependency advisory
+is a separate platform maintenance item.
 
 To roll back only Inbox changes, revert
-the Inbox redesign commit on `main` and roll out the resulting commit; do not
+the three Inbox implementation commits (`c214223d`, `0efd04fc`, `ab6789c6`) on
+`main` and roll out the resulting commit; do not
 reset or revert the concurrent Flow Builder changes. Alternatively roll out the
 last known-good Firebase build while preparing that scoped revert.
