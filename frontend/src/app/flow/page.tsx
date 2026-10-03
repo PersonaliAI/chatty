@@ -2,8 +2,8 @@ import FlowRoute from "./flow-route";
 import { Suspense } from "react";
 
 export const metadata = {
-  title: "Chatty Flow Builder",
-  description: "Build reliable automations for Chatty",
+  title: "My Chatty flows",
+  description: "Manage Chatty conversation flows",
 };
 
 export default function FlowPage() {

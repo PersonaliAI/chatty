@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, DM_Sans, Quicksand, Space_Grotesk, Lora, Playfair_Display } from "next/font/google";
 import { FirebaseAnalytics } from "@/components/firebase-analytics";
 import "./globals.css";
+import "./flow/flow-manager-embedded.css";
 // NOTE: the "Chatty on Chatty" support widget (eating our own dog food) is
 // mounted on the marketing landing page only (src/app/page.tsx), not here -
 // it doesn't belong on authenticated app pages like /dashboard.

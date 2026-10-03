@@ -155,6 +155,7 @@ import { PlaygroundTab } from "./tabs/PlaygroundTab";
 import { CustomizerTab } from "./tabs/CustomizerTab";
 import { KnowledgeTab } from "./tabs/KnowledgeTab";
 import { SettingsTab } from "./tabs/SettingsTab";
+import { FlowManager } from "@/app/flow/flow-builder/flow-manager";
 
 // Section Colors rows whose "text" property is really an icon/dot color
 // (no separate typed text on a button or a launcher circle).
@@ -4215,8 +4216,7 @@ export default function Dashboard() {
                   key={link.id}
                   onClick={() => {
                     if (link.id === "flow_builder") {
-                      const query = new URLSearchParams({ bot_id: botId || "" });
-                      window.location.assign(`/flow?${query.toString()}`);
+                      setActiveTab("flow_builder");
                       setSidebarOpen(false);
                       return;
                     }
@@ -4337,7 +4337,7 @@ export default function Dashboard() {
             <div className="min-w-0">
               <span className="block text-[10px] uppercase tracking-wider text-neutral-400 font-semibold whitespace-nowrap max-sm:truncate">Chatty Console</span>
               <div className="flex items-center gap-2 mt-0.5">
-                <h2 className="text-sm font-semibold capitalize whitespace-nowrap max-sm:truncate">{activeTab === "home" ? "Overview" : activeTab.replace("_", " ")}</h2>
+                <h2 className="text-sm font-semibold capitalize whitespace-nowrap max-sm:truncate">{activeTab === "home" ? "Overview" : activeTab === "flow_builder" ? "My flows" : activeTab.replace("_", " ")}</h2>
               </div>
             </div>
           </div>
@@ -4398,6 +4398,11 @@ export default function Dashboard() {
               busiestHour={busiestHour}
               csatFeedback={csatFeedback}
             />
+          )}
+
+          {/* TAB 1A: FLOW BUILDER DIRECTORY */}
+          {activeTab === "flow_builder" && botId && (
+            <FlowManager botId={botId} embedded />
           )}
 
           {/* TAB 2: CUSTOMIZER */}

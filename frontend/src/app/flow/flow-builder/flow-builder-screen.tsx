@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { AlertCircle, Check, CheckCircle2, ChevronDown, Download, ExternalLink, History, LayoutGrid, Loader2, Menu, Play, Plus, Redo2, RotateCcw, Save, Settings2, Undo2, Upload, UserCircle2, X } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, ChevronDown, Download, ExternalLink, History, LayoutGrid, Loader2, Menu, Play, Plus, Redo2, RotateCcw, Save, Settings2, Undo2, X } from "lucide-react";
 import { chattyRequest, getFlowSession, hasFlowHandoff, supabase } from "./lib";
 import { exportN8nWorkflow } from "./n8n-export";
-import { importN8nWorkflow } from "./n8n-import";
 import { findNodeDefinition, nodeCatalog, type NodeDefinition } from "./node-registry";
 import { FlowCanvas, type FlowCanvasCommands } from "./flow-canvas";
 import { RunHistory } from "./run-history";
@@ -18,7 +17,7 @@ import { findAvailableNodePosition, FLOW_NODE_LAYOUT } from "./graph-layout";
 import type { FlowConnection, FlowData, FlowEdge, FlowNode, FlowRun, FlowRunTrace } from "./types";
 
 type GraphSnapshot = FlowData;
-type BusyAction = "import" | "test" | "save" | "publish" | null;
+type BusyAction = "test" | "save" | "publish" | null;
 type AuthState = "checking" | "session" | "handoff" | "required";
 
 const emptyGraph: FlowData = { nodes: [], edges: [], paths: [] };
@@ -47,6 +46,7 @@ export default function FlowBuilderPage() {
   const [sourceFilter, setSourceFilter] = useState<"all" | "native" | "apps">("all");
   const [libraryView, setLibraryView] = useState<"nodes" | "templates">("nodes");
   const [mobilePanel, setMobilePanel] = useState<"palette" | "inspector" | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [nodeMenuId, setNodeMenuId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [testTrace, setTestTrace] = useState<FlowRunTrace[]>([]);
@@ -74,7 +74,6 @@ export default function FlowBuilderPage() {
   const [pendingParentId, setPendingParentId] = useState<string | null>(null);
   const [pendingPathId, setPendingPathId] = useState("main");
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
-  const importRef = useRef<HTMLInputElement>(null);
   const canvasCommandsRef = useRef<FlowCanvasCommands | null>(null);
   const graphRef = useRef<GraphSnapshot>(emptyGraph);
   const historyRef = useRef<GraphSnapshot[]>([]);
@@ -209,6 +208,20 @@ export default function FlowBuilderPage() {
     const copy = cloneGraph(next); graphRef.current = copy; setNodes(copy.nodes); setEdges(copy.edges); setSaved(false);
   }
 
+  function focusValidationIssue(issue = validationIssues[0]) {
+    if (!issue) return;
+    const target = nodes.find((node) => issue.startsWith(`${node.title}:`));
+    if (target) {
+      setSelectedId(target.id);
+      setInspectorOpen(true);
+      setMobilePanel("inspector");
+      return;
+    }
+    setInspectorOpen(true);
+    setLibraryView("nodes");
+    setMobilePanel("palette");
+  }
+
   function undo() {
     const previous = historyRef.current.at(-1);
     if (!previous) return;
@@ -291,13 +304,14 @@ export default function FlowBuilderPage() {
     const nextEdges = parent ? [...graphRef.current.edges, { from: parent.id, to: id, label: pendingPathId === "main" ? undefined : pathTitle }] : graphRef.current.edges;
     const nextPaths = [...(graphRef.current.paths ?? [])];
     if (!nextPaths.some((path) => path.id === pathId)) nextPaths.push({ id: pathId, title: pathTitle, color: item.color });
-    setGraph({ nodes: [...graphRef.current.nodes, newNode], edges: nextEdges, paths: nextPaths }); setSelectedId(id); setPendingParentId(null); setPendingPathId("main"); setMobilePanel(null);
+    setGraph({ nodes: [...graphRef.current.nodes, newNode], edges: nextEdges, paths: nextPaths }); setSelectedId(id); setInspectorOpen(true); setPendingParentId(null); setPendingPathId("main"); setMobilePanel(null);
   }
 
   function replaceWithTemplate(template: FlowTemplate) {
     const graph = createTemplateGraph(template);
     setGraph(graph, true);
     setSelectedId(graph.nodes[0]?.id ?? "");
+    setInspectorOpen(true);
     setFlowName(template.title);
     setSyncState("Template ready to configure");
     setLibraryView("nodes");
@@ -316,19 +330,12 @@ export default function FlowBuilderPage() {
 
   function updateNode(nodeId: string, update: Partial<FlowNode>) { setGraph({ nodes: graphRef.current.nodes.map((node) => node.id === nodeId ? { ...node, ...update } : node), edges: graphRef.current.edges, paths: graphRef.current.paths }); }
   function updateConfig(key: string, value: string) { if (selected) updateNode(selected.id, { config: { ...selected.config, [key]: value } }); }
-  function removeNode(nodeId: string) { setGraph({ nodes: graphRef.current.nodes.filter((node) => node.id !== nodeId), edges: graphRef.current.edges.filter((edge) => edge.from !== nodeId && edge.to !== nodeId), paths: graphRef.current.paths }); setSelectedId(""); setNodeMenuId(null); }
-  function duplicateNode(node: FlowNode) { const id = `${node.id}-copy-${Date.now()}`; const position = findAvailableNodePosition(graphRef.current.nodes, { x: node.x + 36, y: node.y + 36 }); setGraph({ nodes: [...graphRef.current.nodes, { ...node, id, title: `${node.title} copy`, x: position.x, y: position.y, config: { ...node.config } }], edges: graphRef.current.edges, paths: graphRef.current.paths }); setSelectedId(id); setNodeMenuId(null); }
+  function removeNode(nodeId: string) { const closesInspector = selectedId === nodeId; setGraph({ nodes: graphRef.current.nodes.filter((node) => node.id !== nodeId), edges: graphRef.current.edges.filter((edge) => edge.from !== nodeId && edge.to !== nodeId), paths: graphRef.current.paths }); if (closesInspector) { setSelectedId(""); setInspectorOpen(false); } setNodeMenuId(null); }
+  function duplicateNode(node: FlowNode) { const id = `${node.id}-copy-${Date.now()}`; const position = findAvailableNodePosition(graphRef.current.nodes, { x: node.x + 36, y: node.y + 36 }); setGraph({ nodes: [...graphRef.current.nodes, { ...node, id, title: `${node.title} copy`, x: position.x, y: position.y, config: { ...node.config } }], edges: graphRef.current.edges, paths: graphRef.current.paths }); setSelectedId(id); setInspectorOpen(true); setNodeMenuId(null); }
   function connectNodes(sourceId: string, targetId: string) { if (sourceId === targetId || graphRef.current.edges.some((edge) => edge.from === sourceId && edge.to === targetId)) return; setGraph({ nodes: graphRef.current.nodes, edges: [...graphRef.current.edges, { from: sourceId, to: targetId }], paths: graphRef.current.paths }); }
   function moveNodes(nextNodes: FlowNode[]) { setGraph({ nodes: nextNodes, edges: graphRef.current.edges, paths: graphRef.current.paths }); }
   function changeEdges(nextEdges: FlowEdge[]) { setGraph({ nodes: graphRef.current.nodes, edges: nextEdges, paths: graphRef.current.paths }); }
   function openAddStep(parentId: string, branch = false) { setSelectedId(parentId); setPendingParentId(parentId); setPendingPathId(branch ? `path-${Date.now()}` : "main"); setLibraryView("nodes"); setMobilePanel("palette"); setSyncState(branch ? "Choose the next node for this path" : "Choose the next node"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }
-
-  async function handleN8nImport(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]; event.target.value = ""; if (!file) return;
-    setBusyAction("import");
-    try { const imported = importN8nWorkflow(JSON.parse(await file.text())); setGraph(imported, true); setSelectedId(imported.nodes[0]?.id ?? ""); setSyncState("Imported n8n draft"); } catch (error) { setTestError(error instanceof Error ? error.message : "The n8n workflow could not be imported."); setRunning(true); }
-    finally { setBusyAction(null); }
-  }
 
   function downloadN8n() {
     const blob = new Blob([JSON.stringify(exportN8nWorkflow(persistedGraph(graphRef.current)), null, 2)], { type: "application/json" });
@@ -340,7 +347,7 @@ export default function FlowBuilderPage() {
     setConnectingProvider(provider);
     setBusyAction("save");
     try {
-      const redirectPath = `/flow?bot_id=${encodeURIComponent(botId)}${flowId ? `&flow_id=${encodeURIComponent(flowId)}` : ""}`;
+      const redirectPath = `/flow/builder?bot_id=${encodeURIComponent(botId)}${flowId ? `&flow_id=${encodeURIComponent(flowId)}` : ""}`;
       const response = await chattyRequest("/api/flow-builder/connections/oauth-start", { method: "POST", body: JSON.stringify({ bot_id: botId, provider, redirect_path: redirectPath }) });
       const body = await response.json() as { url?: string; detail?: string };
       if (!response.ok || !body.url) { setTestError(body.detail || "The provider connection could not start."); return; }
@@ -357,11 +364,10 @@ export default function FlowBuilderPage() {
   }
 
   return <main className="builder-shell">
-    <input ref={importRef} className="sr-only" aria-hidden="true" tabIndex={-1} type="file" accept="application/json,.json" onChange={(event) => void handleN8nImport(event)} />
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Image src="/chatty_flow.png" alt="" width={22} height={22} priority aria-hidden="true" /></div><div><strong>Chatty Flows</strong><span>Automation workspace</span></div></div>
       <div className="crumb"><a className="flows-link" href={botId ? `/flow?bot_id=${encodeURIComponent(botId)}` : "/flow"}>My flows</a><ChevronDown size={14} /><span className="muted">/</span><input className="workflow-name" value={flowName} onChange={(event) => { setFlowName(event.target.value); setSaved(false); }} aria-label="Workflow name" /><span className="draft-pill"><span className="status-dot" /> {published ? "Published" : "Draft"}</span></div>
-      <div className="top-actions"><button type="button" className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button type="button" className="secondary" onClick={() => importRef.current?.click()} disabled={Boolean(busyAction)}>{busyAction === "import" ? <Loader2 className="spin" size={14} /> : <Upload size={14} />} Import n8n</button><button type="button" className="secondary" onClick={downloadN8n} disabled={Boolean(busyAction)}> <Download size={14} /> Export</button><button type="button" className="secondary" onClick={() => void runTest()} disabled={Boolean(busyAction)}>{busyAction === "test" ? <Loader2 className="spin" size={14} /> : <Play size={14} />} Test</button><button type="button" className="secondary save-button" onClick={() => void saveDraft(false)} disabled={(saved && Boolean(botId) && Boolean(flowId)) || Boolean(busyAction)}>{busyAction === "save" ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save draft</button><button type="button" className="primary" onClick={() => void saveDraft(true)} disabled={validationIssues.length > 0 || Boolean(busyAction)}>{busyAction === "publish" ? <Loader2 className="spin" size={14} /> : <Check size={14} />} Publish</button>{authState === "required" && <span className="auth-state">Authentication required</span>}<div className="account-wrap"><button type="button" className={`avatar ${accountOpen ? "open" : ""}`} aria-label="Account" title="Account" aria-expanded={accountOpen} onClick={() => setAccountOpen((current) => !current)}><UserCircle2 size={18} /></button>{accountOpen && <div className="account-menu"><small>CHATTY AUTH</small><b>{authState === "session" ? "Connected" : authState === "handoff" ? "Connected by handoff" : authState === "checking" ? "Checking connection" : "Authentication required"}</b><span>{authEmail || (authState === "required" ? "Open this builder from Chatty." : "Tenant session active")}</span>{authState === "required" && <a href={process.env.NEXT_PUBLIC_CHATTY_APP_URL ?? "https://app.personaliai.com"}><ExternalLink size={13} /> Open Chatty</a>}<button type="button" onClick={() => { setRefreshingAuth(true); window.location.reload(); }} disabled={refreshingAuth}>{refreshingAuth ? <Loader2 className="spin" size={13} /> : <RotateCcw size={13} />} Refresh connection</button></div>}</div></div>
+      <div className="top-actions"><button type="button" className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button type="button" className="secondary" onClick={downloadN8n} disabled={Boolean(busyAction)} title="Export this flow as n8n JSON"><Download size={14} /> Export n8n</button><button type="button" className="secondary" onClick={() => void runTest()} disabled={Boolean(busyAction)}>{busyAction === "test" ? <Loader2 className="spin" size={14} /> : <Play size={14} />} Test</button><button type="button" className="secondary save-button" onClick={() => void saveDraft(false)} disabled={(saved && Boolean(botId) && Boolean(flowId)) || Boolean(busyAction)}>{busyAction === "save" ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save draft</button><button type="button" className="primary" onClick={() => void saveDraft(true)} disabled={validationIssues.length > 0 || Boolean(busyAction)}>{busyAction === "publish" ? <Loader2 className="spin" size={14} /> : <Check size={14} />} Publish</button>{authState === "required" && <span className="auth-state">Authentication required</span>}{accountOpen && <button type="button" className="account-menu-backdrop" aria-label="Close account menu" onClick={() => setAccountOpen(false)} />}<div className="account-wrap"><button type="button" className={`avatar ${accountOpen ? "open" : ""}`} aria-label="Account" title="Account" aria-expanded={accountOpen} onClick={() => setAccountOpen((current) => !current)}><span>{(authEmail?.[0] || "P").toUpperCase()}</span></button>{accountOpen && <div className="account-menu"><small>CHATTY AUTH</small><b>{authState === "session" ? "Connected" : authState === "handoff" ? "Connected by handoff" : authState === "checking" ? "Checking connection" : "Authentication required"}</b><span>{authEmail || (authState === "required" ? "Open this builder from Chatty." : "Tenant session active")}</span>{authState === "required" && <a href={process.env.NEXT_PUBLIC_CHATTY_APP_URL ?? "https://app.personaliai.com"}><ExternalLink size={13} /> Open Chatty</a>}<button type="button" onClick={() => { setRefreshingAuth(true); window.location.reload(); }} disabled={refreshingAuth}>{refreshingAuth ? <Loader2 className="spin" size={13} /> : <RotateCcw size={13} />} Refresh connection</button></div>}</div></div>
     </header>
     <div className="workspace">
       {view === "canvas" ? <>
@@ -380,15 +386,15 @@ export default function FlowBuilderPage() {
          onCloseMobile={() => setMobilePanel(null)}
        />
         <section className="canvas-area">
-          <div className="canvas-toolbar"><div className="toolbar-group"><button className="tool-active" onClick={() => setView("canvas")}><LayoutGrid size={15} /> Canvas</button><button onClick={() => setView("history")}><History size={15} /> History</button><span className="toolbar-divider" /><button onClick={undo} disabled={historySize === 0} aria-label="Undo"><Undo2 size={15} /></button><button onClick={redo} disabled={futureSize === 0} aria-label="Redo"><Redo2 size={15} /></button></div><div className="toolbar-group"><button onClick={() => canvasCommandsRef.current?.zoomOut()} aria-label="Zoom out">−</button><button onClick={() => canvasCommandsRef.current?.resetZoom()} className="zoom-reset">100%</button><button onClick={() => canvasCommandsRef.current?.zoomIn()} aria-label="Zoom in">+</button><button onClick={() => canvasCommandsRef.current?.fitView()} aria-label="Fit workflow"><RotateCcw size={14} /></button></div></div>
-           <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} onAddStep={(nodeId) => openAddStep(nodeId)} onAddBranch={(nodeId) => openAddStep(nodeId, true)} onCreateNode={() => { setLibraryView("nodes"); setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }} commandsRef={canvasCommandsRef} />
-          <div className="canvas-status"><span><span className={`green-dot ${saved ? "" : "pending"}`} /> {syncState}</span><span>{nodes.length} nodes · {edges.length} connections</span><span className={`status-right ${validationIssues.length ? "has-issues" : ""}`}>{validationIssues.length ? `${validationIssues.length} validation issue${validationIssues.length === 1 ? "" : "s"}` : published ? `Published v${version || 1}` : saved ? "Draft ready" : "Unsaved changes"}</span></div>
+          <div className="canvas-toolbar"><div className="toolbar-group"><button className="tool-active" onClick={() => setView("canvas")}><LayoutGrid size={15} /> Canvas</button><button onClick={() => setView("history")}><History size={15} /> History</button><span className="toolbar-divider" /><button onClick={undo} disabled={historySize === 0} aria-label="Undo" title="Undo"><Undo2 size={15} /></button><button onClick={redo} disabled={futureSize === 0} aria-label="Redo" title="Redo"><Redo2 size={15} /></button></div><div className="toolbar-group"><button onClick={() => canvasCommandsRef.current?.zoomOut()} aria-label="Zoom out" title="Zoom out">−</button><button onClick={() => canvasCommandsRef.current?.resetZoom()} className="zoom-reset" title="Reset zoom to 100%">100%</button><button onClick={() => canvasCommandsRef.current?.zoomIn()} aria-label="Zoom in" title="Zoom in">+</button><button onClick={() => canvasCommandsRef.current?.fitView()} aria-label="Fit workflow in view" title="Fit workflow in view"><RotateCcw size={14} /></button></div></div>
+           <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(Boolean(nodeId)); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} onAddStep={(nodeId) => openAddStep(nodeId)} onAddBranch={(nodeId) => openAddStep(nodeId, true)} onCreateNode={() => { setLibraryView("nodes"); setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }} commandsRef={canvasCommandsRef} />
+          <div className="canvas-status"><span><span className={`green-dot ${saved ? "" : "pending"}`} /> {syncState}</span><span>{nodes.length} nodes · {edges.length} connections</span>{validationIssues.length ? <button type="button" className="validation-status" onClick={() => focusValidationIssue()}><AlertCircle size={12} /> {validationIssues.length} validation issue{validationIssues.length === 1 ? "" : "s"}<span>Review</span></button> : <span className="status-right">{published ? `Published v${version || 1}` : saved ? "Draft ready" : "Unsaved changes"}</span>}</div>
         </section>
-         <aside className={`inspector ${mobilePanel === "inspector" ? "mobile-open" : ""}`}>
-           <div className="panel-head"><div><small>CONFIGURE</small><h2>{selected ? selected.title : "Select a node"}</h2></div><button type="button" className="icon-btn mobile-only" onClick={() => setMobilePanel(null)} aria-label="Close inspector"><X size={17} /></button></div>
+         {inspectorOpen && <aside className={`inspector ${mobilePanel === "inspector" ? "mobile-open" : ""}`}>
+           <div className="panel-head"><div><small>CONFIGURE</small><h2>{selected ? selected.title : "Select a node"}</h2></div><button type="button" className="icon-btn inspector-close" onClick={() => { setInspectorOpen(false); setSelectedId(""); setMobilePanel(null); }} aria-label="Close inspector" title="Close inspector"><X size={17} /></button></div>
            <NodeInspector selected={selected} nodes={nodes} connections={connections} onUpdateNode={updateNode} onUpdateConfig={updateConfig} onConnectNodes={connectNodes} onRemove={removeNode} onOpenConnection={() => { if (selected) setConnectionProvider(getProviderConnection(selected) ?? null); }} onOpenChatty={() => void startOAuth(selected?.provider ?? "")} connectionBusy={Boolean(connectingProvider)} />
-           {validationIssues.length > 0 && <div className="validation-box"><div><AlertCircle size={14} /><b>Before publishing</b></div>{validationIssues.slice(0, 4).map((issue) => <p key={issue}>{issue}</p>)}</div>}
-         </aside>
+           {validationIssues.length > 0 && <div className="validation-box"><div><AlertCircle size={14} /><b>Before publishing</b><span>{validationIssues.length}</span></div>{validationIssues.slice(0, 4).map((issue) => <button type="button" className="validation-issue" key={issue} onClick={() => focusValidationIssue(issue)}>{issue}</button>)}</div>}
+         </aside>}
       </> : <section className="history-area"><RunHistory runs={runs} loading={runsLoading} selectedRun={selectedRun} onSelect={setSelectedRun} onRefresh={() => setRunsRefresh((value) => value + 1)} onBack={() => setView("canvas")} /></section>}
     </div>
     <footer className="mobile-nav"><button onClick={() => setMobilePanel("palette")}><Plus size={17} /><span>Add</span></button><button className="mobile-run" onClick={() => void runTest()}><Play size={17} /><span>Test</span></button><button onClick={() => setMobilePanel("inspector")}><Settings2 size={17} /><span>Inspect</span></button></footer>

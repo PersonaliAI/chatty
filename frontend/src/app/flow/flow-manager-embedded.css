@@ -1,0 +1,175 @@
+/* Dashboard tab layout for the saved-flow directory. */
+.flow-manager-shell.flow-manager-embedded {
+  --ink: #0f172a;
+  --ink-soft: #475569;
+  --muted: #94a3b8;
+  --paper: #fff;
+  --soft: #f8fafc;
+  --line: #e5e7eb;
+  --line-strong: #cbd5e1;
+  --accent: #f97316;
+  --accent-soft: #fff7ed;
+  --danger: #b42318;
+  --radius-md: 8px;
+  --shadow-panel: 0 8px 24px rgba(15, 23, 42, .08);
+  min-height: 100%;
+  color: var(--ink);
+  background: transparent;
+}
+
+.flow-manager-embedded .flow-manager-topbar,
+.flow-manager-embedded .flow-manager-heading,
+.flow-manager-embedded .section-heading,
+.flow-manager-embedded .flow-card-top,
+.flow-manager-embedded .flow-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.flow-manager-embedded .flow-manager-topbar {
+  min-height: 66px;
+  margin: 24px 24px 0;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .05);
+}
+
+.flow-manager-embedded .flow-manager-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.flow-manager-embedded .flow-manager-brand .brand-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #111827;
+}
+
+.flow-manager-embedded .flow-manager-brand .brand-mark img {
+  display: block;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.flow-manager-embedded .flow-manager-brand strong,
+.flow-manager-embedded .flow-manager-brand small {
+  display: block;
+}
+
+.flow-manager-embedded .flow-manager-brand strong { font-size: 14px; }
+.flow-manager-embedded .flow-manager-brand small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.flow-manager-embedded .flow-manager-top-actions { display: flex; gap: 9px; }
+
+.flow-manager-embedded .manager-primary,
+.flow-manager-embedded .manager-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.flow-manager-embedded .manager-primary { border-color: var(--accent); color: #fff; background: var(--accent); }
+.flow-manager-embedded .manager-primary:hover { border-color: #ea690c; background: #ea690c; }
+.flow-manager-embedded .manager-secondary { color: var(--ink-soft); background: var(--paper); cursor: pointer; }
+.flow-manager-embedded .manager-secondary:hover { border-color: var(--line-strong); background: var(--soft); }
+.flow-manager-embedded .manager-secondary:disabled { cursor: wait; opacity: .65; }
+
+.flow-manager-embedded .flow-manager-content {
+  width: min(100% - 48px, 1320px);
+  margin: 0 auto;
+  padding: 24px 0 40px;
+}
+
+.flow-manager-embedded .flow-manager-heading { align-items: flex-end; margin-bottom: 20px; }
+.flow-manager-embedded .flow-manager-heading small,
+.flow-manager-embedded .section-heading small { color: #a2aab8; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.flow-manager-embedded .flow-manager-heading h1 { margin: 7px 0 5px; font-size: 28px; letter-spacing: -.03em; }
+.flow-manager-embedded .flow-manager-heading p,
+.flow-manager-embedded .section-heading p { margin: 0; color: var(--ink-soft); font-size: 12px; }
+.flow-manager-embedded .flow-manager-stats { display: flex; gap: 8px; }
+.flow-manager-embedded .flow-manager-stats span { padding: 8px 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: var(--paper); font-size: 10px; }
+.flow-manager-embedded .flow-manager-stats b { margin-right: 4px; color: var(--ink); font-size: 14px; }
+.flow-manager-embedded .flow-manager-alert { display: flex; align-items: center; gap: 9px; margin-bottom: 18px; padding: 11px 13px; border: 1px solid #fecaca; border-radius: 9px; color: #a52835; background: #fff4f4; font-size: 11px; }
+.flow-manager-embedded .flow-manager-alert button { margin-left: auto; color: #a52835; font-size: 18px; line-height: 1; }
+.flow-manager-embedded .flow-manager-section { margin-top: 18px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow-panel); }
+.flow-manager-embedded .section-heading { align-items: flex-start; margin-bottom: 18px; }
+.flow-manager-embedded .section-heading h2 { margin: 0 0 5px; font-size: 15px; }
+.flow-manager-embedded .manager-link { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.flow-manager-embedded .flow-manager-loading,
+.flow-manager-embedded .flow-manager-empty { display: grid; justify-items: center; gap: 9px; min-height: 188px; align-content: center; border: 1px dashed var(--line-strong); border-radius: 11px; color: var(--muted); font-size: 11px; text-align: center; }
+.flow-manager-embedded .flow-manager-empty { padding: 28px; }
+.flow-manager-embedded .flow-manager-empty-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 13px; color: var(--accent); background: var(--accent-soft); }
+.flow-manager-embedded .flow-manager-empty h3 { margin: 2px 0 0; color: var(--ink); font-size: 15px; }
+.flow-manager-embedded .flow-manager-empty p { max-width: 430px; margin: 0 0 7px; color: var(--muted); line-height: 1.5; }
+.flow-manager-embedded .flow-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
+.flow-manager-embedded .flow-summary-card { position: relative; display: flex; min-height: 185px; flex-direction: column; padding: 16px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.flow-manager-embedded .flow-summary-card:hover { border-color: var(--line-strong); box-shadow: 0 8px 20px rgba(15, 23, 42, .07); transform: translateY(-1px); }
+.flow-manager-embedded .flow-status { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 4px 7px; border-radius: 999px; font-size: 9px; font-weight: 800; }
+.flow-manager-embedded .flow-status.live { color: #14743e; background: #eaf8ef; }
+.flow-manager-embedded .flow-status.draft { color: #8b6719; background: #fff7df; }
+.flow-manager-embedded .flow-status .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.flow-manager-embedded .flow-menu-wrap { position: relative; margin-left: auto; }
+.flow-manager-embedded .flow-menu-button { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 7px; color: var(--muted); }
+.flow-manager-embedded .flow-menu-button:hover { color: var(--ink); background: var(--soft); }
+.flow-manager-embedded .flow-card-menu { position: absolute; top: calc(100% + 5px); right: 0; z-index: 3; display: grid; min-width: 135px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: var(--shadow-panel); }
+.flow-manager-embedded .flow-card-menu button { display: inline-flex; align-items: center; gap: 6px; padding: 8px; border-radius: 5px; color: var(--ink-soft); font-size: 10px; text-align: left; }
+.flow-manager-embedded .flow-card-menu button:hover { background: var(--soft); }
+.flow-manager-embedded .flow-card-menu button.danger { color: var(--danger); }
+.flow-manager-embedded .flow-summary-card h3 { margin: 18px 0 3px; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.flow-manager-embedded .flow-card-meta { margin: 0; color: var(--muted); font-size: 10px; }
+.flow-manager-embedded .flow-card-stats { display: flex; gap: 8px; margin-top: auto; padding: 15px 0 13px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 9px; }
+.flow-manager-embedded .flow-card-stats span + span { padding-left: 8px; border-left: 1px solid var(--line); }
+.flow-manager-embedded .flow-card-footer { padding-top: 12px; }
+.flow-manager-embedded .flow-card-footer a,
+.flow-manager-embedded .flow-toggle { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); font-size: 10px; font-weight: 800; text-decoration: none; }
+.flow-manager-embedded .flow-toggle { color: var(--ink-soft); font-weight: 700; }
+.flow-manager-embedded .flow-toggle:disabled { cursor: wait; opacity: .65; }
+.flow-manager-embedded .outbound-section { background: #fbfcfe; }
+.flow-manager-embedded .outbound-grid,
+.flow-manager-embedded .manager-template-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.flow-manager-embedded .outbound-card { display: flex; align-items: flex-start; gap: 10px; min-height: 102px; padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.flow-manager-embedded .outbound-logo { display: grid; flex: 0 0 31px; width: 31px; height: 31px; place-items: center; border: 1px solid currentColor; border-radius: 9px; font-size: 15px; font-weight: 900; }
+.flow-manager-embedded .outbound-card h3,
+.flow-manager-embedded .manager-template-card h3 { margin: 0 0 4px; font-size: 12px; }
+.flow-manager-embedded .outbound-card p,
+.flow-manager-embedded .manager-template-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.flow-manager-embedded .outbound-card span:last-child { display: block; margin-top: 8px; color: #8a96a5; font-size: 8px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.flow-manager-embedded .template-section { box-shadow: none; }
+.flow-manager-embedded .manager-template-card { display: flex; align-items: center; gap: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); text-decoration: none; }
+.flow-manager-embedded .manager-template-card:hover { border-color: #f9b184; background: var(--accent-soft); }
+.flow-manager-embedded .manager-template-card > span { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 9px; background: var(--soft); font-size: 17px; font-weight: 800; }
+.flow-manager-embedded .manager-template-card div { min-width: 0; flex: 1; }
+.flow-manager-embedded .manager-template-card > svg { color: var(--muted); }
+.flow-manager-embedded .spin { animation: flow-manager-spin .8s linear infinite; }
+@keyframes flow-manager-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 760px) {
+  .flow-manager-embedded .flow-manager-topbar { margin: 16px 14px 0; padding: 14px 16px; }
+  .flow-manager-embedded .flow-manager-top-actions .manager-secondary { padding: 9px; font-size: 0; }
+  .flow-manager-embedded .flow-manager-content { width: min(100% - 28px, 600px); padding-top: 20px; }
+  .flow-manager-embedded .flow-manager-heading { display: block; }
+  .flow-manager-embedded .flow-manager-stats { margin-top: 16px; }
+  .flow-manager-embedded .flow-manager-section { padding: 16px; }
+  .flow-manager-embedded .section-heading { display: block; }
+  .flow-manager-embedded .manager-link { margin-top: 12px; }
+  .flow-manager-embedded .outbound-grid,
+  .flow-manager-embedded .manager-template-grid { grid-template-columns: 1fr; }
+}

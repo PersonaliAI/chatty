@@ -20,7 +20,7 @@ type FlowSummary = {
   published_at?: string | null;
 };
 
-type Props = { botId: string };
+type Props = { botId: string; embedded?: boolean };
 
 const outboundPlatforms = [
   { name: "n8n", description: "Send Chatty events to an n8n Webhook trigger.", tone: "#ff6d5a" },
@@ -35,7 +35,7 @@ function formatUpdated(value?: string) {
   return `Updated ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date)}`;
 }
 
-export function FlowManager({ botId }: Props) {
+export function FlowManager({ botId, embedded = false }: Props) {
   const [flows, setFlows] = useState<FlowSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,11 +91,12 @@ export function FlowManager({ botId }: Props) {
     }
   }
 
-  const editorUrl = (extra = "") => `/flow?bot_id=${encodeURIComponent(botId)}${extra}`;
+  const managerUrl = `/flow?bot_id=${encodeURIComponent(botId)}`;
+  const editorUrl = (extra = "") => `/flow/builder?bot_id=${encodeURIComponent(botId)}${extra}`;
 
-  return <main className="flow-manager-shell">
+  return <main className={`flow-manager-shell${embedded ? " flow-manager-embedded" : ""}`}>
     <header className="flow-manager-topbar">
-      <a className="flow-manager-brand" href={editorUrl()}><span className="brand-mark"><Image src="/chatty_flow.png" alt="" width={22} height={22} priority aria-hidden="true" /></span><span><strong>Chatty Flows</strong><small>Automation workspace</small></span></a>
+      <a className="flow-manager-brand" href={managerUrl}><span className="brand-mark"><Image src="/chatty_flow.png" alt="" width={22} height={22} priority aria-hidden="true" /></span><span><strong>Chatty Flows</strong><small>Automation workspace</small></span></a>
       <div className="flow-manager-top-actions"><button type="button" className="manager-secondary" onClick={() => void loadFlows()} disabled={loading}>{loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />} Refresh</button><a className="manager-primary" href={editorUrl("&new=1")}><Plus size={16} /> New workflow</a></div>
     </header>
 

@@ -44,9 +44,13 @@ flowchart LR
 
 Open **Flow Builder** in the Chatty dashboard.
 
-The route is `/flow?bot_id={BOT_ID}`.
+The My flows route is `/flow?bot_id={BOT_ID}`.
 
-This route opens **My flows** when no `flow_id` is present.
+This route always opens **My flows**.
+
+The editor route is `/flow/builder?bot_id={BOT_ID}&flow_id={FLOW_ID}`.
+
+Use `/flow/builder?bot_id={BOT_ID}&new=1` to create a new flow.
 
 My flows reads persisted records from `GET /api/flow-builder/flows`.
 
@@ -66,7 +70,7 @@ Each saved flow card shows:
 - editor link;
 - delete control.
 
-Select **New workflow** to open an empty editor.
+Select **New workflow** to open the separate editor route.
 
 Select **Open editor** on a saved card to edit that flow.
 
