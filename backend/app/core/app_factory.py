@@ -186,7 +186,10 @@ def create_app() -> FastAPI:
                 return _StarletteResponse(status_code=204, headers={
                     "Access-Control-Allow-Origin": origin,
                     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Widget-Token",
+                    # The signed visitor capability is required by the shared
+                    # widget transport, including public theme reads. Keep an
+                    # explicit allowlist rather than reflecting arbitrary headers.
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Widget-Token, X-Chatty-Visitor",
                     "Access-Control-Max-Age": "86400",
                     "Vary": "Origin",
                 })
