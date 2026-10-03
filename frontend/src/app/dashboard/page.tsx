@@ -4053,7 +4053,7 @@ export default function Dashboard() {
       >
         <div className="flex flex-col flex-1 min-h-0">
           {/* Brand Logo */}
-          <div className={`h-16 border-b border-neutral-200 dark:border-neutral-800 flex items-center ${sidebarCollapsed ? "md:justify-center md:px-2" : "justify-between px-6"}`}>
+          <div className={`h-16 border-b border-neutral-200 dark:border-neutral-800 flex items-center ${sidebarCollapsed ? "md:justify-center md:px-2" : "justify-between px-4 md:px-6"}`}>
             <Link href="/" className="flex items-center gap-2">
               <span className="font-semibold text-base tracking-tight flex items-center gap-1.5">
                 <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-7 object-contain" />
@@ -4243,7 +4243,7 @@ export default function Dashboard() {
         </div>
 
         {/* Account footer: compact trigger with an upward-opening action menu. */}
-        <div className={`relative border-t border-neutral-200 dark:border-neutral-800 ${sidebarCollapsed ? "md:p-2" : "p-3"}`}>
+        <div className={`relative hidden md:block border-t border-neutral-200 dark:border-neutral-800 ${sidebarCollapsed ? "md:p-2" : "p-3"}`}>
           {accountMenuOpen && (
             <div
               className="fixed inset-0 z-40 bg-transparent"
