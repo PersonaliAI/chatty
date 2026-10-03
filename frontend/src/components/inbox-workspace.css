@@ -65,6 +65,8 @@
 .inbox-shell[data-navigation-collapsed=true][data-details-open=true] .inbox-workspace { grid-template-columns: 48px 288px minmax(0,1fr) 280px; }
 .inbox-shell[data-navigation-collapsed=true] .inbox-nav-content, .inbox-shell[data-navigation-collapsed=true] .inbox-navigation h2 { display: none; }
 .inbox-shell[data-navigation-collapsed=true] .inbox-navigation .inbox-pane-title { padding: 8px; }
+.inbox-shell[data-navigation-collapsed=true] .inbox-navigation .inbox-pane-title { justify-content: center; }
+.inbox-shell[data-navigation-collapsed=true] .inbox-navigation .inbox-identity-trigger { display: none; }
 @container inbox (max-width: 1190px) {
   .inbox-shell .inbox-workspace { grid-template-columns: 48px 270px minmax(0,1fr); }
   .inbox-shell[data-details-open=true] .inbox-workspace { grid-template-columns: 48px 250px minmax(0,1fr) 250px; }
