@@ -18,7 +18,6 @@ import { LeadsMap } from "@/components/leads-map";
 import { OnboardingWizard, extractDomain } from "@/components/onboarding-wizard";
 import { InboxPanel } from "@/components/inbox-panel";
 import { CampaignsUI } from "@/components/campaigns-ui";
-import { FlowBuilderAutomationTab } from "@/components/flow-builder-automation-tab";
 import { KBManager } from "@/components/kb-manager";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
@@ -4186,7 +4185,6 @@ export default function Dashboard() {
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
               { id: "inbox", label: "Inbox", icon: Inbox },
               { id: "campaigns", label: "Campaigns", icon: Megaphone },
-              { id: "automations", label: "Automations", icon: Workflow },
               { id: "flow_builder", label: "Flow Builder", icon: Workflow },
               { id: "leads", label: t("leads"), icon: Users },
               { id: "feedback", label: "Feedback", icon: Star },
@@ -5018,9 +5016,6 @@ export default function Dashboard() {
             <CampaignsUI botId={botId} color={primaryColor} fetchBackend={fetchWithFallback} />
           )}
 
-          {activeTab === "automations" && (
-            <FlowBuilderAutomationTab botId={botId} />
-          )}
         </div>
       </main>
 
