@@ -13,6 +13,9 @@
   --radius-md: 8px;
   --shadow-panel: 0 8px 24px rgba(15, 23, 42, .08);
   min-height: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   color: var(--ink);
   background: transparent;
 }
@@ -30,12 +33,13 @@
 
 .flow-manager-embedded .flow-manager-topbar {
   min-height: 66px;
-  margin: 24px 24px 0;
-  padding: 16px 20px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  margin: 0;
+  padding: 0 32px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   background: var(--paper);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, .05);
+  box-shadow: none;
 }
 
 .flow-manager-embedded .flow-manager-brand {
@@ -53,7 +57,7 @@
   place-items: center;
   overflow: hidden;
   border-radius: 9px;
-  background: #111827;
+  background: transparent;
 }
 
 .flow-manager-embedded .flow-manager-brand .brand-mark img {
@@ -93,12 +97,12 @@
 .flow-manager-embedded .manager-secondary:disabled { cursor: wait; opacity: .65; }
 
 .flow-manager-embedded .flow-manager-content {
-  width: min(100% - 48px, 1320px);
+  width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
-  padding: 24px 0 40px;
+  padding: 38px 0 72px;
 }
 
-.flow-manager-embedded .flow-manager-heading { align-items: flex-end; margin-bottom: 20px; }
+.flow-manager-embedded .flow-manager-heading { align-items: flex-end; margin-bottom: 28px; }
 .flow-manager-embedded .flow-manager-heading small,
 .flow-manager-embedded .section-heading small { color: #a2aab8; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
 .flow-manager-embedded .flow-manager-heading h1 { margin: 7px 0 5px; font-size: 28px; letter-spacing: -.03em; }
@@ -109,12 +113,12 @@
 .flow-manager-embedded .flow-manager-stats b { margin-right: 4px; color: var(--ink); font-size: 14px; }
 .flow-manager-embedded .flow-manager-alert { display: flex; align-items: center; gap: 9px; margin-bottom: 18px; padding: 11px 13px; border: 1px solid #fecaca; border-radius: 9px; color: #a52835; background: #fff4f4; font-size: 11px; }
 .flow-manager-embedded .flow-manager-alert button { margin-left: auto; color: #a52835; font-size: 18px; line-height: 1; }
-.flow-manager-embedded .flow-manager-section { margin-top: 18px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow-panel); }
+.flow-manager-embedded .flow-manager-section { margin-top: 24px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow-panel); }
 .flow-manager-embedded .section-heading { align-items: flex-start; margin-bottom: 18px; }
 .flow-manager-embedded .section-heading h2 { margin: 0 0 5px; font-size: 15px; }
 .flow-manager-embedded .manager-link { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .flow-manager-embedded .flow-manager-loading,
-.flow-manager-embedded .flow-manager-empty { display: grid; justify-items: center; gap: 9px; min-height: 188px; align-content: center; border: 1px dashed var(--line-strong); border-radius: 11px; color: var(--muted); font-size: 11px; text-align: center; }
+.flow-manager-embedded .flow-manager-empty { display: grid; justify-items: center; gap: 9px; min-height: 250px; align-content: center; border: 1px dashed var(--line-strong); border-radius: 11px; color: var(--muted); font-size: 11px; text-align: center; contain: layout paint; }
 .flow-manager-embedded .flow-manager-empty { padding: 28px; }
 .flow-manager-embedded .flow-manager-empty-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 13px; color: var(--accent); background: var(--accent-soft); }
 .flow-manager-embedded .flow-manager-empty h3 { margin: 2px 0 0; color: var(--ink); font-size: 15px; }
@@ -162,9 +166,9 @@
 @keyframes flow-manager-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 760px) {
-  .flow-manager-embedded .flow-manager-topbar { margin: 16px 14px 0; padding: 14px 16px; }
+  .flow-manager-embedded .flow-manager-topbar { padding: 0 16px; }
   .flow-manager-embedded .flow-manager-top-actions .manager-secondary { padding: 9px; font-size: 0; }
-  .flow-manager-embedded .flow-manager-content { width: min(100% - 28px, 600px); padding-top: 20px; }
+  .flow-manager-embedded .flow-manager-content { width: min(100% - 28px, 600px); padding-top: 24px; }
   .flow-manager-embedded .flow-manager-heading { display: block; }
   .flow-manager-embedded .flow-manager-stats { margin-top: 16px; }
   .flow-manager-embedded .flow-manager-section { padding: 16px; }

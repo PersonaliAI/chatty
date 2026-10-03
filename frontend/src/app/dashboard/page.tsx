@@ -4322,6 +4322,10 @@ export default function Dashboard() {
 
       {/* Main Panel */}
       <main data-dashboard className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {activeTab === "flow_builder" && botId ? (
+          <FlowManager botId={botId} embedded />
+        ) : (
+          <>
         {/* Header bar */}
         <header className="h-16 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 sm:px-6 md:px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -4398,11 +4402,6 @@ export default function Dashboard() {
               busiestHour={busiestHour}
               csatFeedback={csatFeedback}
             />
-          )}
-
-          {/* TAB 1A: FLOW BUILDER DIRECTORY */}
-          {activeTab === "flow_builder" && botId && (
-            <FlowManager botId={botId} embedded />
           )}
 
           {/* TAB 2: CUSTOMIZER */}
@@ -5027,6 +5026,8 @@ export default function Dashboard() {
           )}
 
         </div>
+          </>
+        )}
       </main>
 
       {/* Telegram Link Dialog */}
