@@ -170,7 +170,7 @@ function MessageListInner({
       {messages.map((m, i) => {
         const isVisitor = m.role === "user";
         const isHuman = m.sender === "human";
-        const lastAssistantIndex = messages.reduce((last, item, index) => item.role !== "user" ? index : last, -1);
+        const lastAssistantIndex = messages.reduce((last, item, index) => item.role !== "user" && item.sender !== "human" ? index : last, -1);
         const bookingIntent = messages.some((item) => item.role === "user" && /\b(book|booking|demo|schedule|appointment|meeting|calendar|slot)\b/i.test(item.content));
 
         let cleanContent = m.content;
@@ -193,7 +193,9 @@ function MessageListInner({
 
         const hasBooking = m.content.includes("[BOOKING_WIDGET]") ||
           ((/demo|meeting|appointment/i.test(m.content)) && (/scheduled|confirmed|meet\.google\.com|teams\.microsoft\.com|cancelled|canceled/i.test(m.content)));
-        const showBookingFallback = !isVisitor && i === lastAssistantIndex && bookingIntent && !hasBooking;
+        // Human agent replies use role="assistant" too, but must never inherit
+        // the AI booking fallback card from an earlier visitor intent.
+        const showBookingFallback = !isVisitor && !isHuman && i === lastAssistantIndex && bookingIntent && !hasBooking;
 
         if (cleanContent.includes("[BOOKING_WIDGET]")) {
           cleanContent = cleanContent.replace(/\[BOOKING_WIDGET\]/g, "").trim();
