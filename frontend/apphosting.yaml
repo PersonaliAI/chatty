@@ -27,11 +27,6 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  - variable: NEXT_PUBLIC_FLOW_BUILDER_URL
-    value: "https://flow.personaliai.com"
-    availability:
-      - BUILD
-      - RUNTIME
   - variable: NEXT_PUBLIC_LEMON_PORTAL_URL
     value: "https://priceshield.lemonsqueezy.com/billing"
     availability:

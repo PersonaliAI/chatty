@@ -1,8 +1,8 @@
 # Chatty Flow Builder
 
-This is a separate Next.js application for Chatty workflow authoring. It is
-designed to deploy as its own Firebase App Hosting backend at
-`https://flow.personaliai.com`.
+This is the visual development application for Chatty workflow authoring.
+Production runs the editor inside the main Chatty frontend at
+`https://chatty.personaliai.com/flow`.
 
 ## Local development
 
@@ -11,25 +11,25 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:3000/?bot_id=<chatty-bot-id>` after signing in to the
-Chatty Supabase project in the same browser. Without a bot ID the editor keeps a
-local draft for visual development.
+Open `http://localhost:3000/?bot_id=<chatty-bot-id>` for standalone visual
+development. The production editor uses the signed-in Chatty session at
+`/flow?bot_id=<chatty-bot-id>`.
 
 ## Firebase App Hosting
 
-Create a separate App Hosting backend with this directory as its source root.
-Use `apphosting.yaml` for the public Chatty API URL and Supabase browser values.
-Set the builder URL in Chatty's frontend App Hosting configuration through
-`NEXT_PUBLIC_FLOW_BUILDER_URL`.
+Deploy the `frontend` directory as the single Chatty Firebase App Hosting
+backend. The `/flow` route is part of that frontend deployment. Keep this
+directory as a standalone local visual-development target only.
 
 The builder never receives a service-role key. It sends the signed-in user's
 Supabase access token to Chatty. Chatty checks the bot's existing `design`
 permission before reading, saving, or publishing a flow version.
 
 The API route and the database migration must be deployed before enabling the
-dashboard link. The builder uses the Chatty Supabase session or a short-lived,
-bot-bound handoff token. Every API operation checks the user's design
-permission for the selected bot.
+dashboard link. The production editor uses the same-origin Chatty Supabase
+session. Every API operation checks the user's design permission for the
+selected bot. A short-lived handoff token remains supported for standalone
+development and older links.
 
 Published flows execute from Chatty events. The native Reply in chat node
 returns a configured response in the same widget request. Other action nodes

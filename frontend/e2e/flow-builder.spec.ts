@@ -4,10 +4,9 @@ const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const ownerPassword = process.env.E2E_OWNER_PASSWORD;
 const ownerBotId = process.env.E2E_OWNER_BOT_ID;
 const supabaseServiceKey = process.env.E2E_SUPABASE_SERVICE_KEY;
-const standaloneBuilderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://flow.personaliai.com";
 const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.chatty.personaliai.com";
 
-test.describe("standalone flow builder lifecycle", () => {
+test.describe("same-origin flow builder lifecycle", () => {
   test.skip(!ownerEmail || !ownerPassword || !ownerBotId, "requires E2E_OWNER_EMAIL, E2E_OWNER_PASSWORD, and E2E_OWNER_BOT_ID");
 
   test("creates, publishes, pauses, resumes, and deletes a real workflow", async ({ page }) => {
@@ -25,17 +24,16 @@ test.describe("standalone flow builder lifecycle", () => {
     const automations = page.getByRole("region", { name: "Chatty automations" });
     await expect(automations).toBeVisible();
 
-    const handoffResponse = page.waitForResponse((response) => response.url().includes("/api/flow-builder/handoff") && response.request().method() === "POST");
+    const popup = page.waitForEvent("popup");
     await automations.getByRole("button", { name: /new workflow/i }).click();
-    const handoff = await (await handoffResponse).json() as { handoff: string };
-    const builder = await page.context().newPage();
-    await builder.goto(`${standaloneBuilderUrl}/?bot_id=${encodeURIComponent(ownerBotId!)}&handoff=${encodeURIComponent(handoff.handoff)}`);
+    const builder = await popup;
     await builder.waitForLoadState("domcontentloaded");
     await expect(builder.getByText("Chatty Flows", { exact: true })).toBeVisible();
     await expect(builder.getByText(/0\s+nodes/, { exact: false })).toBeVisible();
 
     await builder.getByRole("button", { name: /^Chatty event/ }).click();
-    await builder.getByLabel("Event type").selectOption("session.started");
+    await builder.getByLabel("Event type").click();
+    await builder.getByRole("option", { name: "session.started" }).click();
     await builder.getByRole("button", { name: /^HTTP request/ }).click();
     await builder.getByLabel("Adapter endpoint URL").fill("https://httpbin.org/status/204");
     const publishResponse = builder.waitForResponse((response) => response.url().includes("/api/flow-builder/publish") && response.request().method() === "POST");

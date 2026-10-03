@@ -1,6 +1,6 @@
-# Deploy this directory as a separate Firebase App Hosting backend.
-# Set the backend URL and Supabase values in Firebase App Hosting secrets or
-# environment configuration for the target project.
+# This file is for standalone visual development only.
+# Production deploys the main frontend and serves the editor at /flow.
+# Set these values in local App Hosting configuration when needed.
 env:
   - variable: NEXT_PUBLIC_CHATTY_API_URL
     value: "https://api.chatty.personaliai.com"

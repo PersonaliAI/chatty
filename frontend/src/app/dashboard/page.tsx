@@ -4212,14 +4212,8 @@ export default function Dashboard() {
                   key={link.id}
                   onClick={() => {
                     if (link.id === "flow_builder") {
-                      const flowBuilderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://flow.personaliai.com";
-                      void fetchWithFallback(`/api/flow-builder/handoff?bot_id=${encodeURIComponent(botId || "")}`, { method: "POST" })
-                        .then(async (response) => {
-                          const payload = response.ok ? await response.json() as { handoff?: string } : {};
-                          const query = new URLSearchParams({ bot_id: botId || "" });
-                          if (payload.handoff) query.set("handoff", payload.handoff);
-                          window.open(`${flowBuilderUrl}?${query.toString()}`, "_blank", "noopener,noreferrer");
-                        });
+                      const query = new URLSearchParams({ bot_id: botId || "" });
+                      window.open(`/flow?${query.toString()}`, "_blank", "noopener,noreferrer");
                       setSidebarOpen(false);
                       return;
                     }
