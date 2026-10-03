@@ -535,7 +535,24 @@ export interface WidgetThemeData {
 
 export default function ChatWidgetCore(props: ChatWidgetCoreProps) {
   const identity = useVisitorIdentity(props.botId, BACKEND_URL);
-  if (!identity.value) return <p role="status">{identity.error ? "Chat connection unavailable. Reload to retry." : "Connecting securely…"}</p>;
+  if (!identity.value) {
+    const message = identity.error ? "We couldn't start the chat. Please reload." : "Loading chat…";
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          boxSizing: "border-box", minHeight: 96, width: "100%", display: "flex", alignItems: "center",
+          justifyContent: "center", gap: 10, padding: "24px", borderRadius: 16,
+          background: "#fffaf5", border: "1px solid #f1e6db", color: "#6b5c50",
+          fontFamily: "ui-sans-serif, system-ui, sans-serif", fontSize: 14, lineHeight: 1.4,
+        }}
+      >
+        <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: identity.error ? "#c56a42" : "#f97316", boxShadow: identity.error ? "none" : "0 0 0 4px rgba(249,115,22,.12)" }} />
+        <span>{message}</span>
+      </div>
+    );
+  }
   return <IdentifiedChatWidget key={identity.value.session_id} {...props} identity={identity.client} />;
 }
 
