@@ -21,6 +21,7 @@ import {
 } from "@xyflow/react";
 import { AlertCircle, CheckCircle2, ChevronDown, Clock3, Code2, Copy, Loader2, Minus, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
+import { FLOW_NODE_LAYOUT } from "./graph-layout";
 import type { FlowEdge, FlowNode } from "./types";
 import { NodeIcon } from "./node-icon";
 
@@ -153,8 +154,8 @@ function FlowCanvasInner(props: Props) {
     // React Flow keeps nodes hidden until it has dimensions. The card has a
     // stable Intercom-style size, so provide it up front while ResizeObserver
     // measures the rendered handles.
-    width: 312,
-    height: 220,
+    width: FLOW_NODE_LAYOUT.width,
+    height: FLOW_NODE_LAYOUT.height,
     data: { ...node, ...stableActions, openMenuId: props.nodeMenuId },
     selected: node.id === props.selectedId,
   }), [props.nodeMenuId, props.selectedId, stableActions]);
@@ -167,6 +168,7 @@ function FlowCanvasInner(props: Props) {
     animated: false,
     style: { stroke: "#9aaabd", strokeWidth: 1.8 },
   })));
+  const hadNodesRef = useRef(props.nodes.length > 0);
 
   useEffect(() => {
     setCanvasNodes((current) => {
@@ -195,6 +197,17 @@ function FlowCanvasInner(props: Props) {
       style: { stroke: "#9aaabd", strokeWidth: 1.8 },
     })));
   }, [props.edges]);
+
+  useEffect(() => {
+    const hasNodes = props.nodes.length > 0;
+    if (hasNodes && !hadNodesRef.current) {
+      const timer = window.setTimeout(() => reactFlow.fitView({ padding: 0.35, duration: 180 }), 80);
+      hadNodesRef.current = hasNodes;
+      return () => window.clearTimeout(timer);
+    }
+    hadNodesRef.current = hasNodes;
+    return undefined;
+  }, [props.nodes.length, reactFlow]);
 
   const refreshNodeInternals = useCallback(() => {
     const timer = window.setTimeout(() => {

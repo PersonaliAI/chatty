@@ -14,6 +14,7 @@ import { FlowLibrary } from "./flow-library";
 import { NodeInspector } from "./node-inspector";
 import { ConnectionModal } from "./connection-modal";
 import { getProviderConnection } from "./connections";
+import { findAvailableNodePosition, FLOW_NODE_LAYOUT } from "./graph-layout";
 import type { FlowConnection, FlowData, FlowEdge, FlowNode, FlowRun, FlowRunTrace } from "./types";
 
 type GraphSnapshot = FlowData;
@@ -282,7 +283,11 @@ export default function FlowBuilderPage() {
     const parent = pendingParentId ? graphRef.current.nodes.find((node) => node.id === pendingParentId) : undefined;
     const pathId = pendingParentId ? pendingPathId : item.kind === "trigger" ? id : "main";
     const pathTitle = pendingParentId && pendingPathId !== "main" ? `Path ${String.fromCharCode(65 + graphRef.current.nodes.filter((node) => node.pathId && node.pathId !== "main").length)}` : "Main path";
-    const newNode: FlowNode = { id, type: item.type, kind: item.kind, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color, x: parent ? parent.x + 380 : 180 + ((nodes.length * 44) % 360), y: parent ? parent.y : 110 + ((nodes.length * 54) % 300), provider: item.provider, credentialType: item.credentialType, n8nType: item.n8nType, n8nTypeVersion: item.n8nTypeVersion, n8nParameters: {}, operations: item.operations, config: { ...item.defaultConfig, provider: item.provider, retry_enabled: "true", idempotency_enabled: "true" }, pathId, pathTitle, stepIndex: parent ? (parent.stepIndex ?? 0) + 1 : 0 };
+    const preferredPosition = parent
+      ? { x: parent.x + FLOW_NODE_LAYOUT.width + FLOW_NODE_LAYOUT.horizontalGap, y: parent.y }
+      : { x: FLOW_NODE_LAYOUT.originX, y: FLOW_NODE_LAYOUT.originY };
+    const position = findAvailableNodePosition(graphRef.current.nodes, preferredPosition);
+    const newNode: FlowNode = { id, type: item.type, kind: item.kind, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color, x: position.x, y: position.y, provider: item.provider, credentialType: item.credentialType, n8nType: item.n8nType, n8nTypeVersion: item.n8nTypeVersion, n8nParameters: {}, operations: item.operations, config: { ...item.defaultConfig, provider: item.provider, retry_enabled: "true", idempotency_enabled: "true" }, pathId, pathTitle, stepIndex: parent ? (parent.stepIndex ?? 0) + 1 : 0 };
     const nextEdges = parent ? [...graphRef.current.edges, { from: parent.id, to: id, label: pendingPathId === "main" ? undefined : pathTitle }] : graphRef.current.edges;
     const nextPaths = [...(graphRef.current.paths ?? [])];
     if (!nextPaths.some((path) => path.id === pathId)) nextPaths.push({ id: pathId, title: pathTitle, color: item.color });
@@ -298,6 +303,7 @@ export default function FlowBuilderPage() {
     setLibraryView("nodes");
     setPendingTemplate(null);
     setMobilePanel(null);
+    window.setTimeout(() => canvasCommandsRef.current?.fitView(), 120);
   }
 
   function applyTemplate(template: FlowTemplate) {
@@ -311,11 +317,11 @@ export default function FlowBuilderPage() {
   function updateNode(nodeId: string, update: Partial<FlowNode>) { setGraph({ nodes: graphRef.current.nodes.map((node) => node.id === nodeId ? { ...node, ...update } : node), edges: graphRef.current.edges, paths: graphRef.current.paths }); }
   function updateConfig(key: string, value: string) { if (selected) updateNode(selected.id, { config: { ...selected.config, [key]: value } }); }
   function removeNode(nodeId: string) { setGraph({ nodes: graphRef.current.nodes.filter((node) => node.id !== nodeId), edges: graphRef.current.edges.filter((edge) => edge.from !== nodeId && edge.to !== nodeId), paths: graphRef.current.paths }); setSelectedId(""); setNodeMenuId(null); }
-  function duplicateNode(node: FlowNode) { const id = `${node.id}-copy-${Date.now()}`; setGraph({ nodes: [...graphRef.current.nodes, { ...node, id, title: `${node.title} copy`, x: node.x + 36, y: node.y + 36, config: { ...node.config } }], edges: graphRef.current.edges, paths: graphRef.current.paths }); setSelectedId(id); setNodeMenuId(null); }
+  function duplicateNode(node: FlowNode) { const id = `${node.id}-copy-${Date.now()}`; const position = findAvailableNodePosition(graphRef.current.nodes, { x: node.x + 36, y: node.y + 36 }); setGraph({ nodes: [...graphRef.current.nodes, { ...node, id, title: `${node.title} copy`, x: position.x, y: position.y, config: { ...node.config } }], edges: graphRef.current.edges, paths: graphRef.current.paths }); setSelectedId(id); setNodeMenuId(null); }
   function connectNodes(sourceId: string, targetId: string) { if (sourceId === targetId || graphRef.current.edges.some((edge) => edge.from === sourceId && edge.to === targetId)) return; setGraph({ nodes: graphRef.current.nodes, edges: [...graphRef.current.edges, { from: sourceId, to: targetId }], paths: graphRef.current.paths }); }
   function moveNodes(nextNodes: FlowNode[]) { setGraph({ nodes: nextNodes, edges: graphRef.current.edges, paths: graphRef.current.paths }); }
   function changeEdges(nextEdges: FlowEdge[]) { setGraph({ nodes: graphRef.current.nodes, edges: nextEdges, paths: graphRef.current.paths }); }
-  function openAddStep(parentId: string, branch = false) { setPendingParentId(parentId); setPendingPathId(branch ? `path-${Date.now()}` : "main"); setLibraryView("nodes"); setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }
+  function openAddStep(parentId: string, branch = false) { setSelectedId(parentId); setPendingParentId(parentId); setPendingPathId(branch ? `path-${Date.now()}` : "main"); setLibraryView("nodes"); setMobilePanel("palette"); setSyncState(branch ? "Choose the next node for this path" : "Choose the next node"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }
 
   async function handleN8nImport(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; event.target.value = ""; if (!file) return;
@@ -387,7 +393,7 @@ export default function FlowBuilderPage() {
     </div>
     <footer className="mobile-nav"><button onClick={() => setMobilePanel("palette")}><Plus size={17} /><span>Add</span></button><button className="mobile-run" onClick={() => void runTest()}><Play size={17} /><span>Test</span></button><button onClick={() => setMobilePanel("inspector")}><Settings2 size={17} /><span>Inspect</span></button></footer>
     {running && <div className="modal-backdrop"><div className="run-modal"><div className="modal-title"><div><small>VALIDATION RUN</small><h2>Flow test</h2></div><button className="icon-btn" onClick={() => setRunning(false)}><X size={18} /></button></div>{testError ? <div className="run-error">{testError}</div> : testTrace.length ? testTrace.map((step) => <div className="run-progress" key={step.node_id}><span className="run-icon"><CheckCircle2 size={16} /></span><div><b>{step.title}</b><small>{step.status} · no external side effects</small></div></div>) : <div className="run-progress active"><span className="spinner" /><div><b>Validating graph</b><small>Checking connections and execution order…</small></div></div>}<button className="secondary full" onClick={() => setRunning(false)}>Close test run</button></div></div>}
-    {pendingTemplate && <div className="modal-backdrop"><div className="template-confirm"><div className="modal-title"><div><small>USE TEMPLATE</small><h2>Replace this workflow?</h2></div><button type="button" className="icon-btn" onClick={() => setPendingTemplate(null)}><X size={18} /></button></div><p>This replaces the current canvas with “{pendingTemplate.title}”. Unsaved changes will be removed.</p><div className="template-confirm-actions"><button type="button" className="secondary" onClick={() => setPendingTemplate(null)}>Cancel</button><button type="button" className="primary" onClick={() => replaceWithTemplate(pendingTemplate)}>Replace workflow</button></div></div></div>}
+    {pendingTemplate && <div className="modal-backdrop"><div className="template-confirm"><div className="modal-title"><div><small>USE TEMPLATE</small><h2>Replace this workflow?</h2></div><button type="button" className="icon-btn" onClick={() => setPendingTemplate(null)}><X size={18} /></button></div><p>This replaces the current canvas with “{pendingTemplate.title}”. Unsaved changes will be removed.</p><div className="template-setup"><strong>Configure before publishing</strong><ul>{pendingTemplate.setup.map((item) => <li key={item}>{item}</li>)}</ul></div><div className="template-confirm-actions"><button type="button" className="secondary" onClick={() => setPendingTemplate(null)}>Cancel</button><button type="button" className="primary" onClick={() => replaceWithTemplate(pendingTemplate)}>Replace workflow</button></div></div></div>}
     {connectionProvider && <ConnectionModal botId={botId} definition={connectionProvider} onClose={() => setConnectionProvider(null)} onSaved={saveConnection} onStartOAuth={() => void startOAuth(connectionProvider.provider)} />}
   </main>;
 }

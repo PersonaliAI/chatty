@@ -36,7 +36,7 @@ Data Source: Official GitHub REST API
 - [x] **v1.2 (June 2026)**: Direct Shadow DOM widget loader with zero iframe zoom distortion.
 - [x] **v1.5 (July 2026)**: LiveKit WebRTC Voice Agent with Silero VAD and sub-150ms turnaround.
 - [x] **v1.8 (August 2026)**: Full Model Context Protocol (MCP) server with 55 callable tools and OAuth 2.0 PKCE.
-- [x] **v2.0 (September 2026)**: 5-Pillar Operational Scorecard, production industry templates, multi-language READMEs, and AI Coding plugins (Claude Code, Cursor).
+- [x] **v2.0 (September 2026)**: 5-Pillar Operational Scorecard, production Flow Builder, multi-language READMEs, and AI Coding plugins (Claude Code, Cursor).
 - [ ] **Next Goal (50 Stars)**: Publish official Docker Hub pre-built images.
 - [ ] **Community Goal (100 Stars)**: Launch community Discord & developer office hours.
 - [ ] **Scale Goal (500 Stars)**: Native multi-agent team orchestration mesh.

@@ -24,7 +24,7 @@ claude plugin install chatty
 
 Once installed, ask Claude:
 > *"Audit my Chatty bot `8f9024b1-e25c-4122-8d77-a82a6fce921b` and show the 5-pillar scorecard."*  
-> *"Create a new customer support chatbot for my store and seed it with `templates/ecommerce-store.json`."*
+> *"Create a customer support flow for my Chatty bot and open it in Flow Builder."*
 
 ---
 

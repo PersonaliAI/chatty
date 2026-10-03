@@ -336,6 +336,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .run-error { padding: 12px 14px; border: 1px solid #fecaca; border-radius: 12px; color: #be123c; background: #fff1f2; font-size: 13px; line-height: 1.45; }
 .template-confirm { width: min(420px, 100%); padding: 20px; border-radius: 16px; background: var(--paper); box-shadow: 0 20px 60px rgba(17, 24, 39, .20); }
 .template-confirm p { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.template-setup { margin-top: 15px; padding: 11px 12px; border: 1px solid #e7ebf0; border-radius: 10px; color: var(--ink-soft); background: #f8fafc; font-size: 10px; line-height: 1.45; }
+.template-setup strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 10px; }
+.template-setup ul { display: grid; gap: 4px; padding-left: 16px; margin: 0; }
 .template-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

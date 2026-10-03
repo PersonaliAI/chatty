@@ -30,8 +30,7 @@ Ejecuta los contenedores de la aplicación en tu propia infraestructura mientras
 
 - [¿Por qué Chatty?](#por-qué-chatty)
 - [Tarjeta de Rendimiento (Auditoría A-F)](docs/SCORECARD.md)
-- [Plantillas por Industria](templates/README.md)
-- [Casos de Estudio y Benchmarks](case_studies/README.md)
+- [Constructor de Flujos e Integraciones](https://docs.chatty.personaliai.com/guides/flow-integrations)
 - [Integración del Widget (3 Líneas)](docs/WIDGET_INTEGRATION.md)
 - [Características](#-características)
 - [Arquitectura](#arquitectura)
