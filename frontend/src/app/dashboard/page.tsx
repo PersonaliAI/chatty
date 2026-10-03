@@ -4357,14 +4357,14 @@ export default function Dashboard() {
               onChange={(v) => setLanguage(v as "EN" | "ES" | "FR" | "DE" | "IT")}
               align="right"
               size="sm"
-              className="w-20 sm:w-36 shrink-0"
+              className="hidden md:block w-20 sm:w-36 shrink-0"
             />
 
             {/* Re-run Setup (agentic flow) */}
             {onboardingCompleted && (
               <button
                 onClick={() => setShowWizard(true)}
-                className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2 py-1.5 sm:px-2.5 sm:py-1.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
+                className="hidden md:flex text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2 py-1.5 sm:px-2.5 sm:py-1.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors items-center gap-1"
                 title="Re-run Setup"
               >
                 <Sparkles className="size-3 text-[#f97316]" />
@@ -4376,7 +4376,7 @@ export default function Dashboard() {
               href="https://docs.chatty.personaliai.com"
               target="_blank"
               rel="noreferrer"
-              className="text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2 py-1.5 sm:px-2.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors flex items-center gap-1"
+              className="hidden md:flex text-[10px] border border-neutral-200 dark:border-neutral-800 hover:border-[#f97316]/40 rounded-lg px-2 py-1.5 sm:px-2.5 hover:bg-[#f97316]/5 cursor-pointer font-bold text-neutral-600 dark:text-neutral-400 transition-colors items-center gap-1"
               title="Documentation"
             >
               <BookOpen className="size-3 text-[#f97316]" />
@@ -4384,7 +4384,7 @@ export default function Dashboard() {
               <ExternalLink className="size-2.5 hidden sm:inline" />
             </a>
 
-            <span className="flex items-center gap-1.5" title={user ? "Database Active" : "Offline"}>
+            <span className="hidden md:flex items-center gap-1.5" title={user ? "Database Active" : "Offline"}>
               <span className={`size-2 rounded-full ${user ? "bg-green-500" : "bg-yellow-500"}`}></span>
               <span className="hidden sm:inline">{user ? "Database Active" : "Offline"}</span>
             </span>
@@ -4400,7 +4400,23 @@ export default function Dashboard() {
                 {(user?.email?.[0] || "P").toUpperCase()}
               </button>
               {accountMenuOpen && (
-                <div role="menu" aria-label="Account menu" className="absolute right-0 top-10 z-[70] w-56 rounded-xl border border-neutral-200 bg-white p-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-950">
+                <div role="menu" aria-label="Account menu" className="absolute right-0 top-10 z-[70] w-64 rounded-xl border border-neutral-200 bg-white p-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-950">
+                  <div className="mb-1 border-b border-neutral-100 px-2.5 pb-2 dark:border-neutral-800">
+                    <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Workspace</div>
+                    <ModernSelect
+                      value={language}
+                      options={languageOptions}
+                      onChange={(v) => setLanguage(v as "EN" | "ES" | "FR" | "DE" | "IT")}
+                      align="right"
+                      size="sm"
+                      className="w-full"
+                    />
+                    {onboardingCompleted && (
+                      <button type="button" onClick={() => { setAccountMenuOpen(false); setShowWizard(true); }} className="mt-1.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"><Sparkles className="size-3.5 text-[#f97316]" />Re-run Setup</button>
+                    )}
+                    <a href="https://docs.chatty.personaliai.com" target="_blank" rel="noreferrer" onClick={() => setAccountMenuOpen(false)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"><BookOpen className="size-3.5 text-[#f97316]" />Documentation<ExternalLink className="ml-auto size-3 text-neutral-400" /></a>
+                    <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-neutral-500"><span className={`size-2 rounded-full ${user ? "bg-green-500" : "bg-yellow-500"}`} />{user ? "Database Active" : "Offline"}</div>
+                  </div>
                   {user && <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setActiveTab("settings"); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5" />Your Profile &amp; Photo</button>}
                   {user ? <button type="button" role="menuitem" onClick={handleSignOut} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"><LogOut className="size-3.5" />Sign Out Account</button> : <Link href="/login" onClick={() => setAccountMenuOpen(false)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"><LogOut className="size-3.5" />Log In to Save Progress</Link>}
                 </div>
