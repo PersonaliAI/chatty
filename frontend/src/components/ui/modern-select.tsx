@@ -52,6 +52,7 @@ export function ModernSelect({
   const popupRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 300 });
+  const [positioned, setPositioned] = useState(false);
 
   const placePopup = useCallback(() => {
     if (!rootRef.current) return;
@@ -67,6 +68,7 @@ export function ModernSelect({
       width: Math.min(rect.width, width),
       maxHeight: Math.max(80, Math.min(300, upwards ? rect.top - 18 : below - 6)),
     });
+    setPositioned(true);
   }, [align]);
 
   useLayoutEffect(() => { if (open) placePopup(); }, [open, placePopup]);
@@ -127,7 +129,10 @@ export function ModernSelect({
 
   const toggleOpen = () => {
     if (disabled) return;
-    if (!open) placePopup();
+    if (!open) {
+      setPositioned(false);
+      placePopup();
+    }
     setOpen((o) => !o);
   };
 
@@ -154,7 +159,7 @@ export function ModernSelect({
         onKeyDown={(event) => {
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
-            if (!open) { placePopup(); setOpen(true); }
+            if (!open) { setPositioned(false); placePopup(); setOpen(true); }
             requestAnimationFrame(() => popupRef.current?.querySelector<HTMLButtonElement>('button[role="option"]:not(:disabled)')?.focus());
           }
         }}
@@ -171,7 +176,7 @@ export function ModernSelect({
         <ChevronDown className={`size-3.5 text-neutral-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
-      {open && createPortal(<AnimatePresence>
+      {open && positioned && createPortal(<AnimatePresence>
         {open && (
           <motion.div
             data-modern-select-popup={listId}
@@ -193,10 +198,10 @@ export function ModernSelect({
               maxWidth: "min(340px, calc(100vw - 24px))",
               maxHeight: position.maxHeight,
             }}
-            initial={{ opacity: 0, y: openUpwards ? 4 : -4, scale: 0.98 }}
+            initial={{ opacity: 0, y: openUpwards ? 3 : -3, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: openUpwards ? 4 : -4, scale: 0.98 }}
-            transition={{ duration: 0.13, ease: "easeOut" }}
+            exit={{ opacity: 0, y: openUpwards ? 3 : -3, scale: 0.99 }}
+            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
             className="fixed z-[9999] w-max bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl overflow-y-auto"
           >
             {searchable && (
