@@ -719,6 +719,10 @@ function IdentifiedChatWidget({
   }, []);
 
   const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
+  const [supportEmail, setSupportEmail] = useState("");
+  const [supportEmailSaved, setSupportEmailSaved] = useState(false);
+  const [supportEmailSaving, setSupportEmailSaving] = useState(false);
+  const [supportEmailError, setSupportEmailError] = useState("");
 
   // Auto-extract visitor contact info if provided in chat conversation
   const extractedVisitorInfo = useMemo(() => {
@@ -1436,6 +1440,51 @@ function IdentifiedChatWidget({
     return s;
   });
 
+  // Keep the explicit follow-up address across widget reloads for this bot,
+  // host, and visitor session. It remains scoped to the host and is never
+  // sent anywhere until the visitor presses Save or sends a message.
+  useEffect(() => {
+    if (typeof window === "undefined" || !botId || !sessionId) return;
+    const key = `chatty_support_email_${botId}_${hostKey}_${sessionId}`;
+    try {
+      const stored = localStorage.getItem(key) || capturedLeadData.email || "";
+      if (stored) {
+        setSupportEmail(stored);
+        setSupportEmailSaved(true);
+      }
+    } catch {}
+  }, [botId, hostKey, sessionId, capturedLeadData.email]);
+
+  const saveSupportEmail = useCallback(async () => {
+    const email = supportEmail.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      setSupportEmailError("Enter a valid email address.");
+      setSupportEmailSaved(false);
+      return;
+    }
+    setSupportEmailSaving(true);
+    setSupportEmailError("");
+    setCapturedLeadData((prev) => ({ ...prev, email }));
+    try {
+      localStorage.setItem(`chatty_support_email_${botId}_${hostKey}_${sessionId}`, email);
+    } catch {}
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/widget/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, email }),
+      });
+      if (!response.ok && response.status !== 404) throw new Error("Unable to save email");
+      setSupportEmailSaved(true);
+    } catch {
+      // The session may not exist until the visitor sends their first message.
+      // Keep the value locally and include it with that first message.
+      setSupportEmailSaved(true);
+    } finally {
+      setSupportEmailSaving(false);
+    }
+  }, [supportEmail, botId, hostKey, sessionId, widgetTokenHeader]);
+
   // Restore prior messages from localStorage
   useEffect(() => {
     if (typeof window === "undefined" || !botId) return;
@@ -2051,6 +2100,8 @@ function IdentifiedChatWidget({
           bot_id: botId,
           session_id: sessionId,
           text,
+          visitor_name: extractedVisitorInfo.name || undefined,
+          visitor_email: extractedVisitorInfo.email || supportEmail.trim().toLowerCase() || undefined,
           visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           host: getHost(),
           flow_context: flowContext,
@@ -2144,6 +2195,7 @@ function IdentifiedChatWidget({
       fd.append("bot_id", String(botId));
       fd.append("session_id", sessionId);
       fd.append("text", caption);
+      fd.append("visitor_email", extractedVisitorInfo.email || supportEmail.trim().toLowerCase());
       fd.append("visitor_timezone", Intl.DateTimeFormat().resolvedOptions().timeZone);
       fd.append("host", getHost());
       fd.append("file", file, filename);
@@ -3477,6 +3529,34 @@ function IdentifiedChatWidget({
       {/* Composer (Messages tab only) */}
       {tab === "messages" && !voiceCallOpen && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
+          {!showOfflineForm && (
+            <div className="mb-2 flex items-center gap-2 rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-950/70 px-2.5 py-1.5">
+              <Mail className="size-4 shrink-0 text-neutral-400" aria-hidden="true" />
+              <label className="sr-only" htmlFor="chatty-support-email">Email for follow-up</label>
+              <input
+                id="chatty-support-email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={supportEmail}
+                onChange={(e) => { setSupportEmail(e.target.value); setSupportEmailSaved(false); setSupportEmailError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void saveSupportEmail(); } }}
+                placeholder="Your email, so we can follow up"
+                className="min-w-0 flex-1 bg-transparent text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none"
+                aria-describedby={supportEmailError ? "chatty-support-email-error" : undefined}
+              />
+              <button
+                type="button"
+                onClick={() => void saveSupportEmail()}
+                disabled={supportEmailSaving || !supportEmail.trim()}
+                className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                style={{ background: supportEmailSaved ? "#dcfce7" : primaryColor, color: supportEmailSaved ? "#166534" : onPrimary }}
+              >
+                {supportEmailSaving ? "Saving…" : supportEmailSaved ? "Saved" : "Save"}
+              </button>
+            </div>
+          )}
+          {supportEmailError && <p id="chatty-support-email-error" className="mb-1.5 px-1 text-[11px] text-red-600 dark:text-red-400" role="alert">{supportEmailError}</p>}
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" multiple />
           <AnimatePresence>
             {emojiOpen && (

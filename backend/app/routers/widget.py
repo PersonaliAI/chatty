@@ -52,6 +52,7 @@ from app.schemas.widget import (
     WidgetCsatRequest,
     WidgetFeedbackRequest,
     WidgetCampaignEventRequest,
+    WidgetContactRequest,
     WidgetMediaResponse,
     WidgetVerifyOriginRequest,
 )
@@ -262,6 +263,32 @@ async def widget_verify_origin(body: WidgetVerifyOriginRequest):
     )
     token = _mint_widget_token(body.bot_id, verified)
     return {"token": token, "verified": verified}
+
+
+@router.post("/api/widget/contact")
+async def widget_contact(body: WidgetContactRequest, request: Request):
+    """Store a visitor-provided email on an existing widget session.
+
+    This endpoint deliberately updates only the session record; it does not
+    create a lead or send email by itself. The normal chat/lead flow can then
+    use the verified, explicitly supplied address for follow-up.
+    """
+    email = body.email.strip().lower()[:160]
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+        raise HTTPException(status_code=400, detail="email must be a valid email address")
+    if len(body.bot_id) > 80 or len(body.session_id) > 160:
+        raise HTTPException(status_code=422, detail="invalid identifiers")
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", body.bot_id).maybe_single().execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", body.bot_id).maybe_single().execute())
+    await _widget_rate_limit_or_429(bot_res.data, body.bot_id, _client_ip(request), request.headers.get("x-widget-token"))
+    existing = await run_db(lambda: supabase.table("chatty_sessions").select("id").eq(
+        "bot_id", body.bot_id).eq("session_id", body.session_id).maybe_single().execute())
+    if not existing.data:
+        return {"saved": False, "reason": "session_not_started"}
+    await run_db(lambda: supabase.table("chatty_sessions").update({"visitor_email": email}).eq("id", existing.data["id"]).execute())
+    return {"saved": True}
 
 
 @router.post("/api/widget/campaign-events")

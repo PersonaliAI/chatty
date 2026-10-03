@@ -26,6 +26,13 @@ class WidgetVerifyOriginRequest(BaseModel):
     referer: Optional[str] = None
 
 
+class WidgetContactRequest(BaseModel):
+    """A visitor's explicit contact detail for follow-up in the widget."""
+    bot_id: str
+    session_id: str
+    email: str
+
+
 class WidgetChatResponse(BaseModel):
     reply: str
     session_id: str
