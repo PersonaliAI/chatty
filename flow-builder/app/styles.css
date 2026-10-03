@@ -89,14 +89,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .flow-node { position: absolute; width: 218px; min-height: 128px; padding: 11px 12px; border: 1px solid #dfe5ee; border-radius: var(--radius-lg); color: var(--ink); background: var(--paper); box-shadow: var(--shadow-node); cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
 .flow-node:hover { border-color: #bac6d6; box-shadow: 0 7px 18px rgba(15, 23, 42, .12); }
 .flow-node.selected { border-color: var(--node-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color) 15%, transparent), 0 9px 24px rgba(15, 23, 42, .14); }
+.flow-node.connecting { border-style: dashed; }
 .node-port { position: absolute; top: 59px; width: 10px; height: 10px; border: 2px solid #b4c0cf; border-radius: 50%; background: var(--paper); }
 .node-port.in { left: -6px; }
 .node-port.out { right: -6px; top: 3px; }
+.node-port:hover { border-color: var(--node-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color) 15%, transparent); }
 .node-top { gap: 7px; margin-bottom: 10px; }
 .node-icon { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; color: var(--node-color); background: color-mix(in srgb, var(--node-color) 12%, white); }
 .node-kind { color: #a0a8b6; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .node-menu { margin-left: auto; padding: 3px; border-radius: 5px; color: #a7b0bd; }
 .node-menu:hover { color: var(--ink-soft); background: var(--soft); }
+.node-context-menu { position: absolute; top: 38px; right: 10px; z-index: 4; min-width: 112px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: var(--shadow-panel); }
+.node-context-menu button { display: block; width: 100%; padding: 7px 8px; border-radius: 5px; color: var(--ink-soft); font-size: 10px; text-align: left; }
+.node-context-menu button:hover { background: var(--soft); color: var(--ink); }
 .flow-node > b { display: block; font-size: 12px; }
 .node-subtitle { display: block; margin-top: 3px; color: #7d899a; font-size: 10px; }
 .node-footer { gap: 5px; margin-top: 16px; color: #8794a4; font-size: 9px; }

@@ -45,6 +45,8 @@ export default function FlowBuilderPage() {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState<"all" | "native" | "apps">("all");
   const [mobilePanel, setMobilePanel] = useState<"palette" | "inspector" | null>(null);
+  const [nodeMenuId, setNodeMenuId] = useState<string | null>(null);
+  const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [testTrace, setTestTrace] = useState<Array<{ node_id: string; title: string; status: string }>>([]);
   const [testError, setTestError] = useState<string | null>(null);
@@ -156,11 +158,30 @@ export default function FlowBuilderPage() {
   }
   function deleteSelected() {
     if (!selected) return;
-    setNodes((current) => current.filter((node) => node.id !== selected.id)); setEdges((current) => current.filter((edge) => edge.from !== selected.id && edge.to !== selected.id)); setSelectedId(""); setSaved(false);
+    removeNode(selected.id);
+  }
+  function removeNode(nodeId: string) {
+    setNodes((current) => current.filter((node) => node.id !== nodeId));
+    setEdges((current) => current.filter((edge) => edge.from !== nodeId && edge.to !== nodeId));
+    setSelectedId("");
+    setConnectingFrom(null);
+    setNodeMenuId(null);
+    setSaved(false);
+  }
+  function duplicateNode(node: FlowNode) {
+    const id = `${node.id}-copy-${Date.now()}`;
+    const copy: FlowNode = { ...node, id, title: `${node.title} copy`, x: node.x + 36, y: node.y + 36, config: { ...node.config } };
+    setNodes((current) => [...current, copy]);
+    setSelectedId(id);
+    setNodeMenuId(null);
+    setSaved(false);
   }
   function connectTo(targetId: string) {
-    if (!selected || selected.id === targetId || edges.some((edge) => edge.from === selected.id && edge.to === targetId)) return;
-    setEdges((current) => [...current, { from: selected.id, to: targetId }]); setSaved(false);
+    const sourceId = connectingFrom || selected?.id;
+    if (!sourceId || sourceId === targetId || edges.some((edge) => edge.from === sourceId && edge.to === targetId)) return;
+    setEdges((current) => [...current, { from: sourceId, to: targetId }]);
+    setConnectingFrom(null);
+    setSaved(false);
   }
 
   async function handleN8nImport(event: React.ChangeEvent<HTMLInputElement>) {
@@ -181,7 +202,7 @@ export default function FlowBuilderPage() {
   }
 
   return <main className="builder-shell">
-    <input ref={importRef} className="sr-only" type="file" accept="application/json,.json" onChange={(event) => void handleN8nImport(event)} />
+    <input ref={importRef} className="sr-only" aria-hidden="true" tabIndex={-1} type="file" accept="application/json,.json" onChange={(event) => void handleN8nImport(event)} />
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Sparkles size={17} /></div><div><strong>Chatty Flows</strong><span>Automation workspace</span></div></div>
       <div className="crumb"><span>Chatty</span><ChevronDown size={14} /><span className="muted">/</span><strong>{flowName}</strong><span className="draft-pill"><span className="status-dot" /> {published ? "Published" : "Draft"}</span></div>
@@ -200,7 +221,7 @@ export default function FlowBuilderPage() {
         <div className="canvas" style={{ "--zoom": zoom / 100 } as CSSProperties} onClick={() => setSelectedId("")}>
           <div className="grid-bg" />
           <svg className="edges" viewBox="0 0 1100 620" preserveAspectRatio="none">{edges.map((edge) => { const from = nodes.find((node) => node.id === edge.from); const to = nodes.find((node) => node.id === edge.to); if (!from || !to) return null; const sx = from.x + 218, sy = from.y + 64, tx = to.x, ty = to.y + 64; return <path key={`${edge.from}-${edge.to}`} d={`M ${sx} ${sy} C ${sx + 80} ${sy}, ${tx - 80} ${ty}, ${tx} ${ty}`} />; })}</svg>
-          <div className="canvas-content">{nodes.map((node) => <div key={node.id} className={`flow-node ${selectedId === node.id ? "selected" : ""}`} style={{ left: node.x, top: node.y, "--node-color": node.color } as CSSProperties} onClick={(event) => { event.stopPropagation(); setSelectedId(node.id); setMobilePanel("inspector"); }}><div className="node-port in" /><div className="node-top" onPointerDown={(event) => startDrag(event, node)}><span className="node-icon"><NodeIcon icon={node.icon} size={17} /></span><span className="node-kind">{node.kind}</span><button className="node-menu"><MoreHorizontal size={15} /></button></div><b>{node.title}</b><span className="node-subtitle">{node.subtitle}</span><div className="node-footer"><span className="node-check"><Check size={11} /></span>{node.kind === "trigger" ? "Listening" : "Configured"}<span className="node-port out" onClick={(event) => { event.stopPropagation(); }} /></div>{selectedId === node.id && <div className="connect-hint">Select another node to connect</div>}</div>)}</div>
+          <div className="canvas-content">{nodes.map((node) => <div key={node.id} className={`flow-node ${selectedId === node.id ? "selected" : ""} ${connectingFrom === node.id ? "connecting" : ""}`} style={{ left: node.x, top: node.y, "--node-color": node.color } as CSSProperties} onClick={(event) => { event.stopPropagation(); if (connectingFrom && connectingFrom !== node.id) connectTo(node.id); else { setSelectedId(node.id); setMobilePanel("inspector"); } }}><button type="button" className="node-port in" aria-label={`Connect to ${node.title}`} onClick={(event) => { event.stopPropagation(); if (connectingFrom) connectTo(node.id); }} /><div className="node-top" onPointerDown={(event) => startDrag(event, node)}><span className="node-icon"><NodeIcon icon={node.icon} size={17} /></span><span className="node-kind">{node.kind}</span><button type="button" className="node-menu" aria-label={`Node options for ${node.title}`} onClick={(event) => { event.stopPropagation(); setNodeMenuId(nodeMenuId === node.id ? null : node.id); }}><MoreHorizontal size={15} /></button></div><b>{node.title}</b><span className="node-subtitle">{node.subtitle}</span><div className="node-footer"><span className="node-check"><Check size={11} /></span>{node.kind === "trigger" ? "Listening" : "Configured"}<button type="button" className="node-port out" aria-label={`Connect from ${node.title}`} onClick={(event) => { event.stopPropagation(); setSelectedId(node.id); setConnectingFrom(node.id); }} /></div>{connectingFrom === node.id && <div className="connect-hint">Select a target node</div>}{nodeMenuId === node.id && <div className="node-context-menu"><button type="button" onClick={(event) => { event.stopPropagation(); duplicateNode(node); }}>Duplicate</button><button type="button" onClick={(event) => { event.stopPropagation(); removeNode(node.id); }}>Remove</button></div>}</div>)}</div>
           <div className="canvas-empty"><span>Drag a node from the library to extend this flow</span></div>
         </div>
         <div className="canvas-status"><span><span className={`green-dot ${saved ? "" : "pending"}`} /> {syncState}</span><span>{nodes.length} nodes · {edges.length} connections</span><span className="status-right">{published ? `Published v${version || 1}` : saved ? "Draft ready" : "Unsaved changes"}</span></div>
