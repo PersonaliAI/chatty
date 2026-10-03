@@ -50,7 +50,6 @@ import {
   ArrowLeft,
   PanelLeftClose,
   AtSign,
-  Lock,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -2375,7 +2374,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 {/* View Mode Toggle (Chat / Staff Notes) */}
                 <div className="flex bg-neutral-100 dark:bg-neutral-850 p-0.5 rounded-lg text-[9px] font-semibold">
                   <button
-                    onClick={() => setViewMode("chat")}
+                    onClick={() => { setViewMode("chat"); setComposerMode("reply"); }}
                     className={`px-2 py-1 rounded-md transition-colors cursor-pointer ${
                       viewMode === "chat"
                         ? "bg-white dark:bg-neutral-800 shadow text-neutral-900 dark:text-neutral-100"
@@ -2385,7 +2384,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     Chat
                   </button>
                   <button
-                    onClick={() => setViewMode("notes")}
+                    onClick={() => { setViewMode("notes"); setComposerMode("note"); }}
                     className={`px-2 py-1 rounded-md transition-colors cursor-pointer flex items-center gap-1 ${
                       viewMode === "notes"
                         ? "bg-white dark:bg-neutral-800 shadow text-neutral-900 dark:text-neutral-100"
@@ -2695,10 +2694,6 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 onSubmit={(e) => { e.preventDefault(); void sendComposer(); }}
                 className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors"
               >
-                <div className="mb-2 flex items-center gap-1 rounded-lg bg-neutral-200/60 p-0.5 dark:bg-neutral-800/60" role="tablist" aria-label="Composer mode">
-                  <button type="button" role="tab" aria-selected={composerMode === "reply"} onClick={() => { setComposerMode("reply"); setMentionQuery(null); }} className={`rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors ${composerMode === "reply" ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>Reply</button>
-                  <button type="button" role="tab" aria-selected={composerMode === "note"} onClick={() => { setComposerMode("note"); setMentionQuery(null); }} className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors ${composerMode === "note" ? "bg-amber-100 text-amber-900 shadow-sm dark:bg-amber-900/40 dark:text-amber-200" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`}><Lock className="size-3" />Private note</button>
-                </div>
                 {/* Canned Responses Dropdown */}
                 <AnimatePresence>
                   {cannedOpen && filteredCanned.length > 0 && (
@@ -2799,7 +2794,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                       </span>
                     </motion.button>
 
-                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { const value = composerMode === "note" ? noteDraft : reply; const next = `${value}${value && !value.endsWith(" ") ? " " : ""}@`; if (composerMode === "note") setNoteDraft(next); else setReply(next); setMentionQuery(""); }} className="rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200" aria-label="Mention teammate" title="Mention teammate (private notes are internal)"><AtSign className="size-4.5" /></motion.button>
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { const value = noteDraft; const next = `${value}${value && !value.endsWith(" ") ? " " : ""}@`; setComposerMode("note"); setViewMode("notes"); setNoteDraft(next); setMentionQuery(""); }} className="rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200" aria-label="Mention teammate" title="Mention teammate (internal note)"><AtSign className="size-4.5" /></motion.button>
 
                     <motion.button
                       type="button"
