@@ -374,6 +374,31 @@ function MobilePopoverPortal({ children }: { children: React.ReactNode }) {
   return mobile ? createPortal(children, document.body) : children;
 }
 
+function InboxRoutingPopover({ anchor, popup, width, children, onDismiss }: { anchor: React.RefObject<HTMLDivElement | null>; popup: React.RefObject<HTMLDivElement | null>; width: number; children: React.ReactNode; onDismiss: () => void }) {
+  const [position, setPosition] = useState({left:12,top:12,width});
+  useEffect(() => {
+    const place = () => {
+      const rect = anchor.current?.getBoundingClientRect();
+      if (!rect) return;
+      const popupWidth = Math.min(width, window.innerWidth - 24);
+      const popupHeight = Math.min(popup.current?.offsetHeight || 300, window.innerHeight - 24);
+      setPosition({left:Math.max(12,Math.min(rect.left,window.innerWidth-popupWidth-12)),top:Math.max(12,Math.min(rect.bottom+6,window.innerHeight-popupHeight-12)),width:popupWidth});
+    };
+    place();
+    window.addEventListener("resize",place);
+    window.addEventListener("scroll",place,true);
+    return () => {window.removeEventListener("resize",place);window.removeEventListener("scroll",place,true);};
+  },[anchor,popup,width]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); onDismiss(); anchor.current?.querySelector("button")?.focus(); }
+    };
+    document.addEventListener("keydown",onKey);
+    return () => document.removeEventListener("keydown",onKey);
+  },[anchor,onDismiss]);
+  return createPortal(<div ref={popup} style={{...position,maxHeight:"calc(100dvh - 24px)"}} className="fixed z-[9999] overflow-y-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-2 space-y-1.5">{children}</div>,anchor.current?.closest("[data-dashboard]") || document.body);
+}
+
 interface FilterOption<T extends string> {
   value: T;
   label: string;
@@ -484,6 +509,8 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [visitorDetailsOpen, setVisitorDetailsOpen] = useState(false);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [queueSort, setQueueSort] = useState("newest");
+  const presencePopupRef = useRef<HTMLDivElement | null>(null);
+  const rosterPopupRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     // Start with details docked on wide desktops, not over the mobile chat.
     setVisitorDetailsOpen(window.matchMedia("(min-width: 1400px)").matches);
@@ -606,10 +633,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       if (tagPopoverOpen && tagPopoverRef.current && !tagPopoverRef.current.contains(target) && !tagPopupRef.current?.contains(target)) {
         setTagPopoverOpen(false);
       }
-      if (presenceMenuOpen && presenceMenuRef.current && !presenceMenuRef.current.contains(target)) {
+      if (presenceMenuOpen && presenceMenuRef.current && !presenceMenuRef.current.contains(target) && !presencePopupRef.current?.contains(target)) {
         setPresenceMenuOpen(false);
       }
-      if (showRoster && rosterRef.current && !rosterRef.current.contains(target)) {
+      if (showRoster && rosterRef.current && !rosterRef.current.contains(target) && !rosterPopupRef.current?.contains(target)) {
         setShowRoster(false);
       }
     }
@@ -989,6 +1016,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   // Do not carry visitor drafts or transcript requests across bots/unmounts.
   useEffect(() => {
     activeSessionRef.current = null;
+    if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
     messageRequestRef.current?.abort();
     noteRequestRef.current?.abort();
     messageRequestRef.current = null;
@@ -1001,6 +1029,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     setNoteDraft("");
     return () => {
       activeSessionRef.current = null;
+      if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
       messageRequestRef.current?.abort();
       noteRequestRef.current?.abort();
     };
@@ -1593,7 +1622,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
             {/* Presence Dropdown Popover */}
             {presenceMenuOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-56 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl z-[9999] p-1.5 space-y-1">
+              <InboxRoutingPopover anchor={presenceMenuRef} popup={presencePopupRef} width={224} onDismiss={() => setPresenceMenuOpen(false)}>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 py-1">Set Your Status</div>
                 {(["online", "away", "busy", "offline"] as const).map((st) => {
                   const cfg = PRESENCE_STATUS_CONFIG[st];
@@ -1621,6 +1650,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     <span className="font-bold text-neutral-700 dark:text-neutral-200">{myPresence.max_capacity} tickets</span>
                   </div>
                   <input
+                    aria-label="Maximum ticket capacity"
                     type="range"
                     min="1"
                     max="15"
@@ -1629,7 +1659,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     className="w-full h-1.5 accent-[#f97316] bg-neutral-200 dark:bg-neutral-700 rounded-lg cursor-pointer"
                   />
                 </div>
-              </div>
+              </InboxRoutingPopover>
             )}
           </div>
 
@@ -1683,7 +1713,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
           {/* Roster Popover */}
           {showRoster && (
-            <div className="absolute right-0 sm:left-0 top-full mt-1.5 w-72 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl z-[9999] p-2 space-y-1.5">
+            <InboxRoutingPopover anchor={rosterRef} popup={rosterPopupRef} width={288} onDismiss={() => setShowRoster(false)}>
               <div className="flex items-center justify-between text-[11px] font-bold text-neutral-500 dark:text-neutral-400 px-1 border-b border-neutral-100 dark:border-neutral-800 pb-1.5">
                 <span>Agent Presence & Load</span>
                 <span>Active / Max</span>
@@ -1710,7 +1740,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   );
                 })}
               </div>
-            </div>
+            </InboxRoutingPopover>
           )}
         </div>
 

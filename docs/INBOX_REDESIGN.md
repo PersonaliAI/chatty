@@ -46,6 +46,8 @@ Inbox/identity browser run passed 12 tests:
   reply transport/clearing, private notes versus public replies, priority,
   ownership, tags, contact drawer, navigation collapse/expansion and no page
   horizontal overflow. Screenshots are saved in Playwright test results.
+  Presence/roster menus are rendered outside the scrollable routing bar so
+  status/capacity controls remain usable on narrow screens.
 - Late transcript/private-note responses cannot populate another conversation;
   separate unsent reply drafts survive conversation switching.
 - Desktop/mobile: AI draft, summary saved as private note, knowledge snippet,
@@ -77,8 +79,14 @@ layout change. Existing identity APIs and authorization checks are unchanged.
 
 ## Deployment and rollback
 
-Deployment/live acceptance is still pending. Record the source commit and
-Firebase rollout after verification. To roll back only Inbox changes, revert
+Initial source `c214223d5c464b6a1419714d724857c17ad2890d` passed CI (frontend and
+backend), compose smoke, CodeQL and secret scan. Firebase
+`rollout-2026-10-03-024` / `build-2026-10-03-028` succeeded. Authenticated live
+desktop inspection confirmed the new navigation, queue, transcript and contact
+workspace, with no document-width overflow. A follow-up routing-popover fix and
+final responsive live acceptance are still pending.
+
+To roll back only Inbox changes, revert
 the Inbox redesign commit on `main` and roll out the resulting commit; do not
 reset or revert the concurrent Flow Builder changes. Alternatively roll out the
 last known-good Firebase build while preparing that scoped revert.

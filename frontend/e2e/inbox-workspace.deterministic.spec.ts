@@ -27,7 +27,7 @@ test.beforeAll(async () => {
         else if(url.includes('/ai-draft-reply')) data={draft_reply:'Hello Alice, I can help with billing.'};
         else if(url.includes('/ai-summarize')) data={summary:'Billing review requested',bullet_points:['Review the invoice'],sentiment:'neutral',recommended_action:'Contact billing'};
         else if(url.includes('/articles')) data={articles:[{id:'kb-one',title:'Billing guide',slug:'billing-guide',subtitle:'Review your billing settings.'}]};
-        else if(url.includes('/presence')) data={my_presence:{status:'online',max_capacity:5,active_tickets_count:0},agents:[]};
+        else if(url.includes('/presence')) data={my_presence:{status:'online',max_capacity:5,active_tickets_count:0},agents:[{agent_email:'agent@example.test',agent_name:'Demo Agent',status:'online',max_capacity:5,active_tickets_count:0}]};
         else if(url.includes('/assignees')) data={assignees:[{email:'agent@example.test',name:'Demo Agent'}]};
         else if(url.includes('/viewers')) data={viewers:[]};
         else if(url.includes('/profile')) data={email:'agent@example.test'};
@@ -53,6 +53,15 @@ for (const width of [1600, 1024, 768, 390]) {
     await page.addStyleTag({ content: stylesheet });
     await page.addStyleTag({ path: path.resolve("src/components/inbox-workspace.css") });
     await page.addScriptTag({ content: script });
+    await page.getByRole("button",{name:"Online",exact:true}).click();
+    await expect(page.getByLabel("Maximum ticket capacity",{exact:true})).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole("button",{name:"Away",exact:true}).click();
+    await expect.poll(()=>page.evaluate(()=>(window as unknown as {fixtureRequests:Array<{url:string,body:string}>}).fixtureRequests.some(r=>r.url.endsWith('/routing/status') && r.body && JSON.parse(r.body).status==='away'))).toBe(true);
+    await page.getByRole("button",{name:/^Team Roster/}).click();
+    await expect(page.getByText("Agent Presence & Load",{exact:true})).toBeVisible();
+    await expect(page.getByText("Demo Agent",{exact:true})).toBeVisible();
+    await page.getByRole("button",{name:/^Team Roster/}).click();
     await expect(page.getByRole("button", { name: "Open conversation with Alice" })).toBeVisible();
     await page.getByRole("button", { name: "Open conversation with Alice" }).press("Enter");
     await expect(page.getByLabel("Reply to conversation")).toBeVisible();
@@ -171,6 +180,11 @@ for (const width of [1600,390]) {
     await page.getByLabel("Canned responses",{exact:true}).click();
     const quick=page.getByRole("dialog",{name:"Quick responses",exact:true});
     await expect(quick).toBeVisible();
+    await expect(page.getByLabel("Close quick responses",{exact:true})).toBeFocused();
+    await page.getByLabel("Close quick responses",{exact:true}).press("Shift+Tab");
+    await expect(quick.getByPlaceholder("Hi {{visitor_name}}, how can I help you today?",{exact:true})).toBeFocused();
+    await quick.getByPlaceholder("Hi {{visitor_name}}, how can I help you today?",{exact:true}).press("Tab");
+    await expect(page.getByLabel("Close quick responses",{exact:true})).toBeFocused();
     await quick.getByPlaceholder("greeting",{exact:true}).fill("welcome");
     await quick.getByPlaceholder("Hi {{visitor_name}}, how can I help you today?",{exact:true}).fill("Welcome {{visitor_name}}");
     await quick.getByRole("button",{name:"Add",exact:true}).click();
