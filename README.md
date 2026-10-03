@@ -28,7 +28,7 @@ Supabase project.
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Performance Scorecard](docs/SCORECARD.md) · [Flow Builder](https://docs.chatty.personaliai.com/guides/flow-integrations) · [Widget Embed](docs/WIDGET_INTEGRATION.md) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [MCP Server](#mcp-server--agent-control) · [AI Plugins](docs/AI_CODING_PLUGINS.md) · [Community Traction](docs/traction.md)
+[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Performance Scorecard](docs/SCORECARD.md) · [Flow Builder](https://docs.chatty.personaliai.com/guides/flow-integrations) · [Widget Embed](docs/WIDGET_INTEGRATION.md) · [Secure customer identity](docs/INBOX_IDENTITY_SETUP.md) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [MCP Server](#mcp-server--agent-control) · [AI Plugins](docs/AI_CODING_PLUGINS.md) · [Community Traction](docs/traction.md)
 
 </div>
 

@@ -68,7 +68,8 @@ mcp = FastMCP(
     instructions=(
         "Full-featured MCP server for Chatty AI chatbots: create, customize, and manage "
         "bots, flows, campaigns, voice agents, knowledge bases, lead capture, calendar meetings, "
-        "analytics, and design audits."
+        "analytics, design audits, and secure signed customer identity for website widgets. "
+        "Customer identity tokens are minted by the customer's server, never by an MCP client."
     ),
     # NOTE: website_url/icons (for connector-UI branding) aren't supported
     # by the pinned mcp==1.12.4 SDK version - FastMCP.__init__ doesn't
@@ -677,6 +678,36 @@ async def list_conversation_notes(bot_id: str, session_id: str) -> list:
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "read")
     return await mcp_inbox_service.list_conversation_notes(principal, bot_id, session_id)
+
+
+@mcp.tool()
+async def get_customer_identity_guide(bot_id: str) -> dict:
+    """Return the secure integration contract for passing a logged-in website customer to this bot's widget.
+
+    This never returns a signing secret. The customer's own server must mint a
+    short-lived HS256 token from the authenticated login session, then pass that
+    token to window.Chatty.identify().
+    """
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    await bots_service.get_bot(principal, bot_id)  # verifies bot access
+    return {
+        "bot_id": bot_id,
+        "docs": "https://github.com/PersonaliAI/chatty/blob/main/docs/INBOX_IDENTITY_SETUP.md",
+        "browser_flow": [
+            "Customer logs in to the customer website.",
+            "The website server signs a short-lived HS256 JWT with iss=chatty-customer, aud=chatty:<bot_id>, sub=<stable_customer_id> and exp <= 5 minutes.",
+            "The website returns the token from an authenticated no-store endpoint.",
+            "After chatty:ready, call window.Chatty.identify(token).",
+            "Call window.Chatty.logout() before logout or account switching.",
+        ],
+        "profile_fields": ["name", "email", "phone", "avatar_url", "custom_attributes"],
+        "security": [
+            "Never put the signing secret in NEXT_PUBLIC_* variables or browser code.",
+            "Never trust profile fields supplied directly by the browser.",
+            "Do not use MCP credentials or admin tokens in the customer website.",
+        ],
+    }
 
 
 # ===========================================================================

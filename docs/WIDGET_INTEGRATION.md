@@ -114,6 +114,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ## 💻 Programmatic JavaScript API (`window.Chatty`)
 
+### Pass the logged-in customer to Chatty securely
+
+The browser must **not** send an email/name object directly. Your authenticated
+application server signs a short-lived customer JWT, then the browser passes that
+token after `chatty:ready`:
+
+```javascript
+window.addEventListener("chatty:ready", async () => {
+  const response = await fetch("/api/my-chatty-identity", { cache: "no-store" });
+  if (!response.ok) return; // anonymous visitors are valid
+  const { token } = await response.json();
+  await window.Chatty.identify(token);
+});
+```
+
+The server endpoint reads the customer from its own validated login session and
+signs `sub`, `name`, `email`, `phone`, and scalar `custom_attributes` claims with
+the bot's identity secret. See the complete server/JWT example, iframe flow,
+logout rules, and security limits in [`INBOX_IDENTITY_SETUP.md`](INBOX_IDENTITY_SETUP.md).
+
 Once loaded, the widget exposes a global `window.Chatty` object for custom interactions:
 
 ```javascript
@@ -125,11 +145,11 @@ window.Chatty.toggle();
 // Launch real-time WebRTC Voice call directly
 window.Chatty.openVoice();
 
-// Identify logged-in customer (enriches transcripts and CRM leads)
-window.Chatty.identify({
-  email: "alex@example.com",
-  name: "Alex Morgan",
-  plan: "Enterprise Pro"
+// Identify a logged-in customer with a short-lived token minted by your server.
+// Never pass raw profile fields or your signing secret from browser code.
+window.addEventListener("chatty:ready", async () => {
+  const response = await fetch("/api/my-chatty-identity", { cache: "no-store" });
+  if (response.ok) await window.Chatty.identify((await response.json()).token);
 });
 
 // Programmatically send a message as the visitor

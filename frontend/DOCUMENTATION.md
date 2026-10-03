@@ -320,12 +320,11 @@ window.Chatty.open();
 window.Chatty.close();
 window.Chatty.toggle();
 
-// Identify known user & pre-populate leads/booking fields
-window.Chatty.identify({
-  name: "Jane Doe",
-  email: "jane@company.com",
-  phone: "+1 555-0199",
-  company: "Acme Corp"
+// Identify a logged-in customer with a short-lived token minted by your server.
+// Never pass raw profile fields or your signing secret from browser code.
+window.addEventListener("chatty:ready", async () => {
+  const response = await fetch("/api/my-chatty-identity", { cache: "no-store" });
+  if (response.ok) await window.Chatty.identify((await response.json()).token);
 });
 
 // Send a programmatic message on behalf of user
