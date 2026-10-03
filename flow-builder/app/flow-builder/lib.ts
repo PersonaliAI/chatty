@@ -2,7 +2,7 @@ import { createBrowserClient } from "@supabase/ssr";
 
 export const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder",
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder",
 );
 
 export const chattyApiUrl = (process.env.NEXT_PUBLIC_CHATTY_API_URL ?? "https://api.chatty.personaliai.com").replace(/\/$/, "");
@@ -25,5 +25,16 @@ export async function chattyRequest(path: string, options: RequestInit = {}) {
     window.history.replaceState({}, "", cleanUrl.toString());
   }
   if (!data.session?.access_token && (queryHandoff || storedHandoff)) headers.set("X-Chatty-Flow-Handoff", queryHandoff || storedHandoff || "");
-  return fetch(`${chattyApiUrl}${path}`, { ...options, headers });
+  return fetch(`${chattyApiUrl}${path}`, { ...options, headers, credentials: "include" });
+}
+
+export async function getFlowSession() {
+  return supabase.auth.getSession();
+}
+
+export function hasFlowHandoff() {
+  if (typeof window === "undefined") return false;
+  const queryHandoff = new URLSearchParams(window.location.search).get("handoff");
+  const botId = new URLSearchParams(window.location.search).get("bot_id") || new URLSearchParams(window.location.search).get("botId") || "unknown";
+  return Boolean(queryHandoff || window.sessionStorage.getItem(`chatty-flow-handoff:${botId}`));
 }

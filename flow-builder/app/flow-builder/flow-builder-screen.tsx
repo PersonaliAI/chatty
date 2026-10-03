@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { AlertCircle, ArrowRight, Check, CheckCircle2, ChevronDown, Download, History, LayoutGrid, Menu, Play, Plus, Redo2, RotateCcw, Save, Search, Settings2, ShieldCheck, Sparkles, Trash2, Undo2, Upload, UserCircle2, X } from "lucide-react";
-import { chattyRequest } from "./lib";
+import Image from "next/image";
+import { AlertCircle, ArrowRight, Check, CheckCircle2, ChevronDown, Download, ExternalLink, History, LayoutGrid, Loader2, Menu, Play, Plus, Redo2, RotateCcw, Save, Search, Settings2, ShieldCheck, Trash2, Undo2, Upload, UserCircle2, X } from "lucide-react";
+import { chattyRequest, getFlowSession, hasFlowHandoff, supabase } from "./lib";
 import { exportN8nWorkflow } from "./n8n-export";
 import { importN8nWorkflow } from "./n8n-import";
 import { findNodeDefinition, nodeCatalog, type NodeDefinition, type NodeField } from "./node-registry";
@@ -12,6 +13,8 @@ import { RunHistory } from "./run-history";
 import type { FlowData, FlowEdge, FlowNode, FlowRun, FlowRunTrace } from "./types";
 
 type GraphSnapshot = FlowData;
+type BusyAction = "import" | "test" | "save" | "publish" | null;
+type AuthState = "checking" | "session" | "handoff" | "required";
 
 const emptyGraph: FlowData = { nodes: [], edges: [] };
 
@@ -37,8 +40,28 @@ function persistedGraph(graph: GraphSnapshot): GraphSnapshot {
   };
 }
 
+function ModernSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function close(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+  useEffect(() => {
+    function close(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, []);
+  return <div className="modern-select" ref={rootRef}><button type="button" className={`modern-select-trigger ${open ? "open" : ""}`} aria-haspopup="listbox" aria-expanded={open} aria-label={label} onClick={() => setOpen((current) => !current)}><span>{value || "Select an option"}</span><ChevronDown size={14} /></button>{open && <div className="modern-select-menu" role="listbox" aria-label={label}>{options.map((option) => <button type="button" role="option" aria-selected={option === value} className={option === value ? "selected" : ""} key={option} onClick={() => { onChange(option); setOpen(false); }}>{option}{option === value && <Check size={13} />}</button>)}</div>}</div>;
+}
+
 function NodeFieldEditor({ field, value, onChange }: { field: NodeField; value: string; onChange: (value: string) => void }) {
-  if (field.type === "select") return <select value={value} onChange={(event) => onChange(event.target.value)}>{field.options?.map((option) => <option key={option}>{option}</option>)}</select>;
+  if (field.type === "select") return <ModernSelect label={field.label} value={value} options={field.options ?? []} onChange={onChange} />;
   if (field.type === "textarea" || field.type === "json") return <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} rows={field.type === "json" ? 7 : 4} spellCheck={false} />;
   return <input type={field.type === "url" ? "url" : field.type === "number" ? "number" : "text"} value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} />;
 }
@@ -66,6 +89,11 @@ export default function FlowBuilderPage() {
   const [runsLoading, setRunsLoading] = useState(false);
   const [selectedRun, setSelectedRun] = useState<FlowRun | null>(null);
   const [runsRefresh, setRunsRefresh] = useState(0);
+  const [busyAction, setBusyAction] = useState<BusyAction>(null);
+  const [authState, setAuthState] = useState<AuthState>("checking");
+  const [authEmail, setAuthEmail] = useState("");
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [refreshingAuth, setRefreshingAuth] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const canvasCommandsRef = useRef<FlowCanvasCommands | null>(null);
   const graphRef = useRef<GraphSnapshot>(emptyGraph);
@@ -113,6 +141,32 @@ export default function FlowBuilderPage() {
   useEffect(() => { graphRef.current = { nodes, edges }; }, [edges, nodes]);
 
   useEffect(() => {
+    let active = true;
+    void getFlowSession().then(({ data }) => {
+      if (!active) return;
+      if (data.session) {
+        setAuthState("session");
+        setAuthEmail(data.session.user.email ?? "");
+      } else if (hasFlowHandoff()) {
+        setAuthState("handoff");
+      } else {
+        setAuthState("required");
+      }
+    }).catch(() => {
+      if (active) setAuthState(hasFlowHandoff() ? "handoff" : "required");
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      setAuthState(session ? "session" : hasFlowHandoff() ? "handoff" : "required");
+      setAuthEmail(session?.user.email ?? "");
+    });
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const selectedBot = params.get("bot_id") || params.get("botId");
     const selectedFlow = params.get("flow_id");
@@ -124,13 +178,18 @@ export default function FlowBuilderPage() {
       return;
     }
     void chattyRequest(`/api/flow-builder/versions?bot_id=${encodeURIComponent(selectedBot)}`).then(async (response) => {
+      if (response.status === 401) {
+        setAuthState("required");
+        setSyncState("Authentication required");
+        return;
+      }
       if (!response.ok) throw new Error(`Sync failed (${response.status})`);
       const payload = await response.json() as { versions?: Array<{ id: string; flow_id?: string; flow_name?: string; version: number; flow_data: FlowData; status: string }> };
       const latest = payload.versions?.find((item) => !selectedFlow || item.flow_id === selectedFlow);
       if (!latest?.flow_data) return;
       const next = { nodes: latest.flow_data.nodes ?? [], edges: latest.flow_data.edges ?? [] };
       graphRef.current = next; setNodes(next.nodes); setEdges(next.edges); setFlowId(latest.flow_id || selectedFlow); setFlowName(latest.flow_name || "New workflow"); setVersion(latest.version); setPublished(latest.status === "published"); setSaved(true); setSyncState("Synced from Chatty"); historyRef.current = []; futureRef.current = []; setHistorySize(0); setFutureSize(0);
-    }).catch(() => setSyncState("Offline draft"));
+    }).catch(() => setSyncState("Unable to sync workflow"));
   }, []);
 
   useEffect(() => {
@@ -181,31 +240,39 @@ export default function FlowBuilderPage() {
   });
 
   async function saveDraft(publish = false) {
+    if (busyAction) return;
     if (!botId) { setSaved(true); setSyncState("Local draft"); return; }
     if (publish && validationIssues.length > 0) { setSyncState("Fix validation errors before publishing"); return; }
+    setBusyAction(publish ? "publish" : "save");
     setSyncState(publish ? "Publishing…" : "Saving…");
     try {
       const body = { bot_id: botId, flow_id: flowId, name: flowName.trim() || "New workflow", version: version || 1, flow_data: persistedGraph(graphRef.current), note: publish ? "Published from Chatty Flow Builder" : "Saved from Chatty Flow Builder" };
       const response = await chattyRequest(publish ? "/api/flow-builder/publish" : "/api/flow-builder/versions", { method: "POST", body: JSON.stringify(body) });
-      if (!response.ok) { const detail = await response.text(); setSyncState(`Save failed (${response.status})`); setTestError(detail.slice(0, 220)); return; }
+      if (response.status === 401) { setAuthState("required"); setSyncState("Authentication required"); setTestError("Your Chatty session expired. Reopen the builder from Chatty to reconnect."); return; }
+      if (!response.ok) { const detail = await response.text(); setSyncState(`${publish ? "Publish" : "Save"} failed (${response.status})`); setTestError(detail.slice(0, 220)); return; }
       const result = await response.json() as { version?: number; flow_id?: string };
       if (result.flow_id) setFlowId(result.flow_id);
       if (result.version) setVersion(result.version);
       setSaved(true); setPublished(publish); setSyncState(publish ? "Published to Chatty" : "Saved to Chatty");
-    } catch { setSyncState("Save failed: network error"); }
+    } catch { setSyncState(`${publish ? "Publish" : "Save"} failed: network error`); }
+    finally { setBusyAction(null); }
   }
 
   async function runTest() {
+    if (busyAction) return;
+    setBusyAction("test");
     setRunning(true); setTestError(null); setTestTrace([]);
-    if (!botId) { setTestError("Open this builder from a Chatty bot to run a tenant-authorized test."); return; }
+    if (!botId) { setTestError("Open this builder from a Chatty bot to run a tenant-authorized test."); setBusyAction(null); return; }
     try {
       const response = await chattyRequest("/api/flow-builder/test", { method: "POST", body: JSON.stringify({ bot_id: botId, flow_id: flowId, flow_data: persistedGraph(graphRef.current) }) });
       const body = await response.json() as { detail?: string; trace?: FlowRunTrace[] };
+      if (response.status === 401) { setAuthState("required"); setTestError("Your Chatty session expired. Reopen the builder from Chatty to reconnect."); return; }
       if (!response.ok) { setTestError(body.detail || "The flow test failed."); return; }
       const trace = body.trace || []; setTestTrace(trace);
       const traceById = new Map(trace.map((step) => [step.node_id, step]));
       setNodes((current) => current.map((node) => ({ ...node, executionState: traceById.has(node.id) ? "completed" : "idle", lastError: undefined })));
     } catch { setTestError("The flow test could not reach Chatty."); }
+    finally { setBusyAction(null); }
   }
 
   function addNode(item: NodeDefinition) {
@@ -224,7 +291,9 @@ export default function FlowBuilderPage() {
 
   async function handleN8nImport(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; event.target.value = ""; if (!file) return;
+    setBusyAction("import");
     try { const imported = importN8nWorkflow(JSON.parse(await file.text())); setGraph(imported, true); setSelectedId(imported.nodes[0]?.id ?? ""); setSyncState("Imported n8n draft"); } catch (error) { setTestError(error instanceof Error ? error.message : "The n8n workflow could not be imported."); setRunning(true); }
+    finally { setBusyAction(null); }
   }
 
   function downloadN8n() {
@@ -237,9 +306,9 @@ export default function FlowBuilderPage() {
   return <main className="builder-shell">
     <input ref={importRef} className="sr-only" aria-hidden="true" tabIndex={-1} type="file" accept="application/json,.json" onChange={(event) => void handleN8nImport(event)} />
     <header className="topbar">
-      <div className="brand"><div className="brand-mark"><Sparkles size={17} /></div><div><strong>Chatty Flows</strong><span>Automation workspace</span></div></div>
+      <div className="brand"><div className="brand-mark"><Image src="/chatty_flow.png" alt="" width={22} height={22} priority aria-hidden="true" /></div><div><strong>Chatty Flows</strong><span>Automation workspace</span></div></div>
       <div className="crumb"><span>Chatty</span><ChevronDown size={14} /><span className="muted">/</span><input className="workflow-name" value={flowName} onChange={(event) => { setFlowName(event.target.value); setSaved(false); }} aria-label="Workflow name" /><span className="draft-pill"><span className="status-dot" /> {published ? "Published" : "Draft"}</span></div>
-      <div className="top-actions"><button className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button className="secondary" onClick={() => importRef.current?.click()}><Upload size={14} /> Import n8n</button><button className="secondary" onClick={downloadN8n}><Download size={14} /> Export</button><button className="secondary" onClick={() => void runTest()}><Play size={14} /> Test</button><button className="secondary save-button" onClick={() => void saveDraft(false)} disabled={saved && Boolean(botId)}><Save size={14} /> Save draft</button><button className="primary" onClick={() => void saveDraft(true)} disabled={validationIssues.length > 0}><Check size={14} /> Publish</button><button type="button" className="avatar" aria-label="Account" title="Account"><UserCircle2 size={18} /></button></div>
+      <div className="top-actions"><button type="button" className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button type="button" className="secondary" onClick={() => importRef.current?.click()} disabled={Boolean(busyAction)}>{busyAction === "import" ? <Loader2 className="spin" size={14} /> : <Upload size={14} />} Import n8n</button><button type="button" className="secondary" onClick={downloadN8n} disabled={Boolean(busyAction)}> <Download size={14} /> Export</button><button type="button" className="secondary" onClick={() => void runTest()} disabled={Boolean(busyAction)}>{busyAction === "test" ? <Loader2 className="spin" size={14} /> : <Play size={14} />} Test</button><button type="button" className="secondary save-button" onClick={() => void saveDraft(false)} disabled={(saved && Boolean(botId) && Boolean(flowId)) || Boolean(busyAction)}>{busyAction === "save" ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save draft</button><button type="button" className="primary" onClick={() => void saveDraft(true)} disabled={validationIssues.length > 0 || Boolean(busyAction)}>{busyAction === "publish" ? <Loader2 className="spin" size={14} /> : <Check size={14} />} Publish</button>{authState === "required" && <span className="auth-state">Authentication required</span>}<div className="account-wrap"><button type="button" className={`avatar ${accountOpen ? "open" : ""}`} aria-label="Account" title="Account" aria-expanded={accountOpen} onClick={() => setAccountOpen((current) => !current)}><UserCircle2 size={18} /></button>{accountOpen && <div className="account-menu"><small>CHATTY AUTH</small><b>{authState === "session" ? "Connected" : authState === "handoff" ? "Connected by handoff" : authState === "checking" ? "Checking connection" : "Authentication required"}</b><span>{authEmail || (authState === "required" ? "Open this builder from Chatty." : "Tenant session active")}</span>{authState === "required" && <a href={process.env.NEXT_PUBLIC_CHATTY_APP_URL ?? "https://app.personaliai.com"}><ExternalLink size={13} /> Open Chatty</a>}<button type="button" onClick={() => { setRefreshingAuth(true); window.location.reload(); }} disabled={refreshingAuth}>{refreshingAuth ? <Loader2 className="spin" size={13} /> : <RotateCcw size={13} />} Refresh connection</button></div>}</div></div>
     </header>
     <div className="workspace">
       {view === "canvas" ? <>
@@ -252,7 +321,7 @@ export default function FlowBuilderPage() {
         </aside>
         <section className="canvas-area">
           <div className="canvas-toolbar"><div className="toolbar-group"><button className="tool-active" onClick={() => setView("canvas")}><LayoutGrid size={15} /> Canvas</button><button onClick={() => setView("history")}><History size={15} /> History</button><span className="toolbar-divider" /><button onClick={undo} disabled={historySize === 0} aria-label="Undo"><Undo2 size={15} /></button><button onClick={redo} disabled={futureSize === 0} aria-label="Redo"><Redo2 size={15} /></button></div><div className="toolbar-group"><button onClick={() => canvasCommandsRef.current?.zoomOut()} aria-label="Zoom out">−</button><button onClick={() => canvasCommandsRef.current?.resetZoom()} className="zoom-reset">100%</button><button onClick={() => canvasCommandsRef.current?.zoomIn()} aria-label="Zoom in">+</button><button onClick={() => canvasCommandsRef.current?.fitView()} aria-label="Fit workflow"><RotateCcw size={14} /></button></div></div>
-          <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} onCreateNode={() => setMobilePanel("palette")} commandsRef={canvasCommandsRef} />
+          <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} onCreateNode={() => { setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }} commandsRef={canvasCommandsRef} />
           <div className="canvas-status"><span><span className={`green-dot ${saved ? "" : "pending"}`} /> {syncState}</span><span>{nodes.length} nodes · {edges.length} connections</span><span className={`status-right ${validationIssues.length ? "has-issues" : ""}`}>{validationIssues.length ? `${validationIssues.length} validation issue${validationIssues.length === 1 ? "" : "s"}` : published ? `Published v${version || 1}` : saved ? "Draft ready" : "Unsaved changes"}</span></div>
         </section>
         <aside className={`inspector ${mobilePanel === "inspector" ? "mobile-open" : ""}`}>
@@ -266,7 +335,7 @@ export default function FlowBuilderPage() {
           </div> : <div className="empty-inspector"><Settings2 size={22} /><p>Select a node to configure its parameters, credentials, retries, and outputs.</p></div>}
           {validationIssues.length > 0 && <div className="validation-box"><div><AlertCircle size={14} /><b>Before publishing</b></div>{validationIssues.slice(0, 4).map((issue) => <p key={issue}>{issue}</p>)}</div>}
         </aside>
-      </> : <section className="history-area"><RunHistory runs={runs} loading={runsLoading} selectedRun={selectedRun} onSelect={setSelectedRun} onRefresh={() => setRunsRefresh((value) => value + 1)} /></section>}
+      </> : <section className="history-area"><RunHistory runs={runs} loading={runsLoading} selectedRun={selectedRun} onSelect={setSelectedRun} onRefresh={() => setRunsRefresh((value) => value + 1)} onBack={() => setView("canvas")} /></section>}
     </div>
     <footer className="mobile-nav"><button onClick={() => setMobilePanel("palette")}><Plus size={17} /><span>Add</span></button><button className="mobile-run" onClick={() => void runTest()}><Play size={17} /><span>Test</span></button><button onClick={() => setMobilePanel("inspector")}><Settings2 size={17} /><span>Inspect</span></button></footer>
     {running && <div className="modal-backdrop"><div className="run-modal"><div className="modal-title"><div><small>VALIDATION RUN</small><h2>Flow test</h2></div><button className="icon-btn" onClick={() => setRunning(false)}><X size={18} /></button></div>{testError ? <div className="run-error">{testError}</div> : testTrace.length ? testTrace.map((step) => <div className="run-progress" key={step.node_id}><span className="run-icon"><CheckCircle2 size={16} /></span><div><b>{step.title}</b><small>{step.status} · no external side effects</small></div></div>) : <div className="run-progress active"><span className="spinner" /><div><b>Validating graph</b><small>Checking connections and execution order…</small></div></div>}<button className="secondary full" onClick={() => setRunning(false)}>Close test run</button></div></div>}

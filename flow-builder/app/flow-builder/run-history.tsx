@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Clock3, RefreshCw, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock3, RefreshCw, XCircle } from "lucide-react";
 import type { FlowRun } from "./types";
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   selectedRun: FlowRun | null;
   onSelect: (run: FlowRun) => void;
   onRefresh: () => void;
+  onBack: () => void;
 };
 
 function RunIcon({ status }: { status: FlowRun["status"] }) {
@@ -17,7 +18,7 @@ function RunIcon({ status }: { status: FlowRun["status"] }) {
   return <Clock3 size={16} />;
 }
 
-export function RunHistory({ runs, loading, selectedRun, onSelect, onRefresh }: Props) {
+export function RunHistory({ runs, loading, selectedRun, onSelect, onRefresh, onBack }: Props) {
   return (
     <div className="run-history">
       <div className="history-toolbar">
@@ -26,7 +27,7 @@ export function RunHistory({ runs, loading, selectedRun, onSelect, onRefresh }: 
           <h2>Execution history</h2>
           <p>Review real runs from published workflows.</p>
         </div>
-        <button type="button" className="secondary" onClick={onRefresh} disabled={loading}><RefreshCw size={14} /> Refresh</button>
+        <div className="history-actions"><button type="button" className="secondary" onClick={onBack}><ArrowLeft size={14} /> Back to canvas</button><button type="button" className="secondary" onClick={onRefresh} disabled={loading}><RefreshCw className={loading ? "spin" : ""} size={14} /> Refresh</button></div>
       </div>
       <div className="history-layout">
         <div className="history-list">
