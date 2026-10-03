@@ -6,6 +6,7 @@ import { chattyRequest } from "./lib";
 import { nodeCatalog, type NodeDefinition } from "./node-registry";
 import { importN8nWorkflow } from "./n8n-import";
 import type { FlowEdge, FlowNode } from "./types";
+import { FlowCanvas } from "./flow-canvas";
 
 
 // New flows start empty. This avoids presenting sample workflows as saved data.
@@ -137,6 +138,7 @@ export default function FlowBuilderPage() {
     setTestTrace([]);
     if (!botId) {
       setTestError("Open this builder from a Chatty bot to run a tenant-authorized test.");
+      setRunning(false);
       return;
     }
     try {
@@ -184,6 +186,22 @@ export default function FlowBuilderPage() {
     setSaved(false);
   }
 
+  function connectNodes(sourceId: string, targetId: string) {
+    if (sourceId === targetId || edges.some((edge) => edge.from === sourceId && edge.to === targetId)) return;
+    setEdges((current) => [...current, { from: sourceId, to: targetId }]);
+    setSaved(false);
+  }
+
+  function moveNodes(nextNodes: FlowNode[]) {
+    setNodes(nextNodes);
+    setSaved(false);
+  }
+
+  function changeEdges(nextEdges: FlowEdge[]) {
+    setEdges(nextEdges);
+    setSaved(false);
+  }
+
   async function handleN8nImport(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -218,17 +236,12 @@ export default function FlowBuilderPage() {
       </aside>
       <section className="canvas-area">
         <div className="canvas-toolbar"><div className="toolbar-group"><button className="tool-active"><LayoutGrid size={15} /> Canvas</button><button><History size={15} /> History</button></div><div className="toolbar-group"><button onClick={() => setZoom((value) => Math.max(60, value - 10))}>−</button><span>{zoom}%</span><button onClick={() => setZoom((value) => Math.min(140, value + 10))}>+</button><button onClick={() => setZoom(100)}><RotateCcw size={14} /></button></div></div>
-        <div className="canvas" style={{ "--zoom": zoom / 100 } as CSSProperties} onClick={() => setSelectedId("")}>
-          <div className="grid-bg" />
-          <svg className="edges" viewBox="0 0 1100 620" preserveAspectRatio="none">{edges.map((edge) => { const from = nodes.find((node) => node.id === edge.from); const to = nodes.find((node) => node.id === edge.to); if (!from || !to) return null; const sx = from.x + 218, sy = from.y + 64, tx = to.x, ty = to.y + 64; return <path key={`${edge.from}-${edge.to}`} d={`M ${sx} ${sy} C ${sx + 80} ${sy}, ${tx - 80} ${ty}, ${tx} ${ty}`} />; })}</svg>
-          <div className="canvas-content">{nodes.map((node) => <div key={node.id} className={`flow-node ${selectedId === node.id ? "selected" : ""} ${connectingFrom === node.id ? "connecting" : ""}`} style={{ left: node.x, top: node.y, "--node-color": node.color } as CSSProperties} onClick={(event) => { event.stopPropagation(); if (connectingFrom && connectingFrom !== node.id) connectTo(node.id); else { setSelectedId(node.id); setMobilePanel("inspector"); } }}><button type="button" className="node-port in" aria-label={`Connect to ${node.title}`} onClick={(event) => { event.stopPropagation(); if (connectingFrom) connectTo(node.id); }} /><div className="node-top" onPointerDown={(event) => startDrag(event, node)}><span className="node-icon"><NodeIcon icon={node.icon} size={17} /></span><span className="node-kind">{node.kind}</span><button type="button" className="node-menu" aria-label={`Node options for ${node.title}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setNodeMenuId(nodeMenuId === node.id ? null : node.id); }}><MoreHorizontal size={15} /></button></div><b>{node.title}</b><span className="node-subtitle">{node.subtitle}</span><div className="node-footer"><span className="node-check"><Check size={11} /></span>{node.kind === "trigger" ? "Listening" : "Configured"}<button type="button" className="node-port out" aria-label={`Connect from ${node.title}`} onClick={(event) => { event.stopPropagation(); setSelectedId(node.id); setConnectingFrom(node.id); }} /></div>{connectingFrom === node.id && <div className="connect-hint">Select a target node</div>}{nodeMenuId === node.id && <div className="node-context-menu"><button type="button" onClick={(event) => { event.stopPropagation(); duplicateNode(node); }}>Duplicate</button><button type="button" onClick={(event) => { event.stopPropagation(); removeNode(node.id); }}>Remove</button></div>}</div>)}</div>
-          <div className="canvas-empty"><span>Drag a node from the library to extend this flow</span></div>
-        </div>
+        <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} />
         <div className="canvas-status"><span><span className={`green-dot ${saved ? "" : "pending"}`} /> {syncState}</span><span>{nodes.length} nodes · {edges.length} connections</span><span className="status-right">{published ? `Published v${version || 1}` : saved ? "Draft ready" : "Unsaved changes"}</span></div>
       </section>
       <aside className={`inspector ${mobilePanel === "inspector" ? "mobile-open" : ""}`}>
         <div className="panel-head"><div><small>CONFIGURE</small><h2>{selected ? selected.title : "Select a node"}</h2></div><button className="icon-btn mobile-only" onClick={() => setMobilePanel(null)}><X size={17} /></button></div>
-        {selected ? <div className="inspector-body"><div className="selected-summary"><span className="summary-icon" style={{ color: selected.color, background: `${selected.color}16` }}><NodeIcon icon={selected.icon} /></span><div><b>{selected.title}</b><span>{selected.subtitle}</span></div></div><label>Node label<input value={selected.title} onChange={(event) => setNodes((current) => current.map((node) => node.id === selected.id ? { ...node, title: event.target.value } : node))} /></label>{Object.entries(selected.config).map(([key, value]) => <label key={key}>{key.replace(/_/g, " ")}{key === "operation" && (selected.operations?.length ?? 0) > 1 ? <select value={value} onChange={(event) => updateConfig(key, event.target.value)}>{selected.operations?.map((operation) => <option key={operation}>{operation}</option>)}</select> : <input value={value} onChange={(event) => updateConfig(key, event.target.value)} />}</label>)}{selected.kind === "action" && !selected.config.url && <label>Adapter endpoint URL<input type="url" placeholder="https://..." onChange={(event) => updateConfig("url", event.target.value)} /></label>}{selected.kind === "action" && selected.config.url && <label>Method<select value={selected.config.method ?? "POST"} onChange={(event) => updateConfig("method", event.target.value)}><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></label>}{selected.kind === "trigger" && <label>Event type<select value={selected.config.event ?? "lead.created"} onChange={(event) => updateConfig("event", event.target.value)}>{chattyEvents.map((event) => <option key={event}>{event}</option>)}</select></label>}<div className="inspector-section"><div className="section-title">Reliability</div><div className="toggle-row"><span><b>Retry failed runs</b><small>3 attempts with backoff</small></span><span className="toggle on" /></div><div className="toggle-row"><span><b>Idempotency key</b><small>Prevent duplicate side effects</small></span><span className="toggle on" /></div></div>{selected.kind !== "trigger" && <div className="connect-list"><div className="section-title">Connect to</div>{nodes.filter((node) => node.id !== selected.id).map((node) => <button key={node.id} onClick={() => connectTo(node.id)}><NodeIcon icon={node.icon} size={14} />{node.title}<ArrowRight size={14} /></button>)}</div>}<button className="delete-btn" onClick={deleteSelected}><Trash2 size={14} /> Remove node</button></div> : <div className="empty-inspector"><Settings2 size={22} /><p>Select a node to configure its action, retries, credentials, and outputs.</p></div>}
+        {selected ? <div className="inspector-body"><div className="selected-summary"><span className="summary-icon" style={{ color: selected.color, background: `${selected.color}16` }}><NodeIcon icon={selected.icon} /></span><div><b>{selected.title}</b><span>{selected.subtitle}</span></div></div><label>Node label<input value={selected.title} onChange={(event) => setNodes((current) => current.map((node) => node.id === selected.id ? { ...node, title: event.target.value } : node))} /></label>{selected.n8nType && <label>n8n node type<input value={selected.n8nType} readOnly aria-readonly="true" /></label>}{selected.n8nTypeVersion && <label>n8n type version<input value={String(selected.n8nTypeVersion)} readOnly aria-readonly="true" /></label>}{Object.entries(selected.config).map(([key, value]) => <label key={key}>{key.replace(/_/g, " ")}{key === "operation" && (selected.operations?.length ?? 0) > 1 ? <select value={value} onChange={(event) => updateConfig(key, event.target.value)}>{selected.operations?.map((operation) => <option key={operation}>{operation}</option>)}</select> : <input value={value} onChange={(event) => updateConfig(key, event.target.value)} />}</label>)}{selected.kind === "action" && !selected.config.url && <label>{selected.provider === "n8n" ? "n8n webhook URL" : "Adapter endpoint URL"}<input type="url" placeholder="https://..." onChange={(event) => updateConfig("url", event.target.value)} /></label>}{selected.kind === "action" && selected.config.url && <label>Method<select value={selected.config.method ?? "POST"} onChange={(event) => updateConfig("method", event.target.value)}><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></label>}{selected.kind === "trigger" && <label>Event type<select value={selected.config.event ?? "lead.created"} onChange={(event) => updateConfig("event", event.target.value)}>{chattyEvents.map((event) => <option key={event}>{event}</option>)}</select></label>}<div className="inspector-section"><div className="section-title">Reliability</div><div className="toggle-row"><span><b>Retry failed runs</b><small>3 attempts with backoff</small></span><span className="toggle on" /></div><div className="toggle-row"><span><b>Idempotency key</b><small>Prevent duplicate side effects</small></span><span className="toggle on" /></div></div>{selected.kind !== "trigger" && <div className="connect-list"><div className="section-title">Connect to</div>{nodes.filter((node) => node.id !== selected.id).map((node) => <button key={node.id} onClick={() => connectTo(node.id)}><NodeIcon icon={node.icon} size={14} />{node.title}<ArrowRight size={14} /></button>)}</div>}<button className="delete-btn" onClick={deleteSelected}><Trash2 size={14} /> Remove node</button></div> : <div className="empty-inspector"><Settings2 size={22} /><p>Select a node to configure its action, retries, credentials, and outputs.</p></div>}
       </aside>
     </div>
     <footer className="mobile-nav"><button onClick={() => setMobilePanel("palette")}><Plus size={17} /><span>Add</span></button><button className="mobile-run" onClick={() => void runTest()}><Play size={17} /><span>Test</span></button><button onClick={() => setMobilePanel("inspector")}><Settings2 size={17} /><span>Inspect</span></button></footer>

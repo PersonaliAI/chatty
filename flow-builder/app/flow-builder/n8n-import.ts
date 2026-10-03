@@ -1,8 +1,10 @@
 import type { FlowEdge, FlowNode } from "./types";
 
 type N8nNode = {
+  id?: string;
   name?: string;
   type?: string;
+  typeVersion?: number;
   position?: [number, number];
   parameters?: Record<string, unknown>;
 };
@@ -26,19 +28,24 @@ export function importN8nWorkflow(payload: unknown): { nodes: FlowNode[]; edges:
   const ids = new Map<string, string>();
   const nodes = workflow.nodes.map((source, index) => {
     const name = text(source.name, `n8n node ${index + 1}`);
-    const id = `n8n-${index + 1}`;
+    const id = `n8n-${text(source.id, String(index + 1)).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+    const n8nType = text(source.type, "n8n-unknown");
     ids.set(name, id);
-    const isTrigger = text(source.type, "").toLowerCase().includes("trigger") || text(source.type, "").toLowerCase().includes("webhook");
+    const isTrigger = n8nType.toLowerCase().includes("trigger") || n8nType.toLowerCase().includes("webhook");
     return {
       id,
       kind: isTrigger ? "trigger" : "action",
       title: name,
-      subtitle: text(source.type, "Imported n8n node"),
+      subtitle: n8nType,
       icon: isTrigger ? "webhook" : "n8n",
       color: "#ff6d5a",
       x: source.position?.[0] ?? 120 + (index % 4) * 280,
       y: source.position?.[1] ?? 120 + Math.floor(index / 4) * 150,
-      config: { provider: "n8n", operation: text(source.type, "Run workflow"), imported: "true" },
+      provider: "n8n",
+      n8nType,
+      n8nTypeVersion: source.typeVersion,
+      n8nParameters: source.parameters ?? {},
+      config: { provider: "n8n", operation: "Run node", imported: "true" },
       operations: ["Run workflow"],
     } satisfies FlowNode;
   });

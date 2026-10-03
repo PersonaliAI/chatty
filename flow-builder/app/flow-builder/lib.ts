@@ -12,9 +12,18 @@ export async function chattyRequest(path: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   if (data.session?.access_token) headers.set("Authorization", `Bearer ${data.session.access_token}`);
-  const queryHandoff = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("handoff") : null;
-  const storedHandoff = typeof window !== "undefined" ? window.sessionStorage.getItem("chatty-flow-handoff") : null;
-  if (queryHandoff && typeof window !== "undefined") window.sessionStorage.setItem("chatty-flow-handoff", queryHandoff);
+  const query = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const botId = query?.get("bot_id") || query?.get("botId") || "unknown";
+  const handoffKey = `chatty-flow-handoff:${botId}`;
+  const queryHandoff = query?.get("handoff") || null;
+  const storedHandoff = typeof window !== "undefined" ? window.sessionStorage.getItem(handoffKey) : null;
+  if (queryHandoff && typeof window !== "undefined") {
+    window.sessionStorage.setItem(handoffKey, queryHandoff);
+    // Keep the short-lived credential out of browser history and referrers.
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("handoff");
+    window.history.replaceState({}, "", cleanUrl.toString());
+  }
   if (!data.session?.access_token && (queryHandoff || storedHandoff)) headers.set("X-Chatty-Flow-Handoff", queryHandoff || storedHandoff || "");
   return fetch(`${chattyApiUrl}${path}`, { ...options, headers });
 }

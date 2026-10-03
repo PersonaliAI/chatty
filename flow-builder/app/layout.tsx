@@ -1,3 +1,4 @@
+import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import type { ReactNode } from "react";
 

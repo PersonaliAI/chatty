@@ -112,6 +112,41 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .canvas-status span { display: inline-flex; align-items: center; gap: 5px; }
 .status-right { margin-left: auto; }
 
+/* Keep the canvas interaction model close to n8n: pan, zoom, snap, handles,
+   minimap, selection rings, and a context menu on each node. */
+.n8n-flow-canvas { position: relative; flex: 1; min-height: 0; background: var(--canvas); }
+.n8n-flow-canvas .react-flow { --xy-background-color: var(--canvas); --xy-node-border-radius: 10px; --xy-node-boxshadow-default: var(--shadow-node); --xy-node-color-default: var(--paper); --xy-edge-stroke-default: #9aaabd; }
+.n8n-flow-canvas .react-flow__pane { cursor: grab; }
+.n8n-flow-canvas .react-flow__pane:active { cursor: grabbing; }
+.n8n-flow-canvas .react-flow__node { width: 236px; }
+.n8n-flow-canvas .react-flow__node.selected { box-shadow: none; }
+.n8n-canvas-node { position: relative; min-height: 132px; padding: 12px 13px; border: 1px solid #d8e0ea; border-radius: 10px; color: var(--ink); background: var(--paper); box-shadow: var(--shadow-node); cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.n8n-canvas-node:hover { border-color: #aebdce; box-shadow: 0 8px 22px rgba(15, 23, 42, .14); }
+.n8n-canvas-node.is-selected { border-color: var(--node-color); box-shadow: 0 0 0 4px color-mix(in srgb, var(--node-color) 15%, transparent), 0 10px 26px rgba(15, 23, 42, .14); }
+.n8n-node-header { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; }
+.n8n-node-icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 8px; color: var(--node-color); background: color-mix(in srgb, var(--node-color) 12%, white); }
+.n8n-node-kind { color: #9aa5b4; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.n8n-node-menu { display: grid; width: 25px; height: 25px; margin-left: auto; place-items: center; border-radius: 6px; color: #9aa5b4; }
+.n8n-node-menu:hover { color: var(--ink); background: var(--soft); }
+.n8n-node-title { overflow: hidden; font-size: 12px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.n8n-node-subtitle { min-height: 15px; margin-top: 4px; overflow: hidden; color: #7d899a; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.n8n-node-footer { display: flex; align-items: center; gap: 7px; margin-top: 16px; color: #8996a6; font-size: 9px; }
+.n8n-node-status { display: inline-flex; align-items: center; gap: 4px; color: #5e9c72; }
+.n8n-node-status svg { padding: 2px; border-radius: 50%; color: #22984e; background: #e7f7ed; }
+.n8n-node-badge { margin-left: auto; padding: 2px 5px; border: 1px solid #ffd2c7; border-radius: 4px; color: #e05b46; background: #fff6f3; font-size: 8px; font-weight: 800; letter-spacing: .05em; }
+.n8n-handle { width: 10px; height: 10px; border: 2px solid #aebdcd; background: var(--paper); }
+.n8n-handle:hover { border-color: var(--node-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color) 15%, transparent); }
+.n8n-node-context-menu { position: absolute; top: 42px; right: 12px; z-index: 10; min-width: 138px; padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: var(--shadow-panel); }
+.n8n-node-context-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 9px; border-radius: 5px; color: var(--ink-soft); font-size: 10px; text-align: left; }
+.n8n-node-context-menu button:hover { background: var(--soft); color: var(--ink); }
+.n8n-node-context-menu button.danger { color: var(--danger); }
+.n8n-flow-canvas .react-flow__controls { margin: 0 12px 12px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-panel); }
+.n8n-flow-canvas .react-flow__controls-button { width: 27px; height: 27px; border-bottom-color: var(--line); color: var(--ink-soft); background: var(--paper); }
+.n8n-flow-canvas .react-flow__controls-button:hover { background: var(--soft); }
+.n8n-flow-canvas .react-flow__minimap { right: auto; bottom: 12px; left: 12px; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-panel); overflow: hidden; }
+.n8n-fit-view { position: absolute; right: 12px; top: 12px; z-index: 5; display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink-soft); background: var(--paper); font-size: 10px; box-shadow: 0 3px 10px rgba(15, 23, 42, .06); }
+.n8n-fit-view:hover { background: var(--soft); }
+
 .inspector-body { height: calc(100% - 60px); padding: 0 16px 20px; overflow: auto; scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
 .selected-summary { gap: 9px; padding: 10px 0 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
 .summary-icon { display: grid; width: 31px; height: 31px; place-items: center; border-radius: 9px; }

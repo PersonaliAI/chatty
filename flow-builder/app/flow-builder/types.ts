@@ -11,6 +11,11 @@ export type FlowNode = {
   y: number;
   config: Record<string, string>;
   operations?: string[];
+  provider?: string;
+  credentialType?: string;
+  n8nType?: string;
+  n8nTypeVersion?: number;
+  n8nParameters?: Record<string, unknown>;
 };
 
 export type FlowEdge = { from: string; to: string };
