@@ -74,6 +74,7 @@
   .inbox-shell[data-conversation-open=true] .inbox-conversation { display: flex; }
   .inbox-shell[data-conversation-open=true] .inbox-queue { display: none; }
   .inbox-back { display: flex; }
+  .inbox-conversation-tools { justify-content: flex-start; }
   .inbox-contact-pane { position: absolute; inset: 44px 0 0 auto; width: min(330px,100%); z-index: 40; border-left: 1px solid var(--inbox-line); box-shadow: -12px 0 24px #0002; }
   .inbox-shell[data-details-open=true] .inbox-contact-pane { display: block; }
   .inbox-conversation-tools > button, .inbox-conversation-tools > div { flex-shrink: 0; }

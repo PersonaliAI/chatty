@@ -65,6 +65,10 @@ for (const width of [1600, 1024, 768, 390]) {
     await expect(page.getByRole("button", { name: "Open conversation with Alice" })).toBeVisible();
     await page.getByRole("button", { name: "Open conversation with Alice" }).press("Enter");
     await expect(page.getByLabel("Reply to conversation")).toBeVisible();
+    if (width < 900) {
+      const backBounds = await page.getByRole("button", {name:"Conversations",exact:true}).boundingBox();
+      expect(backBounds?.x).toBeGreaterThanOrEqual(0);
+    }
     await page.getByLabel("Reply to conversation").fill("First line\nSecond line");
     await page.getByLabel("Reply to conversation").press("Control+Enter");
     await expect(page.getByLabel("Reply to conversation")).toHaveValue("");
