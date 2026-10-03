@@ -19,7 +19,7 @@ import {
   type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
-import { Check, Code2, Copy, MoreHorizontal, Trash2 } from "lucide-react";
+import { Check, Code2, Copy, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
 import type { FlowEdge, FlowNode } from "./types";
 import { NodeIcon } from "./node-icon";
@@ -54,6 +54,7 @@ type Props = {
   onDuplicate: (node: FlowNode) => void;
   onRemove: (nodeId: string) => void;
   onToggleMenu: (nodeId: string) => void;
+  onCreateNode: () => void;
   commandsRef?: MutableRefObject<FlowCanvasCommands | null>;
 };
 
@@ -102,7 +103,7 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
       <div className="n8n-node-subtitle">{data.subtitle}</div>
       <div className="n8n-node-footer">
         <span className={`n8n-node-status ${status}`}><Check size={11} />{status === "completed" ? "Completed" : status === "failed" ? "Failed" : data.kind === "trigger" ? "Listening" : "Ready"}</span>
-        {data.n8nType && <span className="n8n-node-badge">n8n</span>}
+        {data.isImported && <span className="n8n-node-badge">imported</span>}
       </div>
       <Handle type="source" position={Position.Right} className="n8n-handle n8n-handle-source" aria-label={`Connect from ${data.title}`} />
       {data.openMenuId === data.id && (
@@ -247,17 +248,18 @@ function FlowCanvasInner(props: Props) {
       >
         <Background color="#d6dee9" gap={20} size={1} />
         <Controls showInteractive={false} position="bottom-right" />
-        <MiniMap
+        {canvasNodes.length > 0 && <MiniMap
           pannable
           zoomable
           position="bottom-left"
           nodeColor={(node) => String((node.data as CanvasNodeData).color || "#cbd5e1")}
           maskColor="rgba(247, 249, 252, 0.75)"
-        />
+        />}
         <button type="button" className="n8n-fit-view" onClick={() => reactFlow.fitView({ padding: 0.35 })} aria-label="Fit workflow to view">
           <Code2 size={14} /> Fit view
         </button>
       </ReactFlow>
+      {canvasNodes.length === 0 && <div className="canvas-empty-state"><div className="canvas-empty-icon"><Plus size={20} /></div><strong>Start with a trigger</strong><span>Add the first step to define when this workflow runs.</span><button type="button" onClick={props.onCreateNode}>Open node library</button></div>}
     </div>
   );
 }

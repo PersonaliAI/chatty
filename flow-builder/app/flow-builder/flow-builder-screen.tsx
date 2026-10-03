@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { AlertCircle, ArrowRight, Check, CheckCircle2, ChevronDown, Download, History, LayoutGrid, Menu, Play, Plus, Redo2, RotateCcw, Save, Search, Settings2, ShieldCheck, Sparkles, Trash2, Undo2, Upload, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Check, CheckCircle2, ChevronDown, Download, History, LayoutGrid, Menu, Play, Plus, Redo2, RotateCcw, Save, Search, Settings2, ShieldCheck, Sparkles, Trash2, Undo2, Upload, UserCircle2, X } from "lucide-react";
 import { chattyRequest } from "./lib";
 import { exportN8nWorkflow } from "./n8n-export";
 import { importN8nWorkflow } from "./n8n-import";
 import { findNodeDefinition, nodeCatalog, type NodeDefinition, type NodeField } from "./node-registry";
 import { FlowCanvas, type FlowCanvasCommands } from "./flow-canvas";
+import { NodeIcon } from "./node-icon";
 import { RunHistory } from "./run-history";
 import type { FlowData, FlowEdge, FlowNode, FlowRun, FlowRunTrace } from "./types";
 
@@ -40,11 +41,6 @@ function NodeFieldEditor({ field, value, onChange }: { field: NodeField; value: 
   if (field.type === "select") return <select value={value} onChange={(event) => onChange(event.target.value)}>{field.options?.map((option) => <option key={option}>{option}</option>)}</select>;
   if (field.type === "textarea" || field.type === "json") return <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} rows={field.type === "json" ? 7 : 4} spellCheck={false} />;
   return <input type={field.type === "url" ? "url" : field.type === "number" ? "number" : "text"} value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} />;
-}
-
-function NodeIcon({ icon, size = 17 }: { icon: string; size?: number }) {
-  const iconMap: Record<string, string> = { chatty: "◈", webhook: "⌁", globe: "↗", mail: "✉", sheet: "▦", calendar: "◫", slack: "#", discord: "◉", crm: "▣", hubspot: "●", notion: "N", airtable: "▤", stripe: "S", telegram: "➤", twilio: "☎", clock: "◷", branch: "⑂", spark: "✦", make: "M", zapier: "Z", n8n: "n" };
-  return <span style={{ fontSize: size - 2, lineHeight: 1 }}>{iconMap[icon] ?? "◇"}</span>;
 }
 
 export default function FlowBuilderPage() {
@@ -243,7 +239,7 @@ export default function FlowBuilderPage() {
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Sparkles size={17} /></div><div><strong>Chatty Flows</strong><span>Automation workspace</span></div></div>
       <div className="crumb"><span>Chatty</span><ChevronDown size={14} /><span className="muted">/</span><input className="workflow-name" value={flowName} onChange={(event) => { setFlowName(event.target.value); setSaved(false); }} aria-label="Workflow name" /><span className="draft-pill"><span className="status-dot" /> {published ? "Published" : "Draft"}</span></div>
-      <div className="top-actions"><button className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button className="secondary" onClick={() => importRef.current?.click()}><Upload size={14} /> Import n8n</button><button className="secondary" onClick={downloadN8n}><Download size={14} /> Export</button><button className="secondary" onClick={() => void runTest()}><Play size={14} /> Test</button><button className="secondary save-button" onClick={() => void saveDraft(false)} disabled={saved && Boolean(botId)}><Save size={14} /> Save draft</button><button className="primary" onClick={() => void saveDraft(true)} disabled={validationIssues.length > 0}><Check size={14} /> Publish</button><button className="avatar">A</button></div>
+      <div className="top-actions"><button className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button className="secondary" onClick={() => importRef.current?.click()}><Upload size={14} /> Import n8n</button><button className="secondary" onClick={downloadN8n}><Download size={14} /> Export</button><button className="secondary" onClick={() => void runTest()}><Play size={14} /> Test</button><button className="secondary save-button" onClick={() => void saveDraft(false)} disabled={saved && Boolean(botId)}><Save size={14} /> Save draft</button><button className="primary" onClick={() => void saveDraft(true)} disabled={validationIssues.length > 0}><Check size={14} /> Publish</button><button type="button" className="avatar" aria-label="Account" title="Account"><UserCircle2 size={18} /></button></div>
     </header>
     <div className="workspace">
       {view === "canvas" ? <>
@@ -256,7 +252,7 @@ export default function FlowBuilderPage() {
         </aside>
         <section className="canvas-area">
           <div className="canvas-toolbar"><div className="toolbar-group"><button className="tool-active" onClick={() => setView("canvas")}><LayoutGrid size={15} /> Canvas</button><button onClick={() => setView("history")}><History size={15} /> History</button><span className="toolbar-divider" /><button onClick={undo} disabled={historySize === 0} aria-label="Undo"><Undo2 size={15} /></button><button onClick={redo} disabled={futureSize === 0} aria-label="Redo"><Redo2 size={15} /></button></div><div className="toolbar-group"><button onClick={() => canvasCommandsRef.current?.zoomOut()} aria-label="Zoom out">−</button><button onClick={() => canvasCommandsRef.current?.resetZoom()} className="zoom-reset">100%</button><button onClick={() => canvasCommandsRef.current?.zoomIn()} aria-label="Zoom in">+</button><button onClick={() => canvasCommandsRef.current?.fitView()} aria-label="Fit workflow"><RotateCcw size={14} /></button></div></div>
-          <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} commandsRef={canvasCommandsRef} />
+          <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} onCreateNode={() => setMobilePanel("palette")} commandsRef={canvasCommandsRef} />
           <div className="canvas-status"><span><span className={`green-dot ${saved ? "" : "pending"}`} /> {syncState}</span><span>{nodes.length} nodes · {edges.length} connections</span><span className={`status-right ${validationIssues.length ? "has-issues" : ""}`}>{validationIssues.length ? `${validationIssues.length} validation issue${validationIssues.length === 1 ? "" : "s"}` : published ? `Published v${version || 1}` : saved ? "Draft ready" : "Unsaved changes"}</span></div>
         </section>
         <aside className={`inspector ${mobilePanel === "inspector" ? "mobile-open" : ""}`}>

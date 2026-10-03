@@ -17,6 +17,7 @@ export type FlowNode = {
   credentialType?: string;
   n8nType?: string;
   n8nTypeVersion?: number;
+  isImported?: boolean;
   n8nParameters?: Record<string, unknown>;
   executionState?: NodeExecutionState;
   lastError?: string;

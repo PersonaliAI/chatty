@@ -58,6 +58,7 @@ export function importN8nWorkflow(payload: unknown): { nodes: FlowNode[]; edges:
       provider: definition?.provider ?? "n8n",
       n8nType,
       n8nTypeVersion: source.typeVersion,
+      isImported: true,
       n8nParameters: parameters,
       config: { ...(definition?.defaultConfig ?? { operation: "Run node" }), provider: "n8n", imported: "true", ...(method ? { method } : {}), ...(url ? { url } : {}) },
       operations: definition?.operations ?? ["Run workflow"],
