@@ -83,7 +83,7 @@
 @media (prefers-reduced-motion: reduce) { .inbox-shell * { animation: none !important; transition: none !important; } }
 
 @media (max-width: 640px) {
-  .inbox-shell { margin-inline: -4px; }
+  .inbox-shell { margin-inline: 0; }
   .inbox-shell [data-inbox-routing] { border-radius: 10px; padding: 8px; gap: 8px; }
   .inbox-shell [data-inbox-routing] > div { max-width: 100%; }
   .inbox-shell .inbox-workspace,
