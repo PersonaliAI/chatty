@@ -72,7 +72,7 @@ CHATTY_FRONTEND_URL = os.environ.get("CHATTY_FRONTEND_URL", "https://chatty.pers
 # This service's own public URL - the OAuth issuer/resource identifiers the
 # MCP server advertises must match the domain clients actually reach.
 CHATTY_BACKEND_URL = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com")
-FLOW_BUILDER_URL = os.environ.get("FLOW_BUILDER_URL", "https://flows.chatty.personaliai.com")
+FLOW_BUILDER_URL = os.environ.get("FLOW_BUILDER_URL", "https://flow.personaliai.com")
 FLOW_BUILDER_HOSTED_URL = "https://chatty-flow-builder--personaliai.us-central1.hosted.app"
 
 ALLOWED_ORIGINS = [

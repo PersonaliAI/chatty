@@ -4212,7 +4212,7 @@ export default function Dashboard() {
                   key={link.id}
                   onClick={() => {
                     if (link.id === "flow_builder") {
-                      const flowBuilderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://flows.chatty.personaliai.com";
+                      const flowBuilderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://flow.personaliai.com";
                       void fetchWithFallback(`/api/flow-builder/handoff?bot_id=${encodeURIComponent(botId || "")}`, { method: "POST" })
                         .then(async (response) => {
                           const payload = response.ok ? await response.json() as { handoff?: string } : {};

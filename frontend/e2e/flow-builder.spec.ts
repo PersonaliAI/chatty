@@ -4,7 +4,7 @@ const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const ownerPassword = process.env.E2E_OWNER_PASSWORD;
 const ownerBotId = process.env.E2E_OWNER_BOT_ID;
 const supabaseServiceKey = process.env.E2E_SUPABASE_SERVICE_KEY;
-const standaloneBuilderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://chatty-flow-builder--personaliai.us-central1.hosted.app";
+const standaloneBuilderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://flow.personaliai.com";
 const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.chatty.personaliai.com";
 
 test.describe("standalone flow builder lifecycle", () => {

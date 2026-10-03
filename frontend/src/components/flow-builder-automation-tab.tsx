@@ -64,7 +64,7 @@ export function FlowBuilderAutomationTab({ botId, onCreate }: Props) {
     if (flow?.flow_id) params.set("flow_id", flow.flow_id);
     if (flow?.version) params.set("version", String(flow.version));
     if (body.handoff) params.set("handoff", body.handoff);
-    const builderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://flows.chatty.personaliai.com";
+    const builderUrl = process.env.NEXT_PUBLIC_FLOW_BUILDER_URL || "https://flow.personaliai.com";
     window.open(builderUrl + "?" + params.toString(), "_blank", "noopener,noreferrer");
   }
 

@@ -28,7 +28,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FLOW_BUILDER_URL
-    value: "https://chatty-flow-builder--personaliai.us-central1.hosted.app"
+    value: "https://flow.personaliai.com"
     availability:
       - BUILD
       - RUNTIME

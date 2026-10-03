@@ -1,8 +1,8 @@
 # Chatty Flow Builder
 
 This is a separate Next.js application for Chatty workflow authoring. It is
-designed to deploy as its own Firebase App Hosting backend, for example at
-`https://flows.chatty.personaliai.com`.
+designed to deploy as its own Firebase App Hosting backend at
+`https://flow.personaliai.com`.
 
 ## Local development
 
