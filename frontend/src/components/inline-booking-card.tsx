@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { visitorIdentityClient } from "../../packages/chatty-react/src/visitor-identity";
 import {
   Calendar,
   Clock,
@@ -278,6 +279,7 @@ export function InlineBookingCard({
   sig,
   t,
 }: InlineBookingCardProps) {
+  const fetch = sessionId?.startsWith("ci-") ? visitorIdentityClient(botId, backendUrl).fetch : globalThis.fetch;
   // Preset accents are user-configurable (including light colors such as
   // Neubrutalism yellow). Derive the foreground instead of assuming white.
   // This keeps date/slot/action controls readable at every brand color.

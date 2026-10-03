@@ -1,5 +1,10 @@
 # Inbox and contact identity implementation plan
 
+**Historical design plan:** the implementation now includes persistent contacts,
+signed identification, logout revocation and authorized history. Follow
+[the current setup/security guide](INBOX_IDENTITY_SETUP.md), not the historical
+"Next" list below. Production acceptance results must still be checked.
+
 The inbox receives messages from Chatty widgets and integrated channels. It
 does not scrape website messages. This change starts with a permission-scoped
 visitor context panel using existing conversation/lead records; it requires no

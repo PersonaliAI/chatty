@@ -38,6 +38,8 @@ export interface ChattyWidgetProps {
 }
 
 export interface ChattyAPI {
+  identify: (serverSignedToken: string) => Promise<void>;
+  logout: () => Promise<void>;
   open: () => void;
   close: () => void;
   toggle: () => void;
@@ -165,7 +167,15 @@ export function useChatty() {
     if (typeof window !== "undefined" && window.Chatty && typeof window.Chatty.toggleVoice === "function") window.Chatty.toggleVoice();
   }, []);
 
-  return { open, close, toggle, openVoice, closeVoice, toggleVoice };
+  const identify = useCallback((token: string) => {
+    if (!window.Chatty) return Promise.reject(new Error("Chatty is not ready"));
+    return window.Chatty.identify(token);
+  }, []);
+  const logout = useCallback(() => {
+    if (!window.Chatty) return Promise.reject(new Error("Chatty is not ready"));
+    return window.Chatty.logout();
+  }, []);
+  return { open, close, toggle, openVoice, closeVoice, toggleVoice, identify, logout };
 }
 
 export { ProductCard, type ProductCardData } from "./product-card";

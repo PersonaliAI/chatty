@@ -21,7 +21,8 @@
     "gen:design-snapshot": "node scripts/generate-design-snapshot.mjs",
     "test:contrast": "node scripts/verify-contrast.mjs",
     "test:rich-content": "node --experimental-strip-types --test scripts/test-rich-content.mjs",
-    "test:widget-history": "node --experimental-strip-types --test scripts/test-widget-history.mjs"
+    "test:widget-history": "node --experimental-strip-types --test scripts/test-widget-history.mjs",
+    "test:visitor-identity": "node --test scripts/test-visitor-identity.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -76,6 +77,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.28.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",

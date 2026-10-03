@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback, Fragment } from "react";
+import { useVisitorIdentity, type VisitorIdentityClient } from "../../../../packages/chatty-react/src/visitor-identity";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
@@ -401,7 +402,14 @@ interface EmbedClientProps {
   originToken: string | null;
 }
 
-export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
+export default function EmbedClient(props: EmbedClientProps) {
+  const identity = useVisitorIdentity(props.botId, BACKEND_URL);
+  if (!identity.value) return <p role="status">{identity.error ? "Chat connection unavailable. Reload to retry." : "Connecting securely…"}</p>;
+  return <IdentifiedEmbedClient key={identity.value.session_id} {...props} identity={identity.client} />;
+}
+
+function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProps & { identity: VisitorIdentityClient }) {
+  const fetch = identity.fetch;
   const widgetTokenHeader: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
   const searchParams = useSearchParams();
   const visitorTimezone = useMemo(() => detectTimezone(), []);
@@ -471,30 +479,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   };
 
   const clearChat = () => {
-    const fresh = `v-${crypto.randomUUID()}`;
-    try {
-      localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, fresh);
-      localStorage.removeItem(`chatty_msgs_${botId}_${hostKey}`);
-    } catch {}
-    setSessionId(fresh);
-    lastPollRef.current = new Date().toISOString();
-
-    if (flowConfig) {
-      flowLoopCountsRef.current = {};
-      flowStepBudgetRef.current = 0;
-      flowLastInputRef.current = "";
-      const startNode = flowConfig.nodes?.find((n) => n.id === "start" || n.type === "start");
-      const startEdge = flowConfig.edges?.find((e) => e.source === (startNode?.id || "start"));
-      if (startEdge) {
-        const firstNode = flowConfig.nodes?.find((n) => n.id === startEdge.target);
-        if (firstNode) {
-          setMessages([]);
-          executeFlowNode(firstNode, flowConfig);
-          return;
-        }
-      }
-    }
-    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+    void identity.newConversation().catch(() => showToast("Could not start a conversation", "error"));
   };
 
   const [loading, setLoading] = useState(true);
@@ -1416,6 +1401,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   // Persistent per-visitor session id (survives reloads, unique per visitor)
   const [sessionId, setSessionId] = useState(() => {
+    if (identity.value) return identity.value.session_id;
     if (typeof window === "undefined") return `widget-session-${botId}`;
     const k = `chatty_sid_${botId}_${hostKey}`;
     let s = localStorage.getItem(k);
@@ -1530,7 +1516,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
       }
 
       // 2. Load active messages
-      const raw = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`) || localStorage.getItem(`chatty_msgs_${botId}_${hostKey}`);
+      const raw = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`);
       if (raw) {
         const saved = JSON.parse(raw);
         if (Array.isArray(saved) && saved.length) {
@@ -1557,6 +1543,24 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
   }, [botId, sessionId]);
 
   // Conversation switcher
+  useEffect(() => {
+    let alive = true;
+    void fetch(`${BACKEND_URL}/api/widget/identity/history?bot_id=${encodeURIComponent(botId)}`)
+      .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
+      .then(body => {
+        if (alive && body.conversations?.length) setConversationsList(body.conversations.map((conversation: { session_id: string; channel: string; last_message: string; last_message_at: string }) => ({
+          sessionId: conversation.session_id, lastSnippet: conversation.last_message || "Conversation", lastSender: "assistant", lastChannel: conversation.channel === "voice" ? "voice" : "text", updatedAt: conversation.last_message_at, messageCount: 1,
+        })));
+      }).catch(() => {});
+    return () => { alive = false; };
+  }, [botId, fetch]);
+  useEffect(() => {
+    let alive = true;
+    void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
+      .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
+      .then(body => { if (alive && body.messages?.length) setMessages(body.messages); }).catch(() => {});
+    return () => { alive = false; };
+  }, [botId, sessionId, fetch]);
   const switchConversation = (targetSessionId: string) => {
     setSessionId(targetSessionId);
     try {
@@ -1578,34 +1582,7 @@ export default function EmbedClient({ botId, originToken }: EmbedClientProps) {
 
   // Start a fresh conversation (Crisp/WhatChimp style "+ New conversation")
   const startNewConversation = () => {
-    const freshId = `v-${crypto.randomUUID()}`;
-    setSessionId(freshId);
-    try {
-      localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, freshId);
-    } catch {}
-    const initialMsgs: Message[] = [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }];
-    setMessages(initialMsgs);
-    try {
-      localStorage.setItem(`chatty_msgs_${botId}_${hostKey}_${freshId}`, JSON.stringify(initialMsgs));
-      localStorage.setItem(`chatty_msgs_${botId}_${hostKey}`, JSON.stringify(initialMsgs));
-    } catch {}
-    const newItem: VisitorConversationItem = {
-      sessionId: freshId,
-      lastSnippet: welcomeMsg.slice(0, 100),
-      lastSender: "assistant",
-      lastChannel: "text",
-      updatedAt: new Date().toISOString(),
-      messageCount: 1,
-    };
-    setConversationsList((prev) => {
-      const next = [newItem, ...prev.filter((c) => c.sessionId !== freshId)];
-      try {
-        localStorage.setItem(`chatty_convs_${botId}_${hostKey}`, JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-    setChatView("chat");
-    setTab("messages");
+    clearChat();
   };
 
   // Query active scheduled meeting for the current session on load

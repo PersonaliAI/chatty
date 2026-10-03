@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useId } from "react";
+import { visitorIdentityClient } from "./visitor-identity";
 import { motion, AnimatePresence, useSpring } from "framer-motion";
 import {
   Room,
@@ -54,6 +55,7 @@ export default function VoiceCallWidget({
   primaryColor,
   onClose,
 }: VoiceCallWidgetProps) {
+  const fetch = sessionId.startsWith("ci-") ? visitorIdentityClient(botId, backendUrl).fetch : globalThis.fetch;
   const [status, setStatus] = useState<CallStatus>("connecting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);

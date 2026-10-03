@@ -1,6 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { InboxIdentitySettings } from "./inbox-identity-settings";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1912,9 +1913,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           <>
             {/* Ticket Header Bar */}
             <div className="flex justify-end px-3 py-1.5 border-b border-neutral-100 dark:border-neutral-800">
+              <InboxIdentitySettings key={botId} botId={botId} fetchBackend={fetchBackend} />
               <button type="button" aria-expanded={visitorDetailsOpen} onClick={() => setVisitorDetailsOpen(value => !value)} className="text-xs font-medium flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5 shrink-0" />Visitor details</button>
             </div>
-            {visitorDetailsOpen && <InboxVisitorDetails key={`${botId}:${selected}`} botId={botId} sessionId={selected} fetchBackend={fetchBackend} formatDateTime={formatDateTime} onClose={() => setVisitorDetailsOpen(false)} />}
+            {visitorDetailsOpen && <InboxVisitorDetails key={`${botId}:${selected}`} botId={botId} sessionId={selected} fetchBackend={fetchBackend} formatDateTime={formatDateTime} onClose={() => setVisitorDetailsOpen(false)} onSelectConversation={setSelected} />}
             <div data-inbox-ticket-header className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-40 flex items-center gap-1.5">

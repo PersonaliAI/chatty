@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback, Fragment } from "react";
+import { useVisitorIdentity, type VisitorIdentityClient } from "./visitor-identity";
+import { VisitorHistory } from "./visitor-history";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
@@ -531,7 +533,13 @@ export interface WidgetThemeData {
   panel_size?: string;
 }
 
-export default function ChatWidgetCore({
+export default function ChatWidgetCore(props: ChatWidgetCoreProps) {
+  const identity = useVisitorIdentity(props.botId, BACKEND_URL);
+  if (!identity.value) return <p role="status">{identity.error ? "Chat connection unavailable. Reload to retry." : "Connecting securely…"}</p>;
+  return <IdentifiedChatWidget key={identity.value.session_id} {...props} identity={identity.client} />;
+}
+
+function IdentifiedChatWidget({
   botId,
   originToken,
   isPreview = false,
@@ -556,7 +564,9 @@ export default function ChatWidgetCore({
   forceFullscreen,
   notificationGranted,
   onThemeLoaded,
-}: ChatWidgetCoreProps) {
+  identity,
+}: ChatWidgetCoreProps & { identity: VisitorIdentityClient }) {
+  const fetch = identity.fetch;
   // Auto-verify our own origin when the caller didn't supply a token at all
   // (a same-realm mount has no server-captured Referer for anyone else to
   // exchange on its behalf, unlike EmbedClient.tsx's iframe route). An
@@ -637,27 +647,7 @@ export default function ChatWidgetCore({
   };
 
   const clearChat = () => {
-    const fresh = `v-${crypto.randomUUID()}`;
-    try {
-      localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, fresh);
-      localStorage.removeItem(`chatty_msgs_${botId}_${hostKey}`);
-    } catch {}
-    setSessionId(fresh);
-    lastPollRef.current = new Date().toISOString();
-
-    if (flowConfig) {
-      const startNode = flowConfig.nodes?.find((n) => n.id === "start" || n.type === "start");
-      const startEdge = flowConfig.edges?.find((e) => e.source === (startNode?.id || "start"));
-      if (startEdge) {
-        const firstNode = flowConfig.nodes?.find((n) => n.id === startEdge.target);
-        if (firstNode) {
-          setMessages([]);
-          executeFlowNode(firstNode, flowConfig);
-          return;
-        }
-      }
-    }
-    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+    void identity.newConversation().catch(() => showToast("Could not start a conversation", "error"));
   };
 
   const [loading, setLoading] = useState(true);
@@ -1421,6 +1411,7 @@ export default function ChatWidgetCore({
 
   // Persistent per-visitor session id (survives reloads, unique per visitor)
   const [sessionId, setSessionId] = useState(() => {
+    if (identity.value) return identity.value.session_id;
     if (typeof window === "undefined") return `widget-session-${botId}`;
     const k = `chatty_sid_${botId}_${hostKey}`;
     let s = localStorage.getItem(k);
@@ -1432,7 +1423,7 @@ export default function ChatWidgetCore({
   useEffect(() => {
     if (typeof window === "undefined" || !botId) return;
     try {
-      const raw = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}`);
+      const raw = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`);
       if (raw) {
         const saved = JSON.parse(raw);
         if (Array.isArray(saved) && saved.length) setMessages(saved);
@@ -1440,6 +1431,15 @@ export default function ChatWidgetCore({
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId]);
+
+  useEffect(() => {
+    let alive = true;
+    void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
+      .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
+      .then(body => { if (alive && body.messages?.length) setMessages(body.messages); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [botId, sessionId, fetch]);
 
   // Query active scheduled meeting for the current session on load
   const fetchActiveMeeting = useCallback(async () => {
@@ -1495,8 +1495,8 @@ export default function ChatWidgetCore({
   // Persist messages (cap to last 100)
   useEffect(() => {
     if (typeof window === "undefined" || !botId || messages.length === 0) return;
-    try { localStorage.setItem(`chatty_msgs_${botId}_${hostKey}`, JSON.stringify(messages.slice(-100))); } catch {}
-  }, [messages, botId, hostKey]);
+    try { localStorage.setItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`, JSON.stringify(messages.slice(-100))); } catch {}
+  }, [messages, botId, hostKey, sessionId]);
 
   // Live human-agent replies via SSE (one persistent connection). Falls back
   // to the /poll endpoint if the stream can't be established.
@@ -2838,6 +2838,7 @@ export default function ChatWidgetCore({
                 </motion.button>
 
                 {/* RECENT MESSAGE */}
+                <VisitorHistory identity={identity} onSelect={session => { setMessages([]); setSessionId(session); setTab("messages"); }} />
                 {messages.length > 0 && (
                   <div className="space-y-1 pt-0.5">
                     <span className="text-[11px] font-semibold opacity-75 px-1">

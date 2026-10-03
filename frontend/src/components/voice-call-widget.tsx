@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo, useId } from "react";
+import { visitorIdentityClient } from "../../packages/chatty-react/src/visitor-identity";
 import { motion, AnimatePresence, useSpring } from "framer-motion";
 import {
   Room,
@@ -58,6 +59,7 @@ export default function VoiceCallWidget({
   onBookingSuccess,
   previewMode = false,
 }: VoiceCallWidgetProps) {
+  const fetch = sessionId.startsWith("ci-") ? visitorIdentityClient(botId, backendUrl).fetch : globalThis.fetch;
   const [status, setStatus] = useState<CallStatus>(previewMode ? "agent-speaking" : "connecting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);

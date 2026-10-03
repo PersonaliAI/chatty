@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AlertCircle, Loader2, UserRound, X } from "lucide-react";
 
 interface Visitor {
@@ -8,7 +8,11 @@ interface Visitor {
   name: string | null;
   email: string | null;
   phone: string | null;
-  identity_status: "anonymous" | "details_provided";
+  identity_status: "anonymous" | "details_provided" | "verified";
+  contact_id?: string;
+  external_user_id?: string;
+  custom_attributes?: Record<string, string | number | boolean | null>;
+  previous_conversations?: Array<{ session_id: string; channel: string; last_message_at: string; status: string }>;
   identity_verified: boolean;
   channel: string;
   first_seen_at: string | null;
@@ -16,12 +20,13 @@ interface Visitor {
   location: { country: string | null; region: string | null; city: string | null };
 }
 
-export function InboxVisitorDetails({ botId, sessionId, fetchBackend, formatDateTime, onClose }: {
+export function InboxVisitorDetails({ botId, sessionId, fetchBackend, formatDateTime, onClose, onSelectConversation }: {
   botId: string;
   sessionId: string;
   fetchBackend: (path: string, options?: RequestInit) => Promise<Response>;
   formatDateTime: (value: string) => string;
   onClose: () => void;
+  onSelectConversation?: (sessionId: string) => void;
 }) {
   const [visitor, setVisitor] = useState<Visitor | null>(null);
   const [error, setError] = useState(false);
@@ -67,11 +72,14 @@ export function InboxVisitorDetails({ botId, sessionId, fetchBackend, formatDate
       ) : visitor && (
         <>
           <p className="font-medium mb-1">{visitor.name || "Anonymous visitor"}</p>
-          <p className="text-neutral-500 mb-3">{visitor.identity_status === "anonymous" ? "No contact details provided" : "Self-reported contact details · not verified identity"}</p>
+          <p className="text-neutral-500 mb-3">{visitor.identity_verified ? "Identity verified by your website server" : visitor.identity_status === "anonymous" ? "No contact details provided" : "Self-reported contact details · not verified identity"}</p>
           <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-4 gap-y-2">
             {rows.map(([label, value]) => <div key={label} className="contents"><dt className="text-neutral-500">{label}</dt><dd className="min-w-0 break-words">{value || "Not provided"}</dd></div>)}
             <dt className="text-neutral-500">Conversation ID</dt><dd className="min-w-0 break-all font-mono">{visitor.session_id}</dd>
+            {visitor.external_user_id && <><dt>Website user ID</dt><dd className="break-all">{visitor.external_user_id}</dd></>}
+            {Object.entries(visitor.custom_attributes || {}).map(([key, value]) => <React.Fragment key={key}><dt className="break-words">{key}</dt><dd className="break-words">{String(value ?? "Not provided")}</dd></React.Fragment>)}
           </dl>
+          {!!visitor.previous_conversations?.length && <div className="mt-3"><h4 className="font-semibold mb-2">Authorized conversation history</h4>{visitor.previous_conversations.map(conversation => <button key={conversation.session_id} type="button" className="block text-left underline py-1" onClick={() => onSelectConversation?.(conversation.session_id)}>{conversation.channel === "voice" ? "Voice" : "Text"} · {conversation.status} · {conversation.last_message_at ? formatDateTime(conversation.last_message_at) : conversation.session_id}</button>)}</div>}
         </>
       )}
     </section>

@@ -107,6 +107,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Visitor identity security regressions
+        run: npm run test:visitor-identity
+
       - name: Lint
         run: npm run lint
 

@@ -1098,7 +1098,7 @@ async def widget_poll(bot_id: str, session_id: str, after: str = ""):
 
 
 @router.get("/api/widget/live")
-async def widget_live(bot_id: str, session_id: str, after: str = ""):
+async def widget_live(bot_id: str, session_id: str, after: str = "", request: Request = None):
     """SSE stream of human-agent replies + AI-pause changes for a session -
     one persistent connection instead of repeated client polling. Emits only
     new events, then closes after ~4 min so the client reconnects (keeps
@@ -1113,6 +1113,12 @@ async def widget_live(bot_id: str, session_id: str, after: str = ""):
         transient_failures = 0
         yield ": connected\n\n"
         while time.time() < deadline:
+            if session_id.startswith("ci-"):
+                from app.services.contact_identity import credential
+                try:
+                    await credential(bot_id, request.headers.get("x-chatty-visitor", "") if request else "")
+                except HTTPException:
+                    return
             try:
                 q = supabase.table("chatty_conversations").select("content,created_at,sender,sender_name,sender_avatar") \
                     .eq("bot_id", bot_id).eq("session_id", session_id).eq("sender", "human") \

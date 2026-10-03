@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { visitorIdentityClient } from "./visitor-identity";
 import {
   Calendar,
   Clock,
@@ -226,6 +227,7 @@ export function InlineBookingCard({
   onMeetingRescheduled,
   onMeetingCancelled,
 }: InlineBookingCardProps) {
+  const fetch = sessionId?.startsWith("ci-") ? visitorIdentityClient(botId, backendUrl).fetch : globalThis.fetch;
   const [loading, setLoading] = useState(true);
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);

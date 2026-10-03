@@ -24,6 +24,17 @@ async def upsert_session(
     channel: str = "web",
 ) -> tuple[dict[str, Any], bool]:
     """Create or update a conversation session. Returns (row, is_new)."""
+    if session_id.startswith("ci-"):
+        # Inbox display fields come from the signed profile when identified;
+        # custom attributes never enter the assistant prompt here.
+        bindings = (await run_db(lambda: supabase.table("chatty_visitor_credentials").select("contact_id")
+            .eq("bot_id", bot_id).eq("session_id", session_id).limit(1).execute())).data or []
+        if bindings:
+            contacts = (await run_db(lambda: supabase.table("chatty_contacts").select("profile,external_user_id")
+                .eq("bot_id", bot_id).eq("id", bindings[0]["contact_id"]).limit(1).execute())).data or []
+            if contacts and contacts[0].get("external_user_id"):
+                profile = contacts[0].get("profile") or {}
+                visitor_name, visitor_email = profile.get("name"), profile.get("email")
     session_channel = (channel or "").strip().lower() or ("whatsapp" if session_id.startswith("wa:") else "web")
     if session_channel not in {"web", "email", "whatsapp", "voice", "slack", "api"}:
         session_channel = "web"

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import re
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Response
 
 from app.core.clients import supabase
 from app.core.db import run_db
@@ -210,9 +210,11 @@ async def admin_inbox_messages(bot_id: str, session_id: str,
 
 @router.get("/api/admin/inbox/visitor")
 async def admin_inbox_visitor(bot_id: str, session_id: str,
-                              user: dict[str, Any] = Depends(require_user)):
+                              user: dict[str, Any] = Depends(require_user), response: Response = None):
     """Conversation-scoped context, not an authenticated visitor identity."""
     await _verify_session_inbox_access(bot_id, session_id, user)
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store"
     sessions = (await run_db(lambda: supabase.table("chatty_sessions").select("*")
         .eq("bot_id", bot_id).eq("session_id", session_id).limit(1).execute())).data or []
     if not sessions:
@@ -223,15 +225,39 @@ async def admin_inbox_visitor(bot_id: str, session_id: str,
         .eq("bot_id", bot_id).eq("session_id", session_id)
         .order("created_at", desc=True).limit(1).execute())).data or []
     lead = leads[0] if leads else {}
+    contact = {}
+    previous = []
+    if session_id.startswith("ci-"):
+        bindings = (await run_db(lambda: supabase.table("chatty_visitor_credentials").select("contact_id")
+            .eq("bot_id", bot_id).eq("session_id", session_id).limit(1).execute())).data or []
+        if bindings:
+            contacts = (await run_db(lambda: supabase.table("chatty_contacts").select("*")
+                .eq("bot_id", bot_id).eq("id", bindings[0]["contact_id"]).limit(1).execute())).data or []
+            contact = contacts[0] if contacts else {}
+            history_bindings = (await run_db(lambda: supabase.table("chatty_visitor_credentials").select("session_id")
+                .eq("bot_id", bot_id).eq("contact_id", bindings[0]["contact_id"]).limit(100).execute())).data or []
+            ids = [binding["session_id"] for binding in history_bindings]
+            if ids:
+                role = await _verify_inbox_access(bot_id, user)
+                query = supabase.table("chatty_sessions").select("session_id,channel,last_message_at,status")\
+                    .eq("bot_id", bot_id).in_("session_id", ids).order("last_message_at", desc=True).limit(50)
+                if role == "agent":
+                    query = query.eq("assigned_agent_email", (user.get("email") or "").strip().lower())
+                previous = (await run_db(query.execute)).data or []
+    profile = contact.get("profile") or {}
     name = session.get("visitor_name") or lead.get("name")
     email = session.get("visitor_email") or lead.get("email")
     return {"visitor": {
         "session_id": session_id,
-        "name": name,
-        "email": email,
-        "phone": lead.get("phone"),
-        "identity_status": "details_provided" if name or email or lead.get("phone") else "anonymous",
-        "identity_verified": False,
+        "name": profile.get("name") or name,
+        "email": profile.get("email") or email,
+        "phone": profile.get("phone") or lead.get("phone"),
+        "contact_id": contact.get("id"),
+        "external_user_id": contact.get("external_user_id"),
+        "custom_attributes": profile.get("custom_attributes", {}),
+        "previous_conversations": previous,
+        "identity_status": "verified" if contact.get("external_user_id") else "details_provided" if profile.get("name") or profile.get("email") or name or email or lead.get("phone") else "anonymous",
+        "identity_verified": bool(contact.get("external_user_id")),
         "channel": session.get("channel") or "web",
         "first_seen_at": session.get("created_at") or lead.get("created_at"),
         "last_seen_at": session.get("last_message_at"),

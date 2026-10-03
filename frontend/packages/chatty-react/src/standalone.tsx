@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { visitorIdentityClient, useVisitorIdentity } from "./visitor-identity";
 import { createRoot, type Root } from "react-dom/client";
 import ChatWidgetCore, { type ChatWidgetCoreProps } from "./ChatWidgetCore";
 import VoiceCallWidget from "./voice-call-widget";
@@ -81,6 +82,8 @@ interface TriggerRule {
 }
 
 export interface ChattyWidgetApi {
+  identify: (token: string) => Promise<void>;
+  logout: () => Promise<void>;
   open: () => void;
   close: () => void;
   toggle: () => void;
@@ -121,17 +124,8 @@ export function ChattyStandaloneApp({
   const [open, setOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [voiceSessionId] = useState(() => {
-    if (typeof window === "undefined") return `widget-voice-${botId}`;
-    const host = window.location.hostname || "direct";
-    const key = `chatty_voice_sid_${botId}_${host}`;
-    let value = localStorage.getItem(key);
-    if (!value) {
-      value = `v-${crypto.randomUUID()}`;
-      localStorage.setItem(key, value);
-    }
-    return value;
-  });
+  const voiceIdentity = useVisitorIdentity(botId, BACKEND_URL);
+  const voiceSessionId = voiceIdentity.value?.session_id || "";
   const [unread, setUnread] = useState(0);
   const [coreReady, setCoreReady] = useState(false);
   const [themeLoaded, setThemeLoaded] = useState(false);
@@ -368,6 +362,8 @@ export function ChattyStandaloneApp({
   useEffect(() => {
     if (!onApiReady || !revealed) return;
     onApiReady({
+      identify: (token) => { setVoiceOpen(false); return visitorIdentityClient(botId, BACKEND_URL).identify(token); },
+      logout: () => { setVoiceOpen(false); return visitorIdentityClient(botId, BACKEND_URL).logout(); },
       open: () => handleOpen(true),
       close: () => handleOpen(false),
       toggle: () => handleOpen(!openRef.current),
@@ -688,7 +684,7 @@ export function ChattyStandaloneApp({
           (`window.Chatty.openVoice()` / `useChatty().openVoice()`). This keeps
           the default widget uncluttered while preserving a fully embeddable
           voice-agent surface for sites that want their own button. */}
-      {voiceEnabled && voiceOpen && (
+      {voiceEnabled && voiceOpen && voiceIdentity.value && (
         <>
           <div aria-hidden="true" onClick={() => setVoiceOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.42)", backdropFilter: "blur(8px)", zIndex: 2147483646, animation: "chatty-voice-backdrop-in .25s ease-out" }} />
           <div
