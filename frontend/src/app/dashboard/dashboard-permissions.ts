@@ -30,7 +30,9 @@ export const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   // read/monitor access even when they cannot change settings; mutation
   // controls remain guarded inside each surface.
   flows: null,
+  flow_builder: null,
   campaigns: null,
+  automations: null,
   leads: "inbox",
   feedback: "inbox",
   map: "inbox",

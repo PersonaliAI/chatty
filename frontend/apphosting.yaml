@@ -27,6 +27,11 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_FLOW_BUILDER_URL
+    value: "https://chatty-flow-builder--personaliai.us-central1.hosted.app"
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_LEMON_PORTAL_URL
     value: "https://priceshield.lemonsqueezy.com/billing"
     availability:

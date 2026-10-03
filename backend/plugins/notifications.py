@@ -515,6 +515,14 @@ async def enqueue_webhook_event(
     raises - a broken/slow customer endpoint must never affect the chat flow
     that triggered the event."""
     try:
+        from app.services.flow_runtime import enqueue_flow_event
+        await enqueue_flow_event(
+            supabase, bot_id=bot_id, event=event, session_id=session_id,
+            data=data, job_queue=job_queue or _webhook_job_queue,
+        )
+    except Exception:
+        logger.exception("flow event handoff failed bot=%s event=%s", bot_id, event)
+    try:
         res = await run_db(lambda: (
             supabase.table("chatty_webhooks")
             .select("id, url, secret, events")

@@ -72,6 +72,8 @@ CHATTY_FRONTEND_URL = os.environ.get("CHATTY_FRONTEND_URL", "https://chatty.pers
 # This service's own public URL - the OAuth issuer/resource identifiers the
 # MCP server advertises must match the domain clients actually reach.
 CHATTY_BACKEND_URL = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com")
+FLOW_BUILDER_URL = os.environ.get("FLOW_BUILDER_URL", "https://flows.chatty.personaliai.com")
+FLOW_BUILDER_HOSTED_URL = "https://chatty-flow-builder--personaliai.us-central1.hosted.app"
 
 ALLOWED_ORIGINS = [
     o.strip()
@@ -81,6 +83,10 @@ ALLOWED_ORIGINS = [
     ).split(",")
     if o.strip()
 ]
+if FLOW_BUILDER_URL not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(FLOW_BUILDER_URL)
+if FLOW_BUILDER_HOSTED_URL not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(FLOW_BUILDER_HOSTED_URL)
 
 # Lemon Squeezy variant_id → plan name. Prefer dedicated env vars, then fall back
 # to a comma-separated LEMON_VARIANT_PLANS list.

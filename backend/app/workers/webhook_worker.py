@@ -27,6 +27,13 @@ async def _deliver(payload: dict) -> None:
         raise RuntimeError(error or "webhook delivery failed")
 
 
+async def _execute_flow(payload: dict) -> None:
+    from app.core.clients import supabase
+    from app.services.flow_runtime import execute_flow_job
+
+    await execute_flow_job(supabase, payload)
+
+
 async def _fanout_webhook(payload: dict) -> None:
     """Expand one widget event into durable per-subscription deliveries."""
     from plugins.notifications import enqueue_webhook_event
@@ -271,6 +278,7 @@ async def run() -> None:
         idempotency_lock_ttl_seconds=idempotency_lock_ttl_seconds,
         handlers={
             "webhook.deliver": _deliver,
+            "flow.execute": _execute_flow,
             "webhook.fanout": _fanout_webhook,
             "woocommerce.sync": _sync_woocommerce,
             "email.ticket_reply": _send_ticket_reply_email,
