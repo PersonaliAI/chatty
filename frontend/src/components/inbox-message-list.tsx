@@ -19,6 +19,19 @@ export interface Msg {
   correction?: string | null;
 }
 
+export interface InboxMeeting {
+  id?: string;
+  meeting_link?: string;
+  formatted_time?: string;
+  summary?: string;
+  start_time?: string;
+  end_time?: string;
+  attendee_name?: string;
+  attendee_email?: string;
+  assigned_to_email?: string;
+  status?: string;
+}
+
 /* ── Attachment URL trust check ───────────────────────────────────
  * Message content is free text a visitor fully controls, so only render a
  * URL as an img/audio src or link if it genuinely points at our own upload
@@ -41,17 +54,17 @@ function isTrustedAttachmentUrl(url: string): boolean {
   }
 }
 
-function InboxBookingCard({ content }: { content: string }) {
+function InboxBookingCard({ content, meeting }: { content: string; meeting?: InboxMeeting | null }) {
   const isWidgetPrompt = content.includes("[BOOKING_WIDGET]");
   const isCancelled = /cancelled|canceled/i.test(content) && /meeting|booking|demo/i.test(content);
-  const isConfirmed = !isCancelled && /scheduled|confirmed|booked/i.test(content) && /meeting|demo|appointment|booking/i.test(content);
+  const isConfirmed = !isCancelled && Boolean(meeting || (/scheduled|confirmed|booked/i.test(content) && /meeting|demo|appointment|booking/i.test(content)));
   const meetLinkMatch = content.match(/https:\/\/(?:meet\.google\.com|teams\.microsoft\.com|zoom\.us\/j)\/[^\s)>]+/i);
-  const meetUrl = meetLinkMatch ? meetLinkMatch[0] : null;
+  const meetUrl = meeting?.meeting_link || (meetLinkMatch ? meetLinkMatch[0] : null);
 
   const confirmationTime = content.match(/(?:scheduled|confirmed|booked)\s+(?:for|on)\s+([^\n.!]+?)(?:\.|!|\s+Join\b|\s+https?:\/\/|$)/i);
   const dateMatch = content.match(/(?:for|on)\s+([A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)?(?:\s*\([^)]+\))?)/i);
-  const timeStr = confirmationTime?.[1]?.trim() || dateMatch?.[1] || null;
-  const attendeeMatch = content.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const timeStr = meeting?.formatted_time || confirmationTime?.[1]?.trim() || dateMatch?.[1] || null;
+  const attendeeMatch = meeting?.attendee_email ? [meeting.attendee_email] : content.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
 
   return (
     <div className={`mt-2 p-2.5 rounded-xl border text-xs ${
@@ -64,7 +77,7 @@ function InboxBookingCard({ content }: { content: string }) {
       <div className="flex items-center justify-between gap-2 mb-1">
         <span className="flex items-center gap-1.5 font-bold text-[11px]">
           {isConfirmed ? <Lock className="size-3.5" /> : <Calendar className="size-3.5" />}
-          {isCancelled ? "Meeting Cancelled" : isConfirmed ? "Booking confirmed · locked" : "Booking Widget Active"}
+          {isCancelled ? "Meeting Cancelled" : isConfirmed ? `${meeting?.summary || "Booking confirmed"} · locked` : "Booking Widget Active"}
         </span>
         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
           isCancelled
@@ -129,6 +142,7 @@ interface MessageListProps {
   setCorrectionDraft: (draft: string) => void;
   setFeedback: (messageId: string, rating: "up" | "down" | null, correction?: string) => void;
   endRef: RefObject<HTMLDivElement | null>;
+  confirmedMeeting?: InboxMeeting | null;
 }
 
 /**
@@ -149,6 +163,7 @@ function MessageListInner({
   setCorrectionDraft,
   setFeedback,
   endRef,
+  confirmedMeeting,
 }: MessageListProps) {
   return (
     <>
@@ -247,7 +262,7 @@ function MessageListInner({
                   {cleanContent}
                 </ReactMarkdown>
               )}
-              {(hasBooking || showBookingFallback) && <InboxBookingCard content={showBookingFallback ? `${m.content}\n[BOOKING_WIDGET]` : m.content} />}
+              {(hasBooking || showBookingFallback) && <InboxBookingCard content={showBookingFallback ? `${m.content}\n[BOOKING_WIDGET]` : m.content} meeting={confirmedMeeting} />}
             </div>
             </div>
             {!isVisitor && !isHuman && m.id && (

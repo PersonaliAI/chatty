@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { InboxIdentitySettings } from "./inbox-identity-settings";
 import "./inbox-workspace.css";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
@@ -55,7 +55,7 @@ import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
 import { createClient } from "@/lib/supabase/client";
 import { SELF_HOST_MODE } from "@/lib/deployment";
-import { MessageList, type Msg } from "@/components/inbox-message-list";
+import { MessageList, type InboxMeeting, type Msg } from "@/components/inbox-message-list";
 import { InboxVisitorDetails } from "@/components/inbox-visitor-details";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 
@@ -522,6 +522,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     setNavigationCollapsed(window.matchMedia("(max-width: 1190px)").matches);
   }, []);
   const [messages, setMessages] = useState<Msg[]>([]);
+  const [confirmedMeeting, setConfirmedMeeting] = useState<InboxMeeting | null>(null);
   const activeSessionRef = useRef<string | null>(null);
   const messageRequestRef = useRef<AbortController | null>(null);
   const noteRequestRef = useRef<AbortController | null>(null);
@@ -586,6 +587,16 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   // Assignees & Current Agent
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+  const mentionAssignees = useMemo<Assignee[]>(() => {
+    const merged = [...assignees];
+    for (const agent of teamPresence) {
+      const email = (agent.agent_email || "").trim().toLowerCase();
+      if (email && !merged.some((item) => item.email.toLowerCase() === email)) {
+        merged.push({ email, name: agent.agent_name || "Teammate", role: "agent" });
+      }
+    }
+    return merged;
+  }, [assignees, teamPresence]);
 
   // ── Agent Collision Detection State ──
   const [activeViewers, setActiveViewers] = useState<ActiveViewer[]>([]);
@@ -798,6 +809,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     noteRequestRef.current = null;
     setLoadingNotes(false);
     setMessages([]);
+    setConfirmedMeeting(null);
     setSessionNotes([]);
     setActiveViewers([]);
     setSummaryModalOpen(false);
@@ -915,6 +927,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       if (res.ok) {
         const d = await res.json();
         if (!controller.signal.aborted && activeSessionRef.current === sid) setMessages(d.messages || []);
+      }
+      const bookingRes = await fetchBackend(`/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sid)}`, { signal: controller.signal });
+      if (bookingRes.ok) {
+        const booking = await bookingRes.json();
+        if (!controller.signal.aborted && activeSessionRef.current === sid) {
+          setConfirmedMeeting(booking.has_active && booking.meeting ? booking.meeting : null);
+        }
       }
     } catch {} finally { if (messageRequestRef.current === controller) messageRequestRef.current = null; }
   }, [botId, fetchBackend]);
@@ -2563,6 +2582,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   setCorrectionDraft={setCorrectionDraft}
                   setFeedback={setFeedback}
                   endRef={endRef}
+                  confirmedMeeting={confirmedMeeting}
                 />
               )}
             </div>
@@ -2746,13 +2766,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </div>
                 )}
 
-                {mentionQuery !== null && assignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).length > 0 && (
+                {mentionQuery !== null && mentionAssignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).length > 0 && (
                   <div role="listbox" aria-label="Mention teammate" className="absolute bottom-[84px] left-3 z-30 max-h-40 w-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
                     <p className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">Mention teammate</p>
-                    {assignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).map((assignee) => (
+                    {mentionAssignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).map((assignee) => (
                       <button key={assignee.email} type="button" role="option" aria-selected="false" onClick={() => insertMention(assignee)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">
                         <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f97316]/10 text-[10px] font-bold text-[#f97316]">{(assignee.name || assignee.email)[0].toUpperCase()}</span>
-                        <span className="min-w-0"><span className="block truncate font-semibold">{assignee.name || assignee.email}</span><span className="block truncate text-[10px] text-neutral-400">{assignee.email}</span></span>
+                        <span className="min-w-0"><span className="block truncate font-semibold">{assignee.name || "Teammate"}</span><span className="block truncate text-[10px] text-neutral-400">{assignee.role === "agent" ? "Chatty teammate" : assignee.role}</span></span>
                       </button>
                     ))}
                   </div>

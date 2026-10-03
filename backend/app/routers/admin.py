@@ -615,8 +615,8 @@ async def get_inbox_assignees(bot_id: str, user: dict[str, Any] = Depends(requir
     # Current user
     curr_email = (user.get("email") or "").strip().lower()
     curr_name = (user.get("user_metadata") or {}).get("name") if isinstance(user.get("user_metadata"), dict) else None
-    if not curr_name and curr_email:
-        curr_name = curr_email.split("@")[0].capitalize()
+    if not curr_name:
+        curr_name = "Me"
     if curr_email:
         assignees.append({
             "email": curr_email,
@@ -634,7 +634,7 @@ async def get_inbox_assignees(bot_id: str, user: dict[str, Any] = Depends(requir
             if m_email and m_email not in seen_emails:
                 assignees.append({
                     "email": m_email,
-                    "name": m.get("name") or m_email.split("@")[0].capitalize(),
+                    "name": m.get("name") or "Teammate",
                     "role": m.get("role") or "agent",
                 })
                 seen_emails.add(m_email)
