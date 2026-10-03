@@ -534,6 +534,9 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiPanelRef = useRef<HTMLDivElement | null>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
   // ── Helpdesk Engine State ──
   const [selectedStatusTab, setSelectedStatusTab] = useState<InboxStatusTab>("open");
@@ -647,6 +650,29 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       document.removeEventListener("touchstart", handleClickOutside);
     };
   }, [statusPopoverOpen, priorityPopoverOpen, assigneePopoverOpen, tagPopoverOpen, presenceMenuOpen, showRoster]);
+
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setEmojiOpen(false);
+        emojiButtonRef.current?.focus();
+      }
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!emojiPanelRef.current?.contains(target) && !emojiButtonRef.current?.contains(target)) {
+        setEmojiOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [emojiOpen]);
 
   const [tags, setTags] = useState<Record<string, string[]>>({});
   const PREDEFINED_TAGS = ["VIP", "Bug", "Billing", "Feature Request", "Urgent", "Lead"];
@@ -783,6 +809,8 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const handleReplyChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const val = e.target.value;
     setReply(val);
+    const mention = val.match(/(?:^|\s)@([\w.-]*)$/);
+    setMentionQuery(mention ? mention[1].toLowerCase() : null);
     if (val.startsWith("/")) {
       setCannedOpen(true);
       setCannedFilter(val.slice(1).toLowerCase());
@@ -1377,6 +1405,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     setSending(true);
     const text = reply;
     setReply("");
+    setMentionQuery(null);
     setMessages((p) => [...p, { role: "assistant", content: text, sender: "human" }]);
     try {
       await fetchBackend("/api/admin/inbox/reply", {
@@ -1388,6 +1417,11 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     } catch {} finally {
       setSending(false);
     }
+  };
+
+  const insertMention = (assignee: Assignee) => {
+    setReply((value) => value.replace(/(?:^|\s)@[\w.-]*$/, (match) => `${match.startsWith(" ") ? " " : ""}@${assignee.name || assignee.email.split("@")[0]} `));
+    setMentionQuery(null);
   };
 
   const sendMedia = async (file: File | Blob, filename: string, caption = "") => {
@@ -1803,40 +1837,21 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </nav>
         {/* ── Sessions / Tickets List Pane ── */}
         <div className="inbox-queue bg-white dark:bg-neutral-900 flex flex-col">
-          <div className="inbox-pane-title"><h2>{selectedAssigneeFilter === "me" ? "My inbox" : selectedStatusTab === "all" ? "All conversations" : capitalize(selectedStatusTab)}</h2><span>{filteredSessions.length}</span></div>
-          <div className="inbox-queue-sort"><ModernFilterDropdown title="Sort conversations" value={queueSort} onChange={setQueueSort} options={[{value:"newest",label:"Newest activity"},{value:"oldest",label:"Oldest activity"},{value:"priority",label:"Highest priority"}]} /></div>
-          {/* Ticket Lifecycle Status Tabs */}
-          <div className="flex items-center border-b border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/40 text-[11px] font-semibold select-none overflow-x-auto scrollbar-none rounded-t-2xl">
-            {([
-              { key: "all", label: "All", count: ticketCounts.all },
-              { key: "unassigned", label: "Queue", count: ticketCounts.unassigned, dot: "bg-rose-500" },
-              { key: "open", label: "Open", count: ticketCounts.open, dot: "bg-emerald-500" },
-              { key: "pending", label: "Pending", count: ticketCounts.pending, dot: "bg-amber-500" },
-              { key: "resolved", label: "Resolved", count: ticketCounts.resolved, dot: "bg-purple-500" },
-              { key: "closed", label: "Closed", count: ticketCounts.closed, dot: "bg-neutral-400" },
-            ] satisfies Array<{ key: InboxStatusTab; label: string; count: number; dot?: string }>).map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setSelectedStatusTab(tab.key)}
-                className={`shrink-0 py-2.5 px-3 flex items-center justify-center gap-1.5 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  selectedStatusTab === tab.key
-                    ? "border-[#f97316] text-neutral-900 dark:text-neutral-100 font-bold bg-white dark:bg-neutral-900"
-                    : "border-transparent text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-                }`}
-              >
-                {tab.dot && <span className={`size-1.5 rounded-full shrink-0 ${tab.dot}`} />}
-                <span className="whitespace-nowrap">{tab.label}</span>
-                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono shrink-0 ${
-                  selectedStatusTab === tab.key
-                    ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 font-bold"
-                    : "bg-neutral-200/50 dark:bg-neutral-800/40 text-neutral-400"
-                }`}>
-                  {tab.count}
-                </span>
-              </button>
-            ))}
+          <div className="inbox-pane-title">
+            <h2>{selectedAssigneeFilter === "me" ? "My inbox" : selectedStatusTab === "all" ? "All conversations" : capitalize(selectedStatusTab)}</h2>
+            <div className="flex items-center gap-1.5">
+              <ModernFilterDropdown title="Filter by status" value={selectedStatusTab} onChange={setSelectedStatusTab} options={[
+                { value: "all", label: "All conversations" },
+                { value: "unassigned", label: "Unassigned" },
+                { value: "open", label: "Open" },
+                { value: "pending", label: "Pending" },
+                { value: "resolved", label: "Resolved" },
+                { value: "closed", label: "Closed" },
+              ]} />
+              <span>{filteredSessions.length}</span>
+            </div>
           </div>
-
+          <div className="inbox-queue-sort"><ModernFilterDropdown title="Sort conversations" value={queueSort} onChange={setQueueSort} options={[{value:"newest",label:"Newest activity"},{value:"oldest",label:"Oldest activity"},{value:"priority",label:"Highest priority"}]} /></div>
         {/* Filter Controls & Search */}
         <div className="p-2.5 border-b border-neutral-100 dark:border-neutral-850 space-y-2 bg-white dark:bg-neutral-900 relative z-20">
           <div className="flex items-center gap-1.5">
@@ -2519,6 +2534,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               <AnimatePresence>
                 {emojiOpen && (
                   <motion.div
+                    ref={emojiPanelRef}
                     initial={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
                     animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
                     exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
@@ -2691,6 +2707,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </div>
                 )}
 
+                {mentionQuery !== null && assignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).length > 0 && (
+                  <div role="listbox" aria-label="Mention teammate" className="absolute bottom-[84px] left-3 z-30 max-h-40 w-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
+                    <p className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">Mention teammate</p>
+                    {assignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).map((assignee) => (
+                      <button key={assignee.email} type="button" role="option" aria-selected="false" onClick={() => insertMention(assignee)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f97316]/10 text-[10px] font-bold text-[#f97316]">{(assignee.name || assignee.email)[0].toUpperCase()}</span>
+                        <span className="min-w-0"><span className="block truncate font-semibold">{assignee.name || assignee.email}</span><span className="block truncate text-[10px] text-neutral-400">{assignee.email}</span></span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <textarea
                   rows={3}
                   aria-label="Reply to conversation"
@@ -2743,7 +2770,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                       <BookOpen className="size-4.5" />
                     </motion.button>
                     <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setCannedManageOpen(true); setCannedOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Canned responses" title="Manage quick responses (type / to use)"><Zap className="size-4.5" /></motion.button>
-                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4.5" /></motion.button>
+                    <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji" aria-expanded={emojiOpen}><Smile className="size-4.5" /></motion.button>
                     <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full group" aria-label="Attach file">
                       <Paperclip className="size-4.5 group-hover:animate-bounce transition-transform" />
                     </motion.button>

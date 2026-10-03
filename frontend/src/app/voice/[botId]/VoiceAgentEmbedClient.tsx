@@ -13,7 +13,10 @@ export default function VoiceAgentEmbedClient({
   botId: string;
   originToken: string | null;
 }) {
-  const [active, setActive] = useState(true);
+  // Start behind an explicit user gesture so browsers allow the first remote
+  // LiveKit audio track to play immediately. Auto-connecting on page load can
+  // connect successfully while autoplay blocks the agent's voice.
+  const [active, setActive] = useState(false);
   const [callKey, setCallKey] = useState(0);
   const sessionId = useMemo(() => {
     const suffix = typeof crypto !== "undefined" && "randomUUID" in crypto

@@ -530,6 +530,10 @@ export default function Dashboard() {
     if (contentScrollRef.current) {
       contentScrollRef.current.scrollTop = 0;
     }
+    if (activeTab === "inbox") {
+      setSidebarOpen(false);
+      setSidebarCollapsed(true);
+    }
   }, [activeTab]);
 
   // Localization State
@@ -4384,6 +4388,24 @@ export default function Dashboard() {
               <span className={`size-2 rounded-full ${user ? "bg-green-500" : "bg-yellow-500"}`}></span>
               <span className="hidden sm:inline">{user ? "Database Active" : "Offline"}</span>
             </span>
+            <div className="relative md:hidden">
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                aria-label="Open account menu"
+                onClick={() => setAccountMenuOpen((open) => !open)}
+                className="grid size-8 place-items-center rounded-full bg-[#f97316]/10 text-xs font-bold text-[#f97316] ring-1 ring-[#f97316]/20"
+              >
+                {(user?.email?.[0] || "P").toUpperCase()}
+              </button>
+              {accountMenuOpen && (
+                <div role="menu" aria-label="Account menu" className="absolute right-0 top-10 z-[70] w-56 rounded-xl border border-neutral-200 bg-white p-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-950">
+                  {user && <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setActiveTab("settings"); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5" />Your Profile &amp; Photo</button>}
+                  {user ? <button type="button" role="menuitem" onClick={handleSignOut} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"><LogOut className="size-3.5" />Sign Out Account</button> : <Link href="/login" onClick={() => setAccountMenuOpen(false)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"><LogOut className="size-3.5" />Log In to Save Progress</Link>}
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

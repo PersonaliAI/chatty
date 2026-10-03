@@ -35,6 +35,7 @@
 .inbox-conversation > .flex-1 { min-height: 0; scrollbar-width: thin; }
 .inbox-message { margin-block: 8px; }
 .inbox-message-bubble { font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; border: 1px solid #64748b18; border-radius: 12px; padding: 12px 16px; }
+.inbox-message-bubble :where(p,li,code,pre) { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
 .inbox-message > div:first-child { width: 28px; height: 28px; }
 .inbox-message > div:last-child > span { font-size: 11px; margin-bottom: 5px; }
 .inbox-reply-textarea { resize: vertical; min-height: 76px; max-height: 220px; line-height: 1.6; }
@@ -80,3 +81,24 @@
   .inbox-conversation-tools > button, .inbox-conversation-tools > div { flex-shrink: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .inbox-shell * { animation: none !important; transition: none !important; } }
+
+@media (max-width: 640px) {
+  .inbox-shell { margin-inline: -4px; }
+  .inbox-shell [data-inbox-routing] { border-radius: 10px; padding: 8px; gap: 8px; }
+  .inbox-shell [data-inbox-routing] > div { max-width: 100%; }
+  .inbox-shell .inbox-workspace,
+  .inbox-shell[data-details-open=true] .inbox-workspace,
+  .inbox-shell[data-navigation-collapsed=true] .inbox-workspace,
+  .inbox-shell[data-navigation-collapsed=true][data-details-open=true] .inbox-workspace { grid-template-columns: minmax(0, 1fr); height: calc(100dvh - 170px); min-height: 520px; border-radius: 10px; }
+  .inbox-shell .inbox-navigation { display: none; }
+  .inbox-shell .inbox-conversation { display: none; border: 0; }
+  .inbox-shell[data-conversation-open=true] .inbox-conversation { display: flex; }
+  .inbox-shell[data-conversation-open=true] .inbox-queue { display: none; }
+  .inbox-shell .inbox-pane-title { min-height: 48px; padding: 10px; }
+  .inbox-shell .inbox-pane-title h2 { font-size: 14px; }
+  .inbox-shell .inbox-queue-sort { padding: 6px 10px; }
+  .inbox-shell .inbox-conversation-tools { min-height: 42px; padding-inline: 8px; }
+  .inbox-shell .inbox-message { max-width: 96%; }
+  .inbox-shell .inbox-message-bubble { padding: 10px 12px; font-size: 13px; }
+  .inbox-shell .inbox-reply-textarea { min-height: 66px; max-height: 150px; }
+}
