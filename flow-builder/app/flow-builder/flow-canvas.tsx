@@ -20,7 +20,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import { Check, Code2, Copy, MoreHorizontal, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
 import type { FlowEdge, FlowNode } from "./types";
 import { NodeIcon } from "./node-icon";
 
@@ -35,6 +35,13 @@ type NodeActions = {
 type CanvasNodeData = FlowNode & NodeActions;
 type CanvasNode = Node<CanvasNodeData, "chatty">;
 
+export type FlowCanvasCommands = {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
+  fitView: () => void;
+};
+
 type Props = {
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -47,6 +54,7 @@ type Props = {
   onDuplicate: (node: FlowNode) => void;
   onRemove: (nodeId: string) => void;
   onToggleMenu: (nodeId: string) => void;
+  commandsRef?: MutableRefObject<FlowCanvasCommands | null>;
 };
 
 function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
@@ -57,6 +65,7 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
   }, [data.id, updateNodeInternals]);
 
   const kindLabel = data.kind === "trigger" ? "Trigger" : data.kind === "logic" ? "Logic" : "Action";
+  const status = data.executionState ?? "idle";
   return (
     <div
       className={`n8n-canvas-node ${selected ? "is-selected" : ""}`}
@@ -92,7 +101,7 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
       <div className="n8n-node-title">{data.title}</div>
       <div className="n8n-node-subtitle">{data.subtitle}</div>
       <div className="n8n-node-footer">
-        <span className="n8n-node-status"><Check size={11} />{data.kind === "trigger" ? "Listening" : "Ready"}</span>
+        <span className={`n8n-node-status ${status}`}><Check size={11} />{status === "completed" ? "Completed" : status === "failed" ? "Failed" : data.kind === "trigger" ? "Listening" : "Ready"}</span>
         {data.n8nType && <span className="n8n-node-badge">n8n</span>}
       </div>
       <Handle type="source" position={Position.Right} className="n8n-handle n8n-handle-source" aria-label={`Connect from ${data.title}`} />
@@ -179,9 +188,24 @@ function FlowCanvasInner(props: Props) {
 
   useEffect(() => refreshNodeInternals(), [canvasNodes.length, refreshNodeInternals]);
 
+  useEffect(() => {
+    if (!props.commandsRef) return;
+    props.commandsRef.current = {
+      zoomIn: () => { void reactFlow.zoomIn({ duration: 160 }); },
+      zoomOut: () => { void reactFlow.zoomOut({ duration: 160 }); },
+      resetZoom: () => { void reactFlow.zoomTo(1, { duration: 160 }); },
+      fitView: () => { void reactFlow.fitView({ padding: 0.35, duration: 160 }); },
+    };
+    return () => { if (props.commandsRef) props.commandsRef.current = null; };
+  }, [props.commandsRef, reactFlow]);
+
   const handleNodesChange = useCallback((changes: NodeChange<CanvasNode>[]) => {
     const next = applyNodeChanges(changes, canvasNodes);
     setCanvasNodes(next);
+    const removed = new Set(changes.filter((change) => change.type === "remove").map((change) => change.id));
+    if (removed.size > 0) {
+      props.onEdgesChange(canvasEdges.filter((edge) => !removed.has(edge.source) && !removed.has(edge.target)).map((edge) => ({ from: edge.source, to: edge.target })));
+    }
     props.onNodesChange(next.map((node) => {
       const source = props.nodes.find((item) => item.id === node.id);
       return source ? { ...source, x: node.position.x, y: node.position.y } : source;
@@ -218,7 +242,7 @@ function FlowCanvasInner(props: Props) {
         panOnDrag
         selectionOnDrag
         selectionKeyCode="Shift"
-        deleteKeyCode={null}
+        deleteKeyCode={["Backspace", "Delete"]}
         attributionPosition="bottom-left"
       >
         <Background color="#d6dee9" gap={20} size={1} />

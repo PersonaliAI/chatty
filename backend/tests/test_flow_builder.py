@@ -37,6 +37,15 @@ def test_flow_trace_is_topological_and_rejects_cycles():
         _flow_trace({"nodes": graph["nodes"], "edges": [{"from": "trigger", "to": "action"}, {"from": "action", "to": "trigger"}]})
 
 
+def test_validation_rejects_duplicate_and_self_connections():
+    graph = _graph()
+    with pytest.raises(HTTPException, match="duplicate"):
+        _validate_flow_data({**graph, "edges": graph["edges"] + [{"from": "trigger", "to": "action"}]})
+
+    with pytest.raises(HTTPException, match="itself"):
+        _validate_flow_data({**graph, "edges": graph["edges"] + [{"from": "action", "to": "action"}]})
+
+
 def test_handoff_cannot_cross_bot_tenant(monkeypatch):
     permission = AsyncMock()
     monkeypatch.setattr(flow_builder, "verify_bot_permission", permission)

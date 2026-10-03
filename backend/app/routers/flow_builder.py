@@ -64,6 +64,7 @@ def _validate_flow_data(flow_data: dict[str, Any], *, require_nodes: bool = Fals
     if len(nodes) > 100 or len(edges) > 250:
         raise HTTPException(status_code=400, detail="Flow exceeds the supported graph size")
     node_ids: set[str] = set()
+    edge_keys: set[tuple[str, str]] = set()
     has_trigger = False
     for node in nodes:
         if not isinstance(node, dict) or not isinstance(node.get("id"), str):
@@ -86,6 +87,12 @@ def _validate_flow_data(flow_data: dict[str, Any], *, require_nodes: bool = Fals
     for edge in edges:
         if not isinstance(edge, dict) or edge.get("from") not in node_ids or edge.get("to") not in node_ids:
             raise HTTPException(status_code=400, detail="Every edge must reference existing nodes")
+        edge_key = (edge["from"], edge["to"])
+        if edge_key in edge_keys:
+            raise HTTPException(status_code=400, detail="A flow cannot contain duplicate connections")
+        if edge["from"] == edge["to"]:
+            raise HTTPException(status_code=400, detail="A node cannot connect to itself")
+        edge_keys.add(edge_key)
 
 
 def _flow_trace(flow_data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -281,6 +288,7 @@ async def create_flow_draft(body: FlowDraftRequest, user: dict[str, Any] = Depen
 async def publish_flow(body: FlowPublishRequest, user: dict[str, Any] = Depends(require_flow_user)):
     await _authorize(body.bot_id, user)
     _validate_flow_data(body.flow_data, require_nodes=True)
+    _flow_trace(body.flow_data)
     flow_id = await _ensure_flow(body, user)
     latest = await run_db(
         lambda: supabase.table("chatty_flow_versions")

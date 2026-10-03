@@ -1,4 +1,5 @@
 import type { FlowEdge, FlowNode } from "./types";
+import { findNodeDefinition } from "./node-registry";
 
 type N8nNode = {
   id?: string;
@@ -40,22 +41,26 @@ export function importN8nWorkflow(payload: unknown): { nodes: FlowNode[]; edges:
     const id = `n8n-${text(source.id, String(index + 1)).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
     const n8nType = text(source.type, "n8n-unknown");
     ids.set(name, id);
-    const isTrigger = n8nType.toLowerCase().includes("trigger") || n8nType.toLowerCase().includes("webhook");
+    const definition = findNodeDefinition({ n8nType, title: name });
+    const parameters = source.parameters ?? {};
+    const isTrigger = definition?.kind === "trigger" || n8nType.toLowerCase().includes("trigger") || n8nType.toLowerCase().includes("webhook");
+    const method = typeof parameters.method === "string" ? parameters.method : undefined;
+    const url = typeof parameters.url === "string" ? parameters.url : undefined;
     return {
       id,
-      kind: isTrigger ? "trigger" : "action",
+      kind: definition?.kind ?? (isTrigger ? "trigger" : "action"),
       title: name,
-      subtitle: n8nType,
+      subtitle: definition?.subtitle ?? n8nType,
       icon: isTrigger ? "webhook" : "n8n",
-      color: "#ff6d5a",
+      color: definition?.color ?? "#ff6d5a",
       x: source.position?.[0] ?? 120 + (index % 4) * 280,
       y: source.position?.[1] ?? 120 + Math.floor(index / 4) * 150,
-      provider: "n8n",
+      provider: definition?.provider ?? "n8n",
       n8nType,
       n8nTypeVersion: source.typeVersion,
-      n8nParameters: source.parameters ?? {},
-      config: { provider: "n8n", operation: "Run node", imported: "true" },
-      operations: ["Run workflow"],
+      n8nParameters: parameters,
+      config: { ...(definition?.defaultConfig ?? { operation: "Run node" }), provider: "n8n", imported: "true", ...(method ? { method } : {}), ...(url ? { url } : {}) },
+      operations: definition?.operations ?? ["Run workflow"],
     } satisfies FlowNode;
   });
 
