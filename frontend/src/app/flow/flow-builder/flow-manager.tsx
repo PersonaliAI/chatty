@@ -91,7 +91,7 @@ export function FlowManager({ botId, embedded = false }: Props) {
     }
   }
 
-  const managerUrl = `/flow?bot_id=${encodeURIComponent(botId)}`;
+  const managerUrl = "/dashboard?tab=flow_builder";
   const editorUrl = (extra = "") => `/flow/builder?bot_id=${encodeURIComponent(botId)}${extra}`;
 
   return <main className={`flow-manager-shell${embedded ? " flow-manager-embedded" : ""}`}>
