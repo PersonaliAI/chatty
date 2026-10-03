@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { InboxIdentitySettings } from "./inbox-identity-settings";
+import "./inbox-workspace.css";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -46,6 +47,8 @@ import {
   Sparkles,
   Eye,
   SlidersHorizontal,
+  ArrowLeft,
+  PanelLeftClose,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -479,7 +482,18 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [visitorDetailsOpen, setVisitorDetailsOpen] = useState(false);
+  const [navigationCollapsed, setNavigationCollapsed] = useState(false);
+  const [queueSort, setQueueSort] = useState("newest");
+  useEffect(() => {
+    // Start with details docked on wide desktops, not over the mobile chat.
+    setVisitorDetailsOpen(window.matchMedia("(min-width: 1400px)").matches);
+    setNavigationCollapsed(window.matchMedia("(max-width: 1190px)").matches);
+  }, []);
   const [messages, setMessages] = useState<Msg[]>([]);
+  const activeSessionRef = useRef<string | null>(null);
+  const messageRequestRef = useRef<AbortController | null>(null);
+  const noteRequestRef = useRef<AbortController | null>(null);
+  const draftsRef = useRef(new Map<string, {reply: string; note: string}>());
   const [reply, setReply] = useState("");
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sending, setSending] = useState(false);
@@ -624,6 +638,32 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   // Custom states for toast and confirm modal
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!cannedManageOpen && !confirmModal && !summaryModalOpen && !rulesModalOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const controls = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex="0"]') || []).filter(element => element.getClientRects().length > 0);
+    controls()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setCannedManageOpen(false);
+        setConfirmModal(null);
+        setSummaryModalOpen(false);
+        setRulesModalOpen(false);
+      } else if (event.key === "Tab") {
+        const items = controls();
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (!first) { event.preventDefault(); return; }
+        if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); if (previousFocus?.isConnected) previousFocus.focus(); };
+  }, [cannedManageOpen, confirmModal, summaryModalOpen, rulesModalOpen]);
 
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -689,7 +729,31 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
   const current = sessions.find((s) => s.session_id === selected);
 
-  const handleReplyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const selectConversation = (sid: string | null) => {
+    if (selected) draftsRef.current.set(selected, {reply, note: noteDraft});
+    activeSessionRef.current = sid;
+    messageRequestRef.current?.abort();
+    noteRequestRef.current?.abort();
+    messageRequestRef.current = null;
+    noteRequestRef.current = null;
+    setLoadingNotes(false);
+    setMessages([]);
+    setSessionNotes([]);
+    setActiveViewers([]);
+    setSummaryModalOpen(false);
+    setThreadSummary(null);
+    setCannedOpen(false);
+    setKbInsertOpen(false);
+    if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
+    setAttachOpen(false);
+    setEmojiOpen(false);
+    setReply(sid ? draftsRef.current.get(sid)?.reply || "" : "");
+    setNoteDraft(sid ? draftsRef.current.get(sid)?.note || "" : "");
+    setViewMode("chat");
+    setSelected(sid);
+  };
+
+  const handleReplyChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const val = e.target.value;
     setReply(val);
     if (val.startsWith("/")) {
@@ -780,25 +844,31 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   }, [botId, fetchBackend]);
 
   const loadMessages = useCallback(async (sid: string) => {
+    if (activeSessionRef.current !== sid || messageRequestRef.current) return;
+    const controller = new AbortController();
+    messageRequestRef.current = controller;
     try {
-      const res = await fetchBackend(`/api/admin/inbox/messages?bot_id=${botId}&session_id=${encodeURIComponent(sid)}`);
+      const res = await fetchBackend(`/api/admin/inbox/messages?bot_id=${botId}&session_id=${encodeURIComponent(sid)}`, {signal: controller.signal});
       if (res.ok) {
         const d = await res.json();
-        setMessages(d.messages || []);
+        if (!controller.signal.aborted && activeSessionRef.current === sid) setMessages(d.messages || []);
       }
-    } catch {}
+    } catch {} finally { if (messageRequestRef.current === controller) messageRequestRef.current = null; }
   }, [botId, fetchBackend]);
 
   const loadNotes = useCallback(async (sid: string) => {
+    if (activeSessionRef.current !== sid) return;
+    const controller = new AbortController();
+    noteRequestRef.current = controller;
     setLoadingNotes(true);
     try {
-      const res = await fetchBackend(`/api/admin/inbox/notes?bot_id=${botId}&session_id=${encodeURIComponent(sid)}`);
+      const res = await fetchBackend(`/api/admin/inbox/notes?bot_id=${botId}&session_id=${encodeURIComponent(sid)}`, {signal: controller.signal});
       if (res.ok) {
         const d = await res.json();
-        setSessionNotes(d.notes || []);
+        if (!controller.signal.aborted && activeSessionRef.current === sid) setSessionNotes(d.notes || []);
       }
     } catch {} finally {
-      setLoadingNotes(false);
+      if (noteRequestRef.current === controller) { noteRequestRef.current = null; setLoadingNotes(false); }
     }
   }, [botId, fetchBackend]);
 
@@ -916,6 +986,26 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   }, [botId, fetchBackend, loadSessions, loadPresence, showToast]);
 
+  // Do not carry visitor drafts or transcript requests across bots/unmounts.
+  useEffect(() => {
+    activeSessionRef.current = null;
+    messageRequestRef.current?.abort();
+    noteRequestRef.current?.abort();
+    messageRequestRef.current = null;
+    noteRequestRef.current = null;
+    draftsRef.current.clear();
+    setSelected(null);
+    setMessages([]);
+    setSessionNotes([]);
+    setReply("");
+    setNoteDraft("");
+    return () => {
+      activeSessionRef.current = null;
+      messageRequestRef.current?.abort();
+      noteRequestRef.current?.abort();
+    };
+  }, [botId]);
+
   // Persist autoDispatch preference
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -968,7 +1058,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       const res = await fetchBackend(`/api/admin/inbox/session/viewers?bot_id=${botId}&session_id=${encodeURIComponent(sid)}`);
       if (res.ok) {
         const data = await res.json();
-        setActiveViewers(data.viewers || []);
+        if (activeSessionRef.current === sid) setActiveViewers(data.viewers || []);
       }
     } catch {}
   }, [botId, fetchBackend]);
@@ -998,6 +1088,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       if (res.ok) {
         const data = await res.json();
         const draftText = data.draft_reply || data.draft;
+        if (activeSessionRef.current !== selected) return;
         if (draftText) {
           setReply(draftText);
           showToast("AI draft reply generated!", "success");
@@ -1027,7 +1118,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       });
       if (res.ok) {
         const data = await res.json();
-        setThreadSummary(data);
+        if (activeSessionRef.current === selected) setThreadSummary(data);
       } else {
         showToast("Failed to summarize conversation", "error");
       }
@@ -1051,7 +1142,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       });
       if (res.ok) {
         const d = await res.json();
-        setSessionNotes((prev) => [...prev, d.note]);
+        if (activeSessionRef.current === selected) setSessionNotes((prev) => [...prev, d.note]);
         showToast("Summary saved to internal notes", "success");
         setSummaryModalOpen(false);
       } else {
@@ -1213,7 +1304,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       });
       if (res.ok) {
         const d = await res.json();
-        setSessionNotes((prev) => [...prev, d.note]);
+        if (activeSessionRef.current === selected) setSessionNotes((prev) => [...prev, d.note]);
         showToast("Internal staff note added.", "success");
       }
     } catch {
@@ -1316,6 +1407,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     if (!navigator.geolocation) { showToast("Location isn't supported on this device.", "error"); return; }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (activeSessionRef.current !== selected) return;
         const { latitude, longitude } = pos.coords;
         const link = `https://www.google.com/maps?q=${latitude},${longitude}`;
         setReply((v) => (v.trim() ? `${v} 📍 ${link}` : `📍 Location: ${link}`));
@@ -1332,6 +1424,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (activeSessionRef.current !== selected) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
       const mr = new MediaRecorder(stream);
       audioChunksRef.current = [];
       mr.ondataavailable = (ev) => { if (ev.data.size > 0) audioChunksRef.current.push(ev.data); };
@@ -1339,10 +1435,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
         setRecording(false);
-        if (blob.size === 0) return;
+        if (blob.size === 0 || activeSessionRef.current !== selected) return;
         try {
           const wav = await audioBlobToWav(blob);
-          sendMedia(wav, "voice-message.wav");
+          if (activeSessionRef.current === selected) sendMedia(wav, "voice-message.wav");
         } catch {
           showToast("Couldn't process that recording - try again.", "error");
         }
@@ -1362,7 +1458,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       message: "Are you sure you want to delete this conversation and ticket history? This action cannot be undone.",
       onConfirm: async () => {
         setSessions((p) => p.filter((s) => s.session_id !== sid));
-        if (selected === sid) { setSelected(null); setMessages([]); }
+        if (selected === sid) selectConversation(null);
         try {
           await fetchBackend("/api/admin/inbox/delete", {
             method: "POST",
@@ -1455,6 +1551,14 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
 
     return true;
+  }).sort((a, b) => {
+    const activity = (new Date(b.last_message_at || 0).getTime() || 0) - (new Date(a.last_message_at || 0).getTime() || 0);
+    if (queueSort === "oldest") return -activity;
+    if (queueSort === "priority") {
+      const rank = { urgent: 0, high: 1, normal: 2, low: 3 };
+      return rank[a.priority || "normal"] - rank[b.priority || "normal"] || activity;
+    }
+    return activity;
   });
 
   const isAssignedToOther = Boolean(
@@ -1468,7 +1572,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   );
 
   return (
-    <div className="space-y-4">
+    <div className="inbox-shell space-y-4" data-conversation-open={Boolean(selected)} data-navigation-collapsed={navigationCollapsed} data-details-open={visitorDetailsOpen && Boolean(selected)}>
       {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar ── */}
       <div data-inbox-routing className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         {/* Left: Agent Presence Status & Capacity */}
@@ -1652,9 +1756,25 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="inbox-workspace">
+        <nav className="inbox-navigation" aria-label="Inbox views">
+          <div className="inbox-pane-title"><h2>Inbox</h2><button type="button" aria-expanded={!navigationCollapsed} aria-label={navigationCollapsed ? "Expand inbox navigation" : "Collapse inbox navigation"} onClick={() => setNavigationCollapsed(value => !value)}><PanelLeftClose className="size-4" /></button></div>
+          <div className="inbox-nav-content">
+            <button type="button" aria-pressed={selectedAssigneeFilter === "me"} onClick={() => { setSelectedAssigneeFilter("me"); setSelectedStatusTab("open"); }}><User className="size-4" />My inbox</button>
+            <button type="button" aria-pressed={selectedStatusTab === "unassigned"} onClick={() => { setSelectedAssigneeFilter("all"); setSelectedStatusTab("unassigned"); }}><InboxIcon className="size-4" />Unassigned <span>{ticketCounts.unassigned}</span></button>
+            <button type="button" aria-pressed={selectedStatusTab === "all" && selectedAssigneeFilter === "all"} onClick={() => { setSelectedAssigneeFilter("all"); setSelectedStatusTab("all"); }}><MessageSquare className="size-4" />All conversations <span>{ticketCounts.all}</span></button>
+            <h3>Lifecycle</h3>
+            {(["open", "pending", "resolved", "closed"] as const).map(status => <button key={status} type="button" aria-pressed={selectedStatusTab === status} onClick={() => setSelectedStatusTab(status)}><span className={`size-2 rounded-full ${STATUS_CONFIG[status].dot}`} />{STATUS_CONFIG[status].label}<span>{ticketCounts[status]}</span></button>)}
+            <h3>Priority views</h3>
+            <button type="button" aria-pressed={selectedPriorityFilter === "urgent"} onClick={() => { setSelectedStatusTab("all"); setSelectedPriorityFilter(selectedPriorityFilter === "urgent" ? "all" : "urgent"); }}><AlertCircle className="size-4" />Urgent tickets</button>
+            <button type="button" aria-pressed={selectedPriorityFilter === "high"} onClick={() => { setSelectedStatusTab("all"); setSelectedPriorityFilter(selectedPriorityFilter === "high" ? "all" : "high"); }}><ArrowUp className="size-4" />High priority</button>
+            <button type="button" onClick={() => { setSelectedStatusTab("all"); setSelectedAssigneeFilter("all"); setSelectedPriorityFilter("all"); setSelectedChannelFilter("all"); setSelectedTagFilter("all"); setSearchQuery(""); }}>Clear filters</button>
+          </div>
+        </nav>
         {/* ── Sessions / Tickets List Pane ── */}
-        <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex flex-col max-h-[680px]">
+        <div className="inbox-queue bg-white dark:bg-neutral-900 flex flex-col">
+          <div className="inbox-pane-title"><h2>{selectedAssigneeFilter === "me" ? "My inbox" : selectedStatusTab === "all" ? "All conversations" : capitalize(selectedStatusTab)}</h2><span>{filteredSessions.length}</span></div>
+          <div className="inbox-queue-sort"><ModernFilterDropdown title="Sort conversations" value={queueSort} onChange={setQueueSort} options={[{value:"newest",label:"Newest activity"},{value:"oldest",label:"Oldest activity"},{value:"priority",label:"Highest priority"}]} /></div>
           {/* Ticket Lifecycle Status Tabs */}
           <div className="flex items-center border-b border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/40 text-[11px] font-semibold select-none overflow-x-auto scrollbar-none rounded-t-2xl">
             {([
@@ -1792,7 +1912,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   key={s.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setSelected(s.session_id)}
+                  onClick={() => selectConversation(s.session_id)}
+                  onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); selectConversation(s.session_id); } }}
+                  aria-label={`Open conversation with ${s.visitor_name || "visitor"}`}
+                  aria-current={selected === s.session_id ? "true" : undefined}
                   className={`group w-full text-left p-3 transition-colors cursor-pointer ${
                     selected === s.session_id
                       ? "bg-[#f97316]/5 border-l-3 border-l-[#f97316]"
@@ -1803,6 +1926,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold truncate flex items-center gap-1.5 min-w-0">
+                      <span className="inbox-queue-avatar" aria-hidden="true">{(s.visitor_name || "Visitor").split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase()}</span>
                       {s.needs_attention && <span className="size-2 rounded-full bg-red-500 animate-ping shrink-0" />}
                       <span className="truncate">{s.visitor_name || `Visitor ${s.session_id.slice(-5)}`}</span>
                       {s.channel === "email" && (
@@ -1903,7 +2027,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       </div>
 
       {/* ── Ticket Detail & Workspace Pane ── */}
-      <div className="lg:col-span-7 xl:col-span-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col max-h-[680px]">
+      <div className="inbox-conversation bg-white dark:bg-neutral-900 overflow-hidden flex flex-col">
         {!selected ? (
           <div className="flex-1 flex flex-col items-center justify-center text-xs text-neutral-400 p-8 space-y-2">
             <InboxIcon className="size-10 text-neutral-300 stroke-1" />
@@ -1912,11 +2036,11 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         ) : (
           <>
             {/* Ticket Header Bar */}
-            <div className="flex justify-end px-3 py-1.5 border-b border-neutral-100 dark:border-neutral-800">
+            <div className="inbox-conversation-tools flex justify-end px-3 py-1.5 border-b border-neutral-100 dark:border-neutral-800">
+              <button type="button" className="inbox-back" onClick={() => selectConversation(null)}><ArrowLeft className="size-4" />Conversations</button>
               <InboxIdentitySettings key={botId} botId={botId} fetchBackend={fetchBackend} />
               <button type="button" aria-expanded={visitorDetailsOpen} onClick={() => setVisitorDetailsOpen(value => !value)} className="text-xs font-medium flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5 shrink-0" />Visitor details</button>
             </div>
-            {visitorDetailsOpen && <InboxVisitorDetails key={`${botId}:${selected}`} botId={botId} sessionId={selected} fetchBackend={fetchBackend} formatDateTime={formatDateTime} onClose={() => setVisitorDetailsOpen(false)} onSelectConversation={setSelected} />}
             <div data-inbox-ticket-header className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-40 flex items-center gap-1.5">
@@ -2360,7 +2484,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             </div>
 
             {/* Reply Input Bar */}
-            <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
+            {viewMode === "chat" && <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
               <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
               <AnimatePresence>
                 {emojiOpen && (
@@ -2537,13 +2661,16 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </div>
                 )}
 
-                <input
+                <textarea
+                  rows={3}
+                  aria-label="Reply to conversation"
                   value={reply}
                   onChange={handleReplyChange}
+                  onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!sending && !recording) void sendReply(); } }}
                   onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }}
                   placeholder={recording ? "Recording… tap ◼ to send" : "Type a reply (this takes over ticket from AI)…"}
                   disabled={sending || recording}
-                  className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1.5"
+                  className="inbox-reply-textarea w-full bg-transparent text-sm focus:outline-none disabled:opacity-60 mb-1.5"
                 />
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-0.5">
@@ -2596,18 +2723,26 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </div>
                   <button
                     type="submit"
+                    aria-label="Send reply"
                     disabled={sending || !reply.trim()}
                     style={{ background: color }}
-                    className="size-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 shrink-0 hover:opacity-90 transition-opacity"
+                    className="h-8 px-3 rounded-lg flex items-center justify-center gap-2 text-white disabled:opacity-40 shrink-0 hover:opacity-90 transition-opacity"
                   >
                     {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                    <span className="text-xs font-semibold">Send</span>
                   </button>
                 </div>
               </form>
-            </div>
+            </div>}
           </>
         )}
       </div>
+      {visitorDetailsOpen && selected && <aside className="inbox-contact-pane" aria-label="Contact workspace"><InboxVisitorDetails key={`${botId}:${selected}`} botId={botId} sessionId={selected} fetchBackend={fetchBackend} formatDateTime={formatDateTime} onClose={() => setVisitorDetailsOpen(false)} onSelectConversation={selectConversation} actions={<>
+        <ModernSelect aria-label="Conversation status" value={current?.status || "open"} options={Object.entries(STATUS_CONFIG).map(([value, config]) => ({value, label: config.label}))} onChange={value => changeStatus(selected, value as Session["status"] & string)} />
+        <ModernSelect aria-label="Assigned agent" value={current?.assigned_agent_email || "unassigned"} options={[{value:"unassigned",label:"Unassigned"},...assignees.map(agent=>({value:agent.email,label:agent.name || agent.email}))]} onChange={value => { const agent=assignees.find(item=>item.email===value); void assignSession(selected,value === "unassigned" ? null : value,agent?.name); }} />
+        <ModernSelect aria-label="Conversation priority" value={current?.priority || "normal"} options={Object.entries(PRIORITY_CONFIG).map(([value, config]) => ({value, label: config.label}))} onChange={value => changePriority(selected, value as Session["priority"] & string)} />
+        <div className="inbox-action-tags" aria-label="Conversation tags">{PREDEFINED_TAGS.map(tag=><button key={tag} type="button" aria-pressed={(current?.tags || tags[selected] || []).includes(tag)} onClick={()=>toggleTag(selected,tag)}>{tag}</button>)}</div>
+      </>} /></aside>}
     </div>
 
       {/* ── Toast Notification ── */}
@@ -2635,10 +2770,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       {/* ── Canned Responses Management Dialog ── */}
       {cannedManageOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 max-w-md w-full shadow-2xl text-neutral-900 dark:text-neutral-100">
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Quick responses" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 max-w-md w-full shadow-2xl text-neutral-900 dark:text-neutral-100">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-sm font-bold flex items-center gap-2"><Zap className="size-4" style={{ color }} />Quick Responses</h4>
-              <button onClick={() => { setCannedManageOpen(false); setEditingCanned(null); setCannedDraftShortcut(""); setCannedDraftText(""); }} className="text-neutral-400 hover:text-neutral-600 cursor-pointer"><X className="size-4" /></button>
+              <button aria-label="Close quick responses" onClick={() => { setCannedManageOpen(false); setEditingCanned(null); setCannedDraftShortcut(""); setCannedDraftText(""); }} className="text-neutral-400 hover:text-neutral-600 cursor-pointer"><X className="size-4" /></button>
             </div>
             <p className="text-[10px] text-neutral-400 mb-3">Type <kbd className="px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 font-mono text-[9px]">/shortcut</kbd> in the reply box to quickly insert a saved response. Use <kbd className="px-1 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 font-mono text-[9px]">{"{{visitor_name}}"}</kbd> for the visitor&apos;s name.</p>
 
@@ -2686,7 +2821,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       {/* ── Confirm Dialog ── */}
       {confirmModal && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
+          <div ref={dialogRef} role="alertdialog" aria-modal="true" aria-label={confirmModal.title} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
             <h4 className="text-sm font-bold">{confirmModal.title}</h4>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
               {confirmModal.message}
@@ -2718,7 +2853,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       {/* ── AI Summarize Dialog ── */}
       {summaryModalOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150">
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Copilot Summary" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
@@ -2730,6 +2865,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 </div>
               </div>
               <button
+                aria-label="Close copilot summary"
                 onClick={() => setSummaryModalOpen(false)}
                 className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
               >
@@ -2832,7 +2968,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       {/* ── Automation Rules Dialog ── */}
       {rulesModalOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150">
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Automation Rules" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-[#f97316]/10 text-[#f97316]">
@@ -2844,6 +2980,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 </div>
               </div>
               <button
+                aria-label="Close automation rules"
                 onClick={() => setRulesModalOpen(false)}
                 className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
               >
