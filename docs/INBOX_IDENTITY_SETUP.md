@@ -143,3 +143,40 @@ expired/revoked capabilities, cross-contact/cross-bot denial, agent authorizatio
 account-switch cancellation, cache clearing, logout rotation and external-origin
 credential exclusion. Database acceptance checks deduplication and direct-read
 denial; it rolls back all fixtures.
+
+Live API acceptance: `py backend/scripts/check_contact_identity_http.py` uses
+the database environment plus `BYOK_ENCRYPTION_KEY`. It creates and removes an
+isolated temporary bot/passwordless owner; it does not modify customer plan
+limits or send AI requests/emails.
+
+## Verified rollout — 2026-10-03
+
+- Source: `c62b34b5` (identity implementation `0a9046b6`).
+- API: `chatty-api-00166-nlw`, 100% traffic; `/ready` returned 200 and anonymous
+  identity-settings access returned 401. Previous revision: `chatty-api-00165-9g2`.
+- Firebase explicit rollout `build-2026-10-03-023` succeeded; live `widget.js` serves
+  `2026-10-03.identity-1` with identify/logout APIs. Previous frontend rollout:
+  `rollout-2026-10-03-018`.
+- CI frontend/backend, CodeQL, secret scan and managed-Supabase smoke passed.
+- Live acceptance passed signed identity, cross-device contact deduplication and
+  history, human-reply delivery, cross-bot/contact denial, account-switch
+  revocation and browser-family logout. Temporary fixtures were removed.
+- Local focused backend tests (55), identity client tests (5), mobile browser
+  isolation test and production frontend build passed. Database RLS/read-denial
+  and deduplication checks passed; migration was applied before deployment.
+
+Rollback API traffic only if needed:
+
+```powershell
+gcloud run services update-traffic chatty-api --project personaliai --region us-central1 --to-revisions chatty-api-00165-9g2=100
+```
+
+Restore the previous frontend rollout using Firebase App Hosting's rollback
+control. Keep the additive identity schema and encryption key. An old API lacks
+the new identity protection: suspend signed identification during a rollback,
+rather than treating legacy sessions as authenticated users.
+
+This verifies the identity feature, not a security certification of the entire
+platform. Existing frontend development-tool dependency advisories remain a
+separate remediation item. A customer website must still connect its trusted
+server-side login endpoint using the setup above.
