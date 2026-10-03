@@ -41,7 +41,7 @@ const chattyEvents = [
 export default function FlowBuilderPage() {
   const [nodes, setNodes] = useState(initialNodes);
   const [edges, setEdges] = useState<FlowEdge[]>(initialEdges);
-  const [selectedId, setSelectedId] = useState("condition");
+  const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState<"all" | "native" | "apps">("all");
   const [mobilePanel, setMobilePanel] = useState<"palette" | "inspector" | null>(null);
@@ -72,7 +72,17 @@ export default function FlowBuilderPage() {
     const selectedFlow = params.get("flow_id");
     setBotId(selectedBot);
     setFlowId(selectedFlow);
-    if (!selectedBot) return;
+    if (!selectedBot || !selectedFlow) {
+      // A new workflow must never inherit another workflow from the bot.
+      setNodes([]);
+      setEdges([]);
+      setFlowName("New workflow");
+      setVersion(0);
+      setPublished(false);
+      setSaved(true);
+      setSyncState(selectedBot ? "New workflow" : "Local draft");
+      return;
+    }
     void chattyRequest(`/api/flow-builder/versions?bot_id=${encodeURIComponent(selectedBot)}`).then(async (response) => {
       if (!response.ok) return;
       const payload = await response.json() as { versions?: Array<{ id: string; flow_id?: string; flow_name?: string; version: number; flow_data: { nodes?: FlowNode[]; edges?: FlowEdge[] }; status: string }> };
