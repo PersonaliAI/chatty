@@ -142,6 +142,8 @@ function MessageListInner({
       {messages.map((m, i) => {
         const isVisitor = m.role === "user";
         const isHuman = m.sender === "human";
+        const lastAssistantIndex = messages.reduce((last, item, index) => item.role !== "user" ? index : last, -1);
+        const bookingIntent = messages.some((item) => item.role === "user" && /\b(book|booking|demo|schedule|appointment|meeting|calendar|slot)\b/i.test(item.content));
 
         let cleanContent = m.content;
         let attachmentUrl: string | null = null;
@@ -163,6 +165,7 @@ function MessageListInner({
 
         const hasBooking = m.content.includes("[BOOKING_WIDGET]") ||
           ((/demo|meeting|appointment/i.test(m.content)) && (/scheduled|confirmed|meet\.google\.com|teams\.microsoft\.com|cancelled|canceled/i.test(m.content)));
+        const showBookingFallback = !isVisitor && i === lastAssistantIndex && bookingIntent && !hasBooking;
 
         if (cleanContent.includes("[BOOKING_WIDGET]")) {
           cleanContent = cleanContent.replace(/\[BOOKING_WIDGET\]/g, "").trim();
@@ -231,7 +234,7 @@ function MessageListInner({
                   {cleanContent}
                 </ReactMarkdown>
               )}
-              {hasBooking && <InboxBookingCard content={m.content} />}
+              {(hasBooking || showBookingFallback) && <InboxBookingCard content={showBookingFallback ? `${m.content}\n[BOOKING_WIDGET]` : m.content} />}
             </div>
             </div>
             {!isVisitor && !isHuman && m.id && (

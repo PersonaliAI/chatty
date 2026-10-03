@@ -12,6 +12,10 @@
 .inbox-workspace > * { min-width: 0; min-height: 0; }
 .inbox-navigation, .inbox-queue, .inbox-conversation { border-right: 1px solid var(--inbox-line); background: var(--inbox-panel); }
 .inbox-pane-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 56px; padding: 14px; border-bottom: 1px solid var(--inbox-line); }
+.inbox-pane-title { overflow: visible; }
+.inbox-identity-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-navigation .inbox-identity-trigger { max-width: 28px; overflow: hidden; }
+.inbox-navigation .inbox-identity-trigger > span { display: none; }
 .inbox-pane-title h2 { font-size: 16px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inbox-pane-title > span { color: var(--inbox-muted); font-size: 12px; }
 .inbox-pane-title button { padding: 5px; border-radius: 6px; }

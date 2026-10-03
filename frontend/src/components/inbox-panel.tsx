@@ -49,6 +49,8 @@ import {
   SlidersHorizontal,
   ArrowLeft,
   PanelLeftClose,
+  AtSign,
+  Lock,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -522,6 +524,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const noteRequestRef = useRef<AbortController | null>(null);
   const draftsRef = useRef(new Map<string, {reply: string; note: string}>());
   const [reply, setReply] = useState("");
+  const [composerMode, setComposerMode] = useState<"reply" | "note">("reply");
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -802,13 +805,14 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     setEmojiOpen(false);
     setReply(sid ? draftsRef.current.get(sid)?.reply || "" : "");
     setNoteDraft(sid ? draftsRef.current.get(sid)?.note || "" : "");
+    setComposerMode("reply");
     setViewMode("chat");
     setSelected(sid);
   };
 
   const handleReplyChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const val = e.target.value;
-    setReply(val);
+    if (composerMode === "note") setNoteDraft(val); else setReply(val);
     const mention = val.match(/(?:^|\s)@([\w.-]*)$/);
     setMentionQuery(mention ? mention[1].toLowerCase() : null);
     if (val.startsWith("/")) {
@@ -1420,8 +1424,18 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   };
 
   const insertMention = (assignee: Assignee) => {
-    setReply((value) => value.replace(/(?:^|\s)@[\w.-]*$/, (match) => `${match.startsWith(" ") ? " " : ""}@${assignee.name || assignee.email.split("@")[0]} `));
+    const update = (value: string) => value.replace(/(?:^|\s)@[\w.-]*$/, (match) => `${match.startsWith(" ") ? " " : ""}@${assignee.name || assignee.email.split("@")[0]} `);
+    if (composerMode === "note") setNoteDraft(update); else setReply(update);
     setMentionQuery(null);
+  };
+
+  const sendComposer = async () => {
+    if (composerMode === "note") {
+      await addNote();
+      setMentionQuery(null);
+      return;
+    }
+    await sendReply();
   };
 
   const sendMedia = async (file: File | Blob, filename: string, caption = "") => {
@@ -2657,9 +2671,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 )}
               </AnimatePresence>
               <form
-                onSubmit={(e) => { e.preventDefault(); sendReply(); }}
+                onSubmit={(e) => { e.preventDefault(); void sendComposer(); }}
                 className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors"
               >
+                <div className="mb-2 flex items-center gap-1 rounded-lg bg-neutral-200/60 p-0.5 dark:bg-neutral-800/60" role="tablist" aria-label="Composer mode">
+                  <button type="button" role="tab" aria-selected={composerMode === "reply"} onClick={() => { setComposerMode("reply"); setMentionQuery(null); }} className={`rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors ${composerMode === "reply" ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>Reply</button>
+                  <button type="button" role="tab" aria-selected={composerMode === "note"} onClick={() => { setComposerMode("note"); setMentionQuery(null); }} className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors ${composerMode === "note" ? "bg-amber-100 text-amber-900 shadow-sm dark:bg-amber-900/40 dark:text-amber-200" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`}><Lock className="size-3" />Private note</button>
+                </div>
                 {/* Canned Responses Dropdown */}
                 <AnimatePresence>
                   {cannedOpen && filteredCanned.length > 0 && (
@@ -2726,11 +2744,11 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 <textarea
                   rows={3}
                   aria-label="Reply to conversation"
-                  value={reply}
+                  value={composerMode === "note" ? noteDraft : reply}
                   onChange={handleReplyChange}
-                  onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!sending && !recording) void sendReply(); } }}
+                  onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!sending && !recording) void sendComposer(); } }}
                   onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }}
-                  placeholder={recording ? "Recording… tap ◼ to send" : "Type a reply (this takes over ticket from AI)…"}
+                  placeholder={recording ? "Recording… tap ◼ to send" : composerMode === "note" ? "Add a private note for your team… Type @ to mention a teammate" : "Type a reply (this takes over ticket from AI)…"}
                   disabled={sending || recording}
                   className="inbox-reply-textarea w-full bg-transparent text-sm focus:outline-none disabled:opacity-60 mb-1.5"
                 />
@@ -2760,6 +2778,8 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                       </span>
                     </motion.button>
 
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { const value = composerMode === "note" ? noteDraft : reply; const next = `${value}${value && !value.endsWith(" ") ? " " : ""}@`; if (composerMode === "note") setNoteDraft(next); else setReply(next); setMentionQuery(""); }} className="rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200" aria-label="Mention teammate" title="Mention teammate (private notes are internal)"><AtSign className="size-4.5" /></motion.button>
+
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.85 }}
@@ -2786,12 +2806,12 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   <button
                     type="submit"
                     aria-label="Send reply"
-                    disabled={sending || !reply.trim()}
+                    disabled={sending || !(composerMode === "note" ? noteDraft : reply).trim()}
                     style={{ background: color }}
                     className="h-8 px-3 rounded-lg flex items-center justify-center gap-2 text-white disabled:opacity-40 shrink-0 hover:opacity-90 transition-opacity"
                   >
                     {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                    <span className="text-xs font-semibold">Send</span>
+                    <span className="text-xs font-semibold">{composerMode === "note" ? "Add note" : "Send"}</span>
                   </button>
                 </div>
               </form>
