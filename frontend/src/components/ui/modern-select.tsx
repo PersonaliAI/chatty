@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useId, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Check, Search } from "lucide-react";
 
 export interface ModernSelectOption {
@@ -176,9 +175,8 @@ export function ModernSelect({
         <ChevronDown className={`size-3.5 text-neutral-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
-      {open && positioned && createPortal(<AnimatePresence>
-        {open && (
-          <motion.div
+      {open && positioned && createPortal(
+          <div
             data-modern-select-popup={listId}
             onKeyDown={(event) => {
               if ((event.target as HTMLElement).tagName === "INPUT") return;
@@ -198,10 +196,6 @@ export function ModernSelect({
               maxWidth: "min(340px, calc(100vw - 24px))",
               maxHeight: position.maxHeight,
             }}
-            initial={{ opacity: 0, y: openUpwards ? 3 : -3, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: openUpwards ? 3 : -3, scale: 0.99 }}
-            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
             className="fixed z-[9999] w-max bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl overflow-y-auto"
           >
             {searchable && (
@@ -264,9 +258,8 @@ export function ModernSelect({
                 );
               })}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>, rootRef.current?.closest("[data-dashboard]") || document.body)}
+          </div>
+        , rootRef.current?.closest("[data-dashboard]") || document.body)}
     </div>
   );
 }

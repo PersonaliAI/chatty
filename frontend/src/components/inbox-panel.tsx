@@ -424,6 +424,7 @@ function ModernFilterDropdown<T extends string>({
   const ref = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: 0, top: 0 });
+  const [positioned, setPositioned] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(e: Event) {
@@ -438,7 +439,10 @@ function ModernFilterDropdown<T extends string>({
       const place = () => {
         const rect = ref.current?.getBoundingClientRect();
         const width = popupRef.current?.offsetWidth || 260;
-        if (rect) setPosition({ left: Math.max(12, Math.min(align === "right" ? rect.right - width : rect.left, window.innerWidth - width - 12)), top: rect.bottom + 6 });
+        if (rect) {
+          setPosition({ left: Math.max(12, Math.min(align === "right" ? rect.right - width : rect.left, window.innerWidth - width - 12)), top: rect.bottom + 6 });
+          setPositioned(true);
+        }
       };
       place();
       window.addEventListener("scroll", place, true);
@@ -465,16 +469,16 @@ function ModernFilterDropdown<T extends string>({
         title={title}
         aria-label={title}
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-950 dark:hover:bg-neutral-850 border border-neutral-200/90 dark:border-neutral-800 rounded-lg text-neutral-700 dark:text-neutral-300 transition-colors text-[10px] font-semibold cursor-pointer shadow-xs focus:outline-none focus:ring-1 focus:ring-[#f97316]/40 whitespace-nowrap"
+        onClick={() => { setPositioned(false); setOpen(!open); }}
+        className="flex max-w-full items-center gap-1.5 px-2.5 py-1.5 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-950 dark:hover:bg-neutral-850 border border-neutral-200/90 dark:border-neutral-800 rounded-lg text-neutral-700 dark:text-neutral-300 transition-colors text-[10px] font-semibold cursor-pointer shadow-xs focus:outline-none focus:ring-1 focus:ring-[#f97316]/40 whitespace-nowrap"
       >
         {selectedOpt?.icon}
         <span className="whitespace-nowrap font-medium">{selectedOpt?.label}</span>
         <ChevronDown className={`size-3 text-neutral-400 transition-transform duration-150 shrink-0 ${open ? "rotate-180 text-neutral-700 dark:text-neutral-200" : ""}`} />
       </button>
 
-      {open && createPortal(
-        <div ref={popupRef} style={{ left: position.left, top: position.top }} className="fixed z-[9999] min-w-[145px] w-max max-w-[min(260px,calc(100vw-24px))] max-h-56 overflow-y-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+      {open && positioned && createPortal(
+        <div ref={popupRef} style={{ left: position.left, top: position.top }} className="fixed z-[9999] min-w-[145px] w-max max-w-[min(260px,calc(100vw-24px))] max-h-56 overflow-y-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl p-1 space-y-0.5">
           {options.map((opt) => {
             const isSelected = opt.value === value;
             return (
