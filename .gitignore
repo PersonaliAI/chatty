@@ -10,6 +10,7 @@ env.voice-worker.yaml
 node_modules/
 frontend/.next/
 .next/
+flow-builder/.next/
 frontend/out/
 frontend/*.tsbuildinfo
 test-results/

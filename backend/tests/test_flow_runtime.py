@@ -124,3 +124,36 @@ def test_execute_flow_job_passes_n8n_node_metadata_to_adapter(monkeypatch):
     assert calls[0][2]["n8n_type"] == "n8n-nodes-base.httpRequest"
     assert calls[0][2]["n8n_type_version"] == 4.2
     assert calls[0][2]["n8n_parameters"]["method"] == "POST"
+
+
+def test_run_widget_flow_returns_configured_reply_and_claims_event(monkeypatch):
+    supabase = _Supabase([
+        SimpleNamespace(data={"user_id": "owner-1"}),
+        SimpleNamespace(data=[{"id": "flow-1"}]),
+        SimpleNamespace(data=[{"id": "version-1", "flow_id": "flow-1", "flow_data": {
+            "nodes": [
+                {"id": "trigger", "kind": "trigger", "title": "Message", "config": {"event": "message.user"}},
+                {"id": "reply", "kind": "chatty", "type": "chatty.reply", "title": "Reply", "config": {"message": "Hello {{data.visitor_name}}"}},
+            ],
+            "edges": [{"from": "trigger", "to": "reply"}],
+        }}]),
+        SimpleNamespace(data=[{"id": "run-1"}]),
+        SimpleNamespace(data=[]),
+    ])
+
+    async def run_db(operation):
+        return operation()
+
+    monkeypatch.setattr(flow_runtime, "run_db", run_db)
+    result = asyncio.run(flow_runtime.run_widget_flow(
+        supabase,
+        bot_id="bot-1",
+        event="message.user",
+        session_id="session-1",
+        data={"content": "Hi", "visitor_name": "Alex", "event_id": "message-1"},
+    ))
+
+    assert result == {"matched": True, "reply": "Hello Alex", "error": None}
+    assert supabase.operations[-1][0] == "update"
+    assert supabase.operations[-1][1]["status"] == "completed"
+    assert supabase.operations[-1][1]["trace"][1]["reply"] == "Hello Alex"

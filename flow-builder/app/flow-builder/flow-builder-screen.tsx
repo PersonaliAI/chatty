@@ -210,7 +210,7 @@ export default function FlowBuilderPage() {
 
   function addNode(item: NodeDefinition) {
     const id = `${item.type.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${Date.now()}`;
-    const newNode: FlowNode = { id, kind: item.kind, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color, x: 180 + ((nodes.length * 44) % 360), y: 110 + ((nodes.length * 54) % 300), provider: item.provider, credentialType: item.credentialType, n8nType: item.n8nType, n8nTypeVersion: item.n8nTypeVersion, n8nParameters: {}, operations: item.operations, config: { ...item.defaultConfig, provider: item.provider } };
+    const newNode: FlowNode = { id, type: item.type, kind: item.kind, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color, x: 180 + ((nodes.length * 44) % 360), y: 110 + ((nodes.length * 54) % 300), provider: item.provider, credentialType: item.credentialType, n8nType: item.n8nType, n8nTypeVersion: item.n8nTypeVersion, n8nParameters: {}, operations: item.operations, config: { ...item.defaultConfig, provider: item.provider } };
     setGraph({ nodes: [...graphRef.current.nodes, newNode], edges: graphRef.current.edges }); setSelectedId(id); setMobilePanel(null);
   }
 

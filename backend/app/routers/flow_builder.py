@@ -82,6 +82,10 @@ def _validate_flow_data(flow_data: dict[str, Any], *, require_nodes: bool = Fals
             config = node.get("config") if isinstance(node.get("config"), dict) else {}
             if not str(config.get("url") or "").strip():
                 raise HTTPException(status_code=400, detail=f"Action node {node.get('title') or node_id} needs an adapter endpoint before publishing")
+        if kind == "chatty" and node.get("type") == "chatty.reply":
+            config = node.get("config") if isinstance(node.get("config"), dict) else {}
+            if not str(config.get("message") or "").strip():
+                raise HTTPException(status_code=400, detail=f"Chat reply node {node.get('title') or node_id} needs a message before publishing")
     if require_nodes and not has_trigger:
         raise HTTPException(status_code=400, detail="A published flow needs at least one trigger node")
     for edge in edges:

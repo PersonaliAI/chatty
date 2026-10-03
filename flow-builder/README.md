@@ -31,13 +31,14 @@ dashboard link. The builder uses the Chatty Supabase session or a short-lived,
 bot-bound handoff token. Every API operation checks the user's design
 permission for the selected bot.
 
-Published flows execute from Chatty events. Action nodes call an explicitly
-configured HTTPS adapter endpoint. Chatty applies SSRF protection, three
-attempts with backoff, durable run records, idempotency keys, and failure
-traces. The node catalog provides portable Chatty, HTTP, webhook, and provider
-adapter definitions. n8n JSON import preserves each node type, version, and
-parameters and sends them to the configured adapter. It does not embed the n8n
-runtime or claim native execution of n8n nodes.
+Published flows execute from Chatty events. The native Reply in chat node
+returns a configured response in the same widget request. Other action nodes
+call an explicitly configured HTTPS adapter endpoint. Chatty applies SSRF
+protection, three attempts with backoff, durable run records, idempotency
+keys, and failure traces. The node catalog provides portable Chatty, HTTP,
+webhook, and provider adapter definitions. n8n JSON import preserves each
+node type, version, and parameters and sends them to the configured adapter.
+It does not embed the n8n runtime or claim native execution of n8n nodes.
 
 For the authenticated acceptance test, set `E2E_OWNER_EMAIL`,
 `E2E_OWNER_PASSWORD`, and `E2E_OWNER_BOT_ID`, then run:

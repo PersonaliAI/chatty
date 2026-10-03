@@ -59,6 +59,7 @@ from app.schemas.kb import ArticleFeedbackRequest
 from plugins import notifications as notify
 from app.services.campaign_runtime import campaign_is_active_now
 from app.services.campaign_audience import campaign_audience_matches
+from app.services.flow_runtime import run_widget_flow
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
@@ -414,6 +415,13 @@ async def widget_chat(
             background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, esc, priority_val, text)
 
     # 3. Save user message
+    user_event_data = {
+        "content": text,
+        "visitor_name": visitor_name,
+        "visitor_email": visitor_email,
+        "offline_ticket": body.offline_ticket,
+        "event_id": uuid.uuid4().hex,
+    }
     try:
         await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "user",
@@ -421,9 +429,19 @@ async def widget_chat(
         }).execute())
     except Exception:
         logger.exception("Failed to save user conversation message")
+
+    flow_result = {"reply": "", "error": None}
+    if not body.offline_ticket and not session_row.get("ai_paused"):
+        try:
+            flow_result = await run_widget_flow(
+                supabase, bot_id=bot_id, event="message.user", session_id=session_id,
+                data=user_event_data,
+            )
+        except Exception:
+            logger.exception("Widget flow execution failed; continuing with the assistant")
     await _schedule_widget_webhook(
         background_tasks, bot_id=bot_id, event="message.user", session_id=session_id,
-        data={"content": text, "visitor_name": visitor_name, "visitor_email": visitor_email, "offline_ticket": body.offline_ticket},
+        data=user_event_data,
     )
 
     if body.offline_ticket:
@@ -432,6 +450,27 @@ async def widget_chat(
     # 2c. If a human agent has taken over, don't run the AI - they'll reply.
     if session_row.get("ai_paused"):
         return WidgetChatResponse(reply="", session_id=session_id, ai_paused=True)
+
+    if flow_result.get("reply"):
+        reply = str(flow_result["reply"])
+        if flow_result.get("error"):
+            logger.error("Widget flow completed with an error bot=%s session=%s error=%s", bot_id, session_id, flow_result["error"])
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": reply, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save flow assistant reply")
+        await _schedule_widget_webhook(
+            background_tasks, bot_id=bot_id, event="message.assistant", session_id=session_id,
+            data={"content": reply, "flow": True},
+        )
+        return WidgetChatResponse(reply=reply, session_id=session_id)
 
     # 3b. Quota gate - never spend model tokens once the owner is out of quota.
     if await chatty_quota_exceeded(owner_user, owner_id):
@@ -585,6 +624,13 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
             background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, esc, priority_val, text)
 
+    user_event_data = {
+        "content": text,
+        "visitor_name": visitor_name,
+        "visitor_email": visitor_email,
+        "offline_ticket": body.offline_ticket,
+        "event_id": uuid.uuid4().hex,
+    }
     try:
         await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "user",
@@ -592,9 +638,18 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         }).execute())
     except Exception:
         logger.exception("Failed to save user conversation message")
+    flow_result = {"reply": "", "error": None}
+    if not body.offline_ticket and not session_row.get("ai_paused"):
+        try:
+            flow_result = await run_widget_flow(
+                supabase, bot_id=bot_id, event="message.user", session_id=session_id,
+                data=user_event_data,
+            )
+        except Exception:
+            logger.exception("Widget stream flow execution failed; continuing with the assistant")
     await _schedule_widget_webhook(
         background_tasks, bot_id=bot_id, event="message.user", session_id=session_id,
-        data={"content": text, "visitor_name": visitor_name, "visitor_email": visitor_email, "offline_ticket": body.offline_ticket},
+        data=user_event_data,
     )
 
     def _sse(obj: dict) -> str:
@@ -610,6 +665,32 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         async def _paused_gen():
             yield _sse({"type": "paused"})
         return StreamingResponse(_paused_gen(), media_type="text/event-stream", background=background_tasks)
+
+    if flow_result.get("reply"):
+        reply = str(flow_result["reply"])
+        if flow_result.get("error"):
+            logger.error("Widget stream flow completed with an error bot=%s session=%s error=%s", bot_id, session_id, flow_result["error"])
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": reply, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save flow stream reply")
+        await _schedule_widget_webhook(
+            background_tasks, bot_id=bot_id, event="message.assistant", session_id=session_id,
+            data={"content": reply, "flow": True},
+        )
+
+        async def _flow_gen():
+            yield _sse({"type": "token", "text": reply})
+            yield _sse({"type": "done", "reply": reply, "flow": True})
+
+        return StreamingResponse(_flow_gen(), media_type="text/event-stream", background=background_tasks)
 
     # Quota gate - save the graceful reply and stream it as a single message.
     if await chatty_quota_exceeded(owner_user, owner_id):

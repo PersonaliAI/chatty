@@ -28,6 +28,15 @@ def test_publish_graph_requires_a_trigger_and_configured_adapter():
     with pytest.raises(HTTPException, match="needs at least one trigger"):
         _validate_flow_data({"nodes": [{"id": "action", "kind": "action", "config": {"url": "https://example.com"}}], "edges": []}, require_nodes=True)
 
+    with pytest.raises(HTTPException, match="needs a message"):
+        _validate_flow_data({
+            "nodes": [
+                {"id": "trigger", "kind": "trigger", "config": {"event": "message.user"}},
+                {"id": "reply", "type": "chatty.reply", "kind": "chatty", "config": {}},
+            ],
+            "edges": [{"from": "trigger", "to": "reply"}],
+        }, require_nodes=True)
+
 
 def test_flow_trace_is_topological_and_rejects_cycles():
     graph = _graph()

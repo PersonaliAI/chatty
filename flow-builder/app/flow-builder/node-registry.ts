@@ -38,6 +38,11 @@ export const nodeCatalog: NodeDefinition[] = [
     defaultConfig: { event: "lead.created", operation: "Listen for event" }, n8nType: "chatty.event", n8nTypeVersion: 1,
   },
   {
+    type: "chatty.reply", title: "Reply in chat", subtitle: "Send a message to the visitor", kind: "chatty", icon: "chatty", color: "#f97316", provider: "Chatty", operations: ["Send reply"], category: "communication",
+    fields: [{ key: "message", label: "Message", type: "textarea", required: true, placeholder: "Hi {{data.visitor_name}}, how can we help?", helpText: "You can use {{data.content}}, {{data.visitor_name}}, {{data.visitor_email}}, and {{session_id}}." }],
+    defaultConfig: { operation: "Send reply", message: "" },
+  },
+  {
     type: "n8n.webhook", title: "Webhook", subtitle: "Receive an HTTP event", kind: "trigger", icon: "webhook", color: "#8b5cf6", provider: "HTTP", operations: ["Receive request"], category: "triggers",
     fields: [{ key: "path", label: "Path", type: "text", required: true, placeholder: "/incoming-event" }],
     defaultConfig: { path: "/incoming-event", operation: "Receive request" }, n8nType: "n8n-nodes-base.webhook", n8nTypeVersion: 2,

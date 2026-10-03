@@ -4,6 +4,7 @@ export type NodeExecutionState = "idle" | "queued" | "running" | "completed" | "
 
 export type FlowNode = {
   id: string;
+  type?: string;
   kind: NodeKind;
   title: string;
   subtitle: string;
