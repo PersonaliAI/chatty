@@ -118,7 +118,7 @@ export default function FlowBuilderPage() {
     return [...new Set(issues)];
   }, [edges, nodes]);
 
-  useEffect(() => { graphRef.current = { nodes, edges }; }, [edges, nodes]);
+  useEffect(() => { graphRef.current = { nodes, edges, paths: graphRef.current.paths }; }, [edges, nodes]);
 
   useEffect(() => {
     let active = true;
@@ -150,11 +150,15 @@ export default function FlowBuilderPage() {
     const params = new URLSearchParams(window.location.search);
     const selectedBot = params.get("bot_id") || params.get("botId");
     const selectedFlow = params.get("flow_id");
+    const selectedTemplate = params.get("template");
     setBotId(selectedBot);
     setFlowId(selectedFlow);
     if (!selectedBot || !selectedFlow) {
-      graphRef.current = emptyGraph;
-      setNodes([]); setEdges([]); setFlowName("New workflow"); setVersion(0); setPublished(false); setSaved(true); setSyncState(selectedBot ? "New workflow" : "Local draft");
+      const template = selectedTemplate ? flowTemplates.find((item) => item.id === selectedTemplate) : undefined;
+      const next = template ? createTemplateGraph(template) : emptyGraph;
+      graphRef.current = next;
+      setNodes(next.nodes); setEdges(next.edges); setFlowName(template?.title || "New workflow"); setVersion(0); setPublished(false); setSaved(!template); setSyncState(template ? "Template ready to configure" : selectedBot ? "New workflow" : "Local draft");
+      if (template) setSelectedId(next.nodes[0]?.id ?? "");
       return;
     }
     void chattyRequest(`/api/flow-builder/versions?bot_id=${encodeURIComponent(selectedBot)}`).then(async (response) => {
@@ -242,7 +246,14 @@ export default function FlowBuilderPage() {
       if (response.status === 401) { setAuthState("required"); setSyncState("Authentication required"); setTestError("Your Chatty session expired. Reopen the builder from Chatty to reconnect."); return; }
       if (!response.ok) { const detail = await response.text(); setSyncState(`${publish ? "Publish" : "Save"} failed (${response.status})`); setTestError(detail.slice(0, 220)); return; }
       const result = await response.json() as { version?: number; flow_id?: string };
-      if (result.flow_id) setFlowId(result.flow_id);
+      if (result.flow_id) {
+        setFlowId(result.flow_id);
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set("flow_id", result.flow_id);
+        nextUrl.searchParams.delete("new");
+        nextUrl.searchParams.delete("template");
+        window.history.replaceState({}, "", nextUrl.toString());
+      }
       if (result.version) setVersion(result.version);
       setSaved(true); setPublished(publish); setSyncState(publish ? "Published to Chatty" : "Saved to Chatty");
     } catch { setSyncState(`${publish ? "Publish" : "Save"} failed: network error`); }
@@ -343,7 +354,7 @@ export default function FlowBuilderPage() {
     <input ref={importRef} className="sr-only" aria-hidden="true" tabIndex={-1} type="file" accept="application/json,.json" onChange={(event) => void handleN8nImport(event)} />
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Image src="/chatty_flow.png" alt="" width={22} height={22} priority aria-hidden="true" /></div><div><strong>Chatty Flows</strong><span>Automation workspace</span></div></div>
-      <div className="crumb"><span>Chatty</span><ChevronDown size={14} /><span className="muted">/</span><input className="workflow-name" value={flowName} onChange={(event) => { setFlowName(event.target.value); setSaved(false); }} aria-label="Workflow name" /><span className="draft-pill"><span className="status-dot" /> {published ? "Published" : "Draft"}</span></div>
+      <div className="crumb"><a className="flows-link" href={botId ? `/flow?bot_id=${encodeURIComponent(botId)}` : "/flow"}>My flows</a><ChevronDown size={14} /><span className="muted">/</span><input className="workflow-name" value={flowName} onChange={(event) => { setFlowName(event.target.value); setSaved(false); }} aria-label="Workflow name" /><span className="draft-pill"><span className="status-dot" /> {published ? "Published" : "Draft"}</span></div>
       <div className="top-actions"><button type="button" className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button type="button" className="secondary" onClick={() => importRef.current?.click()} disabled={Boolean(busyAction)}>{busyAction === "import" ? <Loader2 className="spin" size={14} /> : <Upload size={14} />} Import n8n</button><button type="button" className="secondary" onClick={downloadN8n} disabled={Boolean(busyAction)}> <Download size={14} /> Export</button><button type="button" className="secondary" onClick={() => void runTest()} disabled={Boolean(busyAction)}>{busyAction === "test" ? <Loader2 className="spin" size={14} /> : <Play size={14} />} Test</button><button type="button" className="secondary save-button" onClick={() => void saveDraft(false)} disabled={(saved && Boolean(botId) && Boolean(flowId)) || Boolean(busyAction)}>{busyAction === "save" ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save draft</button><button type="button" className="primary" onClick={() => void saveDraft(true)} disabled={validationIssues.length > 0 || Boolean(busyAction)}>{busyAction === "publish" ? <Loader2 className="spin" size={14} /> : <Check size={14} />} Publish</button>{authState === "required" && <span className="auth-state">Authentication required</span>}<div className="account-wrap"><button type="button" className={`avatar ${accountOpen ? "open" : ""}`} aria-label="Account" title="Account" aria-expanded={accountOpen} onClick={() => setAccountOpen((current) => !current)}><UserCircle2 size={18} /></button>{accountOpen && <div className="account-menu"><small>CHATTY AUTH</small><b>{authState === "session" ? "Connected" : authState === "handoff" ? "Connected by handoff" : authState === "checking" ? "Checking connection" : "Authentication required"}</b><span>{authEmail || (authState === "required" ? "Open this builder from Chatty." : "Tenant session active")}</span>{authState === "required" && <a href={process.env.NEXT_PUBLIC_CHATTY_APP_URL ?? "https://app.personaliai.com"}><ExternalLink size={13} /> Open Chatty</a>}<button type="button" onClick={() => { setRefreshingAuth(true); window.location.reload(); }} disabled={refreshingAuth}>{refreshingAuth ? <Loader2 className="spin" size={13} /> : <RotateCcw size={13} />} Refresh connection</button></div>}</div></div>
     </header>
     <div className="workspace">

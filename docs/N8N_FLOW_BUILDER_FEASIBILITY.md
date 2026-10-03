@@ -154,4 +154,4 @@ The `n8n-nodes-base` package can be installed as an npm package, but its nodes a
 
 Chatty should not bundle n8n's editor or runtime into the SaaS without an Embed or commercial license review. The safe implementation path is to define a provider-neutral Chatty node contract, then port selected integrations as Chatty adapters. A separate n8n deployment can remain an optional execution target through signed webhooks for customers who connect their own n8n instance.
 
-The builder includes an `n8n workflow` node that calls a customer-configured n8n webhook through Chatty's SSRF-safe outbound client. This connects to an external n8n workflow without embedding n8n's editor or runtime.
+The Chatty builder does not expose an `n8n workflow` node. Connect Chatty events to a customer-configured n8n Webhook trigger through the signed webhook subscription system. This connects to an external n8n workflow without embedding n8n's editor or runtime.

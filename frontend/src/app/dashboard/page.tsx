@@ -179,6 +179,11 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    if (requestedTab) setActiveTab(requestedTab);
+  }, []);
+
+  useEffect(() => {
     try {
       window.localStorage.setItem("chatty_dashboard_sidebar_collapsed", sidebarCollapsed ? "1" : "0");
     } catch {}
@@ -4211,7 +4216,7 @@ export default function Dashboard() {
                   onClick={() => {
                     if (link.id === "flow_builder") {
                       const query = new URLSearchParams({ bot_id: botId || "" });
-                      window.open(`/flow?${query.toString()}`, "_blank", "noopener,noreferrer");
+                      window.location.assign(`/flow?${query.toString()}`);
                       setSidebarOpen(false);
                       return;
                     }

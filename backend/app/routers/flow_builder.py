@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 from collections import deque
+from datetime import datetime, timezone
 import json
 import os
 
@@ -236,6 +237,10 @@ async def _ensure_flow(body: FlowDraftRequest, user: dict[str, Any]) -> str:
     if body.flow_id:
         flow = await run_db(lambda: supabase.table("chatty_flows").select("id, bot_id").eq("id", body.flow_id).eq("bot_id", body.bot_id).maybe_single().execute())
         if flow.data:
+            await run_db(lambda: supabase.table("chatty_flows").update({
+                "name": body.name[:120],
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", body.flow_id).eq("bot_id", body.bot_id).execute())
             return body.flow_id
         raise HTTPException(status_code=404, detail="Flow not found")
     result = await run_db(lambda: supabase.table("chatty_flows").insert({
@@ -279,6 +284,57 @@ async def list_flow_versions(bot_id: str, user: dict[str, Any] = Depends(require
         flow = flow_map.get(item.get("flow_id"), {})
         versions.append({**item, "flow_name": flow.get("name", "Chatty automation"), "is_enabled": flow.get("is_enabled", item.get("is_enabled", True))})
     return {"versions": versions}
+
+
+@router.get("/flows")
+async def list_flows(bot_id: str, user: dict[str, Any] = Depends(require_flow_user)):
+    """Return saved flow identities for the builder's My flows screen.
+
+    The response contains only persisted records. It never creates or seeds a
+    placeholder flow for an empty bot.
+    """
+    await _authorize(bot_id, user)
+    flows_result = await run_db(
+        lambda: supabase.table("chatty_flows")
+        .select("id, bot_id, name, is_enabled, created_at, updated_at")
+        .eq("bot_id", bot_id)
+        .order("updated_at", desc=True)
+        .execute()
+    )
+    versions_result = await run_db(
+        lambda: supabase.table("chatty_flow_versions")
+        .select("id, flow_id, version, status, is_enabled, flow_data, created_at, published_at")
+        .eq("bot_id", bot_id)
+        .order("version", desc=True)
+        .limit(500)
+        .execute()
+    )
+
+    latest_by_flow: dict[str, dict[str, Any]] = {}
+    for version in versions_result.data or []:
+        flow_id = str(version.get("flow_id") or "")
+        if flow_id and flow_id not in latest_by_flow:
+            latest_by_flow[flow_id] = version
+
+    summaries = []
+    for flow in flows_result.data or []:
+        flow_id = str(flow.get("id"))
+        latest = latest_by_flow.get(flow_id)
+        flow_data = latest.get("flow_data") if latest else {}
+        if not isinstance(flow_data, dict):
+            flow_data = {}
+        nodes = flow_data.get("nodes") if isinstance(flow_data.get("nodes"), list) else []
+        edges = flow_data.get("edges") if isinstance(flow_data.get("edges"), list) else []
+        summaries.append({
+            **flow,
+            "latest_version": latest.get("version") if latest else None,
+            "latest_status": latest.get("status") if latest else "draft",
+            "latest_is_enabled": latest.get("is_enabled") if latest else flow.get("is_enabled", True),
+            "node_count": len(nodes),
+            "connection_count": len(edges),
+            "published_at": latest.get("published_at") if latest else None,
+        })
+    return {"flows": summaries}
 
 
 @router.patch("/state")
