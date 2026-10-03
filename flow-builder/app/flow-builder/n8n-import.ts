@@ -16,17 +16,26 @@ type N8nWorkflow = {
   connections?: Record<string, { main?: N8nConnection[][] }>;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isN8nNode(value: unknown): value is N8nNode {
+  return isRecord(value);
+}
+
 function text(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
 export function importN8nWorkflow(payload: unknown): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  if (!payload || typeof payload !== "object") throw new Error("The n8n file must contain a JSON object.");
+  if (!isRecord(payload)) throw new Error("The n8n file must contain a JSON object.");
   const workflow = payload as N8nWorkflow;
-  if (!Array.isArray(workflow.nodes) || workflow.nodes.length === 0) throw new Error("The n8n file has no workflow nodes.");
+  const sourceNodes = Array.isArray(workflow.nodes) ? workflow.nodes.filter(isN8nNode) : [];
+  if (sourceNodes.length === 0) throw new Error("The n8n file has no workflow nodes.");
 
   const ids = new Map<string, string>();
-  const nodes = workflow.nodes.map((source, index) => {
+  const nodes = sourceNodes.map((source, index) => {
     const name = text(source.name, `n8n node ${index + 1}`);
     const id = `n8n-${text(source.id, String(index + 1)).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
     const n8nType = text(source.type, "n8n-unknown");
@@ -51,12 +60,16 @@ export function importN8nWorkflow(payload: unknown): { nodes: FlowNode[]; edges:
   });
 
   const edges: FlowEdge[] = [];
-  for (const [sourceName, output] of Object.entries(workflow.connections ?? {})) {
+  const connections = isRecord(workflow.connections) ? workflow.connections : {};
+  for (const [sourceName, output] of Object.entries(connections)) {
     const from = ids.get(sourceName);
     if (!from) continue;
-    for (const branch of output.main ?? []) {
+    const branches = isRecord(output) && Array.isArray(output.main) ? output.main : [];
+    for (const branch of branches) {
+      if (!Array.isArray(branch)) continue;
       for (const connection of branch) {
-        const to = connection.node ? ids.get(connection.node) : undefined;
+        if (!isRecord(connection)) continue;
+        const to = typeof connection.node === "string" ? ids.get(connection.node) : undefined;
         if (to) edges.push({ from, to });
       }
     }

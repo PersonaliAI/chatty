@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ArrowRight, Bot, Check, ChevronDown, Clock3, Code2, Copy, Database, GitBranch, Globe2, History, LayoutGrid, Menu, MessageSquare, MoreHorizontal, Play, Plus, RotateCcw, Save, Search, Settings2, ShieldCheck, Sparkles, Terminal, Trash2, Upload, Webhook, X, Zap } from "lucide-react";
 import { chattyRequest } from "./lib";
 import { nodeCatalog, type NodeDefinition } from "./node-registry";
@@ -59,7 +59,6 @@ export default function FlowBuilderPage() {
   const [version, setVersion] = useState(0);
   const [syncState, setSyncState] = useState("Local draft");
   const [flowName, setFlowName] = useState("New workflow");
-  const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const selected = nodes.find((node) => node.id === selectedId) ?? null;
   const filteredCatalog = useMemo(() => nodeCatalog.filter((item) => {
@@ -94,28 +93,6 @@ export default function FlowBuilderPage() {
       setFlowId(latest.flow_id || selectedFlow); setFlowName(latest.flow_name || "New workflow"); setNodes(latest.flow_data.nodes ?? []); setEdges(latest.flow_data.edges ?? []); setVersion(latest.version); setPublished(latest.status === "published"); setSaved(true); setSyncState("Synced from Chatty");
     }).catch(() => setSyncState("Offline draft"));
   }, []);
-
-  useEffect(() => {
-    const move = (event: PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag) return;
-      setNodes((current) => current.map((node) => node.id === drag.id
-        ? { ...node, x: Math.max(12, event.clientX - drag.dx), y: Math.max(72, event.clientY - drag.dy) }
-        : node));
-      setSaved(false);
-    };
-    const end = () => { dragRef.current = null; };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", end);
-    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); };
-  }, []);
-
-  function startDrag(event: React.PointerEvent<HTMLDivElement>, node: FlowNode) {
-    event.stopPropagation();
-    dragRef.current = { id: node.id, dx: event.clientX - node.x, dy: event.clientY - node.y };
-    setSelectedId(node.id);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
 
   async function saveDraft(publish = false) {
     if (!botId) { setSaved(true); setSyncState("Local draft"); return; }

@@ -157,7 +157,16 @@ async def execute_flow_job(supabase, payload: dict[str, Any]) -> None:
                 status = "failed"
                 failed = f"{title} has no adapter endpoint configured"
             else:
-                body = {"event": inputs.get("event"), "session_id": inputs.get("session_id"), "data": inputs.get("data", {}), "flow_node_id": node_id}
+                body = {
+                    "event": inputs.get("event"),
+                    "session_id": inputs.get("session_id"),
+                    "data": inputs.get("data", {}),
+                    "flow_node_id": node_id,
+                    "provider": node.get("provider"),
+                    "n8n_type": node.get("n8nType"),
+                    "n8n_type_version": node.get("n8nTypeVersion"),
+                    "n8n_parameters": node.get("n8nParameters") if isinstance(node.get("n8nParameters"), dict) else {},
+                }
                 for attempt in range(_MAX_ADAPTER_ATTEMPTS):
                     try:
                         async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:

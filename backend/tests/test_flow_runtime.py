@@ -60,6 +60,8 @@ def test_execute_flow_job_orders_nodes_retries_and_records_success(monkeypatch):
 
     assert len(calls) == 3
     assert calls[-1][0:2] == ("POST", "https://example.com")
+    assert calls[-1][2]["provider"] is None
+    assert calls[-1][2]["n8n_parameters"] == {}
     assert supabase.operations[-1][1]["status"] == "completed"
     assert [step["node_id"] for step in supabase.operations[-1][1]["trace"]] == ["trigger", "action"]
 
@@ -84,3 +86,41 @@ def test_execute_flow_job_fails_unconfigured_actions(monkeypatch):
     final_update = supabase.operations[-1][1]
     assert final_update["status"] == "failed"
     assert "no adapter endpoint" in final_update["error"]
+
+
+def test_execute_flow_job_passes_n8n_node_metadata_to_adapter(monkeypatch):
+    supabase = _Supabase([
+        SimpleNamespace(data=[{"id": "run-1"}]),
+        SimpleNamespace(data={"inputs": {"event": "lead.created", "data": {"id": "lead-1"}}}),
+        SimpleNamespace(data={"flow_data": {"nodes": [
+            {"id": "trigger", "kind": "trigger", "title": "Trigger", "config": {}},
+            {
+                "id": "n8n-http",
+                "kind": "action",
+                "title": "HTTP Request",
+                "provider": "n8n",
+                "n8nType": "n8n-nodes-base.httpRequest",
+                "n8nTypeVersion": 4.2,
+                "n8nParameters": {"method": "POST", "url": "https://example.com"},
+                "config": {"url": "https://example.com"},
+            },
+        ], "edges": [{"from": "trigger", "to": "n8n-http"}]}}),
+        SimpleNamespace(data=[{"id": "run-1"}]),
+    ])
+    calls = []
+
+    async def run_db(operation):
+        return operation()
+
+    async def request_async(_client, method, url, **kwargs):
+        calls.append((method, url, kwargs["json"]))
+        return SimpleNamespace(status_code=204)
+
+    monkeypatch.setattr(flow_runtime, "run_db", run_db)
+    monkeypatch.setattr(flow_runtime.ssrf, "request_async", request_async)
+    asyncio.run(flow_runtime.execute_flow_job(supabase, {"run_id": "run-1", "version_id": "version-1"}))
+
+    assert calls[0][2]["provider"] == "n8n"
+    assert calls[0][2]["n8n_type"] == "n8n-nodes-base.httpRequest"
+    assert calls[0][2]["n8n_type_version"] == 4.2
+    assert calls[0][2]["n8n_parameters"]["method"] == "POST"
