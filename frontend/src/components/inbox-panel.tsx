@@ -1822,7 +1822,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
       <div className="inbox-workspace">
         <nav className="inbox-navigation" aria-label="Inbox views">
-          <div className="inbox-pane-title"><h2>Inbox</h2><button type="button" aria-expanded={!navigationCollapsed} aria-label={navigationCollapsed ? "Expand inbox navigation" : "Collapse inbox navigation"} onClick={() => setNavigationCollapsed(value => !value)}><PanelLeftClose className="size-4" /></button></div>
+          <div className="inbox-pane-title">
+            <h2>Inbox</h2>
+            <div className="flex items-center gap-1">
+              <InboxIdentitySettings key={botId} botId={botId} fetchBackend={fetchBackend} />
+              <button type="button" aria-expanded={!navigationCollapsed} aria-label={navigationCollapsed ? "Expand inbox navigation" : "Collapse inbox navigation"} onClick={() => setNavigationCollapsed(value => !value)}><PanelLeftClose className="size-4" /></button>
+            </div>
+          </div>
           <div className="inbox-nav-content">
             <button type="button" aria-pressed={selectedAssigneeFilter === "me"} onClick={() => { setSelectedAssigneeFilter("me"); setSelectedStatusTab("open"); }}><User className="size-4" />My inbox</button>
             <button type="button" aria-pressed={selectedStatusTab === "unassigned"} onClick={() => { setSelectedAssigneeFilter("all"); setSelectedStatusTab("unassigned"); }}><InboxIcon className="size-4" />Unassigned <span>{ticketCounts.unassigned}</span></button>
@@ -2083,7 +2089,6 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             {/* Ticket Header Bar */}
             <div className="inbox-conversation-tools flex justify-end px-3 py-1.5 border-b border-neutral-100 dark:border-neutral-800">
               <button type="button" className="inbox-back" onClick={() => selectConversation(null)}><ArrowLeft className="size-4" />Conversations</button>
-              <InboxIdentitySettings key={botId} botId={botId} fetchBackend={fetchBackend} />
               <button type="button" aria-expanded={visitorDetailsOpen} onClick={() => setVisitorDetailsOpen(value => !value)} className="text-xs font-medium flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5 shrink-0" />Visitor details</button>
             </div>
             <div data-inbox-ticket-header className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
