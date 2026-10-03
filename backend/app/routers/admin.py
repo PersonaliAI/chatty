@@ -208,6 +208,37 @@ async def admin_inbox_messages(bot_id: str, session_id: str,
     return {"messages": rows}
 
 
+@router.get("/api/admin/inbox/visitor")
+async def admin_inbox_visitor(bot_id: str, session_id: str,
+                              user: dict[str, Any] = Depends(require_user)):
+    """Conversation-scoped context, not an authenticated visitor identity."""
+    await _verify_session_inbox_access(bot_id, session_id, user)
+    sessions = (await run_db(lambda: supabase.table("chatty_sessions").select("*")
+        .eq("bot_id", bot_id).eq("session_id", session_id).limit(1).execute())).data or []
+    if not sessions:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    session = sessions[0]
+    leads = (await run_db(lambda: supabase.table("chatty_leads")
+        .select("name,email,phone,country,city,region,created_at")
+        .eq("bot_id", bot_id).eq("session_id", session_id)
+        .order("created_at", desc=True).limit(1).execute())).data or []
+    lead = leads[0] if leads else {}
+    name = session.get("visitor_name") or lead.get("name")
+    email = session.get("visitor_email") or lead.get("email")
+    return {"visitor": {
+        "session_id": session_id,
+        "name": name,
+        "email": email,
+        "phone": lead.get("phone"),
+        "identity_status": "details_provided" if name or email or lead.get("phone") else "anonymous",
+        "identity_verified": False,
+        "channel": session.get("channel") or "web",
+        "first_seen_at": session.get("created_at") or lead.get("created_at"),
+        "last_seen_at": session.get("last_message_at"),
+        "location": {key: lead.get(key) for key in ("country", "region", "city")},
+    }}
+
+
 @router.patch("/api/admin/inbox/messages/{message_id}/feedback")
 async def set_message_feedback(message_id: str, req: MessageFeedbackRequest, user: dict[str, Any] = Depends(require_user)):
     """Thumbs up/down + an optional corrected answer on an assistant message

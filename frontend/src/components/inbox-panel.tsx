@@ -51,6 +51,7 @@ import { AttachMenu } from "@/components/attach-menu";
 import { createClient } from "@/lib/supabase/client";
 import { SELF_HOST_MODE } from "@/lib/deployment";
 import { MessageList, type Msg } from "@/components/inbox-message-list";
+import { InboxVisitorDetails } from "@/components/inbox-visitor-details";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 
 const RULE_EVENT_OPTIONS: ModernSelectOption[] = [
@@ -476,6 +477,7 @@ function ModernFilterDropdown<T extends string>({
 export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f97316" }: Props) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [visitorDetailsOpen, setVisitorDetailsOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [reply, setReply] = useState("");
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -1909,6 +1911,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         ) : (
           <>
             {/* Ticket Header Bar */}
+            <div className="flex justify-end px-3 py-1.5 border-b border-neutral-100 dark:border-neutral-800">
+              <button type="button" aria-expanded={visitorDetailsOpen} onClick={() => setVisitorDetailsOpen(value => !value)} className="text-xs font-medium flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5 shrink-0" />Visitor details</button>
+            </div>
+            {visitorDetailsOpen && <InboxVisitorDetails key={`${botId}:${selected}`} botId={botId} sessionId={selected} fetchBackend={fetchBackend} formatDateTime={formatDateTime} onClose={() => setVisitorDetailsOpen(false)} />}
             <div data-inbox-ticket-header className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-40 flex items-center gap-1.5">

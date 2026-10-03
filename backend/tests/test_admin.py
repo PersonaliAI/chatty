@@ -266,6 +266,57 @@ class _RecordingSupabase:
         return _RecordingQuery(name, list(self.table_rows.get(name, [])), self.calls)
 
 
+def test_inbox_visitor_context_is_scoped_and_not_verified_identity(monkeypatch):
+    fake = _RecordingSupabase({
+        "chatty_sessions": [{"bot_id": "bot-1", "session_id": "s1", "visitor_name": "Sam"}],
+        "chatty_leads": [
+            {"bot_id": "other-bot", "session_id": "s1", "email": "private@example.com"},
+            {"bot_id": "bot-1", "session_id": "s2", "email": "other@example.com"},
+            {"bot_id": "bot-1", "session_id": "s1", "email": "sam@example.com", "phone": "123", "city": "Colombo"},
+        ],
+    })
+    monkeypatch.setattr(admin, "supabase", fake)
+    permission = AsyncMock(return_value="owner")
+    monkeypatch.setattr(admin, "_verify_session_inbox_access", permission)
+    visitor = asyncio.run(admin.admin_inbox_visitor("bot-1", "s1", OWNER))["visitor"]
+    assert visitor["name"] == "Sam"
+    assert visitor["email"] == "sam@example.com"
+    assert visitor["location"]["city"] == "Colombo"
+    assert visitor["identity_status"] == "details_provided"
+    assert visitor["identity_verified"] is False
+    permission.assert_awaited_once_with("bot-1", "s1", OWNER)
+    assert ("chatty_leads", "bot_id", "bot-1") in fake.calls
+    assert ("chatty_leads", "session_id", "s1") in fake.calls
+
+
+def test_inbox_visitor_anonymous_without_lead(monkeypatch):
+    fake = _RecordingSupabase({"chatty_sessions": [{"bot_id": "bot-1", "session_id": "s1"}]})
+    monkeypatch.setattr(admin, "supabase", fake)
+    monkeypatch.setattr(admin, "_verify_session_inbox_access", AsyncMock(return_value="owner"))
+    visitor = asyncio.run(admin.admin_inbox_visitor("bot-1", "s1", OWNER))["visitor"]
+    assert visitor["identity_status"] == "anonymous"
+    assert visitor["email"] is None
+
+
+def test_inbox_visitor_permission_denied_before_profile_lookup(monkeypatch):
+    fake = _RecordingSupabase({})
+    monkeypatch.setattr(admin, "supabase", fake)
+    monkeypatch.setattr(admin, "_verify_session_inbox_access", AsyncMock(
+        side_effect=HTTPException(status_code=403, detail="Unauthorized")))
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(admin.admin_inbox_visitor("bot-1", "s1", AGENT))
+    assert error.value.status_code == 403
+    assert fake.calls == []
+
+
+def test_inbox_visitor_missing_session(monkeypatch):
+    monkeypatch.setattr(admin, "supabase", _RecordingSupabase({}))
+    monkeypatch.setattr(admin, "_verify_session_inbox_access", AsyncMock(return_value="owner"))
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(admin.admin_inbox_visitor("bot-1", "missing", OWNER))
+    assert error.value.status_code == 404
+
+
 def test_admin_inbox_requires_inbox_permission_and_scopes_agent_to_assigned(monkeypatch):
     fake = _RecordingSupabase({
         "chatty_sessions": [
